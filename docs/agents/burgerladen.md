@@ -276,6 +276,99 @@ Dieselbe wie in der Testküche — die Stationen melden sich mit
   hat, Essen und Teller dort halb so groß (siehe oben). In der Küche gilt die Küchen-Augenhöhe (`posture.kitchenEyeScale`), und
   gesprungen wird im Laden nicht (`jumpLock`).
 
+## Das Eis
+
+Neben den Burgern gibt es im Restaurant **Eis im Hörnchen** — ohne Gäste, die
+es bestellen (das kann später kommen), aber mit allem, was man dafür in der
+Hand braucht. Gleich südlich des Kühlschranks, an der Westwand der Küche,
+steht die **Eisecke**: zwei Arbeitsplatten mit der Vorderseite nach Osten
+(`plateUpPlan.ICE_STAND` auf 0 | 1, `ICE_TUBS` auf 0 | 2 — beide in
+`blockedTiles`, also mit Körper und frei von gekauften Stationen).
+
+- Auf der nördlichen Platte ein **Stapel Hörnchen**, der nie leer wird, und
+  daneben auf einer dunklen Matte der **Portionierer**.
+- Auf der südlichen zwei **Eiswannen**: Vanille (cremegelb) und Erdbeere
+  (rosa).
+
+| Datei                               | Was darin steht                                                                                                                                                                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `worlds/plateup/plateUpIce.ts`      | **Rein**: Sorten, was die Hände vom Eis halten (`IceHands`), was ein Druck an Stand, Wanne und Station tut (`useStand`, `useTub`, `useCounter`), welche Wanne gemeint ist (`pickTub`, `tubUnder`), über welchem Hörnchen der Portionierer ist (`coneUnder`), Verben, Sätze |
+| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der wackelige Turm — Feder je Kugel, geschlossen gelöst, unabhängig von der Bildrate (`stepWobble`)                                                                                                                                                            |
+| `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke, Hörnchen mit Kugeln (`IceConeView`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht                                                                                                                                   |
+| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Neigen, nie herunter, 30 gegen 144 Bilder je Sekunde)                                                                                                               |
+
+**In der Brille sind es zwei Dinge für zwei Hände.** Eine Hand greift am
+Stapel ein Hörnchen (Greif-Taste oder Trigger), die **andere** den
+Portionierer — dieselbe Hand nimmt nicht beides (`standDeed`). Den
+Portionierer **in eine Wanne tauchen**: Steckt seine Schale im Kasten der
+Wanne (`tubUnder`, oben 3 cm Luft), trägt er eine Kugel dieser Sorte; das
+geht ohne Knopf, und ebenso über die Anmeldung der Wanne (Berührung oder
+Trigger mit der Hand des Portionierers). **Über das Hörnchen halten**: Kommt
+die Schale der Spitze des Turms auf 9 cm nahe (`coneUnder`), sitzt die Kugel
+oben drauf — auch auf einem Hörnchen, das auf einer Platte steht. Beliebig
+oft. Zurückgelegt wird der Portionierer an seiner Matte (Greif-Taste halten
+und dort loslassen), ein leeres Hörnchen auf den Stapel.
+
+**Am Schirm gibt es eine Hand, also einen Druck.** `A`/`E` am Stand gibt
+**Hörnchen samt Portionierer** (`IceHands.coneHand = null` — der Portionierer
+gehört dann zum Hörnchen und ist kein eigenes Ding), und `A` an einer Wanne
+setzt gleich eine Kugel aufs Hörnchen (`scoop`). Der Portionierer ist dabei
+neben dem Hörnchen zu sehen. Ein leeres Hörnchen geht mit `A` am Stand
+zurück.
+
+**Nur die eine Wanne leuchtet.** Die beiden stehen eine Handbreit
+nebeneinander, und jede ist ein eigener Anker (`IceCorner.tubs`) — ein
+gemeinsamer hätte beide zugleich umrandet. Am Schirm reicht das nicht: Die
+Auswahl des Kerns rechnet mit Zylindern von mindestens 40 cm
+(`usable.USE_RADIUS`), die sich hier fast ganz überdecken, und dann gewinnt
+die nähere Vorderkante — schräg davor also die nähere Wanne und nicht die
+angeschaute. Deshalb ist am Schirm **nur eine** angemeldet, die mit dem
+kleinsten Winkel zum Blick (`pickTub`: von oben die Richtung der Figur, aus
+den Augen die des Kopfes). In der Brille sind beide angemeldet, denn dort
+wählt die Hand mit einer Greifbox so groß wie die Wanne.
+
+**Der Turm wackelt, fällt aber nie** (`plateUpWobble.ts`). Jede Kugel hängt
+an einer gedämpften Feder an der Kugel darunter, und die Federn werden nach
+oben weicher — beim Losgehen bleiben die oberen Kugeln weiter zurück als die
+unteren und schwingen nach. Die Richtung des Turms folgt der Achse des
+Hörnchens mit einer Zeitkonstante von 0,35 s (`WOBBLE.tilt`) und hängt am
+Ende etwas weiter durch als das Hörnchen (`WOBBLE.sag`): Schräg gehalten
+neigt er sich langsam in dieselbe Richtung. Keine Kugel kommt weiter als
+0,45 Kugelabstände von ihrem Platz auf der unteren weg (`WOBBLE.lean`) —
+das ist das „nie herunter", als Zeile. Gerechnet wird in der Welt und erst
+danach in den Raum des Hörnchens zurückgelegt; die Feder ist geschlossen
+gelöst, und ein Bild wird in Stücke von 1/120 s geteilt, zwischen denen
+Hörnchen und Achse gleichmäßig wandern — 30 und 144 Bilder je Sekunde
+ergeben denselben Turm (Test: unter 3 mm nach zwei Sekunden Schwenken).
+
+**Wohin mit dem Eis.** Es belegt dieselbe Hand wie ein Teller: Wer es hält,
+nimmt nichts anderes, bedient keinen Tisch und nimmt keinen Bauplan. Es geht
+auf eine **freie Arbeitsplatte** oder die **Durchreiche** und von dort
+wieder in die Hand, und in den **Mülleimer** (`counterDeed`). Die Hand mit
+dem Portionierer bedient keine Station. Das Eis ist bewusst **kein `Dish`**:
+Der Belag eines `Dish` ist eine Menge (zwei Kugeln Vanille gäbe es darin
+nicht), und jede neue Sorte wäre eine Zeile in den Tabellen der Testküche.
+Über Nacht und mit `B`/`Y` ist alles Eis weg, in den Händen wie auf den
+Platten.
+
+**Modelle** aus _Restaurant Bits_ im Regal (`core/kaykitModel`, auf Maß
+gebracht statt dem Paketmaßstab zu trauen): `icecream_cone` (14 cm),
+`icecream_cone_stacked` (26 cm), `icecream_scoop` (20 cm; die Datei steht
+aufrecht, Schale oben — in der Hand umgelegt, Schale nach vorn) und
+`icecream_container_icecream_vanilla`/`_strawberry` (30 cm lang). Gebaut
+sind nur die Kugeln: eine Kugelgeometrie und ein Material je Sorte für alle.
+Ein Turm kostet eine Zeichnung je Kugel. Auf einer Platte steht ein Eis 1,6-
+mal so groß, von oben vor dem Bauch 2,2-mal — sonst sähe man es nicht.
+
+Zum Prüfen: `window.bgvr.world.debugIce(['vanilla', 'strawberry'])` legt ein
+Eis mit diesen Kugeln in die Hand (wie am Schirm).
+
+**Offen beim Eis**: Kein Gast bestellt es, und auf einen Teller geht es nicht.
+Nicht geteilt (wie der ganze Laden). Die Lage des Portionierers in der Hand
+und die 9 cm zum Absetzen sind ohne Brille eingestellt und nicht in einer
+nachgemessen; der Portionierer hängt nicht an den Griffen aus
+`core/grabHandles.ts`, sondern an einer festen Stelle von `ControllerState.hold`.
+
 ## Zum Prüfen
 
 Die Welt hat ein paar Handgriffe für die Bild-Schleife, aufrufbar über

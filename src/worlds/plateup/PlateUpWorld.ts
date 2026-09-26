@@ -39,6 +39,8 @@ import {
   DOOR_INSIDE,
   DOOR_OUTSIDE,
   KITCHEN_AREA,
+  ICE_STAND,
+  ICE_TUBS,
   PASS_END,
   ROOM,
   SPAWN_TILE,
@@ -102,6 +104,34 @@ import {
 } from './plateUpShop';
 import { tutorialFinished, tutorialHint, type TutorialHint } from './plateUpTutorial';
 import { clearanceAbove, stationAction, tableAction } from './plateUpHints';
+import {
+  EMPTY_ICE,
+  FLAVOR_LABELS,
+  coneKey,
+  coneLabel,
+  counterDeed,
+  coneUnder,
+  dropBall,
+  dropIntoHand,
+  iceInteraction,
+  icePrompt,
+  iceVerb,
+  pickTub,
+  standDeed,
+  tubDeed,
+  tubUnder,
+  useCounter,
+  useStand,
+  useTub,
+  type IceCone,
+  type IceDeed,
+  type IceFlavor,
+  type IceHands,
+  type IcePart,
+  type IceStation,
+  type OtherHeld,
+} from './plateUpIce';
+import { IceCorner } from './plateUpIceView';
 
 /**
  * **Der Burgerladen** — eine kleine Küchenwelt mit Gastraum und einem Spiel
@@ -223,6 +253,18 @@ export class PlateUpWorld extends GridWorld {
    * Sekunde an, und ein Gast bräuchte dort Minuten bis zu seinem Stuhl.
    */
   private shopSpeed = 1;
+  /** **Das Eis** (`plateUpIce.ts`): Hörnchen und Portionierer in den Händen. */
+  private ice: IceHands = EMPTY_ICE;
+  /** Die abgestellten Eise, je Station-Id. */
+  private iceShelf: ReadonlyMap<string, IceCone> = new Map();
+  /** Die Eisecke und alles vom Eis, was zu sehen ist (`plateUpIceView.ts`). */
+  private readonly iceCorner = new IceCorner();
+  /** Welche Anmeldung der Eisecke gerade gilt — ändert er sich, wird neu angemeldet. */
+  private iceKey = '';
+  /** Der letzte Satz vom Eis und wann — derselbe Satz kommt nicht jedes Bild. */
+  private iceSaid = '';
+  private iceSaidAt = -Infinity;
+  private iceClock = 0;
 
   /**
    * **Die Tastenhilfe im Laden** (`core/controlHints.ts`): `A` nimmt und legt
@@ -235,7 +277,7 @@ export class PlateUpWorld extends GridWorld {
     const phase = this.shift.phase;
     return {
       kind: 'burger',
-      holding: this.carried !== null,
+      holding: this.carried !== null || this.ice.cone !== null || this.ice.scoop !== null,
       closed: phase !== 'open' && phase !== 'closing',
       action: this.pickedAction(),
     };
@@ -249,6 +291,8 @@ export class PlateUpWorld extends GridWorld {
   private pickedAction(): string | null {
     const object = this.pickedObject();
     if (!object) return null;
+    const ice = this.iceAction(object);
+    if (ice !== undefined) return ice;
     if (object === this.aimAnchor) return this.aim?.ok ? 'Hinstellen' : 'Passt hier nicht';
     if (this.offerViews.some((offer) => offer.anchor === object)) return 'Bauplan nehmen';
     const station = this.stationViews.find((view) => view.anchor === object);
@@ -350,6 +394,7 @@ export class PlateUpWorld extends GridWorld {
     for (const piece of DECOR) if (piece.solid) this.addBlock(piece.x, piece.z, piece.solid);
     for (const spot of STATIONS) this.addBlock(spot.x + 0.5, spot.z + 0.5, [1, 1]);
     this.buildStations();
+    this.buildIce();
     this.buildTables();
     this.buildBell();
     this.buildBoards();
@@ -379,6 +424,7 @@ export class PlateUpWorld extends GridWorld {
     this.stepShop(ctx);
     this.refreshUsables();
     this.carryInHands(ctx);
+    this.stepIce(dt, ctx);
     this.carryBlueprint(ctx);
     this.refreshBoards(ctx);
     this.refreshStrip(ctx);
@@ -511,6 +557,8 @@ export class PlateUpWorld extends GridWorld {
     this.southGlass = null;
     this.southMeshes.length = 0;
     this.kit.dispose();
+    this.iceCorner.dispose();
+    this.iceKey = '';
     this.stationViews.length = 0;
     this.tableViews.length = 0;
     super.dispose(ctx);
@@ -739,6 +787,8 @@ export class PlateUpWorld extends GridWorld {
       this.announce('Erst den Bauplan hinstellen — oder im Menü zurücklegen');
       return false;
     }
+    const ice = this.useIceAtStation(state, by);
+    if (ice !== null) return ice;
     const result = useStation(this.carried, state);
     const deed = result.deed;
     if (deed.do === 'nothing') return false;
@@ -763,7 +813,8 @@ export class PlateUpWorld extends GridWorld {
       const near =
         !!view &&
         Math.hypot(feet.x - view.anchor.position.x, feet.z - view.anchor.position.z) < NEAR_STATION;
-      const tick = tickStation(state, dt, near, !this.carried && !this.blueprint && !toHand, burn);
+      const free = !this.carried && !this.blueprint && !toHand && !this.ice.cone;
+      const tick = tickStation(state, dt, near, free, burn);
       if (tick.station !== state) changed = true;
       if (tick.toHand) toHand = tick.toHand;
       if (tick.burnt) {
@@ -839,6 +890,290 @@ export class PlateUpWorld extends GridWorld {
     }
   }
 
+  // --- Das Eis ---------------------------------------------------------------
+
+  /** **Die Eisecke**: Körper für beide Platten, Anker und Modelle (`plateUpIceView.ts`). */
+  private buildIce(): void {
+    for (const spot of [ICE_STAND, ICE_TUBS]) this.addBlock(spot.x + 0.5, spot.z + 0.5, [1, 1]);
+    this.iceCorner.build(this.root);
+    this.iceKey = '';
+  }
+
+  /** Was außer dem Eis in der Hand liegt — ein Teller, ein Bauplan. */
+  private otherHeld(): OtherHeld {
+    return { busy: this.carried !== null || this.blueprint !== null, hand: this.carriedHand };
+  }
+
+  private iceStation(state: StationState): IceStation {
+    return {
+      kind: state.spot.kind,
+      taken: state.on !== null,
+      cone: this.iceShelf.get(state.spot.id) ?? null,
+    };
+  }
+
+  /** Was ein Druck an dieser Station mit dem Eis täte — `null`: Sache der Küche. */
+  private iceDeedAt(state: StationState, hand: Handedness | null): IceDeed | null {
+    return counterDeed(this.ice, hand, this.iceStation(state), this.otherHeld());
+  }
+
+  /** Der Teil des Anmeldeschlüssels einer Station, der am Eis hängt. */
+  private iceStationKey(state: StationState): string {
+    const shelf = this.iceShelf.get(state.spot.id) ?? null;
+    return `${coneKey(this.ice.cone)}|${this.ice.scoop?.hand ?? ''}|${coneKey(shelf)}`;
+  }
+
+  /** Eine Station, an der es ums Eis geht, meldet die Tat des Eises an. */
+  private addIceStationUsable(view: StationView, deed: IceDeed): void {
+    const index = view.index;
+    const usable: Usable = {
+      use: (by) => this.useStationAt(index, by),
+      usePrompt: () => {
+        const now = this.iceDeedAt(this.stations[index]!, null);
+        return now ? icePrompt(now) : '';
+      },
+      interaction: iceInteraction(deed),
+    };
+    this.addUsable(view.anchor, usable, { radius: 0.5, half: 0.6 });
+  }
+
+  /**
+   * **Ein Druck an einer Station, soweit er das Eis betrifft** — abstellen,
+   * wieder nehmen, wegwerfen (`plateUpIce.useCounter`). `null`: Das Eis hat
+   * damit nichts zu tun, die Küche entscheidet.
+   */
+  private useIceAtStation(state: StationState, by: UseSource): boolean | null {
+    const hand = by.hand ?? null;
+    const use = useCounter(this.ice, hand, this.iceStation(state), this.otherHeld());
+    if (!use) return null;
+    if (use.deed.do === 'refuse') {
+      this.iceSay(use.deed.why);
+      return false;
+    }
+    if (use.deed.do === 'nothing') return false;
+    this.ice = use.hands;
+    const shelf = new Map(this.iceShelf);
+    if (use.deed.do === 'put' && use.cone) shelf.set(state.spot.id, use.cone);
+    if (use.deed.do === 'pick') shelf.delete(state.spot.id);
+    this.iceShelf = shelf;
+    if (hand) this.lastHand = hand;
+    playPick(use.deed.do === 'pick');
+    if (use.deed.do === 'trash') this.announce('Eis weggeworfen');
+    return true;
+  }
+
+  /**
+   * **Die Anmeldungen der Eisecke** — und hier fällt die Entscheidung, welche
+   * Wanne leuchtet.
+   *
+   * **Am Schirm** ist der Stand ein Ding (Hörnchen samt Portionierer), und von
+   * den beiden Wannen ist nur **eine** angemeldet: die, auf die die Figur am
+   * geradesten schaut (`plateUpIce.pickTub`). Zwei Anmeldungen so dicht
+   * nebeneinander überdeckten sich in der Auswahl des Kerns fast ganz.
+   * **In der Brille** sind Stapel und Portionierer zwei Dinge für zwei Hände,
+   * und beide Wannen sind angemeldet: Dort wählt die Hand, und ihre Greifbox
+   * ist so groß wie die Wanne, nicht wie ein Zylinder von 40 cm.
+   */
+  private refreshIceUsables(ctx: WorldContext): void {
+    const xr = ctx.renderer.xr.isPresenting;
+    const corner = this.iceCorner;
+    let tub = -1;
+    if (!xr) {
+      const forward = ctx.topDown
+        ? _v.set(Math.sin(ctx.avatar.bodyYaw), 0, Math.cos(ctx.avatar.bodyYaw))
+        : ctx.camera.getWorldDirection(_v);
+      tub = pickTub(ctx.rig.position, forward, corner.tubSpots());
+    }
+    const ice = this.ice;
+    const other = this.otherHeld();
+    const key = [
+      xr,
+      tub,
+      coneKey(ice.cone),
+      ice.coneHand ?? '',
+      ice.scoop?.hand ?? '',
+      ice.scoop?.ball ?? '',
+      other.busy,
+    ].join(':');
+    if (key === this.iceKey) return;
+    this.iceKey = key;
+    const standUsable = (part: IcePart, deed: IceDeed): Usable => ({
+      use: (by) => this.useStandAt(part, by.hand ?? null),
+      usePrompt: () => icePrompt(standDeed(this.ice, part, null, this.otherHeld())),
+      interaction: iceInteraction(deed),
+    });
+    if (xr) {
+      this.removeUsable(corner.stand);
+      const cones: IceDeed =
+        ice.cone && !ice.cone.balls.length ? { do: 'return-cone' } : { do: 'take-cone' };
+      const scoop: IceDeed = ice.scoop ? { do: 'return-scoop' } : { do: 'take-scoop' };
+      this.addUsable(corner.cones, standUsable('cones', cones), { radius: 0.4, half: 0.4 });
+      this.addUsable(corner.scoop, standUsable('scoop', scoop), { radius: 0.4, half: 0.4 });
+    } else {
+      this.removeUsable(corner.cones);
+      this.removeUsable(corner.scoop);
+      const deed = standDeed(ice, 'stand', null, other);
+      this.addUsable(corner.stand, standUsable('stand', deed), { radius: 0.5, half: 0.6 });
+    }
+    corner.tubs.forEach((view, i) => {
+      if (!xr && i !== tub) {
+        this.removeUsable(view.anchor);
+        return;
+      }
+      const usable: Usable = {
+        use: (by) => this.useTubAt(i, by.hand ?? null),
+        usePrompt: () => icePrompt(tubDeed(this.ice, view.flavor, null)),
+        interaction: iceInteraction(tubDeed(ice, view.flavor, null)),
+      };
+      this.addUsable(view.anchor, usable, { radius: 0.4, half: 0.5 });
+    });
+  }
+
+  /** Ein Druck am Stand: Hörnchen oder Portionierer nehmen oder zurücklegen. */
+  private useStandAt(part: IcePart, hand: Handedness | null): boolean {
+    if (this.blueprint) {
+      this.announce('Erst den Bauplan hinstellen — oder im Menü zurücklegen');
+      return false;
+    }
+    const use = useStand(this.ice, part, hand, this.otherHeld());
+    const deed = use.deed;
+    if (deed.do === 'refuse') {
+      this.iceSay(deed.why);
+      return false;
+    }
+    if (deed.do === 'nothing') return false;
+    this.ice = use.hands;
+    // `lastHand` bleibt, wie es war: In sie wandert der saubere Teller aus der
+    // Spüle, und die Hand mit dem Portionierer hat dafür keinen Platz.
+    playPick(deed.do === 'take-cone' || deed.do === 'take-scoop');
+    if (deed.do === 'take-cone') {
+      this.iceSay(
+        this.ice.coneHand
+          ? 'Hörnchen in der Hand — mit der anderen Hand den Portionierer nehmen'
+          : 'Hörnchen und Portionierer — jetzt an eine der Eiswannen',
+      );
+    } else if (deed.do === 'take-scoop') {
+      this.iceSay('In eine Wanne tauchen, dann über das Hörnchen halten');
+    }
+    return true;
+  }
+
+  /** Ein Druck an einer Wanne: eintauchen (Brille) oder gleich eine Kugel aufs Hörnchen. */
+  private useTubAt(index: number, hand: Handedness | null): boolean {
+    const tub = this.iceCorner.tubs[index];
+    if (!tub) return false;
+    const use = useTub(this.ice, tub.flavor, hand);
+    if (use.deed.do === 'refuse') {
+      this.iceSay(use.deed.why);
+      return false;
+    }
+    if (use.deed.do === 'nothing') return false;
+    this.ice = use.hands;
+    this.iceTone(use.deed.do === 'scoop');
+    return true;
+  }
+
+  /** Ein kurzer, weicher Ton — tiefer beim Eintauchen, höher, wenn die Kugel sitzt. */
+  private iceTone(placed: boolean): void {
+    const from = placed ? 660 : 330;
+    playTone({ type: 'sine', from, to: from * 1.25, duration: 0.12, gain: 0.04 });
+  }
+
+  /**
+   * **Ein Bild vom Eis**: anmelden, in die Hände hängen, auf die Platten
+   * stellen — und in der Brille die Geometrie des Portionierers: Steckt seine
+   * Schale in einer Wanne, trägt er eine Kugel; ist sie über einem Hörnchen,
+   * setzt er sie ab.
+   */
+  private stepIce(dt: number, ctx: WorldContext): void {
+    this.iceClock += dt;
+    this.refreshIceUsables(ctx);
+    if (this.iceCorner.carry(this.ice, ctx, dt, this.carryPoint)) {
+      ctx.avatar.carry = this.carryPoint;
+    }
+    this.iceCorner.showShelf(
+      this.iceShelf,
+      (id) => {
+        const view = this.stationViews.find((v) => v.spot.id === id);
+        return view ? { anchor: view.anchor, top: view.top } : null;
+      },
+      dt,
+    );
+    if (ctx.renderer.xr.isPresenting) this.scoopByHand();
+  }
+
+  /** In der Brille: eintauchen und absetzen, ohne einen Knopf zu drücken. */
+  private scoopByHand(): void {
+    const scoop = this.ice.scoop;
+    const tip = this.iceCorner.scoopTip(this.ice, _v);
+    if (!scoop || !tip) return;
+    if (!scoop.ball) {
+      const tub = this.iceCorner.tubs[tubUnder(tip, this.iceCorner.tubBoxes())];
+      if (!tub) return;
+      this.ice = { ...this.ice, scoop: { ...scoop, ball: tub.flavor } };
+      this.iceTone(false);
+      return;
+    }
+    const tops: THREE.Vector3[] = [];
+    const held = this.ice.cone ? this.iceCorner.heldTop(new THREE.Vector3()) : null;
+    if (held) tops.push(held);
+    const shelf = this.iceCorner.shelfTops();
+    for (const entry of shelf) tops.push(entry.top);
+    const hit = coneUnder(tip, tops);
+    if (hit < 0) return;
+    if (held && hit === 0) {
+      this.ice = dropIntoHand(this.ice).hands;
+    } else {
+      const id = shelf[hit - (held ? 1 : 0)]?.id;
+      const cone = id ? this.iceShelf.get(id) : undefined;
+      const done = cone ? dropBall(cone, scoop) : null;
+      if (!id || !done) return;
+      this.iceShelf = new Map(this.iceShelf).set(id, done.cone);
+      this.ice = { ...this.ice, scoop: done.scoop };
+    }
+    this.iceTone(true);
+  }
+
+  /** Das Verb für die Tastenhilfe, wenn das Gewählte zum Eis gehört — sonst `undefined`. */
+  private iceAction(object: THREE.Object3D): string | null | undefined {
+    const corner = this.iceCorner;
+    if (object === corner.stand || object === corner.cones || object === corner.scoop) {
+      return iceVerb(standDeed(this.ice, 'stand', null, this.otherHeld()));
+    }
+    const tub = corner.tubs.find((view) => view.anchor === object);
+    if (tub) return iceVerb(tubDeed(this.ice, tub.flavor, null));
+    const station = this.stationViews.find((view) => view.anchor === object);
+    const state = station ? this.stations[station.index] : undefined;
+    const deed = state ? this.iceDeedAt(state, null) : null;
+    return deed ? iceVerb(deed) : undefined;
+  }
+
+  /** Was vom Eis in der Hand ist — für die Leiste unten. */
+  private iceHandText(): string {
+    const parts: string[] = [];
+    if (this.ice.cone) parts.push(coneLabel(this.ice.cone));
+    const ball = this.ice.scoop?.ball;
+    if (ball) parts.push(`Portionierer (${FLAVOR_LABELS[ball]})`);
+    else if (this.ice.scoop || this.ice.cone) parts.push('Portionierer');
+    return parts.join(' und ');
+  }
+
+  /** Ein Satz vom Eis — derselbe nicht öfter als alle zweieinhalb Sekunden. */
+  private iceSay(message: string): void {
+    if (message === this.iceSaid && this.iceClock - this.iceSaidAt < 2.5) return;
+    this.iceSaid = message;
+    this.iceSaidAt = this.iceClock;
+    this.announce(message);
+  }
+
+  /** Nichts mehr vom Eis — in den Händen nicht und auf keiner Platte. */
+  private clearIce(): void {
+    this.ice = EMPTY_ICE;
+    this.iceShelf = new Map();
+    this.iceCorner.clearHeld();
+    this.iceKey = '';
+  }
+
   // --- Tische, Glocke, Tafeln -----------------------------------------------
 
   private buildTables(): void {
@@ -884,6 +1219,10 @@ export class PlateUpWorld extends GridWorld {
   }
 
   private useTable(index: number, by: UseSource): boolean {
+    if (this.ice.cone) {
+      this.announce('Eis steht nicht auf der Karte — erst abstellen oder wegwerfen');
+      return false;
+    }
     const deed = this.tableDeed(index);
     if (deed.do === 'take') {
       const next = clearDish(this.shift, index);
@@ -1120,6 +1459,7 @@ export class PlateUpWorld extends GridWorld {
     this.sold.clear();
     this.stations = freshStations(this.stationSpots());
     this.setHeld(null, null);
+    this.clearIce();
     this.shift = { ...openDay(this.shift), decor: decorCount(this.placed) };
     this.refreshDirty();
     this.announce(`Tag ${this.shift.day}: Der Laden ist offen!`);
@@ -1136,9 +1476,14 @@ export class PlateUpWorld extends GridWorld {
     for (const view of this.stationViews) {
       const state = this.stations[view.index]!;
       const deed = stationDeed(this.carried, state);
-      const key = `${deed.do}:${this.carried ? dishKey(this.carried) : ''}:${state.on ? dishKey(state.on) : ''}`;
+      const ice = this.iceDeedAt(state, null);
+      const key = `${ice?.do ?? deed.do}:${this.carried ? dishKey(this.carried) : ''}:${state.on ? dishKey(state.on) : ''}:${this.iceStationKey(state)}`;
       if (key === view.deedKey) continue;
       view.deedKey = key;
+      if (ice) {
+        this.addIceStationUsable(view, ice);
+        continue;
+      }
       if (deed.do === 'nothing') {
         this.removeUsable(view.anchor);
         continue;
@@ -1363,6 +1708,7 @@ export class PlateUpWorld extends GridWorld {
     this.shift = newShift(Date.now() % 100000);
     this.stations = freshStations(this.stationSpots());
     this.setHeld(null, null);
+    this.clearIce();
     this.blueprint = null;
     this.sold.clear();
     this.clearPlaced();
@@ -1665,7 +2011,7 @@ export class PlateUpWorld extends GridWorld {
 
   private takeBlueprint(item: ShopItem, hand: Handedness | null = null): boolean {
     if (this.shift.phase !== 'closed') return false;
-    if (this.carried) {
+    if (this.carried || this.ice.cone || this.ice.scoop) {
       this.announce('Erst die Hände frei machen');
       return false;
     }
@@ -2075,7 +2421,9 @@ export class PlateUpWorld extends GridWorld {
       ? `Bauplan: ${this.blueprint.label}${this.aim ? (this.aim.ok ? ' — hier passt es (A)' : ` — ${this.aim.why}`) : ''}`
       : this.carried
         ? `In der Hand: ${dishLabel(this.carried)}`
-        : '';
+        : this.ice.cone || this.ice.scoop
+          ? `In der Hand: ${this.iceHandText()}`
+          : '';
     const key = `${tip}|${hand}`;
     // `display` und nicht `hidden`: Das `display:flex` der Leiste schlüge das
     // Attribut.
@@ -2157,6 +2505,13 @@ export class PlateUpWorld extends GridWorld {
       deluxe: dish('plate', ['bun', 'patty-cooked', 'lettuce-cut', 'tomato-cut']),
     };
     this.setHeld(parts[recipe] ?? parts.hamburger!, null);
+  }
+
+  /** Ein Eis mit diesen Sorten in die Hand legen, wie am Schirm (nur zum Prüfen). */
+  debugIce(flavors: readonly string[] = []): void {
+    const balls = flavors.filter((f): f is IceFlavor => f === 'vanilla' || f === 'strawberry');
+    this.setHeld(null, null);
+    this.ice = { cone: { balls }, coneHand: null, scoop: null };
   }
 
   /** An einem Tisch servieren, als stünde man davor. */
