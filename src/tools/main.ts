@@ -5,6 +5,7 @@ import { BAG_ITEMS, createPropShape } from '../worlds/portal/props';
 import { NPC_SKINS } from '../worlds/npc/npcKinds';
 import { NPC_BAR_MODES } from '../worlds/npc/NpcBody';
 import { NAV_LAYERS } from '../worlds/nav/navLayers';
+import { infoViewKeys } from '../ui/infoViewMenu';
 import { NAV_SWITCHES } from '../worlds/nav/navSwitches';
 import { BRAINS } from '../worlds/npc/npcBrains';
 import { NpcBody } from '../worlds/npc/NpcBody';
@@ -1348,6 +1349,17 @@ function buildLabShow(): void {
     labDraws.push(draw);
     labShow.append(key);
   }
+
+  // **Und das Optionsfeld der Info-Ansichten** (`ui/infoViewMenu.ts`) —
+  // dasselbe wie am Handgelenk unter _Navigation zeigen → Darstellung_, hier
+  // als Knöpfe in derselben Reihe: nur 2D-Pfad, Wände, Räume, NPCs,
+  // Deckkraft.
+  const look = infoViewKeys('nav', 'lab__layer lab__layer--look');
+  for (const key of look.keys) {
+    key.style.setProperty('--key', hexColor(0x7fb3ff));
+    labShow.append(key);
+  }
+  labDraws.push(look.draw);
 
   // Und die Lebensbalken, als eine Zeile mit drei Stellungen: Sie gehören zu
   // dem, was man sehen will, aber nicht zum Gitter.

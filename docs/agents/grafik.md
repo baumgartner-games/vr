@@ -471,7 +471,11 @@ meisten umgebaut wird. Im Konfig-Code stehen sie (noch) nicht: Der trägt die
 Ausrüstung, und eine Ansicht ist keine. Das Feld selbst ist ein gewöhnlicher
 `MenuEntry` mit Kindern (`infoViewOptionsEntry(id)`, `infoViewsMenu()`) und
 kennt weder die Grafik- noch die NPC-Seite, in denen es heute hängt — ein
-neues Hauptmenü hängt es mit einer Zeile woanders ein.
+neues Hauptmenü hängt es mit einer Zeile woanders ein. Für Seiten ohne Menü gibt es
+dasselbe Feld als **Knopfreihe** (`infoViewKeys`): Auf der Werkzeugseite steht
+es unter der laufenden Vorschau neben den Ebenen der Navigation — dieselben
+Namen, derselbe Speicher, und eine laufende Welt zieht nach, sobald sich die
+Fassung am Speicher bewegt.
 
 ## Squishy: die Figur federt beim Laufen und atmet im Stehen
 

@@ -137,3 +137,50 @@ function paint(row: MenuEntry, id: InfoViewId): void {
   }
   row.checked = options[option];
 }
+
+/**
+ * **Dasselbe Feld als Knopfreihe** — für Seiten ohne Menü, die Werkzeugseite
+ * (`tools/main.ts`, unter der laufenden Vorschau). Dieselben Optionen, dieselben
+ * Namen, derselbe Speicher; nur die Form ist die der Ebenen daneben: ein
+ * Knopf je Option, gedrückt heißt an. `className` ist die Klasse der Knöpfe
+ * der Seite, in die sie gehängt werden.
+ *
+ * Zurück kommen die Knöpfe und eine Funktion, die sie nach dem Speicher neu
+ * beschriftet — für den, der den Stand von woanders ändert.
+ */
+export function infoViewKeys(
+  id: InfoViewId,
+  className: string,
+  changed: (message: string) => void = () => {},
+): { keys: HTMLButtonElement[]; draw: () => void } {
+  const keys: HTMLButtonElement[] = [];
+  const draws: (() => void)[] = [];
+  for (const option of infoViewSpec(id).supports) {
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.className = className;
+    key.title = INFO_OPTION_SUBS[option];
+    key.dataset.infoOption = option;
+    const draw = (): void => {
+      const options = infoView(id);
+      if (option === 'opacity') {
+        key.textContent = `${INFO_OPTION_LABELS.opacity} ${INFO_OPACITY_LABELS[options.opacity]}`;
+        key.setAttribute('aria-pressed', String(options.opacity !== 1));
+        return;
+      }
+      key.textContent = INFO_OPTION_LABELS[option];
+      key.setAttribute('aria-pressed', String(options[option]));
+    };
+    key.addEventListener('click', () => {
+      const next = saveInfoView(id, toggleInfoOption(infoView(id), option));
+      draw();
+      const state =
+        option === 'opacity' ? INFO_OPACITY_LABELS[next.opacity] : next[option] ? 'an' : 'aus';
+      changed(`${INFO_OPTION_LABELS[option]} ${state}`);
+    });
+    draw();
+    draws.push(draw);
+    keys.push(key);
+  }
+  return { keys, draw: () => draws.forEach((draw) => draw()) };
+}
