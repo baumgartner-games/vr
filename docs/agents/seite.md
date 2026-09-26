@@ -887,6 +887,17 @@ nur noch ausführt:
 | Der Deckel war schneller als die Leitung (`dauert`) | frei | `Die Welt lädt noch — Beitreten geht trotzdem.` | läuft |
 | Sie kam nicht (`fehlt`, `App.onWorldFailed`) | frei | `Die Welt kam nicht an — Beitreten versucht es noch einmal.` | steht still |
 | Hinter einer Lobby (`#haunting`) | frei | — | weg |
+| Eine **andere** Welt gewählt, nachdem in dieser Sitzung schon eine stand (`lädt`/`ruht` mit `once`) | **frei** | — | weg |
+
+**Die vorletzte Zeile: einmal geladen ist für alle geladen.** Gemeldet war:
+_„Bei der Startseite wird ja der Beitreten Button einmal geladen, aber
+anscheinend wenn ich die Welt wechsle bzw. auswähle fängt er erneut an zu
+prüfen, ist doch unnötig, er kann es doch einmal für alle laden."_ Was alle
+Welten brauchen — die Hülle, three.js, die Physik, die Prüfung des Speichers
+— ist nach der ersten Welt da (`main.ts`, `worldStoodOnce`). Wer danach eine
+andere Karte tippt, bekommt keinen stumpfen Knopf und keinen Balken mehr; die
+gewählte Welt kommt im Hintergrund (`pickWorld` → `ensureWorld`), und wer
+vorher drückt, wartet beim Hineingehen auf sie.
 
 **Die dritte Zeile ist die Entscheidung**, die man leicht andersherum trifft.
 Wo nicht vorgewärmt wird, lädt niemand — ein Knopf, der dort auf das Ende

@@ -137,6 +137,16 @@ export class EditorWorld extends GridWorld {
     return { floor: 0x39415a, wall: 0x6a7590, door: 0xe58aa8 };
   }
 
+  /**
+   * **Wände nur aus dem Regal** (`GridWorld.shelfPlanWalls`) — gewünscht:
+   * _„In der Bauplatz Welt sollen nur Wände von kaykit genutzt werden."_ Was
+   * man malt, bleibt eine Wand im Plan (gespeichert, geplant, begehbar wie
+   * immer); zu sehen ist an ihrer Stelle die Prototypwand.
+   */
+  protected override shelfPlanWalls(): boolean {
+    return true;
+  }
+
   protected override editorTitle(): string {
     return 'Bauplatz';
   }

@@ -5,7 +5,17 @@ import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { clearPlanWalls } from '../grid/shelfWalls';
-import type { PlanSolidKind } from '../grid/solids';
+import type { PlanSolid, PlanSolidKind } from '../grid/solids';
+import { canLoadModels } from '../../core/chefFit';
+import { PLAN_FLOOR_T } from '../editor/levelPlan';
+import type { PlateTile } from '../shared/plateField';
+import {
+  plateTop,
+  skinsOf,
+  SPIKES_LIFT,
+  SPIKES_MODEL,
+  SPIKES_MODEL_TIPS,
+} from '../test/zones/navigation';
 import { HAZARD_FIRE } from '../nav/navProfile';
 import type { NavGraph } from '../nav/navGraph';
 import { NO_TILE } from '../nav/navTile';
@@ -18,16 +28,22 @@ import {
   NAV_TESTS,
   gateDir,
   gateTile,
+  inLava,
+  lavaSpots,
   SPAWN,
   navTestPlan,
+  navTestPlate,
   navTestWalls,
   tileCentre,
   type NavSpot,
   type NavTest,
 } from './navTestPlan';
 
-/** Die Farben der Platten: grün der Start, blau das Ziel — gewünscht so. */
-export const START_COLOUR = 0x22c55e;
+/**
+ * Die Farben von Start und Ziel: grün und blau — gewünscht so. Die Platten
+ * selbst sind die Küchenfliesen in denselben Farben (`navTestPlan.navTestPlate`);
+ * die Farbe hier trägt nur noch die Tafel über dem Ziel.
+ */
 export const GOAL_COLOUR = 0x3b82f6;
 const LAVA_COLOUR = 0xff5a1f;
 
@@ -65,6 +81,10 @@ export class NavTestWorld extends GridWorld {
   private readonly skins: THREE.Material[] = [];
   private readonly panels: TextPlane[] = [];
   private readonly pointed: THREE.Object3D[] = [];
+  /** Die gemalte Lava — sie steht, bis die Stachelfallen da sind (`fillSpikes`). */
+  private lava: THREE.Mesh | null = null;
+  /** Ob die Welt schon wieder weg ist, während die Fallen noch unterwegs waren. */
+  private gone = false;
 
   protected override worldId(): string {
     return 'test-navigation';
@@ -126,6 +146,24 @@ export class NavTestWorld extends GridWorld {
     return { floor: 0x8a93a6 };
   }
 
+  /**
+   * **Der Boden kommt aus dem Regal** (`navTestPlan.navTestPlate`): überall der
+   * Prototyp-Boden, auf Start und Ziel die grüne und die blaue Küchenfliese,
+   * und auf der Lava gar keine — dort liegen die Stacheln (`fillSpikes`).
+   */
+  protected override floorPlate(tile: PlateTile): string | null {
+    return navTestPlate(tile);
+  }
+
+  /**
+   * **Unter den Stacheln wird kein Quader gezeichnet** — sie sind dort der
+   * Boden. Ohne WebGL kommen sie nicht, und dann bleibt der Quader.
+   */
+  protected override underOwnFloor(solid: PlanSolid): boolean {
+    if (!canLoadModels() || solid.kind !== 'floor') return false;
+    return inLava(Math.floor(solid.x), Math.floor(solid.z), solid.level ?? 0);
+  }
+
   protected override spawnPoint(): THREE.Vector3 {
     return new THREE.Vector3(SPAWN.x, 0, SPAWN.z);
   }
@@ -151,9 +189,8 @@ export class NavTestWorld extends GridWorld {
     for (const wall of navTestWalls())
       void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
     this.paintLava(plan);
+    this.fillSpikes(plan);
     for (const test of NAV_TESTS) {
-      this.plate(plan, test.start, START_COLOUR);
-      this.plate(plan, test.goal, GOAL_COLOUR);
       this.label(plan, test.goal, 'Ziel', test.title);
       this.benches.push(this.buildButton(ctx, test));
     }
@@ -169,6 +206,8 @@ export class NavTestWorld extends GridWorld {
   }
 
   override dispose(ctx: WorldContext): void {
+    this.gone = true;
+    this.lava = null;
     for (const object of this.pointed) ctx.pointer.remove(object);
     for (const bench of this.benches) bench.button.dispose();
     for (const panel of this.panels) panel.dispose();
@@ -180,29 +219,6 @@ export class NavTestWorld extends GridWorld {
     this.shapes.length = 0;
     this.skins.length = 0;
     super.dispose(ctx);
-  }
-
-  /**
-   * **Eine farbige Platte auf einer Kachel**, knapp über dem Boden — und
-   * **immer zu sehen**, wie die Linie des Wegs (`navScene.navPathView`): Von
-   * oben verdeckte sonst die Wand der Kammer die Reihe dahinter, und dort
-   * liegt der Start.
-   */
-  private plate(plan: GridPlan, at: NavSpot, colour: number): void {
-    const shape = new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
-    const skin = new THREE.MeshBasicMaterial({
-      color: colour,
-      transparent: true,
-      opacity: 0.85,
-      depthTest: false,
-    });
-    this.shapes.push(shape);
-    this.skins.push(skin);
-    const mesh = new THREE.Mesh(shape, skin);
-    mesh.position.set(tileCentre(at.x), plan.graph.levelY(at.level) + 0.015, tileCentre(at.z));
-    mesh.name = 'nav-test-plate';
-    mesh.renderOrder = 900;
-    this.root.add(mesh);
   }
 
   /** Eine Tafel über dem Ziel, die die Kamera ansieht. */
@@ -234,6 +250,51 @@ export class NavTestWorld extends GridWorld {
     );
     mesh.name = 'nav-test-lava';
     this.root.add(mesh);
+    this.lava = mesh;
+  }
+
+  /**
+   * **Die Lava sind Stacheln** — die rote Falle aus dem Regal, eine je Kachel,
+   * dieselbe wie im Stachelfeld der Sandbox (`test/zones/navigation.ts`).
+   *
+   * Eingelassen wie dort: Die Oberseite ihrer Platte liegt fünf Millimeter
+   * über dem Boden, zu sehen sind die Stacheln. Die Lava liegt aber oben auf
+   * dem Podest, und dessen Boden ist nur `PLAN_FLOOR_T` dick — eine Falle in
+   * voller Höhe hinge unten aus der Decke heraus. Also wird sie so weit
+   * gestaucht, dass sie im Boden bleibt. Bis sie da ist, steht die gemalte
+   * Lava; kommt sie nicht, bleibt die gemalte.
+   */
+  private fillSpikes(plan: GridPlan): void {
+    if (!canLoadModels()) return;
+    const floor = plan.graph.levelY(LAVA.level);
+    void import('../../core/kaykitModel').then(async (module) => {
+      const spots = lavaSpots();
+      const copies = await Promise.all(spots.map(() => module.kaykitModel(SPIKES_MODEL)));
+      const models = copies.filter((copy): copy is THREE.Object3D => copy !== null);
+      const first = models[0];
+      const top =
+        models.length === spots.length && first ? plateTop(first, SPIKES_MODEL_TIPS) : null;
+      if (this.gone || top === null || !first) {
+        for (const model of models) for (const skin of skinsOf(model)) skin.dispose();
+        return;
+      }
+      first.updateMatrixWorld(true);
+      const bottom = new THREE.Box3().setFromObject(first).min.y;
+      const squash = Math.min(1, (PLAN_FLOOR_T - 0.02) / Math.max(1e-6, top - bottom));
+      const field = new THREE.Group();
+      field.name = 'nav-test-spikes';
+      field.position.y = floor + SPIKES_LIFT - top * squash;
+      spots.forEach((spot, index) => {
+        const model = models[index]!;
+        model.position.set(spot.x, 0, spot.z);
+        model.scale.y *= squash;
+        field.add(model);
+        for (const skin of skinsOf(model)) this.skins.push(skin);
+      });
+      this.root.add(field);
+      this.lava?.removeFromParent();
+      this.lava = null;
+    });
   }
 
   /** Der rote Knopf vor einer Kammer. */
