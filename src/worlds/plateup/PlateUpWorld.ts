@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WorldContext } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import type { Handedness } from '../../core/XRInput';
 import type { Usable, UseSource } from '../../core/usable';
 import type { KaykitFigure } from '../../core/kaykitFigure';
@@ -144,6 +145,22 @@ export class PlateUpWorld extends GridWorld {
    * Sekunde an, und ein Gast bräuchte dort Minuten bis zu seinem Stuhl.
    */
   private shopSpeed = 1;
+
+  /**
+   * **Die Tastenhilfe im Laden** (`core/controlHints.ts`): `A` nimmt und legt
+   * ab, die Glocke öffnet — mit dem, was gerade in der Hand liegt.
+   */
+  override hintZone(): HintZone | null {
+    // Als Kran (Baukasten) gilt die Werkzeugleiste, nicht die Küche.
+    const build = super.hintZone();
+    if (build) return build;
+    const phase = this.shift.phase;
+    return {
+      kind: 'burger',
+      holding: this.carried !== null,
+      closed: phase !== 'open' && phase !== 'closing',
+    };
+  }
 
   protected override worldId(): string {
     return 'plateup';

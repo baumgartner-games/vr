@@ -1,3 +1,5 @@
+import type { HintZone } from './controlHints';
+import type { GamepadFrame } from './gamepad';
 import type * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
 import type { FrameSample } from './FrameStats';
@@ -70,6 +72,13 @@ export interface WorldContext {
    * `camera`.
    */
   readonly viewCamera?: THREE.PerspectiveCamera;
+  /**
+   * **Das Gamepad am Schirm, in diesem Bild** (`FlatControls.padFrame`) —
+   * für Zonen, die ihre eigene Bedienung mitbringen (das Kart: RT Gas, LT
+   * Bremse, linker Stock lenkt). Leer, solange ein Menü davorliegt;
+   * `undefined` in Vorschau und Tests.
+   */
+  readonly pad?: GamepadFrame;
   /** Seconds since the app started. */
   readonly elapsed: number;
   /**
@@ -289,6 +298,20 @@ export interface World {
    * keiner.
    */
   toolChoice?(): ToolChoice | null;
+  /**
+   * **Ein Werkzeug weiter oder zurück** — Steuerkreuz ↓/↑ am Pad, solange
+   * kein Menü davorliegt (`FlatControls.onToolStep`). Gemeint ist die
+   * Werkzeugleiste einer Welt, die eine hat (der _Baukasten_,
+   * `portal/buildBar.ts`). `false`: gerade keine da, der Druck verpufft.
+   */
+  toolStep?(step: 1 | -1): boolean;
+  /**
+   * **Was die Tastenhilfe in dieser Welt zusätzlich sagen soll** — eine
+   * Sonderzone mit eigener Bedienung (Kart, Burgerladen, Baukasten,
+   * Haunting). `null`: nichts Besonderes, es gilt die allgemeine Zeile
+   * (`core/controlHints.ts`).
+   */
+  hintZone?(): HintZone | null;
   /**
    * Ein Konfig-Code ist in die Speicher eingetragen worden — was schon gebaut
    * ist, muss ihn nachlesen.

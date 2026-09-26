@@ -35,6 +35,8 @@ export class ControlHints {
     this.element.hidden = items.length === 0;
     this.element.dataset['device'] = ctx?.device ?? '';
     this.element.dataset['menu'] = ctx?.menu ?? '';
+    // Die Sonderzone, für die Lage: Im Baukasten steht unten die Leiste.
+    this.element.dataset['zone'] = ctx?.menu ? '' : (ctx?.zone?.kind ?? '');
     this.element.replaceChildren(...items.map(chip));
   }
 
@@ -45,6 +47,12 @@ export class ControlHints {
 
 function chip(item: HintItem): HTMLElement {
   const node = document.createElement('span');
+  // Das Schildchen der Sonderzone: nur ein Name, keine Taste.
+  if (item.tag) {
+    node.className = 'hints__zone';
+    node.textContent = item.label;
+    return node;
+  }
   node.className = 'hints__item';
   const key = document.createElement('kbd');
   key.className = 'hints__key';

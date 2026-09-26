@@ -442,6 +442,8 @@ export class App {
       else this.toggleMenu();
     };
     this.flat.onView = () => this.toggleScreenView();
+    // Steuerkreuz ↑/↓: die Werkzeugleiste der Welt, wenn sie eine hat.
+    this.flat.onToolStep = (step) => this.world?.toolStep?.(step) ?? false;
     // **Und die Menüs am Pad** (`ui/padNav.ts`): Fokus, `A`, `B`, ☰ — das
     // Menü über allem, die Werkzeugliste darunter, die Umkleide dazwischen.
     this.padScopes = [
@@ -452,6 +454,7 @@ export class App {
         back: () => this.pageMenu.goBack(),
         close: () => this.pageMenu.toggle(false),
         initial: () => this.pageMenu.padStart(),
+        page: () => this.pageMenu.pageId,
       }),
       padNav.addScope({
         priority: 20,
@@ -466,6 +469,7 @@ export class App {
         back: () => this.toolMenu.goBack(),
         close: () => this.toolMenu.toggle(false),
         initial: () => this.toolMenu.padStart(),
+        page: () => this.toolMenu.pageId,
         closeOnTools: true,
       }),
     ];
@@ -565,6 +569,7 @@ export class App {
       topDown: this.topDown,
       crane: this.avatar.crane,
       viewCamera: this.topDown ? this.topDownCamera.camera : this.camera,
+      pad: this.flat.padFrame,
       elapsed: this.elapsed,
       frame: () => this.frameStats.latest,
       goTo: (id: string) => void this.goTo(id),
@@ -652,6 +657,9 @@ export class App {
 
       this.worldId = definition.id;
       this.frameStats.setWorld(definition.id);
+      // Eine neue Welt fängt mit Norden oben an — ihre Karten und Schilder
+      // sind so gezeichnet (`TopDownCamera.turn`).
+      this.topDownCamera.resetHeading();
       this.resizeWebBuffer();
       this.world = next;
       await next.init(this.context);
@@ -937,6 +945,7 @@ export class App {
       armed: this.rig.armed,
       padKind: padNav.kind,
       config: inputConfig(),
+      zone: this.world?.hintZone?.() ?? null,
     });
   }
 

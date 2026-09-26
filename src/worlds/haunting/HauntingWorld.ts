@@ -208,6 +208,7 @@ import { BlueprintArt } from './world3d/blueprintArt';
 import { TopDownFog } from './world3d/topDownFog';
 import { loadBlueprintShown, saveBlueprintShown } from './world3d/blueprint';
 import type { ToolChoice, WorldContext } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
 import type { PlateTile } from '../shared/plateField';
 import type { Handedness } from '../../core/XRInput';
@@ -4153,6 +4154,18 @@ export class HauntingWorld extends GridWorld {
    * die Antwort selbst ist — die Brille trägt den Anzug, und wer an der
    * Station „Monster" sitzt, ist das Monster.
    */
+  /**
+   * **Die Tastenhilfe auf der Station** (`core/controlHints.ts`) — je nach
+   * Rolle: Der Techniker läuft und benutzt, das Monster jagt, wer einen
+   * Farbplatz hält, bedient seine Karte, und wer zuschaut, wählt einen Platz.
+   */
+  override hintZone(): HintZone | null {
+    const me = this.myPlace();
+    if (me === 'technician' || me === 'monster') return { kind: 'haunting', role: me };
+    if (me.startsWith('watch:')) return { kind: 'haunting', role: 'watch' };
+    return { kind: 'haunting', role: 'map' };
+  }
+
   private myPlace(): MyRole {
     const ctx = this.context;
     // Die Brille trägt den Anzug — immer; ein Desktop, der sich an den Stock

@@ -1,4 +1,10 @@
-import { GHOST_KNEE, blocksView, wallsHiding, type GhostCandidate } from './wallGhost';
+import {
+  GHOST_KNEE,
+  blocksView,
+  cameraQuarter,
+  wallsHiding,
+  type GhostCandidate,
+} from './wallGhost';
 
 /** Ein Quader: Mitte und Kantenlängen, wie ein `PlanSolid`. */
 function box(
@@ -141,5 +147,49 @@ describe('Was gar nicht erst mitzählt', () => {
     const parapet = box(0, 1.45, 1, 4, 0.9, 0.2);
     expect(blocksView(parapet)).toBe(true);
     expect(wallsHiding(CAMERA, FIGURE, [parapet])).toHaveLength(1);
+  });
+});
+
+/**
+ * **Das gedrehte Bild** (`TopDownCamera.turn`): Die Kamera steht dann im
+ * Osten, Norden oder Westen der Figur, und die Wand, die verschwinden soll,
+ * ist die auf **ihrer** Seite — nicht mehr die im Süden.
+ */
+describe('Wenn das Bild gedreht ist', () => {
+  /** Die Szene von oben, um ganze Viertel links herum um die Figur gedreht. */
+  function turned<T extends { x: number; z: number }>(p: T, quarter: number): T {
+    let { x, z } = p;
+    for (let i = 0; i < quarter; i++) [x, z] = [z, -x];
+    return { ...p, x, z };
+  }
+  function turnedBox(one: GhostCandidate, quarter: number): GhostCandidate {
+    const odd = quarter % 2 === 1;
+    const centre = turned(one.box, quarter);
+    return {
+      box: { ...centre, w: odd ? one.box.d : one.box.w, d: odd ? one.box.w : one.box.d },
+    };
+  }
+
+  it('erkennt, in welchem Viertel die Kamera steht', () => {
+    expect(cameraQuarter(CAMERA, FIGURE)).toBe(0);
+    expect([1, 2, 3].map((q) => cameraQuarter(turned(CAMERA, q), FIGURE))).toEqual([1, 2, 3]);
+    // Senkrecht darüber: wie ungedreht.
+    expect(cameraQuarter({ x: 0, y: 20, z: 0 }, FIGURE)).toBe(0);
+  });
+
+  it('findet in jedem Viertel dieselbe Wand wie ungedreht — und nur die', () => {
+    const between = box(0, 1.4, 1, 4, 2.8, 0.2);
+    const behind = box(0, 1.4, -1, 4, 2.8, 0.2);
+    const along = box(1.1, 1.4, 0, 0.2, 2.8, 6);
+    for (const quarter of [1, 2, 3]) {
+      const camera = turned(CAMERA, quarter);
+      const walls = [between, behind, along].map((one) => turnedBox(one, quarter));
+      expect(wallsHiding(camera, FIGURE, walls)).toEqual([walls[0]]);
+    }
+  });
+
+  it('lässt die Südwand stehen, wenn die Kamera im Norden steht', () => {
+    const south = box(0, 1.4, 1, 4, 2.8, 0.2);
+    expect(wallsHiding(turned(CAMERA, 2), FIGURE, [south])).toEqual([]);
   });
 });

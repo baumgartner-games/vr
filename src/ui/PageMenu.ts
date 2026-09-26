@@ -248,8 +248,16 @@ export class PageMenu {
    * genug Kacheln da sind, um wirklich dorthin zu kommen (`fill`).
    */
   private want: number | null = null;
-  /** Die Seite, aus der man zuletzt zurückkam (`goBack`, `padStart`). */
+  /**
+   * **Die Zeile, aus der man zuletzt zurückkam** (`padStart`) — gleich, auf
+   * welchem Weg: `B`, Rücktaste, `Esc`, der Pfeil im Kopf, eine Brotkrume,
+   * das Haus oder `B`/`Y` in der Brille. Gerechnet wird sie deshalb nicht an
+   * jedem Knopf, sondern einmal aus dem Weg selbst (`applyNav`): Wird er
+   * kürzer, war die erste weggefallene Stufe die Zeile, auf der man stand.
+   */
   private left = '';
+  /** Der Weg beim letzten `applyNav` — woran `left` gemessen wird. */
+  private lastPath: readonly string[] = [];
 
   constructor(options: PageMenuOptions = {}) {
     this.rootTitle = options.title ?? 'Menü';
@@ -369,7 +377,6 @@ export class PageMenu {
     close.addEventListener('click', () => this.toggle(false));
     this.backButton.addEventListener('click', () => {
       this.keepScroll();
-      this.left = this.page.id;
       this.nav.pop();
     });
     this.homeButton.addEventListener('click', () => this.goHome());
@@ -519,15 +526,25 @@ export class PageMenu {
 
   /**
    * **Eine Seite zurück** — `B` am Pad und die Rücktaste (`ui/padNav.ts`),
-   * derselbe Weg wie der Pfeil im Kopf. `false`, wenn man schon ganz oben
-   * steht: Dann macht der Aufrufer zu, statt dass nichts passiert.
+   * dieselbe Treppe wie `Esc` (`back`) und der Pfeil im Kopf: erst ein
+   * Suchbegriff, dann eine Seite nach der anderen. `false`, wenn man schon
+   * ganz oben steht und nichts gesucht wird: Dann macht der Aufrufer zu,
+   * statt dass nichts passiert.
    */
   goBack(): boolean {
-    if (!this.open || this.stack.length <= 1) return false;
-    this.keepScroll();
-    this.left = this.page.id;
-    this.nav.pop();
+    if (!this.open || (this.query === '' && this.stack.length <= 1)) return false;
+    this.back();
     return true;
+  }
+
+  /**
+   * **Welche Seite gerade aufgeschlagen ist** — für den Fahrer am Pad
+   * (`PadScope.page`): Wechselt sie, fängt der Fokus neu an (`padStart`)
+   * und sucht nicht nach einem Knopf der alten Seite, der zufällig gleich
+   * heißt.
+   */
+  get pageId(): string {
+    return this.nav.path.join('/');
   }
 
   /**
@@ -579,6 +596,14 @@ export class PageMenu {
   /** Der Weg aus dem geteilten Merkzettel, als Stapel von Seiten. */
   private applyNav(): void {
     const before = this.stack.length > 0 ? this.page.id : '';
+    const path = this.nav.path;
+    const prev = this.lastPath;
+    const same = path.length === prev.length && path.every((id, at) => prev[at] === id);
+    if (!same) {
+      const up = path.length < prev.length && path.every((id, at) => prev[at] === id);
+      this.left = up ? prev[path.length]! : '';
+      this.lastPath = [...path];
+    }
     this.stack = [
       {
         title: this.rootTitle,
