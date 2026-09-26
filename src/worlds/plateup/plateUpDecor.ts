@@ -1,4 +1,4 @@
-import { DOOR_X, FRIDGE, PASS_END, ROOM, STREET, TABLES } from './plateUpPlan';
+import { DOOR_X, FRIDGE, PASS_END, ROOM, STREET, TABLES, type TableSpot } from './plateUpPlan';
 
 /**
  * **Die Einrichtung des Burgerladens** — alles, was nur da ist, damit es ein
@@ -77,23 +77,26 @@ function walls(): DecorPiece[] {
 }
 
 function tableSets(): DecorPiece[] {
+  return TABLES.flatMap((t) => tableSet(t));
+}
+
+/** Ein Tisch samt Stühlen, Senf, Ketchup und Karte — auch für gekaufte Tische. */
+export function tableSet(t: TableSpot): DecorPiece[] {
   const out: DecorPiece[] = [];
-  for (const t of TABLES) {
-    const cx = t.x + 1;
-    const cz = t.z + 1;
-    const cloth =
-      t.index % 2 === 0 ? 'table_round_B_tablecloth_red' : 'table_round_B_tablecloth_green';
-    out.push({ source: 'diner', name: cloth, x: cx, z: cz, solid: [1.4, 1.4] });
-    // Die Stühle drehen der Tischmitte den Rücken zu — `yaw` ist die Richtung,
-    // in die man auf ihnen schaut.
-    out.push({ source: 'diner', name: 'chair_A', x: t.seat.x, z: t.seat.z, yaw: 0 });
-    out.push({ source: 'diner', name: 'chair_A', x: t.other.x, z: t.other.z, yaw: t.other.yaw });
-    // Senf und Ketchup an den Rand, damit der Teller in der Mitte Platz hat.
-    const side = t.other.x < cx ? -0.45 : 0.45;
-    out.push({ source: 'diner', name: 'ketchup', x: cx + side, z: cz + 0.35, y: 0.5 });
-    out.push({ source: 'diner', name: 'mustard', x: cx + side, z: cz + 0.15, y: 0.5 });
-    out.push({ source: 'diner', name: 'menu', x: cx - side * 0.2, z: cz + 0.45, y: 0.5, yaw: N });
-  }
+  const cx = t.x + 1;
+  const cz = t.z + 1;
+  const cloth =
+    t.index % 2 === 0 ? 'table_round_B_tablecloth_red' : 'table_round_B_tablecloth_green';
+  out.push({ source: 'diner', name: cloth, x: cx, z: cz, solid: [1.4, 1.4] });
+  // Die Stühle drehen der Tischmitte den Rücken zu — `yaw` ist die Richtung,
+  // in die man auf ihnen schaut.
+  out.push({ source: 'diner', name: 'chair_A', x: t.seat.x, z: t.seat.z, yaw: 0 });
+  out.push({ source: 'diner', name: 'chair_A', x: t.other.x, z: t.other.z, yaw: t.other.yaw });
+  // Senf und Ketchup an den Rand, damit der Teller in der Mitte Platz hat.
+  const side = t.other.x < cx ? -0.45 : 0.45;
+  out.push({ source: 'diner', name: 'ketchup', x: cx + side, z: cz + 0.35, y: 0.5 });
+  out.push({ source: 'diner', name: 'mustard', x: cx + side, z: cz + 0.15, y: 0.5 });
+  out.push({ source: 'diner', name: 'menu', x: cx - side * 0.2, z: cz + 0.45, y: 0.5, yaw: N });
   return out;
 }
 
@@ -117,8 +120,8 @@ export const DECOR: readonly DecorPiece[] = [
     solid: [1, 1],
   },
   { source: 'diner', name: 'shelf_papertowel_decorated', x: 5.5, z: 0.5, yaw: 0 },
-  { source: 'diner', name: 'kitchencabinet', x: 11.5, z: 0.5, yaw: 0 },
-  { source: 'diner', name: 'kitchencabinet', x: 12.5, z: 0.5, yaw: 0 },
+  // Über Spüle und Tellerstapel hängt kein Schrank: Von oben verdeckte er
+  // genau die beiden Stationen, an denen man sehen will, was darin steht.
   {
     source: 'diner',
     name: 'kitchencounter_straight_decorated',

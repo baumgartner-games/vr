@@ -106,8 +106,11 @@ export const STATIONS: readonly StationSpot[] = [
   north('grill-1', 'griddle', 8, 'Grillplatte', 'stove_single'),
   north('grill-2', 'griddle', 9, 'Grillplatte', 'stove_single'),
   north('top-3', 'top', 10, 'Arbeitsplatte', 'kitchencounter_straight_A'),
-  north('top-4', 'top', 11, 'Arbeitsplatte', 'kitchencounter_straight_B'),
-  { ...north('plates', 'box', 12, 'Tellerstapel', 'kitchentable_A'), gives: 'plate' },
+  // **Spüle und Tellerstapel nebeneinander**: Schmutziges Geschirr kommt
+  // vom Tisch in die Spüle, der saubere Teller aus dem Becken in die Hand —
+  // und von dort einen Schritt weiter auf den Stapel.
+  north('sink', 'sink', 11, 'Spüle', 'kitchencounter_sink'),
+  { ...north('plates', 'drain', 12, 'Tellerstapel', 'kitchentable_A'), gives: 'plate' },
   north('bin', 'bin', 13, 'Mülleimer', 'kitchencabinet'),
   // Die Durchreiche: Ablagen, die von beiden Seiten erreichbar sind.
   ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((x) =>
@@ -157,8 +160,10 @@ export interface TableSpot {
   readonly seatYaw: number;
   /** Die Kachel, von der aus er sich setzt — dort endet sein Weg. */
   readonly approach: { readonly x: number; readonly z: number };
-  /** Der zweite Stuhl an der Wandseite: nur Zierde. */
+  /** Der zweite Stuhl an der Wandseite — dort sitzt der Zweite einer Gruppe. */
   readonly other: { readonly x: number; readonly z: number; readonly yaw: number };
+  /** Von wo aus man sich auf den zweiten Stuhl setzt. */
+  readonly otherApproach: { readonly x: number; readonly z: number };
 }
 
 /**
@@ -175,6 +180,16 @@ export const TABLES: readonly TableSpot[] = [
   table(2, 1, 9, DIR_E),
   table(3, 11, 9, DIR_W),
 ];
+
+/**
+ * **Ein Tisch an dieser Stelle** — Nordwestkachel `x`/`z`, der Gang auf der
+ * Seite `aisle` (dort steht, wer sich setzt; der zweite Stuhl steht
+ * gegenüber). Auch für die Tische, die man zwischen den Tagen dazukauft
+ * (`plateUpShop.ts`).
+ */
+export function tableSpot(index: number, x: number, z: number, aisle: Dir): TableSpot {
+  return table(index, x, z, aisle);
+}
 
 function table(index: number, x: number, z: number, aisle: Dir): TableSpot {
   const cx = x + 1;
@@ -196,6 +211,9 @@ function table(index: number, x: number, z: number, aisle: Dir): TableSpot {
       aisle === DIR_E
         ? { x: x - 0.25, z: cz, yaw: -Math.PI / 2 }
         : { x: x + 2.25, z: cz, yaw: Math.PI / 2 },
+    // Zum zweiten Stuhl geht es über die Kachel nördlich von ihm — der Gast
+    // einer Gruppe läuft außen um den Tisch herum.
+    otherApproach: aisle === DIR_E ? { x: x - 0.5, z: z - 0.5 } : { x: x + 2.5, z: z - 0.5 },
   };
 }
 
@@ -276,9 +294,10 @@ function wallRing(plan: GridPlan): void {
  * Bausteine drin (siehe `plateUpGrid`), und ein Gast, der quer durch den
  * Tisch zu seinem Stuhl liefe, wäre der erste Fehler, den man von oben sieht.
  */
-export function routePlan(): GridPlan {
+export function routePlan(extra: Iterable<string> = []): GridPlan {
   const plan = new GridPlan();
   const blocked = blockedTiles();
+  for (const key of extra) blocked.add(key);
   for (const rect of [ROOM, STREET]) {
     for (let z = rect.z; z < rect.z + rect.d; z++) {
       for (let x = rect.x; x < rect.x + rect.w; x++) {
