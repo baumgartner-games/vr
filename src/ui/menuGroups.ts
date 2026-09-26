@@ -177,6 +177,7 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'tools', group: 'bauen' },
   { match: 'bag', group: 'bauen' },
   { match: 'assets', group: 'bauen' },
+  { match: 'build-tools', group: 'bauen' },
   { match: 'npc', group: 'bauen' },
   { match: 'plan-store', group: 'bauen' },
 

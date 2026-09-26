@@ -127,11 +127,19 @@ export function gridPose(
   rotation: Turned,
   half?: { readonly x: number; readonly z: number },
   long?: number,
+  /**
+   * **Auch Möbel in Achteln** — im Baukasten umschaltbar (`45°` an der
+   * Leiste). Ein schräges Möbel steht auf der Mitte seiner Kachel; eine Wand
+   * dreht ohnehin in Achteln.
+   */
+  fine = false,
 ): PlacePose {
   const raw = yawOf(rotation);
   if (half && wallAxis(2 * half.x, 2 * half.z) !== null) {
     const eighth = eighthYaw(raw);
     if (isDiagonal(eighth)) return diagonalPose(x, z, eighth, half, long);
+  } else if (fine && isDiagonal(eighthYaw(raw))) {
+    return { x: tileCentre(x), z: tileCentre(z), yaw: eighthYaw(raw), wall: null, diagonal: null };
   }
   const yaw = quarterYaw(raw);
   if (!half) return { x: tileCentre(x), z: tileCentre(z), yaw, wall: null, diagonal: null };
@@ -257,6 +265,12 @@ export function turnedHalf(
   half: { readonly x: number; readonly z: number },
   yaw: number,
 ): { halfX: number; halfZ: number } {
+  // Unter 45° (ein schräges Möbel, `gridPose` mit `fine`) ist die Hülle ein
+  // Quadrat: jede Seite so lang wie beide Kanten mal √½.
+  if (Math.abs(Math.abs(Math.sin(yaw)) - Math.abs(Math.cos(yaw))) < 0.2) {
+    const h = (half.x + half.z) * Math.SQRT1_2;
+    return { halfX: h, halfZ: h };
+  }
   const turned = Math.abs(Math.sin(yaw)) > 0.5;
   return { halfX: turned ? half.z : half.x, halfZ: turned ? half.x : half.z };
 }
