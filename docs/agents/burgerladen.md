@@ -129,8 +129,11 @@ grün, wo es passt, rot, wo nicht — die Leiste unten sagt, warum
 (`placeCheck`: nur im Gastraum, nicht auf anderem, Stühle, Tür und die
 Baupläne bleiben frei, und **jeder Tisch** muss danach von der Tür und aus
 der Küche noch erreichbar sein — geprüft mit derselben Wegsuche wie die
-Gäste). `A` vor dem grünen Geist kauft und stellt hin; _Menü → Bauplan
-zurücklegen_ lässt es. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
+Gäste). `A` vor dem grünen Geist kauft und stellt hin (angemeldet ist das
+eine halbe Armlänge vor der Figur, nicht auf der Zielkachel — die läge für
+`A` zu weit weg); _Menü → Bauplan zurücklegen_ lässt es. Solange man einen
+Bauplan trägt, treten Schild und (am Telefon) Karte zur Seite, und an den
+Stationen wird nicht gekocht. Jeder Bauplan liegt je Abend einmal aus. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
 mehr (`allTables`, mehr Gäste gleichzeitig), jedes Deko-Stück gibt den Gästen
 6 % mehr Geduld, höchstens 30 % (`decorPatience`). Das Gekaufte bleibt, bis
 die Runde endet oder `B`/`Y` alles zurücksetzt.

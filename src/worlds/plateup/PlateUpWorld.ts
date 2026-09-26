@@ -935,7 +935,8 @@ export class PlateUpWorld extends GridWorld {
       const text = narrow ? stripShort(this.shift) : boardLine(this.shift);
       if (this.strip.textContent !== text) this.strip.textContent = text;
     }
-    const cardOn = !open && flat && narrow && ctx.topDown;
+    // Mit einem Bauplan in der Hand weicht die Karte: Sie läge über dem Geist.
+    const cardOn = !open && flat && narrow && ctx.topDown && !this.blueprint;
     if (this.sign) this.sign.visible = this.sign.visible && !cardOn;
     if (!cardOn) {
       if (this.card) this.card.hidden = true;
@@ -1003,7 +1004,9 @@ export class PlateUpWorld extends GridWorld {
     const showSign = phase === 'ready' || phase === 'closed' || phase === 'over';
     if (this.bellTag) this.bellTag.visible = showSign;
     if (this.sign) {
-      this.sign.visible = showSign;
+      // Beim Hinstellen eines Bauplans tritt das Schild zur Seite — es
+      // steht mitten im Gastraum, genau da, wo man etwas hinstellen will.
+      this.sign.visible = showSign && !this.blueprint;
       const key = `${phase}:${this.shift.day}:${this.shift.total}`;
       if (showSign && key !== this.signKey) {
         this.signKey = key;
@@ -1767,7 +1770,8 @@ export class PlateUpWorld extends GridWorld {
     if (!target) return null;
     if ('bell' in target) {
       const b = this.bell?.position;
-      return b ? { x: b.x, y: 0.9, z: b.z, wide: false } : null;
+      // Über dem Schildchen „Laden öffnen" (1,2 m) und nicht darin.
+      return b ? { x: b.x, y: 1.35, z: b.z, wide: false } : null;
     }
     if ('table' in target) {
       const t = this.tables[target.table];
