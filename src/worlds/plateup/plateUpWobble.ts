@@ -195,6 +195,10 @@ const REST: WobbleLink = { settle: ZERO, speed: ZERO, accel: ZERO };
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 };
 
+function copy(a: Vec3): Vec3 {
+  return { x: a.x, y: a.y, z: a.z };
+}
+
 function add(a: Vec3, b: Vec3, s = 1): Vec3 {
   return { x: a.x + b.x * s, y: a.y + b.y * s, z: a.z + b.z * s };
 }
@@ -388,9 +392,18 @@ export function stepWobble(
   dt: number,
   size: number = spacing,
 ): WobbleState {
-  const fromBase = state.base ?? base;
-  const fromAxis = state.axis ?? axis;
-  let dir = state.dir ?? stackDirection(axis);
+  // **Abgeschrieben, nicht behalten.** Die Ansicht reicht ein `THREE.Vector3`
+  // herein, das sie im nächsten Bild wiederverwendet. Behielte der Zustand
+  // es selbst, stünde im nächsten Bild in `state.base` schon die **neue**
+  // Stelle — das Hörnchen hätte sich nie bewegt, `v` wäre immer null und der
+  // Turm stünde starr (so war es nach #272, im Browser nachgemessen).
+  // Die Rechnung mit Stellen (vor #272) merkte davon nichts: Sie trug die
+  // Kugeln selbst als Zustand, nicht das Hörnchen.
+  const now = copy(base);
+  const up = copy(axis);
+  const fromBase = state.base ?? now;
+  const fromAxis = state.axis ?? up;
+  let dir = state.dir ?? stackDirection(up);
   // Die Ansicht darf `balls` kürzen (eine neue Sorte oben), die Glieder folgen.
   const kept = Math.max(0, Math.min(count, state.balls.length));
   const links: WobbleLink[] = state.links.slice(0, kept);
@@ -411,8 +424,8 @@ export function stepWobble(
     let last = fromBase;
     for (let k = 1; k <= pieces; k++) {
       // Hörnchen und Achse wandern gleichmäßig vom letzten Bild zu diesem.
-      const at = k === pieces ? base : lerp(fromBase, base, k / pieces);
-      const along = normal(lerp(fromAxis, axis, k / pieces), normal(axis));
+      const at = k === pieces ? now : lerp(fromBase, now, k / pieces);
+      const along = normal(lerp(fromAxis, up, k / pieces), normal(up));
       dir = turnToward(dir, stackDirection(along), 1 - Math.exp(-h / WOBBLE.tilt));
       // Jedes Glied für sich, getrieben vom Hörnchen.
       for (let i = 1; i < links.length; i++) {
@@ -427,7 +440,7 @@ export function stepWobble(
   const balls: Vec3[] = [];
   links.forEach((link, i) => {
     if (i === 0) {
-      balls.push(base);
+      balls.push(now);
       return;
     }
     balls.push(
@@ -437,7 +450,7 @@ export function stepWobble(
       ),
     );
   });
-  return { balls, links, limits, dir, base, axis };
+  return { balls, links, limits, dir, base: now, axis: up };
 }
 
 /**
