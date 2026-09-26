@@ -61,4 +61,11 @@ describe('Schattenkarten der Deckenleuchten', () => {
     expect(lampShadowDue(false, true, 1, 1)).toBe(true);
     expect(lampShadowDue(false, false, 0, 1)).toBe(true);
   });
+
+  it('zeichnet eine Leuchte ohne Karte einmal, auch wenn sie dunkel ist', () => {
+    // Sonst bindet three.js eine leere Farbtextur an den Schatten-Sampler, und
+    // WebGL verwirft jeden beleuchteten Zeichenaufruf der Station.
+    expect(lampShadowDue(false, false, 0, 0, false)).toBe(true);
+    expect(lampShadowDue(false, false, 0, 0, true)).toBe(false);
+  });
 });

@@ -2710,6 +2710,13 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
      Bild, viermal die Sekunde, auch dunkel** — ein Bild mit 418 statt 193
      Aufrufen im Takt von 4 Hz. Jetzt abwechselnd und nur, wenn sie brennen
      (`LampShadowTurns`, `lampShadowDue`), und mit den Bündeln 221 statt 418.
+     **Eine Ausnahme, und sie ist wichtig:** Eine Leuchte _ohne_ Karte zeichnet
+     einmal, auch dunkel (`lampShadowDue(…, hasMap)`). Sonst bindet three.js
+     an den `samplerCubeShadow` jedes beleuchteten Materials eine leere
+     Farbtextur, WebGL verwirft den Zeichenaufruf (`GL_INVALID_OPERATION:
+     Mismatch between texture format and sampler type`), und die Station stand
+     in der Übungsrunde über das Menü unsichtbar da — Sterne, Schilder, sonst
+     nichts —, bis eine Lampe anging.
   6. **Shader wurden beim ersten Betreten eines Raums übersetzt** (zehn
      Programme beim Gang durch die Station, je eines ein Stocken). Jetzt eine
      Sekunde nach Rundenstart vorab für alle Materialien der Szene
