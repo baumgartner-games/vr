@@ -9,6 +9,10 @@ Eingabeseite (`vite.config.ts`, `rollupOptions.input`). Gewünscht (September
 in der Mitte das Objekt, auf dem Boden die Prototype-Floors und die
 Gitterlinien, die belegten Grid-Teile in rot … Slider für Größe und x/y …
 alle Änderungen getrackt, sodass ich die finale Einstellung dir senden kann."_
+Zu erreichen über _Menü → Steuerung & Hilfe → **KayKit-Editor**_ (öffnet in
+einem neuen Tab, nur am Schirm — `App.helpLinks`) oder direkt unter
+`/kaykit-editor.html`.
+
 Anlass: Möbel der Raumstation sperren zu viele Zellen oder stehen so, dass ein
 1 × 1-Ding mittig 2 × 2 Zellen nimmt.
 
