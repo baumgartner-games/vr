@@ -179,6 +179,9 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'assets', group: 'bauen' },
   { match: 'npc', group: 'bauen' },
   { match: 'plan-store', group: 'bauen' },
+  // Die Weltänderungen tragen Rückgängig und Wiederholen des Baukastens —
+  // in der Brille und am Pad der einzige Weg dorthin (`docs/agents/bauen.md`).
+  { match: 'changes', group: 'bauen' },
 
   { match: 'net', group: 'zusammen' },
 
@@ -202,11 +205,12 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'gfx:grid-hitboxes', group: 'werkstatt' },
   { match: 'gfx:ghost-boxes', group: 'werkstatt' },
   { match: 'gfx:handles', group: 'werkstatt' },
+  // Wie diese Anzeigen zeichnen (nur 2D-Pfad, Wände, Räume …) — gleich daneben.
+  { match: 'info:views', group: 'werkstatt' },
   { match: 'npc:hits', group: 'werkstatt' },
   { match: 'npc:nav-debug', group: 'werkstatt' },
   { match: 'npc:nav-switches', group: 'werkstatt' },
   { match: 'setting:physics', group: 'werkstatt' },
-  { match: 'changes', group: 'werkstatt' },
   { match: 'setting:config', group: 'werkstatt' },
   { match: 'setting:poses', group: 'werkstatt' },
 ];

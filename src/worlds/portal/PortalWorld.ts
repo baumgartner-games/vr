@@ -295,7 +295,10 @@ import {
   saveKeyboardMode,
 } from '../../core/systemKeyboard';
 import { bakeNav, type BakeReport } from '../nav/navBake';
-import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
+import { boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
+import { applyInfoOptions, fadeInfoTree } from '../../core/infoViewScene';
+import { infoView, infoViewsVersion } from '../../core/infoViews';
+import { infoViewOptionsEntry } from '../../ui/infoViewMenu';
 import {
   NAV_LAYERS,
   anyLayer,
@@ -1583,6 +1586,8 @@ export class PortalWorld implements World {
   /** Die Wege, die gerade gelaufen werden — eigene Ebene, weil sie sich ändern. */
   private navTracks: THREE.Group | null = null;
   private navTrackTimer = 0;
+  /** Die Fassung der Darstellungsoptionen, nach der die Ansicht zuletzt stand. */
+  private navLook = 0;
   /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
   private navLayers: NavLayerState = noLayers();
   /**
@@ -2070,6 +2075,17 @@ export class PortalWorld implements World {
             this.context?.notify(layerSummary(this.navLayers));
           },
         },
+        // Das Optionsfeld der Info-Ansichten (`ui/infoViewMenu.ts`) — dasselbe
+        // wie unter Grafik → Info-Ansichten, hier dort, wo man gerade schaut.
+        infoViewOptionsEntry(
+          'nav',
+          (message) => {
+            this.applyNav();
+            this.refreshMenuLabels();
+            this.context?.notify(message);
+          },
+          'Darstellung',
+        ),
         ...rows,
       ],
     };
@@ -2256,7 +2272,15 @@ export class PortalWorld implements World {
     // an ihre Modelle gebaut und dreht sich mit ihnen (`NpcBody.setSight`).
     // Deshalb wird er hier zuerst und getrennt geschaltet — sonst wäre er weg,
     // sobald jemand die Kacheln ausmacht.
-    this.director?.setSight(this.navLayers.sight, layerSpec('sight').color);
+    // **Und die Darstellungsoptionen** (`core/infoViews.ts`): Sicht ist ein
+    // NPC-Teil und etwas Festes — ohne NPCs oder in „Nur 2D-Pfad" bleibt sie
+    // aus, auch wenn ihre Ebene an ist.
+    const look = infoView('nav');
+    this.navLook = infoViewsVersion();
+    this.director?.setSight(
+      this.navLayers.sight && look.actors && !look.flat,
+      layerSpec('sight').color,
+    );
 
     const wanted = anyLayer(this.navLayers);
     if (!wanted) {
@@ -2274,8 +2298,15 @@ export class PortalWorld implements World {
       this.root.add(this.navDebug);
       this.navTrackTimer = 0;
     }
-    applyNavLayers(this.navDebug, this.navLayers);
-    if (!this.navLayers.paths) this.clearNavTracks();
+    // Die Ebenen sagen, was gezeigt werden **darf**, die Optionen, was davon
+    // gezeichnet wird — beide zusammen, damit keiner den anderen überschreibt.
+    applyInfoOptions(
+      this.navDebug,
+      look,
+      (child) => this.navLayers[child.name as NavLayer] ?? true,
+    );
+    if (!this.navLayers.paths || !look.actors) this.clearNavTracks();
+    this.navTrackTimer = 0;
   }
 
   /**
@@ -2286,7 +2317,11 @@ export class PortalWorld implements World {
    * Liniengeometrie zu bauen wäre die teuerste Art, dasselbe zu zeigen.
    */
   private updateNavTracks(dt: number): void {
-    if (!this.navLayers.paths || !this.nav || !this.director) return;
+    // Hat jemand an den Darstellungsoptionen gedreht, gilt das sofort — am
+    // Handgelenk wie auf der Werkzeugseite.
+    if (this.navLook !== infoViewsVersion() && anyLayer(this.navLayers)) this.applyNav();
+    const look = infoView('nav');
+    if (!this.navLayers.paths || !look.actors || !this.nav || !this.director) return;
 
     this.navTrackTimer -= dt;
     if (this.navTrackTimer > 0) return;
@@ -2303,8 +2338,9 @@ export class PortalWorld implements World {
     if (paths.length === 0 && mine.length === 0) return;
     const group = new THREE.Group();
     group.name = 'nav-tracks';
-    for (const path of paths) group.add(navPathView(this.nav, path));
-    if (mine.length > 0) group.add(navPathView(this.nav, mine, GHOST_PATH_COLOR));
+    for (const path of paths) group.add(navPathView(this.nav, path, undefined, look.flat));
+    if (mine.length > 0) group.add(navPathView(this.nav, mine, GHOST_PATH_COLOR, look.flat));
+    fadeInfoTree(group, look.opacity);
     this.root.add(group);
     this.navTracks = group;
   }
@@ -10421,6 +10457,7 @@ export class PortalWorld implements World {
     }
     this.hitboxes.visible = on;
     this.hitboxes.update(physics);
+    if (on) fadeInfoTree(this.hitboxes.object, infoView('hitBoxes').opacity);
   }
 
   private updateHighlights(reachable: Set<PhysicsBody>): void {

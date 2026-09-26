@@ -96,6 +96,12 @@ export interface BrainSense {
    * (`Npc.update`). Fehlt er, zählt die Luftlinie.
    */
   range?: number;
+  /**
+   * **Wie nah am Ziel „angekommen" ist**, in Metern — sonst `ERRAND_REACH`.
+   * Ein Verhalten, das einen Stuhl aufsucht (`npcBehavior.ts`), will näher
+   * heran als einer, der eine Treppe vorführt.
+   */
+  reach?: number;
   dt: number;
   /** Eine Zahl aus [0,1). Als Funktion, damit ein Test sie stellen kann. */
   random: () => number;
@@ -249,7 +255,7 @@ function errand(
     sees: false,
   };
   if (!goal) return still;
-  if (distanceBetween(sense.at, goal) <= ERRAND_REACH) return still;
+  if (distanceBetween(sense.at, goal) <= (sense.reach ?? ERRAND_REACH)) return still;
 
   const wanted = yawTo(sense.at, sense.waypoint ?? goal);
   const yaw = turnToward(sense.yaw, wanted, maxTurn);

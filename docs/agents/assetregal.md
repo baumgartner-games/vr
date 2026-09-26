@@ -617,7 +617,7 @@ passt deshalb auf jede Figur, ohne dass etwas umgerechnet werden müsste.
   `FrostGolem.glb` (4,16) stehen ebenso auf dem großen Skelett, ohne es im
   Namen zu tragen. An der Höhe geht es mit großem Abstand — zwischen 2,6
   (Skelett-Krieger) und 3,98 (Mannequin_Large) liegt nichts.
-- **Welche Dateien** — drei je Skelett und nicht alle acht: `General` bringt
+- **Welche Dateien** — vier je Skelett und nicht alle acht: `General` bringt
   das Stehen, das Einstecken und das Sterben, `MovementBasic` das Gehen,
   Laufen und Springen, `CombatMelee` den Angriff. Das sind 936 kB für das
   mittlere Skelett und 676 kB für das große, geholt erst beim Aufschlagen
@@ -625,7 +625,10 @@ passt deshalb auf jede Figur, ohne dass etwas umgerechnet werden müsste.
   acht wären 2,8 MB für eine Vorschau. Die dritte Datei kam dazu, als die
   Figuren laufen lernten (siehe _Eine Figur, die läuft_): Ohne sie gibt es in
   der ganzen Sammlung keinen Schlag, und ein Monster, das nur herangeht, ist
-  keines. Bezahlt hat es die Vorschau mit 380 bzw. 340 kB.
+  keines. Bezahlt hat es die Vorschau mit 380 bzw. 340 kB. Die vierte, `Simulation`,
+  kam mit den Besuchern, die sich hinsetzen (`Sit_Chair_Idle`, siehe
+  [NPCs](npcs.md#verhalten-plätze-aufsuchen-warten-ausweichen)): 320 bzw.
+  135 kB mehr, zusammen jetzt 1,26 MB und 811 kB.
 
 Die Namen stehen, wie der Zeichner sie schrieb, nur ohne Unterstriche
 (`Idle_A` → „Idle A"); doppelte fallen weg (beide Bibliotheken bringen eine
