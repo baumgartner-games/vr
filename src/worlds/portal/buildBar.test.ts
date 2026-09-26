@@ -1,4 +1,4 @@
-import { BUILD_TOOLS, nextBuildTool, type BuildTool } from './buildBar';
+import { BUILD_TOOLS, nextBuildTool, swatchBackground, type BuildTool } from './buildBar';
 
 /**
  * **Die Werkzeugleiste am Pad** (`buildBar.nextBuildTool`): Das Steuerkreuz
@@ -33,5 +33,18 @@ describe('Werkzeug wechseln mit dem Steuerkreuz', () => {
       }
       expect(tool).toBe(start);
     }
+  });
+});
+
+describe('Farbfeld des Musters', () => {
+  it('einfarbig ist der Ton selbst', () => {
+    expect(swatchBackground('#b3664a')).toBe('#b3664a');
+  });
+
+  it('mit zweitem Ton ein Schachbrett aus beiden', () => {
+    const background = swatchBackground('#ffffff', '#000000');
+    expect(background).toContain('conic-gradient');
+    expect(background).toContain('#ffffff');
+    expect(background).toContain('#000000');
   });
 });

@@ -1130,8 +1130,9 @@ Knöpfe in vier Gruppen: **Setzen**, **Verschieben**, **Löschen** — **Drehen*
 links und rechts, **Schräg** (45° auch für Möbel), **Kopieren** — **Boden**,
 **Wand** — **Zurück**, **Vor**. Darüber eine Zeile, was am Haken hängt und
 wohin es käme (_Mug A · auf Table Medium_, _Pictureframe · an der Wand_,
-_Couch · kein Platz_, _Boden: Dielen hell · 64 Kacheln · klicken_), grün oder
-rot.
+_Couch · kein Platz_, _▣ Dielen hell · Boden · 64 Kacheln · klicken_), grün
+oder rot. Bei _Boden_ und _Wand_ steht vorn in der Zeile das **Muster mit
+Namen und Farbfeld** (unten, _Boden und Wände gestalten_).
 
 - **Welches Werkzeug gilt, liest die Leiste an der Welt ab** und merkt es sich
   nicht selbst: _Boden_ oder _Wand_ gewählt — dieses (`surfaceTool`, unten);
@@ -1338,8 +1339,17 @@ Küchenboden grau und blau, Dielen hell und dunkel), sind das die Muster.
   was ein Klick täte. Der Haken wird dafür leer, die Bombe geht weg; solange
   _Boden_ oder _Wand_ gilt, meint jeder Klick „hier belegen" und nichts sonst
   (`updateUsables`, wie bei der Bombe).
+- **Das Muster sieht man, bevor man klickt** (dritte Runde): Jedes Muster hat
+  ein Farbfeld (`SurfaceStyle.swatch`, bei Schachbrettfliesen ein zweiter
+  Ton `swatch2`, dann kariert — `buildBar.swatchBackground`), abgelesen in
+  der Bild-Schleife. Die Zeile über der Leiste zeigt vorn **Farbfeld und
+  Namen** (`BuildBarState.pattern`, `stylePattern`), dahinter, was ein Klick
+  täte (_Boden · 64 Kacheln · klicken_). Und auf den Knöpfen _Boden_ und
+  _Wand_ sitzt oben rechts ein kleiner Farbpunkt mit dem Muster, das sie
+  gerade setzen würden — auch, wenn gerade ein anderes Werkzeug gilt.
 - **Boden** (`FLOOR_STYLES`: Dielen hell, Dielen dunkel, Küchenfliesen,
-  Küchenfliesen blau, Steinplatten — alle eine Kachel groß) füllt den
+  Küchenfliesen beige, Küchenfliesen rot, grün und blau, Steinplatten,
+  Zuckerguss — alle eine Kachel groß) füllt den
   **Raum** unter dem Kran: alle Kacheln, die von dort aus ohne Wand
   dazwischen zu erreichen sind (`floodRoom`). Welche Fugen zu sind, sagen
   dieselben Kästen wie beim Dekorieren (`blockedEdges` über `decorScene`):
@@ -1381,8 +1391,8 @@ Baukasten-Werkzeuge_ (`PortalWorld.buildToolsMenu`, `build-tools` in
 was man dauernd braucht: **Setzen**, **Verschieben**, **Löschen**, **Links**
 und **Rechts drehen**, **Rückgängig**, dann **Boden**, **Wand**,
 **Wiederholen**, **Bodenmuster**, **Wandmuster**, **Möbel in 45°** und im
-Bauplatz der **Beispielraum**. Dieselbe Seite gibt es am Schirm; dort tut sie,
-was die Leiste tut. In der Brille gilt die Hand statt des Krans:
+Bauplatz die **Vorlagen** (unten). Dieselbe Seite gibt es am Schirm; dort tut
+sie, was die Leiste tut. In der Brille gilt die Hand statt des Krans:
 
 - **Setzen** legt den letzten Pinsel (`lastBrush`) in die Hand, die den
   Knopf gedrückt hat; gab es noch keinen, geht das Regal auf.
@@ -1393,12 +1403,64 @@ was die Leiste tut. In der Brille gilt die Hand statt des Krans:
 - **Drehen** dreht das Stück **in der Hand** um seine Mitte und die
   Hochachse (`turnHeld`: der Griffversatz wird um die Drehung erweitert), ein
   Viertel oder — bei Wänden und mit _Möbel in 45°_ — ein Achtel.
-- **Boden** belegt den Raum, in dem man steht; **Wand** die Wand einen halben
-  Meter in Blickrichtung (`surfaceHere`).
+- **Boden** belegt den Raum, in dem man steht; **Wand** die Wand, die man
+  ansieht (`surfaceHere`).
+- **Erst zeigen, dann belegen** (dritte Runde, `surfaceMenu`,
+  `surfaceDecor.surfacePress`): Ohne Leiste — in der Brille und in der
+  Ich-Sicht am Schirm (Spielmodus _Spielen_, Ansicht 3D; in _Einrichten_ und
+  _Baukasten_ gibt es dort den Kran) — belegte der Knopf sofort, und welche
+  Wand gemeint war, sah man erst hinterher. Jetzt **zeigt** der erste Druck:
+  Der Raum leuchtet im Gitter, die gemeinte Wandseite als durchscheinende
+  Fläche in der Farbe des Musters mit einem Rahmen in der Farbe des Gitters
+  (`showFaceMark` — die Kante im Gitter liegt am Boden und ist aus den Augen
+  kaum zu sehen), und die Zeile oben im Menü sagt _Wand: Fliesen hell · diese
+  Seite · 8 m · noch einmal Wand: belegen_. Der Knopf ist dann abgehakt.
+  Erst der zweite Druck auf **denselben** Knopf belegt; der andere wechselt
+  die Vorschau, Setzen, Verschieben und Löschen schalten sie ab. Die
+  Vorschau folgt jedes Bild dem Kopf (`updateBuild`, solange die Hand nichts
+  trägt). Mit der Leiste am Kran bleibt es beim sofortigen Belegen — dort
+  zeigt die Leiste schon, was gemeint ist.
+- **Die Wand im Rücken gilt nicht mehr** (`nearestFace` mit `look`): Ohne
+  Kran geht die Blickrichtung mit, und nur eine Seite, die einem zugewandt
+  ist, zählt — dafür reicht sie etwas weiter (`LOOK_REACH`, 0,6 m über
+  `FACE_REACH`). Aufgefallen in der Bild-Schleife: Wer mit dem Rücken nah an
+  der Südwand stand und nach Norden sah, bekam die Südwand. Und der halbe
+  Meter, um den der Punkt früher vorrückte, landete dicht vor einer Wand
+  hinter ihr — dann war gar keine gemeint.
 
 Die Pad-Belegung der Leiste (Schultertasten o. Ä.) ist nicht Teil davon.
 
-**Der Beispielraum** (`worlds/portal/sampleRoom.ts`) ist ein fertig
+**Mehr Muster ohne neue Assets** (dritte Runde). Die Stücke von KayKit
+färben sich über einen **Farbatlas**: Jede Fläche zeigt mit ihren UV in eines
+von 8 × 4 Feldern der Paket-Textur. `tools/surface-variants.mjs` (einmal von
+Hand, wie `tools/prototype-variants.mjs`) verschiebt die UV der dunklen
+Küchenfliesen (`floor_kitchen_small`, Feld 1/0) in das rote, grüne und blaue
+Feld von `restaurantbits_extra.webp` und schreibt
+`restaurant-bits/floor_kitchen_small_{red,green,blue}.glb` samt Eintrag im
+Inhaltsverzeichnis des Regals — je ein unkomprimiertes Netz von knapp 5 KB,
+**dieselbe Textur**, geladen erst, wenn jemand das Muster wählt. Dazu kommt
+**Zuckerguss** (`holiday-bits/floor_gingerbread_small`), ein Stück, das schon
+im Regal lag. Ausprobiert und verworfen: `floor_tile_small_broken_A` (von
+oben ein dunkler Fleck je Kachel), `floor_dirt_small_A` (auf dem dunklen
+Boden kaum zu sehen) und `platformer/floor_wood_1x1` (nur einen halben Meter
+groß, jede Kachel halb leer). Die zweite Restaurantfliese hieß
+_Küchenfliesen blau_ und ist beige-braun kariert — sie heißt jetzt so.
+
+**Die Vorlagen** (`worlds/portal/sampleRoom.ts`, `SAMPLE_ROOMS`) liegen in
+einem Untermenü _Baukasten-Werkzeuge → Vorlagen_ (`build:templates`, je
+Vorlage `build:sample:<id>`): das **Wohnzimmer** (der erste Beispielraum,
+unten) und das **Kleine Café** — rot-weiße Küchenfliesen, dunkle Fliesen
+hinter der Theke (der Küchenzeile des Startzimmers), Menükarte, Eisbecher
+und Glas auf der Theke, drei Hocker davor, ein Tisch mit rotem Tischtuch und
+Burger auf dem Teller, zwei kleine runde Tische mit Eisbecher und Eintopf,
+Bilder an West- und Südwand, ein Kaktus an der Tür; alles aus
+`restaurant-bits` und `furniture-bits`. Beide laden wie unten beschrieben
+als **ein** Schritt; eine zweite Vorlage im selben Raum tauscht den Boden,
+stellt ihre Stücke aber **zu** den ersten — wer wechseln will, nimmt die
+erste mit _Zurück_ weg. Die gebaute Pizza war auf dem kleinen Tisch größer
+als der Tisch; dort steht jetzt ein Eintopf.
+
+**Der Beispielraum** (_Wohnzimmer_) ist ein fertig
 eingerichtetes Startzimmer des Bauplatzes, das zeigt, was geht: helle Dielen
 im ganzen Raum, Fliesen hinter der Küchenzeile, eine Putzwand im Osten, Topf
 und Kaktus auf der Zeile, Teller auf dem Tisch, zwei Stühle (einer schräg),
@@ -1430,9 +1492,26 @@ Wandfackel an einer schrägen Wand, die ersetzte Regalwand nach _Zurück_, eine
 Fläche Tassen auf der Küchenzeile, der Beispielraum von oben und aus vier
 Richtungen, die Werkzeugseite am Schirm und als Panel der Brille.
 
-**Offen**: Farbvarianten über den Atlas (wie `tools/prototype-variants.mjs`
-es für Türen tut) gäbe es für mehr Muster, gebaut wurde das nicht. Eine
-gebaute Wand wird von einer ganzen Regalwand nur zugedeckt, nicht ersetzt.
-_Boden_ läuft durch eine Tür ohne Sturz hinaus und meldet dann „kein
-geschlossener Raum". Der Geist zeigt in der Brille weiter nur, was die Hand
-hält; Boden und Wand haben dort keine Vorschau, nur die Zeile.
+**Geprüft in der dritten Runde**: `surfaceDecor.test.ts` (jedes Muster mit
+eigenem Farbfeld und Namen, `stylePattern`; `surfacePress`: erst zeigen,
+dann belegen, das andere Werkzeug wechselt die Vorschau; `nearestFace` mit
+Blickrichtung: die Wand im Rücken nicht, die angesehene auch etwas weiter
+weg, in der Ecke die angesehene statt der näheren), `buildBar.test.ts`
+(`swatchBackground` einfarbig und kariert), `sampleRoom.test.ts` (jedes
+Muster und jedes Stück der Vorlagen liegt als Datei im Regal, die
+umgefärbten Fliesen sind unter 8 KB und im Inhaltsverzeichnis, jede Vorlage
+im Zimmer und mit genau einem Boden). Die Bild-Schleife lief im Bauplatz bei
+1280×800: Leiste mit Farbfeld bei Boden und Wand (einfarbig und kariert),
+jedes neue Bodenmuster von oben, die Vorschau in der Ich-Sicht (Raum im
+Gitter, leuchtende Wandseite, dann die Fliesen), die Werkzeugseite mit der
+Zeile der Vorschau, das Untermenü _Vorlagen_ und das Café von oben und aus
+vier Richtungen.
+
+**Offen**: Eine gebaute Wand wird von einer ganzen Regalwand nur zugedeckt,
+nicht ersetzt. _Boden_ läuft durch eine Tür ohne Sturz hinaus und meldet dann
+„kein geschlossener Raum". Wandmuster aus dem Atlas gibt es noch nicht
+(`wall_tiles_A` ließe sich wie die Bodenfliesen umfärben). Eine Vorlage
+räumt die vorige nicht selbst ab. Die leuchtende Wandseite ist in der
+Ich-Sicht dicht vor einer langen Wand größer als das Bild — in der Brille
+sieht man mehr davon; in einer echten Brille ist die Vorschau nicht
+ausprobiert (nur Ich-Sicht am Schirm, derselbe Weg ohne Leiste).
