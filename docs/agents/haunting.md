@@ -1023,9 +1023,19 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   nicht** (`ShipExperience.roundOnly`, `rules/roundFlow.roundOnlyNote`,
   `ROUND_ONLY`: „Erst die Runde starten …", höchstens alle zwei Sekunden) —
   über `host.say` → `announce` → `ctx.notify`, statt den Druck stumm zu
-  schlucken. Achtung: Am Bildschirm und am Telefon landet `notify` nur im
-  Status des Handgelenk-Menüs, eine sichtbare Einblendung gibt es dort (noch)
-  nicht. **Die Tastenzeile der Tafel** (`rules/playerKeys.ts`) nennt
+  schlucken. **Am Bildschirm und am Telefon steht jede Ansage als kurze
+  Einblendung im Bild** (`ui/shipToast.ts`, `.orbital-toast`, mit Test):
+  `ctx.notify` allein landete dort nur im Status des Handgelenk-Menüs, das
+  niemand ansieht. `HauntingWorld.announce` reicht jede Ansage an
+  `ShipExperience.flash`; die neueste ersetzt die vorige, sie steht 2–3 s
+  (`toastSeconds`). Wo, rechnet `toastPlace`: rechts neben der Tafel bis zum
+  ersten Knopf an der Seite (Desktop, Telefon quer), sonst mittig unter der
+  Tafel (Telefon hochkant) — immer unter Kompass, Tastenhilfe oben und
+  Werkzeugknopf. Solange sie steht, wird sie je Bild nachgerückt, denn die
+  Tafel wächst oft im selben Augenblick („Schutzschrank verlassen"). In der
+  Brille, bei offenem Menü und ohne Techniker-Tafel gibt es sie nicht. Die
+  Ansage im Schrank nennt den Knopf des Geräts („Geschützt. A drücken …",
+  am Schreibtisch `E`). **Die Tastenzeile der Tafel** (`rules/playerKeys.ts`) nennt
   „… ins Leere: Licht an/aus" nur noch mit Tastatur (`useTogglesLight`): `E`
   geht immer an die Welt, `A` am Glas und `Ⓐ` am Pad benutzen nur mit einem
   Ziel vor der Figur und springen sonst (`FlatControls.applyUse`).
