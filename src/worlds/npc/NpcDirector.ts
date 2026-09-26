@@ -106,6 +106,23 @@ export interface NpcControl {
   clear(): number;
   /** Wie viel gerade steht — für die Meldung im Menü. */
   census(): { npcs: number; points: number; cages: number };
+  /**
+   * **Wo sie stehen und wohin sie wollen** — für die Karte in der Hand
+   * (`portal/tools/MapTool.ts`). Optional, damit ein Werkzeugkasten ohne
+   * Bestand nichts dafür bauen muss.
+   */
+  sketch?(): NpcSketch[];
+}
+
+/** Ein NPC, wie ihn eine Karte zeichnet: Füße, Ziel, Weg — alles in Metern. */
+export interface NpcSketch {
+  x: number;
+  y: number;
+  z: number;
+  /** Wohin er geschickt wurde, oder `null`. */
+  goal: { x: number; z: number } | null;
+  /** Die Wegpunkte, die er gerade läuft (leer, wenn er keinen hat). */
+  path: readonly { x: number; z: number }[];
 }
 
 export interface NpcRequest {
@@ -608,6 +625,23 @@ export class NpcDirector implements NpcControl {
    * Nur die, die auch einen haben: Wer stehen bleibt, hat keinen, und ein
    * leeres Feld zeichnet sich schlecht.
    */
+  sketch(): NpcSketch[] {
+    const out: NpcSketch[] = [];
+    for (const npc of this.npcs) {
+      if (!npc.alive) continue;
+      const at = npc.feet(_probe);
+      const goal = npc.goal;
+      out.push({
+        x: at.x,
+        y: at.y,
+        z: at.z,
+        goal: goal ? { x: goal.x, z: goal.z } : null,
+        path: npc.route.map((point) => ({ x: point.x, z: point.z })),
+      });
+    }
+    return out;
+  }
+
   paths(): readonly (readonly PathPoint[])[] {
     const found: PathPoint[][] = [];
     for (const npc of this.npcs) {

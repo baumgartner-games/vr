@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { fadeInfoTree } from './infoViewScene';
+import { infoView, onInfoViewsChange } from './infoViews';
 import { createAxes, disposeAxes } from './axesCross';
 import { graphics, onGraphicsChange } from './graphicsSettings';
 import type { GrabHandle, HoldBar, Vec3 } from './grabHandles';
@@ -76,9 +78,12 @@ const _to = new THREE.Vector3();
 export class HandleView {
   private readonly shown = new Map<THREE.Object3D, THREE.Group>();
   private readonly stop: () => void;
+  private readonly stopLook: () => void;
 
   constructor() {
     this.stop = onGraphicsChange(() => this.refresh());
+    // Die Deckkraft aus den Darstellungsoptionen (`core/infoViews.ts`).
+    this.stopLook = onInfoViewsChange(() => this.refresh());
   }
 
   /** Ob die Kreuze gerade gezeigt werden sollen. */
@@ -124,6 +129,7 @@ export class HandleView {
       const bar = spot.hold ? this.barMesh(spot.id, spot.hold, spot.pose.position) : null;
       if (bar) group.add(bar);
     }
+    fadeInfoTree(group, infoView('handles').opacity);
     object.add(group);
     this.shown.set(object, group);
   }
@@ -189,11 +195,16 @@ export class HandleView {
   /** Alles auf den Stand des Häkchens bringen. */
   refresh(): void {
     const on = HandleView.on;
-    for (const group of this.shown.values()) group.visible = on;
+    const opacity = infoView('handles').opacity;
+    for (const group of this.shown.values()) {
+      group.visible = on;
+      fadeInfoTree(group, opacity);
+    }
   }
 
   dispose(): void {
     this.stop();
+    this.stopLook();
     for (const object of [...this.shown.keys()]) this.forget(object);
   }
 }

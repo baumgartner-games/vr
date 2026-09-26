@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { fadeInfoMaterial, fadeInfoTree, syncInfoView } from '../../core/infoViewScene';
+import { infoView } from '../../core/infoViews';
 import { PortalWorld } from '../portal/PortalWorld';
 import { WorldEditor, type EditorHost } from '../editor/WorldEditor';
 import { WORLD_VERSION, WorldFormatError, type WorldContents } from './worldFile';
@@ -961,6 +963,12 @@ export abstract class GridWorld extends PortalWorld {
     const on = graphics().gridLines;
     for (const lines of this.gridLines)
       lines.visible = on && lines.userData.level === this.rigLevel;
+    // Die Deckkraft aus den Darstellungsoptionen (`core/infoViews.ts`) — an
+    // den beiden geteilten Materialien, nicht an jedem Netz.
+    if (!on) return;
+    const opacity = infoView('gridLines').opacity;
+    if (this.gridLineSkin) fadeInfoMaterial(this.gridLineSkin, opacity);
+    if (this.gridCellSkin) fadeInfoMaterial(this.gridCellSkin, opacity);
   }
 
   /**
@@ -1173,7 +1181,10 @@ export abstract class GridWorld extends PortalWorld {
 
   /** Die belegten Blöcke zeigen: Spieler, Mitspieler, NPCs. */
   private showFootprints(ctx: WorldContext): void {
-    const on = graphics().cellFootprints;
+    // Die Blöcke unter den Figuren sind das „NPCs"-Fach der belegten Felder
+    // (`core/infoViews.ts`); ohne sie bleibt nur das Zellgitter darunter.
+    const look = infoView('cells');
+    const on = graphics().cellFootprints && look.actors;
     if (!on) {
       this.footprints.group.visible = false;
       return;
@@ -1195,6 +1206,7 @@ export abstract class GridWorld extends PortalWorld {
       add(_footprintFeet.x, _footprintFeet.z, _footprintFeet.y);
     }
     this.footprints.update(on, this.cellGrid(), list);
+    fadeInfoTree(this.footprints.group, look.opacity);
   }
 
   /**
@@ -1212,6 +1224,9 @@ export abstract class GridWorld extends PortalWorld {
       return;
     }
     if (!this.cellHitboxes.group.parent) this.root.add(this.cellHitboxes.group);
+    // Wer das Gitter hier zeigt, bestimmt seine Darstellung: die Hitboxen,
+    // wenn sie an sind, sonst die belegten Felder (`core/infoViews.ts`).
+    syncInfoView(this.cellHitboxes.group, settings.gridHitBoxes ? 'gridHitBoxes' : 'cells');
     const level = this.rigLevel;
     const floorY = graph.levelY(level);
     this.cellHitboxes.update(dt, true, this.cellGrid(), {

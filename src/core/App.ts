@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { infoViewsMenu } from '../ui/infoViewMenu';
 import { PlayerRig } from './PlayerRig';
 import { XRInput } from './XRInput';
 import { Pointer } from './Pointer';
@@ -1831,6 +1832,13 @@ export class App {
             this.notify(next.showHandles ? 'Griffe sichtbar' : 'Griffe unsichtbar');
           },
         },
+        // **Wie die Info-Ansichten zeichnen** — ein Optionsfeld je Ansicht,
+        // überall dasselbe (`ui/infoViewMenu.ts`). Eine Zeile hier, damit ein
+        // neues Hauptmenü sie mit einem Griff woanders einhängen kann.
+        infoViewsMenu((message) => {
+          this.menuDirty = true;
+          this.notify(message);
+        }),
         {
           // **Der Schalter, den der Besitzer wollte**: Schatten wie in
           // Overcooked, ohne dafür die ganze Zeichnung dazuzunehmen. Er steht

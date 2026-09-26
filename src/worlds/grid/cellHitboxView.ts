@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markInfoPart } from '../../core/infoViewScene';
 import { CELL, slopeBlocks, type CellGrid } from '../nav/cellGrid';
 import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
 
@@ -109,6 +110,11 @@ export class CellHitboxView {
       one.frustumCulled = false;
       one.raycast = () => {};
     }
+    // Die Fächer der Darstellungsoptionen (`core/infoViewScene.ts`): Zellen
+    // und Treppenpfeile sind Räume, die roten Kanten Wände.
+    markInfoPart(this.cells, 'rooms');
+    markInfoPart(this.lines, 'walls');
+    markInfoPart(this.arrows, 'rooms');
     this.group.add(this.cells, this.lines, this.arrows);
   }
 
