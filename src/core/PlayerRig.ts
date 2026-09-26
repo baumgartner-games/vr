@@ -178,6 +178,17 @@ export class PlayerRig extends THREE.Group {
    * Spieler, der in der nächsten Welt nicht mehr springen kann.
    */
   jumpLock = false;
+
+  /**
+   * **Springt ein Sprungwunsch hier überhaupt?** Nicht mit `jumpLock` (die
+   * Küche, der Burgerladen) und nicht, wo die Fortbewegung ihn überhört
+   * (`Locomotion.canJump`: das Zellgitter, also jede Welt auf ihm). Die
+   * Tastenhilfe und die Beschriftung am Controller fragen es, statt
+   * _Springen_ aufzusagen, wo der Knopf nichts tut.
+   */
+  get canJump(): boolean {
+    return !this.jumpLock && this.locomotion.canJump !== false;
+  }
   /**
    * Ein Stick, der diese Frame dem Menü gehört.
    *

@@ -22,7 +22,8 @@ import {
  * - **die Ansicht** (aus den Augen, von oben, als Kran) und ob ein **Menü**
  *   davorliegt,
  * - **die Lage**: Steht etwas in Reichweite, heißt `A` _Benutzen_, sonst
- *   _Springen_; trägt die Figur etwas, kommt _Ablegen_ dazu; hält die Hand
+ *   _Springen_ — aber nur, wo gesprungen wird (`canJump`; auf dem Zellgitter
+ *   nicht, und dort steht dann gar nichts für `A`); trägt die Figur etwas, kommt _Ablegen_ dazu; hält die Hand
  *   ein Werkzeug, der Auslöser.
  *
  * Und sie liest die **Belegung** (`core/inputMap.ts`) und die **Marke** des
@@ -147,6 +148,11 @@ export interface HintContext {
   readonly carrying: boolean;
   /** Hält die Hand ein Werkzeug mit Auslöser (`PlayerRig.armed`)? */
   readonly armed: boolean;
+  /**
+   * Springt der Knopf hier (`PlayerRig.canJump`)? Auf dem Zellgitter nicht —
+   * dann sagt die Zeile kein _Springen_.
+   */
+  readonly canJump: boolean;
   /** Welche Aufschrift das Pad hat. */
   readonly padKind: PadKind;
   readonly config: InputConfig;
@@ -209,7 +215,8 @@ function padHints(ctx: HintContext): HintItem[] {
     add(pad('menu'), 'Menü');
     return out;
   }
-  add(pad('use'), ctx.useCandidate || ctx.carrying ? 'Benutzen' : 'Springen');
+  if (ctx.useCandidate || ctx.carrying) add(pad('use'), 'Benutzen');
+  else if (ctx.canJump) add(pad('use'), 'Springen');
   if (ctx.carrying) add(pad('cancel'), 'Ablegen');
   if (ctx.armed || ctx.view === 'topDown') add(pad('fire'), 'Auslösen');
   if (ctx.armed && ctx.view === 'firstPerson') add(pad('sight'), 'Zielen');
@@ -256,7 +263,7 @@ function keyHints(ctx: HintContext): HintItem[] {
   }
   if (ctx.useCandidate || ctx.carrying) add(key('use'), 'Benutzen');
   if (ctx.carrying) add('Klick', 'Ablegen');
-  add(key('jump'), 'Springen');
+  if (ctx.canJump) add(key('jump'), 'Springen');
   if (!ctx.carrying && (ctx.armed || ctx.view === 'topDown')) add('Klick', 'Auslösen');
   if (ctx.armed && ctx.view === 'firstPerson') add('Rechtsklick', 'Zielen');
   if (ctx.tools) add(key('tools'), 'Werkzeug');
@@ -272,12 +279,13 @@ function keyHints(ctx: HintContext): HintItem[] {
 /**
  * **Am Glas steht die Bedienung schon auf den Knöpfen** — `A`, der Auslöser,
  * ☰. Die Zeile sagt deshalb nur, was man den Knöpfen nicht ansieht: dass `A`
- * zwei Dinge kann.
+ * zwei Dinge kann — und wo nicht gesprungen wird, nur das eine, wenn es gilt.
  */
 function touchHints(ctx: HintContext): HintItem[] {
   if (ctx.menu) return [];
   if (ctx.view === 'crane') return [{ key: 'Finger', label: 'Kran stellen' }];
-  return [{ key: 'A', label: ctx.useCandidate ? 'Benutzen' : 'Springen' }];
+  if (ctx.useCandidate) return [{ key: 'A', label: 'Benutzen' }];
+  return ctx.canJump ? [{ key: 'A', label: 'Springen' }] : [];
 }
 
 // --- die Sonderzonen --------------------------------------------------------

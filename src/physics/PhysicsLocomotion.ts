@@ -395,6 +395,11 @@ export class PhysicsLocomotion implements Locomotion {
     return this.body.translation().y - this.halfHeight - RADIUS - CHARACTER_SKIN;
   }
 
+  /** Gesprungen wird nur ohne Ebene — dieselbe Bedingung wie beim Absprung in `apply`. */
+  get canJump(): boolean {
+    return !this.plane;
+  }
+
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
     if (dt <= 0 || this.disposed) return;
     // **Im Konstrukt hört die Welt hier auf** (`ghost`). Vor allem anderen,

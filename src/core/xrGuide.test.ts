@@ -156,7 +156,7 @@ describe('xrGuide — die Knöpfe heißen wie in der Hand', () => {
 });
 
 describe('xrGuide — die Beschriftung am Controller', () => {
-  const idle = { useCandidate: false, carrying: false, armed: false };
+  const idle = { useCandidate: false, carrying: false, armed: false, canJump: true };
 
   it('hat höchstens drei Knöpfe', () => {
     const zones = [
@@ -167,7 +167,10 @@ describe('xrGuide — die Beschriftung am Controller', () => {
       { kind: 'haunting', role: 'monster' } as const,
     ];
     for (const zone of zones) {
-      for (const ctx of [idle, { useCandidate: true, carrying: true, armed: true }]) {
+      for (const ctx of [
+        idle,
+        { useCandidate: true, carrying: true, armed: true, canJump: false },
+      ]) {
         const label = xrHints(zone, ctx);
         expect(label).not.toBeNull();
         expect(label!.items.length).toBeLessThanOrEqual(XR_HINT_MAX);
@@ -180,6 +183,15 @@ describe('xrGuide — die Beschriftung am Controller', () => {
     expect(xrHintText(xrHints(null, idle))).toBe('A Springen · Griff Greifen');
     expect(xrHintText(xrHints(null, { ...idle, useCandidate: true }))).toContain('A Benutzen');
     expect(xrHintText(xrHints(null, { ...idle, armed: true }))).toContain('Trigger Auslösen');
+  });
+
+  it('verspricht auf dem Zellgitter kein Springen', () => {
+    const grid = { ...idle, canJump: false };
+    expect(xrHintText(xrHints(null, grid))).toBe('Griff Greifen');
+    expect(xrHintText(xrHints({ kind: 'haunting', role: 'technician' }, grid))).toBe(
+      'Station: Techniker · Griff Greifen',
+    );
+    expect(xrHintText(xrHints(null, { ...grid, useCandidate: true }))).toContain('A Benutzen');
   });
 
   it('fährt im Kart mit den Triggern', () => {

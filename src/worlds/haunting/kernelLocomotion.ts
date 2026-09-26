@@ -25,6 +25,11 @@ export class KernelLocomotion implements Locomotion {
 
   constructor(private readonly inner: Locomotion) {}
 
+  /** Die Runde springt nicht; außerhalb gilt, was die Physik darunter kann. */
+  get canJump(): boolean {
+    return !this.active && this.inner.canJump !== false;
+  }
+
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
     this.wish.copy(velocity);
     if (!this.active) this.inner.apply(rig, velocity, jump, dt);

@@ -223,6 +223,8 @@ export interface XRHintContext {
   readonly carrying: boolean;
   /** Hält die Hand ein Werkzeug mit Auslöser (`PlayerRig.armed`)? */
   readonly armed: boolean;
+  /** Springt `A` hier (`PlayerRig.canJump`)? Auf dem Zellgitter nicht. */
+  readonly canJump: boolean;
 }
 
 export interface XRHintLabel {
@@ -242,14 +244,20 @@ export interface XRHintLabel {
  *
  * `null` heißt: nichts zeigen. Ohne Zone sagt sie nur, was gerade gilt
  * (Benutzen oder Springen, Greifen, und mit einem Werkzeug der Trigger).
+ * _Springen_ nur, wo gesprungen wird (`canJump`) — auf dem Zellgitter steht
+ * für `A` ohne etwas in Reichweite nichts.
  */
 export function xrHints(zone: HintZone | null, ctx: XRHintContext): XRHintLabel | null {
   const items: HintItem[] = [];
   const add = (key: string, label: string): void => {
     if (items.length < XR_HINT_MAX) items.push({ key, label });
   };
+  const useOrJump = (): void => {
+    if (ctx.useCandidate) add(XR_KEYS.use, 'Benutzen');
+    else if (ctx.canJump) add(XR_KEYS.use, 'Springen');
+  };
   if (!zone) {
-    add(XR_KEYS.use, ctx.useCandidate ? 'Benutzen' : 'Springen');
+    useOrJump();
     if (ctx.armed) add(XR_KEYS.trigger, 'Auslösen');
     add(XR_KEYS.grab, ctx.carrying ? 'Loslassen: Ablegen' : 'Greifen');
     return { title: '', items };
@@ -277,7 +285,7 @@ export function xrHints(zone: HintZone | null, ctx: XRHintContext): XRHintLabel 
         add(XR_KEYS.use, 'Klappe/Tür');
         return { title: 'Station: Monster', items };
       }
-      add(XR_KEYS.use, ctx.useCandidate ? 'Benutzen' : 'Springen');
+      useOrJump();
       add(XR_KEYS.grab, 'Greifen');
       if (ctx.armed) add(XR_KEYS.trigger, 'Auslösen');
       return { title: 'Station: Techniker', items };

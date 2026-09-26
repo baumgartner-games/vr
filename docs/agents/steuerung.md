@@ -411,7 +411,17 @@ Editor, Haunting — seit Oktober 2026). Dort geht der Spieler in der Ebene
 (`PhysicsLocomotion.plane`, siehe [Das Zellgitter](./zellgitter.md)): Wände
 stehen nur in 2D, und über eine solche Wand springt man nicht hinweg.
 Gewünscht: _„Springen kann an sich dann auch raus."_ Der Knopf bleibt, wo er
-ist, und tut dort nichts; die Welten ohne Gitter springen weiter.
+ist, und tut dort nichts. Alle fünf Welten der Liste (`worlds/index.ts`) sind
+Gitterwelten — der Spieler springt also in keiner mehr; nur eine `PortalWorld`
+ohne Gitter täte es noch.
+
+**Die Tastenhilfe sagt es auch** (gemeldet: _„dein Hinweis springen ist nicht
+mehr korrekt"_): Zeile am Schirm, Beschriftung am Controller und die Zeile am
+Glas fragen `PlayerRig.canJump` — `false` mit `jumpLock` (Küche, Burgerladen)
+oder wenn die Fortbewegung den Sprung überhört (`Locomotion.canJump`:
+`PhysicsLocomotion` mit Ebene, `KernelLocomotion` in der Runde,
+`FreeLocomotion`). Dann steht für `A` ohne etwas in Reichweite nichts da, und
+die Leertaste fehlt in der Zeile.
 
 **Die Sperre sitzt im Gestell und nicht in einer Steuerung** — anders als
 `PlayerRig.locked`, das nur in der Brille hält (siehe [Bauen](./bauen.md), der

@@ -55,6 +55,7 @@ describe('Burgerladen: Tastenhilfe nach Station', () => {
       useCandidate: true,
       carrying: true,
       armed: false,
+      canJump: true,
       padKind: 'xbox',
       config: defaultInputConfig(),
       zone: { kind: 'burger', holding: true, closed: false, action: 'Servieren' },
