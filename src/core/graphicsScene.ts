@@ -174,7 +174,10 @@ export function applySceneQuality(
       receive: mesh.receiveShadow,
     };
     mesh.userData[MESH_BASE] = base;
-    if (!profile.shadows) {
+    // Werfen und empfangen, sobald **irgendein** Licht eine Karte zeichnen
+    // darf — im Kreis-Modus ist das nur die Taschenlampe, die Sonne nicht
+    // (`tuneSuns`). Ohne Karte am Licht kostet der Schalter nichts.
+    if (!profile.lightShadows) {
       mesh.castShadow = base.cast;
       mesh.receiveShadow = base.receive;
       return;

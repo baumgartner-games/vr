@@ -29,6 +29,7 @@ function flat(): MenuEntry[] {
       children: [
         { id: 'gfx:fps', label: 'Bildrate' },
         { id: 'gfx:shadows', label: 'Schatten' },
+        { id: 'gfx:shadows-full', label: 'Schatten voll' },
         { id: 'gfx:hitboxes', label: 'Hitboxen' },
       ],
     },
@@ -102,12 +103,18 @@ describe('groupMenu', () => {
     expect(ids(gfx.children!)).toEqual(['gfx:shadows']);
     const werkstatt = child(root, 'werkstatt');
     expect(werkstatt.badge).toBe('TEST');
-    expect(ids(werkstatt.children!)).toEqual(['gfx:fps', 'gfx:hitboxes', 'setting:config']);
+    // Die echten Schattenkarten sind nur noch zum Vergleichen da.
+    expect(ids(werkstatt.children!)).toEqual([
+      'gfx:fps',
+      'gfx:hitboxes',
+      'gfx:shadows-full',
+      'setting:config',
+    ]);
     // **Dasselbe Objekt** — die App schreibt die Bildrate zweimal die Sekunde
     // hinein, und das muss dort ankommen, wo es angezeigt wird.
     expect(werkstatt.children![0]).toBe(fps);
     // Und das Original bleibt, wie es war.
-    expect(source.find((entry) => entry.id === 'gfx')!.children).toHaveLength(3);
+    expect(source.find((entry) => entry.id === 'gfx')!.children).toHaveLength(4);
   });
 
   it('holt den Spielmodus nach „Bauen" und benennt die Hand-Einstellungen um', () => {

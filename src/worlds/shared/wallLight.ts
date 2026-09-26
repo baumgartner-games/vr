@@ -10,6 +10,10 @@ import type * as THREE from 'three';
  * Taschenlampe."_ Eine Schattenkarte ist die Antwort, die three.js dafür hat:
  * Was das Licht nicht sieht, beleuchtet es nicht.
  *
+ * **Seit Welle 4 nur noch die Taschenlampe**: Die Deckenleuchten der Station
+ * haben keine Karte mehr, ihr Licht endet am Rand ihres Raums
+ * (`haunting/stationLighting.lampReach`).
+ *
  * Klein gehalten, weil es teuer ist: Eine Punktleuchte zeichnet ihre
  * Schattenkarte sechsmal (einmal je Würfelseite). `size` ist die Kantenlänge
  * je Seite. Gezeichnet wird sie nur, wenn die Grafik Schatten erlaubt

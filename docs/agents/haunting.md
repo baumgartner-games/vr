@@ -414,13 +414,37 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     sind Schilder und Bodenmarkierungen (Auskunft, kein Möbel), die
     Lüftungsklappen, Deckenleuchten, Drehleuchten und der Crawler — dafür hat
     das Regal nichts Passendes.
-  - **Licht hält an Wänden** (`shared/wallLight.ts`): Die Taschenlampe und die
-    beiden Deckenleuchten der Station werfen Schatten (Karte 512 bzw. 256 je
-    Seite); die Deckenleuchten zeichnen ihre Karte nur beim Umzug, beim
-    Angehen und viermal die Sekunde neu (`LAMP_SHADOW_EVERY`) — abwechselnd,
-    nie beide im selben Bild, und nie, solange sie dunkel sind
-    (`stationLighting.LampShadowTurns`, siehe „Das Ruckeln"). Ohne Schatten in der Grafik
-    (`renderer.shadowMap.enabled`) bleibt es wie vorher.
+  - **Nur die Taschenlampe wirft Schatten** (`shared/wallLight.ts`, Karte 512,
+    in jedem Bild neu). Die beiden Deckenleuchten hatten bis Welle 4 eine
+    Würfel-Schattenkarte (256 je Seite), die nur viermal die Sekunde neu
+    gezeichnet wurde — die Schatten bewegter Dinge sprangen sichtbar hinterher.
+    Wunsch des Besitzers: _„Räume sind dann entweder beleuchtet oder nicht. Nur
+    das mit der Taschenlampe ist wichtig, gibt den Horror-Vibe."_ Jetzt ist
+    `castShadow` an den Deckenleuchten **wirklich aus** (eine Punktleuchte mit
+    dem Schalter, aber ohne Karte, lässt WebGL jeden beleuchteten Aufruf mit
+    `GL_INVALID_OPERATION` verwerfen — so stand die Station früher einmal
+    unsichtbar da), und damit ihr Licht nicht durch die Wand in die Nachbarn
+    fällt, endet es knapp hinter der fernsten Ecke ihres Raums
+    (`stationLighting.lampReach` → `PointLight.distance`). **Türblätter werfen
+    keinen Schatten** (`denyShadow` in `ShipExperience.doorLeaves`). Die
+    Taschenlampe zeichnet ihre Karte in den Schattenmodi _Einfach (Kreis)_ und
+    _Voll_; bei _Aus_ leuchtet sie ohne (`docs/agents/grafik.md`,
+    „Schattenmodus"). Figuren (Techniker, Monster) tragen im Modus _Einfach_
+    ihren Schatten-Kreis (`actorArt`, `markBlobShadow`).
+
+    **Wo das Licht der Taschenlampe sitzt:** an der Linse der Lampe in der
+    Hand, nicht am Auge (`FlashlightTool.beam`, ein Kind der Lampe). Am
+    Bildschirm hängt die Lampe an der Kamera, 0,24 m rechts und 0,24 m unter
+    dem Auge (`ShipExperience.buildTorch`), in der Brille am Controller. Nur
+    deshalb sieht man Schatten überhaupt: Säße das Licht im Auge, fiele jeder
+    Schatten genau hinter das Ding, das ihn wirft. Die eigene Hand und das
+    Gehäuse werfen keinen — sie liegen hinter der Linse, und was näher als
+    0,12 m an ihr ist, zählt nicht (`stopAtWalls(…, near)`). Geprüft mit
+    abgeschaltetem Raumlicht und einem Brett im Kegel: in _Einfach_ fällt sein
+    Schatten groß nach links oben an die Wand, in _Aus_ nicht. Vorsicht beim
+    Nachprüfen mit einer einseitigen Fläche: three.js zeichnet in die
+    Schattenkarte die **Rückseite** (`shadowSide`), ein zur Lampe gedrehtes
+    Brett wirft deshalb nichts — ein Kasten oder `shadowSide = DoubleSide`.
 - **Dritte Runde (September 2026): Knöpfe je Kachel, Wandhebel, noch mehr
   aus dem Regal.**
   - **Ein Knopf steht auf einer Kachel, nicht auf der Fuge**
@@ -2746,7 +2770,10 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
      Farbtextur, WebGL verwirft den Zeichenaufruf (`GL_INVALID_OPERATION:
      Mismatch between texture format and sampler type`), und die Station stand
      in der Übungsrunde über das Menü unsichtbar da — Sterne, Schilder, sonst
-     nichts —, bis eine Lampe anging.
+     nichts —, bis eine Lampe anging. **Seit Welle 4 erledigt sich beides:**
+     Die Deckenleuchten haben gar keine Schattenkarte mehr (`castShadow` aus,
+     `stationLighting.lampReach`), `LampShadowTurns` und `lampShadowDue` sind
+     entfernt.
   6. **Shader wurden beim ersten Betreten eines Raums übersetzt** (zehn
      Programme beim Gang durch die Station, je eines ein Stocken). Jetzt eine
      Sekunde nach Rundenstart vorab für alle Materialien der Szene

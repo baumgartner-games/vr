@@ -50,68 +50,33 @@ export function stationLighting(
 }
 
 /**
- * **Welche Deckenleuchte ihre Schattenkarte in diesem Bild neu zeichnet** —
- * höchstens eine, und nur eine, die brennt.
+ * **Wie weit eine Deckenleuchte reicht** — so weit wie ihr Raum, in Metern.
  *
- * Eine Punktleuchte zeichnet ihre Karte sechsmal, einmal je Würfelseite
- * (`shared/wallLight.ts`), und jede Seite ist ein Durchgang über alles, was im
- * Umkreis Schatten wirft. Bis hierher bestellten beide Leuchten des Pools
- * (`HauntingWorld.lampPool`) ihre Karte **im selben Bild**, viermal die
- * Sekunde, und auch dann, wenn sie gar nicht brannten: Gemessen kamen in
- * diesem einen Bild 300 bis 420 Zeichenaufrufe und gut 100 000 Dreiecke zu
- * den sonst knapp 200 dazu — ein Ruckler im Takt von 4 Hz, in der Brille am
- * deutlichsten. Jetzt wechseln sie sich ab (jede kommt weiter alle `every`
- * Sekunden dran), und eine dunkle Leuchte zeichnet gar nichts.
+ * Die Deckenleuchten werfen **keine Schatten mehr** (Wunsch des Besitzers:
+ * _„Räume sind dann entweder beleuchtet oder nicht. Nur das mit der
+ * Taschenlampe ist wichtig."_). Bis hierher hielt ihre Würfel-Schattenkarte
+ * das Licht an der Wand auf (`shared/wallLight.ts`) — und zeichnete sie nur
+ * alle 0,25 s neu, sodass die Schatten bewegter Dinge sichtbar hinterher
+ * sprangen. Ohne Karte leuchtet eine Punktleuchte durch die Wand; damit sie
+ * trotzdem ihren Raum ausleuchtet und nicht die Nachbarn, endet ihr Licht
+ * (`PointLight.distance`) knapp hinter der fernsten Ecke ihres Raums.
  *
- * Zieht eine Leuchte um oder geht sie gerade an, zeichnet sie sofort — ihre
- * alte Karte gehört an eine andere Stelle oder ist veraltet.
+ * Eine Punktleuchte mit `castShadow` **ohne** Karte bräche übrigens WebGL
+ * (`GL_INVALID_OPERATION: Mismatch between texture format and sampler type`):
+ * `castShadow` bleibt deshalb wirklich aus, nicht nur ungezeichnet.
+ *
+ * @param rect   der Raum in Kacheln
+ * @param tile   Meter je Kachel
+ * @param height wie hoch die Leuchte über dem Boden hängt
  */
-export class LampShadowTurns {
-  private clock = 0;
-  private turn = -1;
-
-  constructor(
-    private readonly count: number,
-    private readonly every: number,
-  ) {}
-
-  /** Die Leuchte, die in diesem Bild an der Reihe ist, oder `-1`. */
-  step(dt: number): number {
-    if (this.count <= 0) return -1;
-    this.clock += dt;
-    if (this.clock < this.every / this.count) return -1;
-    this.clock = 0;
-    this.turn = (this.turn + 1) % this.count;
-    return this.turn;
-  }
-}
-
-/**
- * Ob eine Leuchte ihre Karte jetzt neu zeichnen soll.
- *
- * @param turn    sie ist an der Reihe (`LampShadowTurns.step`)
- * @param moved   sie hängt seit dem letzten Bild woanders
- * @param before  ihre Stärke im letzten Bild
- * @param now     ihre Stärke jetzt
- * @param hasMap  ob sie schon eine Karte hat (`light.shadow.map`)
- *
- * **Ohne Karte zeichnet sie einmal, auch dunkel.** Eine Punktleuchte mit
- * `castShadow` bindet ihre Karte an einen `samplerCubeShadow` in _jedem_
- * beleuchteten Material; fehlt die Karte, setzt three.js dort eine leere
- * Farbtextur ein, und WebGL verwirft den ganzen Zeichenaufruf
- * (`GL_INVALID_OPERATION: Mismatch between texture format and sampler type`).
- * So stand die Station in der Übungsrunde unsichtbar da — Boden, Wände, Hände,
- * nur die Schilder nicht —, solange keine Lampe brannte: Die dunklen Leuchten
- * hatten ihre erste Karte nie gezeichnet.
- */
-export function lampShadowDue(
-  turn: boolean,
-  moved: boolean,
-  before: number,
-  now: number,
-  hasMap = true,
-): boolean {
-  if (!hasMap) return true;
-  if (now <= 0) return false;
-  return turn || moved || before <= 0;
+export function lampReach(
+  rect: { readonly w: number; readonly d: number },
+  tile: number,
+  height: number,
+): number {
+  const halfW = (rect.w * tile) / 2;
+  const halfD = (rect.d * tile) / 2;
+  // Die fernste Ecke am Boden, plus ein Drittel: `distance` blendet das
+  // Licht zum Ende hin weich aus, und die Ecke soll noch hell sein.
+  return Math.hypot(halfW, halfD, height) * 1.35;
 }

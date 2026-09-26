@@ -1,7 +1,6 @@
 import { cellKey } from '../nav/cellGrid';
 import { stationFixtureCells } from './map/stationCells';
 import { NavigationOverlay } from './navigationOverlay';
-import { stopAtWalls } from '../shared/wallLight';
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
 import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
@@ -64,7 +63,7 @@ import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
 import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandSeats';
-import { LampShadowTurns, lampShadowDue, stationLighting } from './stationLighting';
+import { lampReach, stationLighting } from './stationLighting';
 import { ENTITY_PROFILES } from './threat';
 import { acousticField, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
 import { FULL_VIEW, portalRooms, topDownRooms, type ViewRect } from './stationVisibility';
@@ -384,6 +383,8 @@ const LAMP_ON = 48;
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
   at: THREE.Vector3;
+  /** Wie weit ihr Licht reicht: bis knapp hinter die fernste Ecke ihres Raums (`lampReach`). */
+  reach: number;
   color: number;
   glass: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
 }
@@ -480,9 +481,6 @@ export class HauntingWorld extends GridWorld {
   private crewPlaces = new Map<string, PeerPose>();
   private crewPlacedAt = -Infinity;
   private lampPool: THREE.PointLight[] = [];
-  /** Seit wann die Schattenkarten der Lampen nicht neu gezeichnet wurden. */
-  /** Welche der beiden Leuchten ihre Schattenkarte als nächste neu zeichnet. */
-  private readonly lampShadows = new LampShadowTurns(LAMP_POOL, LAMP_SHADOW_EVERY);
   private testLight: THREE.AmbientLight | null = null;
   private commandLight: THREE.SpotLight | null = null;
   private readonly fixtureSlabs: THREE.Object3D[] = [];
@@ -1408,21 +1406,20 @@ export class HauntingWorld extends GridWorld {
     this.buildFixtureColliders();
     this.lampPool = Array.from({ length: LAMP_POOL }, () => {
       const light = new THREE.PointLight(0xcce8e6, 0, 15, 2);
-      // **Die Lampe leuchtet ihren Raum aus und nicht die Nachbarn**
-      // (`shared/wallLight.ts`). Ihre Schattenkarte wird nur neu gezeichnet,
-      // wenn sie umzieht oder angeht, und sonst viermal die Sekunde
-      // (`LAMP_SHADOW_EVERY`) — abwechselnd, nie beide im selben Bild, und
-      // nie, solange sie dunkel ist (`applyLights`, `LampShadowTurns`).
-      stopAtWalls(light, 256);
-      light.shadow.autoUpdate = false;
-      light.shadow.needsUpdate = true;
+      // **Keine Schattenkarte**: Ein Raum ist hell oder dunkel, Schatten
+      // wirft nur die Taschenlampe. Ihr Licht endet am Rand ihres Raums
+      // (`stationLighting.lampReach`, gesetzt in `applyLights`). `castShadow`
+      // bleibt wirklich aus — eine Punktleuchte mit dem Schalter, aber ohne
+      // Karte, lässt WebGL jeden beleuchteten Zeichenaufruf verwerfen.
+      light.castShadow = false;
       this.stage.add(light);
       return light;
     });
     this.testLight = new THREE.AmbientLight(0xd5e9f3, 0);
     this.testLight.userData.dynamicIntensity = true;
     this.stage.add(this.testLight);
-    for (const room of spacesOf(this.spec)) this.buildLamp(room.id, roomCentre(room));
+    for (const room of spacesOf(this.spec))
+      this.buildLamp(room.id, roomCentre(room), lampReach(room.rect, TILE, PLAN_WALL_H - 0.14));
     this.beacons = buildCorridorBeacons(this.spec);
     for (const beacon of this.beacons) {
       // Hängt unter der Decke: Von oben geht die Leuchte mit ihr weg.
@@ -1579,7 +1576,7 @@ export class HauntingWorld extends GridWorld {
     this.stage.add(this.experience.root);
   }
 
-  private buildLamp(roomId: string, at: { x: number; z: number }): void {
+  private buildLamp(roomId: string, at: { x: number; z: number }, reach: number): void {
     const glass = new THREE.Mesh(
       new THREE.CircleGeometry(0.2, 12),
       new THREE.MeshBasicMaterial({ color: 0x2b3040, toneMapped: false }),
@@ -1592,6 +1589,7 @@ export class HauntingWorld extends GridWorld {
     this.lamps.set(roomId, {
       glass,
       at: glass.position.clone(),
+      reach,
       color: new THREE.Color(0xd9edff)
         .lerp(new THREE.Color(roomAccent(roomOf(this.spec, roomId)?.kind ?? '')), 0.22)
         .getHex(),
@@ -3166,14 +3164,9 @@ export class HauntingWorld extends GridWorld {
       ([id]) => lighting.lamps && (wideOpen ? id === viewRoom?.id : this.state.lit.includes(id)),
     );
     active.sort((a, b) => a[1].at.distanceToSquared(_head) - b[1].at.distanceToSquared(_head));
-    // **Höchstens eine Schattenkarte je Bild, und nur für Licht, das brennt**
-    // (`stationLighting.LampShadowTurns`, `lampShadowDue`).
-    const turn = this.lampShadows.step(dt);
     for (let i = 0; i < this.lampPool.length; i++) {
       const light = this.lampPool[i]!;
       const entry = active[i];
-      const before = light.intensity;
-      let moved = false;
       light.intensity = 0;
       if (entry) {
         const [id, lamp] = entry;
@@ -3182,16 +3175,11 @@ export class HauntingWorld extends GridWorld {
         const spook = this.runningRound()?.spook ?? null;
         const haunted = !bright && spook && id === spook.room ? flickerLevel(spook.since) : 1;
         const glow = Math.min(haunted, lampGlow(this.lampBook, id, this.state.time));
-        moved = !light.position.equals(lamp.at);
         light.position.copy(lamp.at);
+        light.distance = lamp.reach;
         light.color.setHex(lamp.color);
         light.intensity = LAMP_ON * glow * lampScale;
       }
-      if (lampShadowDue(i === turn, moved, before, light.intensity, light.shadow.map !== null))
-        light.shadow.needsUpdate = true;
-      // Eine dunkle Leuchte zeichnet nichts — three.js fragt dafür nicht nach
-      // der Stärke, sondern nur nach diesem Schalter.
-      else if (light.intensity <= 0) light.shadow.needsUpdate = false;
     }
     for (const [id, lamp] of this.lamps)
       lamp.glass.material.color.lerpColors(
@@ -4828,8 +4816,6 @@ export const STATION_FLOOR = 'prototype-bits/Floor.glb';
 /** Die Aufzugstür (`plan.LIFT_DOOR`) — für die Knöpfe davor. */
 const TEST_BAY_DOOR: ButtonDoor = LIFT_DOOR;
 
-/** Wie oft die Schattenkarte einer Deckenlampe neu gezeichnet wird, in Sekunden. */
-const LAMP_SHADOW_EVERY = 0.25;
 /** So lange läuft eine Runde, bevor ihre Shader vorab übersetzt werden (`warmShaders`), in Sekunden. */
 const WARM_AFTER = 1;
 /** Wie viele Punktleuchten die Deckenlampen der Station unter sich teilen. */

@@ -42,6 +42,55 @@ export type GraphicsMode = 'simple' | 'comic';
 
 export const GRAPHICS_MODES = ['simple', 'comic'] as const;
 
+/**
+ * **Wie Schatten entstehen** (`GraphicsSettings.shadows`).
+ *
+ * - `off` — gar keine: keine Schattenkarte, kein Fleck unter der Figur, auch
+ *   die Taschenlampe leuchtet ohne.
+ * - `simple` — **ein weicher runder Fleck unter jeder bewegten Figur**
+ *   (`core/BlobShadows.ts`), und die Sonne wirft gar nichts. Einzig die
+ *   Taschenlampe behält ihre echte Schattenkarte: Sie ist der Horror in der
+ *   Station, und eine kleine Karte (512) für ein Licht ist bezahlbar.
+ * - `full` — die echten Schattenkarten der Sonne wie bisher. Nur noch in der
+ *   Werkstatt (TEST) zu erreichen: Sie kosteten in der Brille das meiste, und
+ *   ihre Schatten sprangen hinter bewegten Dingen her.
+ *
+ * Gewollt so vom Besitzer: _„Der Spieler wirft nur Schatten nach unten, also
+ * eigentlich nur einen Schatten-Kreis unter sich."_
+ */
+export type ShadowMode = 'off' | 'simple' | 'full';
+
+export const SHADOW_MODES = ['off', 'simple', 'full'] as const;
+
+export const SHADOW_MODE_LABELS: Record<ShadowMode, string> = {
+  off: 'Aus',
+  simple: 'Einfach (Kreis)',
+  full: 'Voll',
+};
+
+export const SHADOW_MODE_SUBS: Record<ShadowMode, string> = {
+  off: 'Keine Schatten, auch nicht an der Taschenlampe',
+  simple: 'Ein weicher Kreis unter jeder Figur · die Taschenlampe wirft echte',
+  full: 'Echte Schattenkarten der Sonne · kostet in der Brille am meisten',
+};
+
+/** Ein Druck auf die Zeile im Grafik-Menü: Aus ↔ Einfach; aus `full` geht es nach Aus. */
+export function nextShadowMode(mode: ShadowMode): ShadowMode {
+  return mode === 'off' ? 'simple' : 'off';
+}
+
+/**
+ * Ein gespeicherter Wert als Schattenmodus. **Vor dem Modus war es ein
+ * Schalter**: `false` hieß keine Schatten und wird `off`, `true` hieß
+ * Schattenkarten und wird `simple` — der neue Normalfall, nicht die teure
+ * Karte. Was es nicht gibt (oder nie gespeichert wurde), wird die Vorgabe.
+ */
+export function readShadowMode(raw: unknown): ShadowMode {
+  if (raw === false) return 'off';
+  if (raw === true) return 'simple';
+  return SHADOW_MODES.includes(raw as ShadowMode) ? (raw as ShadowMode) : 'simple';
+}
+
 export interface GraphicsSettings {
   mode: GraphicsMode;
   /**
@@ -155,7 +204,11 @@ export interface GraphicsSettings {
    */
   showHandles: boolean;
   /**
-   * **Ob die Sonne Schatten wirft.**
+   * **Wie Schatten entstehen** (`ShadowMode`): aus, als weicher Kreis unter
+   * den Figuren (ab Werk), oder als echte Schattenkarte (nur Werkstatt).
+   * Gespeichert war hier früher ein Schalter; `readShadowMode` liest ihn.
+   *
+   * Die Geschichte des Schalters:
    *
    * Ein eigener Schalter und keine Eigenschaft der Stufe, und das ist
    * nachgetragen worden: Schatten hingen am **Comic**, also am Bild mit
@@ -172,7 +225,7 @@ export interface GraphicsSettings {
    * ist, macht ihn hier aus; er ist der erste Regler, an dem man dreht, wenn
    * die Bildrate klemmt.
    */
-  shadows: boolean;
+  shadows: ShadowMode;
   /**
    * **Ob sich die Figur beim Laufen staucht und streckt** — _squishy
    * movement_ (`core/squish.ts`, angewendet in `core/AvatarBody.ts`).
@@ -442,7 +495,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   gridHitBoxes: false,
   ghostBoxes: false,
   showHandles: false,
-  shadows: true,
+  shadows: 'simple',
   squish: false,
   squishScale: 1,
   squishSpeed: 0.5,
@@ -471,8 +524,16 @@ export const GRAPHICS_MODE_SUBS: Record<GraphicsMode, string> = {
  * kennen muss — und damit sie sich testen lässt.
  */
 export interface GraphicsProfile {
-  /** Ob die hellste Sonne der Welt Schatten wirft. */
+  /** Ob die hellste Sonne der Welt Schatten wirft — nur im Modus `full`. */
   shadows: boolean;
+  /**
+   * **Ob Lampen mit eigener Schattenkarte sie zeichnen dürfen** — die
+   * Taschenlampe (`shared/wallLight.ts`). In `simple` und `full` an, und nur
+   * dann läuft die Schattenkarte des Renderers überhaupt.
+   */
+  lightShadows: boolean;
+  /** Ob unter jeder bewegten Figur ein weicher Kreis liegt (`core/BlobShadows.ts`) — nur `simple`. */
+  blobShadows: boolean;
   /** Kantenlänge der Schattenkarte in Pixeln. */
   shadowMapSize: number;
   /**
@@ -550,9 +611,12 @@ export function graphicsProfile(
   const comic = settings.mode === 'comic';
   // Ein alter gespeicherter Stand kennt das Feld nicht; ohne Angabe gilt die
   // Vorgabe und nicht „aus".
-  const shadows = settings.shadows ?? DEFAULT_GRAPHICS.shadows;
+  const mode = readShadowMode(settings.shadows ?? DEFAULT_GRAPHICS.shadows);
+  const shadows = mode === 'full';
   return {
     shadows,
+    lightShadows: mode !== 'off',
+    blobShadows: mode === 'simple',
     shadowMapSize: 2048,
     // **Sechzehn Meter um den Kopf**, also ein Kasten von zweiunddreißig.
     // Vierzehn waren es, solange es nur die Brille gab; von oben reicht der
@@ -603,10 +667,10 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const gridHitBoxes = raw.gridHitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
   const showHandles = raw.showHandles === true;
-  // **Nicht `=== true`**, anders als die beiden darüber: Die Schatten sind ab
-  // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
-  // gar nicht. Wer sie ausmacht, hat `false` gespeichert und bekommt `false`.
-  const shadows = raw.shadows ?? DEFAULT_GRAPHICS.shadows;
+  // Die Schatten sind ab Werk **der Kreis**, und ein Stand von gestern kann
+  // hier noch den alten Schalter stehen haben: `false` wird Aus, `true` wird
+  // der Kreis (`readShadowMode`) — nicht die teure Karte.
+  const shadows = readShadowMode(raw.shadows ?? DEFAULT_GRAPHICS.shadows);
   // Und hier wieder `=== true`: Die Stauchung ist ab Werk aus, ein alter
   // Speicher kennt sie nicht, und „kenne ich nicht" heißt dann auch aus.
   const squish = raw.squish === true;
@@ -812,7 +876,10 @@ export function graphicsSummary(
   const grips = settings.showHandles ? ' · Griffe' : '';
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
-  const shade = settings.shadows === false ? ' · ohne Schatten' : '';
+  // Seit es den Kreis gibt, ist er der Normalfall; genannt werden „ohne" und
+  // die teure Karte.
+  const mode = readShadowMode(settings.shadows ?? DEFAULT_GRAPHICS.shadows);
+  const shade = mode === 'off' ? ' · ohne Schatten' : mode === 'full' ? ' · Schatten voll' : '';
   // Und ebenso: Genannt wird die Stauchung nur, wenn es sie gibt — samt
   // Faktor, denn zwischen ×0,5 und ×2 liegt der ganze Unterschied.
   const squishy = settings.squish

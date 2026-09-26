@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markBlobShadow } from './blobShadow';
 import { buildHeadgear, headgearFor, type HeadgearKind } from './headgear';
 import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
 import { FIGURE_CHEF, figureHeadRadius, figureHeight, figureLift } from './avatarFigures';
@@ -448,6 +449,9 @@ export class AvatarBody extends THREE.Group {
     this.torso = new THREE.Group();
     this.torso.name = 'avatar-torso';
     this.add(this.torso);
+    // Der Rumpf steht auf dem Boden zwischen den Füßen: Dort liegt im Modus
+    // _Einfach_ der Schatten-Kreis (`core/BlobShadows.ts`).
+    markBlobShadow(this.torso, 0.42);
 
     this.head = new THREE.Group();
     this.head.name = 'avatar-head';

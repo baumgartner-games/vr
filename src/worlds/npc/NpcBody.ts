@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markBlobShadow } from '../../core/blobShadow';
 import { canLoadModels } from '../../core/chefFit';
 import { FIGURE_FADE, gaitFor, pickClip, type FigureGait } from '../../core/kaykitFigureFit';
 import { disposeTree } from '../shared/environment';
@@ -207,6 +208,8 @@ export class NpcBody extends THREE.Group {
     const skin = npcSkin(kind);
     this.skin = skin;
     this.name = `npc-${skin.id}`;
+    // Der Ursprung liegt zwischen den Füßen — dort liegt der Schatten-Kreis.
+    markBlobShadow(this, skin.radius * 1.25);
     this.blocks.name = 'npc-blocks';
     this.add(this.blocks);
 
