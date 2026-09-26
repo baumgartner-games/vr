@@ -71,13 +71,25 @@
         -->
         <h1 id="landing-title">VR Spielwiese</h1>
         <p class="lead only-generic">
-          Eine WebXR-Basis für Experimente: Hub-Welt mit Händen, Weltenauswahl am linken
-          Handgelenk und ein experimenteller Portal-Prototyp.
+          Welten zum Anfassen — mit Brille, am Bildschirm oder auf dem Handy.
         </p>
         <p class="lead only-haunting">
           Eine Runde, ein Raum: Brille, Bildschirm und die Handys der Einsatzzentrale
           tragen denselben Raum-Code ein. Verbinden — und dann den eigenen Weg hinein wählen.
         </p>
+
+        <!--
+          **Wohin es geht: die Weltauswahl mit Bildern.** Die Karten legt
+          `main.ts` aus der Liste der Welten (`ui/landingWorlds.ts`) — Spiele
+          zuerst, Baustellen (`WIP`) und Prüfstände (`TEST`) dahinter, dieselbe
+          Reihenfolge wie im Menü. Eine Karte wählt, und der große Knopf darunter
+          sagt, wohin er jetzt führt. Haunting hat eine eigene Startseite mit
+          Lobby; seine Karte schlägt sie auf.
+        -->
+        <section id="world-pick" class="worlds only-generic" aria-labelledby="world-pick-title">
+          <h2 id="world-pick-title" class="landing__label">Welt wählen</h2>
+          <div id="world-cards" class="worlds__cards" role="radiogroup" aria-labelledby="world-pick-title"></div>
+        </section>
 
         <!--
           **Eine Frage, und zwar die, die dieses Gerät nicht schon beantwortet**
@@ -115,7 +127,7 @@
           sagt es vorher.
         -->
         <fieldset id="screen-view-field" class="posture screen-view" hidden>
-          <legend>Am Bildschirm: von oben oder aus den Augen?</legend>
+          <legend>Ansicht am Bildschirm</legend>
           <div id="screen-view" class="seg seg--two">
             <button type="button" data-view="2d">Von oben</button>
             <button type="button" data-view="3d">Aus den Augen</button>
@@ -192,7 +204,12 @@
           mit Absicht nichts vorgewärmt, es gibt also auch nichts, worauf ein
           Knopf warten könnte.
         -->
-        <button type="button" id="enter" class="btn btn--primary only-generic" disabled>Beitreten</button>
+        <!--
+          Zwei Zeilen im Knopf: groß, was er tut (_Spielen_, bzw. „Lädt … 17 %"
+          während des Downloads), klein darunter, wohin — die gewählte Welt und
+          die Ansicht (`main.ts`, `paintEnterLabel`).
+        -->
+        <button type="button" id="enter" class="btn btn--primary btn--play only-generic" disabled><span id="enter-label" class="btn__label">Spielen</span><span id="enter-sub" class="btn__sub"></span></button>
 
         <!--
           **Alles herunterladen — ohne eigenen Knopf.** Gespielt wird mit
@@ -241,21 +258,7 @@
           <p id="start-note" class="boot__note" role="status">Die Spielwiese wird geladen …</p>
         </div>
 
-        <!--
-          Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
-          gibt — Werkzeuge, Welten, den Beutel — und wie ein Werkzeug in der
-          Hand liegt. Deshalb steht sie hier neben dem Knopf und nicht in einem
-          Menü, das man erst öffnen muss.
-        -->
-        <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
-
-        <!--
-          Und die Eingabeseite. Sie steht hier und nicht in einem Menü, weil
-          man sie genau dann braucht, wenn man noch nicht drin ist: Ein Pad,
-          dessen Knöpfe im Spiel nichts tun, ist am Konsolenbrowser sonst
-          nicht zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
-        -->
-        <p class="landing__more only-generic"><a href="./inputs.html">Controller und Tasten prüfen →</a></p>
+        <p id="xr-status" class="status only-generic"></p>
 
         <!--
           **Als App ablegen.** Der Knopf steht nur da, wo der Browser das
@@ -270,7 +273,6 @@
           <p id="install-hint" class="field__hint"></p>
         </div>
 
-        <p id="xr-status" class="status only-generic"></p>
 
         <details id="net-setup" class="net only-generic">
           <summary class="net__summary">
@@ -302,15 +304,24 @@
           </div>
           <p id="net-status-landing" class="status"></p>
           <!--
-            Haunting steht hier nicht mehr: Wer `#haunting` öffnet, bekommt die
-            Startseite der Runde oben — mit Raum-Code, weil eine zweite Gruppe
-            einen eigenen Raum braucht.
+            Haunting steht hier nicht mehr: Seine Karte in der Weltauswahl
+            schlägt die Startseite der Runde auf — mit Raum-Code, weil eine
+            zweite Gruppe einen eigenen Raum braucht.
           -->
-          <p class="net__lead">
-            Für <strong>Haunting / Orbital</strong> gibt es eine eigene Startseite:
-            <a href="#haunting">#haunting</a>.
-          </p>
         </details>
+
+        <!--
+          **Was es neben dem Spiel gibt — dezent, in einer Zeile.** Die
+          Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es gibt
+          und wie ein Werkzeug in der Hand liegt. Die Eingabeseite braucht man
+          genau dann, wenn man noch nicht drin ist: Ein Pad, dessen Knöpfe im
+          Spiel nichts tun, ist am Konsolenbrowser sonst nicht zu untersuchen.
+          Beide stehen auch im Menü unter _Steuerung &amp; Hilfe_.
+        -->
+        <nav class="landing__links only-generic" aria-label="Weitere Seiten">
+          <a href="./inputs.html">Controller prüfen</a>
+          <a href="./tools.html">Werkzeuge &amp; Beutel</a>
+        </nav>
 
         <!--
           **Die Version, ganz unten und ganz klein.** `0.<Build>.<Patch>` aus

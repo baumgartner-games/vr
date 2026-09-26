@@ -318,5 +318,11 @@ export interface WorldDefinition {
    * (`ui/menuGroups.worldKind`).
    */
   test?: boolean;
+  /**
+   * **Das Bild der Welt auf der Startseite** — ein Pfad unter `public/`, ohne
+   * führenden Schrägstrich (`worlds/hub.webp`). Ohne Bild zeichnet die
+   * Startseite eine Fläche in der Akzentfarbe (`ui/landingWorlds.ts`).
+   */
+  preview?: string;
   load(): Promise<World>;
 }
