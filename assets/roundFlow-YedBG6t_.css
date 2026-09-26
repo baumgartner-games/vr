@@ -1,0 +1,1 @@
+html.nav-focus :focus{outline:3px solid #ffd54a;outline-offset:2px;box-shadow:0 0 0 5px #0a0e18d9}html.nav-focus .pmenu__row:focus,html.nav-focus .pmenu__tile:focus{background:#ffd54a24}

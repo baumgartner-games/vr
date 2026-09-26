@@ -1,2 +1,0 @@
-function r(t){const n=t.deltaMode===1?16:t.deltaMode===2?400:1,e=t.deltaX??0;return(Math.abs(e)>Math.abs(t.deltaY)?e:t.deltaY)*n}function o(t,n,e=40){const a=t*n<0?n:t+n;return Number.isFinite(a)?Math.abs(a)<e?{acc:a,step:0}:{acc:0,step:a<0?-1:1}:{acc:0,step:0}}function s(t){return t==="auto"||t==="scroll"||t==="overlay"}function c(t,n){for(let e=t;e;e=e.parentElement)if(s(n(e)))return!0;return!1}export{r as a,c as b,o as w};
-//# sourceMappingURL=wheelZoom-DC5zZ3fv.js.map
