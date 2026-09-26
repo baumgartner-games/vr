@@ -9,7 +9,6 @@ import {
   MARKS,
   roomCode,
   cutAt,
-  cutWalls,
   plainTiles,
   spacesOf,
   tilesOf,
@@ -319,68 +318,7 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
     group.add(sign);
   }
   group.add(batch.build());
-  for (const cap of cutCaps(room)) group.add(cap);
   return group;
-}
-
-/** Die Farbe hinter einer schrägen Wand — wie der Raum zwischen den Modulen. */
-const CUT_CAP = 0x070b11;
-
-/**
- * **Was hinter einer schrägen Wand liegt, sieht man nicht** (`HouseRoom.cuts`).
- *
- * Die Kacheln, durch die sie geht, haben ganzen Boden — Platte und Quader
- * sind quadratisch, und die innere Hälfte wird begangen. Die äußere Hälfte
- * deckt ein Dreieck in der Farbe des Zwischenraums zu, knapp über den
- * Bodenplatten: von oben eine saubere Schräge statt einer Zahnreihe.
- */
-function cutCaps(room: HouseRoom): THREE.Mesh[] {
-  const r = room.rect;
-  const material = new THREE.MeshBasicMaterial({ color: CUT_CAP });
-  // **Ein geformter Raum** (`HouseRoom.shape`) deckt je Schrägkachel ihre
-  // äußere Hälfte zu — die Ecke seines Rechtecks kann in einem anderen Raum
-  // liegen (eine Nische, ein Anbau).
-  if (room.shape) {
-    const out: THREE.Mesh[] = [];
-    for (const [at, corner] of room.shape) {
-      if (!corner) continue;
-      const [tx, tz] = at.split(',').map(Number) as [number, number];
-      const x0 = tx * TILE,
-        z0 = tz * TILE,
-        x1 = (tx + 1) * TILE,
-        z1 = (tz + 1) * TILE;
-      const cx = corner === 'nw' || corner === 'sw' ? x0 : x1,
-        cz = corner === 'nw' || corner === 'ne' ? z0 : z1;
-      const shape = new THREE.Shape([
-        new THREE.Vector2(cx, -cz),
-        new THREE.Vector2(cx === x0 ? x1 : x0, -cz),
-        new THREE.Vector2(cx, -(cz === z0 ? z1 : z0)),
-      ]);
-      const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.y = 0.08;
-      mesh.name = `cut-cap-${corner}`;
-      out.push(mesh);
-    }
-    return out;
-  }
-  return cutWalls(room).map((wall) => {
-    const corner = {
-      x: (wall.corner === 'nw' || wall.corner === 'sw' ? r.x : r.x + r.w) * TILE,
-      z: (wall.corner === 'nw' || wall.corner === 'ne' ? r.z : r.z + r.d) * TILE,
-    };
-    // In der Ebene des Formwerkzeugs ist y = −z: nach dem Kippen liegt es flach.
-    const shape = new THREE.Shape([
-      new THREE.Vector2(corner.x, -corner.z),
-      new THREE.Vector2(wall.a.x, -wall.a.z),
-      new THREE.Vector2(wall.b.x, -wall.b.z),
-    ]);
-    const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.y = 0.08;
-    mesh.name = `cut-cap-${wall.corner}`;
-    return mesh;
-  });
 }
 
 /**

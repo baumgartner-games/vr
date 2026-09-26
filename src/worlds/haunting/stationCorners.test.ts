@@ -155,3 +155,33 @@ describe('Die schrägen Ecken der Station', () => {
     }
   });
 });
+
+describe('Der Boden unter den Schrägen', () => {
+  it('ist auf jeder Schrägkachel nur die innere Hälfte — außen steht nichts über', () => {
+    const plan = housePlan(spec);
+    let slopes = 0;
+    for (const { tile, slope, empty } of plan.saveSlopes()) {
+      slopes++;
+      expect(plan.halfFloorAt(tile)).toBe(empty);
+      expect(slope === 'slash' ? ['nw', 'se'] : ['ne', 'sw']).toContain(empty);
+    }
+    expect(slopes).toBeGreaterThan(10);
+    const halves = plan.solids().filter((one) => one.kind === 'floor' && one.half);
+    expect(halves).toHaveLength(slopes);
+    let outside = 0;
+    for (const one of halves) {
+      const tx = Math.floor(one.x),
+        tz = Math.floor(one.z);
+      const dx = one.half === 'nw' || one.half === 'sw' ? -1 : 1;
+      const dz = one.half === 'nw' || one.half === 'ne' ? -1 : 1;
+      // Die beiden Nachbarn an der leeren Ecke gehören nicht zum selben Raum:
+      // Dort ist draußen (oder die Wand eines Gangs).
+      const here = roomAt(spec, tx, tz)!.id;
+      expect(roomAt(spec, tx + dx, tz)?.id).not.toBe(here);
+      expect(roomAt(spec, tx, tz + dz)?.id).not.toBe(here);
+      if (!roomAt(spec, tx + dx, tz) && !roomAt(spec, tx, tz + dz)) outside++;
+    }
+    // Die meisten zeigen nach draußen.
+    expect(outside).toBeGreaterThan(slopes / 2);
+  });
+});

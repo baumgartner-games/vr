@@ -151,8 +151,15 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   - Gegangen und gesucht wird darüber auf dem Zellgitter wie überall
     (`stationCellGrid` liest die Schrägen).
   - Gezeichnet werden alle Wände als Regalstücke (`grid/shelfWalls.ts`,
-    `HauntingWorld.placeStationWalls`). Hinter der Schräge deckt ein dunkles
-    Dreieck die äußere Hälfte der Bodenplatte zu (`shipArt.cutCaps`).
+    `HauntingWorld.placeStationWalls`).
+  - **Hinter der Schräge ist kein Boden** (September 2026, Wunsch des
+    Besitzers): Jede Schrägkachel trägt nur ihre innere Hälfte
+    (`GridPlan.halfFloor`, gesetzt in `plan.stationSpace`, gezeichnet als
+    dreieckiges Stück `grid/halfFloor.ts`, nicht zu Rechtecken
+    zusammengelegt in `StationPlan.solids`). Vorher lag dort eine ganze
+    Platte, und ein dunkles Dreieck (`shipArt.cutCaps`, entfallen) deckte die
+    äußere Hälfte zu — von außen stand es über. Gehen ändert sich nicht
+    (`stationCorners.test`, `halfFloor.test`).
   - Karte (`wallSegments`, `roomOutline`), Archiv und Papierkarte
     (`HauntingWorld.wallsOf`) zeichnen die Schräge mit.
   - Türen, Klappen, Fenster, Merkmale, Aufgaben und Sicherungskasten liegen

@@ -22,7 +22,13 @@ import {
 } from '../nav/navTile';
 import { BLOCKS, blockRise, blockSolids, flightStepRise, type BlockKind } from './blocks';
 import { FIXTURE_COST, fixtureKind, type FixturePlacement, type Props } from './fixtures/index';
-import { standing, type PlanSolid, type PlanSolidKind } from './solids';
+import {
+  slopeCorners,
+  standing,
+  type FloorCorner,
+  type PlanSolid,
+  type PlanSolidKind,
+} from './solids';
 import { boxCells, cellKey, type Slope } from '../nav/cellGrid';
 import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 
@@ -158,6 +164,12 @@ export class GridPlan {
    */
   private readonly slopeTiles = new Map<TileKey, Slope>();
   /**
+   * **Halbe Böden unter Schrägen** (`halfFloor`): je Kachel die Ecke, deren
+   * Dreieck leer bleibt. Nur Darstellung — Graph und Zellgitter bleiben, wie
+   * sie sind.
+   */
+  private readonly halfFloors = new Map<TileKey, FloorCorner>();
+  /**
    * Was auf einer Kachel gälte, wenn kein Baustein darauf stünde.
    *
    * Ohne diese Notiz wäre ein Baustein nicht wieder wegzunehmen: Sein
@@ -284,9 +296,39 @@ export class GridPlan {
     if (slope && !this.graph.has(key)) return this;
     if (slope) this.slopeTiles.set(key, slope);
     else if (!this.slopeTiles.delete(key)) return this;
+    // Ein halber Boden gilt nur für die Diagonale, zu der er gehört.
+    const half = this.halfFloors.get(key);
+    if (half && (!slope || !slopeCorners(slope).includes(half))) this.halfFloors.delete(key);
     this.edits++;
     this.refresh(key);
     return this;
+  }
+
+  /**
+   * **Den Boden unter einer Schräge halbieren** — `empty` ist die Ecke, deren
+   * Dreieck leer bleibt, `null` macht ihn wieder ganz.
+   *
+   * Wunsch des Besitzers (September 2026): Auf einer Bodenkachel mit einer
+   * Wand unter 45° soll die äußere Hälfte leer sein können, statt dass dort
+   * eine ganze Platte übersteht. Es geht nur, wo eine Schräge steht, und nur
+   * zu einer ihrer beiden Seiten (`slopeCorners`). Gehen ändert sich nicht:
+   * Die äußeren Zellen der Kachel sperrt die Schräge schon.
+   */
+  halfFloor(x: number, z: number, empty: FloorCorner | null, level = 0): this {
+    const key = tileKey(x, z, level);
+    const slope = this.slopeTiles.get(key);
+    if (empty && (!slope || !slopeCorners(slope).includes(empty))) return this;
+    if (empty) {
+      if (this.halfFloors.get(key) === empty) return this;
+      this.halfFloors.set(key, empty);
+    } else if (!this.halfFloors.delete(key)) return this;
+    this.edits++;
+    return this;
+  }
+
+  /** Die leere Ecke eines halben Bodens — `null` für einen ganzen. */
+  halfFloorAt(key: TileKey): FloorCorner | null {
+    return this.halfFloors.get(key) ?? null;
   }
 
   /**
@@ -445,18 +487,24 @@ export class GridPlan {
   }
 
   /** Alle Schrägen, zum Speichern (`worldFile.ts`). */
-  saveSlopes(): Array<{ tile: TileKey; slope: Slope }> {
-    return [...this.slopeTiles].map(([tile, slope]) => ({ tile, slope }));
+  saveSlopes(): Array<{ tile: TileKey; slope: Slope; empty?: FloorCorner }> {
+    return [...this.slopeTiles].map(([tile, slope]) => {
+      const empty = this.halfFloors.get(tile);
+      return empty ? { tile, slope, empty } : { tile, slope };
+    });
   }
 
   /** Und wieder zurück. Was auf einer Kachel steht, die es nicht gibt, fällt weg. */
-  loadSlopes(list: ReadonlyArray<{ tile: TileKey; slope: Slope }>): this {
+  loadSlopes(list: ReadonlyArray<{ tile: TileKey; slope: Slope; empty?: FloorCorner }>): this {
     const touched = new Set<TileKey>(this.slopeTiles.keys());
     this.slopeTiles.clear();
+    this.halfFloors.clear();
     for (const one of list) {
       if (!this.graph.has(one.tile)) continue;
       if (one.slope !== 'slash' && one.slope !== 'backslash') continue;
       this.slopeTiles.set(one.tile, one.slope);
+      if (one.empty && slopeCorners(one.slope).includes(one.empty))
+        this.halfFloors.set(one.tile, one.empty);
       touched.add(one.tile);
     }
     this.edits++;
@@ -879,7 +927,14 @@ export class GridPlan {
   solids(): PlanSolid[] {
     const out = planSolids(this.graph, this.doorWidth());
     // Wände, Türen und Fenster sperrt das Zellgitter (`PlanSolid.cell`).
-    for (const one of out) if (one.kind !== 'floor') one.cell = true;
+    for (const one of out) {
+      if (one.kind !== 'floor') one.cell = true;
+      else if (this.halfFloors.size > 0) {
+        const tile = tileKey(Math.floor(one.x / TILE), Math.floor(one.z / TILE), one.level ?? 0);
+        const half = this.halfFloors.get(tile);
+        if (half) one.half = half;
+      }
+    }
     for (const one of this.stack) out.push(massSolid(this.graph, one));
     for (const one of this.placed) {
       // **Ein Baustein steht auf der Ebene seiner Kachel** — die Brüstung auf
@@ -962,7 +1017,7 @@ export class GridPlan {
     blocks: readonly BlockPlacement[],
     masses: readonly Mass[] = [],
     fixtures: readonly FixturePlacement[] = [],
-    slopes: ReadonlyArray<{ tile: TileKey; slope: Slope }> = [],
+    slopes: ReadonlyArray<{ tile: TileKey; slope: Slope; empty?: FloorCorner }> = [],
   ): this {
     replacePlan(this.graph, graph);
     this.base.clear();

@@ -227,12 +227,15 @@ export class TopDownFog {
     this.group.visible = false;
     this.entryRoom = spec.entryRoom;
     for (const space of spacesOf(spec)) this.lid(space.id, lidPieces(spec, space));
-    const a = APRON;
+    // Die Zentrale reicht nach Westen, Süden und Osten über ihre Wand hinaus;
+    // nach Norden liegt die Station, und dort endet sie auf der Fuge.
+    const a = APRON,
+      o = LID_OUTSET;
     const apron = [
-      { x: a.x * TILE, z: a.z * TILE },
-      { x: (a.x + a.w) * TILE, z: a.z * TILE },
-      { x: (a.x + a.w) * TILE, z: (a.z + a.d) * TILE },
-      { x: a.x * TILE, z: (a.z + a.d) * TILE },
+      { x: a.x * TILE - o, z: a.z * TILE },
+      { x: (a.x + a.w) * TILE + o, z: a.z * TILE },
+      { x: (a.x + a.w) * TILE + o, z: (a.z + a.d) * TILE + o },
+      { x: a.x * TILE - o, z: (a.z + a.d) * TILE + o },
     ];
     this.lid(APRON_LID, [{ outline: apron, sides: [true, true, true, true] }]);
   }

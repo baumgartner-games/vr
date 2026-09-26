@@ -58,7 +58,9 @@ class StationPlan extends GridPlan {
     const walls: PlanSolid[] = [];
     const rest: PlanSolid[] = [];
     for (const solid of all) {
-      if (solid.kind === 'floor' && solid.w === TILE && solid.d === TILE) floors.push(solid);
+      // Ein halber Boden (`PlanSolid.half`) bleibt einzeln: Er ist ein Dreieck.
+      if (solid.kind === 'floor' && !solid.half && solid.w === TILE && solid.d === TILE)
+        floors.push(solid);
       else if (solid.kind === 'wall' && isPlainWall(solid)) walls.push(solid);
       else rest.push(solid);
     }
@@ -262,6 +264,7 @@ export function housePlan(
  * - Eine Kachel, durch die sie geht, trägt die Schräge (`GridPlan.slope`)
  *   und hat zu den beiden Außenseiten der Ecke keine Wand: Dort ist die
  *   schräge Wand die Grenze, und über das Gehen entscheidet das Zellgitter.
+ *   Ihr Boden ist nur die innere Hälfte (`GridPlan.halfFloor`).
  * - Jede andere Kante zu etwas, das nicht dieser Raum ist, ist eine Wand —
  *   dieselbe Regel wie `wallRect`, nur je Kachel gefragt.
  */
@@ -284,7 +287,13 @@ function stationSpace(plan: GridPlan, room: HouseRoom): void {
         plan.wall(x, z, dir);
       }
       const slope = cutAt(room, x, z);
-      if (slope !== null && slope !== 'out') plan.slope(x, z, slope);
+      if (slope !== null && slope !== 'out') {
+        plan.slope(x, z, slope);
+        // **Hinter der Schräge ist kein Boden** (`GridPlan.halfFloor`): Die
+        // äußere Hälfte der Kachel bleibt leer, statt als Platte über die
+        // Station hinauszustehen.
+        if (cut) plan.halfFloor(x, z, cut.corner);
+      }
     }
   plan.mass('wall', { ...r, level: 0 }, PLAN_WALL_H, PLAN_WALL_H + 0.3, { level: 1 });
 }
