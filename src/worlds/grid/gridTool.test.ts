@@ -8,6 +8,7 @@ import {
   gridToolSpec,
   isBlockTool,
   isFixtureTool,
+  outerCorner,
   toolFixtureKind,
 } from './gridTool';
 // Damit die Arten angemeldet sind — der Pinsel kennt sie über die Registry.
@@ -276,15 +277,32 @@ describe('Einbauten setzen', () => {
 });
 
 describe('Die Schräge im Editor', () => {
-  it('dreht bei jedem Tippen weiter: keine, ╱, ╲, keine', () => {
+  it('dreht bei jedem Tippen weiter: keine, ╱, ╲, ╱ und ╲ mit halbem Boden, keine', () => {
     const plan = room();
-    const spot = { tile: tileKey(1, 1), dir: null };
+    // Die Ecke im Nordwesten: nach Norden und Westen liegt kein Boden.
+    const spot = { tile: tileKey(0, 0), dir: null };
     expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge ╱');
     expect(plan.slopeAt(spot.tile)).toBe('slash');
+    expect(plan.halfFloorAt(spot.tile)).toBeNull();
     expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge ╲');
     expect(plan.slopeAt(spot.tile)).toBe('backslash');
+    expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge ╱, Boden halb');
+    expect(plan.slopeAt(spot.tile)).toBe('slash');
+    // Leer wird die Hälfte, die nach draußen zeigt.
+    expect(plan.halfFloorAt(spot.tile)).toBe('nw');
+    expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge ╲, Boden halb');
+    expect(plan.slopeAt(spot.tile)).toBe('backslash');
+    expect(['ne', 'sw']).toContain(plan.halfFloorAt(spot.tile));
     expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge weg');
     expect(plan.slopeAt(spot.tile)).toBeNull();
+    expect(plan.halfFloorAt(spot.tile)).toBeNull();
+  });
+
+  it('nimmt als leere Hälfte die, an der weniger Boden liegt', () => {
+    const plan = room();
+    expect(outerCorner(plan, tileKey(2, 2), 'slash')).toBe('se');
+    expect(outerCorner(plan, tileKey(2, 0), 'backslash')).toBe('ne');
+    expect(outerCorner(plan, tileKey(0, 2), 'backslash')).toBe('sw');
   });
 
   it('steht nur auf Boden und geht mit dem Radiergummi wieder weg', () => {

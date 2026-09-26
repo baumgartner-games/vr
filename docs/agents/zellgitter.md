@@ -57,6 +57,20 @@ den großen Kacheln bleibt.
     übernimmt die Drehung.
   - Wer nur Kästen kennt (`solidBounds`, Ghosting), sieht einen Kasten um die
     Mitte.
+  - **Halber Boden** (`GridPlan.halfFloor(x, z, ecke | null)`,
+    `halfFloorAt`, September 2026): Die äußere Hälfte einer Schrägkachel kann
+    leer sein — `ecke` ist die Ecke, deren Dreieck fehlt, und sie muss zur
+    Diagonale passen (`solids.slopeCorners`: ╱ → `nw`/`se`, ╲ → `ne`/`sw`).
+    Dreht oder verschwindet die Schräge, wird der Boden wieder ganz. Der
+    Bodenquader trägt dann `PlanSolid.half`; `GridWorld.build` zeichnet ein
+    dreieckiges Prisma (`grid/halfFloor.ts`), es kommt keine Platte aus dem
+    Regal darauf (`plateField.floorPlateModels`) und in kein Bündel. **Am
+    Gehen ändert sich nichts**: Graph, Kachel und Zellen bleiben, die Zellen
+    auf der Diagonale sperrt die Schräge wie zuvor, und der Körper bleibt der
+    ganze Quader (`halfFloor.test`). Wer die Schräge nur als Planwand wegnimmt,
+    weil ein Regalstück an ihrer Stelle steht (`shelfWalls.clearPlanWalls`),
+    behält den halben Boden (`slope(x, z, null, level, true)`);
+    `replaceWith` nimmt ihn mit. In die Weltdatei kommt er nur samt Schräge.
 - **Der Spieler geht in der Ebene** (`PhysicsLocomotion.plane`, gestellt von
   `GridWorld.playerPlane`, Rechnung in `nav/planeMove.ts`, seit Oktober 2026):
   - Gewünscht: _„nicht mit der 3D-Kollision, sondern auf der 2D-Ebene … die
@@ -180,11 +194,15 @@ den großen Kacheln bleibt.
   - _Gitterlinien_ zeigen die halben Kacheln blass zwischen den ganzen.
 - **Editor:** Werkzeug _Schräge_ (`levelPlan.PLAN_TOOLS`,
   `gridTool.turnSlope`).
-  - Jedes Tippen dreht weiter: keine → ╱ → ╲ → keine.
+  - Jedes Tippen dreht weiter: keine → ╱ → ╲ → ╱ mit halbem Boden → ╲ mit
+    halbem Boden → keine. Leer wird die Hälfte, an der weniger Boden liegt
+    (`gridTool.outerCorner`).
   - _Löschen_ nimmt sie nach Einbau und Baustein weg.
   - Das Tischmodell zeigt sie gedreht.
 - **Weltdatei `0.4.0`** (`grid/worldFile.ts`):
-  - Die Schrägen stehen als `slopes: [{ x, z, l?, slope }]` darin.
+  - Die Schrägen stehen als `slopes: [{ x, z, l?, slope, empty? }]` darin
+    (`empty`: die leere Ecke eines halben Bodens; eine unpassende Ecke fällt
+    beim Lesen weg).
   - Ohne Schrägen fehlt die Zeile.
   - `0.1` bis `0.3` werden weiter gelesen.
 
@@ -323,7 +341,8 @@ den großen Kacheln bleibt.
 - **Haunting läuft auf demselben Gitter** (`haunting/map/stationCells.ts`,
   `docs/agents/haunting.md`): Bewegung und Wegsuche der Runde, die
   Einrichtung als gesperrte Zellen — und die schrägen Ecken der Station
-  (`HouseRoom.cuts`) als Schrägen im Bauplan.
+  (`HouseRoom.cuts`) als Schrägen im Bauplan, jede mit halbem Boden
+  (`plan.stationSpace`).
 
 ## Was noch nicht auf Zellen läuft
 

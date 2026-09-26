@@ -119,7 +119,7 @@ export const PLAN_TOOLS: readonly PlanToolSpec[] = [
     // und nicht `applyTool` hier.
     id: 'slope',
     label: 'Schräge',
-    sub: 'Quer durch eine Kachel · nochmal tippen dreht, ein drittes Mal nimmt sie weg',
+    sub: 'Quer durch eine Kachel · weiter tippen: dreht, dann mit halbem Boden, zuletzt weg',
     accent: 0xffc24d,
   },
   {

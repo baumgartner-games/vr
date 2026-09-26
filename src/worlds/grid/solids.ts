@@ -132,6 +132,38 @@ export interface PlanSolid {
    * machen hieße, dass ein Bodenportal auch die Wand gegenüber aufmacht.
    */
   portal?: boolean;
+  /**
+   * **Ein halber Boden unter einer Schräge** (`GridPlan.halfFloor`): die Ecke,
+   * deren Dreieck leer bleibt. Nur bei `kind: 'floor'`; gebaut wird dann ein
+   * dreieckiges Stück statt der ganzen Platte (`GridWorld.build`). Ohne
+   * Angabe ist der Boden ganz. Physik und Zellgitter kennen weiter die ganze
+   * Kachel — gegangen wird nur auf der inneren Hälfte, die äußeren Zellen
+   * sperrt die Schräge ohnehin.
+   */
+  half?: FloorCorner;
+}
+
+/** Eine Ecke einer Kachel, nach Himmelsrichtung. */
+export type FloorCorner = 'nw' | 'ne' | 'se' | 'sw';
+
+/** Welche Ecken eine Schräge abtrennen kann: „╱" die nordwestliche und südöstliche, „╲" die anderen. */
+export function slopeCorners(slope: 'slash' | 'backslash'): readonly [FloorCorner, FloorCorner] {
+  return slope === 'slash' ? ['nw', 'se'] : ['ne', 'sw'];
+}
+
+/**
+ * **Das Dreieck eines halben Bodens** im Grundriss, relativ zur Kachelmitte
+ * (in Kachelgrößen, −½ … ½): die drei Ecken, die bleiben, wenn `empty` leer ist.
+ */
+export function halfFloorTriangle(empty: FloorCorner): Array<{ x: number; z: number }> {
+  const corners: Record<FloorCorner, { x: number; z: number }> = {
+    nw: { x: -0.5, z: -0.5 },
+    ne: { x: 0.5, z: -0.5 },
+    se: { x: 0.5, z: 0.5 },
+    sw: { x: -0.5, z: 0.5 },
+  };
+  const order: FloorCorner[] = ['nw', 'ne', 'se', 'sw'];
+  return order.filter((corner) => corner !== empty).map((corner) => corners[corner]);
 }
 
 /**

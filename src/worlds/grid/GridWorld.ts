@@ -90,6 +90,7 @@ import { ConstructRoom, type ConstructItem, type ConstructOptions } from '../sha
 import { WardrobeRack, type RackPiece } from '../shared/wardrobeRack';
 import { appearance, saveAppearance, type Appearance } from '../../core/appearance';
 import type { PlanSolid, PlanSolidKind } from './solids';
+import { halfFloorGeometry } from './halfFloor';
 import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
@@ -705,6 +706,8 @@ export abstract class GridWorld extends PortalWorld {
     for (const object of meshes) {
       const mesh = object as THREE.Mesh<THREE.BoxGeometry>;
       if (!mesh.visible || Array.isArray(mesh.material)) continue;
+      // Ein halber Boden ist kein Quader (`PlanSolid.half`) — er bleibt einzeln.
+      if (mesh.userData.halfFloor) continue;
       const level = typeof mesh.userData.level === 'number' ? mesh.userData.level : null;
       // **Und auf welche Platten dieser Quader wartet** (`gridBatch.batchKey`):
       // Was verschwinden soll, sobald ein Modell da ist, gehört nicht mit dem
@@ -2055,6 +2058,14 @@ export abstract class GridWorld extends PortalWorld {
     // würde das falsch — ein Hochbett steht höher als eine Türklinke und ist
     // trotzdem im selben Zimmer. Der Plan weiß es, also sagt er es.
     if (solid.level !== undefined) mesh.userData.level = solid.level;
+    // **Ein halber Boden unter einer Schräge** (`GridPlan.halfFloor`): Der
+    // Körper bleibt der ganze Quader (gegangen wird ohnehin nur auf der
+    // inneren Hälfte), gezeichnet wird das Dreieck.
+    if (solid.half) {
+      mesh.geometry.dispose();
+      mesh.geometry = halfFloorGeometry(solid.w, solid.h, solid.d, solid.half);
+      mesh.userData.halfFloor = solid.half;
+    }
     if (solid.door) {
       mesh.userData.door = solid.door;
       mesh.visible = this.gridDoorVisible();

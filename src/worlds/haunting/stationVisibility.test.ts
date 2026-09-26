@@ -1,4 +1,4 @@
-import { APRON_INNER, generateHouse, spacesOf } from './house';
+import { APRON_INNER, generateHouse, isPassage, spacesOf, type HouseDoor } from './house';
 import { TILE } from '../nav/navTile';
 import { safeRoomSpawn } from './stationLayout';
 import {
@@ -43,28 +43,80 @@ describe('von oben', () => {
     z: security.rect.z + security.rect.d / 2,
   };
 
-  it('zeigt den eigenen Raum und den Gang vor der nahen Tür — nicht die Räume hinter der Wand', () => {
-    const seen = topDownRooms(spec, centre, [])!;
-    expect(seen.has(security.id)).toBe(true);
-    // Die Querung zum Reactor beginnt hinter der Westtür.
-    const hall = spec.doors.find((door) => door.a === security.id || door.b === security.id)!;
-    expect(seen.has(hall.a === security.id ? hall.b! : hall.a)).toBe(true);
+  const own = (door: HouseDoor): boolean => door.a === security.id || door.b === security.id;
+  const hallDoor = spec.doors.find((door) => own(door) && door.b)!;
+  const hall = hallDoor.a === security.id ? hallDoor.b! : hallDoor.a;
+  /** Der ganze Gang: alle Stücke, die über Durchgänge am ersten hängen. */
+  const corridor = (() => {
+    const out = new Set([hall]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const door of spec.doors) {
+        if (!isPassage(door) || !door.b) continue;
+        for (const [from, to] of [
+          [door.a, door.b],
+          [door.b, door.a],
+        ] as const)
+          if (out.has(from) && !out.has(to)) {
+            out.add(to);
+            grew = true;
+          }
+      }
+    }
+    return out;
+  })();
+
+  it('bei geschlossenen Türen nur den eigenen Raum', () => {
+    expect(topDownRooms(spec, centre, [], () => false)).toEqual(new Set([security.id]));
+  });
+
+  it('hinter der offenen Tür den ganzen Nachbarraum — den Gang mit allen Stücken', () => {
+    const seen = topDownRooms(spec, centre, [], (door) => door.id === hallDoor.id)!;
+    expect(corridor.size).toBeGreaterThan(1);
+    expect(seen).toEqual(new Set([security.id, ...corridor]));
     // MedBay und Electrical liegen einen Meter neben der Wand, aber ohne Tür.
     expect(seen.has(named('MedBay'))).toBe(false);
     expect(seen.has(named('Electrical'))).toBe(false);
-    // Und der Reactor ist zwölf Meter weit weg, hinter dem Ende der Querung.
-    expect(seen.has(named('Reactor'))).toBe(false);
   });
 
-  it('sieht durch eine verriegelte Tür nicht hindurch', () => {
-    const doors = spec.doors.filter((d) => d.a === security.id || d.b === security.id);
+  it('nicht weiter als bis zum Nachbarn, auch wenn dessen Türen offen stehen', () => {
+    const seen = topDownRooms(spec, centre, [], () => true)!;
+    const beyond = spec.doors
+      .filter(
+        (door) => !isPassage(door) && door.b && (corridor.has(door.a) || corridor.has(door.b)),
+      )
+      .flatMap((door) => [door.a, door.b!])
+      .filter((id) => id !== security.id && !corridor.has(id));
+    expect(beyond.length).toBeGreaterThan(0);
+    for (const id of beyond) {
+      const direct = spec.doors.some(
+        (door) => own(door) && (door.a === id || door.b === id) && !isPassage(door),
+      );
+      expect(seen.has(id)).toBe(direct);
+    }
+  });
+
+  it('sieht durch eine verriegelte Tür nicht hindurch, auch wenn das Blatt offen ist', () => {
+    const doors = spec.doors.filter(own);
     expect(
       topDownRooms(
         spec,
         centre,
         doors.map((d) => d.id),
+        () => true,
       ),
     ).toEqual(new Set([security.id]));
+  });
+
+  it('aus einem Gangstück sieht man den ganzen Gang', () => {
+    const piece = [...corridor].pop()!;
+    const room = spacesOf(spec).find((space) => space.id === piece)!;
+    const tile = room.shape ? [...room.shape.keys()][0]!.split(',').map(Number) : null;
+    const at = tile
+      ? { x: tile[0]! + 0.5, z: tile[1]! + 0.5 }
+      : { x: room.rect.x + room.rect.w / 2, z: room.rect.z + room.rect.d / 2 };
+    const seen = topDownRooms(spec, at, [], () => false)!;
+    for (const id of corridor) expect(seen.has(id)).toBe(true);
   });
 });
 
