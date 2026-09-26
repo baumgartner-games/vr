@@ -1040,3 +1040,172 @@ Kartzone ruft viermal je Sekunde, ob jemand fährt oder nicht, und eine Runde
 dauert eine halbe Minute. Der Gedanke stand vorher schon bei einem einzelnen
 Aufrufer (`Kart.setTaken`); jetzt steht er an der Stelle, an der ihn nicht
 jeder Nächste noch einmal haben muss.
+
+## Die Messstrecke der Welten — was die neuen Welten kosten
+
+Die Küchenstrecke fragt, **wer** in einer Welt die Aufrufe verbraucht, und
+geht dafür tief. Für die Welten, die in den letzten Wochen dazukamen oder
+umgebaut wurden — die Lobby des Hubs, der Burgerladen, der Bauplatz, die
+Sitzecke der Testwelt, die Übungsrunde in Haunting —, fehlte die breitere
+Frage: **wie viel** kostet jede, verglichen mit der Küche, die man kennt?
+Dafür gibt es `tools/perf-worlds.mjs` (`npm run perf:worlds`), mit derselben
+Seitenvorbereitung wie die beiden Schwestern.
+
+```
+npm run dev -- --port 5183
+SMOKE_EXECUTABLE=/opt/pw-browsers/chromium npm run perf:worlds -- --url=http://127.0.0.1:5183/
+… --only=plateup,haunting --ab --shots     # vorher/nachher in derselben Szene, mit Fotos
+… --depth=5                                 # die Rangliste tiefer in den Szenengraphen
+… --profile                                 # wer in world.update die Zeit braucht
+```
+
+Je Welt wird geladen, das Vorbereitende getan — im Burgerladen den Laden
+öffnen (`debugOpen`, Uhr ×4), bis Gäste sitzen; in der Testwelt neben die
+Sitzecke stellen (`?at=-16,1`), bis die Besucher Platz genommen haben; in
+Haunting in die Einsatzzentrale und, als zweite Stelle, in die Cafeteria —,
+ein paar Sekunden Spielzeit **ohne Bild** vorgespult (im Software-Rasterisierer
+kostet ein Bild eine Sekunde, und die Gäste brauchen keines, um zu kommen),
+und dann in **acht Richtungen** je 45° gezählt: Hauptbild, Schatten,
+Renderziele (Spiegel, Portale), Dreiecke des Hauptbilds, Netze und
+Materialien der Szene, und die Zeit in `world.update`.
+
+**`--ab` ist der ehrliche Vergleich.** Nach der Messung schaltet das Werkzeug
+in **derselben** Szene zurück, was die Optimierung tut — die Bündel aus
+`shared/staticDecor.ts` gehen weg und die Stücke stehen wieder einzeln; in
+Haunting wird der Raum-Culler abgeschaltet — und zählt noch einmal. Dieselben
+Gäste an denselben Tischen, dieselben Besucher auf denselben Stühlen; mit
+`--shots` liegt von beidem ein Foto aus derselben Richtung daneben.
+
+**Der Beispielraum des Baukastens** (Menü → Bauen & Gestalten →
+Baukasten-Werkzeuge) war beim Messen noch nicht auf diesem Stand. Die Strecke
+sucht an der Welt nach einer Methode, die danach klingt (`sample…`,
+`beispiel…`), ruft sie, wenn es sie gibt, und misst sonst den leeren Bauplatz.
+
+Gemessen im Container (SwiftShader), aus den Augen, Schatten an; **Brille ≈**
+ist _Hauptbild × 2 + Schatten + Renderziele_ (siehe oben):
+
+| Welt, Stelle | Hauptbild (Mittel / höchstens) | Schatten | **Brille ≈** | Dreiecke im Hauptbild | Netze (sichtbar) | Materialien sichtbar | `world.update` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Testküche (Bezug), `?at=kitchen#test` | 209 / 303 → 200 / 293 | 227 → 225 | 645 → **624** | 279 k | 5 034 (674) | 347 | 3–7 ms |
+| Hub, Mitte der Lobby | 32 / 36 → 32 / 35 | 38 → 33 | 103 → **97** | 20 k | 347 (72) | 65 | 0,5 ms |
+| Burgerladen, Tag 1 offen, 3 Gäste | 62 / 94 → 53 / 73 | 156 → 106 | 281 → **213** | 30 k → 34 k | 557 (206) | 78 | 0,6 ms |
+| Bauplatz (ohne Beispielraum, s. o.) | 19 / 26 | 19 | **56** | 12 k | 265 (34) | 27 | 0,5 ms |
+| Testwelt, Sitzecke, 6 Besucher | 219 / 564 → 210 / 532 | 142 → 126 | 580 → **545** | 331 k | 5 120 (732) | 392 | 3–4 ms |
+| Haunting, Übungsrunde, Einsatzzentrale | 253 / 596 → 162 / 378 | 49 → 48 | 554 → **371** | 207 k → 178 k | 2 747 (860) | 757 | 3 ms |
+| Haunting, Übungsrunde, Cafeteria | 254 / 401 → 157 / 237 | 108 → 92 | 616 → **405** | 209 k → 180 k | 2 749 | — | 3–4 ms |
+
+Links vom Pfeil vorher, rechts nachher; Netze und Materialien stehen im
+Zustand vorher. Renderziele (Spiegel, Portalsichten) waren an keiner der
+Stellen im Bild. Die Dreiecke im Burgerladen **steigen**, und das ist
+dieselbe Rechnung wie bei den Bodenkacheln: Ein Bündel wird als Ganzes
+ausgesiebt oder gar nicht. Die Zahlen für die Cafeteria vorher stammen aus
+einem Lauf auf dem Stand vor dem Umbau, alle anderen aus `--ab` in derselben
+Szene.
+
+Drei Dinge stehen in dieser Tabelle:
+
+**Die neuen Welten sind billig — bis auf Haunting.** Hub, Bauplatz und
+Burgerladen liegen bei einem Drittel der Küche und darunter. Die Sitzecke
+liegt in der Testwelt und bezahlt deren Gelände mit; die Besucher selbst sind
+je Figur gut **acht Aufrufe im Schatten** und zwei bis drei im Bild (eine
+KayKit-Figur aus dem Abenteurer-Paket ist ein halbes Dutzend Netze mit Skelett
+— daran ist ohne neue Modelle nichts zu bündeln).
+
+**Im Burgerladen war der Schatten das Bild.** 152 von 272 Aufrufen waren
+Schatten, und die meisten davon Wände, Stühle und Tische, die zu Dutzenden
+gleich dastehen: Die Wand `wall` allein war 19 Aufrufe im Schatten.
+
+**Haunting war der Ausreißer, und zwar aus der Stelle, an der die Brille
+anfängt.** Aus der Einsatzzentrale mit Blick durch die Glaswand zeichnete das
+Hauptbild bis zu **596 Aufrufe**, in der Brille zweimal: Der Raum-Culler
+(`HauntingWorld.cullRoomArt`) hielt den Vorplatz für „keinen Raum" und zeigte
+deshalb alles, und auch aus einem Raum heraus fragte er je Tür nur, ob sie
+**irgendwo** im Blickkegel liegt — die Türen hinter drei Wänden in
+Blickrichtung tun das auch.
+
+### Was daraus geworden ist
+
+1. **`shared/staticDecor.ts` — Deko, die nur dasteht, als Bündel.** Dieselbe
+   Rechnung wie für die Wände der Station (`shared/modelBatch.ts`): gleiche
+   Geometrie und gleiches Aussehen in einem Feld sind eine `InstancedMesh`. Die
+   Stücke bleiben stehen und werden nur unsichtbar (Strahlen, Kästen, Körper
+   arbeiten an ihnen weiter), ihre Matrizen werden stillgelegt, und bis eine
+   halbe Sekunde lang nichts mehr dazukommt, steht alles einzeln wie vorher.
+   Anders als bei den Stücken einer Portalwelt wird **auch von oben**
+   gebündelt: Deko wird nie geghostet (`grid/modelGhost.ts` kennt nur, was ein
+   Spieler hingestellt hat). Eingesetzt in
+   - **`plateup/PlateUpWorld`** — die ganze Einrichtung aus `plateUpDecor.ts`
+     **außer der Südwand** (sie bekommt von oben ein eigenes, durchsichtiges
+     Material und muss dafür einzeln stehen). Drei Zeilen: das Bündel beim
+     Bau anlegen, jedes Stück nach `root.add` hineingeben, `step` in
+     `update`, `dispose` beim Abräumen. Die Stationen bleiben einzeln — auf
+     ihnen liegt, was man trägt.
+   - **`hub/HubWorld`** — die Lobby-Deko aus `hubDecor.ts`. Wenig Gewinn,
+     weil fast jedes Stück anders ist (vier Bögen in vier Farben).
+   - **`test/zones/navigation.ts`** — die neun Stachelfallen: dieselbe Datei
+     neunmal, 18 Aufrufe im Schatten, jetzt 2.
+2. **`stationVisibility.portalRooms` — durch Türen hindurch, und nur durch
+   das Stück Bild, das die Tür freigibt.** Jeder Raum trägt ein Fenster: das
+   Rechteck im Bild, durch das man ihn sieht. Der eigene Raum hat das ganze
+   Bild, der Raum hinter einer Tür das Fenster des Vorgängers, beschnitten auf
+   das Rechteck, das die Türöffnung (samt dem alten Rand von 0,7 m) im Bild
+   einnimmt. Kommt man auf zwei Wegen hin, gilt das Rechteck um beide —
+   großzügig, nie knapp. Und **der Vorplatz** zählt jetzt als „vor der
+   Glaswand des Eingangsraums": Andere Fenster zum Vorplatz gibt es nicht
+   (`stationWindows` lässt ihn aus). Von oben ändert sich nichts
+   (`topDownRooms`).
+
+**Die Bildprüfung des Cullers.** Im Container blieb die Station unsichtbar,
+solange Schatten an waren — dunkle Punktleuchten hatten nie eine
+Schattenkarte, und WebGL verwarf jeden beleuchteten Aufruf (behoben auf einem anderen Zweig in
+`stationLighting.lampShadowDue`). Mit Schatten aus steht sie da, und so ist
+geprüft worden: Übungsrunde, Ego-Sicht, **alle Türblätter offen**, an acht
+Stellen — Raum mit Tür zum Gang, Gang mit Blick durch zwei Türen, zwei
+offene Gangfugen (`passage: true`, sie zählen wie offene Türen), die
+Einsatzzentrale gerade und schräg durch die Glaswand, zufällige Stellen —
+jeweils drei Bilder aus derselben Pose: Culler neu, Culler alt, gar kein
+Culler. **Kein Pixel** des neuen Bildes weicht vom Bild ohne Culler ab. Die
+Gegenprobe (alle Räume aus) weicht um 19 000 bis 97 000 Pixel ab — der
+Vergleich merkt also ein Loch. Beim **Drehen um 90° mit einem Bild Verzug**
+(gerechnet in der alten Richtung, gezeichnet in der neuen) weichen neu und alt
+genau gleich ab (0 Pixel, an einer Stelle 2 460 — bei beiden). Den Verzug gibt es in der Brille seit
+jeher: `cullRoomArt` las die Weltmatrix von `xr.getCamera()`, und die stammt
+aus dem letzten Bild — ein Einrasten des Körpers kam erst ein Bild später an.
+Jetzt nimmt es die Kamera des Spielers (Kopfhaltung lokal unter dem frischen
+Körper, Projektion über beide Augen).
+
+**Was es nicht verändert.** Die Fotos aus `--ab` sind für den Burgerladen,
+den Hub und die Stachelfallen Bild für Bild dieselben. Für Haunting
+steht die Prüfung im Absatz davor; die Rechnung ist außerdem **konservativ**
+in dem Sinn, dass sie nur
+Räume weglässt, zu denen keine Kette offener Türen innerhalb des Blicks führt
+— und die Tests (`stationVisibility.test.ts`) halten fest, dass sie mit jeder
+Tür im ganzen Bild genau die alte Menge ergibt.
+
+**Zeiten.** `world.update` schwankt in diesem Container zwischen zwei Läufen
+derselben Szene um das Doppelte (die Maschine teilen sich mehrere Agenten, und
+die erste Messung einer Szene fällt oft in die Zeit, in der Besucher noch
+laufen). Die Spalte taugt zum Vergleich der Welten untereinander, nicht für
+ein Vorher/Nachher; die Bündel selbst kosten je Bild einen Vergleich von Lage
+und Aussehen weniger Stücke (`ModelBatch.drifted`).
+
+**Offen, für die nächste Runde:**
+
+- **Haunting bleibt die teuerste Welt.** Auch nachher sind aus der Cafeteria
+  im Mittel rund 160 Aufrufe im Hauptbild, und sie verteilen sich auf Hunderte
+  **verschiedener** kleiner Dinge: `orbital-interactions` (Türen mit einem
+  Dutzend eigener Netze, Schränke, Knöpfe — `ShipExperience.mesh` baut je
+  Klotz ein eigenes Material) und die Hüllendetails je Raum
+  (`station-hull-details`, schon je Raum instanziert, aber je Form und Farbe
+  ein Bündel). Der nächste Schritt wäre, die Türen als Bündel über alle Türen
+  zu zeichnen und nur die bewegten Blätter einzeln.
+- **Die Hände am Bildschirm** kosten in jeder Welt 8 Aufrufe im Bild und 8 im
+  Schatten (`screen-hand`) — in der Brille gibt es sie nicht, am Telefon
+  schon.
+- **In der Testküche ist `cellGrid.footprintFree` der größte Einzelposten
+  in `world.update`** (12 % im Profil, `--profile`), vor `traverse` und
+  `updateMatrixWorld`. Die Bündel selbst tauchen unter den ersten fünfzehn
+  nicht auf.
+- **Die Stationen des Burgerladens** (je ein Aufruf in Bild und Schatten)
+  könnten mit ins Bündel, wenn das, was darauf liegt, an einem eigenen Knoten
+  hängt und nicht am Möbel.

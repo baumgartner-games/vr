@@ -20,6 +20,7 @@ auf den Teller geht als dort.
 | `worlds/plateup/plateUpGame.ts`      | **Rein**: der Tag — Kundenstrom, Zustände eines Gastes, Geduld, Bestellung, Bewertung, Kasse, Schwierigkeit, Schildtexte                                                                                                                                               |
 | `worlds/plateup/plateUpStations.ts`  | **Rein**: was ein Druck an einer Station tut — `kitchenDeed` fragen und das Ergebnis auf Hand und Station anwenden; die Uhren von Brett, Grillplatte und Spüle (`kitchenWork`), das Verbrennen (`heat`, `burnShare`) und der zählende Tellerstapel (`stock`, `PLATES`) |
 | `worlds/plateup/plateUpShop.ts`      | **Rein**: Einrichten zwischen den Tagen — Katalog (`SHOP_ITEMS`), Baupläne des Abends (`dayOffers`), wo etwas hindarf (`placeCheck`, mit Wegsuche), kaufen (`buy`), alle Tische samt gekauften (`allTables`)                                                           |
+| `worlds/plateup/plateUpHints.ts`     | **Rein**: das Verb für die Tastenhilfe — was `A` an dieser Station bzw. diesem Tisch gerade tut (`stationAction`, `tableAction`)                                                                                                                                       |
 | `worlds/plateup/plateUpTutorial.ts`  | **Rein**: die Einsteigerhilfe — ein Satz und ein Ziel aus dem Stand (`tutorialHint`), und wann sie fertig ist (`tutorialFinished`)                                                                                                                                     |
 | `worlds/plateup/plateUpDecor.ts`     | **Rein**: das Inventar — Wände, Fenster, Tische, Stühle, Lampen, Bilder, Kakteen, Straße                                                                                                                                                                               |
 | `worlds/plateup/PlateUpWorld.ts`     | Die Darstellung: Modelle, Körper, Anmeldungen, Figuren, Sprechblasen, Tafeln                                                                                                                                                                                           |
@@ -121,11 +122,13 @@ Alles aus dem KayKit-Regal, nichts Neues (siehe [Modelle](./modelle.md),
 dasteht, liegen im Gang rechts neben dem Durchgang aus der Küche drei
 **Baupläne** auf dem Boden (`OFFER_SPOTS`) — ein blaues Blatt mit dem Modell
 darauf und Name und Preis darüber. Einer ist ein **Tisch mit zwei Stühlen**
-(40 Münzen, bis `MAX_TABLES` = 6), die anderen Deko aus dem Regal (Kaktus,
-Stehlampe, Busch, Sessel, Kaugummiautomat, 8–14 Münzen; aus dem Würfel des
-Tages, `dayOffers`). `A` am Blatt nimmt den Bauplan, und vor der Figur steht
-dann der **Platzierungsgeist** aus dem Baukasten (`portal/placeGhost.ts`):
-grün, wo es passt, rot, wo nicht — die Leiste unten sagt, warum
+(40 Münzen, bis `MAX_TABLES` = 6), einer eine **Station** (unten), der Rest
+Deko aus dem Regal (Kaktus, Stehlampe, Busch, Sessel, Kaugummiautomat, 8–14
+Münzen; aus dem Würfel des Tages, `dayOffers`). `A` am Blatt nimmt den Bauplan, und vor der Figur steht
+dann der **Platzierungsgeist** aus dem Baukasten (`portal/placeGhost.ts`) —
+beim Tisch **samt beiden Stühlen** (`loadTableGhost`, je Seite des Raums ein
+Geist, denn der zweite Stuhl steht zur Wand hin, `tableAisle`): grün, wo es
+passt, rot, wo nicht — die Leiste unten sagt, warum
 (`placeCheck`: nur im Gastraum, nicht auf anderem, Stühle, Tür und die
 Baupläne bleiben frei, und **jeder Tisch** muss danach von der Tür und aus
 der Küche noch erreichbar sein — geprüft mit derselben Wegsuche wie die
@@ -133,10 +136,27 @@ Gäste). `A` vor dem grünen Geist kauft und stellt hin (angemeldet ist das
 eine halbe Armlänge vor der Figur, nicht auf der Zielkachel — die läge für
 `A` zu weit weg); _Menü → Bauplan zurücklegen_ lässt es. Solange man einen
 Bauplan trägt, treten Schild und (am Telefon) Karte zur Seite, und an den
-Stationen wird nicht gekocht. Jeder Bauplan liegt je Abend einmal aus. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
+Stationen wird nicht gekocht. In der Brille hängt der Bauplan als kleines
+blaues Blatt mit dem Modell an der Hand, die ihn genommen hat
+(`carryBlueprint`). Jeder Bauplan liegt je Abend einmal aus. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
 mehr (`allTables`, mehr Gäste gleichzeitig), jedes Deko-Stück gibt den Gästen
 6 % mehr Geduld, höchstens 30 % (`decorPatience`). Das Gekaufte bleibt, bis
 die Runde endet oder `B`/`Y` alles zurücksetzt.
+
+**Gekaufte Stationen**: eine **zweite Grillplatte** (30 Münzen) und ein
+**zweites Schneidebrett** (20 Münzen), dieselben Möbel wie an der Nordwand
+(`stove_single`, Arbeitsplatte mit Brett). Solange eine fehlt, liegt eine
+davon abends aus (an geraden Tagen zuerst der Grill); jede gibt es einmal.
+Hin darf sie nur in die **Küchenreihe direkt vor der Durchreiche** (`z = 2`,
+`STATION_ROW`, von der Westwand bis zum Ende der Durchreiche) — die Reihe an
+der Nordwand bleibt frei, denn dort steht, wer an beiden Reihen arbeitet;
+der Startplatz und der Durchgang in den Gastraum auch. Dieselbe Prüfung und
+derselbe Geist wie bei Tisch und Deko (`placeCheck` → `stationCheck`, der
+Geist zeigt die Vorderseite nach Norden). Gekauft ist sie sofort eine volle
+Station (`extraStations`: eigene Id `grill-extra-1`, dieselbe Regel, Uhr,
+Verbrennen, Rauch, Anmeldung und Tastenhilfe) und wird über Nacht wie die
+anderen geleert. Die Kachel der Durchreiche dahinter bedient man dann vom
+Gastraum aus.
 
 **Schwierigkeit** (`dayRules`): Öffnungszeit 75 s + 15 s je Tag (bis 150),
 Abstand der Gäste 18 s − 2,5 s je Tag (ab 7 s), Geduld 70 s − 8 s je Tag (ab
@@ -179,8 +199,12 @@ aus/an_ schaltet sie von Hand.
   die Starttafel (am Handy die Karte) kommt nur, wenn die Hilfe aus ist. In
   der Brille steht die Tafel wie immer. Im
   Hochformat wäre es zu klein zum Lesen, dort steht derselbe Text als
-  **Karte** unten am Schirm; die Tafeln im Raum schrumpfen dann auf die
-  Bildbreite.
+  **Karte** unten am Schirm — von oben **und aus den Augen**; die Tafeln im
+  Raum schrumpfen dann auf die Bildbreite. **Aus den Augen am Schirm** hängt
+  das Schild nicht 2,2 m vor dem Startplatz (dort füllte es das ganze Bild,
+  und wer durch die Tür kam, lief hinein), sondern kleiner (0,72), mitten im
+  Gastraum und mit der Unterkante über Kopfhöhe (`EGO_SIGN`: 7 | 2,6 | 7);
+  von oben und in der Brille bleibt es an seinem Platz (`SIGN_SPOT`).
 
 Die Eingaben bleiben dabei die der Welt: Die Zeile und die Karte fangen keine
 Berührung ab (`pointer-events: none`).
@@ -189,6 +213,15 @@ Berührung ab (`pointer-events: none`).
 zurück vor Tag 1.
 
 ## Steuerung
+
+**Die Tastenhilfe unten sagt das Verb** (`plateUpHints.ts`, über
+`HintZone.action`): „Servieren", wenn der Teller in der Hand zum wartenden
+Gast passt (sonst „Passt nicht"), „Abräumen" am schmutzigen Tisch, „Spülen"
+an der Spüle, „Patty auflegen"/„Patty nehmen"/„Patty auf den Teller" am Grill,
+„Schneiden" am Brett, „Brötchen nehmen" an der Kiste, „Hinstellen" mit dem
+Bauplan. Gewählt ist, was unter dem gelben Saum liegt
+(`PortalWorld.pickedObject`); in der Brille greift die Hand, dort bleibt die
+Tafel bei _Nehmen_/_Ablegen_.
 
 Dieselbe wie in der Testküche — die Stationen melden sich mit
 `kitchenInteractionSpec` an:
@@ -219,14 +252,14 @@ Einrichten-Phase), `debugBlueprint(id)`, `debugPlace(id, x, z)`,
 - **Nicht geteilt**: Gäste, Stationen und Kasse laufen nur lokal; eine zweite
   Person in derselben Sitzung sieht ihren eigenen Laden.
 - **Kein Feuer**: Ein verbranntes Patty raucht, aber die Platte brennt nicht
-  (die Testküche kann das am Herd, `kitchenClock`). Und eingerichtet werden
-  nur Tische und Deko — keine zusätzliche Station (zweiter Grill, Brett) und
-  kein Verschieben dessen, was schon steht.
+  (die Testküche kann das am Herd, `kitchenClock`). Und eingerichtet wird
+  nur dazu — kein Verschieben dessen, was schon steht, und nur je eine
+  zusätzliche Grillplatte und ein Brett.
 - **Gruppen nur zu zweit**: Die Tische haben zwei Stühle; größere Gruppen
   bräuchten zusammengestellte Tische.
-- **Der Bauplan in der Brille** hängt an keiner Hand — man sieht nur den
-  Geist vor sich; hingestellt wird mit derselben Anmeldung wie an einer
-  Station.
+- **Der Bauplan in der Brille** hängt an der Hand, hingestellt wird aber
+  weiter mit derselben Anmeldung wie an einer Station (vor dem Blick, nicht
+  vor der Hand) — in der Bild-Schleife ohne Brille nicht nachgeprüft.
 - **Ton nur gerechnet**: Glocke, Aufnehmen/Ablegen, Servieren, Kasse und der
   hungrige Gast sind Töne aus `core/Audio.playTone` — keine Aufnahmen wie in
   der Testküche (`kitchenSound.ts`).
