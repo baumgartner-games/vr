@@ -33,6 +33,7 @@ export const WORLDS: WorldDefinition[] = [
       'Der Prüfstand: Türen in drei Betriebsarten, vier Effektquellen, eine Treppe auf ein Podest, Wegsuche mit Kiste und Stacheln, ein Schießstand ohne Dach, eine Kartbahn mit zwei Karts in der Box, eine Kletterwand mit Sprungkissen und drei Portaltafeln. A benutzt alles, B stellt alles zurück — und gebaut werden darf hier auch.',
     accent: 0x5ee0a0,
     roles: ['vr', 'desktop', 'handheld'],
+    test: true,
     load: async () => new (await import('./test/TestWorld')).TestWorld(),
   },
   {

@@ -75,9 +75,14 @@ export class MenuNav {
    * wieder nur ein Schritt.
    */
   push(id: string): void {
-    const rest = this.steps.length === 0 && this.recall?.root === id ? this.recall.read() : [];
+    // **Der Katalog muss nicht an der Wurzel hängen.** Seit es Hauptbereiche
+    // gibt (`ui/menuGroups.ts`), steht das Regal unter _Bauen & Gestalten_;
+    // wiederaufgeschlagen wird, wer von **oberhalb** des Katalogs in ihn
+    // hineingeht — egal, wie tief das ist.
+    const enters = this.recall?.root === id && !this.steps.includes(id);
+    const rest = enters ? this.recall!.read() : [];
     if (rest.length > 0) {
-      this.pending = [id, ...rest];
+      this.pending = [...this.steps, id, ...rest];
       this.steps = this.pending;
     } else {
       this.pending = null;
@@ -142,8 +147,9 @@ export class MenuNav {
    */
   private remember(): void {
     const recall = this.recall;
-    if (!recall || this.steps[0] !== recall.root) return;
-    recall.write(this.steps.slice(1));
+    const at = recall ? this.steps.indexOf(recall.root) : -1;
+    if (!recall || at < 0) return;
+    recall.write(this.steps.slice(at + 1));
   }
 
   private announce(): void {

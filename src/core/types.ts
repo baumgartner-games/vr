@@ -312,5 +312,11 @@ export interface WorldDefinition {
   roles: PlayerRole[];
   /** Marks work-in-progress worlds in the menu. */
   experimental?: boolean;
+  /**
+   * **Ein Prüfstand und kein Spiel** — Menü und Startseite sagen es mit einem
+   * Schildchen `TEST` und stellen die Welt hinter die Spiele
+   * (`ui/menuGroups.worldKind`).
+   */
+  test?: boolean;
   load(): Promise<World>;
 }

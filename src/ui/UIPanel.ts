@@ -46,6 +46,13 @@ export interface PageOptions {
    * das ist, wonach es aussieht.
    */
   pinned?: number;
+  /**
+   * **Der Weg bis hierher**, klein über dem Titel — an der Stelle, an der
+   * sonst _BAUMGARTNER VR_ steht. Dieselben Brotkrumen wie am Schirm
+   * (`PageMenu.paintCrumbs`), nur ohne Knöpfe: Zurück geht es in der Brille
+   * über die feste Zeile darunter.
+   */
+  crumb?: string;
 }
 
 export interface PanelOptions {
@@ -91,6 +98,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private pinned = 0;
   private hover = -1;
   private title: string;
+  private crumb = '';
   private footer: string;
   private hint = '';
   private status = '';
@@ -134,6 +142,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   setPage(title: string, entries: MenuEntry[], options: PageOptions = {}): void {
     const key = options.key ?? title;
     this.title = title;
+    this.crumb = options.crumb ?? '';
     this.entries = entries;
     this.grid = options.grid ?? false;
     this.cols = Math.max(1, Math.floor(options.cols ?? GRID_COLS));
@@ -407,7 +416,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#8ea0c4';
     ctx.font = '600 26px system-ui, sans-serif';
-    ctx.fillText('BAUMGARTNER VR', PAD, 62);
+    ctx.fillText(
+      fitText(ctx, this.crumb ? this.crumb.toUpperCase() : 'BAUMGARTNER VR', CANVAS_W - PAD * 2),
+      PAD,
+      62,
+    );
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 46px system-ui, sans-serif';
@@ -626,4 +639,15 @@ function clip(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
     result = result.slice(0, -1);
   }
   return `${result}…`;
+}
+
+/**
+ * Kürzt eine Zeile **von vorn**, bis sie passt — bei Brotkrumen ist die
+ * Stufe direkt über der Seite die wichtigste, und die steht hinten.
+ */
+function fitText(ctx: CanvasRenderingContext2D, text: string, width: number): string {
+  if (ctx.measureText(text).width <= width) return text;
+  let cut = text;
+  while (cut.length > 1 && ctx.measureText(`… ${cut}`).width > width) cut = cut.slice(1);
+  return `… ${cut.trimStart()}`;
 }

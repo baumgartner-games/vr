@@ -44,6 +44,47 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Titel und Brotkrumen darüber: eine Spalte, die den Platz zwischen den
+   runden Knöpfen nimmt. */
+.pmenu__heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* **Der Weg durchs Menü** (`PageMenu.paintCrumbs`): klein und still über dem
+   Titel, jede Stufe ein Sprung dorthin. Auf dem Telefon darf er nach links
+   abgeschnitten werden — wichtig ist die Stufe direkt über der Seite. */
+.pmenu__crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+.pmenu__crumbs[hidden] { display: none; }
+.pmenu__crumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 1px 2px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pmenu__crumb:hover { color: var(--fg); text-decoration: underline; }
+.pmenu__crumbsep::before { content: "›"; padding: 0 2px; opacity: 0.7; }
+
 .pmenu__title {
   flex: 1;
   min-width: 0;
