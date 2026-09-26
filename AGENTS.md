@@ -131,6 +131,8 @@ Stichpunkten).
 
 - **[Was drin ist](docs/agents/inhalt.md)** — Die Welten, die Zonen und die Spiele: was es gibt und was es tut.
 - **[Haunting / Orbital](docs/agents/haunting.md)** — Die Raumstation für eine Quest und zwei Mobilgeräte: Runde, Rollen, Karte, Bots. Das längste Kapitel.
+- **[Der Burgerladen](docs/agents/burgerladen.md)** — Spielküche mit Gastraum und ein Spiel nach _PlateUp!_: Gäste, Geduld, Bestellung, Tage.
+  Darin: Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
 ### Steuerung
 
@@ -153,7 +155,7 @@ Stichpunkten).
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
   Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Das vierte: ein Regal und kein Katalog · Was aus dem Regal die gebaute Geometrie ersetzt — und was nicht · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — der Umbau, während man darin steht, und die drei Spielmodi.
-  Darin: Der Konstrukt-Raum · Bauen, während man darin steht · Der Spielmodus und die Liste der Weltänderungen · Flächen setzen im Baukasten.
+  Darin: Der Konstrukt-Raum · Bauen, während man darin steht · Der Spielmodus und die Liste der Weltänderungen · Flächen setzen im Baukasten · Die Werkzeugleiste des Baukastens · Räume dekorieren.
 - **[Das KayKit-Regal](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü: Schubladen, Suchfeld, Ordner für Ordner, mit dem Modell in der Kachel.
   Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten in der Brille — und so viele, wie passen, am Schirm · Der Katalog nimmt den ganzen Schirm · Drei Wege hinein: alles, Pakete, Kategorien · Schubladen: Figuren, Möbel, Natur — und sieben weitere · Wo man war, wenn man wiederkommt — und der Weg zurück an den Anfang · Und ein Suchfeld — aber nur am Schirm · Deutsch suchen — ein Wörterbuch und keine 4470 Zeilen · Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt · In der Kachel stand nur der Kopf — und warum · Ein ⓘ in der Ecke jeder Kachel — und die Seite dahinter · Die genaue Bezeichnung — die Adresse an einem Stück, und ein Knopf daneben · Geladen wird, was zu sehen ist · Fächer in der Brille — und Nachladen beim Scrollen am Schirm · Die Ids sind Adressen · Was beim Nehmen passiert · Was hingestellt wird, rastet auf dem Kachelgitter ein · Das Gitter unter dem Getragenen · Die Kisten des Regals stehen auf einem Deckel · Aus dem Regal wird in der Küche ein Möbel · Aus einem Modell wird ein Gegenstand · Eine Figur, die läuft · Ein Maßstab je Paket — und warum die Ritter zu groß waren · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.
@@ -169,8 +171,8 @@ Stichpunkten).
 
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
-- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild, der Start — und die Seite als App.
-  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft und geladen wird von selbst, und solange hält es _Beitreten_ auf.
+- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, das Menü und seine Bereiche, die Startseite mit Weltauswahl, Vollbild, der Start — und die Seite als App.
+  Darin: Die Eingabeseite · Das Menü: acht Bereiche und eine Tabelle (Brotkrumen, Esc, alte und neue Wege) · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Startseite: eine Welt wählen, einmal drücken · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft und geladen wird von selbst, und solange hält es _Beitreten_ auf.
 
 ### Betrieb
 

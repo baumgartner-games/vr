@@ -762,7 +762,8 @@ nicht ihr Ende. Drei Sachen unterscheiden sie vom Umbauen einer fertigen Welt:
 
 **Was noch fehlt**: Etagen (der Graph kann sie, der Editor zeigt nur die erste —
 und damit fehlen auch die beiden Bausteine, die zwischen Etagen führen: Treppe
-und Rampe), Rückgängig, Fenster als Werkzeug (gebaut werden sie längst, gesetzt
+und Rampe), Rückgängig **für den Grundriss** (für Stücke aus dem Regal gibt es
+es seit September 2026, siehe _Die Werkzeugleiste des Baukastens_), Fenster als Werkzeug (gebaut werden sie längst, gesetzt
 bisher nur von Welten in ihrem Grundriss), und ein Weg, eine **eigene** Welt aus
 einer Datei zu laden statt sie in eine vorhandene zu importieren: Heute
 überschreibt ein Import den Grundriss der Welt, in der man gerade steht, und wer
@@ -1091,3 +1092,195 @@ Einrasten einzeln (siehe
 Die Vorschau ist das Gitter unter dem Getragenen (`PlaceGrid`), nur mit
 höherer Grenze (`AREA_PREVIEW`, 1 600 statt 64 Kacheln): leuchtende Kacheln,
 bei Wänden die Kantenstücke.
+
+## Die Werkzeugleiste des Baukastens
+
+**Gespielt, bevor gebaut wurde.** Im September 2026 wurde der _Baukasten_
+einmal mit Playwright durchgespielt — im Bauplatz, als Kran von oben, einen
+Raum einrichten und ihn danach aus den Augen ansehen. Die größten Reibungen,
+in der Reihenfolge, in der sie wehtaten:
+
+- **Wo landet das?** Das Stück hängt eine Körperlänge über dem Boden am
+  Haken, und aus der Aufsicht liegt seine Landestelle perspektivisch woanders.
+  Das Gitter sagte _welche Kacheln_, nicht _wie_ — und ein Tisch landete halb
+  in der Wand, ohne dass vorher etwas rot wurde.
+- **Kein Zurück.** Wer sich verklickte, holte die Abrissbombe, zielte, riss ab
+  und nahm das Stück neu aus dem Regal.
+- **Was einmal stand, blieb stehen.** Am Schirm ließ sich ein hingestelltes
+  Modell nicht mehr aufheben, nur abreißen — gegriffen wird sonst mit dem
+  Griff in der Brille.
+- **Jedes Werkzeug war eine Taste**, die man kennen musste: `R` dreht,
+  Rechtsklick holt die Bombe. Und die Bombe ging nach dem ersten getragenen
+  Stück gar nicht mehr (unten).
+- **Eine Tasse über dem Tisch fiel in den Tisch**: Gemalte Stücke entstanden
+  auf Bodenhöhe. Und das nächste Stück am Haken schob beim Vorbeifliegen die
+  Stehlampe durch den Raum — einmal bis auf 34 m Höhe.
+- **Bilder standen auf dem Boden**, und ein großer Bilderrahmen galt dem
+  Einrasten als Wand (dünn, lang) und hätte eine echte Wand auf seiner Fuge
+  ersetzt.
+
+**Die Leiste** (`worlds/portal/buildBar.ts`, DOM) steht im _Baukasten_ als
+Kran am Schirm unten in der Mitte, auf dem Telefon oben unter der Kopfzeile
+(unten liegen dort Stöcke und _▦ Fläche_) und nur mit Symbolen. Acht Knöpfe in
+drei Gruppen: **Setzen**, **Verschieben**, **Löschen** — **Drehen** links und
+rechts, **Kopieren** — **Zurück**, **Vor**. Darüber eine Zeile, was am Haken
+hängt und wohin es käme (_Mug A · auf Table Medium_, _Pictureframe · an der
+Wand_, _Couch · kein Platz_), grün oder rot.
+
+- **Welches Werkzeug gilt, liest die Leiste an der Welt ab** und merkt es sich
+  nicht selbst: Stück frisch aus dem Regal am Haken — _Setzen_; Bombe am Haken
+  — _Löschen_; _Kopieren_ scharf — _Kopieren_; sonst _Verschieben_. Eine Leiste
+  mit eigenem Zustand wäre beim ersten Rechtsklick an ihr vorbei die falsche
+  Auskunft.
+- **Setzen** mit leerem Haken nimmt den letzten Pinsel wieder (`lastBrush`,
+  samt Drehung); gab es noch keinen, geht das Regal auf (`assets`).
+- **Verschieben** legt den Pinsel weg (ein frisches Stück war nie hingestellt,
+  `letGo`) und die Bombe ab. Dann hebt ein Druck — Klick, `E`, `A` — das
+  Modell unter dem Kran in die Bildschirmhand (`PortalWorld.liftUnderCrane`),
+  von oben nach unten gesucht: die Tasse vor dem Tisch darunter. Dafür meldet
+  die Welt ein solches Modell als `PlayerRig.useCandidate`, sonst wäre der
+  Linksklick mit leerem Kran gar kein Benutzen. Gilt in _Einrichten_ und
+  _Baukasten_; der nächste Druck stellt es eingerastet wieder hin.
+- **Löschen** ist die Abrissbombe (oben, _Der Spielmodus_). Beim Einbau fiel
+  auf, dass sie nach dem ersten getragenen Stück nie wieder kam:
+  `bombAllowed` bekam als „trägt etwas" die Frage, ob es eine Bildschirmhand
+  **gibt** — und die behält ihre Seite, auch leer. Jetzt: ob sie etwas trägt.
+- **Drehen** dreht den Kran wie `R`: ein Viertel je Druck, bei einer Wand aus
+  dem Regal ein Achtel (die steht auch schräg). Die Beschriftung sagt, welches
+  (`90°`/`45°`); alles andere rastet ohnehin auf ein Viertel.
+- **Kopieren** ist ein Werkzeug und kein Sofort-Knopf: erst der Knopf, dann das
+  Stück anklicken, und es ist der Pinsel — gleiche Datei, gleiche Drehung.
+  Zuerst war es ein Knopf, der „das unter dem Kran" kopierte; aber wer mit der
+  Maus zur Leiste fährt, zieht den Kran unterwegs vom Stück weg, und der Knopf
+  kopierte den Boden neben der Leiste.
+- **Zurück/Vor** sind auch `Strg`+`Z` und `Strg`+`Y` (oder
+  `Strg`+`Umschalt`+`Z`), solange die Leiste zu sehen ist — die Tasten jedes
+  Programms, keine neue Belegung der Spielsteuerung. In der Brille und am Pad
+  stehen dieselben zwei im Menü _Weltänderungen_ (`changes:undo`,
+  `changes:redo`); eine eigene Taste bekommen sie nicht, die Tastenbelegung
+  wird woanders umgebaut.
+
+**Rückgängig merkt sich Lagen, keine Körper** (`worlds/portal/buildHistory.ts`,
+reine Rechnung). Ein Schritt ist _Hinstellen_ (Adresse und Lage), _Abreißen_
+oder _Umstellen_ (von, nach); jeder hat sein Gegenteil (`invertStep`). Ein
+Stück, das rückgängig gemacht und wiederholt wird, ist ein **neues** — neue Id
+im Netz, neuer Körper —, also wird es beim Nachspielen an seiner Lage gesucht
+(`nearestAt`, 35 cm) wie beim Einfügen einer Liste, nicht an einem gemerkten
+Körper. Ein **Pinselstrich** und eine **Fläche** sind je ein Schritt
+(`begin`/`end`), eine Gruppe wird rückwärts aufgelöst (erst die Tasse, dann
+der Tisch). Ein Umstellen an den alten Platz kommt gar nicht erst auf den
+Stapel. Höchstens hundert Schritte; wer nach einem Zurück etwas Neues baut,
+verliert das _Vor_. Nachgespielt wird über dieselben Wege wie von Hand
+(`placeModelAt`, `dropModel`), also landet alles auch in der Liste der
+Weltänderungen und im Netz. Nicht zurück kommt eine Wand, die eine neue Wand
+beim Hinstellen **ersetzt** hat (`replaceWalls`) — das ist die eine Lücke.
+
+**Der Geist** (`worlds/portal/placeGhost.ts`) ist eine durchscheinende Kopie
+des Getragenen genau dort, wo es landet: grün, wenn Platz ist, rot, wenn
+nicht. Er steht unter **jedem** getragenen Stück aus dem Regal, in jedem Modus
+und auch in der Brille — die Frage „wo landet das?" stellt sich überall. Er
+wird **ohne Tiefenprüfung** über alles gezeichnet, denn von oben hängt das
+Stück am Haken genau über seiner Landestelle und deckte ihn sonst zu. Die
+Kopie teilt die Geometrie mit dem Modell; freigegeben werden nur ihre zwei
+Materialien. Während _Fläche_ an ist, schweigt er — dort zeigt das Gitter die
+ganze Fläche.
+
+**Im Baukasten steht, was gesetzt ist, fest** — ein fester Körper genau auf
+der Höhe des Geists (`hang`). Vorher sank es mit Schwerkraft und gesperrten
+Achsen auf den Boden, und der kinematische Körper des nächsten Stücks am Haken
+schob es beim Vorbeifliegen weg. Wer es wieder aufhebt, macht es beweglich wie
+zuvor (`attach`). In den anderen Modi bleibt es beim Sinken, außer bei dem,
+was an der Wand hängt oder auf etwas steht. Ob ein Stück fest stand, merkt
+sich auch der Stapel (`BuildPose.fixed`), damit ein Nachspielen es wieder so
+hinstellt.
+
+## Räume dekorieren
+
+**Stücke aus dem KayKit-Regal an Wände hängen und auf Tische stellen**
+(`worlds/portal/decorPlace.ts`, reine Rechnung; `PortalWorld.decorTarget` ruft
+sie). Gewünscht war, dass der Spieler einen Raum gestalten kann — Möbel,
+Pflanzen, Lampen, Bilder aus dem KayKit-Regal, auch an Wänden und auf Tischen.
+Das Einrasten auf dem Kachelgitter (`gridSnap.ts`, siehe
+[Das KayKit-Regal](assetregal.md)) lässt die Höhe bewusst offen; hier wird sie
+beantwortet.
+
+- **Worauf etwas steht** (`restOn`): auf dem, was **unter seiner Mitte** liegt
+  — der höchsten Oberkante bis 2 m über dem Boden (`STACK_MAX`), sonst dem
+  Boden. Ein Teppich trägt einen Stuhl, ein Tisch eine Tasse, ein Wandbrett
+  ein Buch. Ungültig (rot) ist, was mehr als 12 % seiner Grundfläche mit etwas
+  teilt, das in seiner Höhe steht (`BLOCK_SHARE` — ein Stuhl, der drei
+  Zentimeter unter die Platte ragt, ist ein Stuhl am Tisch), was zu weniger
+  als 30 % aufliegt (`SUPPORT_SHARE`), und was in einer Richtung breiter ist
+  als seine Unterlage (`STACK_SLACK`, 10 cm): gestapelt wird **Kleines auf
+  Großes** — ein Sofa auf einem Beistelltisch liegt vielleicht zu einem
+  Drittel auf, gemeint ist es trotzdem nicht. Ein 1×1-Möbel an der Wand ragt
+  10 cm in sie hinein (die Wand steht mittig auf der Fuge) und ist gültig.
+- **Kleinkram rastet auf der Fläche ein** (`surfaceSpot`): Was höchstens 60 cm
+  breit ist, rastet über einer Fläche auf **Viertelkacheln innerhalb** der
+  Fläche ein statt auf der Kachelmitte — ein Wandbrett ist 30 cm tief und
+  liegt an der Wand, weit weg von jeder Kachelmitte, und auf einem Tisch sollen
+  zwei Tassen nebeneinander stehen.
+- **Was an die Wand gehört** (`mountsOnWall`, am Dateinamen wie die Haltung):
+  Bilderrahmen (nicht die stehenden), Banner, Wandfackeln, Tafeln,
+  Zielscheiben, Wandschmuck, Schilder und die Wandbretter `shelf_A_*` aus
+  `furniture-bits` (die lagen vorher als Brett mit Konsolen auf dem Boden). Es
+  sucht die nächste **Wandfläche** vor dem Kran (`mountPose`, bis 75 cm davor),
+  dreht sich mit der Vorderseite in den Raum, rückt bis auf einen Zentimeter an
+  die Fläche und hängt mit der Mitte auf 1,55 m (`MOUNT_HEIGHT`) — nie mit der
+  Unterkante unter 10 cm, nie über die Wand. Entlang der Wand rastet es auf
+  halbe Kacheln ein und bleibt ganz auf der Fläche. Ohne Wand in Reichweite
+  steht es wie jedes Stück. Ein Bild über einem anderen ist rot
+  (`mountBlocked`). Wandstücke ersetzen keine Wand und werden nie gekürzt,
+  auch wenn sie so dünn sind wie eine.
+- **Welche Seite vorn ist, sagt die Datei**: Liegt ihre Breite entlang x,
+  zeigt +z in den Raum, sonst +x (`faceYaw`). Nachgesehen an Bilderrahmen,
+  Wandfackel und Wandbrett — aus den Augen, in der Bild-Schleife.
+- **Wandflächen** (`wallFaces`) sind die zwei Seiten jedes hohen, dünnen
+  Kastens (ab 1,2 m hoch, bis 60 cm dick), und Stücke derselben Wand werden
+  zusammengelegt (`joinFaces`): Der Grundriss baut eine Wand aus einem Quader
+  je Kachel, und ohne das Zusammenlegen passte an eine acht Meter lange Wand
+  kein Bild, das breiter ist als ein Meter.
+
+**Woher die Kästen kommen** (`PortalWorld.decorScene`): jedes hingestellte
+Modell aus dem Regal (Hülle des Colliders, auf ein Viertel gedreht) und die
+Quader, die die Welt selbst gebaut hat — die Gitterwelt reicht ihren
+Grundriss herein (`GridWorld.decorSolids`, gemerkt je Fassung des Plans; ohne
+Böden und ohne schräge Wände). Damit hängt ein Bild an einer gebauten Wand und
+ein Kaktus steht auf der Küchenzeile des Bauplatzes.
+
+**Wo es gilt**: beim Malen mit der Maus (`paintAt` — was keinen Platz hat,
+wird übersprungen und einmal je Strich gemeldet), beim Hinstellen aus der Hand
+in jedem Modus (`snapPlaced`, auch in der Brille) und für den Geist. Die
+**Fläche** (`commitArea`) bleibt beim Boden: Sie ist für Böden und Reihen
+gedacht.
+
+**Gespeichert wird wie jede Weltänderung**: Ein gehängtes Bild steht mit
+seinem Punkt und seiner Drehung in der Liste (`recordModel`), und beim
+Einfügen hängt `placeModelAt` jedes Wandstück wieder fest an diese Stelle
+(`mountsOnWall`) statt es fallen zu lassen.
+
+**Boden- und Wandfarbe**: Ein Gerüst dafür gibt es nicht — welchen Ton eine
+Wand hat, entscheidet die Welt (`GridWorld.tint`), und das Weltformat speichert
+bewusst keine Farben (_Das Weltformat_). Einen anderen **Boden** legt man mit
+den Bodenstücken aus dem Regal (_Flächen setzen im Baukasten_), Teppiche aus
+`furniture-bits` liegen als gewöhnliche Stücke darauf.
+
+**Geprüft** wird die Rechnung ohne Szene (`decorPlace.test.ts`: Tasse auf
+Tisch, Stuhl am und im Tisch, Sofa auf Tasse und auf Beistelltisch, Buch auf
+dem Wandbrett, Etagenhöhe, Wand quer durch; Bild innen und außen, Reichweite,
+Wandende, zu schmale Fläche, Höhe, zusammengelegte Wände, Bild über Bild;
+`buildHistory.test.ts`: Gegenschritte, Gruppen, Grenze, Zweige). Die
+Bild-Schleife lief im Bauplatz bei 1280×800 und 390×844: Geist grün auf dem
+Tisch, rot halb im Tisch, Bild an der Wand; der eingerichtete Raum von oben
+und aus den Augen nach Norden, Osten und Westen.
+
+**Und der Kran reist nicht mehr durch Tore** (`GridWorld.fixtureEvent`,
+`goto`): Beim Durchspielen stand der Bauplatz nach dem Überfliegen seines
+Hub-Tors plötzlich im Hub — der Kran hat keinen Körper, aber das Tor fragte
+nur, ob jemand auf seiner Kachel steht. Als Kran wird eingerichtet, nicht
+gereist.
+
+**Offen**: Am Pad gibt es die Leiste nicht (sie ist DOM); _Zurück_ und
+_Vor_ liegen dort im Menü. Ein Bild lässt sich nur an achsparallele Wände
+hängen, und der Geist zeigt in der Brille nur das, was die Hand hält — eine
+Leiste dort wäre ein eigenes Panel am Handgelenk.

@@ -1,5 +1,6 @@
 import { drawMenuIcon, type MenuDetail, type MenuEntry, type MenuFact } from './menu';
 import { COPY_FALLBACK, copyText } from './clipboard';
+import { findMenuPath } from './menuGroups';
 import { MenuNav, findStep } from './menuNav';
 import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
 import { keepSafe, setSafeEdge } from './safeArea';
@@ -126,6 +127,13 @@ export class PageMenu {
   /** Der Knopf zurück an den Anfang des Katalogs (`MenuEntry.home`). */
   private readonly homeButton: HTMLButtonElement;
   private readonly titleEl: HTMLElement;
+  /**
+   * **Die Brotkrumen über dem Titel** — wo man steht, und jede Stufe davor ein
+   * Sprung dorthin. Seit es Hauptbereiche gibt (`menuGroups.ts`), ist der Weg
+   * zu jeder Einstellung eine Ebene länger, und ein Titel allein sagt nicht
+   * mehr, unter welchem Bereich _Grafik_ gerade steht.
+   */
+  private readonly crumbsEl: HTMLElement;
   private readonly statusEl: HTMLElement;
   /**
    * Der scrollende Kasten. Er trägt zweierlei: die Liste mit den Zeilen und
@@ -267,6 +275,11 @@ export class PageMenu {
     this.backButton = iconButton('pmenu__nav pmenu__back', 'Zurück', 'M14 6l-6 6 6 6');
     this.backButton.hidden = true;
     this.titleEl = el('h2', 'pmenu__title');
+    this.crumbsEl = el('nav', 'pmenu__crumbs');
+    this.crumbsEl.setAttribute('aria-label', 'Weg durchs Menü');
+    this.crumbsEl.hidden = true;
+    const heading = el('div', 'pmenu__heading');
+    heading.append(this.crumbsEl, this.titleEl);
     // Das Haus: zurück an den Anfang des Katalogs, ohne achtmal *Zurück*.
     this.homeButton = iconButton(
       'pmenu__nav pmenu__home',
@@ -275,7 +288,7 @@ export class PageMenu {
     );
     this.homeButton.hidden = true;
     const close = iconButton('pmenu__nav pmenu__close', 'Schließen', 'M6 6l12 12M18 6L6 18');
-    head.append(this.backButton, this.titleEl, this.homeButton, close);
+    head.append(this.backButton, heading, this.homeButton, close);
 
     // **Die Leiste über der Liste.** Sie steht im Kopf und nicht in der Liste,
     // und das ist der ganze Grund, warum das Tippen im Suchfeld nicht abreißt:
@@ -360,6 +373,13 @@ export class PageMenu {
       this.nav.pop();
     });
     this.homeButton.addEventListener('click', () => this.goHome());
+    this.crumbsEl.addEventListener('click', (event) => {
+      const step = (event.target as HTMLElement).closest<HTMLElement>('[data-depth]');
+      if (!step) return;
+      this.keepScroll();
+      // `stack[depth]` gehört zu `nav.path[depth - 1]` — wie bei `goHome`.
+      this.nav.goTo(this.nav.path.slice(0, Number(step.dataset['depth'])));
+    });
     this.list.addEventListener('click', (event) => this.onListClick(event));
     // Ein Zuhörer am Steckbrief und keiner je Knopf: Die Zeilen werden neu
     // gebaut, sobald eine andere Sache davorsteht, und ein Zuhörer, der mit
@@ -413,12 +433,14 @@ export class PageMenu {
     this.applyNav();
   }
 
-  /** Das Untermenü eines Wurzeleintrags aufschlagen — und das Menü dazu öffnen. */
+  /** Ein Untermenü nach seiner Id aufschlagen — wo es auch steht — und das Menü dazu öffnen. */
   openSubmenu(id: string): void {
-    const entry = this.root.find((candidate) => candidate.id === id);
-    if (!entry?.children) return;
+    // Die Seite kann eine Ebene tiefer liegen — unter ihrem Hauptbereich
+    // (`ui/menuGroups.ts`). Wer sie aufruft, nennt nur ihre Id.
+    const path = findMenuPath(this.root, id);
+    if (!path) return;
     this.keepScroll();
-    this.nav.goTo([id]);
+    this.nav.goTo(path);
     this.toggle(true);
   }
 
@@ -613,6 +635,27 @@ export class PageMenu {
     this.nav.goTo(this.nav.path.slice(0, depth));
   }
 
+  /**
+   * Die Stufen **vor** der aktuellen Seite, jede ein Knopf. Nur neu gebaut,
+   * wenn sich der Weg geändert hat — `render` läuft zweimal die Sekunde.
+   */
+  private paintCrumbs(): void {
+    const steps = this.stack.slice(0, -1).map((page) => page.title);
+    const key = steps.join('\u0000');
+    if (this.crumbsEl.dataset['key'] === key) return;
+    this.crumbsEl.dataset['key'] = key;
+    this.crumbsEl.hidden = steps.length === 0;
+    this.crumbsEl.replaceChildren(
+      ...steps.flatMap((label, depth) => {
+        const step = el('button', 'pmenu__crumb');
+        step.type = 'button';
+        step.dataset['depth'] = String(depth);
+        step.textContent = label;
+        return depth === 0 ? [step] : [el('span', 'pmenu__crumbsep'), step];
+      }),
+    );
+  }
+
   /** Seite **und** Suchbegriff: Dieselbe Seite gefiltert ist eine andere Liste. */
   private get pageKey(): string {
     return `${this.page.id}|${this.query}`;
@@ -650,6 +693,7 @@ export class PageMenu {
     const page = this.page;
     this.titleEl.textContent = page.title;
     this.backButton.hidden = this.stack.length <= 1;
+    this.paintCrumbs();
     // Der Weg an den Anfang des Katalogs steht nur da, wenn er auch woanders
     // hinführt als *Zurück* (`MenuEntry.home`).
     this.homeButton.hidden = this.homeDepth() < 0;
@@ -1054,8 +1098,34 @@ export class PageMenu {
     this.render();
   }
 
+  /**
+   * **`Esc` geht eine Ebene zurück** — und erst ganz oben macht es zu.
+   *
+   * Vorher schloss `Esc` das ganze Menü, egal wie tief man stand, und wer
+   * danach wieder aufmachte, stand zwar auf derselben Seite (`menuNav`), aber
+   * eben immer noch drei Ebenen tief. Jetzt ist es dieselbe Treppe wie der
+   * Pfeil im Kopf: ein Suchbegriff zuerst, dann eine Seite nach der anderen,
+   * dann zu.
+   */
+  back(): void {
+    if (!this.open) return;
+    if (this.query !== '') {
+      this.clearSearch();
+      this.render();
+      return;
+    }
+    if (this.stack.length > 1) {
+      this.keepScroll();
+      this.nav.pop();
+      return;
+    }
+    this.toggle(false);
+  }
+
   private onKeyDown = (event: KeyboardEvent): void => {
-    if (this.open && event.key === 'Escape') this.toggle(false);
+    if (!this.open || event.key !== 'Escape') return;
+    event.preventDefault();
+    this.back();
   };
 }
 

@@ -212,6 +212,23 @@ describe('MenuNav mit Merkzettel', () => {
     expect(nav.path).toEqual(['assets']);
   });
 
+  /**
+   * Seit es Hauptbereiche gibt (`menuGroups.ts`), steht das Regal unter
+   * _Bauen & Gestalten_ — der Zettel gilt trotzdem, und er merkt sich nur,
+   * was **unter** dem Regal liegt.
+   */
+  it('findet den Katalog auch eine Ebene tiefer', () => {
+    const { note, recall: sheet } = recall(['kaykit#cats', 'kaykit#cat:food']);
+    const nav = new MenuNav(sheet);
+    nav.push('bauen');
+    nav.push('assets');
+    expect(nav.path).toEqual(['bauen', 'assets', 'kaykit#cats', 'kaykit#cat:food']);
+    nav.pop();
+    expect(note.saved).toEqual(['kaykit#cats']);
+    nav.goTo(['bauen']);
+    expect(note.saved).toEqual(['kaykit#cats']);
+  });
+
   it('merkt sich auch den Sprung an den Anfang des Katalogs', () => {
     const { note, recall: sheet } = recall(['kaykit#cats', 'kaykit#cat:food']);
     const nav = new MenuNav(sheet);

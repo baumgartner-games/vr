@@ -11,6 +11,7 @@ export const WORLDS: WorldDefinition[] = [
     tagline: 'Startpunkt',
     description: 'Ruhige Halle mit Händen, Handgelenk-Menü und Übersicht.',
     accent: 0x4aa8ff,
+    preview: 'worlds/hub.webp',
     roles: ['vr', 'desktop', 'handheld'],
     load: async () => new (await import('./hub/HubWorld')).HubWorld(),
   },
@@ -21,6 +22,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Karte und Palette hängen am Gürtel. Gebaute Welten bleiben im Browser und lassen sich als Datei mitnehmen.',
     accent: 0x39d0ff,
+    preview: 'worlds/editor.webp',
     roles: ['vr', 'desktop'],
     experimental: true,
     load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
@@ -32,8 +34,21 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Der Prüfstand: Türen in drei Betriebsarten, vier Effektquellen, eine Treppe auf ein Podest, Wegsuche mit Kiste und Stacheln, ein Schießstand ohne Dach, eine Kartbahn mit zwei Karts in der Box, eine Kletterwand mit Sprungkissen und drei Portaltafeln. A benutzt alles, B stellt alles zurück — und gebaut werden darf hier auch.',
     accent: 0x5ee0a0,
+    preview: 'worlds/test.webp',
     roles: ['vr', 'desktop', 'handheld'],
+    test: true,
     load: async () => new (await import('./test/TestWorld')).TestWorld(),
+  },
+  {
+    id: 'plateup',
+    title: 'Burgerladen',
+    tagline: 'Küche, Gastraum und ein Tag voller Gäste',
+    description:
+      'Eine eingerichtete Spielküche mit Gastraum: Gäste kommen herein, setzen sich und bestellen. Brötchen, Patty von der Grillplatte, Salat vom Brett — auf einen Teller und an den Tisch, bevor die Geduld reißt. Jeden Tag mehr Gäste und eine längere Karte.',
+    accent: 0xf2a33a,
+    preview: 'worlds/plateup.webp',
+    roles: ['vr', 'desktop', 'handheld'],
+    load: async () => new (await import('./plateup/PlateUpWorld')).PlateUpWorld(),
   },
   {
     id: 'haunting',
@@ -42,6 +57,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Kooperative Raumstationsmission: Systeme reparieren, Codes austauschen, Radar überwachen. Mit sicherem Testlabor.',
     accent: 0x65dce5,
+    preview: 'worlds/haunting.webp',
     roles: ['vr', 'desktop', 'handheld'],
     load: async () => new (await import('./haunting/HauntingWorld')).HauntingWorld(),
   },

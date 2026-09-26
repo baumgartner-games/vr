@@ -548,10 +548,18 @@ for (const name of browserNames) {
         // Seite stellvertretend. Also wird hier genau dieser Weg geklickt.
         await page.locator('button[data-action="options"]').click();
         await page.locator('[data-pagemenu]').click();
+        // _Ansicht_ steht unter dem Bereich _Spielen_ (`ui/menuGroups.ts`).
+        await page.locator('[data-key="row:spielen"]').click();
         await page.locator('[data-key="row:view"]').click();
         await page.locator('[data-key="row:view:2d"]').click();
         await page.waitForFunction(() => window.bgvr.topDown === true);
-        await page.keyboard.press('Escape');
+        // `Esc` geht eine Ebene zurück: Ansicht → Spielen → Menü → zu.
+        for (let step = 0; step < 3; step++) await page.keyboard.press('Escape');
+        assert.equal(
+          await page.locator('.pmenu[aria-label="Menü"]').isVisible(),
+          false,
+          'Esc macht das Menü Ebene für Ebene zu',
+        );
         await page.waitForTimeout(500);
         result.hauntingTopDown = await page.evaluate(() => ({
           world: window.bgvr.currentWorldId,

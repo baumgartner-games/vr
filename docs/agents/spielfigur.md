@@ -5,7 +5,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 
 ## Wie man aussieht
 
-_Menü → Aussehen_ und der **Kleiderschrank** — vier Zeilen, und dahinter die
+_Menü → Figur_ (früher _Aussehen_; der Bereich öffnet es direkt,
+`ui/menuGroups.ts`) und der **Kleiderschrank** — vier Zeilen, und dahinter die
 ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
 `core/headgear.ts`, `core/avatarFigures.ts`).
 

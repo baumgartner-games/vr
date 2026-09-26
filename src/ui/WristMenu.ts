@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { UIPanel } from './UIPanel';
 import { TextPlane } from './TextPlane';
 import type { MenuEntry } from './menu';
+import { findMenuPath } from './menuGroups';
 import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
@@ -324,12 +325,14 @@ export class WristMenu extends THREE.Group {
     this.applyNav();
   }
 
-  /** Opens the submenu of a root entry, e.g. after using an item from it. */
+  /** Opens a submenu by id — wherever in the tree it sits (`findMenuPath`). */
   openSubmenu(id: string): void {
-    const entry = this.root.find((candidate) => candidate.id === id);
-    if (!entry?.children) return;
+    // Die Seite kann eine Ebene tiefer liegen — unter ihrem Hauptbereich
+    // (`ui/menuGroups.ts`). Wer sie aufruft, nennt nur ihre Id.
+    const path = findMenuPath(this.root, id);
+    if (!path) return;
     this.keepScroll();
-    this.nav.goTo([id]);
+    this.nav.goTo(path);
     this.toggle(true);
   }
 
@@ -578,6 +581,11 @@ export class WristMenu extends THREE.Group {
       // übrig, und ein Katalog, durch den man in Zweierschritten blättert, ist
       // keiner mehr. Im Raster fährt *Von vorne* deshalb als erste Kachel mit.
       pinned: this.stack.length > 1 ? (this.homeDepth() < 0 || this.page.grid ? 1 : 2) : 0,
+      // Der Weg bis hierher, wie am Schirm: „Menü › Bauen & Gestalten".
+      crumb: this.stack
+        .slice(0, -1)
+        .map((step) => step.title)
+        .join(' › '),
     });
   }
 

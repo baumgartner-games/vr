@@ -26,9 +26,13 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Welt, in der man ohnehin steht, nur von woanders angesehen. Vorher stand der
   Schalter da und die Spielwiese startete trotzdem den Hub in 3D: eine Wahl,
   die keine war. Umgeschaltet wird auch mitten im Spiel, unter
-  **Menü → Ansicht**.
+  **Menü → Spielen → Ansicht**.
+  Darüber steht die **Weltauswahl**: eine Karte mit Bild je Welt, Spiele
+  zuerst, `WIP`/`TEST`/`LOBBY` als Schildchen, und der Knopf heißt _Spielen_
+  und sagt darunter, wohin (siehe [Die Seite selbst](./seite.md#die-startseite-eine-welt-wählen-einmal-drücken)).
   Oben links derselbe **Menü-Knopf** wie im Spiel (`#landing-menu`): Welten,
-  Bewegung, Aussehen, Grafik schon vor dem Start, als Seite (`ui/PageMenu.ts`).
+  Bewegung, Aussehen, Grafik schon vor dem Start, als Seite (`ui/PageMenu.ts`),
+  geordnet in Hauptbereiche (siehe [Das Menü](./seite.md#das-menü-acht-bereiche-und-eine-tabelle)).
   Einen **Hinweiskasten** mit fünf Zeilen Steuerung gab es hier auch einmal; er
   ist weg — was darin stand, steht im Menü, in dieser Datei und in der README,
   und auf einer Startseite liest es niemand.
@@ -461,7 +465,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   (`MenuEntry`) mit denselben Ikonen (`drawMenuIcon`) und **denselben Weg**
   (`menuNav.ts`): wer im Browser drei Ebenen tief steht und die Brille
   aufsetzt, steht dort auf derselben Seite. Zurück über den Pfeil im Kopf,
-  Schließen über ×, Escape oder einen Tipp daneben; Schalter, Punkt,
+  die Brotkrumen darüber oder Escape (eine Ebene je Druck, ganz oben zu),
+  Schließen über × oder einen Tipp daneben; Schalter, Punkt,
   Abzeichen und Raster (Kacheln, Bildunterschrift darunter) wie am Arm; auf
   einer Nimm-Seite nimmt ein Tipp, und der Pfeil daneben öffnet die
   Einstellungen. Die kleinen Modelle (`preview`) gibt es dort nicht, die Ikone
@@ -1675,6 +1680,12 @@ im Spiel also zwei Kacheln —, und in eine
     Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
     richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
     hinge derselbe Aushang für diesen Blick hochkant.
+  - **Nebenan: der Burgerladen.** Im Gang südlich der Küche, am Westrand,
+    steht ein Tor (`kitchenPlan.BURGER_GATE`) in eine eigene Welt: eine
+    eingerichtete Spielküche mit Gastraum, in der Gäste kommen, bestellen,
+    essen und zahlen — ein Spiel nach _PlateUp!_ mit denselben Regeln am
+    Möbel wie hier (`kitchenDeed`). Ausführlich unter
+    [Der Burgerladen](./burgerladen.md).
   - **Die zweite Küche ist weg** (September 2026). Ganz oben im Norden stand
     über der ersten ein Restaurant aus dem **zweiten** Möbelkatalog
     (`core/dinerFit.ts`, 156 Stücke aus _Restaurant Bits_, CC0 — siehe

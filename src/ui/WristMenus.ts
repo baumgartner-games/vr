@@ -140,6 +140,26 @@ export class WristMenus extends THREE.Group {
     this.menu(this.preferred).toggle(true);
   }
 
+  /**
+   * **Eine Ebene zurück — und erst ganz oben zu.** Dieselbe Treppe wie `Esc`
+   * auf der Seite (`PageMenu.back`) und die *Zurück*-Zeile am Handgelenk.
+   * Für jede Taste, die „zurück" heißen soll (`B` am Pad, `Esc`): Wer sie
+   * belegt, ruft das hier und muss nicht wissen, welches Gesicht gerade oben
+   * ist. Ist gar nichts offen, passiert nichts — `false` sagt es.
+   */
+  back(): boolean {
+    const page = this.onPage ? this.page : null;
+    if (page) {
+      if (!page.isOpen) return false;
+      page.back();
+      return true;
+    }
+    if (!this.open) return false;
+    if (this.nav.path.length > 0) this.nav.pop();
+    else this.closeWrists();
+    return true;
+  }
+
   openSubmenu(id: string): void {
     if (this.onPage) {
       this.closeWrists();

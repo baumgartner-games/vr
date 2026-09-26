@@ -244,6 +244,38 @@ describe('Das Menü als Seite', () => {
     menu.dispose();
   });
 
+  it('geht mit Escape eine Ebene zurück — und erst ganz oben zu', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(tree(log));
+    menu.toggle(true);
+    click(menu, 'tools');
+    menu.element.querySelector<HTMLElement>('[data-more]')!.click();
+    expect(title(menu)).toBe('Pistole');
+    const esc = (): void => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    };
+    esc();
+    expect(title(menu)).toBe('Werkzeuge');
+    expect(menu.isOpen).toBe(true);
+    esc();
+    expect(title(menu)).toBe('Menü');
+    expect(menu.isOpen).toBe(true);
+    esc();
+    expect(menu.isOpen).toBe(false);
+    menu.dispose();
+  });
+
+  it('findet ein Untermenü auch unter einem Hauptbereich', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot([{ id: 'bauen', label: 'Bauen', children: tree(log) }]);
+    menu.openSubmenu('bag');
+    expect(menu.isOpen).toBe(true);
+    expect(title(menu)).toBe('Beutel');
+    menu.back();
+    expect(title(menu)).toBe('Bauen');
+    menu.dispose();
+  });
+
   it('schreibt die Statuszeile und die Ikone einer Zeile', () => {
     const menu = new PageMenu({ host });
     menu.setRoot(tree(log));
