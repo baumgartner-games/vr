@@ -147,6 +147,16 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   oben, ob eine Türöffnung im Blickfeld liegt — von oben ist das jede —, und
   das Telefon des Technikers blendete gar nichts aus, weil `ui` gesetzt war.
   Ganz sehen darf nur, wer zuschaut (Tafel, Archiv, Bot-Runde).
+- **Aus den Augen sieht man durch Türen hindurch — und nur durch das Stück
+  Bild, das sie freigeben** (`stationVisibility.portalRooms`, September 2026).
+  Jeder Raum trägt ein Rechteck im Bild; der Raum hinter einer Tür bekommt
+  das seines Vorgängers, beschnitten auf die Türöffnung. Vorher genügte es,
+  dass eine Tür **irgendwo** im Blickkegel lag, und die Einsatzzentrale zählte
+  als „kein Raum", also alles: aus der Zentrale durch die Glaswand bis zu 596
+  Aufrufe im Hauptbild, jetzt 378; aus der Cafeteria im Mittel 254, jetzt 157
+  (`docs/agents/grafik.md`, „Die Messstrecke der Welten"). Der Vorplatz gilt
+  jetzt als vor der Glaswand des Eingangsraums; von oben bleibt alles, wie es
+  war (`topDownRooms`).
 - **Die Station läuft auf dem Zellgitter** (September 2026, der Wunsch des
   Besitzers: „nur ein System für die Welten"; `map/stationCells.ts`,
   `docs/agents/zellgitter.md`). Ob man irgendwo gehen kann, entscheiden in
