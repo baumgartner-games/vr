@@ -2,8 +2,9 @@
  * **Das Gamepad, als reine Rechnung.**
  *
  * Von oben gespielt wird mit zwei Sticks (`docs/plan-2d-hub-interaktion.md`,
- * E4): links laufen, rechts zielen, `A` benutzen, `B` schießen, `Y` die
- * Werkzeugliste. Das Browser-API
+ * E4): links laufen, rechts zielen, `A` benutzen, `B` zurück, `Y` die
+ * Werkzeugliste, der rechte Trigger schießt — das Schema steht in
+ * `docs/agents/steuerung.md` ganz oben. Das Browser-API
  * dafür ist eine einzige Zeile — `navigator.getGamepads()` —, und alles, was
  * danach kommt, sind Zahlen: Welche Achse ist welcher Stick, ab wann ist ein
  * Stick wirklich ausgelenkt, und was davon bleibt übrig, wenn ein Pad weniger
@@ -44,12 +45,20 @@ export interface GamepadFrame {
   move: Stick;
   /** Rechter Stick: zielen. */
   aim: Stick;
-  /** `A` — benutzen. */
+  /** `A` — benutzen und bestätigen. */
   use: boolean;
-  /** `B` oder der rechte Trigger — schießen. */
+  /** `B` — zurück, abbrechen, ablegen. */
+  cancel: boolean;
+  /** ☰ (Start/Options) — das Menü. */
+  menu: boolean;
+  /** Der rechte Trigger — schießen. */
   fire: boolean;
-  /** Wie weit der rechte Trigger durchgedrückt ist, 0…1; `B` zählt als ganz. */
+  /** Wie weit der rechte Trigger durchgedrückt ist, 0…1. */
   trigger: number;
+  /** Der linke Trigger — aus den Augen über die Waffe zielen. */
+  sight: boolean;
+  /** ⊟ (Select/View) — von oben ↔ aus den Augen. */
+  view: boolean;
   /** Linken Stick reingedrückt — sprinten, wie in der Brille. */
   sprint: boolean;
   /** LB: eine Zoomstufe **heran**. */
@@ -75,13 +84,18 @@ export const TRIGGER_THRESHOLD = 0.35;
 export const BUTTON_A = 0;
 export const BUTTON_B = 1;
 /**
- * `Y` (oben) — die Werkzeugliste. Der vierte Knopf der Raute ist der einzige,
- * der noch frei war: `A` benutzt, `B` schießt, `X` gehört keinem.
+ * `Y` (oben) — die Werkzeugliste. `A` benutzt, `B` geht zurück, `X` gehört
+ * keinem.
  */
 export const BUTTON_Y = 3;
 export const BUTTON_LB = 4;
 export const BUTTON_RB = 5;
+export const BUTTON_LT = 6;
 export const BUTTON_RT = 7;
+/** ⊟ — Select, View, Create, Minus: die Ansicht. */
+export const BUTTON_SELECT = 8;
+/** ☰ — Start, Menu, Options, Plus: das Menü. */
+export const BUTTON_START = 9;
 export const BUTTON_LS = 10;
 
 /** Achsnummern: linker Stick 0/1, rechter 2/3. */
@@ -97,8 +111,12 @@ export function emptyFrame(): GamepadFrame {
     move: { x: 0, y: 0 },
     aim: { x: 0, y: 0 },
     use: false,
+    cancel: false,
+    menu: false,
     fire: false,
     trigger: 0,
+    sight: false,
+    view: false,
     sprint: false,
     zoomIn: false,
     zoomOut: false,
@@ -108,7 +126,7 @@ export function emptyFrame(): GamepadFrame {
 
 /**
  * **Welche Nummer welche Absicht auslöst** — je Absicht eine Liste, weil
- * `fire` von Haus aus zwei hat (`B` und der Trigger).
+ * eine Belegung einer Absicht mehrere Stellen geben darf.
  *
  * Ohne diesen Plan gilt der ab Werk (`DEFAULT_PLAN`), und damit Zeile für
  * Zeile das, was dieses Projekt immer hatte. Wer einen Plan mitgibt, hat ihn
@@ -117,7 +135,11 @@ export function emptyFrame(): GamepadFrame {
  */
 export interface ButtonPlan {
   readonly use: readonly number[];
+  readonly cancel: readonly number[];
+  readonly menu: readonly number[];
   readonly fire: readonly number[];
+  readonly sight: readonly number[];
+  readonly view: readonly number[];
   readonly sprint: readonly number[];
   readonly tools: readonly number[];
   readonly zoomIn: readonly number[];
@@ -127,7 +149,11 @@ export interface ButtonPlan {
 /** Der Plan ab Werk: die Knopfnummern von oben, in Listen. */
 export const DEFAULT_PLAN: ButtonPlan = {
   use: [BUTTON_A],
-  fire: [BUTTON_B, BUTTON_RT],
+  cancel: [BUTTON_B],
+  menu: [BUTTON_START],
+  fire: [BUTTON_RT],
+  sight: [BUTTON_LT],
+  view: [BUTTON_SELECT],
   sprint: [BUTTON_LS],
   tools: [BUTTON_Y],
   zoomIn: [BUTTON_LB],
@@ -148,14 +174,18 @@ export function readGamepad(
   stick(pad, AXIS_MOVE_X, AXIS_MOVE_Y, frame.move);
   stick(pad, AXIS_AIM_X, AXIS_AIM_Y, frame.aim);
   frame.use = any(pad, plan.use);
+  frame.cancel = any(pad, plan.cancel);
+  frame.menu = any(pad, plan.menu);
+  frame.sight = any(pad, plan.sight);
+  frame.view = any(pad, plan.view);
   frame.sprint = any(pad, plan.sprint);
   frame.zoomIn = any(pad, plan.zoomIn);
   frame.zoomOut = any(pad, plan.zoomOut);
   frame.tools = any(pad, plan.tools);
-  // **Ein Zug, aus welchem Knopf er auch kommt.** Der Trigger ist analog, `B`
-  // ist es nicht: Wer mit `B` schießt, drückt ganz durch — ein gedrückter
-  // Schalter meldet den Wert 1, und wo der Wert fehlt, macht `value` daraus
-  // eine 1. Also genügt das Maximum über die Knöpfe der Absicht, und die
+  // **Ein Zug, aus welchem Knopf er auch kommt.** Der Trigger ist analog, ein
+  // Knopf, den jemand auf _Schießen_ legt, ist es nicht: Er drückt ganz durch
+  // — ein gedrückter Schalter meldet den Wert 1, und wo der Wert fehlt, macht
+  // `value` daraus eine 1. Also genügt das Maximum über die Knöpfe der Absicht, und die
   // Waffe muss nicht wissen, woher der Zug kam.
   let trigger = 0;
   for (const index of plan.fire) trigger = Math.max(trigger, value(pad, index));

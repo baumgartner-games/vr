@@ -411,6 +411,7 @@ export class WristMenu extends THREE.Group {
     _head.setFromMatrixPosition(_local);
 
     this.updateGrabTake(input);
+    this.updateBack(input);
     this.updateScroll(dt, input);
     this.updateSwipe(input);
     this.updatePending(input);
@@ -612,6 +613,25 @@ export class WristMenu extends THREE.Group {
 
     entry.run(hand);
     this.applyPage();
+  }
+
+  /**
+   * **`B` / `Y` gehen eine Seite zurück** — dasselbe Schema wie am Pad und im
+   * Menü am Schirm (`docs/agents/steuerung.md`): unten bestätigt, oben
+   * (am Quest-Controller der obere Knopf, `secondary`) geht zurück, und ganz
+   * oben macht es zu. Solange das Menü offen ist, gehört der Knopf ihm; die
+   * Welt setzt dann nicht zurück (`PortalWorld.handleReset`).
+   */
+  private updateBack(input: XRInput): void {
+    if (!this.open) return;
+    for (const controller of input.controllers) {
+      if (!controller.tracked || !controller.secondary.justPressed) continue;
+      if (this.stack.length > 1) {
+        this.keepScroll();
+        this.nav.pop();
+      } else this.toggle(false);
+      return;
+    }
   }
 
   /**

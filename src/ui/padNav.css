@@ -1,0 +1,10 @@
+/*
+ * Der sichtbare Fokus, solange mit Pad oder Pfeiltasten bedient wird
+ * (`ui/padNav.ts` setzt `html.nav-focus`, die Maus nimmt es wieder weg).
+ * Ein gelber Ring mit dunklem Saum: Er muss auf dem hellen Blatt wie auf der
+ * dunklen Welt dahinter zu sehen sein, und er darf nicht wie eine Auswahl
+ * aussehen (die ist die Akzentfarbe am Rand, `.is-selected`).
+ */
+html.nav-focus :focus { outline: 3px solid #ffd54a; outline-offset: 2px; box-shadow: 0 0 0 5px rgba(10, 14, 24, 0.85); }
+html.nav-focus .pmenu__row:focus,
+html.nav-focus .pmenu__tile:focus { background: rgba(255, 213, 74, 0.14); }
