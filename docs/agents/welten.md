@@ -459,9 +459,21 @@ rechnet `ui/menuGroups.folderWorlds`: Ein Ordner steht, wo seine erste Welt
 stünde. Die Tore im Hub bleiben eines je Welt.
 
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
-Ordner _Test_) sind drei Kammern aus Glas (`navTestPlan.ts`), vor jeder ein
-roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue Zielplatte**
-(immer sichtbar, ohne Tiefenprüfung):
+Ordner _Test_) sind drei Kammern aus Fensterwänden (`navTestPlan.ts`), vor
+jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
+Zielplatte** (immer sichtbar, ohne Tiefenprüfung).
+
+**Die Wände sind nur aus dem Regal** (gewünscht: _„keine eigenen Wände
+nutzen, sondern nur die kaykit Wall Elemente"_): Die Kammern und die
+Brüstungen der Podeste sind `prototype-bits/Wall_Window_Closed` (zwei
+Kacheln) und `…_Narrow` (eine), die beiden Schrägen `Wall.glb` unter 45°
+(`navTestWalls`, `shelfWalls.SHELF_WINDOW_PIECES`). Im Plan stehen sie als
+feste Wände, damit `navTestPlan.test.ts` ohne Szene rechnen kann;
+`NavTestWorld.layout` räumt sie weg (`clearPlanWalls`), und eingerastet sind
+die Stücke für Zellgitter und NPCs Wände wie jede andere. Welche Etage eine
+Wand aus dem Regal sperrt, sagt jetzt die Höhe ihrer Unterkante
+(`shelfNav.wallLevel`) — vorher die Kachel hinter ihrer Mitte, und die ist am
+Rand eines Podests Luft, sodass die Brüstung oben die Kante unten sperrte.
 
 1. **Schräger Gang** — zwei Wände unter 45° von Wand zu Wand der Kammer,
    dazwischen der einzige Weg.

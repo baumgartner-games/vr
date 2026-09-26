@@ -5,7 +5,18 @@ import { HUMAN_PROFILE } from '../nav/navProfile';
 import { keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
 import { slideOnCells } from '../nav/planeMove';
 import { readNav, writeNav } from '../nav/navSerial';
-import { LAVA, NAV_TESTS, SPAWN, navTestPlan, tileCentre, type NavTest } from './navTestPlan';
+import { wallLevel } from '../grid/shelfNav';
+import { clearPlanWalls, SHELF_WALL, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
+import {
+  LAVA,
+  NAV_TESTS,
+  SPAWN,
+  STOREY,
+  navTestPlan,
+  navTestWalls,
+  tileCentre,
+  type NavTest,
+} from './navTestPlan';
 
 const plan = navTestPlan();
 const graph = plan.graph;
@@ -128,5 +139,40 @@ describe('Test Navigation — die Kammern', () => {
     expect(goal.x).toBeLessThan(LAVA.x + LAVA.w);
     expect(goal.z).toBeLessThan(LAVA.z);
     expect(top.some((key) => keyZ(key) >= LAVA.z + LAVA.d)).toBe(true);
+  });
+});
+
+describe('Test Navigation — Wände nur aus dem Regal', () => {
+  const walls = navTestWalls();
+
+  it('legt die geraden Wände aus der Fensterwand und die Schrägen aus der Prototypwand', () => {
+    const allowed = new Set([SHELF_WINDOW_PIECES.full, SHELF_WINDOW_PIECES.half, SHELF_WALL]);
+    for (const wall of walls) expect(allowed.has(wall.path)).toBe(true);
+    const slanted = walls.filter((wall) => Math.abs(Math.abs(wall.yaw) - Math.PI / 4) < 1e-9);
+    // Zwei Schrägen zu je sechs Kacheln im schrägen Gang.
+    expect(slanted).toHaveLength(12);
+    for (const wall of slanted) expect(wall.path).toBe(SHELF_WALL);
+    expect(walls.some((wall) => wall.path === SHELF_WINDOW_PIECES.full)).toBe(true);
+  });
+
+  it('stellt Brüstungen auf dem Podest eine Etage höher', () => {
+    const high = walls.filter((wall) => wall.y > STOREY);
+    expect(high.length).toBeGreaterThan(0);
+    for (const wall of high) expect(wall.y).toBeCloseTo(STOREY + 1.4);
+  });
+
+  it('räumt feste Wände und Schrägen aus dem Plan der Welt', () => {
+    const bare = navTestPlan();
+    clearPlanWalls(bare);
+    expect([...bare.graph.wallEntries()].filter(([, wall]) => wall.kind === 'solid')).toHaveLength(
+      0,
+    );
+    expect(bare.saveSlopes()).toHaveLength(0);
+  });
+
+  it('rechnet die Etage einer Wand nach ihrer Unterkante (`wallLevel`)', () => {
+    expect(wallLevel(graph, 0)).toBe(0);
+    expect(wallLevel(graph, STOREY)).toBe(1);
+    expect(wallLevel(graph, 0.3)).toBe(0);
   });
 });
