@@ -7,7 +7,8 @@ import type { GridPlan } from '../grid/gridPlan';
 import { clearPlanWalls } from '../grid/shelfWalls';
 import type { PlanSolidKind } from '../grid/solids';
 import { HAZARD_FIRE } from '../nav/navProfile';
-import { NO_TILE } from '../nav/navTile';
+import type { NavGraph } from '../nav/navGraph';
+import { DIR_S, NO_TILE } from '../nav/navTile';
 import type { Npc } from '../npc/Npc';
 import { npcSkin } from '../npc/npcKinds';
 import { createSky } from '../shared/environment';
@@ -15,6 +16,7 @@ import { BUTTON_DOME_R, buildRedButton, type RedButton } from '../shared/redButt
 import {
   LAVA,
   NAV_TESTS,
+  gateTile,
   SPAWN,
   navTestPlan,
   navTestWalls,
@@ -48,7 +50,7 @@ interface Bench {
 /**
  * **Test Navigation** — die Welt im Ordner _Test_ (`worlds/index.WORLD_FOLDERS`).
  *
- * Drei Kammern aus Fensterwänden (`navTestPlan.ts`), vor jeder ein roter Knopf: Er
+ * Vier Kammern aus Fensterwänden (`navTestPlan.ts`), vor jeder ein roter Knopf: Er
  * stellt eine Übungspuppe auf die grüne Platte und schickt sie zur blauen.
  * **Der berechnete Weg ist immer zu sehen** — die Ebene _Wege_ der
  * Navigationsansicht ist hier von Anfang an an (`setNavLayer('paths')`), und
@@ -89,6 +91,21 @@ export class NavTestWorld extends GridWorld {
   /** Hier steht nichts außerhalb des Plans — die NPCs planen auf ihm (`GridWorld.navFromPlan`). */
   protected override navFromPlan(): boolean {
     return true;
+  }
+
+  /**
+   * **Durch die Tore kommt nur der Spieler.** Gewünscht: _„zu allen Bereichen
+   * auch ein Tor … über welches nur der Spieler rein und raus kann"_. Für das
+   * Zellgitter des Spielers ist ein Durchgang aus dem Regal offen
+   * (`gridSnap.wallCells` mit `MODEL_ARCHES`); im Graphen der NPCs steht an
+   * derselben Kante eine Wand, also plant keiner hindurch — die Puppe bleibt
+   * in ihrer Kammer.
+   */
+  protected override navReady(baked: NavGraph): void {
+    super.navReady(baked);
+    const graph = this.nav;
+    if (!graph) return;
+    for (const test of NAV_TESTS) graph.setWall(gateTile(test), DIR_S, { kind: 'solid' });
   }
 
   protected override skyColor(): number {
