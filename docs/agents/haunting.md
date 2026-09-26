@@ -1836,8 +1836,15 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
 
   **Jetzt gilt ein Ablauf mit festen Worten** (`FLOW`, `MODE_TEXT`), auf
   Telefon, Bildschirm und in der Brille gleich:
-  1. **Lobby** (Startseite, `#haunting`: Name, Raum, Verbinden, Beitreten —
-     unverändert).
+  1. **Lobby** (Startseite, `#haunting`: Name, Raum, Verbinden, Beitreten).
+     Seit der zweiten Runde steht in der Lobby über _Beitreten_ **„So läuft
+     eine Runde"** (`#haunt-flow`, gefüllt von `ui/hauntFlow.ts` aus
+     `roundFlow.LOBBY_FLOW`): die zwei Schritte aus `FLOW_STEPS` und zwei
+     Schilder nebeneinander (Telefon: untereinander) — **ÜBUNGSRUNDE** blau
+     („Hier landest du nach dem Beitreten …" + `FLOW.practiceHint`) und
+     **ECHTE RUNDE** rot („„Echte Runde starten" im Aufbau oder im
+     Pausemenü …" + `FLOW.realHint`), Farben wie `.haunt__mode`. Ein Test in
+     `roundFlow.test` hält die Worte an `FLOW`/`MODE_TEXT`.
   2. **Rollen** — im Aufbau unter der Überschrift „1 · Rollen verteilen".
   3. **Modus** — „2 · Übungsrunde oder echte Runde": zwei Knöpfe
      nebeneinander (Telefon: untereinander), **„Übungsrunde"** blau
