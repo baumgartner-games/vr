@@ -3366,7 +3366,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         key(
           { blueprint: '' },
           'Grundriss-Vorlage',
-          'Die gezeichneten Umrisse der Station als Bild auf dem Boden',
+          'Der Grundriss der Station als Bild auf dem Boden — Wände, Türen, Gänge',
           { pressed: !!this.host.blueprint?.() },
         ),
       );
@@ -3542,7 +3542,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       row(
         'blueprint',
         `Grundriss-Vorlage: ${this.host.blueprint?.() ? 'an' : 'aus'}`,
-        'Die gezeichneten Umrisse der Station als Bild auf dem Boden',
+        'Der Grundriss der Station als Bild auf dem Boden — Wände, Türen, Gänge',
         () => this.host.setBlueprint?.(!this.host.blueprint?.()),
       ),
       row(
@@ -3555,11 +3555,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ),
     ];
     if (['won', 'lost'].includes(this.host.state().phase))
-      rows.unshift(
-        row('restart', 'Runde neu starten', 'Neue Mission mit denselben Einstellungen', () =>
-          this.host.start(),
-        ),
-      );
+      rows.unshift(row('restart', FLOW.again, FLOW.realHint, () => this.host.start()));
     if (this.crew.options.test) {
       rows.push({
         id: 'orbital:labs',
@@ -3595,7 +3591,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       });
     }
     rows.push(
-      row('home', 'Zur Einsatzzentrale', 'Im Test oder nach Rundenende', () => {
+      row('home', 'Zur Einsatzzentrale', 'In der Übungsrunde oder nach Rundenende', () => {
         if (this.crew.options.test || this.host.state().phase !== 'running') this.home();
         else this.host.say('Während der Mission zu Fuß zur Zentrale zurückkehren.');
       }),

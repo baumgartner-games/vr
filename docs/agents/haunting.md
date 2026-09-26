@@ -1889,6 +1889,31 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   unten noch „Rollen testen", „Mission starten/stoppen", „Test starten",
   „Spielen/Trainieren" oder „Testlicht" steht, ist das die Geschichte dieser
   Knöpfe** — sie heißen jetzt wie hier.
+- **Die Seite „Haunting / Orbital" im Menü — wenige Unterseiten**
+  (zweite Runde, `rules/menuPages.ts`, `menuPages.test.ts`). Im Bereich
+  _Diese Welt_ (`ui/menuGroups.ts`) standen gut zwanzig Zeilen gleichen
+  Gewichts — dazu ein leerer _Baukasten_, dessen Zeilen die Tabelle längst
+  nach _Bauen & Gestalten_ geholt hatte. `HauntingWorld.menu` baut die Zeilen
+  jetzt flach (der Baukasten als `...super.menu()`, ohne eigenen Eintrag), und
+  `pageHauntMenu` verteilt sie nach der Tabelle `HAUNT_PAGE_OF`:
+  - **oben**, ohne Umweg: „Jetzt: …", die drei Starts (in der echten Runde
+    statt „Übungsrunde" der Abbruch), nach dem Ende „Nochmal: echte Runde"
+    (`orbital:restart`, vorher „Runde neu starten"), „Rollen & Aufbau"
+    (nicht in der Brille) und „Zur Einsatzzentrale";
+  - **fünf Unterseiten** (`HAUNT_PAGES`): _Plätze & Fähigkeiten_
+    (`haunt:seats`: fünf Plätze, Fähigkeiten), _Einstellungen der Runde_
+    (`haunt:settings`: Übungslicht, Station, Gegner), _Anzug & Ausrüstung_
+    (`haunt:gear`: Linke Hand, Medkit, Schutzschrank), _Ansicht & Komfort_
+    (`haunt:display`: Grundriss-Vorlage und die drei Zeilen des VR-Komforts
+    ohne eigene Stufe) und _Ton_ (`haunt:sound`: Ton, Ambiente);
+  - **unten** die Rettung „Feststecken?" (und das _Zurücksetzen_ der
+    Tabelle).
+  - **In die Werkstatt** (`MENU_PLACEMENT`): Testdeck (`orbital:labs`),
+    Testbesuch (`orbital:visits`) und die Bot-Runde des Testdecks
+    (`orbital:simulation`) — alle drei gibt es nur in der Übungsrunde.
+  Was `HAUNT_PAGE_OF` nicht kennt, bleibt oben stehen und geht nicht
+  verloren. Das ⚙-Menü des Technikers am Bildschirm
+  (`ShipExperience.shipOptions`) ist davon unberührt.
 - **Eine Runde in der Brille starten** (`HauntingWorld.menu()`,
   `rules/worldMenu.ts`): Handgelenk-Knopf drücken, im Panel unter den fünf
   Einträgen der Engine (Welten, Verbindung, Bewegung, Aussehen, Grafik) stehen

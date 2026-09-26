@@ -209,6 +209,12 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'changes', group: 'werkstatt' },
   { match: 'setting:config', group: 'werkstatt' },
   { match: 'setting:poses', group: 'werkstatt' },
+  // Haunting: was zum Ausprobieren abseits der Runde da ist — Testdeck,
+  // Testbesuch in einem Raum, die Bot-Runde des Testdecks
+  // (`worlds/haunting/rules/menuPages.ts`).
+  { match: 'orbital:labs', group: 'werkstatt' },
+  { match: 'orbital:visits', group: 'werkstatt' },
+  { match: 'orbital:simulation', group: 'werkstatt' },
 ];
 
 /** Wohin ein Eintrag der Wurzel kommt, den die Tabelle nicht kennt. */
