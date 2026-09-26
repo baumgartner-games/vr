@@ -12,6 +12,7 @@ import {
   type PlateSpot,
   type PlateTile,
 } from '../shared/plateField';
+import { cellKey } from '../nav/cellGrid';
 import { TILE } from '../nav/navTile';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
@@ -111,6 +112,17 @@ export class TestWorld extends GridWorld {
   /** Am Steuer eines Karts sagt die Tastenhilfe, wie man fährt (`core/controlHints.ts`). */
   override hintZone(): HintZone | null {
     return this.kart.seated ? { kind: 'kart' } : super.hintZone();
+  }
+
+  /**
+   * **Die Möbel der Küche sperren ihre Zellen** (`KitchenZone.footprintCells`)
+   * — das 2D-Gitter entscheidet über die Füße, der Kasten in der Physik zeigt
+   * nur an. Vorher kannte die Ebene die Küche nicht, und wer gegen einen
+   * Schrank lief, stand danach auf ihm.
+   */
+  protected override cellBlocked(ix: number, iz: number, level: number): boolean {
+    if (level !== 0) return false;
+    return this.kitchen.footprintCells().has(cellKey(ix, iz, level));
   }
 
   protected override worldId(): string {
