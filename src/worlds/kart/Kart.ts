@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markBlobShadow } from '../../core/blobShadow';
 import { UIPanel } from '../../ui/UIPanel';
 import type { MenuEntry } from '../../ui/menu';
 import { TextPlane } from '../../ui/TextPlane';
@@ -87,6 +88,8 @@ export class Kart extends THREE.Group {
   constructor(readonly preset: KartPreset) {
     super();
     this.name = `kart-${preset.id}`;
+    // Ein runder Fleck unter dem Wagen reicht — der Kart ist kaum länger als breit.
+    markBlobShadow(this, 0.85);
     this.settings = clampKart(preset.settings);
     this.motion = kartAt(0, 0, 0);
     this.home = kartAt(0, 0, 0);

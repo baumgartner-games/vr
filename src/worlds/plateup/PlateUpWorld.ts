@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markBlobShadow } from '../../core/blobShadow';
 import type { WorldContext } from '../../core/types';
 import type { HintZone } from '../../core/controlHints';
 import type { Handedness } from '../../core/XRInput';
@@ -1388,6 +1389,7 @@ export class PlateUpWorld extends GridWorld {
     ];
     const root = new THREE.Group();
     root.name = `plateup-guest:${guest.id}`;
+    markBlobShadow(root, 0.32);
     // Der Zweite einer Gruppe geht einen halben Meter hinter dem Ersten.
     root.position.set(street.x + (street.x < 0 ? -0.8 : 0.8) * guest.seat, 0, street.z);
     this.root.add(root);

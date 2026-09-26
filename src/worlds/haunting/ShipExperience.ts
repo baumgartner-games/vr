@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SPACE_RANGER } from '../../core/avatarFigures';
+import { denyShadow } from '../../core/graphicsScene';
 import './haunting.css';
 import { clickedKey, el } from './ui/dom';
 import { key as uiKey } from './ui/widgets';
@@ -1879,6 +1880,10 @@ export class ShipExperience {
         0,
       ]);
       stand.name = 'door-leaf-stand-in';
+      // **Eine Tür wirft keinen Schatten** — auch nicht im Kegel der
+      // Taschenlampe: Ein Türblatt, das beim Aufschwingen einen Balken über
+      // den Gang zieht, lenkt vom Monster ab (Wunsch des Besitzers).
+      denyShadow(stand);
       leaves.push({ pivot, swing: left ? -1 : 1 });
       if (canLoadModels()) void this.fitDoorLeaf(pivot, stand, leafWidth);
     }
@@ -1904,6 +1909,9 @@ export class ShipExperience {
     model.updateMatrixWorld(true);
     box.setFromObject(model);
     model.position.set(-box.min.x, -box.min.y, -(box.min.z + box.max.z) / 2);
+    model.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) denyShadow(node);
+    });
     pivot.add(model);
     stand.visible = false;
   }

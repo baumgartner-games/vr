@@ -83,6 +83,8 @@ import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from 
 import { BODY_LABELS, BODY_SUBS, HEAD_LABELS, HEAD_SUBS, nextBody, nextHead } from './avatarLook';
 import {
   GRAPHICS_MODE_LABELS,
+  SHADOW_MODE_LABELS,
+  SHADOW_MODE_SUBS,
   GRAPHICS_MODE_SUBS,
   SCREEN_PADS_LABELS,
   SCREEN_PADS_SUBS,
@@ -99,6 +101,7 @@ import {
   graphics,
   graphicsSummary,
   nextGraphicsMode,
+  nextShadowMode,
   nextScreenPads,
   nextSquishScale,
   nextSquishSpeed,
@@ -2159,17 +2162,38 @@ export class App {
           // Overcooked, ohne dafür die ganze Zeichnung dazuzunehmen. Er steht
           // über dem Modus, weil er der ist, an dem man wirklich dreht —
           // hinauf für das Bild, hinunter für die Bildrate.
+          //
+          // **Seit dem Kreis zwei Werte**: Aus und Einfach (Kreis). Die echte
+          // Schattenkarte der Sonne (`full`) steht darunter als eigene Zeile
+          // und wird von `ui/menuGroups.ts` in die Werkstatt geholt.
           id: 'gfx:shadows',
-          label: 'Schatten',
-          sub: 'Die Sonne wirft sie · das Grundlicht geht dafür etwas herunter',
-          caption: 'Der erste Regler, wenn die Bildrate klemmt',
+          label: `Schatten: ${SHADOW_MODE_LABELS[settings.shadows]}`,
+          sub: SHADOW_MODE_SUBS[settings.shadows],
+          caption: 'Aus ↔ Einfach (Kreis) · der erste Regler, wenn die Bildrate klemmt',
           icon: 'settings',
           accent,
-          checked: settings.shadows,
           run: () => {
-            const next = saveGraphics({ shadows: !graphics().shadows });
+            const next = saveGraphics({ shadows: nextShadowMode(graphics().shadows) });
             this.menuDirty = true;
-            this.notify(next.shadows ? 'Schatten an' : 'Schatten aus');
+            this.notify(`Schatten: ${SHADOW_MODE_LABELS[next.shadows]}`);
+          },
+        },
+        {
+          // Die alten, echten Schattenkarten der Sonne — nur noch zum
+          // Vergleichen, deshalb in der Werkstatt (`MENU_PLACEMENT`).
+          id: 'gfx:shadows-full',
+          label: 'Schatten voll (Schattenkarten)',
+          sub: SHADOW_MODE_SUBS.full,
+          caption: 'Werkstatt · aus heißt zurück zum Kreis',
+          icon: 'settings',
+          accent,
+          checked: settings.shadows === 'full',
+          run: () => {
+            const next = saveGraphics({
+              shadows: graphics().shadows === 'full' ? 'simple' : 'full',
+            });
+            this.menuDirty = true;
+            this.notify(`Schatten: ${SHADOW_MODE_LABELS[next.shadows]}`);
           },
         },
         this.animationMenu(accent),

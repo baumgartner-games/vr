@@ -4,14 +4,14 @@ import { graphicsProfile } from './graphicsSettings';
 import { lookOf } from './materialLook';
 import { denyOutline, isOutline, outlineOf, stripOutlines } from './outlineShell';
 
-const COMIC = graphicsProfile({ mode: 'comic', xrScale: 1 });
+const COMIC = graphicsProfile({ mode: 'comic', xrScale: 1, shadows: 'full' });
 /**
  * Die einfache Stufe **ohne** Schatten — seit die einen eigenen Schalter
  * haben, ist das nicht mehr dasselbe. Geprüft wird hier, dass sich ein
  * Durchlauf vollständig zurücknimmt, und dafür braucht es den Zustand, in dem
  * nichts angefasst wird.
  */
-const SIMPLE = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: false });
+const SIMPLE = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: 'off' });
 
 interface Built {
   scene: THREE.Scene;

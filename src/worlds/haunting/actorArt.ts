@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markBlobShadow } from '../../core/blobShadow';
 import { canLoadModels } from '../../core/chefFit';
 import { disposeTree } from '../shared/environment';
 import { SHIP, animateCreature, buildCreature, buildCrewmate } from './shipArt';
@@ -113,6 +114,7 @@ class Actor implements ShipActor {
   ) {
     this.body = kind === 'crew' ? buildCrewmate(options.color) : buildCreature(kind);
     this.root.name = kind === 'crew' ? 'crew-technician' : `creature-${kind}`;
+    markBlobShadow(this.root, kind === 'crew' ? 0.34 : 0.45);
     this.root.add(this.body);
     this.load();
   }
