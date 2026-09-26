@@ -803,6 +803,23 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     for (const lag of wobbleLag(after, base, UP, SPACING)) expect(lag).toBeLessThan(1e-4);
   });
 
+  test('dasselbe Objekt jedes Bild neu beschrieben — wie ein THREE.Vector3 der Ansicht', () => {
+    // Die Ansicht reicht jedes Bild **dasselbe** Objekt herein. Nach #272
+    // behielt der Zustand es, die letzte Stelle war damit schon die neue, und
+    // der Turm stand im Spiel starr, obwohl alle Tests hier grün waren.
+    const shared = { x: 0, y: 1, z: 0 };
+    const axis = { x: 0, y: 1, z: 0 };
+    let state = NO_WOBBLE;
+    let fresh = NO_WOBBLE;
+    for (let i = 1; i <= 60; i++) {
+      shared.x = 2.6 * (i / 60);
+      state = stepWobble(state, shared, axis, 4, SPACING, 1 / 60, SIZE);
+      fresh = stepWobble(fresh, { ...shared }, UP, 4, SPACING, 1 / 60, SIZE);
+    }
+    expect(behind(state, shared)[3]).toBeGreaterThan(0.5 * SIZE);
+    expect(state.balls).toEqual(fresh.balls);
+  });
+
   test('neue Kugeln erscheinen oben auf dem Turm, überzählige fallen weg', () => {
     const three = run(3, 0.5, 60, still);
     const four = stepWobble(three, { x: 0, y: 1, z: 0 }, UP, 4, SPACING, 0);

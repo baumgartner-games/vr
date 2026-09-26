@@ -423,6 +423,27 @@ während des Schritts gleichmäßig wandert, und ein Bild wird in Stücke von
 1/120 s geteilt — 30 und 144 Bilder je Sekunde ergeben denselben Turm (Test:
 unter 1 mm nach zwei Sekunden Schwenken).
 
+**Im Spiel stand er nach #272 starr — ein geteiltes `THREE.Vector3`.**
+_„Das Eis schwingt gar nicht mehr nach hinten"_: Im Browser nachgemessen hing
+die Spitze beim Gehen um **0,00** Kugelgrößen über, und beim Anhalten kam
+nichts. Die Ansicht (`IceConeView.step`) schreibt die Stelle des Hörnchens
+jedes Bild in **dasselbe** `THREE.Vector3` (`_base`, ebenso die Achse), und
+`stepWobble` behielt genau dieses Objekt als `WobbleState.base` — im nächsten
+Bild stand darin schon die neue Stelle, „letzte" und „jetzige" Stelle waren
+gleich, `v` immer null. Die Rechnung mit Stellen davor (#271) merkte davon
+nichts, weil sie die Kugeln selbst als Zustand trug; die Rechnung mit der
+Geschwindigkeit hängt ganz daran. Die reinen Tests reichten jedes Bild ein
+neues Objekt herein und waren grün. Jetzt **schreibt `stepWobble` Stelle und
+Achse ab**, statt sie zu behalten. Zwei Tests halten das fest: einer der
+reinen Rechnung mit einem wiederverwendeten Objekt (`plateUpIce.test.ts`) und
+einer, der durch `IceCorner.carry` geht, mit einer gehenden Figur — von oben
+und mit dem Hörnchen im Controller der Brille, dessen `hold` im Raum der Figur
+still steht und nur in der Welt wandert (`plateUpIceView.test.ts`).
+Nachgemessen im Spiel (von oben, vier Kugeln, 2,6 m/s, 60 Bilder je Sekunde,
+Spitze gegen die Öffnung in Kugelgrößen): vorher 0,00 beim Gehen, 0,00
+danach; jetzt 0,88 zurück beim Gehen, nach dem Anhalten einmal 0,13 hinüber
+(nach 0,17 s) und in Ruhe; aus den Augen 1,31 und 0,24.
+
 **Wohin mit dem Eis.** Es belegt dieselbe Hand wie ein Teller: Wer es hält,
 nimmt nichts anderes, bedient keinen Tisch und nimmt keinen Bauplan. Es geht
 auf eine **freie Arbeitsplatte** oder die **Durchreiche** und von dort
