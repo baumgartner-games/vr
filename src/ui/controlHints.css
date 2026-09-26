@@ -14,9 +14,9 @@
 /*
  * Im Baukasten steht unten die Werkzeugleiste (`style.css`, `.build-bar`) —
  * die Zeile rückt darüber. Schmaler als 600 Punkte steht die Leiste oben,
- * dann rückt die Zeile am Glas unter sie.
+ * dann rückt die Zeile am Glas unter sie — dort in zwei Reihen, also tiefer.
  */
 @media (min-width: 601px) { .hints[data-zone="build"]:not([data-device="touch"]) { bottom: calc(env(safe-area-inset-bottom, 0px) + 122px); } }
-@media (max-width: 600px) { .hints[data-zone="build"][data-device="touch"] { top: max(170px, calc(env(safe-area-inset-top, 0px) + 162px)); } }
+@media (max-width: 600px) { .hints[data-zone="build"][data-device="touch"] { top: max(200px, calc(env(safe-area-inset-top, 0px) + 192px)); } }
 /* Auf dem Telefon ist das Menü ein Blatt über die ganze Breite — dort läge die Zeile auf den Zeilen. */
 @media (max-width: 639px) { .hints[data-menu="menu"] { display: none; } }

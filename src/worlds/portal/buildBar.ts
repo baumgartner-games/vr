@@ -18,13 +18,13 @@
  * Belegung der Spielsteuerung.
  */
 
-export type BuildTool = 'place' | 'move' | 'erase' | 'copy';
+export type BuildTool = 'place' | 'move' | 'erase' | 'copy' | 'floor' | 'wall';
 
 /** Was die Leiste meldet. */
 export type BuildEvent =
   | { readonly kind: 'tool'; readonly tool: BuildTool }
   | { readonly kind: 'turn'; readonly clockwise: boolean }
-  | { readonly kind: 'copy' | 'undo' | 'redo' };
+  | { readonly kind: 'copy' | 'undo' | 'redo' | 'fine' };
 
 /** Was die Leiste zeigt. */
 export interface BuildBarState {
@@ -36,6 +36,8 @@ export interface BuildBarState {
   readonly turnStep: string;
   /** Ob gerade etwas zu drehen ist. */
   readonly canTurn: boolean;
+  /** Ob auch Möbel in Achteln drehen (`45°` an der Leiste). */
+  readonly fine: boolean;
   /** Eine Zeile über dem, was gerade am Haken hängt, und wohin es käme. */
   readonly status: string;
   /** Ob die Stelle gültig ist — färbt die Zeile grün oder rot; `null` ohne Farbe. */
@@ -47,8 +49,17 @@ export interface BuildBarState {
  * nach rechts dastehen, und so, wie das Steuerkreuz ↑/↓ am Pad durch sie
  * schaltet (`nextBuildTool`). Drehen, Rückgängig und Wiederholen sind keine
  * Werkzeuge, sondern Taten: Sie liegen auf `R`/rechtem Stock und `Strg`+`Z`.
+ * _Boden_ und _Wand_ gehören dazu (`surfaceDecor.ts`); ihr Muster wechselt
+ * ein zweiter Druck auf denselben Knopf, nicht das Steuerkreuz.
  */
-export const BUILD_TOOLS: readonly BuildTool[] = ['place', 'move', 'erase', 'copy'];
+export const BUILD_TOOLS: readonly BuildTool[] = [
+  'place',
+  'move',
+  'erase',
+  'copy',
+  'floor',
+  'wall',
+];
 
 /**
  * **Das Werkzeug neben `tool`** — `+1` rechts daneben, `-1` links, am Ende
@@ -70,6 +81,7 @@ export const HIDDEN_BUILD_BAR: BuildBarState = {
   canRedo: false,
   turnStep: '90°',
   canTurn: false,
+  fine: false,
   status: '',
   valid: null,
 };
@@ -115,6 +127,21 @@ export class BuildBar {
     kind: 'turn',
     clockwise: true,
   });
+  private readonly fine = this.button('∠', 'Schräg', 'Auch Möbel in 45° drehen (an/aus)', {
+    kind: 'fine',
+  });
+  private readonly floor = this.button(
+    '▤',
+    'Boden',
+    'Den Raum unter dem Kran mit Boden belegen · noch einmal: anderes Muster',
+    { kind: 'tool', tool: 'floor' },
+  );
+  private readonly wall = this.button(
+    '▥',
+    'Wand',
+    'Die Wandseite am Kran belegen · noch einmal: anderes Muster',
+    { kind: 'tool', tool: 'wall' },
+  );
   private readonly copy = this.button(
     '⧉',
     'Kopieren',
@@ -145,7 +172,11 @@ export class BuildBar {
       gap(),
       this.left.element,
       this.right.element,
+      this.fine.element,
       this.copy.element,
+      gap(),
+      this.floor.element,
+      this.wall.element,
       gap(),
       this.undo.element,
       this.redo.element,
@@ -181,12 +212,16 @@ export class BuildBar {
       ['move', this.move],
       ['erase', this.erase],
       ['copy', this.copy],
+      ['floor', this.floor],
+      ['wall', this.wall],
     ] as const) {
       button.element.setAttribute('aria-pressed', String(state.tool === tool));
       button.element.classList.toggle('build-bar__btn--on', state.tool === tool);
     }
     this.left.label.textContent = state.turnStep;
     this.right.label.textContent = state.turnStep;
+    this.fine.element.setAttribute('aria-pressed', String(state.fine));
+    this.fine.element.classList.toggle('build-bar__btn--on', state.fine);
     this.left.element.disabled = !state.canTurn;
     this.right.element.disabled = !state.canTurn;
     this.undo.element.disabled = !state.canUndo;

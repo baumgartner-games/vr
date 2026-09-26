@@ -1,6 +1,6 @@
 import type { GridPlan } from '../grid/gridPlan';
 import type { NavGraph } from '../nav/navGraph';
-import { doorEdges, type HouseSpec } from './house';
+import { doorEdges, leafDoors, type HouseSpec } from './house';
 import { housePlan } from './plan';
 import { TRAINING_DOOR } from './trainingLayout';
 
@@ -39,7 +39,8 @@ export class StationTravelPlan {
       this.plan = housePlan(spec, new Set(locked), test);
     } else if (this.locks !== stamp) {
       const shut = new Set(locked);
-      for (const door of test ? [...spec.doors, TRAINING_DOOR] : spec.doors)
+      // Offene Durchgänge haben kein Blatt und bleiben, wie `housePlan` sie legt.
+      for (const door of test ? [...leafDoors(spec), TRAINING_DOOR] : leafDoors(spec))
         for (const edge of doorEdges(door))
           this.plan.door(edge.x, edge.z, edge.dir, 0, !shut.has(door.id));
       this.locks = stamp;

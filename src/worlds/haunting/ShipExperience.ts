@@ -104,6 +104,7 @@ import {
   STATION_DOOR_W,
   doorMiddle,
   doorWidth,
+  leafDoors,
 } from './house';
 import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
@@ -1902,8 +1903,10 @@ export class ShipExperience {
 
   private buildDoors(): void {
     const occupied = new Set<string>();
+    // Offene Durchgänge zwischen zwei Gangstücken haben kein Blatt und keinen
+    // Hebel (`HouseDoor.passage`).
     for (const d of [
-      ...this.host.spec().doors,
+      ...leafDoors(this.host.spec()),
       LIFT_DOOR,
       ...(this.crew.options.test ? [TRAINING_DOOR] : []),
     ]) {

@@ -1,5 +1,5 @@
 import { TILE } from '../../nav/navTile';
-import { APRON, doorWidth, roomOutline, spacesOf, type HouseSpec } from '../house';
+import { APRON, doorWidth, isPassage, roomOutline, spacesOf, type HouseSpec } from '../house';
 import { COMMAND } from '../roomGraph';
 import { doorAxis, doorCentre, rectCentre, rectPolygon, wallSegments } from './geometry';
 import { stationLayout } from '../stationLayout';
@@ -185,8 +185,9 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
       at: doorCentre(door),
       axis: doorAxis(door.dir),
       width: doorWidth(door),
-      open: source.doorOpen(door.id),
-      locked: state.shut.includes(door.id),
+      open: isPassage(door) || source.doorOpen(door.id),
+      locked: !isPassage(door) && state.shut.includes(door.id),
+      ...(isPassage(door) ? { passage: true } : {}),
       material: door.material,
       ...holdOf(source, door.id),
     })),

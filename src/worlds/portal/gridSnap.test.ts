@@ -355,3 +355,31 @@ describe('Wände aus dem Regal auf dem Gitter', () => {
     expect(wallCells(1, 0, turn(0.3), { x: 1, z: 0.125 })).toBeNull();
   });
 });
+
+describe('Möbel in 45° (gridPose mit fine)', () => {
+  const CHAIR = { x: 0.3, z: 0.25 };
+
+  it('ohne fine rastet ein schräges Möbel auf eine Vierteldrehung', () => {
+    const pose = gridPose(0.3, 0.3, turned(Math.PI / 4 + 0.05), CHAIR);
+    expect(isDiagonal(pose.yaw)).toBe(false);
+  });
+
+  it('mit fine bleibt es schräg und steht auf der Kachelmitte', () => {
+    const pose = gridPose(0.3, 1.8, turned(Math.PI / 4 + 0.05), CHAIR, undefined, true);
+    expect(pose.yaw).toBeCloseTo(Math.PI / 4);
+    expect(pose.x).toBeCloseTo(tileCentre(0.3));
+    expect(pose.z).toBeCloseTo(tileCentre(1.8));
+    expect(pose.wall).toBeNull();
+  });
+
+  it('eine Wand bleibt eine schräge Wand, fine oder nicht', () => {
+    const pose = gridPose(0.2, 0.2, turned(Math.PI / 4), { x: 1, z: 0.13 }, undefined, true);
+    expect(pose.diagonal).not.toBeNull();
+  });
+
+  it('die Hülle unter 45° ist ein Quadrat', () => {
+    const { halfX, halfZ } = turnedHalf(CHAIR, Math.PI / 4);
+    expect(halfX).toBeCloseTo((0.3 + 0.25) * Math.SQRT1_2);
+    expect(halfZ).toBeCloseTo(halfX);
+  });
+});

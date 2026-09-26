@@ -11,11 +11,14 @@ describe('Werkzeug wechseln mit dem Steuerkreuz', () => {
     expect(nextBuildTool('place', 1)).toEqual({ kind: 'tool', tool: 'move' });
     expect(nextBuildTool('move', 1)).toEqual({ kind: 'tool', tool: 'erase' });
     expect(nextBuildTool('erase', 1)).toEqual({ kind: 'copy' });
-    expect(nextBuildTool('copy', 1)).toEqual({ kind: 'tool', tool: 'place' });
+    expect(nextBuildTool('copy', 1)).toEqual({ kind: 'tool', tool: 'floor' });
+    expect(nextBuildTool('floor', 1)).toEqual({ kind: 'tool', tool: 'wall' });
+    expect(nextBuildTool('wall', 1)).toEqual({ kind: 'tool', tool: 'place' });
   });
 
   it('geht nach links genauso zurück', () => {
-    expect(nextBuildTool('place', -1)).toEqual({ kind: 'copy' });
+    expect(nextBuildTool('place', -1)).toEqual({ kind: 'tool', tool: 'wall' });
+    expect(nextBuildTool('floor', -1)).toEqual({ kind: 'copy' });
     expect(nextBuildTool('copy', -1)).toEqual({ kind: 'tool', tool: 'erase' });
     expect(nextBuildTool('move', -1)).toEqual({ kind: 'tool', tool: 'place' });
   });
