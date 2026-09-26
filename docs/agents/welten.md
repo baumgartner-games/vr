@@ -459,7 +459,7 @@ rechnet `ui/menuGroups.folderWorlds`: Ein Ordner steht, wo seine erste Welt
 stünde. Die Tore im Hub bleiben eines je Welt.
 
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
-Ordner _Test_) sind drei Kammern aus Fensterwänden (`navTestPlan.ts`), vor
+Ordner _Test_) sind vier Kammern aus Fensterwänden (`navTestPlan.ts`), vor
 jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
 Zielplatte** (immer sichtbar, ohne Tiefenprüfung).
 
@@ -482,6 +482,18 @@ Rand eines Podests Luft, sodass die Brüstung oben die Kante unten sperrte.
    Treppe und Ziel, rechts ist die Kammer zu Ende: Der NPC muss links herum.
    Wer doch auf der Lava steht, stirbt (`NavTestWorld.burn`,
    `NpcDirector.harm`).
+4. **Enger schräger Gang** — dieselbe Kammer wie der erste, die zweite
+   Schräge eine Kachel näher (`x + z = 8` statt `9` in der Kammer;
+   gewünscht: _„45° Wände die aber einen näher aneinander stehen"_).
+
+**Jede Kammer hat ein Tor, durch das nur der Spieler kommt** (gewünscht:
+_„zu allen Bereichen auch ein Tor … über welches nur der Spieler rein und
+raus kann"_): `prototype-bits/Wall_Doorway.glb` in der Südwand, an der Kachel
+der Startplatte (`NavTest.gate`, `GATE_MODEL`). Für das Zellgitter des
+Spielers ist der Durchgang offen (`MODEL_ARCHES`, `gridSnap.wallCells`); im
+Graphen der NPCs steht an derselben Kante eine feste Wand
+(`NavTestWorld.navReady`, und im Plan für `navTestPlan.test.ts`), also plant
+keine Puppe hinaus.
 
 Der Knopf stellt eine Übungspuppe auf die grüne Platte und schickt sie bis
 auf die blaue (`sendTo`, 0,3 m statt `ERRAND_REACH`); am Ziel sagt die Welt

@@ -1,8 +1,13 @@
 import { PLAN_FLOOR_T } from '../editor/levelPlan';
 import { GridPlan } from '../grid/gridPlan';
-import { planShelfWalls, SHELF_WINDOW_PIECES, type ShelfWall } from '../grid/shelfWalls';
+import {
+  planShelfWalls,
+  SHELF_WALL_Y,
+  SHELF_WINDOW_PIECES,
+  type ShelfWall,
+} from '../grid/shelfWalls';
 import { HAZARD_FIRE } from '../nav/navProfile';
-import { DIR_E, DIR_N, DIR_S, DIR_W, type Dir } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from '../nav/navTile';
 import type { Slope } from '../nav/cellGrid';
 
 /**
@@ -52,6 +57,12 @@ export interface NavTest {
   readonly goal: NavSpot;
   /** Die Kachel vor der Kammer, auf der der Knopf steht. */
   readonly button: { readonly x: number; readonly z: number };
+  /**
+   * **Das Tor**: die Kachel der Südreihe, durch deren Südkante der Spieler in
+   * die Kammer kommt — ein Durchgang aus dem Regal (`GATE_MODEL`). Für die
+   * NPCs bleibt die Kante eine Wand (`NavTestWorld.navReady`).
+   */
+  readonly gate: { readonly x: number; readonly z: number };
 }
 
 /** Wie hoch eine Etage ist — dieselbe Zahl wie in der Sandbox (`test/layout.STOREY`). */
@@ -66,6 +77,13 @@ const STAIR_LENGTH = 4;
  * von Wand zu Wand der Kammer. Es gibt nur den Weg zwischen ihnen hindurch.
  */
 const SLANT = { x: 0, z: 0, w: 8, d: 8 } as const;
+
+/**
+ * **4 · Der enge schräge Gang** — dieselbe Kammer, die zweite Schräge eine
+ * Kachel näher an der ersten. Gewünscht: _„einen Test mit 45° Wände die aber
+ * einen näher aneinander stehen"_.
+ */
+const NARROW = { x: 29, z: 0, w: 8, d: 8 } as const;
 
 /**
  * **2 · Die Treppe** — eine Treppe auf ein Podest, oben das Ziel.
@@ -99,6 +117,7 @@ export const NAV_TESTS: readonly NavTest[] = [
     start: { x: SLANT.x, z: SLANT.z + SLANT.d - 1, level: 0 },
     goal: { x: SLANT.x + SLANT.w - 1, z: SLANT.z, level: 0 },
     button: { x: SLANT.x + 1, z: SLANT.z + SLANT.d + 1 },
+    gate: { x: SLANT.x, z: SLANT.z + SLANT.d - 1 },
   },
   {
     id: 'treppe',
@@ -108,6 +127,7 @@ export const NAV_TESTS: readonly NavTest[] = [
     start: { x: STAIRS_X, z: STAIRS.z + STAIRS.d - 1, level: 0 },
     goal: { x: STAIRS_X, z: STAIRS.z, level: 1 },
     button: { x: STAIRS_X + 1, z: STAIRS.z + STAIRS.d + 1 },
+    gate: { x: STAIRS.x, z: STAIRS.z + STAIRS.d - 1 },
   },
   {
     id: 'lava',
@@ -117,14 +137,28 @@ export const NAV_TESTS: readonly NavTest[] = [
     start: { x: LAVA_STAIRS_X, z: LAVA_ROOM.z + LAVA_ROOM.d - 1, level: 0 },
     goal: { x: LAVA_STAIRS_X, z: LAVA_ROOM.z, level: 1 },
     button: { x: LAVA_STAIRS_X - 1, z: LAVA_ROOM.z + LAVA_ROOM.d + 1 },
+    gate: { x: LAVA_ROOM.x, z: LAVA_ROOM.z + LAVA_ROOM.d - 1 },
+  },
+  {
+    id: 'eng',
+    title: '4 · Enger schräger Gang',
+    body: 'Die 45°-Wände eine Kachel näher',
+    room: NARROW,
+    start: { x: NARROW.x, z: NARROW.z + NARROW.d - 1, level: 0 },
+    goal: { x: NARROW.x + NARROW.w - 1, z: NARROW.z, level: 0 },
+    button: { x: NARROW.x + 1, z: NARROW.z + NARROW.d + 1 },
+    gate: { x: NARROW.x, z: NARROW.z + NARROW.d - 1 },
   },
 ];
 
-/** Der Boden, auf dem man zwischen den Kammern herumläuft. */
-export const GROUND = { x: -4, z: -4, w: 34, d: 22 } as const;
+/** Das Tor aus dem Regal: eine Kachel breit, 2,1 m Öffnung (`props.MODEL_ARCHES`). */
+export const GATE_MODEL = 'prototype-bits/Wall_Doorway.glb';
 
-/** Wo man ankommt: vor der mittleren Kammer, mit Blick auf alle drei. */
-export const SPAWN = { x: 13.5, z: 15.5 } as const;
+/** Der Boden, auf dem man zwischen den Kammern herumläuft. */
+export const GROUND = { x: -4, z: -4, w: 45, d: 22 } as const;
+
+/** Wo man ankommt: vor der Mitte der Reihe, mit Blick auf alle Kammern. */
+export const SPAWN = { x: 18.5, z: 15.5 } as const;
 
 /**
  * **Der Plan der Welt**: Boden, drei Kammern, die Schrägen, zwei Treppen auf
@@ -135,12 +169,12 @@ export function navTestPlan(): GridPlan {
   plan.floor(GROUND);
   for (const test of NAV_TESTS) wallRing(plan, test.room, 0);
 
-  // 1 · Die beiden Schrägen „╱": x + z = 6 und x + z = 8 in der Kammer,
-  // jede von Wand zu Wand.
-  for (let i = 0; i < 6; i++) {
-    plan.slope(SLANT.x + i, SLANT.z + 5 - i, 'slash' satisfies Slope);
-    plan.slope(SLANT.x + 2 + i, SLANT.z + 7 - i, 'slash' satisfies Slope);
-  }
+  // 1 · Die beiden Schrägen „╱", jede von Wand zu Wand der Kammer.
+  slant(plan, SLANT, 5);
+  slant(plan, SLANT, 9);
+  // 4 · Dieselbe erste, die zweite eine Kachel näher.
+  slant(plan, NARROW, 5);
+  slant(plan, NARROW, 8);
 
   // 2 und 3 · Podest und Treppe — der Boden oben liegt, bevor die Treppe ihr
   // Loch schlägt (`GridPlan.stairs`, wie beim Podest der Sandbox).
@@ -167,12 +201,35 @@ export function navTestPlan(): GridPlan {
 }
 
 /**
+ * **Eine Schräge „╱" quer durch eine quadratische Kammer** — alle Kacheln mit
+ * `x + z = sum` (in den Koordinaten der Kammer), von Wand zu Wand.
+ */
+function slant(plan: GridPlan, room: { x: number; z: number; w: number }, sum: number): void {
+  for (let x = 0; x < room.w; x++) {
+    const z = sum - x;
+    if (z < 0 || z >= room.w) continue;
+    plan.slope(room.x + x, room.z + z, 'slash' satisfies Slope);
+  }
+}
+
+/**
  * **Die Wände der Welt als Stücke aus dem Regal** — die geraden aus der
  * Fensterwand (`Wall_Window_Closed`, am Ende `…_Narrow`), damit man in die
- * Kammern hineinsieht, die Schrägen aus der Prototypwand (`Wall.glb`).
+ * Kammern hineinsieht, die Schrägen aus der Prototypwand (`Wall.glb`) und
+ * in jeder Kammer ein Tor (`GATE_MODEL`), wo der Plan die Kante zu hat.
  */
 export function navTestWalls(): ShelfWall[] {
-  return planShelfWalls(navTestPlan(), SHELF_WINDOW_PIECES);
+  const plan = navTestPlan();
+  for (const test of NAV_TESTS) plan.graph.clearWall(gateTile(test), DIR_S);
+  const walls = planShelfWalls(plan, SHELF_WINDOW_PIECES);
+  for (const { gate } of NAV_TESTS)
+    walls.push({ path: GATE_MODEL, x: gate.x + 0.5, y: SHELF_WALL_Y, z: gate.z + 1, yaw: 0 });
+  return walls;
+}
+
+/** Die Kachel innen am Tor — das Tor ist ihre Südkante. */
+export function gateTile(test: NavTest): TileKey {
+  return tileKey(test.gate.x, test.gate.z, 0);
 }
 
 /**
