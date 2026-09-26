@@ -2,7 +2,7 @@ import { CellGrid, navCellSource } from '../nav/cellGrid';
 import { cellRoute } from '../nav/cellRoute';
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
+import { DIR_S, keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
 import { slideOnCells } from '../nav/planeMove';
 import { readNav, writeNav } from '../nav/navSerial';
 import { wallLevel } from '../grid/shelfNav';
@@ -14,6 +14,8 @@ import {
   STOREY,
   navTestPlan,
   navTestWalls,
+  GATE_MODEL,
+  gateTile,
   tileCentre,
   type NavTest,
 } from './navTestPlan';
@@ -36,8 +38,8 @@ function route(one: NavTest) {
 }
 
 describe('Test Navigation — die Kammern', () => {
-  it('hat drei Tests, jeder mit Start, Ziel und Knopf außerhalb der Kammer', () => {
-    expect(NAV_TESTS.map((one) => one.id)).toEqual(['schraege', 'treppe', 'lava']);
+  it('hat vier Tests, jeder mit Start, Ziel und Knopf außerhalb der Kammer', () => {
+    expect(NAV_TESTS.map((one) => one.id)).toEqual(['schraege', 'treppe', 'lava', 'eng']);
     for (const one of NAV_TESTS) {
       expect(graph.walkable(tileKey(one.start.x, one.start.z, one.start.level))).toBe(true);
       expect(graph.walkable(tileKey(one.goal.x, one.goal.z, one.goal.level))).toBe(true);
@@ -60,6 +62,47 @@ describe('Test Navigation — die Kammern', () => {
       const from = { x: tileCentre(one.start.x), z: tileCentre(one.start.z) };
       const to = { x: tileCentre(one.goal.x), z: tileCentre(one.goal.z) };
       expect(cellRoute(graph, found.tiles, from, to)).not.toBeNull();
+    }
+  });
+
+  it('4 · geht auch durch den engeren schrägen Gang — ohne die Kammer zu verlassen', () => {
+    const one = test('eng');
+    const tiles = route(one).tiles;
+    // Zwischen den Schrägen x + z = 5 und x + z = 8 der Kammer, beide eingeschlossen
+    // (auf ihnen steht die freie Hälfte der Kachel).
+    for (const key of tiles) {
+      const sum = keyX(key) - one.room.x + keyZ(key) - one.room.z;
+      expect(sum).toBeGreaterThanOrEqual(5);
+      expect(sum).toBeLessThanOrEqual(8);
+    }
+    const points = cellRoute(
+      graph,
+      tiles,
+      { x: tileCentre(one.start.x), z: tileCentre(one.start.z) },
+      { x: tileCentre(one.goal.x), z: tileCentre(one.goal.z) },
+    )!;
+    const grid = new CellGrid(navCellSource(graph, (key) => plan.slopeAt(key)));
+    let p = { x: tileCentre(one.start.x), z: tileCentre(one.start.z) };
+    for (const point of points)
+      for (let i = 0; i < 300; i++) {
+        const dx = point.x - p.x,
+          dz = point.z - p.z,
+          d = Math.hypot(dx, dz);
+        if (d < 0.02) break;
+        const step = Math.min(0.04, d);
+        p = slideOnCells(grid, p.x, p.z, (dx / d) * step, (dz / d) * step);
+      }
+    expect(Math.hypot(p.x - tileCentre(one.goal.x), p.z - tileCentre(one.goal.z))).toBeLessThan(
+      0.6,
+    );
+  });
+
+  it('hat vor jeder Kammer ein Tor in der Südwand, das im Plan für die NPCs zu ist', () => {
+    for (const one of NAV_TESTS) {
+      expect(one.gate.z).toBe(one.room.z + one.room.d - 1);
+      expect(one.gate.x).toBeGreaterThanOrEqual(one.room.x);
+      expect(one.gate.x).toBeLessThan(one.room.x + one.room.w);
+      expect(graph.wall(gateTile(one), DIR_S)?.kind).toBe('solid');
     }
   });
 
@@ -146,13 +189,38 @@ describe('Test Navigation — Wände nur aus dem Regal', () => {
   const walls = navTestWalls();
 
   it('legt die geraden Wände aus der Fensterwand und die Schrägen aus der Prototypwand', () => {
-    const allowed = new Set([SHELF_WINDOW_PIECES.full, SHELF_WINDOW_PIECES.half, SHELF_WALL]);
+    const allowed = new Set([
+      SHELF_WINDOW_PIECES.full,
+      SHELF_WINDOW_PIECES.half,
+      SHELF_WALL,
+      GATE_MODEL,
+    ]);
     for (const wall of walls) expect(allowed.has(wall.path)).toBe(true);
     const slanted = walls.filter((wall) => Math.abs(Math.abs(wall.yaw) - Math.PI / 4) < 1e-9);
-    // Zwei Schrägen zu je sechs Kacheln im schrägen Gang.
-    expect(slanted).toHaveLength(12);
+    // Zwei Schrägen zu je sechs Kacheln im schrägen Gang, im engen sechs und sieben.
+    expect(slanted).toHaveLength(25);
     for (const wall of slanted) expect(wall.path).toBe(SHELF_WALL);
     expect(walls.some((wall) => wall.path === SHELF_WINDOW_PIECES.full)).toBe(true);
+  });
+
+  it('stellt je Kammer ein Tor aus dem Regal in die Lücke der Fensterwand', () => {
+    const gates = walls.filter((wall) => wall.path === GATE_MODEL);
+    expect(gates).toHaveLength(NAV_TESTS.length);
+    for (const one of NAV_TESTS) {
+      const x = one.gate.x + 0.5,
+        z = one.gate.z + 1;
+      expect(gates.some((wall) => wall.x === x && wall.z === z)).toBe(true);
+      // Und kein Fensterstück überdeckt dieselbe Stelle.
+      const cover = walls.filter(
+        (wall) =>
+          wall.path !== GATE_MODEL &&
+          wall.yaw === 0 &&
+          wall.z === z &&
+          wall.y < STOREY &&
+          Math.abs(wall.x - x) < (wall.path === SHELF_WINDOW_PIECES.full ? 1 : 0.5),
+      );
+      expect(cover).toHaveLength(0);
+    }
   });
 
   it('stellt Brüstungen auf dem Podest eine Etage höher', () => {
