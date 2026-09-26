@@ -528,7 +528,11 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   `WristMenus`**: `presenting` (von `App` bei Sitzungsbeginn und -ende
   gesetzt) schickt `toggle`, `openSubmenu`, `isOpen`, `refresh` und
   `setStatus` an die Handgelenke oder an die Seite; beim Aufsetzen geht die
-  Seite zu, beim Absetzen der Arm. Keine Welt weiß davon — `ctx.menu` ist
+  Seite zu, beim Absetzen der Arm. Solange die Seite das Menü trägt, ist der
+  runde Knopf am Arm aus (`WristMenu.buttonHidden`): Ohne getrackte Hand hing
+  er an der Blickrichtung rechts unter der Bildmitte — ein zweites ☰ mitten im
+  Bild, am Telefon halb über den Rand, und ein Klick darauf öffnete das Panel
+  in der Szene statt der Seite. Keine Welt weiß davon — `ctx.menu` ist
   dieselbe Klasse mit denselben Aufrufen. Öffnet ein Eintrag die Tastatur
   (`App.openKeys`), geht die Seite zu, weil die Tastatur ein Panel in der
   Szene ist und sonst dahinter läge. Die Kopfzeile im Web (`#hud`) ist damit

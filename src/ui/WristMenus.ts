@@ -216,7 +216,11 @@ export class WristMenus extends THREE.Group {
     if (this.immersive && input.controllers.some((one) => one.tracked && one.menu.justPressed)) {
       this.toggle();
     }
-    for (const menu of this.menus) menu.update(dt, input, headWorld);
+    const onPage = this.onPage;
+    for (const menu of this.menus) {
+      menu.buttonHidden = onPage;
+      menu.update(dt, input, headWorld);
+    }
   }
 
   dispose(): void {

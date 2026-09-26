@@ -121,6 +121,14 @@ export interface WristMenuOptions {
 export class WristMenu extends THREE.Group {
   readonly panel: UIPanel;
   readonly button: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
+  /**
+   * **Den runden Knopf ausblenden** — gesetzt von `WristMenus`, solange ohne
+   * Brille die Seite das Menü trägt. Dort hing der Knopf sonst an der
+   * Blickrichtung, rechts unter der Bildmitte: am Schirm ein zweites ☰
+   * neben dem oben links, am Telefon halb über den Rand geschoben, und ein
+   * Klick darauf öffnete das Menü als Panel in der Szene statt als Seite.
+   */
+  buttonHidden = false;
   /** One line about the entry under the pointer, floating over the panel. */
   private readonly caption: TextPlane;
   private captionText = '';
@@ -425,7 +433,7 @@ export class WristMenu extends THREE.Group {
 
     // Ein freies Menü hat keinen Knopf: es wird von woanders aufgemacht, und
     // ein Knopf, der im Nichts schwebt, wäre nur ein Ding im Weg.
-    this.button.visible = this.anchor !== 'view';
+    this.button.visible = this.anchor !== 'view' && !this.buttonHidden;
     this.panel.visible = this.open;
 
     if (anchor) {

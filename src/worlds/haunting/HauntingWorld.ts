@@ -3187,7 +3187,7 @@ export class HauntingWorld extends GridWorld {
         light.color.setHex(lamp.color);
         light.intensity = LAMP_ON * glow * lampScale;
       }
-      if (lampShadowDue(i === turn, moved, before, light.intensity))
+      if (lampShadowDue(i === turn, moved, before, light.intensity, light.shadow.map !== null))
         light.shadow.needsUpdate = true;
       // Eine dunkle Leuchte zeichnet nichts — three.js fragt dafür nicht nach
       // der Stärke, sondern nur nach diesem Schalter.

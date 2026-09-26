@@ -578,6 +578,9 @@ eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
   lädt ja, während die Startseite noch davorsteht.
 - **Wie lange**: neun Sekunden, oder bis _Verstanden_. Geht ein Menü auf oder
   wechselt die Welt, geht sie mit.
+- **Wo**: oben mittig. Im Schiff (`body.orbital-on`) steht dort links die
+  Tafel des Technikers, und die Karte lag 26 px darüber — ab 820 Punkten
+  Breite rückt sie rechts daneben (`worldTransit.css`).
 - **Einmal je Welt**, gemerkt im Browser (`bgvr.welcomed`, eine Liste der
   Ids). **Abschaltbar** unter _Menü → Steuerung & Hilfe → Eingaben →
   Willkommen je Welt_ (`bgvr.welcome`); wer sie wieder einschaltet, bekommt
