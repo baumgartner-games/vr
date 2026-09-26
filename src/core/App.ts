@@ -21,6 +21,7 @@ import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
+import { topDownFit } from './topDownPose';
 import { isCrane, screenTopDown } from './crane';
 import { gameMode, onGameMode } from './gameMode';
 import {
@@ -619,10 +620,11 @@ export class App {
     const id = this.worldId;
     if (!id || this.loading !== null) return;
     this.worldId = '';
-    await this.goTo(id);
+    await this.goTo(id, true);
   }
 
-  async goTo(id: string): Promise<void> {
+  /** `again`: dieselbe Welt neu aufbauen (`reloadWorld`) — sagt der Ladebildschirm dazu. */
+  async goTo(id: string, again = false): Promise<void> {
     const definition = findWorld(id) ?? findWorld(DEFAULT_WORLD)!;
     if (this.loading === definition.id) return;
     if (this.worldId === definition.id) {
@@ -645,7 +647,7 @@ export class App {
       this.loader !== null &&
       !this.renderer.xr.isPresenting &&
       !(this.landingEl !== null && !this.landingEl.hidden);
-    if (showLoader) this.loader.begin(definition);
+    if (showLoader) this.loader.begin(definition, again);
 
     try {
       const next = await definition.load();
@@ -660,6 +662,12 @@ export class App {
       // Eine neue Welt fängt mit Norden oben an — ihre Karten und Schilder
       // sind so gezeichnet (`TopDownCamera.turn`).
       this.topDownCamera.resetHeading();
+      // Und mit dem Zoom, der die Welt ins Bild bringt — falls sie einen will.
+      this.topDownCamera.startZoom(
+        definition.topDownSpan === undefined
+          ? null
+          : topDownFit(definition.topDownSpan, window.innerWidth / Math.max(1, window.innerHeight)),
+      );
       this.resizeWebBuffer();
       this.world = next;
       await next.init(this.context);

@@ -1,5 +1,14 @@
 import * as THREE from 'three';
-import { BILLBOARD_LEAN_MIN, billboardAngles, faceCamera, unfaceCamera } from './billboard';
+import {
+  BILLBOARD_LEAN_MIN,
+  TOP_DOWN_CAMERA_NAME,
+  billboardAngles,
+  faceCamera,
+  flipWanted,
+  turnWithView,
+  unfaceCamera,
+  viewYaw,
+} from './billboard';
 
 /**
  * **Was ein Schild verspricht, das die Kamera ansieht** (`ui/billboard.ts`).
@@ -248,5 +257,74 @@ describe('faceCamera — ausgerichtet wird beim Zeichnen', () => {
     expect(() => {
       unfaceCamera(sign);
     }).not.toThrow();
+  });
+});
+
+describe('Schilder, die der gedrehten Draufsicht folgen (turnWithView)', () => {
+  const Q = Math.PI / 2;
+
+  it('lässt bei Norden oben alles, wie es gebaut ist', () => {
+    expect(viewYaw('flat', 0, 1, 0.3)).toBeCloseTo(0.3);
+    expect(viewYaw('upright', 0, 1, 0)).toBeCloseTo(0);
+  });
+
+  it('dreht Flaches um genau das Gieren der Kamera mit', () => {
+    // Die Kamera eine Vierteldrehung weiter: ihre Rückachse zeigt nach +X.
+    expect(viewYaw('flat', 1, 0, 0)).toBeCloseTo(Q);
+    expect(viewYaw('flat', 1, 0, 0.2)).toBeCloseTo(Q + 0.2);
+    expect(Math.abs(viewYaw('flat', 0, -1, 0))).toBeCloseTo(Math.PI);
+  });
+
+  it('stellt Aufrechtes zur Kamera, gleich wie es gebaut wurde', () => {
+    expect(viewYaw('upright', -1, 0, Q)).toBeCloseTo(-Q);
+    expect(viewYaw('upright', 1, 0, -Q)).toBeCloseTo(Q);
+  });
+
+  it('wendet Gangschrift, sobald sie gegen das Bild läuft', () => {
+    // Leserichtung nach Osten, das Bild hat rechts Osten: bleibt.
+    expect(flipWanted(1, 0, 1, 0)).toBe(false);
+    // Das Bild um eine halbe Drehung gedreht: rechts ist Westen — wenden.
+    expect(flipWanted(1, 0, -1, 0)).toBe(true);
+    // Quer zum Bild: bleibt, wie gebaut.
+    expect(flipWanted(0, 1, 1, 0)).toBe(false);
+  });
+
+  it('bleibt stehen, wenn die Kamera senkrecht herabschaut', () => {
+    expect(viewYaw('flat', 0, 0, 0.4)).toBe(0.4);
+  });
+
+  const render = (object: THREE.Object3D, camera: THREE.Camera): void => {
+    camera.updateMatrixWorld(true);
+    object.onBeforeRender(
+      null as unknown as THREE.WebGLRenderer,
+      null as unknown as THREE.Scene,
+      camera,
+      null as unknown as THREE.BufferGeometry,
+      null as unknown as THREE.Material,
+      null as unknown as THREE.Group,
+    );
+  };
+
+  it('dreht nur für die Kamera von oben — aus den Augen steht es wie gebaut', () => {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1, 1));
+    sign.rotation.x = -Q;
+    const built = sign.quaternion.clone();
+    turnWithView(sign, 'flat');
+
+    const top = new THREE.PerspectiveCamera();
+    top.name = TOP_DOWN_CAMERA_NAME;
+    top.rotation.order = 'YXZ';
+    top.rotation.set(-0.9, Q, 0);
+    render(sign, top);
+    // Die Oberkante der Schrift (lokal +Y) zeigt jetzt dorthin, wohin die
+    // Kamera schaut — nach −X, also im Bild nach oben.
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(sign.quaternion);
+    expect(up.x).toBeCloseTo(-1);
+    expect(up.y).toBeCloseTo(0);
+
+    const eyes = new THREE.PerspectiveCamera();
+    eyes.rotation.set(0, Q, 0);
+    render(sign, eyes);
+    expect(sign.quaternion.angleTo(built)).toBeCloseTo(0);
   });
 });

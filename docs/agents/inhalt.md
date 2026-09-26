@@ -410,7 +410,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   | Stück | Adresse | Wo |
   | ----- | ------- | -- |
   | Bogen über jeder Mündung, 2,6 m | `platformer/<farbe>/arch_tall_<farbe>.glb` | Farbe nach der Akzentfarbe der Welt (`archColor`: Orange → Gelb, Türkis/Himmelblau → Blau, Grün → Grün) |
-  | Schild darüber | `TextPlane` mit Name und Zeile der Welt | über dem Bogen, zur Hallenmitte gedreht, **ohne** `face` — ein Schriftzug über einem Tor |
+  | Schild darüber | `TextPlane` mit Name und Zeile der Welt | über dem Bogen, zur Hallenmitte gedreht, **ohne** `face` — ein Schriftzug über einem Tor; **nur von oben** steht es aufrecht zur Kamera, auch nach einer Drehung der Draufsicht (`billboard.turnWithView(…, 'upright')`) |
   | Stehlampen, je zwei | `furniture-bits/lamp_standing.glb` | links und rechts jeder Mündung an der Wand |
   | Bänke, je Wand eine | `halloween-bits/bench.glb` | an der Wand neben der Mündung, zur Mitte gedreht |
   | Topfpflanzen | `furniture-bits/cactus_medium_A/B.glb` | in den vier Ecken |
@@ -419,6 +419,24 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   jetzt das Schild des Burgerladens); der Hinweis an der Südwand heißt
   _Lobby_ und sagt, wie man hinkommt. Der Test hält die Mitte der Halle und
   jede Gangmündung frei.
+
+  **Man läuft nicht mehr durch die Möbel.** Bänke, Stehlampen und
+  Topfpflanzen tragen eine Grundfläche (`HubPiece.solid`, `BENCH_SOLID`,
+  `LAMP_SOLID`, `CACTUS_SOLID`, gemessen an den Modellen, etwas knapper);
+  `HubWorld.blockDecor` stellt dort **sofort** einen unsichtbaren Quader von
+  1,2 m hin — wie im Burgerladen, und ohne auf das Modell zu warten. Die
+  Quader stehen in `solids`, also sieht sie auch das Wegnetz der NPCs. Der
+  Bogen hat keinen: Unter ihm geht man durch. Der Test (`solidBox`) hält
+  einen Streifen so breit wie die Mündung (±1,5 m) von der Mitte bis in
+  jeden Gang frei.
+
+  **Von oben passt die Lobby ganz ins Bild**, auch am Telefon im Hochformat:
+  Die Weltdefinition trägt `topDownSpan: 11.5` (Meter um den Startpunkt), und
+  `App.goTo` rechnet daraus den Start-Zoom für das Seitenverhältnis des
+  Fensters (`topDownPose.topDownFit`, mit Test) — am Schreibtisch rund 22 m,
+  hochkant rund 50 m. Gezoomt wird dabei nur hinaus, und die nächste Welt
+  ohne eigenen Start-Zoom bekommt den Zoom von vorher zurück
+  (`TopDownCamera.startZoom`).
 
   **Die Anlage ab fünf Welten**: eine Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.

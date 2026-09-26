@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TILE, tileCentreX, tileCentreZ } from '../nav/navTile';
 import type { HouseSpec } from './house';
 import { label } from './shipArt';
+import { turnWithView } from '../../ui/billboard';
 import type { MonsterInsight } from './map/mapSnapshot';
 // **Tief importiert und nicht über `map/index.ts`.** Die Tür des Kartenpakets
 // exportiert auch `FlatMode` und `MapView`; wer sie hier aufmacht, zieht die
@@ -192,6 +193,8 @@ export class NavigationOverlay {
       const sign = label(room.name.toUpperCase(), Math.min(9, room.rect.w * TILE - 1), 1.4);
       sign.rotation.x = -Math.PI / 2;
       sign.position.set((room.rect.x + room.rect.w / 2) * TILE, 0.4, room.rect.z * TILE + 1.1);
+      // Liest sich auch nach einer Drehung der Draufsicht (`ui/billboard.ts`).
+      turnWithView(sign, 'flat');
       sign.material.depthTest = false;
       sign.material.depthWrite = false;
       sign.renderOrder = 102;
@@ -300,6 +303,7 @@ export class NavigationOverlay {
       }
       sign = label(text, width, width / 4.4, color);
       sign.rotation.x = -Math.PI / 2;
+      turnWithView(sign, 'flat');
       sign.material.depthTest = false;
       sign.material.depthWrite = false;
       sign.renderOrder = 106;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { dressProps, FIXTURE_MODELS } from './world3d/stationProps';
 import { FIXTURE_CATALOG } from './fixtureDimensions';
 import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
+import { turnWithView } from '../../ui/billboard';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   APRON,
@@ -210,6 +211,8 @@ function addCorridorName(group: THREE.Group, room: HouseRoom, accent: number): v
   );
   stencil.rotation.set(-Math.PI / 2, 0, alongX ? 0 : Math.PI / 2);
   group.add(stencil);
+  // Nach einer Drehung der Draufsicht nie auf dem Kopf — und nie quer zum Gang.
+  turnWithView(stencil, 'flip');
 }
 
 /** Painted navigation-scale insignia makes empty walking space feel intentional. */
@@ -271,6 +274,8 @@ function addDepartmentMark(
   stencil.position.set(x, 0.063, z + 1.62);
   stencil.rotation.x = -Math.PI / 2;
   group.add(stencil);
+  // Von oben lesbar, auch nach einer Drehung der Draufsicht (`ui/billboard.ts`).
+  turnWithView(stencil, 'flat');
 }
 
 function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {

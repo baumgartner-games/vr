@@ -29,7 +29,20 @@ export interface HubPiece {
   readonly height: number;
   /** Nur Bögen: zu welchem Gang (Index in der Liste der Gänge). */
   readonly corridor?: number;
+  /**
+   * **Der Stoßkörper**: Breite (quer, lokales X) und Tiefe (lokales Z) der
+   * Grundfläche in Metern, mit `yaw` gedreht wie das Stück. Wer eines hat,
+   * steht im Weg — man läuft dagegen statt hindurch. Etwas knapper als das
+   * Modell, damit man an einer Bank vorbeistreift und nicht an ihrer Luft
+   * hängen bleibt. Der Bogen hat keinen: Unter ihm geht man durch.
+   */
+  readonly solid?: readonly [number, number];
 }
+
+/** Die Grundflächen der Stücke mit Körper — gemessen an den Modellen. */
+export const BENCH_SOLID: readonly [number, number] = [1.6, 0.55];
+export const LAMP_SOLID: readonly [number, number] = [0.4, 0.4];
+export const CACTUS_SOLID: readonly [number, number] = [0.7, 0.7];
 
 /** Die vier Farben, in denen es die Bögen der Plattform-Kiste gibt. */
 export type ArchColor = 'red' | 'yellow' | 'green' | 'blue';
@@ -99,8 +112,10 @@ export function wallPoint(dir: Dir, along: number, across: number): { x: number;
  *
  * Je Gang: ein **Bogen** über der Mündung in der Farbe der Welt, zwei
  * **Stehlampen** links und rechts davon und eine **Bank** an der Wand rechts
- * daneben, zur Mitte gedreht. Je Ecke eine **Topfpflanze**. Wo kein Gang ist, steht
- * dennoch eine Bank — die Wand dort ist die längste der Halle.
+ * daneben, zur Mitte gedreht. Je Ecke eine **Topfpflanze**. Wo kein Gang
+ * ist, steht dennoch eine Bank — die Wand dort ist die längste der Halle.
+ * Bänke, Lampen und Pflanzen haben einen **Stoßkörper** (`solid`); die
+ * Mündungen und der Weg zu jedem Tor bleiben frei.
  */
 export function hubDecor(
   corridors: readonly HubCorridor[],
@@ -124,7 +139,13 @@ export function hubDecor(
     });
     for (const side of [-1, 1] as const) {
       const lamp = wallPoint(dir, HALL_WALL - 0.45, side * 2.05);
-      out.push({ path: 'furniture-bits/lamp_standing.glb', ...lamp, yaw, height: 1.55 });
+      out.push({
+        path: 'furniture-bits/lamp_standing.glb',
+        ...lamp,
+        yaw,
+        height: 1.55,
+        solid: LAMP_SOLID,
+      });
     }
   });
 
@@ -135,6 +156,7 @@ export function hubDecor(
       ...bench,
       yaw: yawToCentre(dir),
       height: 0.42,
+      solid: BENCH_SOLID,
     });
   }
 
@@ -152,8 +174,30 @@ export function hubDecor(
       z: sz! * corner,
       yaw: (index * Math.PI) / 2,
       height: 0.9,
+      solid: CACTUS_SOLID,
     });
   });
 
   return out;
+}
+
+/**
+ * **Die Grundfläche eines Stoßkörpers** als achsparalleles Rechteck um die
+ * Hallenmitte — oder `null` für ein Stück ohne Körper. Die Stücke stehen nur
+ * in rechten Winkeln, also genügt das Tauschen von Breite und Tiefe.
+ */
+export function solidBox(
+  piece: HubPiece,
+): { minX: number; maxX: number; minZ: number; maxZ: number } | null {
+  if (!piece.solid) return null;
+  const quarter = Math.round(piece.yaw / (Math.PI / 2));
+  const turned = Math.abs(quarter) % 2 === 1;
+  const halfX = (turned ? piece.solid[1] : piece.solid[0]) / 2;
+  const halfZ = (turned ? piece.solid[0] : piece.solid[1]) / 2;
+  return {
+    minX: piece.x - halfX,
+    maxX: piece.x + halfX,
+    minZ: piece.z - halfZ,
+    maxZ: piece.z + halfZ,
+  };
 }

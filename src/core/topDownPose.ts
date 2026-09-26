@@ -304,3 +304,27 @@ export function stepFromDistance(distance: number, direction: number): number {
  * Kleinigkeit bliebe ein Rad, das bei 16,0000001 m steht, bei 16 m stehen.
  */
 const NOTCH_EPS = 1e-3;
+
+/**
+ * **Wie weit weg die Kamera muss, damit `span` Meter ins Bild passen** —
+ * quer _und_ längs, um die Figur herum, bei diesem Seitenverhältnis
+ * (Breite / Höhe). Der Start-Zoom einer Welt (`WorldDefinition.topDownSpan`).
+ *
+ * Quer entscheidet der waagerechte Öffnungswinkel, und der ist am Telefon im
+ * Hochformat gut halb so groß wie der senkrechte — deshalb war die Lobby dort
+ * angeschnitten. Längs liegt der Boden schräg unter der Kamera: verkürzt um
+ * den Sinus der Neigung, und die nahe Kante liegt der Kamera näher als die
+ * Figur — dort ist das Bild enger, also wird für sie gerechnet. Geklemmt auf
+ * die Enden, die auch Rad und Pinch haben.
+ */
+export function topDownFit(span: number, aspect: number): number {
+  const tan = Math.tan((TOP_DOWN_FOV / 2) * DEG);
+  const wide = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
+  const half = span / 2;
+  // Die nahe Kante (zur Kamera hin) ist die enge: Sie liegt der Kamera um
+  // `half · cos(Neigung)` näher als die Figur, und dort ist das Bild schmaler.
+  const near = half * Math.cos(TOP_DOWN_TILT * DEG);
+  const across = half / (tan * wide) + near;
+  const along = (half * Math.sin(TOP_DOWN_TILT * DEG)) / tan + near;
+  return Math.max(TOP_DOWN_MIN, Math.min(TOP_DOWN_MAX, Math.max(across, along)));
+}

@@ -83,6 +83,13 @@ export interface TouchPads {
   /** Der Block mit Zielstock und Knöpfen — steht nur in der Ansicht von oben. */
   right: HTMLElement | null;
   /**
+   * **Das Bild drehen** (`#touch-turn-left` ⟲, `#touch-turn-right` ⟳) — eine
+   * Vierteldrehung je Tipp, wie `Q` / `Umschalt`+`Q` und das Steuerkreuz ←/→.
+   * Sie stehen im Block rechts und damit nur in der Ansicht von oben.
+   */
+  turnLeft?: HTMLElement | null;
+  turnRight?: HTMLElement | null;
+  /**
    * Der Werkzeug-Knopf (`#hud-tool`) und der Menü-Knopf (`#hud-menu`).
    *
    * Sie werden hier nicht **gedrückt** — beides sind echte Knöpfe, ihre
@@ -183,6 +190,8 @@ export class FlatControls {
   private aimOrigin = new THREE.Vector2();
   private aimStick = new THREE.Vector2();
   private usePointer: number | null = null;
+  /** Welcher Finger gerade auf einem Dreh-Knopf liegt — nur fürs Aussehen. */
+  private turnPointer: { id: number; el: HTMLElement | null } | null = null;
   private firePointer: number | null = null;
   /** Ob die linke Maustaste gerade als Trigger unten liegt — von oben, und aus den Augen mit Werkzeug. */
   private mouseFire = false;
@@ -334,6 +343,8 @@ export class FlatControls {
     this.rig.paintHeld = false;
     this.firePointer = null;
     this.setPressed(this.pads.fire, false);
+    this.setPressed(this.turnPointer?.el ?? null, false);
+    this.turnPointer = null;
     this.aimStick.set(0, 0);
     this.updateStickVisual(this.pads.aim, 0, 0);
     this.freeTouches.clear();
@@ -1032,6 +1043,13 @@ export class FlatControls {
         this.aimPointer = event.pointerId;
         this.aimOrigin.set(event.clientX, event.clientY);
         this.canvas.setPointerCapture(event.pointerId);
+      } else if (this.topDownOn && hitsElement(pads.turnLeft ?? null, event)) {
+        // ⟲ — gegen den Uhrzeigersinn, wie `Q` und ← am Steuerkreuz.
+        this.viewTurns += 1;
+        this.pressTurn(event, pads.turnLeft ?? null);
+      } else if (this.topDownOn && hitsElement(pads.turnRight ?? null, event)) {
+        this.viewTurns -= 1;
+        this.pressTurn(event, pads.turnRight ?? null);
       } else if (hitsElement(pads.use, event)) {
         // Derselbe Knopf wie `A` am Pad: benutzen, wenn etwas dasteht, sonst
         // springen (`applyUse`).
@@ -1134,6 +1152,10 @@ export class FlatControls {
         this.firePointer = null;
         this.setPressed(this.pads.fire, false);
       }
+      if (event.pointerId === this.turnPointer?.id) {
+        this.setPressed(this.turnPointer.el, false);
+        this.turnPointer = null;
+      }
       if (event.pointerId === this.lookPointer) this.lookPointer = null;
       if (event.pointerId === this.cranePointer) this.cranePointer = null;
       if (this.freeTouches.delete(event.pointerId) && this.freeTouches.size < 2) {
@@ -1172,6 +1194,13 @@ export class FlatControls {
    * Ereignisse ohnehin nie hier ankommen. Eine Regel, die sich auf
    * `pointer-events` verlässt, ist eine Regel, die beim nächsten CSS bricht.
    */
+  /** Ein Dreh-Knopf sieht gedrückt aus, solange der Finger darauf liegt. */
+  private pressTurn(event: PointerEvent, el: HTMLElement | null): void {
+    if (this.turnPointer) this.setPressed(this.turnPointer.el, false);
+    this.turnPointer = { id: event.pointerId, el };
+    this.setPressed(el, true);
+  }
+
   private freeHit(event: PointerEvent): boolean {
     const pads = this.pads;
     return !(
@@ -1179,6 +1208,8 @@ export class FlatControls {
       hitsElement(pads.aim, event) ||
       hitsElement(pads.use, event) ||
       hitsElement(pads.fire, event) ||
+      hitsElement(pads.turnLeft ?? null, event) ||
+      hitsElement(pads.turnRight ?? null, event) ||
       hitsElement(pads.tool ?? null, event) ||
       hitsElement(pads.menu ?? null, event)
     );

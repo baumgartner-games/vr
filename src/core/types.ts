@@ -347,5 +347,12 @@ export interface WorldDefinition {
    * Startseite eine Fläche in der Akzentfarbe (`ui/landingWorlds.ts`).
    */
   preview?: string;
+  /**
+   * **Der Start-Zoom von oben**: wie viele Meter um den Startpunkt beim
+   * Betreten ganz im Bild stehen sollen, quer wie längs
+   * (`topDownPose.topDownFit`). Am Telefon im Hochformat heißt das: weiter
+   * weg als am Schreibtisch. Ohne Angabe bleibt der Zoom, wie er war.
+   */
+  topDownSpan?: number;
   load(): Promise<World>;
 }

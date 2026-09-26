@@ -3,6 +3,7 @@ import {
   LOADER_MIN_MS,
   creep,
   loadLine,
+  transitKicker,
   type LoadPhase,
   type LoadState,
 } from '../core/loadProgress';
@@ -31,6 +32,8 @@ export class WorldLoader {
   readonly element: HTMLElement;
   private readonly image: HTMLImageElement;
   private readonly title: HTMLElement;
+  /** Die Zeile über dem Namen: _Nächste Welt_ — oder _Wird neu aufgebaut_. */
+  private readonly kicker: HTMLElement;
   private readonly tagline: HTMLElement;
   private readonly bar: HTMLElement;
   private readonly line: HTMLElement;
@@ -58,7 +61,8 @@ export class WorldLoader {
     this.image.decoding = 'async';
     const kicker = document.createElement('p');
     kicker.className = 'transit__kicker';
-    kicker.textContent = 'Nächste Welt';
+    kicker.textContent = transitKicker(false);
+    this.kicker = kicker;
     this.title = document.createElement('h2');
     this.title.className = 'transit__title';
     this.tagline = document.createElement('p');
@@ -80,14 +84,18 @@ export class WorldLoader {
     return !this.element.hidden;
   }
 
-  /** Ein Wechsel fängt an — in diese Welt. */
-  begin(world: WorldDefinition, now = performance.now()): void {
+  /**
+   * Ein Wechsel fängt an — in diese Welt. `again`: Es ist dieselbe Welt noch
+   * einmal (_Zurücksetzen_), und dann steht oben nicht _Nächste Welt_.
+   */
+  begin(world: WorldDefinition, again = false, now = performance.now()): void {
     if (this.closing !== null) {
       clearTimeout(this.closing);
       this.closing = null;
     }
     const accent = `#${world.accent.toString(16).padStart(6, '0')}`;
     this.element.style.setProperty('--transit-accent', accent);
+    this.kicker.textContent = transitKicker(again);
     this.title.textContent = world.title;
     this.tagline.textContent = world.tagline;
     if (world.preview) {

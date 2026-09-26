@@ -489,6 +489,18 @@ h1 {
 .touch__btn--a { right: max(24px, env(safe-area-inset-right)); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 168px); }
 .touch__btn--b { right: calc(max(24px, env(safe-area-inset-right)) + 80px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 168px); }
 
+/*
+  **Das Bild drehen** (⟲ ⟳, `FlatControls`): zwei kleine Knöpfe **über dem
+  linken Stock**, in derselben Höhe wie `A` und der Auslöser rechts (168 px) —
+  so liegt keiner auf einem anderen, hoch wie quer. Zusammen so breit wie der
+  Stock (24…152 px von links). Dezenter als `A`/Auslöser: gebraucht wird die
+  Drehung selten, und dann mit Absicht.
+*/
+.touch__turn { position: absolute; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 172px); width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--hud-line); background: var(--hud-bg-soft); color: var(--hud-ink); display: grid; place-items: center; opacity: 0.85; }
+.touch__turn.is-down { background: var(--hud-raise-hi); opacity: 1; }
+.touch__turn--left { left: max(24px, env(safe-area-inset-left)); }
+.touch__turn--right { left: calc(max(24px, env(safe-area-inset-left)) + 76px); }
+
 /* Der Hinweis unten rechts ist der Platz des Zielstocks, sobald es einen gibt. */
 .touch__right:not([hidden]) ~ .touch__hint { display: none; }
 

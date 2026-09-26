@@ -165,6 +165,105 @@ export function faceCamera(object: THREE.Object3D, options?: BillboardOptions): 
   object.userData[FACING] = { nodes } satisfies Facing;
 }
 
+/**
+ * **Wie eine Beschriftung der gedrehten Draufsicht folgt** — ohne Szene
+ * nachrechenbar.
+ *
+ * Die Kamera von oben lässt sich in Vierteln drehen (`TopDownCamera.turn`).
+ * Was **flach** liegt und von oben gelesen wird — der Raumname auf der Karte
+ * —, stünde danach auf der Seite oder auf dem Kopf; was **aufrecht** an einer
+ * Wand hängt, zeigte der Kamera die Kante oder den Rücken.
+ *
+ * - `flat`: um die Hochachse **mitdrehen**, um genau das Gieren der Kamera —
+ *   was vorher oben im Bild lesbar war, ist es danach wieder.
+ * - `upright`: nur gieren, **zur Kamera** (wie `faceCamera` mit `upright`) —
+ *   ein Schild über einem Tor steht auch nach der Drehung zum Betrachter.
+ * - `flip`: flach, aber nur **wenden** (halbe Drehungen) — für Schrift, die
+ *   längs eines schmalen Gangs liegt und quer nicht hineinpasst. Sie steht
+ *   nie auf dem Kopf; quer im Bild bleibt sie, wenn der Gang quer liegt.
+ *
+ * `dx`/`dz` sind die Rückachse der Kamera im Raum des Elternteils, `baseYaw`
+ * das Gieren, mit dem das Stück gebaut wurde. Zurück kommt das Gieren, das
+ * jetzt gilt. Norden oben (Rückachse +Z) lässt alles, wie es gebaut ist.
+ */
+export function viewYaw(mode: ViewTurnMode, dx: number, dz: number, baseYaw: number): number {
+  if (Math.hypot(dx, dz) <= 1e-4) return baseYaw;
+  const heading = Math.atan2(dx, dz);
+  return mode === 'upright' ? heading : baseYaw + heading;
+}
+
+/**
+ * **Ob Gangschrift gewendet werden muss** (`flip`): wenn ihre Leserichtung
+ * (`readX`/`readZ`, am Boden) gegen die Rechte des Bildes (`rightX`/`rightZ`)
+ * zeigt — dann stünde sie auf dem Kopf. Genau quer zum Bild bleibt sie, wie sie
+ * ist.
+ */
+export function flipWanted(readX: number, readZ: number, rightX: number, rightZ: number): boolean {
+  return readX * rightX + readZ * rightZ < -1e-6;
+}
+
+export type ViewTurnMode = 'flat' | 'flip' | 'upright';
+
+/** Woran die Kamera von oben zu erkennen ist (`core/TopDownCamera.ts`). */
+export const TOP_DOWN_CAMERA_NAME = 'top-down-camera';
+
+/**
+ * **Hängt das Mitdrehen ans Objekt** — gilt **nur in der Draufsicht**: Aus den
+ * Augen, in der Brille und im Spiegel steht das Stück, wie es gebaut wurde.
+ * Wie `faceCamera` beim Zeichnen gerechnet, je Kamera, einmal beim Bauen zu
+ * rufen und erst, wenn das Objekt seine Kinder hat.
+ *
+ * Gedreht wird um die Hochachse **des Elternteils**, als Vorsatz vor die
+ * gebaute Lage (`quaternion`): Ein flaches Schild bleibt flach, ein
+ * aufrechtes aufrecht, gleich in welcher Reihenfolge es gebaut wurde.
+ */
+export function turnWithView(object: THREE.Object3D, mode: ViewTurnMode): void {
+  unfaceCamera(object);
+  const base = object.quaternion.clone();
+  // Das Gieren, in dem das Stück gebaut wurde — für `upright` der Ausgangspunkt.
+  const baseYaw = new THREE.Euler().setFromQuaternion(base, 'YXZ').y;
+  const handler = (_renderer: THREE.WebGLRenderer, _scene: THREE.Scene, camera: THREE.Camera) => {
+    if (camera.name !== TOP_DOWN_CAMERA_NAME) {
+      if (!object.quaternion.equals(base)) {
+        object.quaternion.copy(base);
+        object.updateMatrix();
+        object.updateMatrixWorld(true);
+      }
+      return;
+    }
+    _axis.setFromMatrixColumn(camera.matrixWorld, 2);
+    const parent = object.parent;
+    if (parent) _axis.transformDirection(_inverse.copy(parent.matrixWorld).invert());
+    const upright = mode === 'upright';
+    let turn: number;
+    if (mode === 'flip') {
+      // Die Leserichtung (lokal +X) gegen die Rechte des Bildes (Spalte 0).
+      _read.set(1, 0, 0).applyQuaternion(base);
+      _right.setFromMatrixColumn(camera.matrixWorld, 0);
+      if (parent) _right.transformDirection(_inverse);
+      turn = flipWanted(_read.x, _read.z, _right.x, _right.z) ? Math.PI : 0;
+    } else {
+      const yaw = viewYaw(mode, _axis.x, _axis.z, upright ? baseYaw : 0);
+      // `flat`: Vorsatz um die Hochachse vor die gebaute Lage. `upright`: die
+      // gebaute Lage ohne ihr Gieren, dann das neue davor.
+      turn = upright ? yaw - baseYaw : yaw;
+    }
+    _turn.setFromAxisAngle(_up, turn);
+    object.quaternion.multiplyQuaternions(_turn, base);
+    // Von Hand: Was als fest gebaut markiert ist (`matrixAutoUpdate = false`),
+    // übernähme die Drehung sonst nie.
+    object.updateMatrix();
+    object.updateMatrixWorld(true);
+  };
+  const nodes: THREE.Object3D[] = [];
+  object.traverse((node) => {
+    if (node !== object && !drawn(node)) return;
+    node.onBeforeRender = handler;
+    nodes.push(node);
+  });
+  object.userData[FACING] = { nodes } satisfies Facing;
+}
+
 /** **Nimmt sie wieder ab** — und ist gutmütig, wenn gar keine hängt. */
 export function unfaceCamera(object: THREE.Object3D): void {
   const facing = object.userData[FACING] as Facing | undefined;
@@ -196,3 +295,7 @@ const NO_HANDLER = function () {};
 /** Einer für alle: Wer je Bild einen Vektor baut, baut je Bild einen Vektor. */
 const _axis = new THREE.Vector3();
 const _inverse = new THREE.Matrix4();
+const _turn = new THREE.Quaternion();
+const _read = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);

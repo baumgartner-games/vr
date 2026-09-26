@@ -1,6 +1,6 @@
-import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, dirX, dirZ } from '../nav/navTile';
 import { HALL_HALF, hubGrid } from './hubGrid';
-import { HALL_WALL, archColor, hubDecor, wallPoint, yawToCentre } from './hubDecor';
+import { HALL_WALL, archColor, hubDecor, solidBox, wallPoint, yawToCentre } from './hubDecor';
 
 describe('Die Ausstattung der Lobby', () => {
   const hub = hubGrid(4);
@@ -58,6 +58,34 @@ describe('Die Ausstattung der Lobby', () => {
     const north = wallPoint(DIR_N, 5, 2);
     expect(north.x).toBeCloseTo(2);
     expect(north.z).toBeCloseTo(-5);
+  });
+
+  it('gibt Bänken, Lampen und Pflanzen einen Körper, dem Bogen nicht', () => {
+    for (const piece of pieces) {
+      if (piece.corridor !== undefined) expect(piece.solid).toBeUndefined();
+      else expect(piece.solid).toBeDefined();
+    }
+  });
+
+  it('hält den Weg von der Mitte zu jedem Tor frei', () => {
+    const boxes = pieces.map(solidBox).filter((box) => box !== null);
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const corridor of hub.corridors) {
+      const ax = dirX(corridor.dir);
+      const az = dirZ(corridor.dir);
+      for (const box of boxes) {
+        // Die Ecken in Gangkoordinaten: `along` hinein, `across` quer dazu.
+        const corners = [box.minX, box.maxX].flatMap((x) =>
+          [box.minZ, box.maxZ].map((z) => ({ along: x * ax + z * az, across: -x * az + z * ax })),
+        );
+        const along = Math.max(...corners.map((one) => one.along));
+        const left = Math.min(...corners.map((one) => one.across));
+        const right = Math.max(...corners.map((one) => one.across));
+        // Ein Streifen so breit wie die Mündung (±1,5 m), von der Mitte an.
+        const inLane = along > 0 && left < 1.5 && right > -1.5;
+        expect(inLane).toBe(false);
+      }
+    }
   });
 
   it('legt bei gleicher Eingabe immer dasselbe hin', () => {
