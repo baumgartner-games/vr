@@ -29,6 +29,7 @@ import {
 import { dish, dishLabel, type Dish } from '../test/zones/kitchenRecipes';
 import { DECOR, tableSet, type DecorPiece } from './plateUpDecor';
 import { PlaceGhost } from '../portal/placeGhost';
+import { StaticDecor } from '../shared/staticDecor';
 import {
   DINING_AREA,
   DOOR_INSIDE,
@@ -194,6 +195,8 @@ export class PlateUpWorld extends GridWorld {
   /** Die Südwand wird von oben durchsichtig — eigenes Material, eigenes Aufräumen. */
   private southGlass: THREE.MeshStandardMaterial | null = null;
   private readonly southMeshes: THREE.Mesh[] = [];
+  /** Die übrige Einrichtung gebündelt gezeichnet (`shared/staticDecor.ts`). */
+  private decor: StaticDecor | null = null;
   private readonly hidden = new THREE.MeshBasicMaterial({ visible: false });
   private readonly effects: Effect[] = [];
   private sitClip: THREE.AnimationClip | null = null;
@@ -295,6 +298,9 @@ export class PlateUpWorld extends GridWorld {
     super.buildEnvironment();
     this.root.add(createSky(0x7fb6e8, 0xe9f1f7));
     this.buildFloors();
+    // Ein Feld von 64 m für den ganzen Laden: Er misst 14 m, und mit 16-m-Feldern
+    // lag die Nordwand (z = −0,125) in einem anderen Feld als der Rest.
+    this.decor ??= new StaticDecor(this.root, 64);
     if (canLoadModels()) void this.furnish(round);
   }
 
@@ -339,6 +345,7 @@ export class PlateUpWorld extends GridWorld {
     this.refreshHint(ctx);
     this.refreshHud(ctx);
     this.gauges?.update(dt);
+    this.decor?.step(dt);
     // **Im Hochformat schrumpfen die Tafeln.** Ein Schild von 3,4 m ragt auf
     // einem Telefon links und rechts aus dem Bild — und was man dort lesen
     // soll, steht genau am Rand.
@@ -402,6 +409,8 @@ export class PlateUpWorld extends GridWorld {
 
   override dispose(ctx: WorldContext): void {
     this.building++;
+    this.decor?.dispose();
+    this.decor = null;
     ctx.rig.eyeScale = 1;
     ctx.rig.jumpLock = false;
     ctx.avatar.carry = null;
@@ -521,6 +530,8 @@ export class PlateUpWorld extends GridWorld {
       if (piece.south) this.glassSouth(mesh);
     });
     this.root.add(model);
+    // Die Südwand nicht: Sie wird von oben durchsichtig, und das geht nur einzeln.
+    if (!piece.south) this.decor?.add(model);
   }
 
   /** Die Südwand bekommt ein eigenes Material, das von oben durchsichtig wird. */
