@@ -22,7 +22,7 @@ und die Quellkommentare nachgezogen. Was davon im Spiel steht:
   (`GridPlan.stairs(…, length?)`, `lift`, 0,7 m je Kachel, Stufen
   0,175 × 0,25), `ramp`, Autostep-Mindestbreite 0,1, Weltformat `0.3.0` mit
   dem Feld `y`, Hub 11 × 11, Bauplatz-Startzimmer 8 × 8, Gitterlinien unter
-  _Menü → Grafik_, Wand-Ghosting (`grid/wallGhost.ts`), kein Dach in Hub,
+  _Menü → Werkstatt_, Wand-Ghosting (`grid/wallGhost.ts`), kein Dach in Hub,
   Bauplatz und Testwelt.
 - **Interaktion** (I): `A` benutzt überall (in der Brille `primary` rechts, und
   springt nur, wenn nichts in Reichweite ist — `PlayerRig.useCandidate`),
@@ -35,14 +35,14 @@ und die Quellkommentare nachgezogen. Was davon im Spiel steht:
 - **Figur** (C): der Overcooked-Koch (`core/AvatarBody.ts`,
   `core/avatarLook.ts`) — Rumpf, Kopf, Handkugeln, keine Arme und Beine;
   Aussehen `{ hat, head, body }` mit vier Köpfen, acht Hüten (samt Kochmütze)
-  und fünf Jacken, im `hello` über das Netz, Menü → Aussehen mit drei Zeilen.
+  und fünf Jacken, im `hello` über das Netz, Menü → Figur mit drei Zeilen.
 - **Testwelt** (W): `src/worlds/test/` mit neun Zonen in `zones/`, Grundriss in
   `testPlan.ts`, Rechtecke in `layout.ts`, Vertrag in `zones/zone.ts`,
   `editable()` wahr, Einbauten getrennt in `fitTest` (weil `planLoaded`
   zweimal läuft).
 - **Umkleide** (U): Einbau `wardrobe` mit Spiegel (`grid/fixtures/wardrobe.ts`),
   Ereignis `wardrobe`, `ctx.openWardrobe()`, `ui/WardrobeMenu.ts`, in der
-  Brille die Menüseite _Aussehen_.
+  Brille die Menüseite _Figur_ (früher _Aussehen_).
 
 - **Haunting** (H, eigener Plan `docs/plan-haunting-1m.md`): Die Station steht
   auf 1-m-Kacheln, ihre Türen gehen über die ganze Kachelkante, die gemalte
@@ -73,7 +73,7 @@ gehört: Mit dem Navigationslabor ist der einzige Test gefallen, der einen
    das nächste bzw. das, worauf man am ehesten zeigt. Auch ins **Gokart
    einsteigen** und **Knöpfe drücken** gehen so. Mit einem Werkzeug in der Hand
    kann man trotzdem interagieren.
-6. Im Menü unter **Grafik** lassen sich die **Gitterlinien** der aktuellen Ebene
+6. Im Menü unter **Werkstatt** lassen sich die **Gitterlinien** der aktuellen Ebene
    einblenden.
 7. Die **Treppe** der Straßenküche war schwer hinaufzugehen — Treppen müssen
    sich sauber gehen lassen.
@@ -132,7 +132,7 @@ gehört: Mit dem Navigationslabor ist der einzige Test gefallen, der einen
   verbleibenden Welten benutzt es. Massen als Dach über Hallen gibt es nicht
   mehr.
 - **Gitterlinien** (`GraphicsSettings.gridLines`, ab Werk aus, Häkchen unter
-  _Menü → Grafik_): `GridWorld` zeichnet je Etage ein `LineSegments`-Netz über
+  _Menü → Werkstatt_): `GridWorld` zeichnet je Etage ein `LineSegments`-Netz über
   die Bodenkacheln (Kanten aller Kacheln der Ebene, 1 cm über dem Boden,
   halbtransparent), sichtbar nur für die Ebene, auf der das Rig steht
   (`rigLevel`), und nur, wenn das Häkchen an ist. `userData.level` gesetzt,
@@ -211,7 +211,7 @@ gehört: Mit dem Navigationslabor ist der einzige Test gefallen, der einen
   **Anzugfarbe der Rolle** färbt weiter, was keine eigene Farbe hat (Schürze,
   Halstuch). Alles geht im `hello` über das Netz (`NetSession`, Felder `hat`,
   `head`, `body`, alle optional, unbekannte Werte → Vorgabe).
-- **Menü → Aussehen** bekommt drei Zeilen (Kopf, Hut, Körper), jede schaltet im
+- **Menü → Figur** bekommt drei Zeilen (Kopf, Hut, Körper), jede schaltet im
   Kreis; das Umkleide-Menü (unten) zeigt dieselben drei Zeilen neben der Figur.
 - API, die bleibt, weil andere daran hängen: `head`, `handAnchors`,
   `setColor`, `setHeadgear`, `setSelfView`, `setHandsVisible`, `update`,

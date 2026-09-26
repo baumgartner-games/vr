@@ -142,7 +142,7 @@ dieselbe Sache.
 
 Einstellen kann man es an zwei Orten, und beide benutzen dieselben Funktionen:
 auf der Seite (Felder in _Alle Knöpfe_ für die Karte, Zeilen unter _Belegung_
-für den Rest) und **im Spiel** unter _Menü → Eingaben_ (siehe unten). Der Weg
+für den Rest) und **im Spiel** unter _Menü → Steuerung & Hilfe → Eingaben_ (siehe unten). Der Weg
 zurück steht überall daneben — eine Einstellung ohne Rückweg ist eine Falle.
 
 ### Was der Browser der PS5 kann, und was nicht
@@ -284,7 +284,8 @@ einem auffällt (`App.inputsMenu`). Vier Zeilen:
 
 Dazu ganz oben die **Tastenhilfe** (an/aus) — die Zeile unten im Bild, die
 sagt, welcher Knopf gerade was tut (`ui/ControlHints.ts`, siehe
-[Steuerung](./steuerung.md#die-tastenhilfe--uicontrolhintsts)). Seit dem
+[Steuerung](./steuerung.md#die-tastenhilfe--uicontrolhintsts)) — und gleich
+darunter **Willkommen je Welt** (an/aus, siehe _Die Willkommens-Karte_ oben). Seit dem
 einheitlichen Schema stehen am Pad auch _Zurück_ (`B`), _Menü_ (☰),
 _Ansicht_ (⊟) und _Zielen_ (LT) in der Belegung, an der Tastatur _Menü_ (`M`)
 und _Ansicht_ (`V`). Und das ganze Menü ist mit dem Pad bedienbar
@@ -308,7 +309,7 @@ Dort kostet die Adresszeile ein Fünftel der Fläche, und das Spiel läuft im Re
 Also steht ein Knopf mit dem Vollbildsymbol auf der Startseite oben rechts
 (`#landing-full`) und im Streifen des Spiels neben _VR_ (`#hud-full`) — derselbe
 Knopf an zwei Stellen, so wie das Menü es schon ist. **Und dieselbe Handlung
-noch einmal als Zeile unter _Menü → Grafik_** (`App.fullscreenRow`): Auf einem
+noch einmal als Zeile unter _Menü → Einstellungen → Grafik_** (`App.fullscreenRow`): Auf einem
 Telefon im Querformat verdeckt genau der Streifen mit dem Knopf das, was man
 loswerden will, und wer das Menü offen hat, sucht nicht darunter. Sie ist
 **keine Einstellung** — Vollbild ist ein Zustand des Browsers, kein Wert im
@@ -490,6 +491,96 @@ Akzentfarbe; wer ein Bild will, nimmt die Welt im Browser auf (Hände und
 Handgelenk-Knopf ausblenden: `bgvr.handVisuals.hidden = true`,
 `bgvr.wristMenu.visible = false`), verkleinert auf 480 × 270 und trägt den
 Pfad als `preview` ein.
+
+## Vom ersten Öffnen bis ins Spiel: der Weg eines neuen Spielers
+
+Gewünscht war, das **Gesamterlebnis und den Ablauf** zu verbessern. Dafür
+wurde der Weg einmal ganz durchgespielt, am Schreibtisch (1280 × 800) und am
+Telefon hochkant (390 × 844): Startseite → Welt wählen → Laden → die ersten
+Sekunden → Menü → andere Welt. Gefunden wurde:
+
+| Stelle | Reibung | Was jetzt passiert |
+| ------ | ------- | ------------------ |
+| Weltwechsel im Menü | Harter Schnitt: Die alte Welt stand still, bis die neue fertig war; „Lade …" stand nur am Handgelenk-Menü, am Schirm also **nirgends**. Auf einer langsamen Leitung sah das aus wie abgestürzt. | **Ladebildschirm** mit Bild, Name, Zeile der Zielwelt und einem Balken (unten) |
+| Erste Sekunden | Der Satz, den jede Welt zur Begrüßung sagt (`welcome()` → `ctx.notify`), landete ebenfalls nur am Handgelenk. Am Schirm stand man in der Welt und wusste nicht, was sie will. | **Willkommens-Karte**, einmal je Welt (unten) |
+| Hub | Alle vier Tore standen hintereinander in **einem** Gang; aus der Halle sah man zwei Ringe und zwei Kanten, die anderen drei Richtungen waren leere Wände. | Der Hub ist eine **Lobby**: ein Tor je Richtung, Bogen, Schild, Lampen, Bänke ([Was drin ist](./inhalt.md), _Hub-Welt_) |
+| Leisten und Schilder | Vier Stile nebeneinander: die Tastenhilfe halbdurchsichtig mit 14 px Radius, die Baukasten-Leiste in Petrol mit 10 px, die Burgerladen-Zeile mit Inline-Stil, das Haunting-Schild in Türkis. | Ein Satz **`--hud-*`**-Variablen (unten) |
+
+Offen geblieben (für eine zweite Runde): Im **Burgerladen** steht man beim
+Ankommen direkt vor der großen Erklärtafel, die das halbe Bild füllt; am
+Telefon **von oben** liegt die Tastenhilfe über der Burgerladen-Karte unten.
+Beides gehört der Welt und ist hier nicht angefasst.
+
+### Der Ladebildschirm beim Weltwechsel (`ui/WorldLoader.ts`)
+
+Sobald `App.goTo` eine neue Welt anfordert, blendet der Schirm in 180 ms auf
+einen Ladebildschirm über: das Vorschaubild der Zielwelt
+(`WorldDefinition.preview`, dieselben Bilder wie die Karten der Startseite,
+dazu unscharf als Hintergrund), darunter „Nächste Welt", Name und Zeile,
+ein Balken in der Akzentfarbe und eine Zeile, die sagt, was gerade passiert.
+
+**Der Balken** (`core/loadProgress.ts`, mit Test) kennt drei Abschnitte, und
+nur der letzte ist zählbar:
+
+| Abschnitt | Was | Band |
+| --------- | --- | ---- |
+| `modul` | der Chunk der Welt (`definition.load`) | 4–45 % |
+| `aufbau` | `World.init` baut | 45–60 % |
+| `modelle` | was die Welt danach nachlädt — gezählt vom Lade-Manager von three.js (`AssetGate.loaded` / `total`, „Modelle und Töne · 14 von 40") | 60–98 % |
+
+In den unzählbaren Abschnitten **kriecht** der Balken auf das Ende seines
+Bands zu, ohne es zu erreichen (`creep`); er läuft nie rückwärts, auch wenn
+der Lade-Manager mitten in der Welle neu zu zählen anfängt. Fertig ist er,
+wenn es 400 ms still geblieben ist — höchstens nach `LOADER_CAP_MS` (8 s),
+dann geht er trotzdem. Er steht **mindestens** `LOADER_MIN_MS` (0,7 s):
+Eine Welt aus dem Speicher ist in 150 ms da, und ein Bildschirm, der nur
+aufblitzt, ist unruhiger als keiner.
+
+**Nur am Schirm und nur im Spiel.** In der Brille gibt es kein DOM im Bild
+(geht die Brille während des Ladens auf, verschwindet er sofort), und auf der
+Startseite sagt der Knopf selbst, wie weit es ist („Lädt … 17 %"). Scheitert
+die Ladung, geht er ebenfalls sofort; die Meldung kommt wie bisher.
+
+### Die Willkommens-Karte (`ui/WorldWelcome.ts`)
+
+Beim **ersten** Betreten einer Welt kommt oben in der Mitte eine kurze
+Karte: „Willkommen" und der Name, eine Zeile, was man hier tut, der erste
+Schritt — im Burgerladen „Die Glocke an der Durchreiche startet den Tag" —
+und die zwei, drei Knöpfe, die man dafür braucht. Die Texte stehen je Welt in
+`core/worldIntro.ts` (`WORLD_INTROS`, mit Test: jede Welt der Registry hat
+eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
+
+- **Die Knöpfe passen zur Tastenhilfe**: dieselbe Belegung, dasselbe Gerät,
+  dieselbe Marke (`introKeys`, wie `core/controlHints.ts`) — wer _Benutzen_
+  auf `F` gelegt hat, liest `F`; am Pad `Ⓐ`/`✕`, am Glas „Stock links", `A`
+  und ☰. Gezeichnet als dieselben Chips wie die Tastenhilfe.
+- **Wann**: gefragt wird jedes Bild (`App.updateWelcome`), und sie kommt erst,
+  wenn man die Welt **sieht** — nicht hinter der Startseite, nicht unter dem
+  Ladebildschirm, nicht hinter einem Menü, nicht in der Brille. Die erste Welt
+  lädt ja, während die Startseite noch davorsteht.
+- **Wie lange**: neun Sekunden, oder bis _Verstanden_. Geht ein Menü auf oder
+  wechselt die Welt, geht sie mit.
+- **Einmal je Welt**, gemerkt im Browser (`bgvr.welcomed`, eine Liste der
+  Ids). **Abschaltbar** unter _Menü → Steuerung & Hilfe → Eingaben →
+  Willkommen je Welt_ (`bgvr.welcome`); wer sie wieder einschaltet, bekommt
+  alle Welten noch einmal begrüßt.
+
+### Ein Stil für Leisten und Schilder (`--hud-*`)
+
+Tastenhilfe, Baukasten-Leiste, Burgerladen-Zeile und -Karte, das
+Haunting-Schild (`.orbital-player`), Ladebildschirm und Willkommens-Karte
+lesen dieselben Variablen aus `:root` in `style.css`: `--hud-bg` (und
+`--hud-bg-soft` für die Tastenhilfe), `--hud-line`, `--hud-ink`/`--hud-dim`,
+`--hud-raise`/`--hud-raise-hi` für Knöpfe, `--hud-on` für „gewählt",
+`--hud-good`/`--hud-bad` für die Ampel, `--hud-radius` (14 px),
+`--hud-radius-sm` (8 px) und `--hud-radius-pill`, `--hud-font`,
+`--hud-shadow`, `--hud-blur`. Abgestimmt sind sie auf die Kopfzeile oben
+rechts (`.hud__row`), die schon vorher so aussah. Die **Akzentfarbe** bleibt
+die der Welt — als Rand (Burgerladen Orange, Haunting Türkis) oder als
+Streifen (Ladebildschirm oben, Willkommen links). Wer eine neue Leiste baut,
+nimmt diese Variablen und keine eigenen Farben; die Burgerladen-Zeile stand
+bis dahin als `style.cssText` im Code und steht jetzt als Klasse in
+`style.css`.
 
 ## Die Version auf der Startseite
 

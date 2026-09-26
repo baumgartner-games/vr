@@ -129,6 +129,13 @@ export const GHOST_SHOULDER = 0.45;
  * 2. **Nur Wände, von denen die Kamera die andere Seite sieht** als die Figur
  *    (`turnsItsBack`) — was neben ihr entlangläuft, bleibt stehen.
  *
+ * 3. **Das Bild darf gedreht sein** (`TopDownCamera.turn`): Dann steht die
+ *    Kamera nicht im Süden, sondern in einem der anderen drei Viertel. Aus
+ *    welchem, sagt ihre Lage zur Figur — und alles wird vorher in das Viertel
+ *    gedreht, in dem die Rechnung unten gilt (`toCameraSouth`). Die Kamera
+ *    hinkt dabei höchstens ein paar Zentimeter nach; bei gut neun Metern
+ *    Abstand kippt das kein Viertel.
+ *
  * Dazwischen liegt dieselbe Rechnung wie zuvor: das **Plattenverfahren** (slab
  * test) über die drei Achsen, `t` zwischen 0 und 1. Was hinter der Figur
  * steht, verdeckt sie nicht — und weil die Strecke dort endet, fällt es von
@@ -144,18 +151,66 @@ export function wallsHiding<T extends GhostCandidate>(
   shoulder = GHOST_SHOULDER,
 ): T[] {
   const out: T[] = [];
+  const quarter = cameraQuarter(camera, figure);
+  const eye = toCameraSouth(camera, quarter);
+  const aim = toCameraSouth(figure, quarter);
   // Der Strahl beginnt in der Spalte der Figur — die Höhe und die Tiefe kommen
   // von der Kamera, die Seite von ihr selbst.
-  const from = { x: figure.x, y: camera.y, z: camera.z };
-  const dy = figure.y - from.y;
-  const dz = figure.z - from.z;
+  const from = { x: aim.x, y: eye.y, z: eye.z };
+  const dy = aim.y - from.y;
+  const dz = aim.z - from.z;
   for (const one of boxes) {
     if (!blocksView(one, knee)) continue;
-    if (!turnsItsBack(one.box, figure, camera)) continue;
-    const wide = { ...one.box, w: one.box.w + 2 * shoulder };
+    const box = quarter === 0 ? one.box : boxToCameraSouth(one.box, quarter);
+    if (!turnsItsBack(box, aim, eye)) continue;
+    const wide = { ...box, w: box.w + 2 * shoulder };
     if (crosses(from, 0, dy, dz, wide)) out.push(one);
   }
   return out;
+}
+
+/**
+ * **In welchem Viertel die Kamera steht**, von der Figur aus: 0 im Süden
+ * (ungedreht), 1 im Osten, 2 im Norden, 3 im Westen — links herum gezählt
+ * wie `topDownPose.quarterOf`. Senkrecht darüber zählt als Süden.
+ */
+export function cameraQuarter(camera: GhostPoint, figure: GhostPoint): 0 | 1 | 2 | 3 {
+  const dx = camera.x - figure.x;
+  const dz = camera.z - figure.z;
+  if (Math.hypot(dx, dz) < 1e-6) return 0;
+  const quarters = Math.round(Math.atan2(dx, dz) / (Math.PI / 2));
+  return (((quarters % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+}
+
+/**
+ * **Einen Punkt so drehen, dass die Kamera im Süden steht** — um ganze
+ * Viertel um die Hochachse, zurück um das Viertel, in dem sie steht.
+ */
+function toCameraSouth(point: GhostPoint, quarter: 0 | 1 | 2 | 3): GhostPoint {
+  switch (quarter) {
+    case 0:
+      return point;
+    case 1:
+      return { x: -point.z, y: point.y, z: point.x };
+    case 2:
+      return { x: -point.x, y: point.y, z: -point.z };
+    case 3:
+      return { x: point.z, y: point.y, z: -point.x };
+  }
+}
+
+/** Dasselbe für einen Kasten: die Mitte gedreht, Breite und Tiefe getauscht. */
+function boxToCameraSouth(box: GhostBox, quarter: 0 | 1 | 2 | 3): GhostBox {
+  const centre = toCameraSouth(box, quarter);
+  const odd = quarter % 2 === 1;
+  return {
+    x: centre.x,
+    y: box.y,
+    z: centre.z,
+    w: odd ? box.d : box.w,
+    h: box.h,
+    d: odd ? box.w : box.d,
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { readGamepad, type GamepadLike } from './gamepad';
+import { DEFAULT_PLAN, readGamepad, type GamepadLike } from './gamepad';
 import {
   DEFAULT_KEYS,
   DEFAULT_PAD,
@@ -130,7 +130,36 @@ describe('Vom Knopf zur Absicht', () => {
       view: [8],
       zoomIn: [4],
       zoomOut: [5],
+      turnLeft: [14],
+      turnRight: [15],
+      toolPrev: [12],
+      toolNext: [13],
     });
+    // Und genau das, was `readGamepad` ohne Plan liest.
+    expect(plan).toEqual(DEFAULT_PLAN);
+  });
+
+  it('legt keine Voreinstellung auf eine fest verdrahtete Taste', () => {
+    // Diese Tasten hören Welten und Werkzeuge selbst ab, an der Belegung
+    // vorbei: `R` dreht den Kran und setzt zurück, `1`/`2` sind die Hände auf
+    // der Station, `Strg` duckt, `Esc` und die Rücktaste gehören dem Menü.
+    // Eine Voreinstellung darauf hieße zwei Wirkungen auf einen Druck.
+    const wired = ['KeyR', 'Digit1', 'Digit2', 'ControlLeft', 'Escape', 'Backspace', 'F3'];
+    const keys = KEY_ACTIONS.flatMap((action) => [...DEFAULT_KEYS[action]]);
+    for (const code of wired) expect(keys).not.toContain(code);
+    // `Q` war frei und dreht jetzt das Bild von oben.
+    expect(DEFAULT_KEYS.turn).toEqual(['KeyQ']);
+  });
+
+  it('lässt das Steuerkreuz im Spiel nur Dingen, die nie mit einem Menü zusammen gelten', () => {
+    // Im offenen Menü bewegt das Kreuz den Fokus (`ui/padNav.ts`); im Spiel
+    // dreht es das Bild und schaltet Werkzeuge. Beides darf es, weil das
+    // Spiel schweigt, solange ein Menü davorliegt (`FlatControls.blocker`) —
+    // aber es darf nichts sein, was auch im Menü gelten müsste.
+    const onDpad = PAD_ACTIONS.filter((action) =>
+      DEFAULT_PAD[action].some((slot) => slot.startsWith('dpad-')),
+    );
+    expect(onDpad.sort()).toEqual(['toolNext', 'toolPrev', 'turnLeft', 'turnRight']);
   });
 
   it('gibt jeder Stelle ab Werk höchstens eine Sache', () => {

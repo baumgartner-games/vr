@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { World, WorldContext, WorldPreview } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import { stripOutlines } from '../../core/outlineShell';
 import type { MenuEntry, MenuIcon } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
@@ -164,7 +165,13 @@ import {
   type AreaTile,
 } from './areaPaint';
 import { AreaPad, type AreaEvent } from './areaPad';
-import { BuildBar, HIDDEN_BUILD_BAR, type BuildEvent, type BuildTool } from './buildBar';
+import {
+  BuildBar,
+  HIDDEN_BUILD_BAR,
+  nextBuildTool,
+  type BuildEvent,
+  type BuildTool,
+} from './buildBar';
 import {
   BuildHistory,
   type BuildPose,
@@ -1456,6 +1463,12 @@ export class PortalWorld implements World {
    * (`placeGhost.ts`) — siehe `updateBuild`.
    */
   private buildBar: BuildBar | null = null;
+  /**
+   * **Welches Werkzeug die Leiste zuletzt zeigte** — oder `null`, solange sie
+   * nicht zu sehen ist. Gelesen vom Steuerkreuz (`toolStep`) und von der
+   * Tastenhilfe (`hintZone`).
+   */
+  private buildShown: BuildTool | null = null;
   private readonly buildHistory = new BuildHistory();
   private placeGhost: PlaceGhost | null = null;
   /** Solange ein Schritt nachgespielt wird, kommt nichts auf den Stapel. */
@@ -9892,6 +9905,7 @@ export class PortalWorld implements World {
     const presenting = ctx.renderer.xr.isPresenting;
     const visible = !presenting && Boolean(ctx.crane) && refillsCatalogue(gameMode());
     if (!visible) {
+      this.buildShown = null;
       if (this.buildBar) {
         this.buildBar.take();
         this.buildBar.show(HIDDEN_BUILD_BAR);
@@ -9913,6 +9927,7 @@ export class PortalWorld implements World {
         : carried && this.shelfFresh.has(carried)
           ? 'place'
           : 'move';
+    this.buildShown = tool;
     const path = carried ? this.modelPath(carried) : null;
     let status = '';
     if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
@@ -10000,6 +10015,27 @@ export class PortalWorld implements World {
   private carriedSpot(entry: PhysicsBody): [number, number] {
     entry.object.getWorldPosition(_point);
     return [_point.x, _point.z];
+  }
+
+  /**
+   * **Steuerkreuz ↑/↓ am Pad: das Werkzeug daneben** (`World.toolStep`).
+   * Nur, solange die Leiste zu sehen ist — sonst gehört das Kreuz niemandem.
+   * Der Druck geht in dieselbe Liste wie ein Klick auf die Leiste.
+   */
+  toolStep(step: 1 | -1): boolean {
+    if (!this.buildBar || this.buildShown === null) return false;
+    this.buildBar.press(nextBuildTool(this.buildShown, step));
+    return true;
+  }
+
+  /**
+   * **Was die Tastenhilfe sagt** (`World.hintZone`): Als Kran im
+   * _Baukasten_ die Werkzeugleiste. Welten mit eigener Zone (Burgerladen,
+   * Haunting, die Kartzone der Testwelt) sagen es selbst und fragen hier nur
+   * nach, wenn sie nichts zu sagen haben.
+   */
+  hintZone(): HintZone | null {
+    return this.buildShown === null ? null : { kind: 'build', tool: this.buildShown };
   }
 
   /** Ein Druck auf die Leiste (`buildBar.ts`). */

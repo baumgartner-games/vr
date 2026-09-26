@@ -102,19 +102,24 @@ function clampStep(step: number): number {
  * **Wo die Kamera steht**, wenn sie `target` aus `distance` Metern unter der
  * Neigung `tilt` ansieht.
  *
- * Norden ist oben, also steht sie im **Süden** des Ziels (+z) und schaut nach
- * −z: Auf dem Schirm läuft die Figur nach oben, wenn sie nach Norden läuft.
+ * Ungedreht ist Norden oben, also steht sie im **Süden** des Ziels (+z) und
+ * schaut nach −z: Auf dem Schirm läuft die Figur nach oben, wenn sie nach
+ * Norden läuft. **Gedreht** (`heading`, Bogenmaß, links herum positiv wie
+ * jedes Gieren in three.js) wandert sie um das Ziel herum — bei einer
+ * Vierteldrehung nach links steht sie im Osten und schaut nach Westen.
  */
 export function topDownPosition<T extends Vec3>(
   target: Vec3,
   distance: number,
   out: T,
   tilt = TOP_DOWN_TILT,
+  heading = 0,
 ): T {
   const rad = tilt * DEG;
-  out.x = target.x;
+  const back = distance * Math.cos(rad);
+  out.x = target.x + back * Math.sin(heading);
   out.y = target.y + distance * Math.sin(rad);
-  out.z = target.z + distance * Math.cos(rad);
+  out.z = target.z + back * Math.cos(heading);
   return out;
 }
 
@@ -148,12 +153,76 @@ export function groundDirection(
   screenY: number,
   out: Vec2 = { x: 0, z: 0 },
   tilt = TOP_DOWN_TILT,
+  heading = 0,
 ): Vec2 {
   const x = screenX;
   const z = screenY / Math.sin(tilt * DEG);
   const length = Math.hypot(x, z);
   out.x = length > 0 ? x / length : 0;
   out.z = length > 0 ? z / length : 0;
+  return screenToGround(out.x, out.z, heading, out);
+}
+
+/**
+ * **Eine Richtung im Bild als Richtung am Boden** — ohne Stauchung, nur
+ * gedreht: rechts im Bild, oben im Bild (`z` negativ), und was die Kamera
+ * gerade für „oben" hält (`heading`, wie bei `topDownPosition`).
+ *
+ * Damit bleibt **Laufen relativ zur Kamera**: `W` geht im Bild nach oben,
+ * egal, wie oft das Bild gedreht wurde. Ungedreht ist das die Weltrichtung
+ * selbst — Norden oben, Osten rechts.
+ */
+export function screenToGround(
+  x: number,
+  z: number,
+  heading = 0,
+  out: Vec2 = { x: 0, z: 0 },
+): Vec2 {
+  const cos = Math.cos(heading);
+  const sin = Math.sin(heading);
+  const gx = x * cos + z * sin;
+  const gz = -x * sin + z * cos;
+  // `-0` ist in einer Rechnung dasselbe, in einem Test nicht.
+  out.x = gx === 0 ? 0 : gx;
+  out.z = gz === 0 ? 0 : gz;
+  return out;
+}
+
+/** Eine Vierteldrehung im Bogenmaß — der Schritt, in dem sich das Bild dreht. */
+export const QUARTER_TURN = Math.PI / 2;
+
+/**
+ * **Das Bild eine Vierteldrehung weiter** — `+1` links herum (die Kamera
+ * wandert nach rechts um die Figur, das Bild dreht sich nach links wie ein
+ * Kopf), `-1` rechts herum. Heraus kommt immer ein ganzes Viertel zwischen
+ * −π und π, auch wenn das Ziel davor krumm war.
+ */
+export function quarterTurn(heading: number, direction: number): number {
+  const quarters = Math.round(heading / QUARTER_TURN) + Math.sign(direction);
+  return wrapAngle(quarters * QUARTER_TURN);
+}
+
+/** Welches Viertel ein Winkel ist: 0 (Norden oben), 1, 2, 3 — links herum gezählt. */
+export function quarterOf(heading: number): 0 | 1 | 2 | 3 {
+  const quarters = Math.round(heading / QUARTER_TURN);
+  return (((quarters % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+}
+
+/**
+ * **Ein Stück von `from` zu `to` auf dem kürzeren Weg** — für das weiche
+ * Nachdrehen. `share` ist 0…1: 0 bleibt, 1 ist da.
+ */
+export function turnToward(from: number, to: number, share: number): number {
+  const delta = wrapAngle(to - from);
+  if (Math.abs(delta) < 1e-4) return to;
+  return wrapAngle(from + delta * share);
+}
+
+/** Ein Winkel zwischen −π und π. */
+function wrapAngle(angle: number): number {
+  const turn = Math.PI * 2;
+  let out = ((angle % turn) + turn) % turn;
+  if (out > Math.PI) out -= turn;
   return out;
 }
 

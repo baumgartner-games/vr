@@ -200,7 +200,7 @@ tiefpassgefiltert, weil ein Tiefpass eine Schwelle, die in Metern je Sekunde
 angeschrieben steht, still nach unten zöge: eine kurze Bewegung liefe nie ganz
 durch ihn hindurch.
 
-Das **Zugtempo** steht im Menü unter _Einstellungen → Greifen_ und ist eine
+Das **Zugtempo** steht im Menü unter _Einstellungen → Hände & Greifen_ und ist eine
 Zahl wie jede andere dort (`core/grabSettings.ts`, `pull`, in Zentimetern je
 Sekunde gespeichert und in Metern je Sekunde gelesen). Die Zeile schaltet
 **fünf benannte Tempi** durch, je 25 cm/s auseinander (`PULL_STEPS`):
@@ -315,7 +315,7 @@ alle drei Geräte ist `up` die Senkrechte des Dings und `ahead` die Richtung,
 in die es vor der Faust zeigen soll — die Mulde, der Topfbauch, die Düse.
 
 Und weil der Zylinder das gemessene Stück des Modells ist, kann man ihn
-**ansehen**: `Menü → Grafik → Griffe zeigen` malt ihn (siehe _Griffe zeigen_),
+**ansehen**: `Menü → Werkstatt → Griffe zeigen` malt ihn (siehe _Griffe zeigen_),
 und der Prüfstand `handles-preview.html` (`npm run handles`) macht Bilder
 davon. Genau daran wurden die drei eingemessen, und genau daran prüft man sie
 nach, wenn jemand das Modell tauscht.

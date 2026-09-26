@@ -257,7 +257,7 @@ Zuschauer der Zentrale hebt die Decke weiter mit seiner Schnittebene
 ### Die Ansicht von oben ist die des Kerns
 
 - `HauntingWorld.ownsFlat` wird **false**. Damit gilt in Haunting, was
-  überall gilt: _Menü → Ansicht_ schaltet zwischen _Von oben_ und _Aus den
+  überall gilt: _Menü → Spielen → Ansicht_ schaltet zwischen _Von oben_ und _Aus den
   Augen_, `App` setzt die `TopDownCamera` über das Rig, schneidet auf
   (`viewLevel` erbt Haunting von `GridWorld`), ghostet Wände, zeichnet
   Gitterlinien, und `FlatControls` läuft die Figur in Weltrichtungen.
