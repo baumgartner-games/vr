@@ -1,6 +1,14 @@
 import { CELL } from '../nav/cellGrid';
 import { TILE } from '../nav/navTile';
-import { doorMiddle, spacesOf, STATION_DOOR_GAP, type HouseDoor, type HouseSpec } from './house';
+import {
+  doorMiddle,
+  isPassage,
+  leafDoors,
+  spacesOf,
+  STATION_DOOR_GAP,
+  type HouseDoor,
+  type HouseSpec,
+} from './house';
 
 /**
  * **Die drei Regeln des Grundrisses** — vom Besitzer vorgegeben, hier
@@ -156,12 +164,17 @@ export function parallelGapViolations(spec: HouseSpec): string[] {
  * Nachbarn führen, liegen mindestens `DOOR_GAP_CELLS` Felder auseinander
  * (Türmitte zu Türmitte). Zwei Türen in denselben Nachbarn stehen
  * nebeneinander und nicht hintereinander — die zählen nicht.
+ *
+ * **Gezählt werden nur Türen mit Blatt** (`house.leafDoors`). Die Fuge
+ * zwischen zwei Gangstücken ist seit der zweiten Runde ein offener Durchgang
+ * (`HouseDoor.passage`) — der Gang läuft dort durch, und Türen gibt es nur
+ * noch zwischen Raum und Gang (`passageDoorViolations`).
  */
 export function doorChainViolations(spec: HouseSpec): string[] {
   const out: string[] = [];
   const least = (DOOR_GAP_CELLS * CELL) / TILE;
   const bySpace = new Map<string, HouseDoor[]>();
-  for (const door of spec.doors)
+  for (const door of leafDoors(spec))
     for (const side of [door.a, door.b]) {
       if (side === null) continue;
       bySpace.set(side, [...(bySpace.get(side) ?? []), door]);
@@ -186,11 +199,30 @@ export function doorChainViolations(spec: HouseSpec): string[] {
   return out;
 }
 
-/** Alle drei Regeln auf einmal — leer heißt: der Grundriss hält. */
+/**
+ * **Keine Tür zwischen zwei Gangstücken.** Der Befund nach der ersten Runde:
+ * An jeder Fuge zwischen zwei Gangstücken stand ein Schott, und im Gang sah
+ * man Tür hinter Tür. Jede Verbindung zweier Gänge ist deshalb ein offener
+ * Durchgang (`HouseDoor.passage`), und ein offener Durchgang liegt nur
+ * zwischen zwei Gängen.
+ */
+export function passageDoorViolations(spec: HouseSpec): string[] {
+  const halls = new Set((spec.passages ?? []).map((space) => space.id));
+  const out: string[] = [];
+  for (const door of spec.doors) {
+    const between = halls.has(door.a) && door.b !== null && halls.has(door.b);
+    if (between && !isPassage(door)) out.push(`${door.id}: Tür zwischen zwei Gangstücken`);
+    if (!between && isPassage(door)) out.push(`${door.id}: offener Durchgang an einem Raum`);
+  }
+  return out;
+}
+
+/** Alle Regeln auf einmal — leer heißt: der Grundriss hält. */
 export function stationRuleViolations(spec: HouseSpec): string[] {
   return [
     ...corridorWidthViolations(spec),
     ...parallelGapViolations(spec),
     ...doorChainViolations(spec),
+    ...passageDoorViolations(spec),
   ];
 }

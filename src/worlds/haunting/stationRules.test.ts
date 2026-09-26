@@ -1,6 +1,14 @@
 import { CELL } from '../nav/cellGrid';
-import { DIR_E, DIR_S, TILE } from '../nav/navTile';
-import { doorMiddle, generateHouse, type HouseRoom, type HouseSpec } from './house';
+import { DIR_E, DIR_S, TILE, tileKey } from '../nav/navTile';
+import {
+  doorEdges,
+  doorMiddle,
+  generateHouse,
+  isPassage,
+  leafDoors,
+  type HouseRoom,
+  type HouseSpec,
+} from './house';
 import {
   CORRIDOR_MAX_CELLS,
   DOOR_GAP_CELLS,
@@ -8,8 +16,10 @@ import {
   corridorWidthViolations,
   doorChainViolations,
   parallelGapViolations,
+  passageDoorViolations,
   stationRuleViolations,
 } from './stationRules';
+import { housePlan } from './plan';
 
 /** Viele Samen: Der Grundriss ist fest, aber Türen, Fenster und Einrichtung hängen am Samen. */
 const SEEDS = Array.from({ length: 60 }, (_, i) => 1 + i * 37);
@@ -46,7 +56,7 @@ describe('Die Regeln des Grundrisses', () => {
   it('legt nirgends in der Station zwei Türen näher als sechs Felder — auch Raum–Gang–Raum', () => {
     const least = (DOOR_GAP_CELLS * CELL) / TILE;
     for (const seed of SEEDS.filter((_, i) => i % 6 === 0)) {
-      const doors = generateHouse(seed, 14).doors;
+      const doors = leafDoors(generateHouse(seed, 14));
       for (let i = 0; i < doors.length; i++)
         for (let j = i + 1; j < doors.length; j++) {
           const p = doors[i]!,
@@ -63,6 +73,47 @@ describe('Die Regeln des Grundrisses', () => {
           }).toEqual({ seed, p: p.id, q: q.id, far: true });
         }
     }
+  });
+
+  /**
+   * **Keine Tür zwischen zwei Gangstücken** — dort läuft der Gang durch: kein
+   * Blatt, keine Wand im Plan, und die Kanten sind im Gitter offen.
+   */
+  it('legt keine Tür zwischen zwei Gangstücken — der Gang läuft offen durch', () => {
+    for (const seed of [1, 7, 42]) {
+      const spec = generateHouse(seed, 14);
+      expect(passageDoorViolations(spec)).toEqual([]);
+      const halls = new Set((spec.passages ?? []).map((space) => space.id));
+      const seams = spec.doors.filter(
+        (door) => door.b !== null && halls.has(door.a) && halls.has(door.b),
+      );
+      expect(seams.length).toBeGreaterThan(0);
+      // Jede Tür mit Blatt hat einen Raum auf einer Seite.
+      for (const door of leafDoors(spec))
+        expect({ door: door.id, room: !halls.has(door.a) || !halls.has(door.b ?? '') }).toEqual({
+          door: door.id,
+          room: true,
+        });
+      // Im Plan steht an einer Fuge nichts: keine Wand, keine Tür.
+      const graph = housePlan(spec).graph;
+      for (const seam of seams)
+        for (const edge of doorEdges(seam))
+          expect({
+            seam: seam.id,
+            wall: graph.wall(tileKey(edge.x, edge.z, 0), edge.dir) ?? null,
+          }).toEqual({
+            seam: seam.id,
+            wall: null,
+          });
+    }
+    // Und die Regel fällt auf, wenn doch eine Tür dort steht.
+    const spec = generateHouse(1, 14);
+    const seam = spec.doors.find((door) => isPassage(door))!;
+    const broken = {
+      ...spec,
+      doors: spec.doors.map((door) => (door === seam ? { ...door, passage: false } : door)),
+    };
+    expect(passageDoorViolations(broken)).toEqual([`${seam.id}: Tür zwischen zwei Gangstücken`]);
   });
 
   it('lässt jedem Raum mindestens eine Tür', () => {

@@ -1,6 +1,13 @@
 import { TILE } from '../../nav/navTile';
 import { PLAYER_CAPSULE_RADIUS } from '../../../physics/playerClearance';
-import { generateHouse, onApron, spacesOf, type HouseDoor, type HouseSpec } from '../house';
+import {
+  generateHouse,
+  leafDoors,
+  onApron,
+  spacesOf,
+  type HouseDoor,
+  type HouseSpec,
+} from '../house';
 import {
   CROUCH_FACTOR,
   freshCrew,
@@ -786,7 +793,9 @@ export class FlatRound implements MapSource {
     // jedes andere: erst, wenn niemand mehr davorsteht.
     const faulty = stepGlitch(
       this.glitch,
-      this.house.doors.filter((door) => !this.haunt.shut.includes(door.id)).map((door) => door.id),
+      leafDoors(this.house)
+        .filter((door) => !this.haunt.shut.includes(door.id))
+        .map((door) => door.id),
       this.haunt.time,
       () => this.rng.next(),
     );
@@ -794,7 +803,7 @@ export class FlatRound implements MapSource {
     const occupants: FloorPoint[] = [{ x: this.player.x, z: this.player.z }];
     if (this.haunt.monsterOn && !this.ventRide.concealed)
       occupants.push({ x: this.monster.x, z: this.monster.z });
-    for (const door of this.house.doors) {
+    for (const door of leafDoors(this.house)) {
       const at = doorCentre(door);
       const edge = { x: at.x, z: at.z, alongX: doorAxis(door.dir) === 'x' };
       const ghosts = door.id === faulty.id ? [...occupants, { x: at.x, z: at.z }] : occupants;
@@ -817,7 +826,7 @@ export class FlatRound implements MapSource {
    * Blatt ein Collider; hier ist es dasselbe, eine Wand für `slide`.
    */
   private closedDoors(): string[] {
-    return this.house.doors
+    return leafDoors(this.house)
       .filter((door) => !this.automaticDoors.isOpen(door.id))
       .map((door) => door.id);
   }
@@ -1401,7 +1410,7 @@ export class FlatRound implements MapSource {
     const relayed = this.seal.relayed;
     const due = dueSeal(this.seal, this.haunt.time);
     if (!due || this.haunt.shut.includes(due)) return;
-    const door = this.house.doors.find((one) => one.id === due);
+    const door = leafDoors(this.house).find((one) => one.id === due);
     // Zu spät ist zu spät: Wer schon durch ist, wird nicht mehr ausgesperrt.
     if (!door || this.monster.space === this.player.space) return;
     this.haunt.shut = chooseLock(this.locks, this.haunt.shut, due, this.haunt.time, () =>
@@ -1420,7 +1429,7 @@ export class FlatRound implements MapSource {
   private doorBetween(a: string, b: string): HouseDoor | null {
     let best: HouseDoor | null = null;
     let near = Infinity;
-    for (const door of this.house.doors) {
+    for (const door of leafDoors(this.house)) {
       const far = door.b ?? COMMAND;
       if (!((door.a === a && far === b) || (door.a === b && far === a))) continue;
       const at = doorCentre(door);
@@ -1732,7 +1741,7 @@ export class FlatRound implements MapSource {
           label: 'Im Schrank verstecken',
           at: locker.at,
         });
-    for (const door of this.house.doors) {
+    for (const door of leafDoors(this.house)) {
       const locked = this.haunt.shut.includes(door.id);
       candidates.push({
         kind: 'door',
@@ -1906,7 +1915,7 @@ export class FlatRound implements MapSource {
    * @returns die Zeile für den Spieler.
    */
   lockDoor(id: string): string {
-    const door = this.house.doors.find((d) => d.id === id);
+    const door = leafDoors(this.house).find((d) => d.id === id);
     if (!door || !this.stepping) return '';
     // **Auch im Test mit Frist** — derselbe Riegel wie in der Mission: Er
     // hält, bis er fällt, eine zweite Tür wartet, und eine eben freigewordene

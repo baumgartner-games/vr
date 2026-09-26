@@ -46,6 +46,8 @@ import {
   type Rect,
   STATION_DOOR_W,
   doorEdges,
+  isPassage,
+  leafDoors,
   doorMiddle,
   doorWidth,
 } from './house';
@@ -1002,8 +1004,9 @@ export class HauntingWorld extends GridWorld {
    */
   private stationFeatures(): StationFeature[] {
     const out: StationFeature[] = [];
+    // Ein offener Durchgang hat keinen Rahmen (`HouseDoor.passage`).
     const doors: Array<{ x: number; z: number; dir: Dir; span?: number }> = [
-      ...this.spec.doors,
+      ...leafDoors(this.spec),
       LIFT_DOOR,
       ...(this.state.crew.options.test ? [TRAINING_DOOR] : []),
     ];
@@ -1426,7 +1429,7 @@ export class HauntingWorld extends GridWorld {
       this.stage.add(beacon.root);
     }
     this.buttonDoors = [
-      ...this.spec.doors,
+      ...leafDoors(this.spec),
       TEST_BAY_DOOR,
       ...(this.state.crew.options.test ? [TRAINING_DOOR] : []),
     ];
@@ -1853,7 +1856,7 @@ export class HauntingWorld extends GridWorld {
       this.roomWalls.set(room.id, walls);
     }
 
-    for (const door of this.spec.doors) {
+    for (const door of leafDoors(this.spec)) {
       const { x, z, alongX } = doorEdge(door);
       const open = new THREE.Group();
       const shut = new THREE.Group();
@@ -1932,6 +1935,8 @@ export class HauntingWorld extends GridWorld {
         // wäre eine Lücke im Bauplan und bekommt auch dort keine Wand.
         const edge = edgeCentre(tile.x, tile.z, dir);
         const door = this.doorAt(tile.x, tile.z, dir);
+        // Ein offener Durchgang ist keine Wand: Der Gang läuft durch.
+        if (door && isPassage(door)) continue;
         const parts: Array<[number, number]> = door
           ? [
               [reach - STATION_DOOR_W / 2, -(reach + STATION_DOOR_W / 2) / 2],
@@ -2868,7 +2873,7 @@ export class HauntingWorld extends GridWorld {
   /** Fixed-collider ray: doors, walls and tall modules hide the player. */
   private manualDoor(id: string): void {
     if (!this.isHost || this.context?.role !== 'vr' || !this.stepping) return;
-    const door = this.spec.doors.find((d) => d.id === id);
+    const door = leafDoors(this.spec).find((d) => d.id === id);
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
     // Gewollt gesperrt ist immer nur eine Tür, sie hält bis zum Ablauf, und
@@ -3038,7 +3043,7 @@ export class HauntingWorld extends GridWorld {
       this.isHost && !this.kernel
         ? stepGlitch(
             this.glitch,
-            doors.filter((door) => !shut.has(door.id)).map((door) => door.id),
+            doors.filter((door) => !isPassage(door) && !shut.has(door.id)).map((door) => door.id),
             this.state.time,
             () => this.glitchDice.next(),
           ).id
@@ -3046,6 +3051,11 @@ export class HauntingWorld extends GridWorld {
     const occupants = this.doorOccupants();
     const kernel = this.isHost ? this.kernel : null;
     for (const door of doors) {
+      // Ein offener Durchgang ist immer offen — kein Blatt, keine Automatik.
+      if (isPassage(door)) {
+        this.openDoors.add(door.id);
+        continue;
+      }
       const at = doorEdge(door);
       const ghosts = door.id === glitch ? [...occupants, { x: at.x, z: at.z }] : occupants;
       // Beim Gastgeber fährt die Runde die Blätter (`FlatRound.stepDoors`,

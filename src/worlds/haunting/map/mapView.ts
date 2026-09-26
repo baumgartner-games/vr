@@ -579,7 +579,8 @@ export class MapView {
     }
 
     // --- Türen ----------------------------------------------------------------
-    if (this.layers.doors) for (const door of s.doors) this.drawDoor(ctx, door);
+    // Offene Durchgänge zwischen Gangstücken sind keine Türen (`MapDoor.passage`).
+    if (this.layers.doors) for (const door of s.doors) if (!door.passage) this.drawDoor(ctx, door);
 
     // --- Schächte -------------------------------------------------------------------
     if (this.layers.vents) this.drawVents(ctx);
@@ -1775,7 +1776,7 @@ export class MapView {
         }
     if (this.layers.doors && this.options.onDoorClick)
       for (const door of s.doors)
-        if (near(door.at)) {
+        if (!door.passage && near(door.at)) {
           this.options.onDoorClick(door.id);
           return;
         }

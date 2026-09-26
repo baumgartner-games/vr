@@ -807,6 +807,31 @@ export interface HouseDoor {
    * ohne Angabe eine, in der Station zwei (`STATION_DOOR_SPAN`).
    */
   span?: number;
+  /**
+   * **Ein offener Durchgang, keine Tür** — die Fuge zwischen zwei Gangstücken
+   * (`connectStation`). Gewünscht: _„keine zwei Türen direkt
+   * hintereinander"_ — und im Gang stand an jeder Fuge ein Schott, Tür hinter
+   * Tür. Jetzt läuft der Gang dort durch: keine Wand, kein Blatt, kein Knopf,
+   * kein Schalter der Tafel, und schließen kann ihn niemand. Als Eintrag in
+   * `doors` bleibt er, weil alles, was Räume verbindet (Raumgraph, Hören,
+   * Sicht, Wege), ihn als immer offene Verbindung braucht; was ein Türblatt
+   * meint, fragt `leafDoors`.
+   */
+  passage?: boolean;
+}
+
+/** Ob das ein offener Durchgang ist und keine Tür (`HouseDoor.passage`). */
+export function isPassage(door: object): boolean {
+  return (door as { passage?: unknown }).passage === true;
+}
+
+/**
+ * **Die Türen mit Blatt** — alles, was auf- und zugehen, gesperrt, gezeichnet
+ * oder geschaltet werden kann. Die offenen Durchgänge zwischen zwei
+ * Gangstücken gehören nicht dazu (`HouseDoor.passage`).
+ */
+export function leafDoors<T extends object>(spec: { doors: readonly T[] }): T[] {
+  return spec.doors.filter((door) => !isPassage(door));
 }
 
 export interface HouseTask {
@@ -894,7 +919,7 @@ export function generateHouse(seed: number, roomCount?: number): HouseSpec {
   const fuse = placeFuse(rng, spaces, entryRoom, rooms);
   const tasks = placeTasks(rng, rooms, entryRoom);
   darkenOne(rng, rooms, entryRoom);
-  const switches = buildPanel(rng, spaces, doors);
+  const switches = buildPanel(rng, spaces, leafDoors({ doors }));
   return {
     seed,
     rooms,
@@ -1078,6 +1103,7 @@ function connectStation(
     b: HouseRoom | null,
     spot: { x: number; z: number; dir: Dir },
     span = STATION_DOOR_SPAN,
+    passage = false,
   ): void => {
     doors.push({
       id: `d${doors.length}`,
@@ -1086,6 +1112,7 @@ function connectStation(
       ...spot,
       material: 'metal',
       span,
+      ...(passage ? { passage: true } : {}),
     });
   };
   // Zwischen zwei Gängen steht die ganze gemeinsame Kante offen — in Türen
@@ -1230,7 +1257,8 @@ function connectStation(
       for (const k of pick) put(r, p, spots[k]!);
     }
   }
-  for (const seam of seams) add(seam.a, seam.b, seam.spot, seam.span);
+  // Die Fugen sind offene Durchgänge, keine Türen (`HouseDoor.passage`).
+  for (const seam of seams) add(seam.a, seam.b, seam.spot, seam.span, true);
   // Die Schleuse geht **in die Kantine** und nicht mehr in eine leere Röhre:
   // Die Einsatzzentrale liegt nördlich davon, mit der Fensterfront dazwischen.
   const entry = rooms.find((room) => room.name === 'Cafeteria') ?? rooms[0]!;

@@ -1,4 +1,4 @@
-import { doorWidth, generateHouse, onApron, type HouseSpec } from './house';
+import { doorWidth, generateHouse, isPassage, onApron, type HouseSpec } from './house';
 import { TILE } from '../nav/navTile';
 import {
   ENTITY_PROFILES,
@@ -130,7 +130,9 @@ export function hearingWorld(seed: number): HearingWorld {
         at: doorCentre(door),
         axis: doorAxis(door.dir),
         width: doorWidth(door),
-        open: false,
+        // Ein offener Durchgang steht immer offen (`HouseDoor.passage`).
+        open: isPassage(door),
+        ...(isPassage(door) ? { passage: true } : {}),
         locked: false,
         material: door.material,
       })),
@@ -300,7 +302,8 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
           tz = door.at.z - technician.z,
           mx = door.at.x - monster.x,
           mz = door.at.z - monster.z;
-        door.open = tx * tx + tz * tz < trigger || mx * mx + mz * mz < trigger;
+        door.open =
+          door.passage === true || tx * tx + tz * tz < trigger || mx * mx + mz * mz < trigger;
       }
       heard = hearNoises(
         hearing,

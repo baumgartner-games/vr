@@ -196,7 +196,8 @@ function slammable(
   for (const door of sight.spec.doors) {
     // Die Haustür bleibt in Ruhe: Sie ist der Weg hinaus, und was durch sie
     // hinausgetragen wird, ist die ganze Aufgabe.
-    if (door.b === null || shut.has(door.id)) continue;
+    // Ein offener Durchgang hat kein Blatt, das zufallen könnte.
+    if (door.b === null || door.passage || shut.has(door.id)) continue;
     if (door.a !== room && door.b !== room) continue;
     const edge = doorCentre(door);
     const gap = Math.hypot(edge.x - at.x, edge.z - at.z);
