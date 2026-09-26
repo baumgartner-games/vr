@@ -13,8 +13,17 @@ import {
   type HouseSpec,
 } from '../house';
 
-/** Die Farbe über einem Raum, den man gerade nicht sieht — die des Weltraums draußen. */
-const FOG_COLOUR = 0x04070c;
+/**
+ * **Die Farben des Dachs über einem Raum, den man gerade nicht sieht**: oben
+ * ein dunkles Blaugrau, etwas heller als der Weltraum (0x04070c), mit Fugen;
+ * die Seiten dunkler; der Rand an der Oberkante heller.
+ */
+const ROOF_COLOUR = 0x161d27;
+const ROOF_SEAM = 0x222c3a;
+const SIDE_COLOUR = 0x080c12;
+const RIM_COLOUR = 0x33414f;
+/** Wie groß eine Dachplatte ist, in Metern — zwei Kacheln. */
+const ROOF_PLATE = 2;
 /** Die Kennung des Deckels über der Einsatzzentrale; sie ist kein Raum der Station. */
 const APRON_LID = 'apron';
 
@@ -175,23 +184,53 @@ export function lidCovers(pieces: readonly LidPiece[], at: LidPoint): boolean {
   });
 }
 
-/** Die Stücke als ein Block: Deckfläche und Seitenwände, ohne Boden. */
-function lidGeometry(pieces: readonly LidPiece[]): THREE.BufferGeometry {
-  const positions: number[] = [];
-  for (const { outline, sides } of pieces) {
+/**
+ * **Die Stücke als ein Block**: Deckfläche (Gruppe 0, mit Plattenmaß in `uv`:
+ * eine Einheit je `ROOF_PLATE` Meter, in Weltkoordinaten, damit die Fugen
+ * über alle Räume durchlaufen) und Seitenwände (Gruppe 1), ohne Boden.
+ */
+export function lidGeometry(pieces: readonly LidPiece[]): THREE.BufferGeometry {
+  const top: number[] = [];
+  const sides: number[] = [];
+  for (const { outline, sides: walls } of pieces) {
     const p0 = outline[0]!;
     for (let i = 1; i + 1 < outline.length; i++) {
       const a = outline[i]!,
         b = outline[i + 1]!;
-      positions.push(p0.x, LID_TOP, p0.z, a.x, LID_TOP, a.z, b.x, LID_TOP, b.z);
+      // Von oben gegen den Uhrzeigersinn: Die Umrisse laufen Nordwest, Nordost,
+      // Südost — von oben gesehen im Uhrzeigersinn —, also andersherum.
+      top.push(p0.x, LID_TOP, p0.z, b.x, LID_TOP, b.z, a.x, LID_TOP, a.z);
     }
+    outline.forEach((p, i) => {
+      if (!walls[i]) return;
+      const q = outline[(i + 1) % outline.length]!;
+      sides.push(p.x, LID_BOTTOM, p.z, q.x, LID_BOTTOM, q.z, q.x, LID_TOP, q.z);
+      sides.push(p.x, LID_BOTTOM, p.z, q.x, LID_TOP, q.z, p.x, LID_TOP, p.z);
+    });
+  }
+  const positions = [...top, ...sides];
+  const uv: number[] = [];
+  for (let i = 0; i < positions.length; i += 3)
+    uv.push(positions[i]! / ROOF_PLATE, positions[i + 2]! / ROOF_PLATE);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.addGroup(0, top.length / 3, 0);
+  geometry.addGroup(top.length / 3, sides.length / 3, 1);
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** Die Oberkanten eines Blocks, wo er an etwas anderes stößt — als Strecken für den Rand. */
+function rimGeometry(pieces: readonly LidPiece[]): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const y = LID_TOP + 0.005;
+  for (const { outline, sides } of pieces)
     outline.forEach((p, i) => {
       if (!sides[i]) return;
       const q = outline[(i + 1) % outline.length]!;
-      positions.push(p.x, LID_BOTTOM, p.z, q.x, LID_BOTTOM, q.z, q.x, LID_TOP, q.z);
-      positions.push(p.x, LID_BOTTOM, p.z, q.x, LID_TOP, q.z, p.x, LID_TOP, p.z);
+      positions.push(p.x, y, p.z, q.x, y, q.z);
     });
-  }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.computeBoundingSphere();
@@ -199,27 +238,71 @@ function lidGeometry(pieces: readonly LidPiece[]): THREE.BufferGeometry {
 }
 
 /**
- * **Von oben deckt ein Block zu, was die Figur nicht sieht**
+ * **Das Plattenmuster des Dachs** — eine Platte mit heller Fuge, auf einem
+ * Canvas gemalt. `null` ohne DOM (Jest); dann bleibt das Dach einfarbig.
+ */
+function roofTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
+  ctx.fillStyle = hex(ROOF_COLOUR);
+  ctx.fillRect(0, 0, 64, 64);
+  ctx.fillStyle = hex(ROOF_SEAM);
+  ctx.fillRect(0, 0, 64, 2);
+  ctx.fillRect(0, 0, 2, 64);
+  // Ein schwaches Innenfeld, wie eine Wartungsklappe.
+  ctx.strokeStyle = hex(ROOF_SEAM);
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(14.5, 14.5, 36, 36);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+/**
+ * **Von oben deckt ein Dach zu, was die Figur nicht sieht**
  * (`stationVisibility.topDownRooms`).
  *
  * Die Ansicht von oben schneidet die Decke ab (`core/cutaway.ts`), und dann
  * liegt die ganze Station offen: Nachbarräume mit Licht, Kisten und dem, was
  * darin läuft. Über jedem Raum und Gang, den die Figur nicht sieht, steht
- * deshalb ein dunkler Block vom Boden bis über die Wandkrone, genau in seinem
+ * deshalb ein Block vom Boden bis knapp über die Wandkrone, genau in seinem
  * Umriss (`lidPieces`): drinnen ist es Nacht, und aus keinem Winkel schaut
  * etwas darunter hervor.
+ *
+ * **Er soll wie das Dach der Station aussehen**, nicht wie ein schwarzes
+ * Hochhaus: Die Oberseite trägt einen dunklen Stationston mit Plattenfugen
+ * (`ROOF_COLOUR`, etwas heller als der Weltraum), die Seiten sind dunkler
+ * (`SIDE_COLOUR`), und an der Oberkante läuft ein feiner Rand. Ganz schwarz
+ * (so war es zuerst) ließen sich Oberseite und Seiten nicht unterscheiden,
+ * und die Seiten weit entfernter Räume lasen sich als hohe Wände. Die Höhe
+ * ist echt: `LID_TOP` = Wandhöhe + 4 cm, ohne Skalierung
+ * (`topDownFog.test`).
  *
  * Die Blöcke sind nur von oben zu sehen (`setTopDown`) und tragen keine
  * Ebenenmarke — die Decke geht beim Aufschneiden weg, die Blöcke nicht.
  */
 export class TopDownFog {
   readonly group = new THREE.Group();
-  private readonly lids = new Map<string, THREE.Mesh>();
-  private readonly material = new THREE.MeshBasicMaterial({
-    color: FOG_COLOUR,
+  private readonly lids = new Map<string, THREE.Object3D>();
+  private readonly texture = roofTexture();
+  private readonly roof = new THREE.MeshBasicMaterial({
+    color: this.texture ? 0xffffff : ROOF_COLOUR,
+    map: this.texture,
+    fog: false,
+  });
+  private readonly side = new THREE.MeshBasicMaterial({
+    color: SIDE_COLOUR,
     fog: false,
     side: THREE.DoubleSide,
   });
+  private readonly rim = new THREE.LineBasicMaterial({ color: RIM_COLOUR, fog: false });
   private readonly entryRoom: string;
 
   constructor(spec: HouseSpec) {
@@ -241,15 +324,20 @@ export class TopDownFog {
   }
 
   private lid(id: string, pieces: readonly LidPiece[]): void {
-    const mesh = new THREE.Mesh(lidGeometry(pieces), this.material);
-    mesh.name = `top-down-lid-${id}`;
-    mesh.renderOrder = 3;
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    mesh.raycast = () => {};
-    mesh.visible = false;
-    this.lids.set(id, mesh);
-    this.group.add(mesh);
+    const block = new THREE.Mesh(lidGeometry(pieces), [this.roof, this.side]);
+    const rim = new THREE.LineSegments(rimGeometry(pieces), this.rim);
+    const holder = new THREE.Group();
+    holder.name = `top-down-lid-${id}`;
+    for (const part of [block, rim]) {
+      part.renderOrder = 3;
+      part.castShadow = false;
+      part.receiveShadow = false;
+      part.raycast = () => {};
+      holder.add(part);
+    }
+    holder.visible = false;
+    this.lids.set(id, holder);
+    this.group.add(holder);
   }
 
   /**
@@ -269,7 +357,11 @@ export class TopDownFog {
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const lid of this.lids.values()) lid.geometry.dispose();
-    this.material.dispose();
+    for (const lid of this.lids.values())
+      lid.traverse((part) => (part as THREE.Mesh).geometry?.dispose());
+    this.roof.dispose();
+    this.side.dispose();
+    this.rim.dispose();
+    this.texture?.dispose();
   }
 }

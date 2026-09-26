@@ -290,15 +290,21 @@ export class GridPlan {
    *
    * Sie steht nur auf Boden: Eine Schräge im Nichts ist ein Fehler im Editor
    * oder in einer Welt, und er fällt hier auf statt als Wand in der Luft.
+   *
+   * `keepHalfFloor`: ein halber Boden darunter (`halfFloor`) bleibt, auch wenn
+   * die Schräge weggeht — für Welten, deren Schrägen als Regalstücke stehen.
    */
-  slope(x: number, z: number, slope: Slope | null, level = 0): this {
+  slope(x: number, z: number, slope: Slope | null, level = 0, keepHalfFloor = false): this {
     const key = tileKey(x, z, level);
     if (slope && !this.graph.has(key)) return this;
     if (slope) this.slopeTiles.set(key, slope);
     else if (!this.slopeTiles.delete(key)) return this;
-    // Ein halber Boden gilt nur für die Diagonale, zu der er gehört.
+    // Ein halber Boden gilt nur für die Diagonale, zu der er gehört — außer
+    // die Schräge geht nur als Plan-Wand weg, weil an ihrer Stelle ein
+    // Regalstück steht (`keepHalfFloor`, `shelfWalls.clearPlanWalls`).
     const half = this.halfFloors.get(key);
-    if (half && (!slope || !slopeCorners(slope).includes(half))) this.halfFloors.delete(key);
+    if (half && !keepHalfFloor && (!slope || !slopeCorners(slope).includes(half)))
+      this.halfFloors.delete(key);
     this.edits++;
     this.refresh(key);
     return this;
@@ -1084,6 +1090,9 @@ export class GridPlan {
     this.loadBlocks(source.saveBlocks());
     this.loadFixtures(source.saveFixtures());
     this.loadSlopes(source.saveSlopes());
+    // Auch halbe Böden, deren Schräge als Regalstück steht (`halfFloor`).
+    this.halfFloors.clear();
+    for (const [key, corner] of source.halfFloors) this.halfFloors.set(key, corner);
     return this;
   }
 }

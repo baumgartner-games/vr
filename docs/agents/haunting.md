@@ -160,6 +160,12 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
     Platte, und ein dunkles Dreieck (`shipArt.cutCaps`, entfallen) deckte die
     äußere Hälfte zu — von außen stand es über. Gehen ändert sich nicht
     (`stationCorners.test`, `halfFloor.test`).
+  - **Falle**: Die Welt räumt die Schrägen aus dem Plan (`clearPlanWalls`,
+    sie stehen als Regalstücke) und tauscht den Plan bei jeder Tür aus
+    (`GridPlan.replaceWith`). Beides nahm den halben Boden zuerst mit — die
+    Station stand wieder auf ganzen Platten, und die äußeren Hälften schauten
+    als graue Stufen unter den Schrägen hervor. Jetzt bleibt er
+    (`slope(…, keepHalfFloor)`, `replaceWith` kopiert ihn; `halfFloor.test`).
   - Karte (`wallSegments`, `roomOutline`), Archiv und Papierkarte
     (`HauntingWorld.wallsOf`) zeichnen die Schräge mit.
   - Türen, Klappen, Fenster, Merkmale, Aufgaben und Sicherungskasten liegen
@@ -188,8 +194,18 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
     im Bild versetzt, und unter seiner Kante schauten Boden und Wände des
     Nachbarn als Streifen hervor. Durch die Seiten eines Blocks sieht man aus
     keinem Winkel mehr hinein, auch nicht durch eine offene Tür eines
-    sichtbaren Nachbarn. `topDownFog.test` prüft Umriss, Wandmitte, Überstand
-    und Schrägen, `stationVisibility.test` die Regel.
+    sichtbaren Nachbarn. `topDownFog.test` prüft Umriss, Wandmitte, Überstand,
+    Schrägen und Höhe, `stationVisibility.test` die Regel.
+  - **Sie sehen aus wie das Dach der Station**, nicht wie schwarze Hochhäuser
+    (Rückmeldung zur ersten Fassung): oben ein dunkles Blaugrau
+    (`ROOF_COLOUR`, etwas heller als der Weltraum) mit Plattenfugen alle 2 m
+    in Weltkoordinaten (Canvas-Textur, ohne DOM einfarbig), die Seiten
+    dunkler (`SIDE_COLOUR`), an der Oberkante ein feiner heller Rand
+    (`LineSegments`). Die Höhe ist echt — `LID_TOP` = Wandhöhe + 4 cm, ohne
+    Skalierung; ganz schwarz ließen sich Oberseite und Seiten nur nicht
+    unterscheiden. Achtung: Das Dach ist einseitig gezeichnet, die Dreiecke
+    laufen von oben gesehen gegen den Uhrzeigersinn (der Test prüft die
+    Normale).
   - Vorher fragte `cullRoomArt` auch von oben, ob eine Türöffnung im
     Blickfeld liegt — von oben ist das jede —, und das Telefon des Technikers
     blendete gar nichts aus, weil `ui` gesetzt war. Ganz sehen darf nur, wer

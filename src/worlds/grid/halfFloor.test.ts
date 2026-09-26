@@ -2,6 +2,7 @@ import { CellGrid, navCellSource } from '../nav/cellGrid';
 import { tileKey } from '../nav/navTile';
 import { GridPlan } from './gridPlan';
 import { halfFloorGeometry } from './halfFloor';
+import { clearPlanWalls } from './shelfWalls';
 import { halfFloorTriangle } from './solids';
 import { readWorld, writeWorld } from './worldFile';
 
@@ -24,6 +25,19 @@ describe('Halber Boden unter einer Schräge (GridPlan.halfFloor)', () => {
     expect(p.halfFloorAt(tileKey(0, 0))).toBeNull();
     p.slope(0, 0, 'slash').halfFloor(0, 0, 'nw').slope(0, 0, null);
     expect(p.halfFloorAt(tileKey(0, 0))).toBeNull();
+  });
+
+  it('bleibt, wenn die Schräge als Regalstück steht (clearPlanWalls)', () => {
+    // Haunting und die Testwelt räumen die Planwände samt Schrägen weg und
+    // stellen Regalstücke hin — der halbe Boden darunter muss bleiben.
+    const p = plan().slope(0, 0, 'slash').halfFloor(0, 0, 'nw');
+    clearPlanWalls(p);
+    expect(p.slopeAt(tileKey(0, 0))).toBeNull();
+    expect(p.halfFloorAt(tileKey(0, 0))).toBe('nw');
+    expect(p.solids().filter((one) => one.half)).toHaveLength(1);
+    // Und beim Austauschen des Plans (Haunting bei jeder Tür) kommt er mit.
+    const other = plan().replaceWith(p);
+    expect(other.halfFloorAt(tileKey(0, 0))).toBe('nw');
   });
 
   it('macht aus dem Bodenquader der Kachel ein halbes Stück, alle anderen bleiben ganz', () => {

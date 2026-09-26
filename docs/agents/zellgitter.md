@@ -67,7 +67,10 @@ den großen Kacheln bleibt.
     Regal darauf (`plateField.floorPlateModels`) und in kein Bündel. **Am
     Gehen ändert sich nichts**: Graph, Kachel und Zellen bleiben, die Zellen
     auf der Diagonale sperrt die Schräge wie zuvor, und der Körper bleibt der
-    ganze Quader (`halfFloor.test`).
+    ganze Quader (`halfFloor.test`). Wer die Schräge nur als Planwand wegnimmt,
+    weil ein Regalstück an ihrer Stelle steht (`shelfWalls.clearPlanWalls`),
+    behält den halben Boden (`slope(x, z, null, level, true)`);
+    `replaceWith` nimmt ihn mit. In die Weltdatei kommt er nur samt Schräge.
 - **Der Spieler geht in der Ebene** (`PhysicsLocomotion.plane`, gestellt von
   `GridWorld.playerPlane`, Rechnung in `nav/planeMove.ts`, seit Oktober 2026):
   - Gewünscht: _„nicht mit der 3D-Kollision, sondern auf der 2D-Ebene … die

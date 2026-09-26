@@ -143,6 +143,8 @@ export function clearPlanWalls(plan: GridPlan): void {
   const solid: WallKey[] = [];
   for (const [key, wall] of plan.graph.wallEntries()) if (wall.kind === 'solid') solid.push(key);
   for (const key of solid) plan.graph.clearWall(wallTile(key), wallDir(key));
+  // Der halbe Boden unter der Schräge bleibt (`GridPlan.halfFloor`): Das
+  // Regalstück ersetzt die Wand, nicht den Boden.
   for (const { tile } of plan.saveSlopes())
-    plan.slope(keyX(tile), keyZ(tile), null, keyLevel(tile));
+    plan.slope(keyX(tile), keyZ(tile), null, keyLevel(tile), true);
 }

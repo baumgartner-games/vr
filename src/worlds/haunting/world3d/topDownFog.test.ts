@@ -1,5 +1,6 @@
 import { cutAt, cutOf, generateHouse, roomAt, roomTiles, spacesOf } from '../house';
-import { LID_OUTSET, lidCovers, lidPieces } from './topDownFog';
+import { PLAN_WALL_H } from '../../editor/levelPlan';
+import { LID_OUTSET, LID_TOP, lidCovers, lidGeometry, lidPieces } from './topDownFog';
 
 describe('Deckel von oben (lidPieces)', () => {
   const spec = generateHouse(1, 14);
@@ -80,5 +81,27 @@ describe('Deckel von oben (lidPieces)', () => {
       }
     }
     expect(slopes).toBeGreaterThan(10);
+  });
+
+  it('ist nur knapp höher als die Wand: Dach oben, Seiten darunter', () => {
+    expect(LID_TOP).toBeGreaterThan(PLAN_WALL_H);
+    expect(LID_TOP - PLAN_WALL_H).toBeLessThanOrEqual(0.05);
+    const geometry = lidGeometry(lids.get(spaces[0]!.id)!);
+    geometry.computeBoundingBox();
+    expect(geometry.boundingBox!.max.y).toBeCloseTo(LID_TOP);
+    expect(geometry.boundingBox!.min.y).toBeLessThanOrEqual(0);
+    // Gruppe 0 ist das Dach (alles auf LID_TOP), Gruppe 1 die Seiten.
+    const [roof, sides] = geometry.groups;
+    const y = geometry.getAttribute('position');
+    for (let i = roof!.start; i < roof!.start + roof!.count; i++)
+      expect(y.getY(i)).toBeCloseTo(LID_TOP);
+    expect(sides!.count).toBeGreaterThan(0);
+    // Das Dach zeigt nach oben (einseitig gezeichnet — sonst fehlt es im Bild).
+    geometry.computeVertexNormals();
+    const normal = geometry.getAttribute('normal');
+    // (Ein zu Null geschnittenes Dreieck an einer Schräge hat keine Normale.)
+    for (let i = roof!.start; i < roof!.start + roof!.count; i++)
+      expect(normal.getY(i)).toBeGreaterThan(-1e-6);
+    expect(geometry.getAttribute('uv').count).toBe(y.count);
   });
 });
