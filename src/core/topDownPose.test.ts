@@ -12,6 +12,11 @@ import {
   yawFromDirection,
   zoomScaled,
   zoomStep,
+  QUARTER_TURN,
+  quarterOf,
+  quarterTurn,
+  screenToGround,
+  turnToward,
 } from './topDownPose';
 
 const DEG = Math.PI / 180;
@@ -215,5 +220,87 @@ describe('Der Zoom von oben', () => {
     expect(distance).toBe(TOP_DOWN_MAX);
     for (let i = 0; i < 10; i++) distance = stepFromDistance(distance, -1);
     expect(distance).toBe(TOP_DOWN_MIN);
+  });
+});
+
+/**
+ * **Das Bild in Vierteln drehen** (`TopDownCamera.turn`) — und dabei bleibt
+ * oben im Bild oben: `W` läuft dorthin, wohin die Kamera schaut.
+ */
+describe('Die gedrehte Draufsicht', () => {
+  /** Wohin die Kamera mit Gieren `heading` und Nicken `pitch` schaut (Euler YXZ). */
+  function lookOf(heading: number, pitch: number): { x: number; y: number; z: number } {
+    const flat = forwardOf(pitch);
+    // Erst nicken (oben), dann um die Hochachse gieren — wie three.js mit `YXZ`.
+    return {
+      x: flat.x * Math.cos(heading) + flat.z * Math.sin(heading),
+      y: flat.y,
+      z: -flat.x * Math.sin(heading) + flat.z * Math.cos(heading),
+    };
+  }
+
+  it('steht nach einer Vierteldrehung links im Osten und schaut nach Westen', () => {
+    const at = topDownPosition({ x: 0, y: 0, z: 0 }, 16, { x: 0, y: 0, z: 0 }, 55, QUARTER_TURN);
+    expect(at.x).toBeGreaterThan(5);
+    expect(at.z).toBeCloseTo(0, 9);
+  });
+
+  it('sieht das Ziel auch gedreht an', () => {
+    for (const heading of [QUARTER_TURN, Math.PI, -QUARTER_TURN, 0.3]) {
+      const target = { x: 3, y: 1, z: -2 };
+      const at = topDownPosition(target, 12, { x: 0, y: 0, z: 0 }, 55, heading);
+      const look = lookOf(heading, topDownPitch(55));
+      const to = { x: target.x - at.x, y: target.y - at.y, z: target.z - at.z };
+      const length = Math.hypot(to.x, to.y, to.z);
+      expect(to.x / length).toBeCloseTo(look.x, 6);
+      expect(to.y / length).toBeCloseTo(look.y, 6);
+      expect(to.z / length).toBeCloseTo(look.z, 6);
+    }
+  });
+
+  it('läuft oben im Bild dorthin, wohin die Kamera schaut', () => {
+    for (const heading of [0, QUARTER_TURN, Math.PI, -QUARTER_TURN]) {
+      const up = screenToGround(0, -1, heading);
+      const look = lookOf(heading, topDownPitch());
+      const flat = Math.hypot(look.x, look.z);
+      expect(up.x).toBeCloseTo(look.x / flat, 9);
+      expect(up.z).toBeCloseTo(look.z / flat, 9);
+    }
+    // Ungedreht bleibt alles, wie es war: rechts ist Osten.
+    expect(screenToGround(1, 0, 0)).toEqual({ x: 1, z: 0 });
+    // Links herum gedreht zeigt oben nach Westen, rechts nach Norden.
+    const west = screenToGround(0, -1, QUARTER_TURN);
+    expect(west.x).toBeCloseTo(-1, 9);
+    expect(west.z).toBeCloseTo(0, 9);
+    const north = screenToGround(1, 0, QUARTER_TURN);
+    expect(north.x).toBeCloseTo(0, 9);
+    expect(north.z).toBeCloseTo(-1, 9);
+  });
+
+  it('zielt mit der Maus gedreht dorthin, wohin sie im Bild zeigt', () => {
+    const plain = groundDirection(0, -1);
+    const turned = groundDirection(0, -1, undefined, TOP_DOWN_TILT, Math.PI);
+    expect(turned.x).toBeCloseTo(-plain.x, 9);
+    expect(turned.z).toBeCloseTo(-plain.z, 9);
+  });
+
+  it('dreht in ganzen Vierteln, rundherum und zurück', () => {
+    let heading = 0;
+    for (let i = 0; i < 4; i++) heading = quarterTurn(heading, 1);
+    expect(heading).toBeCloseTo(0, 9);
+    expect(quarterTurn(0, -1)).toBeCloseTo(-QUARTER_TURN, 9);
+    // Ein krummer Stand rastet beim nächsten Druck auf ein ganzes Viertel.
+    expect(quarterTurn(0.2, 1)).toBeCloseTo(QUARTER_TURN, 9);
+    expect([0, 1, 2, 3].map((q) => quarterOf(q * QUARTER_TURN))).toEqual([0, 1, 2, 3]);
+    expect(quarterOf(-QUARTER_TURN)).toBe(3);
+  });
+
+  it('dreht weich den kürzeren Weg', () => {
+    // Von knapp unter +π nach −π/2 sind es 90° nach links, nicht 270° zurück.
+    const from = Math.PI - 0.01;
+    const half = turnToward(from, -QUARTER_TURN, 0.5);
+    expect(Math.abs(half)).toBeGreaterThan(Math.PI * 0.7);
+    expect(turnToward(0.1, 0.1, 0.3)).toBe(0.1);
+    expect(turnToward(0, QUARTER_TURN, 1)).toBeCloseTo(QUARTER_TURN, 9);
   });
 });

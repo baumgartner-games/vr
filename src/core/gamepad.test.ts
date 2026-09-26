@@ -1,6 +1,10 @@
 import {
   BUTTON_A,
   BUTTON_B,
+  BUTTON_DPAD_DOWN,
+  BUTTON_DPAD_LEFT,
+  BUTTON_DPAD_RIGHT,
+  BUTTON_DPAD_UP,
   BUTTON_LB,
   BUTTON_LS,
   BUTTON_RB,
@@ -84,6 +88,19 @@ describe('Das Gamepad lesen', () => {
     expect(frame.zoomOut).toBe(true);
     expect(frame.fire).toBe(false);
     expect(frame.trigger).toBe(0);
+  });
+
+  it('liest das Steuerkreuz: ←/→ dreht das Bild, ↑/↓ schaltet Werkzeuge', () => {
+    const turn = readGamepad(pad([0, 0, 0, 0], { [BUTTON_DPAD_LEFT]: true }));
+    expect(turn.turnLeft).toBe(true);
+    expect(turn.turnRight).toBe(false);
+    expect(readGamepad(pad([0, 0, 0, 0], { [BUTTON_DPAD_RIGHT]: true })).turnRight).toBe(true);
+    const tools = readGamepad(pad([0, 0, 0, 0], { [BUTTON_DPAD_UP]: true }));
+    expect(tools.toolPrev).toBe(true);
+    expect(tools.toolNext).toBe(false);
+    expect(readGamepad(pad([0, 0, 0, 0], { [BUTTON_DPAD_DOWN]: true })).toolNext).toBe(true);
+    // Und das Kreuz läuft nicht: Laufen ist der Stock.
+    expect(turn.move).toEqual({ x: 0, y: 0 });
   });
 
   it('liest den Zug des Triggers als Zahl — und B schießt nicht mehr', () => {

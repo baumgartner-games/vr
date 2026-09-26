@@ -243,6 +243,11 @@ export class KartZone implements TestZone {
   private ctx: WorldContext | null = null;
 
   private driving: Kart | null = null;
+
+  /** Ob man gerade am Steuer sitzt — für die Tastenhilfe (`TestWorld.hintZone`). */
+  get seated(): boolean {
+    return this.driving !== null;
+  }
   private visor: THREE.Mesh | null = null;
   private exitHeld = 0;
   /**
@@ -585,6 +590,15 @@ export class KartZone implements TestZone {
       if (this.pressedIs('throttle')) throttle = 1;
       if (this.pressedIs('brake')) brake = 1;
       steerWish = (this.pressedIs('left') ? 1 : 0) - (this.pressedIs('right') ? 1 : 0);
+      // **Und das Pad am Schirm** — dieselbe Lage wie in der Brille: der
+      // rechte Trigger gibt Gas, der linke bremst, der linke Stock lenkt.
+      // Bis hierher fuhr das Kart am Schirm nur mit der Tastatur.
+      const pad = ctx.pad;
+      if (pad?.connected) {
+        throttle = Math.max(throttle, pad.trigger);
+        if (pad.sight) brake = 1;
+        steerWish = THREE.MathUtils.clamp(steerWish - pad.move.x, -1, 1);
+      }
     }
 
     if (kart.settings.steering === 'wheel') {

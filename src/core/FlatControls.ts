@@ -4,6 +4,7 @@ import type { TopDownCamera } from './TopDownCamera';
 import { ButtonState } from './XRInput';
 import {
   aimHeld,
+  emptyFrame,
   firstGamepad,
   readGamepad,
   type ButtonPlan,
@@ -124,6 +125,13 @@ export class FlatControls {
   /** **Von oben ↔ aus den Augen** — `V` und ⊟ am Pad (`App.toggleScreenView`). */
   onView: (() => void) | null = null;
   /**
+   * **Das nächste oder vorige Werkzeug der Welt** — Steuerkreuz ↓/↑ am Pad,
+   * solange nichts davorliegt (`App` reicht es an `World.toolStep`: die
+   * Werkzeugleiste des Baukastens). Die Welt sagt, ob sie etwas damit
+   * anfangen konnte.
+   */
+  onToolStep: ((step: 1 | -1) => boolean) | null = null;
+  /**
    * **Was gerade vor dem Spiel liegt** — ein offenes Menü (`'menu'`) oder die
    * Werkzeugliste (`'tools'`), sonst `null`. Solange etwas davor liegt,
    * läuft und springt niemand: Der Stock und `A` gehören dann dem Menü
@@ -226,7 +234,13 @@ export class FlatControls {
   private readonly padTools = new ButtonState();
   private readonly padBack = new ButtonState();
   private readonly padView = new ButtonState();
-  /**
+  private readonly padTurnLeft = new ButtonState();
+  private readonly padTurnRight = new ButtonState();
+  private readonly padToolPrev = new ButtonState();
+  private readonly padToolNext = new ButtonState();
+  /** `Q` (links herum) oder `Umschalt`+`Q` (rechts herum) seit dem letzten Bild. */
+  private viewTurns = 0;
+  private lastPad: GamepadFrame = emptyFrame(); /**
    * Die Finger, die gerade frei auf dem Glas liegen — weder auf einem Stock
    * noch auf einem Knopf —, mit dem Ort, an dem sie zuletzt waren. Zwei davon
    * in der oberen Hälfte sind ein Pinch (`pinching`).
@@ -368,6 +382,15 @@ export class FlatControls {
     }
   }
 
+  /**
+   * **Das Pad dieses Bildes, wie es gelesen wurde** — für Zonen mit eigener
+   * Bedienung (`WorldContext.pad`, das Kart). Leer, solange ein Menü
+   * davorliegt oder die Steuerung schweigt.
+   */
+  get padFrame(): GamepadFrame {
+    return this.enabled ? this.lastPad : emptyFrame();
+  }
+
   /** Called when the player is placed, so look direction matches the spawn. */
   syncFromRig(): void {
     this.yaw = new THREE.Euler().setFromQuaternion(this.rig.quaternion, 'YXZ').y;
@@ -392,6 +415,7 @@ export class FlatControls {
     }
 
     const pad = this.readPad();
+    this.lastPad = this.blocker() ? emptyFrame() : pad;
 
     // **Liegt ein Menü davor, spielt das Pad nicht** — gelesen wurde es
     // trotzdem, damit die Flanken stimmen: Wer das Menü mit `A` schließt,
@@ -497,7 +521,9 @@ export class FlatControls {
     pad: GamepadFrame,
   ): void {
     this.applyTopDownButtons(pad);
-    _move.set(x, 0, z);
+    // **Oben im Bild bleibt oben** — auch wenn das Bild gedreht ist.
+    const ground = this.view ? this.view.screenToGround(x, z, _ground) : { x, z };
+    _move.set(ground.x, 0, ground.z);
     if (_move.lengthSq() > 1) _move.normalize();
 
     const aim = this.aimYaw(pad);
@@ -545,7 +571,8 @@ export class FlatControls {
     view: TopDownCamera,
   ): void {
     this.applyTopDownButtons(pad);
-    const step = cranePan(x, z, view.zoomDistance, sprint, dt);
+    const ground = view.screenToGround(x, z, _ground);
+    const step = cranePan(ground.x, ground.z, view.zoomDistance, sprint, dt);
     if (step.x !== 0 || step.z !== 0) view.pan(step.x, step.z);
 
     this.rig.getHeadPosition(_head);
@@ -612,6 +639,10 @@ export class FlatControls {
   private applyUse(pad: GamepadFrame): boolean {
     if (this.toolsQueued || this.padTools.justPressed) this.onTools?.();
     this.toolsQueued = false;
+    // **Steuerkreuz ↑/↓: durch die Werkzeugleiste** — nur, wenn die Welt eine
+    // hat (der Baukasten, `World.toolStep`); sonst tut das Kreuz nichts.
+    if (this.padToolPrev.justPressed) this.onToolStep?.(-1);
+    if (this.padToolNext.justPressed) this.onToolStep?.(1);
     // **⊟ wechselt die Ansicht** — dieselbe Wahl wie `V` und die Zeile im Menü.
     if (this.padView.justPressed) this.onView?.();
     // **`B` ist _Zurück_** (das Schema, `docs/agents/steuerung.md`). Im Spiel
@@ -680,6 +711,15 @@ export class FlatControls {
 
     if (this.padZoomIn.justPressed) this.view?.zoomBy(-1);
     if (this.padZoomOut.justPressed) this.view?.zoomBy(1);
+    // **Das Bild in Vierteln drehen** — Steuerkreuz ←/→, `Q`/`Umschalt`+`Q`.
+    // Gelaufen wird danach weiter im Bild (`screenToGround`), die Figur
+    // selbst dreht sich dabei nicht mit.
+    let turns = this.viewTurns;
+    this.viewTurns = 0;
+    if (this.padTurnLeft.justPressed) turns += 1;
+    if (this.padTurnRight.justPressed) turns -= 1;
+    for (; turns > 0; turns--) this.view?.turn(1);
+    for (; turns < 0; turns++) this.view?.turn(-1);
   }
 
   /**
@@ -780,6 +820,10 @@ export class FlatControls {
     edge(this.padTools, frame.tools);
     edge(this.padBack, frame.cancel);
     edge(this.padView, frame.view);
+    edge(this.padTurnLeft, frame.turnLeft);
+    edge(this.padTurnRight, frame.turnRight);
+    edge(this.padToolPrev, frame.toolPrev);
+    edge(this.padToolNext, frame.toolNext);
     return frame;
   }
 
@@ -872,6 +916,12 @@ export class FlatControls {
       if (this.bound(e.code, 'tools') && !e.repeat) {
         e.preventDefault();
         this.toolsQueued = true;
+      }
+      // **`Q` dreht das Bild von oben** um ein Viertel, `Umschalt`+`Q` zurück
+      // (`TopDownCamera.turn`) — in beiden Ansichten von oben, auch als Kran.
+      if (this.bound(e.code, 'turn') && this.topDownOn && !e.repeat) {
+        e.preventDefault();
+        this.viewTurns += e.shiftKey ? -1 : 1;
       }
       // **`R` dreht den Kran** (`crane`) — nur als Kran; sonst setzt dieselbe
       // Taste die Welt zurück (`PortalWorld.flatKeys`), und die fragt dafür

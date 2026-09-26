@@ -15,6 +15,7 @@ import {
 import { TILE } from '../nav/navTile';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import type { FurnitureChange } from '../../core/worldChanges';
@@ -104,6 +105,11 @@ export class TestWorld extends GridWorld {
   private plates: PlateFloor | null = null;
   /** Um welche Kachel die Schürze gerade liegt — `null`, bis sie das erste Mal liegt. */
   private platesAround: PlateSpot | null = null;
+
+  /** Am Steuer eines Karts sagt die Tastenhilfe, wie man fährt (`core/controlHints.ts`). */
+  override hintZone(): HintZone | null {
+    return this.kart.seated ? { kind: 'kart' } : super.hintZone();
+  }
 
   protected override worldId(): string {
     return 'test';

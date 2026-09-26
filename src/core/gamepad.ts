@@ -67,6 +67,14 @@ export interface GamepadFrame {
   zoomOut: boolean;
   /** `Y`: die Werkzeugliste auf- und zuklappen (`#hud-tool`). */
   tools: boolean;
+  /** Steuerkreuz ←: von oben das Bild eine Vierteldrehung nach links. */
+  turnLeft: boolean;
+  /** Steuerkreuz →: dasselbe nach rechts. */
+  turnRight: boolean;
+  /** Steuerkreuz ↑: im Baukasten das Werkzeug davor. */
+  toolPrev: boolean;
+  /** Steuerkreuz ↓: im Baukasten das Werkzeug danach. */
+  toolNext: boolean;
 }
 
 /**
@@ -97,6 +105,11 @@ export const BUTTON_SELECT = 8;
 /** ☰ — Start, Menu, Options, Plus: das Menü. */
 export const BUTTON_START = 9;
 export const BUTTON_LS = 10;
+/** Das Steuerkreuz im Standard-Mapping: oben, unten, links, rechts. */
+export const BUTTON_DPAD_UP = 12;
+export const BUTTON_DPAD_DOWN = 13;
+export const BUTTON_DPAD_LEFT = 14;
+export const BUTTON_DPAD_RIGHT = 15;
 
 /** Achsnummern: linker Stick 0/1, rechter 2/3. */
 export const AXIS_MOVE_X = 0;
@@ -121,6 +134,10 @@ export function emptyFrame(): GamepadFrame {
     zoomIn: false,
     zoomOut: false,
     tools: false,
+    turnLeft: false,
+    turnRight: false,
+    toolPrev: false,
+    toolNext: false,
   };
 }
 
@@ -144,6 +161,10 @@ export interface ButtonPlan {
   readonly tools: readonly number[];
   readonly zoomIn: readonly number[];
   readonly zoomOut: readonly number[];
+  readonly turnLeft: readonly number[];
+  readonly turnRight: readonly number[];
+  readonly toolPrev: readonly number[];
+  readonly toolNext: readonly number[];
 }
 
 /** Der Plan ab Werk: die Knopfnummern von oben, in Listen. */
@@ -158,6 +179,10 @@ export const DEFAULT_PLAN: ButtonPlan = {
   tools: [BUTTON_Y],
   zoomIn: [BUTTON_LB],
   zoomOut: [BUTTON_RB],
+  turnLeft: [BUTTON_DPAD_LEFT],
+  turnRight: [BUTTON_DPAD_RIGHT],
+  toolPrev: [BUTTON_DPAD_UP],
+  toolNext: [BUTTON_DPAD_DOWN],
 };
 
 /**
@@ -182,6 +207,10 @@ export function readGamepad(
   frame.zoomIn = any(pad, plan.zoomIn);
   frame.zoomOut = any(pad, plan.zoomOut);
   frame.tools = any(pad, plan.tools);
+  frame.turnLeft = any(pad, plan.turnLeft);
+  frame.turnRight = any(pad, plan.turnRight);
+  frame.toolPrev = any(pad, plan.toolPrev);
+  frame.toolNext = any(pad, plan.toolNext);
   // **Ein Zug, aus welchem Knopf er auch kommt.** Der Trigger ist analog, ein
   // Knopf, den jemand auf _Schießen_ legt, ist es nicht: Er drückt ganz durch
   // — ein gedrückter Schalter meldet den Wert 1, und wo der Wert fehlt, macht

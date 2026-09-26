@@ -42,6 +42,27 @@ export interface BuildBarState {
   readonly valid: boolean | null;
 }
 
+/**
+ * **Die Werkzeuge der Leiste in ihrer Reihenfolge** — so, wie sie von links
+ * nach rechts dastehen, und so, wie das Steuerkreuz ↑/↓ am Pad durch sie
+ * schaltet (`nextBuildTool`). Drehen, Rückgängig und Wiederholen sind keine
+ * Werkzeuge, sondern Taten: Sie liegen auf `R`/rechtem Stock und `Strg`+`Z`.
+ */
+export const BUILD_TOOLS: readonly BuildTool[] = ['place', 'move', 'erase', 'copy'];
+
+/**
+ * **Das Werkzeug neben `tool`** — `+1` rechts daneben, `-1` links, am Ende
+ * geht es vorn weiter. Heraus kommt das, was die Leiste bei einem Klick auf
+ * dieses Werkzeug meldete: Kopieren ist dort ein eigener Knopf (`copy`),
+ * die anderen drei sind `tool`.
+ */
+export function nextBuildTool(tool: BuildTool, step: 1 | -1): BuildEvent {
+  const at = BUILD_TOOLS.indexOf(tool);
+  const count = BUILD_TOOLS.length;
+  const next = BUILD_TOOLS[((((at < 0 ? 0 : at) + step) % count) + count) % count]!;
+  return next === 'copy' ? { kind: 'copy' } : { kind: 'tool', tool: next };
+}
+
 export const HIDDEN_BUILD_BAR: BuildBarState = {
   visible: false,
   tool: 'move',
@@ -132,6 +153,15 @@ export class BuildBar {
     this.bar.append(this.status, this.row);
     document.body.append(this.bar);
     window.addEventListener('keydown', this.onKey, true);
+  }
+
+  /**
+   * **Ein Druck, der nicht von der Leiste kam** — das Steuerkreuz am Pad
+   * (`PortalWorld.toolStep`). Er geht in dieselbe Liste wie ein Klick und
+   * wird im selben Bild abgeholt.
+   */
+  press(event: BuildEvent): void {
+    this.queue.push(event);
   }
 
   /** Alles, was seit dem letzten Bild gedrückt wurde — die Liste leert sich dabei. */
