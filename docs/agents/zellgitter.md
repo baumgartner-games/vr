@@ -134,6 +134,18 @@ den großen Kacheln bleibt.
   - Getestet mit echtem Rapier an Treppe und Podest und an einem Boden aus
     einzelnen Kacheln (`physics/playerPlane.test.ts`), dazu an den Schrägen
     der Station (`haunting/map/stationSlide.test.ts`).
+- **Einrichtung, die nicht im Plan steht, sperrt über `cellBlocked`** —
+  gemeldet: _„im Burgerladen kann ich über die Möbel laufen … Wir wollten die
+  2D-Welt als Ground Truth nutzen, 3D-Physik nur zum Anzeigen."_ Burgerladen
+  (Stationen, Theke, Tische, Deko, am Abend Gekauftes) und Hub (Bänke, Lampen,
+  Pflanzen) stellten ihre Stücke nur als unsichtbare Physik-Körper auf; die
+  Ebene des Spielers kannte sie nicht, und `walkPlane` hob die Figur auf ihre
+  Oberkante. Jetzt trägt jede Grundfläche ihre Zellen ein
+  (`cellGrid.footprintCellKeys`, dieselbe 15-cm-Regel wie `furnitureCells`),
+  und die Welt meldet sie über `GridWorld.cellBlocked` — wie
+  `HauntingWorld` die Einrichtung der Station. **Wer eine neue Welt mit
+  eigener Einrichtung baut, geht diesen Weg**, nicht über einen Physik-Körper
+  allein.
 - **Möbel sperren Zellen** (`GridPlan.furnitureCells`, `boxCells`):
   - Gesperrt ist jede Zelle, in die ein Quader eines Bausteins mindestens
     15 cm hineinragt (`CELL_OVERLAP`) und der höher ist als eine Stufe

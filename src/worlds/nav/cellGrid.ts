@@ -709,6 +709,30 @@ export function navCellSource(
 }
 
 /**
+ * **Die Zellen unter einer Grundfläche** als Schlüssel für `CellSource.blocked`
+ * — für Welten, deren Einrichtung nicht als Baustein im Plan steht
+ * (Burgerladen, Hub). Dieselbe Regel wie für Möbel des Plans: gesperrt ist eine
+ * Zelle, in die die Fläche mindestens 15 cm hineinragt (`gridPlan.CELL_OVERLAP`).
+ * Ohne diesen Eintrag hält so ein Stück nur die Physik auf — und über die
+ * entscheidet beim Gehen nicht mehr sie, sondern das Gitter.
+ */
+export function footprintCellKeys(
+  cx: number,
+  cz: number,
+  width: number,
+  depth: number,
+  level = 0,
+): string[] {
+  return boxCells(
+    { minX: cx - width / 2, maxX: cx + width / 2, minZ: cz - depth / 2, maxZ: cz + depth / 2 },
+    FOOTPRINT_OVERLAP,
+  ).map((cell) => cellKey(cell.ix, cell.iz, level));
+}
+
+/** Wie weit eine Grundfläche in eine Zelle ragen muss, damit sie sie sperrt. */
+const FOOTPRINT_OVERLAP = 0.15;
+
+/**
  * **Welche Zellen ein Kasten auf dem Boden belegt** — jede, in die er mehr als
  * `margin` Meter hineinragt, in beiden Richtungen.
  *

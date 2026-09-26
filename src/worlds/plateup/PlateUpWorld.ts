@@ -30,6 +30,7 @@ import { dish, dishLabel, type Dish } from '../test/zones/kitchenRecipes';
 import { DECOR, tableSet, type DecorPiece } from './plateUpDecor';
 import { PlaceGhost } from '../portal/placeGhost';
 import { StaticDecor } from '../shared/staticDecor';
+import { cellKey, footprintCellKeys } from '../nav/cellGrid';
 import {
   DINING_AREA,
   DOOR_INSIDE,
@@ -588,8 +589,31 @@ export class PlateUpWorld extends GridWorld {
     this.southMeshes.push(mesh);
   }
 
+  /** Die Zellen der festen Einrichtung (Stationen, Theke, Deko) — `addBlock`. */
+  private readonly fixedCells = new Set<string>();
+  /** Die Zellen des am Abend Gekauften — gehen mit `clearPlaced`. */
+  private readonly shopCells = new Set<string>();
+
+  /**
+   * **Die Einrichtung sperrt ihre Zellen** — wie die Möbel des Plans in der
+   * Testwelt und die Einrichtung der Station (`HauntingWorld.cellBlocked`):
+   * Das 2D-Gitter ist die Wahrheit, die Physik zeigt nur an.
+   */
+  protected override cellBlocked(ix: number, iz: number, level: number): boolean {
+    if (level !== 0) return false;
+    const key = cellKey(ix, iz, level);
+    return this.fixedCells.has(key) || this.shopCells.has(key);
+  }
+
   /** Ein unsichtbarer Körper auf einer Grundfläche — dagegen läuft man. */
   private addBlock(x: number, z: number, size: readonly [number, number], shop = false): void {
+    // **Zuerst ins Zellgitter** — über das Gehen entscheidet die Ebene
+    // (`GridWorld.playerPlane`), nicht die Physik. Ohne diesen Eintrag lief man
+    // über Theke, Tische und Deko hinweg: Der unsichtbare Körper hob die Figur
+    // nur auf seine Oberkante (`walkPlane`).
+    for (const key of footprintCellKeys(x, z, size[0], size[1])) {
+      (shop ? this.shopCells : this.fixedCells).add(key);
+    }
     const physics = this.physics;
     if (!physics) return;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], BLOCK_HEIGHT, size[1]), this.hidden);
@@ -1820,6 +1844,7 @@ export class PlateUpWorld extends GridWorld {
       if (i >= 0) this.solids.splice(i, 1);
     }
     this.shopBlocks.length = 0;
+    this.shopCells.clear();
     // Die gekauften Stationen gehen mit — samt Anzeige über ihnen.
     for (const view of this.stationViews.splice(STATIONS.length)) {
       this.removeUsable(view.anchor);

@@ -5,6 +5,7 @@ import { TextPlane } from '../../ui/TextPlane';
 import { turnWithView } from '../../ui/billboard';
 import { createSky } from '../shared/environment';
 import { StaticDecor } from '../shared/staticDecor';
+import { cellKey, footprintCellKeys } from '../nav/cellGrid';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
@@ -172,6 +173,14 @@ export class HubWorld extends GridWorld {
     void this.furnish(middle, hub.corridors, ++this.decorRound);
   }
 
+  /** Die Zellen unter Bänken, Lampen und Pflanzen (`blockDecor`). */
+  private readonly decorCells = new Set<string>();
+
+  /** **Die Ausstattung sperrt ihre Zellen** — das 2D-Gitter ist die Wahrheit. */
+  protected override cellBlocked(ix: number, iz: number, level: number): boolean {
+    return level === 0 && this.decorCells.has(cellKey(ix, iz, level));
+  }
+
   /**
    * **Die Stoßkörper der Ausstattung** — sofort und nicht erst, wenn das
    * Modell da ist: Eine Bank, durch die man läuft, solange sie lädt, ist eine,
@@ -179,8 +188,7 @@ export class HubWorld extends GridWorld {
    * `solids`, also sieht sie auch das Wegnetz der NPCs.
    */
   private blockDecor(middle: THREE.Vector3, corridors: readonly HubCorridor[]): void {
-    const physics = this.physics;
-    if (!physics) return;
+    this.decorCells.clear();
     const pieces = hubDecor(
       corridors,
       this.targets.map((world) => world.accent),
@@ -190,6 +198,13 @@ export class HubWorld extends GridWorld {
       if (!box) continue;
       const width = box.maxX - box.minX;
       const depth = box.maxZ - box.minZ;
+      // **Zuerst ins Zellgitter** — über das Gehen entscheidet die Ebene, nicht
+      // die Physik; der Körper allein hob die Figur nur auf die Bank.
+      const cx = middle.x + (box.minX + box.maxX) / 2;
+      const cz = middle.z + (box.minZ + box.maxZ) / 2;
+      for (const key of footprintCellKeys(cx, cz, width, depth)) this.decorCells.add(key);
+      const physics = this.physics;
+      if (!physics) continue;
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(width, DECOR_BLOCK_HEIGHT, depth),
         this.hidden,
