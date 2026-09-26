@@ -308,6 +308,7 @@ export function findPath(
       if (!believedWalkable(belief, graph, next)) continue;
       const wall = believedWallState(belief, graph.wall(current, dir), power, scratch);
       if (!wall.walk) continue;
+      if (sidestep(graph, current, next, dir, profile)) continue;
       const step = enterCost(graph, next, profile);
       if (!Number.isFinite(step)) continue;
       relax(state, into, g + step + wall.cost);
@@ -352,6 +353,33 @@ export function findPath(
     open.push(next, cost + heuristic);
     return true;
   }
+}
+
+/**
+ * **Seitlich über die Kante einer Treppe, wo sie zu hoch ist** — `true` heißt:
+ * dieser Schritt geht nicht.
+ *
+ * Eine Treppenkachel liegt auf ihrer Etage, aber um ihren Fuß höher
+ * (`TileFacts.rise`: 0, 0,7, 1,4, 2,1 m bei vier Kacheln). Längs des Laufs
+ * geht man sie hinauf; **quer** dazu ist ihre Seite eine Kante, und hinauf
+ * oder hinunter kommt man dort nur, wo der Unterschied eine Stufe nicht
+ * übersteigt (`CostProfile.stepUp`). Vorher plante ein NPC neben der Treppe
+ * hoch und trat oben seitlich auf die letzte Stufe — 2,1 m über dem Boden
+ * (gemeldet in der _Test Navigation_). Welche Kachel eine Treppe ist und wohin
+ * sie steigt, sagt `NavGraph.flightAt`.
+ */
+function sidestep(
+  graph: NavGraph,
+  from: TileKey,
+  to: TileKey,
+  dir: Dir,
+  profile: CostProfile,
+): boolean {
+  const across = (flight: Dir | null): boolean =>
+    flight !== null && flight !== dir && flight !== opposite(dir);
+  if (!across(graph.flightAt(from)) && !across(graph.flightAt(to))) return false;
+  const rise = (graph.tile(to)?.rise ?? 0) - (graph.tile(from)?.rise ?? 0);
+  return Math.abs(rise) > profile.stepUp;
 }
 
 /**

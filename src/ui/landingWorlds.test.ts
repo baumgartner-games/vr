@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { markWorldCard, renderWorldCards, worldCards } from './landingWorlds';
-import { WORLDS } from '../worlds';
+import { WORLDS, WORLD_FOLDERS } from '../worlds';
 
 const SOURCE = [
   { id: 'hub', title: 'Hub', tagline: 'Startpunkt', accent: 0x4aa8ff, preview: 'worlds/hub.webp' },
@@ -49,5 +49,56 @@ describe('renderWorldCards', () => {
     markWorldCard(host, 'hub');
     expect(nodes[0]!.classList.contains('is-selected')).toBe(true);
     expect(host.querySelectorAll('.is-selected')).toHaveLength(1);
+  });
+});
+
+describe('Ordner auf der Startseite', () => {
+  const worlds = [
+    ...SOURCE,
+    {
+      id: 'nav',
+      title: 'Test Navigation',
+      tagline: 'Wege',
+      accent: 0xb58cff,
+      test: true,
+      folder: 'test',
+      preview: 'worlds/nav.webp',
+    },
+  ];
+  const folders = [{ id: 'test', title: 'Test', tagline: 'Prüfstände', accent: 0xb58cff }];
+
+  it('macht aus einem Ordner eine Karte mit den Welten darin', () => {
+    const cards = worldCards(worlds, './', folders);
+    const folder = cards.find((card) => card.id === 'folder:test')!;
+    expect(folder.children!.map((card) => card.id)).toEqual(['nav']);
+    expect(folder.badge).toBe('ORDNER · 1');
+    expect(folder.image).toBe('./worlds/nav.webp');
+    expect(cards.some((card) => card.id === 'nav')).toBe(false);
+  });
+
+  it('schlägt den Ordner auf, wählt darin und kommt zurück', () => {
+    const host = document.createElement('div');
+    const picked: string[] = [];
+    renderWorldCards(host, worldCards(worlds, './', folders), 'hub', (card) =>
+      picked.push(card.id),
+    );
+    host.querySelector<HTMLButtonElement>('[data-world="folder:test"]')!.click();
+    expect(picked).toEqual([]);
+    const inside = [...host.querySelectorAll<HTMLElement>('.wcard[data-world]')];
+    expect(inside.map((node) => node.dataset['world'])).toEqual(['nav']);
+    inside[0]!.click();
+    expect(picked).toEqual(['nav']);
+    markWorldCard(host, 'nav');
+    expect(inside[0]!.classList.contains('is-selected')).toBe(true);
+    host.querySelector<HTMLButtonElement>('[data-back]')!.click();
+    // Draußen gilt der Ordner als gewählt, weil die gewählte Welt in ihm steht.
+    const folder = host.querySelector<HTMLElement>('[data-world="folder:test"]')!;
+    expect(folder.classList.contains('is-selected')).toBe(true);
+  });
+
+  it('steckt die Test Navigation in den Ordner „Test"', () => {
+    const cards = worldCards(WORLDS, './', WORLD_FOLDERS);
+    const folder = cards.find((card) => card.id === 'folder:test')!;
+    expect(folder.children!.map((card) => card.id)).toEqual(['test-navigation']);
   });
 });

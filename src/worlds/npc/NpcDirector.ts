@@ -83,6 +83,12 @@ export interface NpcWorld {
    * die Physik für ihn nicht mehr auf.
    */
   cells?: () => CellGrid | null;
+  /**
+   * **Wie hoch man auf einer Treppe steht** (`GridPlan.flightFloor`) — `null`,
+   * wo keine ist. Auf dem Lauf trägt diese Höhe den NPC und nicht die Physik
+   * (`Npc.update`), wie beim Spieler.
+   */
+  stairs?: (x: number, z: number, footY: number) => number | null;
 }
 
 /** Und was ein Werkzeug oder ein Menü damit tun darf. */
@@ -545,6 +551,7 @@ export class NpcDirector implements NpcControl {
       ? {
           graph,
           cells: this.world.cells?.() ?? null,
+          ...(this.world.stairs ? { stairs: this.world.stairs } : {}),
           at: player ? { x: player.x, y: player.y, z: player.z } : null,
           now: this.time,
         }

@@ -8,6 +8,9 @@ import {
   DIR_W,
   NO_TILE,
   TILE_MAX,
+  dirX,
+  dirZ,
+  opposite,
   TILE_MIN,
   keyLevel,
   keyX,
@@ -166,6 +169,8 @@ function corridorSource(graph: NavGraph, run: readonly TileKey[]): CellSource {
     open(tx, tz, dir, l) {
       const key = keyOf(tx, tz, l);
       if (key === NO_TILE) return false;
+      const stairs = flightEdge(graph, key, keyOf(tx + dirX(dir), tz + dirZ(dir), l), dir);
+      if (stairs !== null) return stairs;
       const wall = graph.wall(key, dir);
       if (!wall) return true;
       return wall.kind === 'door' && crossed.has(wallKey(key, dir));
@@ -176,6 +181,32 @@ function corridorSource(graph: NavGraph, run: readonly TileKey[]): CellSource {
     },
     blocked: (ix, iz, l) => graph.cellBlocked(ix, iz, l),
   };
+}
+
+/** Wie hoch eine Treppenseite höchstens sein darf, damit man seitlich hinaufkommt (m). */
+const FLIGHT_SIDE = 0.35;
+
+/**
+ * **Eine Kante an einer Treppe** (`NavGraph.flightAt`) — `true` offen, `false`
+ * zu, `null`: keine Treppe daran, es gilt der Graph.
+ *
+ * **Längs des Laufs ist sie offen**, auch wenn das Abtasten zwischen zwei
+ * Stufen eine Kante gesehen hat: Die Treppe ist genau der Weg hinauf.
+ * **Quer** dazu ist sie zu, sobald der Lauf dort höher oder tiefer liegt als
+ * eine Stufe (dieselbe Zahl wie `gridPlan.FLIGHT_SIDE_STEP`). Vorher lief der
+ * Block im Schlauch neben der Treppe hoch und trat oben seitlich auf die
+ * letzte Stufe, 2,1 m über dem Boden (gemeldet in der _Test Navigation_).
+ */
+function flightEdge(graph: NavGraph, key: TileKey, next: TileKey, dir: Dir): boolean | null {
+  const here = graph.flightAt(key);
+  const there = next === NO_TILE ? null : graph.flightAt(next);
+  if (here === null && there === null) return null;
+  const along = (flight: Dir | null): boolean =>
+    flight === null || flight === dir || flight === opposite(dir);
+  if (along(here) && along(there)) return graph.walkable(next);
+  const rise = (graph.tile(next)?.rise ?? 0) - (graph.tile(key)?.rise ?? 0);
+  if (Math.abs(rise) > FLIGHT_SIDE) return false;
+  return null;
 }
 
 /** Nur die Stellungen, an denen der Block die Richtung wechselt — und die Enden. */

@@ -324,6 +324,18 @@ export interface World {
   dispose(ctx: WorldContext): void;
 }
 
+/**
+ * **Ein Ordner von Welten** — gewünscht: _„eine Test Ordner Welt …, wenn ich
+ * drauf drücke habe ich Auswahl"_. Name, Zeile und Farbe für seinen Eintrag;
+ * welche Welten darin stehen, sagen die Welten selbst (`WorldDefinition.folder`).
+ */
+export interface WorldFolder {
+  id: string;
+  title: string;
+  tagline: string;
+  accent: number;
+}
+
 export interface WorldDefinition {
   id: string;
   title: string;
@@ -341,6 +353,13 @@ export interface WorldDefinition {
    * (`ui/menuGroups.worldKind`).
    */
   test?: boolean;
+  /**
+   * **Der Ordner, in dem die Welt steht** (`worlds/index.WORLD_FOLDERS`) —
+   * im Menü _Spielen_ und auf der Startseite ein Eintrag, der aufgeht, statt
+   * einer Zeile je Welt (`ui/menuGroups.folderWorlds`). Ohne Ordner steht sie
+   * für sich.
+   */
+  folder?: string;
   /**
    * **Das Bild der Welt auf der Startseite** — ein Pfad unter `public/`, ohne
    * führenden Schrägstrich (`worlds/hub.webp`). Ohne Bild zeichnet die

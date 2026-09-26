@@ -77,7 +77,7 @@ const SCENARIOS = [
     id: 'kitchen',
     title: 'Testküche (Bezug)',
     search: '?at=kitchen',
-    hash: 'test',
+    hash: 'sandbox',
     sim: 1,
   },
   { id: 'hub', title: 'Hub (Lobby-Deko)', hash: 'hub', sim: 1 },
@@ -122,11 +122,11 @@ const SCENARIOS = [
   },
   {
     id: 'seating',
-    title: 'Testwelt, Sitzecke mit NPCs',
+    title: 'Sandbox, Sitzecke mit NPCs',
     // Neben dem Eingang der Sitzecke: Wer näher als 30 m kommt, lässt die
     // Besucher herein (`test/zones/seating.ts`).
     search: '?at=-16,1',
-    hash: 'test',
+    hash: 'sandbox',
     sim: 20,
     yaw: 180,
   },

@@ -1,5 +1,6 @@
 import { clampSign, DEFAULT_SIGN, type SignSettings } from './signSettings';
 import { sanitizeSign, type SharedSign } from './signShare';
+import { WORLD_ALIASES } from '../index';
 
 /**
  * **Was ein Schild überlebt** — der Neustart des Browsers.
@@ -75,7 +76,13 @@ type StoredBoards = Record<string, SharedSign[]>;
 /** Die eigenen Schilder dieser Welt, so wie sie zuletzt standen. */
 export function storedSigns(worldId: string): SharedSign[] {
   const all = readJson<StoredBoards>(BOARDS_KEY, {});
-  const list = Array.isArray(all[worldId]) ? all[worldId]! : [];
+  // Unter altem Namen gespeichert (`WORLD_ALIASES`: die Testwelt heißt jetzt
+  // Sandbox)? Dann gelten diese, bis unter dem neuen gespeichert wird.
+  const former = Object.keys(WORLD_ALIASES).find(
+    (old) => WORLD_ALIASES[old] === worldId && Array.isArray(all[old]),
+  );
+  const own = all[worldId] ?? (former ? all[former] : undefined);
+  const list = Array.isArray(own) ? own : [];
   return list.map((entry) => sanitizeSign(entry)).filter((entry): entry is SharedSign => !!entry);
 }
 

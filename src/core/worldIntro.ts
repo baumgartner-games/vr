@@ -81,13 +81,22 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
       { action: 'menu', label: 'Menü' },
     ],
   },
-  test: {
-    goal: 'Der Prüfstand: neun Zonen auf einem Gelände — Türen, Effekte, Küche, Schießstand, Kartbahn, Kletterwand.',
+  sandbox: {
+    goal: 'Der Sandkasten: neun Zonen auf einem Gelände — Türen, Effekte, Küche, Schießstand, Kartbahn, Kletterwand.',
     first: 'Norden Effekte und Küche, Osten Schießstand, Süden Gokart.',
     tips: [
       { action: 'move', label: 'Gehen' },
       { action: 'use', label: 'Benutzen' },
       { action: 'tools', label: 'Werkzeug' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
+  'test-navigation': {
+    goal: 'Prüfstände der Wegsuche: Ein NPC läuft vom grünen Start zum blauen Ziel, sein Weg steht als Linie am Boden.',
+    first: 'Der rote Knopf vor jeder Kammer startet ihren Test.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'use', label: 'Knopf drücken' },
       { action: 'menu', label: 'Menü' },
     ],
   },

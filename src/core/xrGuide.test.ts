@@ -144,8 +144,8 @@ describe('xrGuide — die Knöpfe heißen wie in der Hand', () => {
     expect(keys[2]!.label).toBe('Greifen');
   });
 
-  it('nimmt in der Testwelt das Werkzeug mit dem Griff und fügt keinen zweiten an', () => {
-    const keys = xrIntroKeys(worldIntro('test')!.tips);
+  it('nimmt in der Sandbox das Werkzeug mit dem Griff und fügt keinen zweiten an', () => {
+    const keys = xrIntroKeys(worldIntro('sandbox')!.tips);
     expect(keys.filter((item) => item.key === 'Griff')).toHaveLength(1);
     expect(keys.find((item) => item.key === 'Griff')!.label).toBe('Werkzeug');
   });

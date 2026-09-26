@@ -335,7 +335,7 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
 - **Benutzbar wird ein Einbau in genau einer Zeile**, und die steht in
   `GridWorld.buildFixtures` und nicht in den Arten
   (`addUsable` → `markUsed`/`markHit`, `core/usable.ts`). Ein Knopf, ein Hebel,
-  ein Schild, ein Tor werden alle gleich angefasst; *was* dabei passiert,
+  ein Schild, ein Tor werden alle gleich angefasst; _was_ dabei passiert,
   entscheidet ihr `step`. Wer statt dessen je Art eine eigene Anmeldung
   schriebe, hätte beim fünften Einbau fünf Wege zum selben Haken. Der Hinweis
   über der Figur ist der Name der Art (_Knopf_). Wo man anfasst, darf die
@@ -357,7 +357,7 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   eine, die man ohne Bildschirm nicht mehr prüfen kann.
 - **Die Platte löst in jedem Bild neu aus**, in dem etwas auf ihr steht, und
   nicht nur beim Betreten. Nur so setzt die Tür dahinter ihre Uhr zurück und
-  fällt anderthalb Sekunden nach dem *Verlassen* zu statt unter dem, der in ihr
+  fällt anderthalb Sekunden nach dem _Verlassen_ zu statt unter dem, der in ihr
   steht. Gezählt wird das Gewicht als **Zahl** (`weightOn`): zwei Kisten sind
   zwei, und wer eine wegnimmt, hat immer noch eine.
 - **Knopf, Hebel, Platte und Lampe halten niemanden auf** (`solid()` ist
@@ -370,7 +370,7 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   die Umkleide_).
 - **Die Schiebetür des Gitters (`slidingDoor.ts`) bleibt, wie sie ist.** Sie
   schaltet ein Blatt zwischen auf und zu und baut es dabei neu; eine Tür, die
-  *fährt*, braucht ein Blatt, das jedes Bild woanders steht. Beides in einem
+  _fährt_, braucht ein Blatt, das jedes Bild woanders steht. Beides in einem
   Handgriff hieße, den einen umzubauen, damit der andere hineinpasst — und
   hinterher hätte die Station eine Tür, die sich anders öffnet als vorher.
 
@@ -436,9 +436,67 @@ erarbeiten musste:
   Quadern, die ohnehin dort liegen (siehe _Von oben_ und
   _Wie schön es aussieht_).
 
+## Sandbox, Ordner und die Test Navigation
+
+**Die Testwelt heißt seit September 2026 _Sandbox_** (Kennung `sandbox`,
+gewünscht: _„die „Test" Welt sollte in sandbox Welt umbenannt werden"_). Wo in
+diesen Kapiteln noch _Testwelt_ steht, ist sie gemeint; der Quelltext liegt
+weiter unter `src/worlds/test/`. Der alte Name lebt als **Alias** weiter
+(`worlds/index.WORLD_ALIASES`): `#test` in der Adresse und `findWorld('test')`
+führen in die Sandbox, ein Umbau unter `vr-welt:test` zieht beim ersten Laden
+nach `vr-welt:sandbox` um (`grid/worldStore.adoptFormer`), und die Schilder
+unter altem Namen gelten weiter (`signs/signStore.storedSigns`).
+
+**Welten können in einem Ordner stehen** (`WorldDefinition.folder`,
+`worlds/index.WORLD_FOLDERS`). Gewünscht: _„eine Test Ordner Welt …, wenn ich
+drauf drücke habe ich Auswahl eine erste und einzige Welt: Test Navigation
+Welt"_. Im Menü _Spielen_ ist ein Ordner eine Zeile, die aufgeht
+(`App.refreshMenu`, Kennung `world:folder:<id>`) — `groupMenu` zieht die
+Welten darin nicht einzeln heraus, weil sie in denselben Bereich gehörten.
+Auf der Startseite ist er eine Karte _ORDNER · n_, die sich aufschlägt, mit
+einer Karte zurück davor (`ui/landingWorlds.renderWorldCards`). Die Ordnung
+rechnet `ui/menuGroups.folderWorlds`: Ein Ordner steht, wo seine erste Welt
+stünde. Die Tore im Hub bleiben eines je Welt.
+
+**Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
+Ordner _Test_) sind drei Kammern aus Glas (`navTestPlan.ts`), vor jeder ein
+roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue Zielplatte**
+(immer sichtbar, ohne Tiefenprüfung):
+
+1. **Schräger Gang** — zwei Wände unter 45° von Wand zu Wand der Kammer,
+   dazwischen der einzige Weg.
+2. **Treppe** — hinauf aufs Podest, oben das Ziel.
+3. **Treppe und Lava** — oben geradeaus liegt Lava (`HAZARD_FIRE`) zwischen
+   Treppe und Ziel, rechts ist die Kammer zu Ende: Der NPC muss links herum.
+   Wer doch auf der Lava steht, stirbt (`NavTestWorld.burn`,
+   `NpcDirector.harm`).
+
+Der Knopf stellt eine Übungspuppe auf die grüne Platte und schickt sie bis
+auf die blaue (`sendTo`, 0,3 m statt `ERRAND_REACH`); am Ziel sagt die Welt
+_„… am Ziel"_. **Der berechnete Weg ist immer zu sehen** — die Ebene _Wege_
+der Navigationsansicht ist ab dem Aufbau an (`setNavLayer('paths')`).
+
+Was die Welt dafür an der Wegsuche aufgedeckt hat (Kapitel
+[Zellgitter](zellgitter.md)):
+
+- **Der Graph der NPCs ist hier der des Plans** (`GridWorld.navFromPlan`):
+  Das Abtasten fand über der Treppe Kacheln der Etage darüber, am Podest
+  Absprünge in jede Richtung und einen Sprung quer über den Lauf.
+- **Über einer Treppe liegt kein Boden** — auch im abgetasteten Graphen der
+  anderen Welten nimmt `GridWorld.navReady` die Kacheln darüber heraus.
+- **Seitlich auf eine hohe Stufe plant niemand** (`navPath.sidestep`,
+  `cellRoute.flightEdge`, `NavGraph.flightAt`).
+- **NPCs gehen Treppen wie der Spieler**: Auf dem Lauf trägt sie die Höhe
+  (`Npc.stairLift`, `NpcWorld.stairs` → `GridPlan.flightFloor`); ihr Zylinder
+  kam vorher keine Stufe hinauf.
+
+Nachgelaufen ohne Szene in `testnav/navTestPlan.test.ts` (Wege, Treppe,
+links um die Lava) und im echten Browser mit allen drei Knöpfen: Alle drei
+Puppen stehen auf ihrer blauen Platte, keine stirbt.
+
 ## Womit die Seite aufmacht
 
-**Ohne Adresse landet man in der Testwelt, und dort in der Küche**
+**Ohne Adresse landet man in der Sandbox (vormals Testwelt), und dort in der Küche**
 (`worlds/index.DEFAULT_WORLD`, `test/TestWorld.spawnPoint`,
 `test/layout.KITCHEN_SPAWN`). Hier stand der Hub, und er war richtig, solange
 er der Ort war, an dem etwas passiert: eine ruhige Halle mit einem Menü an der

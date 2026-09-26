@@ -299,18 +299,22 @@ export function groupMenu(entries: readonly MenuEntry[], options: GroupOptions =
   };
 
   for (const entry of entries) {
-    // Erst die Zeilen, die aus diesem Untermenü herausgehen.
+    const hit = placementOf(entry.id, table);
+    // Erst die Zeilen, die aus diesem Untermenü herausgehen — aber nicht die,
+    // die ohnehin in denselben Bereich gehörten: Die Welten eines Ordners
+    // (`world:folder:*`) bleiben in ihm, statt einzeln unter _Spielen_ zu
+    // landen.
     let kept = entry;
     if (entry.children) {
       const stay: MenuEntry[] = [];
       for (const child of entry.children) {
-        const hit = placementOf(child.id, table);
-        if (hit) put(hit.place.group, relabel(child, hit.place), hit.rank);
+        const out = placementOf(child.id, table);
+        if (out && out.place.group !== hit?.place.group)
+          put(out.place.group, relabel(child, out.place), out.rank);
         else stay.push(child);
       }
       if (stay.length !== entry.children.length) kept = { ...entry, children: stay };
     }
-    const hit = placementOf(entry.id, table);
     put(
       hit?.place.group ?? fallback,
       hit ? relabel(kept, hit.place) : kept,
@@ -417,4 +421,38 @@ export function sortWorlds<T extends { test?: boolean; experimental?: boolean }>
     .map((world, index) => ({ world, index }))
     .sort((a, b) => order[worldKind(a.world)] - order[worldKind(b.world)] || a.index - b.index)
     .map(({ world }) => world);
+}
+
+/**
+ * **Die Welten mit ihren Ordnern** (`WorldDefinition.folder`) — in der
+ * Reihenfolge des Menüs (`sortWorlds`), und ein Ordner steht dort, wo seine
+ * erste Welt stünde. Ein Ordner ohne Welt fällt weg; eine Welt mit einem
+ * Ordner, den es nicht gibt, steht für sich.
+ */
+export type WorldItem<W, F> =
+  | { readonly kind: 'world'; readonly world: W }
+  | { readonly kind: 'folder'; readonly folder: F; readonly worlds: readonly W[] };
+
+export function folderWorlds<
+  W extends { folder?: string; test?: boolean; experimental?: boolean },
+  F extends { id: string },
+>(worlds: readonly W[], folders: readonly F[]): WorldItem<W, F>[] {
+  const out: WorldItem<W, F>[] = [];
+  const open = new Map<string, W[]>();
+  for (const world of sortWorlds(worlds)) {
+    const folder = world.folder ? folders.find((one) => one.id === world.folder) : undefined;
+    if (!folder) {
+      out.push({ kind: 'world', world });
+      continue;
+    }
+    const inside = open.get(folder.id);
+    if (inside) {
+      inside.push(world);
+      continue;
+    }
+    const list = [world];
+    open.set(folder.id, list);
+    out.push({ kind: 'folder', folder, worlds: list });
+  }
+  return out;
 }

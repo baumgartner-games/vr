@@ -14,7 +14,7 @@ import {
   startOptions,
   type ScreenView,
 } from './core/screenView';
-import { DEFAULT_WORLD, WORLDS, findWorld } from './worlds';
+import { DEFAULT_WORLD, WORLDS, WORLD_FOLDERS, findWorld } from './worlds';
 import { markWorldCard, renderWorldCards, worldCards, type WorldCard } from './ui/landingWorlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
 import {
@@ -626,7 +626,7 @@ function pickWorld(card: WorldCard): void {
 if (worldCardsEl && !hauntLanding) {
   renderWorldCards(
     worldCardsEl,
-    worldCards(WORLDS, import.meta.env.BASE_URL),
+    worldCards(WORLDS, import.meta.env.BASE_URL, WORLD_FOLDERS),
     startWorld,
     pickWorld,
   );

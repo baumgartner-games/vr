@@ -41,7 +41,11 @@ describe('worldIntro — die Willkommens-Karte je Welt', () => {
   });
 
   it('nennt am Glas die Knöpfe, die dort stehen, und lässt den Rest weg', () => {
-    const keys = introKeys(worldIntro('test')!.tips, { device: 'touch', padKind: 'xbox', config });
+    const keys = introKeys(worldIntro('sandbox')!.tips, {
+      device: 'touch',
+      padKind: 'xbox',
+      config,
+    });
     expect(keys.map((one) => one.key)).toEqual(['Stock links', 'A', '☰']);
   });
 
