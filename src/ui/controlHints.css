@@ -17,6 +17,6 @@
  * dann rückt die Zeile am Glas unter sie.
  */
 @media (min-width: 601px) { .hints[data-zone="build"]:not([data-device="touch"]) { bottom: calc(env(safe-area-inset-bottom, 0px) + 122px); } }
-@media (max-width: 600px) { .hints[data-zone="build"][data-device="touch"] { top: max(150px, calc(env(safe-area-inset-top, 0px) + 142px)); } }
+@media (max-width: 600px) { .hints[data-zone="build"][data-device="touch"] { top: max(170px, calc(env(safe-area-inset-top, 0px) + 162px)); } }
 /* Auf dem Telefon ist das Menü ein Blatt über die ganze Breite — dort läge die Zeile auf den Zeilen. */
 @media (max-width: 639px) { .hints[data-menu="menu"] { display: none; } }
