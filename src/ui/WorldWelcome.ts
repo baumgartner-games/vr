@@ -79,6 +79,7 @@ export class WorldWelcome {
     world: WorldDefinition | null,
     visible: boolean,
     keys: (tips: NonNullable<ReturnType<typeof worldIntro>>['tips']) => HintItem[],
+    device = '',
   ): void {
     const id = world?.id ?? '';
     if (this.open && (id !== this.current || !visible)) {
@@ -100,6 +101,9 @@ export class WorldWelcome {
     this.first.textContent = intro.first ?? '';
     this.first.hidden = !intro.first;
     this.keys.replaceChildren(...keys(intro.tips).map(chip));
+    // Am Glas steht die Tastenhilfe oben (`controlHints.css`); die Karte rückt
+    // dann eine Zeile tiefer, statt sie zu verdecken.
+    this.element.dataset['device'] = device;
     this.keys.hidden = this.keys.childElementCount === 0;
     this.element.hidden = false;
     requestAnimationFrame(() => this.element.classList.add('is-open'));

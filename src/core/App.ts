@@ -947,8 +947,12 @@ export class App {
   private updateWelcome(covered: boolean): void {
     if (!this.welcome) return;
     const world = this.worldId ? (findWorld(this.worldId) ?? null) : null;
-    this.welcome.update(world, !covered, (tips) =>
-      introKeys(tips, { device: padNav.device, padKind: padNav.kind, config: inputConfig() }),
+    this.welcome.update(
+      world,
+      !covered,
+      (tips) =>
+        introKeys(tips, { device: padNav.device, padKind: padNav.kind, config: inputConfig() }),
+      padNav.device,
     );
   }
 
