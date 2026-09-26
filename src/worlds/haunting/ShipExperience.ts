@@ -35,6 +35,13 @@ import type { ToolChoice, ToolOption, WorldContext } from '../../core/types';
 import type { Usable } from '../../core/usable';
 import type { InteractionLike } from '../../core/interaction';
 import { isTyping } from '../../core/textEntry';
+import { hintDevice } from '../../core/controlHints';
+import { keyLabel, keysFor, padSlotsFor, type KeyAction } from '../../core/inputMap';
+import { inputConfig } from '../../core/inputStore';
+import { padSlotIcon } from '../../core/gamepadReport';
+import { hintsOn } from '../../ui/ControlHints';
+import { padNav } from '../../ui/padNav';
+import { playerKeysText } from './rules/playerKeys';
 import {
   SHIP_HAND_USE,
   lockerExitPress,
@@ -2906,6 +2913,39 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       door: this.doors.find((d) => _head.distanceTo(_pos.copy(d.at).setY(1)) < 2.8),
     };
   }
+  /**
+   * **Die Tastenzeile der Tafel** (`rules/playerKeys.ts`): die Hände immer,
+   * die Tasten nur mit Tastatur und ohne Tastenhilfe — sonst stünden dort
+   * `E` und `Tab` auch am Telefon und am Pad.
+   */
+  private keysText(): string {
+    const config = inputConfig();
+    const pads = document.getElementById('touch');
+    const device = hintDevice(padNav.device, pads !== null && !pads.hidden);
+    const key = (action: KeyAction): string => {
+      const code = keysFor(config, action)[0];
+      return code ? keyLabel(code) : '–';
+    };
+    const padUse = padSlotsFor(config, 'use')[0];
+    return playerKeysText({
+      device,
+      hintsShown: hintsOn(),
+      useKey:
+        device === 'pad'
+          ? padUse
+            ? padSlotIcon(padUse, padNav.kind)
+            : '–'
+          : device === 'touch'
+            ? 'A'
+            : key('use'),
+      toolsKey: key('tools'),
+      moveKeys: (['forward', 'left', 'back', 'right'] as const).map(key).join(''),
+      lightOn: this.rightItem === 'flashlight' && this.torchLit,
+      left: this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode],
+      right: this.rightItem === 'off' ? 'Hand frei' : this.rightLabel,
+    });
+  }
+
   private paintDom(): void {
     if (!this.player) return;
     // **In der Brille gibt es dieses Panel nicht** (`dom.hidden`, `update`) —
@@ -2919,6 +2959,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       near = this.nearby();
     const signature = JSON.stringify([
       crew.options,
+      crew.simulation ? null : this.keysText(),
       crew.hp,
       crew.hidden,
       crew.inventory,
@@ -3030,7 +3071,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           ? this.followBot
             ? 'Kamera folgt dem Bot · Freie Kamera: selbst durch das Schiff laufen'
             : 'Freie Kamera · WASD oder Stock · Bot folgen holt dich zurück'
-          : `WASD · Strg ducken · E benutzen (frei vor dir: Licht ${this.rightItem === 'flashlight' && this.torchLit ? 'aus' : 'an'}) · Werkzeug: Knopf unten rechts oder Tab · links: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · rechts: ${this.rightItem === 'off' ? 'Hand frei' : this.rightLabel}`,
+          : this.keysText(),
       ),
     );
     const panel = el('details');

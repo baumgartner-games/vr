@@ -464,7 +464,11 @@ nach unten steht jetzt da (`index.html`, `style.css` am Ende):
    (`ui/landingWorlds.ts`, mit Test). Die Reihenfolge ist die des Menüs:
    Spiele zuerst, dann Baustellen (`WIP`), dann Prüfstände (`TEST`);
    Haunting trägt `LOBBY`. Am Schreibtisch vier nebeneinander, am Telefon
-   zwei — die Karten sind ohne Scrollen zu sehen.
+   zwei — die Karten sind ohne Scrollen zu sehen. **Telefon quer** (ab 700
+   breit, höchstens 520 hoch, `style.css`): zwei Spalten, links die Karten,
+   rechts Titel, Ansicht und Knopf; die Karten beginnen dort 22 px unter
+   „Welt wählen", also unter dem ☰ oben links (vorher lag die erste Karte
+   6 px darunter), und der Titel hat Luft zu „Ansicht am Bildschirm".
 3. **Ansicht am Bildschirm** (oder mit Brille: die Haltung) — dieselbe Frage
    wie bisher, nur eine Reihe kleiner.
 4. **Der eine Knopf**, `#enter`: groß _Spielen_ (mit Brille _In VR spielen_),
@@ -580,7 +584,11 @@ eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
   wechselt die Welt, geht sie mit.
 - **Wo**: oben mittig. Im Schiff (`body.orbital-on`) steht dort links die
   Tafel des Technikers, und die Karte lag 26 px darüber — ab 820 Punkten
-  Breite rückt sie rechts daneben (`worldTransit.css`).
+  Breite rückt sie rechts daneben (`worldTransit.css`). **Am Telefon quer**
+  (ab 700 breit, höchstens 520 hoch) stehen rechts daneben aber die Knöpfe
+  fürs Glas — die Karte lag 16 px über dem Werkzeug-Knopf und ganz über `A`;
+  dort sitzt sie im Schiff unten mittig zwischen den beiden Stöcken, etwas
+  kleiner gesetzt.
 - **Einmal je Welt**, gemerkt im Browser (`bgvr.welcomed`, eine Liste der
   Ids). **Abschaltbar** unter _Menü → Steuerung & Hilfe → Eingaben →
   Willkommen je Welt_ (`bgvr.welcome`); wer sie wieder einschaltet, bekommt

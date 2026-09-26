@@ -195,6 +195,16 @@ Dieselbe Rechnung gilt für die Tasten auf der Willkommens-Karte. **Im Schiff**
 mittig lag sie auf _Zuklappen_/_Optionen_ der Tafel —, und schmaler als 481
 Punkte bleibt sie dort weg; die Tafel nennt ihre Tasten selbst.
 
+**Die Tastenzeile der Techniker-Tafel** (`.orbital-player__keys`) rechnet
+`worlds/haunting/rules/playerKeys.ts` (mit Test): Vorher stand dort fest
+„WASD · Strg ducken · E benutzen … Tab" — auch am Telefon und am Pad, und
+doppelt neben Tastenhilfe und Willkommens-Karte. Jetzt steht dort immer, was
+die Hände halten und was _Benutzen_ ins Leere tut („E ins Leere: Licht an"),
+mit dem Knopf des Geräts (`E`/Belegung, `Ⓐ`/`✕`, am Glas `A`). Die Tasten
+zum Laufen, Ducken und für die Werkzeugliste kommen nur mit **Tastatur** und
+nur, wenn die **Tastenhilfe abgeschaltet** ist. Das Gerät kommt wie überall
+aus `hintDevice(padNav.device, #touch sichtbar)`.
+
 **`Y` macht die Werkzeugliste am Pad wirklich zu.** `padNav` schließt sie in
 seinem eigenen Bild; lief das vor `FlatControls`, kam dieselbe Flanke dort bei
 schon geschlossener Liste an und öffnete sie gleich wieder. Ein `Y`, dessen
