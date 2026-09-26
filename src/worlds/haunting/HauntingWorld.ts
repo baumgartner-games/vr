@@ -3998,6 +3998,17 @@ export class HauntingWorld extends GridWorld {
     );
   }
 
+  /**
+   * **Jede Ansage auch als Einblendung am Bildschirm** (`ShipExperience.flash`,
+   * `ui/shipToast.ts`). `ctx.notify` allein landete am Bildschirm und am
+   * Telefon nur im Status des Handgelenk-Menüs — also nirgends, wo man
+   * hinsieht.
+   */
+  protected override announce(message: string): void {
+    super.announce(message);
+    this.experience?.flash(message);
+  }
+
   /** In welcher Runde man gerade ist — Übung, echt, Vorführung, vorbei (`rules/roundFlow.ts`). */
   private roundMode(): RoundMode {
     return roundMode({

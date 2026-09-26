@@ -358,6 +358,11 @@ body.orbital-on #hud { display: none; }
    Mitte, über dem Bordstock der Seite und unter der Tafel. */
 .orbital-hud { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 96px); transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: 10px; border: 1px solid #33556a; background: rgba(8, 24, 35, 0.86); color: #d8e7ec; font: 12px system-ui, sans-serif; pointer-events: none; z-index: 4; }
 .orbital-hud[hidden] { display: none; }
+/* **Die Meldungen des Schiffs** (`ui/shipToast.ts`): Lage und Breite setzt `toastPlace`, hier nur das Aussehen. */
+.orbital-toast { position: fixed; z-index: 5; box-sizing: border-box; padding: 8px 12px; border: 1px solid var(--hud-line); border-left: 3px solid #96eddb; border-radius: var(--hud-radius-sm); background: var(--hud-bg); color: var(--hud-ink); font: 13px/1.4 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); pointer-events: none; text-align: center; animation: orbital-toast-in .18s ease-out; }
+.orbital-toast[hidden] { display: none; }
+@keyframes orbital-toast-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .orbital-toast { animation: none; } }
 .orbital-hud__row { display: flex; align-items: baseline; gap: 10px; }
 .orbital-hud__row.is-low { border-color: #ff5a5f; }
 .orbital-hud__oxygen { font-size: 15px; font-variant-numeric: tabular-nums; }
