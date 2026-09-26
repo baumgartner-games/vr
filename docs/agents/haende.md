@@ -38,6 +38,11 @@ Geholt werden sie von Hand, nicht beim Bauen:
 node --experimental-strip-types tools/controllers.ts
 ```
 
+**Die Profile sagen auch, wo der Menü-Knopf sitzt**: Bauteil `menu`,
+`buttons[7]`, links, ab `oculus-touch-v3` (Quest 2). `XRInput` liest ihn als
+`ControllerState.menu`, und ☰ macht damit das Handgelenkmenü auf und zu
+(`WristMenus.update`, [Steuerung](steuerung.md)). Die Quest 1 meldet ihn nicht.
+
 Zwei Feinheiten, die im Code stehen und hier nicht verlorengehen sollen:
 
 - Die Fabrik von three wartet auf das `connected`-Ereignis eines Controllers.
