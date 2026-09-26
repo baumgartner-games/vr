@@ -50,7 +50,7 @@ export const STATION_VENTS: VentNetData = {
     { id: 'vent-o2', roomId: 'r9', x: 9, z: -36, dir: DIR_W },
     { id: 'vent-navigation', roomId: 'r10', x: 30, z: -36, dir: DIR_E },
     { id: 'vent-admin', roomId: 'r11', x: 6, z: -33, dir: DIR_N },
-    { id: 'vent-shields', roomId: 'r12', x: 18, z: -25, dir: DIR_E },
+    { id: 'vent-shields', roomId: 'r12', x: 19, z: -25, dir: DIR_E },
     { id: 'vent-communications', roomId: 'r13', x: 10, z: -21, dir: DIR_E },
   ],
   links: [

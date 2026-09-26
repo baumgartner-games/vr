@@ -30,7 +30,43 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
     Schrägecken (`cuts`, das Haus außerhalb der Station) gleichermaßen.
   - Wandnachbarn (`roomGraph`) und Türen (`connectStation` → `sharedWith`)
     zählen Kacheln, nicht Rechtecke: Eine Nische hat Wände mitten im Rechteck.
-  - Die Gänge sind so breit wie gezeichnet (meist drei Kacheln);
+  - **Die Gänge folgen drei Regeln des Besitzers** (September 2026,
+    `stationRules.ts`, geprüft über 60 Samen in `stationRules.test.ts`):
+    _„Gänge sind höchstens 4 Felder breit"_, _„zwischen zwei parallelen
+    Gängen liegen ebenfalls nur 4 Felder"_, _„keine zwei Türen direkt
+    hintereinander"_. **Ein Feld ist eine halbe Kachel** (`CELL` = 0,5 m) —
+    so hat der Besitzer das Wort beim Zellgitter selbst eingeführt
+    ([Zellgitter](zellgitter.md): _„Jede Kachel wird in vier kleine Felder
+    geteilt"_), und so heißt es im Menü (_Belegte Felder_). Also:
+    - **Jeder Gang ist zwei Kacheln = vier Felder breit** — so breit wie
+      eine Tür (`STATION_DOOR_SPAN`), zwei Figuren nebeneinander. Gemessen
+      ohne Richtung: Nirgends liegt ein Quadrat von 3 × 3 Kacheln ganz auf
+      Gangboden (`corridorWidthViolations`), eine Kreuzung zweier schmaler
+      Gänge ist also nicht breit. Vorher waren es meist drei Kacheln, an
+      Kreuzungen bis zu acht.
+    - **Parallele Gänge**: Liegt auf zwei benachbarten Zeilen (oder Spalten)
+      zwischen denselben zwei Gangkacheln **nur Leere**, laufen dort zwei
+      Gänge nebeneinander, und die Lücke ist genau zwei Kacheln
+      (`parallelGapViolations`). Liegt ein Raum dazwischen, zählt es nicht —
+      der ist so tief, wie er gezeichnet ist.
+    - **Türen**: Zwei Türen eines Raums oder Gangs, die in **verschiedene**
+      Nachbarn führen, liegen Mitte zu Mitte mindestens `STATION_DOOR_GAP`
+      = 3 m = sechs Felder auseinander (`doorChainViolations`) — kein
+      Stummelgang von ein, zwei Kacheln zwischen Gang und Raumtür, keine
+      Schleuse aus zwei Schotten, keine zwei Türen genau gegenüber über
+      einen Gang. Jeder Gang läuft deshalb bis an die Wand des Raums, in den
+      er führt (MedBay, Communications, Electrical hatten Stummel).
+      `connectStation` rechnet die Fugen zwischen Gängen zuerst und setzt
+      jede Raumtür an die Stelle der Wand, die am weitesten von den anderen
+      Türen weg ist (gedeckelt bei 3 m, danach zählt die Nähe zur Mitte).
+      Zwei Türen in denselben Gang bekommt ein Raum nur, wenn er groß ist
+      (`SMALL_ROOM_TILES`) und beide die Regel halten.
+    - Die Gänge sind in `STATION_MAP` neu gemalt; die Räume nicht, bis auf
+      **Shields, eine Kachel breiter** (die Westtür liegt jetzt tiefer, und
+      die Einrichtung fand bei 11 von 300 Samen keinen Platz mehr; die
+      Klappe `vent-shields` wandert mit an die neue Ostwand). Die
+      Grundriss-Vorlage am Boden zeigt die Gänge daher breiter, als sie
+      gebaut sind.
     `stationRooms` legt die `:`-Kacheln zu Rechtecken zusammen.
   - **Kein Raum berührt einen anderen** (`roomGraph.test`: keine Wandnachbarn
     ohne Tür); wo die Zeichnung zwei Schrägen dichter zusammenlegt, ist eine
