@@ -32,7 +32,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   und sagt darunter, wohin (siehe [Die Seite selbst](./seite.md#die-startseite-eine-welt-wählen-einmal-drücken)).
   Oben links derselbe **Menü-Knopf** wie im Spiel (`#landing-menu`): Welten,
   Bewegung, Aussehen, Grafik schon vor dem Start, als Seite (`ui/PageMenu.ts`),
-  geordnet in Hauptbereiche (siehe [Das Menü](./seite.md#das-menü-sieben-bereiche-und-eine-tabelle)).
+  geordnet in Hauptbereiche (siehe [Das Menü](./seite.md#das-menü-acht-bereiche-und-eine-tabelle)).
   Einen **Hinweiskasten** mit fünf Zeilen Steuerung gab es hier auch einmal; er
   ist weg — was darin stand, steht im Menü, in dieser Datei und in der README,
   und auf einer Startseite liest es niemand.

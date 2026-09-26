@@ -33,7 +33,7 @@ import type { MenuEntry, MenuIcon } from './menu';
  */
 
 export type MenuGroupId =
-  'spielen' | 'bauen' | 'zusammen' | 'figur' | 'einstellungen' | 'hilfe' | 'werkstatt';
+  'spielen' | 'welt' | 'bauen' | 'zusammen' | 'figur' | 'einstellungen' | 'hilfe' | 'werkstatt';
 
 export interface MenuGroup {
   readonly id: MenuGroupId;
@@ -57,9 +57,23 @@ export const MENU_GROUPS: readonly MenuGroup[] = [
   {
     id: 'spielen',
     label: 'Spielen',
-    sub: 'Welten, Ansicht und was diese Welt kann',
+    sub: 'Welt wählen · Ansicht',
     icon: 'worlds',
     accent: 0x4aa8ff,
+  },
+  /**
+   * **Was es in dieser Welt gibt** — Name und Farbe setzt die App nach der
+   * Welt, in der man steht (`GroupOptions.overrides`): _Testwelt_ mit Zonen,
+   * Karts und Zurücksetzen, _Haunting / Orbital_ mit Runde, Plätzen und Ton.
+   * Hier landet auch alles, was eine Welt mitbringt und die Tabelle nicht
+   * kennt (`DEFAULT_GROUP`).
+   */
+  {
+    id: 'welt',
+    label: 'Diese Welt',
+    sub: 'Was es hier gibt',
+    icon: 'portal',
+    accent: 0x5ee0a0,
   },
   {
     id: 'bauen',
@@ -119,6 +133,12 @@ export interface MenuPlacement {
   readonly match: string;
   readonly group: MenuGroupId;
   readonly label?: string;
+  /**
+   * **Ganz ans Ende des Bereichs** — hinter alles, auch hinter das, was die
+   * Tabelle nicht kennt. Für _Zurücksetzen_: Was alles auf Anfang stellt,
+   * steht dort, wo man es nicht im Vorbeigehen trifft.
+   */
+  readonly tail?: boolean;
 }
 
 /**
@@ -139,15 +159,17 @@ export interface MenuPlacement {
  * _Spielen_ erscheinen soll, braucht gar nichts — `world:*` fängt sie.
  */
 export const MENU_PLACEMENT: readonly MenuPlacement[] = [
-  // Spielen: erst die Welten, dann wie man sie sieht, dann was die Welt hier
-  // anbietet. Was eine Welt mitbringt und hier nicht steht, hängt ebenfalls
-  // hier hinten an (`DEFAULT_GROUP`).
+  // Spielen: erst die Welten, dann wie man sie sieht.
   { match: 'world:*', group: 'spielen' },
   { match: 'view', group: 'spielen' },
-  { match: 'test:jump', group: 'spielen' },
-  { match: 'kart:home', group: 'spielen' },
-  { match: 'kart:times', group: 'spielen' },
-  { match: 'reset', group: 'spielen' },
+
+  // Diese Welt: was sie anbietet. Was eine Welt mitbringt und hier nicht
+  // steht, hängt ebenfalls hier hinten an (`DEFAULT_GROUP`) — _Zurücksetzen_
+  // steht mit Absicht ganz unten, dort drückt man es nicht aus Versehen.
+  { match: 'test:jump', group: 'welt' },
+  { match: 'kart:home', group: 'welt' },
+  { match: 'kart:times', group: 'welt' },
+  { match: 'reset', group: 'welt', tail: true },
 
   // Bauen & Gestalten: der Modus zuerst — er entscheidet, ob man überhaupt
   // bauen darf —, dann, womit.
@@ -190,7 +212,7 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
 ];
 
 /** Wohin ein Eintrag der Wurzel kommt, den die Tabelle nicht kennt. */
-export const DEFAULT_GROUP: MenuGroupId = 'spielen';
+export const DEFAULT_GROUP: MenuGroupId = 'welt';
 
 /** Die Zeile der Tabelle für eine Id — oder `null`. */
 export function placementOf(
@@ -202,7 +224,7 @@ export function placementOf(
     const hit = place.match.endsWith('*')
       ? id.startsWith(place.match.slice(0, -1))
       : id === place.match;
-    if (hit) return { place, rank };
+    if (hit) return { place, rank: place.tail ? table.length + 1 + rank : rank };
   }
   return null;
 }
@@ -210,8 +232,13 @@ export function placementOf(
 export interface GroupOptions {
   /** Steht ganz oben, vor allen Bereichen — _Weiterspielen_. */
   readonly lead?: readonly MenuEntry[];
-  /** Die Unterzeile eines Bereichs, wenn sie mehr sagen soll als `sub`. */
-  readonly subs?: Partial<Record<MenuGroupId, string>>;
+  /**
+   * Name, Unterzeile oder Farbe eines Bereichs, wenn sie mehr sagen sollen
+   * als die Vorgabe — _Diese Welt_ heißt, wie die Welt heißt.
+   */
+  readonly overrides?: Partial<
+    Record<MenuGroupId, Partial<Pick<MenuGroup, 'label' | 'sub' | 'accent' | 'badge'>>>
+  >;
   readonly groups?: readonly MenuGroup[];
   readonly table?: readonly MenuPlacement[];
 }
@@ -237,7 +264,7 @@ interface Placed {
  *    Eintrags — der Weg dorthin (`menuNav`) bleibt derselbe, egal, ob noch
  *    etwas dazukommt.
  * 3. **Was die Tabelle nicht kennt, bleibt, wo es ist** — in einem Untermenü
- *    dort, an der Wurzel im Bereich `DEFAULT_GROUP`. Eine Welt, die eine neue
+ *    dort, an der Wurzel im Bereich `DEFAULT_GROUP` (_Diese Welt_). Eine Welt, die eine neue
  *    Zeile mitbringt, verliert sie also nicht, nur weil hier niemand
  *    nachgetragen hat.
  *
@@ -280,18 +307,18 @@ export function groupMenu(entries: readonly MenuEntry[], options: GroupOptions =
   }
 
   const root: MenuEntry[] = [...(options.lead ?? [])];
-  for (const group of groups) {
+  for (const base of groups) {
+    const group = { ...base, ...options.overrides?.[base.id] };
     const placed = buckets.get(group.id) ?? [];
     if (placed.length === 0) continue;
     placed.sort((a, b) => a.rank - b.rank || a.seen - b.seen);
     const children = placed.map((item) => item.entry);
-    const sub = options.subs?.[group.id];
     const only = children.length === 1 ? children[0]! : null;
     if (only?.children) {
       root.push({
         ...only,
         label: group.label,
-        sub: only.sub ?? sub ?? group.sub,
+        sub: only.sub ?? group.sub,
         icon: group.icon,
         accent: group.accent,
         ...(group.badge ? { badge: group.badge } : {}),
@@ -301,7 +328,7 @@ export function groupMenu(entries: readonly MenuEntry[], options: GroupOptions =
     root.push({
       id: group.id,
       label: group.label,
-      sub: sub ?? group.sub,
+      sub: group.sub,
       icon: group.icon,
       accent: group.accent,
       ...(group.badge ? { badge: group.badge } : {}),

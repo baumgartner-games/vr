@@ -58,6 +58,7 @@ describe('groupMenu', () => {
     expect(ids(root)).toEqual([
       'menu:close',
       'spielen',
+      'welt',
       'bauen',
       'net',
       'look',
@@ -70,10 +71,26 @@ describe('groupMenu', () => {
     expect(child(root, 'look').label).toBe('Figur');
   });
 
-  it('stellt Welten zuerst und was die Welt mitbringt hinten an „Spielen"', () => {
+  it('stellt unter „Spielen" die Welten und die Ansicht', () => {
     const spielen = child(groupMenu(flat()), 'spielen');
-    // `kitchen:order` steht in keiner Tabelle — und geht trotzdem nicht verloren.
-    expect(ids(spielen.children!)).toEqual(['world:hub', 'world:test', 'view', 'kitchen:order']);
+    expect(ids(spielen.children!)).toEqual(['world:hub', 'world:test', 'view']);
+  });
+
+  it('sammelt, was die Welt mitbringt, unter ihrem eigenen Namen', () => {
+    const root = groupMenu(
+      [
+        ...flat(),
+        { id: 'reset', label: 'Zurücksetzen' },
+        { id: 'test:jump', label: 'Zone', children: [] },
+      ],
+      { overrides: { welt: { label: 'Testwelt', accent: 0x5ee0a0 } } },
+    );
+    const welt = child(root, 'welt');
+    expect(welt.label).toBe('Testwelt');
+    expect(welt.accent).toBe(0x5ee0a0);
+    // `kitchen:order` steht in keiner Tabelle — und geht trotzdem nicht
+    // verloren; _Zurücksetzen_ bleibt ganz unten.
+    expect(ids(welt.children!)).toEqual(['test:jump', 'kitchen:order', 'reset']);
   });
 
   it('zieht Prüfzeilen aus ihrem Menü in die Werkstatt — und lässt den Rest stehen', () => {

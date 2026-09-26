@@ -1050,7 +1050,18 @@ export class App {
           run: () => this.wristMenu.toggle(false),
         },
       ],
-      subs: here ? { spielen: `${here.title} · Welten, Ansicht, was es hier gibt` } : {},
+      // _Diese Welt_ heißt, wie die Welt heißt, und trägt ihre Farbe.
+      overrides: here
+        ? {
+            spielen: { sub: `Gerade: ${here.title} · Welt wählen, Ansicht` },
+            welt: {
+              label: here.title,
+              sub: here.tagline,
+              accent: here.accent,
+              badge: WORLD_BADGES[worldKind(here)],
+            },
+          }
+        : {},
     });
 
     // Rebuilding while the menu is open is normal here: the peer list and the

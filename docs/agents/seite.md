@@ -160,7 +160,7 @@ Für die Spielwiese heißt das: Auf einer PS5 spielt man **mit dem Zeiger**, und
 genau dafür ist die Ansicht _Von oben_ ohnehin gebaut (Maus zielt, Klick
 schießt). Der Vollbildknopf ist dort besonders viel wert.
 
-## Das Menü: sieben Bereiche und eine Tabelle
+## Das Menü: acht Bereiche und eine Tabelle
 
 Gemeldet war: „Die Menüführung ist verbesserungswürdig — wie die Menüs
 aufgebaut und gruppiert sind." Bis dahin hing **jeder** Eintrag an der Wurzel:
@@ -177,7 +177,8 @@ lesen:
 | Bereich | Was darin steht (Id) |
 | ------- | -------------------- |
 | _Weiterspielen_ | steht über allem — das Häufigste, was man mit einem offenen Menü tut |
-| **Spielen** | die Welten (`world:*`, Spiele zuerst, `WIP`/`TEST` hinten), _Ansicht_ (`view`), und was die Welt anbietet: _Zu einer Zone_, _Karts in die Box_, _Zeiten löschen_, _Zurücksetzen_ |
+| **Spielen** | die Welten (`world:*`, Spiele zuerst, `WIP`/`TEST` hinten) und _Ansicht_ (`view`) |
+| **_Name der Welt_** (`welt`) | was diese Welt anbietet — in der Testwelt _Zu einer Zone_, _Karts in die Box_, _Zeiten löschen_, in Haunting Runde, Plätze, Ton; _Zurücksetzen_ ganz unten (`tail`). Name, Zeile, Farbe und Schildchen kommen von der Welt (`GroupOptions.overrides`) |
 | **Bauen & Gestalten** | _Spielmodus_ (aus `settings` herausgezogen), _Werkzeuge_, _Magischer Beutel_, _KayKit-Regal_, _NPC_, _Welt sichern_ |
 | **Zusammen** | die Verbindung (`net`): Raum, Name, Chat, Stimme, Zuschauen |
 | **Figur** | das Aussehen (`look`) |
@@ -203,8 +204,9 @@ ein Bereich; sie greift auf zwei Ebenen:
 **Einen neuen Menüpunkt einordnen:** eine Id geben und sie in
 `MENU_PLACEMENT` an die Stelle schreiben, an der er im Bereich stehen soll
 (die Reihenfolge der Tabelle ist die Reihenfolge im Bereich). Was dort nicht
-steht, geht nicht verloren: An der Wurzel landet es hinten in _Spielen_
-(„was diese Welt kann"), in einem Untermenü bleibt es, wo es ist. Eine neue
+steht, geht nicht verloren: An der Wurzel landet es im Bereich der Welt
+(`DEFAULT_GROUP`, vor _Zurücksetzen_), in einem Untermenü bleibt es, wo es
+ist. `tail: true` stellt eine Zeile hinter alles, auch hinter das Unbekannte. Eine neue
 Welt braucht gar nichts — `world:*` fängt sie; ist sie ein Prüfstand, bekommt
 ihre Definition `test: true` (Schildchen `TEST`, hinter die Spiele), eine
 Baustelle `experimental: true` (`WIP`).
@@ -254,6 +256,7 @@ In älteren Kapiteln steht oft noch der alte Weg; so heißt er jetzt:
 | ------ | ----- |
 | Menü → Welten | Menü → Spielen |
 | Menü → Ansicht | Menü → Spielen → Ansicht |
+| Menü → Zu einer Zone, Karts, Zeiten, Zurücksetzen, die Einträge von Haunting | Menü → _Name der Welt_ |
 | Menü → Verbindung | Menü → Zusammen |
 | Menü → Aussehen | Menü → Figur |
 | Menü → Bewegung / Grafik | Menü → Einstellungen → Bewegung / Grafik |
