@@ -1,6 +1,7 @@
 import { INTENT_LABELS, INTENTS, startLabel, applyIntent } from './lobby';
 import { defaultSetup, withWho } from './roundSetup';
 import {
+  canHide,
   FLOW,
   FLOW_STEPS,
   LOBBY_FLOW,
@@ -44,6 +45,22 @@ describe('Der Ablauf einer Runde', () => {
     expect(pauseActions('real')).toEqual(['stop']);
     expect(pauseActions('demo')).toEqual(['stop']);
     expect(pauseActions('over')).toEqual(['again', 'back']);
+  });
+
+  /**
+   * **Der Schutzschrank geht auch in der Übungsrunde auf** — auch im Stand
+   * vor dem Start (`briefing`, ohne `options.test`), in dem man nach dem
+   * Beitreten landet. Befund: „Ich kann in der Übungsrunde nicht in den Spind
+   * rein."
+   */
+  it('lässt in der Übung und in der echten Runde in den Schutzschrank', () => {
+    const base = { test: false, simulation: false };
+    expect(canHide(roundMode({ ...base, phase: 'briefing' }))).toBe(true);
+    expect(canHide(roundMode({ ...base, phase: 'running', test: true }))).toBe(true);
+    expect(canHide(roundMode({ ...base, phase: 'running' }))).toBe(true);
+    expect(canHide(roundMode({ ...base, phase: 'running', simulation: true }))).toBe(false);
+    expect(canHide(roundMode({ ...base, phase: 'won' }))).toBe(false);
+    expect(canHide(roundMode({ ...base, phase: 'lost' }))).toBe(false);
   });
 
   /**

@@ -978,7 +978,8 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   ein- oder aussteigt. Wer das Netz ändert, ändert die Datendatei.
   `ShipExperience.inLockerRoom` prüft Raumzugehörigkeit vor Codeeingabe,
   Eintritt und Nahbereichsauswahl: kein Schutzschrankzugriff durch Nachbarwände.
-  Übungsschränke setzen den passenden Trainingsraum und aktiven Test voraus.
+  Die Schränke im Testdeck (`training-…`) setzen den passenden Trainingsraum
+  und aktiven Test voraus.
   **Schutzschrank und Frachtschrank leuchten, und in der Brille gehen sie mit
   Trigger oder Greifen** (`shipHandUse.ts`, mit Test). Gemeldet war: „Die
   Trigger-Interaktion geht bei den Schutzspinden nicht." Zwei Gründe: Beim
@@ -1004,6 +1005,20 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   `lockerExitPress`) — nicht im Bild des Einstiegs (`interactionCooldown`).
   Tastenfeld antippen und `A` bleiben. Von oben und aus den Augen leuchtet
   damit auch der ganze Kasten statt nur des Tastenfelds.
+  **Der Schutzschrank geht auch in der Übungsrunde auf** (`rules/roundFlow.ts`,
+  `canHide`, mit Test; `ShipExperience.hideable`). Gemeldet war am Handy:
+  „Ich kann in der Übungsrunde nicht in den Spind rein." Der Schrank leuchtete
+  und `A` traf ihn auch (`useObject`) — aber `press`/`lockerDigit` fragten
+  `active`, und das verlangt „Runde läuft oder `options.test`". Die
+  Übungsrunde nach dem Beitreten ist der Stand **vor** dem Start (`briefing`,
+  ohne `options.test`), also schluckte der Schrank jeden Druck stumm, und
+  weil der Kern ihn als Ziel hatte, ging auch das Licht nicht um. Jetzt gilt
+  `canHide(roundMode)`: in Übung und echter Runde ja, in der Vorführung und
+  nach dem Ende nein. Kisten, Konsolen und Medkit bleiben bei `active` — sie
+  gehören der Runde. Wer beim Start der echten Runde (oder beim Abbrechen)
+  noch im Schrank steckt, verliert das Versteck mit dem frischen Stand; der
+  Wechsel von `hidden` auf leer taut dann das Gestell auf und nimmt auch den
+  Geist des Schranks zurück (`ghostLocker(…, false)` im `hiddenWas`-Zweig).
 
 **Mission, Werkzeuge und Komfort**
 

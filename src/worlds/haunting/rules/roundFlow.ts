@@ -147,6 +147,20 @@ export function pauseActions(mode: RoundMode): Array<'real' | 'stop' | 'again' |
 }
 
 /**
+ * **Wann der Schutzschrank aufgeht** — in der Übung und in der echten Runde.
+ *
+ * Der Befund des Besitzers: _„Ich kann in der Übungsrunde nicht in den Spind
+ * rein."_ Die Übungsrunde ist meist der Stand vor dem Start (`briefing`), und
+ * der Schrank fragte nach „Runde läuft oder `options.test`" — das galt dort
+ * beides nicht, also schluckte er jeden Druck stumm. Die Übung ist aber genau
+ * zum Ausprobieren da. Nur in der Vorführung (die Bots spielen) und nach dem
+ * Ende bleibt er zu.
+ */
+export function canHide(mode: RoundMode): boolean {
+  return mode === 'practice' || mode === 'real';
+}
+
+/**
  * **Was die Lobby der Startseite über den Ablauf sagt** (`#haunting`,
  * `main.ts` → `#haunt-flow`): Wer dort steht, soll vor dem Beitreten wissen,
  * dass er in der Übungsrunde landet und wie aus ihr eine echte Runde wird —

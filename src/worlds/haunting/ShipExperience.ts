@@ -86,6 +86,7 @@ import {
 import { botArchivist, describeSetup, loadSetup, powersOf } from './rules/roundSetup';
 import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import {
+  canHide,
   FLOW,
   MODE_TEXT,
   pauseActions,
@@ -906,6 +907,15 @@ export class ShipExperience {
     const phase = this.host.state().phase;
     return this.player && (phase === 'running' || this.crew.options.test) && !this.crew.simulation;
   }
+  /**
+   * **Ob der Schutzschrank antwortet** — weiter gefasst als `active`: auch in
+   * der Übungsrunde vor dem Start (`rules/roundFlow.ts`, `canHide`). Kisten
+   * und Konsolen bleiben dort zu, sie gehören der Runde; der Schrank ist zum
+   * Ausprobieren da und ändert an ihr nichts.
+   */
+  private get hideable(): boolean {
+    return this.player && !this.crew.simulation && canHide(this.roundMode());
+  }
 
   private screen(width: number, height: number, pixels = 512): Screen {
     const canvas = document.createElement('canvas');
@@ -1480,7 +1490,7 @@ export class ShipExperience {
       ghost: null,
     });
     const press = (): void => {
-      if (!this.active) return;
+      if (!this.hideable) return;
       const locker = this.lockers.find((l) => l.id === id)!;
       if (locker.open) {
         this.enterLocker(locker);
@@ -1523,7 +1533,7 @@ export class ShipExperience {
    * Tastenfeld und das Panel ihn noch schicken; er sagt nichts mehr.
    */
   private lockerDigit(id: string, _digit: number): void {
-    if (!this.active) return;
+    if (!this.hideable) return;
     if (this.crew.hidden) {
       this.leaveLocker();
       return;
@@ -2493,6 +2503,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         if (hidden) this.savedRigFrozen = ctx.rig.frozen;
         ctx.rig.frozen = hidden || this.savedRigFrozen;
         this.hiddenWas = hidden;
+        // Wer im Schrank steckte, als die Runde neu anfing (Übung → echte
+        // Runde, Abbrechen), verliert das Versteck mit dem frischen Stand —
+        // dann darf auch der durchsichtige Schrank nicht stehen bleiben.
+        if (!hidden) for (const locker of this.lockers) this.ghostLocker(locker, false);
       }
       // **Das Panel und das Weltmenü teilen sich die linke Bildhälfte** — und
       // lagen deshalb auf 1280×800 übereinander (Befund: y ≈ 460–590). Wer
