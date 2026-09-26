@@ -30,6 +30,7 @@ import { dish, dishLabel, type Dish } from '../test/zones/kitchenRecipes';
 import { DECOR, tableSet, type DecorPiece } from './plateUpDecor';
 import { PlaceGhost } from '../portal/placeGhost';
 import { StaticDecor } from '../shared/staticDecor';
+import { cellKey, footprintCellKeys } from '../nav/cellGrid';
 import {
   DINING_AREA,
   DOOR_INSIDE,
@@ -97,7 +98,7 @@ import {
   type ShopItem,
 } from './plateUpShop';
 import { tutorialFinished, tutorialHint, type TutorialHint } from './plateUpTutorial';
-import { stationAction, tableAction } from './plateUpHints';
+import { clearanceAbove, stationAction, tableAction } from './plateUpHints';
 
 /**
  * **Der Burgerladen** — eine kleine Küchenwelt mit Gastraum und einem Spiel
@@ -588,8 +589,31 @@ export class PlateUpWorld extends GridWorld {
     this.southMeshes.push(mesh);
   }
 
+  /** Die Zellen der festen Einrichtung (Stationen, Theke, Deko) — `addBlock`. */
+  private readonly fixedCells = new Set<string>();
+  /** Die Zellen des am Abend Gekauften — gehen mit `clearPlaced`. */
+  private readonly shopCells = new Set<string>();
+
+  /**
+   * **Die Einrichtung sperrt ihre Zellen** — wie die Möbel des Plans in der
+   * Testwelt und die Einrichtung der Station (`HauntingWorld.cellBlocked`):
+   * Das 2D-Gitter ist die Wahrheit, die Physik zeigt nur an.
+   */
+  protected override cellBlocked(ix: number, iz: number, level: number): boolean {
+    if (level !== 0) return false;
+    const key = cellKey(ix, iz, level);
+    return this.fixedCells.has(key) || this.shopCells.has(key);
+  }
+
   /** Ein unsichtbarer Körper auf einer Grundfläche — dagegen läuft man. */
   private addBlock(x: number, z: number, size: readonly [number, number], shop = false): void {
+    // **Zuerst ins Zellgitter** — über das Gehen entscheidet die Ebene
+    // (`GridWorld.playerPlane`), nicht die Physik. Ohne diesen Eintrag lief man
+    // über Theke, Tische und Deko hinweg: Der unsichtbare Körper hob die Figur
+    // nur auf seine Oberkante (`walkPlane`).
+    for (const key of footprintCellKeys(x, z, size[0], size[1])) {
+      (shop ? this.shopCells : this.fixedCells).add(key);
+    }
     const physics = this.physics;
     if (!physics) return;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], BLOCK_HEIGHT, size[1]), this.hidden);
@@ -1820,6 +1844,7 @@ export class PlateUpWorld extends GridWorld {
       if (i >= 0) this.solids.splice(i, 1);
     }
     this.shopBlocks.length = 0;
+    this.shopCells.clear();
     // Die gekauften Stationen gehen mit — samt Anzeige über ihnen.
     for (const view of this.stationViews.splice(STATIONS.length)) {
       this.removeUsable(view.anchor);
@@ -2657,15 +2682,24 @@ class Smoke {
 
 /**
  * **Wie weit etwas vom unteren Rand weg muss**, um über der Tastenleiste zu
- * stehen (`ui/ControlHints`, `.hints`) — am Telefon ist sie drei Zeilen hoch.
- * Mindestens `min` Pixel.
+ * stehen (`ui/ControlHints`, `.hints`) — und am Glas, wo die Tastenleiste
+ * oben steht, über den Stöcken, Knöpfen und dem Werkzeug-Knopf
+ * (`plateUpHints.clearanceAbove`). Mindestens `min` Pixel.
  */
 function aboveHints(min: number): number {
-  const hints = document.querySelector('.hints');
-  if (!(hints instanceof HTMLElement) || hints.hidden) return min;
-  const top = hints.getBoundingClientRect().top;
-  if (top <= 0) return min;
-  return Math.round(Math.max(min, window.innerHeight - top + 8));
+  const tops: number[] = [];
+  const touch = document.querySelector('#touch:not([hidden])') !== null;
+  for (const el of document.querySelectorAll(
+    touch
+      ? '.hints, #touch .touch__stick, #touch .touch__btn, #touch .touch__turn, #hud-tool'
+      : '.hints',
+  )) {
+    if (!(el instanceof HTMLElement)) continue;
+    const box = el.getBoundingClientRect();
+    // Versteckt (`hidden`, `display: none`) hat keine Fläche.
+    if (box.width > 0 && box.height > 0) tops.push(box.top);
+  }
+  return clearanceAbove(tops, window.innerHeight, min);
 }
 
 /** Ob die Willkommens-Karte der Welt gerade am Schirm steht (`ui/WorldWelcome.ts`). */

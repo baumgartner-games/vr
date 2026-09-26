@@ -186,12 +186,16 @@ aus/an_ schaltet sie von Hand.
   dasselbe kleiner;
 - die **Zeile am Schirm** oben in der Mitte (DOM, nur außerhalb der Brille,
   nur während offen ist) — damit die Uhr auch im Gastraum im Bild ist; im
-  Hochformat kürzer (`✓`/`✗` statt Wörtern). Darunter die **Bestellzettel**
+  Hochformat kürzer (`✓`/`✗` statt Wörtern). Am Glas steht dort schon die
+  Tastenhilfe (`controlHints.css`), also rücken Zeile und Zettel darunter
+  (`style.css`, `body:has(.hints[data-device="touch"])`). Darunter die **Bestellzettel**
   (`ticket`): je wartendem Gast Tischnummer, Burger und Geduldsbalken, der
   Ungeduldigste zuerst, dazu „Tisch n: abräumen" für schmutziges Geschirr;
 - die **Leiste unten** über der Tastenleiste: was man in der Hand hat
   („In der Hand: Teller (Brötchen)") bzw. welcher Bauplan und ob er passt,
-  und darüber der Tipp der Einsteigerhilfe;
+  und darüber der Tipp der Einsteigerhilfe. Wie hoch, rechnet
+  `plateUpHints.clearanceAbove` aus: über der Tastenhilfe, am Glas (wo die
+  oben steht) über Stöcken, Knöpfen und dem Werkzeug-Knopf;
 - das **Schild** vor der Durchreiche (Start, Tagesbilanz, Ende). **Am Schirm
   erklärt vor dem ersten Tag immer nur eines** (`quietStart`): Solange die
   Willkommens-Karte (`ui/WorldWelcome.ts`) steht, schweigen Tipp und

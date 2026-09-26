@@ -10,6 +10,8 @@ import {
   moveOnCells,
   standable,
   cellCentre,
+  cellKey,
+  footprintCellKeys,
   navCellSource,
   slopeBlocks,
   snapCell,
@@ -327,5 +329,20 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
     // Neben dem Streifen, auf dem gesperrten Block (1, 1), nicht.
     expect(standable(grid, 0.5, 0.5)).toBe(false);
     expect(glides(grid, 0.5, 1, 1, 0.5)).toBe(true);
+  });
+});
+
+describe('footprintCellKeys', () => {
+  it('sperrt unter einem Tisch von 0,8 m genau die vier Zellen seiner Kachel', () => {
+    const keys = footprintCellKeys(3.5, 2.5, 0.8, 0.8);
+    expect(keys.sort()).toEqual(
+      [cellKey(6, 4), cellKey(7, 4), cellKey(6, 5), cellKey(7, 5)].sort(),
+    );
+  });
+
+  it('lässt eine Zelle frei, in die die Fläche kaum hineinragt', () => {
+    // 1,1 m breit um x = 1: ragt 0,05 m in die Zellen links und rechts.
+    const keys = footprintCellKeys(1, 0.25, 1.1, 0.4);
+    expect(keys).toEqual([cellKey(1, 0), cellKey(2, 0)]);
   });
 });
