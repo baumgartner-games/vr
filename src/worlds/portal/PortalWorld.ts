@@ -10025,7 +10025,7 @@ export class PortalWorld implements World {
       tool,
       canUndo: this.buildHistory.canUndo,
       canRedo: this.buildHistory.canRedo,
-      turnStep: wall ? '45°' : '90°',
+      turnStep: wall || this.fineTurn ? '45°' : '90°',
       canTurn: carried !== null,
       fine: this.fineTurn,
       status,
@@ -10572,6 +10572,13 @@ export class PortalWorld implements World {
     };
     paint();
     this.menuLabels.push(paint);
+    // Drei Knöpfe je Reihe: erst, was man dauernd braucht (Setzen,
+    // Verschieben, Löschen, Drehen, Zurück), dann Boden und Wand, zuletzt die
+    // Schalter — in der Brille liegt das Häufige oben, ohne zu blättern.
+    const [undo, redo] = this.buildEntries(accent).map((entry) => ({
+      ...entry,
+      id: `build:${entry.id}`,
+    })) as [MenuEntry, MenuEntry];
     const children: MenuEntry[] = [
       {
         id: 'build:place',
@@ -10619,12 +10626,13 @@ export class PortalWorld implements World {
         accent,
         run: run((ctx) => this.turnHeld(ctx, true)),
       },
-      fine,
+      undo,
       floor,
-      floorStyle,
       wall,
+      redo,
+      floorStyle,
       wallStyle,
-      ...this.buildEntries(accent).map((entry) => ({ ...entry, id: `build:${entry.id}` })),
+      fine,
     ];
     if (this.sampleRoomOrigin())
       children.push({

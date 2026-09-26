@@ -97,7 +97,7 @@ export class BuildBar {
     kind: 'turn',
     clockwise: true,
   });
-  private readonly fine = this.button('∠', '45°', 'Auch Möbel schräg drehen (an/aus)', {
+  private readonly fine = this.button('∠', 'Schräg', 'Auch Möbel in 45° drehen (an/aus)', {
     kind: 'fine',
   });
   private readonly floor = this.button(
