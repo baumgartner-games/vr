@@ -12,6 +12,7 @@ import {
   handleInWorld,
   holdFor,
   holdForHandle,
+  holdForScaled,
   inMoore,
   mooreSteps,
   nearestHandle,
@@ -134,6 +135,42 @@ describe('Wie das Ding dann in der Hand liegt', () => {
     expect(holdFor(null)).toEqual(HITBOX_HOLD);
     expect(HITBOX_HOLD.position).toEqual({ x: 0, y: 0, z: 0 });
     expect(HITBOX_HOLD.rotation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+  });
+
+  /**
+   * **Das halbe Essen in der Brille** (`kitchenGrab.kitchenHandScale`): Das
+   * Netz wird kleiner, der Griff muss trotzdem in der Faust bleiben — also
+   * liegt der **verkleinerte** Griff nach `holdForScaled` genau dort, wo der
+   * volle nach `holdForHandle` lag.
+   */
+  it('lässt den Griff eines verkleinerten Dings in der Faust', () => {
+    for (const one of [
+      handle('stiel', { x: 0, y: 0.12, z: 0.31 }, { x: 0, y: 0, z: 1 }, { x: -1, y: 0, z: 0 }),
+      ...ringHandles(0.375, 4, 0.02),
+    ]) {
+      const scale = 0.5;
+      const small = {
+        ...one,
+        pose: {
+          position: {
+            x: one.pose.position.x * scale,
+            y: one.pose.position.y * scale,
+            z: one.pose.position.z * scale,
+          },
+          rotation: one.pose.rotation,
+        },
+      };
+      const back = handleInHand(holdForScaled(one, scale), small);
+      expect(back.position.x).toBeCloseTo(STANDARD_GRIP_IN_HAND.position.x, 6);
+      expect(back.position.y).toBeCloseTo(STANDARD_GRIP_IN_HAND.position.y, 6);
+      expect(back.position.z).toBeCloseTo(STANDARD_GRIP_IN_HAND.position.z, 6);
+    }
+  });
+
+  it('ändert ohne Griff und in voller Größe nichts', () => {
+    expect(holdForScaled(null, 0.5)).toEqual(HITBOX_HOLD);
+    const one = handle('kopf', { x: 0, y: 0.5, z: 0 }, UP, RIGHT);
+    expect(holdForScaled(one, 1)).toEqual(holdForHandle(one));
   });
 });
 

@@ -274,7 +274,7 @@ export function xrHints(zone: HintZone | null, ctx: XRHintContext): XRHintLabel 
       else if (zone.holding) add('Loslassen', 'an Platte/Tisch: Ablegen');
       else add(XR_KEYS.grab, ctx.useCandidate ? 'Nehmen' : 'an der Kiste: Nehmen');
       add(XR_KEYS.move, 'Gehen');
-      return { title: 'Burgerladen', items };
+      return { title: 'Restaurant', items };
     case 'build':
       // Der Kran ist eine Ansicht am Schirm; in der Brille gibt es ihn nicht.
       return null;

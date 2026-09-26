@@ -15,12 +15,14 @@ import {
 import { interactionGrab, resolveInteraction, vrInputs } from '../../../core/interaction';
 import { GRIP_TO_RAY, STANDARD_GRIP } from '../../portal/tools/gripFit';
 import {
+  HAND_FOOD_SCALE,
   KITCHEN_REACH,
   KITCHEN_STATION_GRAB,
   PLATE_RIM_HANDLES,
   RIM_GRIP_IN,
   kitchenCarryTurn,
   kitchenGrab,
+  kitchenHandScale,
   kitchenHandles,
   kitchenPieceGrab,
   pieceHandles,
@@ -324,6 +326,30 @@ describe('Wie ein Küchending gegriffen werden will', () => {
     expect(Math.abs(turn)).toBeCloseTo(Math.PI / 2, 6);
     for (const item of ['plate', 'bun', 'pan', 'pot', 'patty-cooked'] as const) {
       expect(kitchenCarryTurn(item)).toBe(0);
+    }
+  });
+
+  /**
+   * **Essen liegt in der Brille halb so groß in der Hand** — sonst versperrt
+   * der Burger die Sicht. Geräte bleiben, wie sie sind.
+   */
+  it('verkleinert Essen und Geschirr in der Hand, aber kein Gerät', () => {
+    expect(HAND_FOOD_SCALE).toBe(0.5);
+    for (const item of [
+      'bun',
+      'patty',
+      'patty-cooked',
+      'lettuce',
+      'lettuce-cut',
+      'tomato',
+      'tomato-cut',
+      'plate',
+      'plate-dirty',
+    ] as const) {
+      expect(kitchenHandScale(item)).toBe(HAND_FOOD_SCALE);
+    }
+    for (const item of ['pan', 'pot', 'extinguisher', 'pliers'] as const) {
+      expect(kitchenHandScale(item)).toBe(1);
     }
   });
 

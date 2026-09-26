@@ -83,7 +83,7 @@ const SCENARIOS = [
   { id: 'hub', title: 'Hub (Lobby-Deko)', hash: 'hub', sim: 1 },
   {
     id: 'plateup',
-    title: 'Burgerladen, Tag läuft, Gäste da',
+    title: 'Restaurant, Tag läuft, Gäste da',
     hash: 'plateup',
     // Der Laden öffnet ohne den Gang zur Glocke, und die Uhr läuft schneller:
     // Im Browser ohne Grafikkarte kämen sonst kaum Gäste an.

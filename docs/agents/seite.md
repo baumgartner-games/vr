@@ -521,11 +521,11 @@ Sekunden → Menü → andere Welt. Gefunden wurde:
 | Weltwechsel im Menü | Harter Schnitt: Die alte Welt stand still, bis die neue fertig war; „Lade …" stand nur am Handgelenk-Menü, am Schirm also **nirgends**. Auf einer langsamen Leitung sah das aus wie abgestürzt. | **Ladebildschirm** mit Bild, Name, Zeile der Zielwelt und einem Balken (unten) |
 | Erste Sekunden | Der Satz, den jede Welt zur Begrüßung sagt (`welcome()` → `ctx.notify`), landete ebenfalls nur am Handgelenk. Am Schirm stand man in der Welt und wusste nicht, was sie will. | **Willkommens-Karte**, einmal je Welt (unten) |
 | Hub | Alle vier Tore standen hintereinander in **einem** Gang; aus der Halle sah man zwei Ringe und zwei Kanten, die anderen drei Richtungen waren leere Wände. | Der Hub ist eine **Lobby**: ein Tor je Richtung, Bogen, Schild, Lampen, Bänke ([Was drin ist](./inhalt.md), _Hub-Welt_) |
-| Leisten und Schilder | Vier Stile nebeneinander: die Tastenhilfe halbdurchsichtig mit 14 px Radius, die Baukasten-Leiste in Petrol mit 10 px, die Burgerladen-Zeile mit Inline-Stil, das Haunting-Schild in Türkis. | Ein Satz **`--hud-*`**-Variablen (unten) |
+| Leisten und Schilder | Vier Stile nebeneinander: die Tastenhilfe halbdurchsichtig mit 14 px Radius, die Baukasten-Leiste in Petrol mit 10 px, die Restaurant-Zeile mit Inline-Stil, das Haunting-Schild in Türkis. | Ein Satz **`--hud-*`**-Variablen (unten) |
 
-Offen geblieben (für eine zweite Runde): Im **Burgerladen** steht man beim
+Offen geblieben (für eine zweite Runde): Im **Restaurant** steht man beim
 Ankommen direkt vor der großen Erklärtafel, die das halbe Bild füllt; am
-Telefon **von oben** liegt die Tastenhilfe über der Burgerladen-Karte unten.
+Telefon **von oben** liegt die Tastenhilfe über der Restaurant-Karte unten.
 Beides gehört der Welt und ist hier nicht angefasst.
 
 ### Der Ladebildschirm beim Weltwechsel (`ui/WorldLoader.ts`)
@@ -566,7 +566,7 @@ die Ladung, geht er ebenfalls sofort; die Meldung kommt wie bisher.
 
 Beim **ersten** Betreten einer Welt kommt oben in der Mitte eine kurze
 Karte: „Willkommen" und der Name, eine Zeile, was man hier tut, der erste
-Schritt — im Burgerladen „Die Glocke an der Durchreiche startet den Tag" —
+Schritt — im Restaurant „Die Glocke an der Durchreiche startet den Tag" —
 und die zwei, drei Knöpfe, die man dafür braucht. Die Texte stehen je Welt in
 `core/worldIntro.ts` (`WORLD_INTROS`, mit Test: jede Welt der Registry hat
 eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
@@ -637,6 +637,16 @@ Test); gezeichnet wird in `ui/XRGuide.ts` (Leinwand-Malerei in
   `markWelcomed` in `ui/WorldWelcome.ts`, `bgvr.welcomed`): Wer eine Welt am
   Schirm begrüßt bekam, wird in der Brille nicht noch einmal begrüßt.
   Abschaltbar mit derselben Zeile _Willkommen je Welt_.
+- **Ein ✕ rechts oben auf der Willkommens-Tafel** (`xrCard.paintClose`):
+  Getroffen wird weiter die ganze Tafel, aber ohne Zeichen suchte man die
+  Stelle, an der sie zugeht — gemeldet als „in der Brille konnte ich die
+  Hinweise nicht anfassen". Dahinter steckte außerdem ein echter Fehler: Das
+  Zeigerziel der Tafel stand nur im Konstruktor von `App`, und
+  `App.unloadWorld` räumt mit `pointer.clear()` **alle** Ziele weg — nach dem
+  ersten Weltwechsel ging die Tafel nur noch von selbst. Sie wird dort jetzt
+  wie die Tastatur neu angemeldet. Dasselbe ✕ (als eigenes Ding mit großer
+  unsichtbarer Trefferfläche, `ui/CloseButton.ts`) steht am Tipp der
+  Einsteigerhilfe im Restaurant ([Das Restaurant](./burgerladen.md)).
 - **Die Beschriftung am Controller** — siehe
   [Steuerung](./steuerung.md#die-tastenhilfe--uicontrolhintsts): zwei, drei
   Knöpfe der Zone am rechten Controller, abschaltbar mit _Tastenhilfe_.
@@ -645,11 +655,11 @@ Test); gezeichnet wird in `ui/XRGuide.ts` (Leinwand-Malerei in
 davon in die Ansicht aus den Augen (und lässt die Schirm-Gegenstücke schweigen,
 wie mit Brille); `bgvr.xrGuide.previewHand` nimmt ein Objekt vor der Kamera
 als rechte Hand für die Beschriftung. So sind die Bilder der Bild-Schleife
-entstanden (Weltwechsel Hub → Burgerladen: Tafel, Blende, Ankunft).
+entstanden (Weltwechsel Hub → Restaurant: Tafel, Blende, Ankunft).
 
 ### Ein Stil für Leisten und Schilder (`--hud-*`)
 
-Tastenhilfe, Baukasten-Leiste, Burgerladen-Zeile und -Karte, das
+Tastenhilfe, Baukasten-Leiste, Restaurant-Zeile und -Karte, das
 Haunting-Schild (`.orbital-player`), Ladebildschirm und Willkommens-Karte
 lesen dieselben Variablen aus `:root` in `style.css`: `--hud-bg` (und
 `--hud-bg-soft` für die Tastenhilfe), `--hud-line`, `--hud-ink`/`--hud-dim`,
@@ -658,9 +668,9 @@ lesen dieselben Variablen aus `:root` in `style.css`: `--hud-bg` (und
 `--hud-radius-sm` (8 px) und `--hud-radius-pill`, `--hud-font`,
 `--hud-shadow`, `--hud-blur`. Abgestimmt sind sie auf die Kopfzeile oben
 rechts (`.hud__row`), die schon vorher so aussah. Die **Akzentfarbe** bleibt
-die der Welt — als Rand (Burgerladen Orange, Haunting Türkis) oder als
+die der Welt — als Rand (Restaurant Orange, Haunting Türkis) oder als
 Streifen (Ladebildschirm oben, Willkommen links). Wer eine neue Leiste baut,
-nimmt diese Variablen und keine eigenen Farben; die Burgerladen-Zeile stand
+nimmt diese Variablen und keine eigenen Farben; die Restaurant-Zeile stand
 bis dahin als `style.cssText` im Code und steht jetzt als Klasse in
 `style.css`.
 

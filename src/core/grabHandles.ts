@@ -435,6 +435,32 @@ export function holdFor(spot: GrabHandle | null | undefined): HoldPose {
 }
 
 /**
+ * **Dieselbe Haltung für ein verkleinertes Ding** — der Griff bleibt in der
+ * Faust, nur das Ding darum herum wird `scale`-mal so groß.
+ *
+ * Gebraucht für das Essen in der Brille (`kitchenGrab.kitchenHandScale`): Ein
+ * Teller in echter Größe eine Handbreit vor dem Auge verdeckt die halbe Küche.
+ * Wer nur das Netz kleiner machte, zöge den Tellerrand aus der Faust — der
+ * Griff liegt ja `scale`-mal so weit vom Ursprung. Also wird **um den
+ * Griffpunkt** gestaucht: Er bleibt, wo er ist, und der Ursprung rückt zu ihm
+ * hin. Ohne Griff (`HITBOX_HOLD`) sitzt der Ursprung selbst in der Faust, und
+ * es ändert sich gar nichts.
+ */
+export function holdForScaled(spot: GrabHandle | null | undefined, scale: number): HoldPose {
+  const pose = holdFor(spot);
+  if (!spot || scale === 1) return pose;
+  const at = STANDARD_GRIP_IN_HAND.position;
+  return {
+    position: {
+      x: at.x + (pose.position.x - at.x) * scale,
+      y: at.y + (pose.position.y - at.y) * scale,
+      z: at.z + (pose.position.z - at.z) * scale,
+    },
+    rotation: pose.rotation,
+  };
+}
+
+/**
  * Wo der gewählte Griff dann tatsächlich in der Hand sitzt — die Vorwärtsprobe
  * zu `holdForHandle`, und im Test genau das: `gripInHand(holdForHandle(h), h)`
  * muss wieder das Ziel ergeben.

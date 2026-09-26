@@ -148,6 +148,18 @@ export const PASS_END = { x: 0, z: 3 } as const;
 /** Die Kachel der Nordwand ganz im Westen: der Kühlschrank. */
 export const FRIDGE = { x: 0, z: 0 } as const;
 
+/**
+ * **Die Eisecke** — zwei Arbeitsplatten an der Westwand, gleich südlich des
+ * Kühlschranks, mit der Vorderseite nach Osten (`plateUpIce.ts`): auf der
+ * nördlichen der Stapel Hörnchen und der Portionierer, auf der südlichen die
+ * beiden Eiswannen. Keine Stationen der Küche (`STATIONS`) — ihre Regel ist
+ * das Eis und nicht `kitchenDeed`.
+ */
+export const ICE_STAND = { x: 0, z: 1 } as const;
+export const ICE_TUBS = { x: 0, z: 2 } as const;
+/** Wohin die Eisecke schaut — dort steht, wer Eis macht. */
+export const ICE_FACE: Dir = DIR_E;
+
 /** Ein Gasttisch: zwei mal zwei Kacheln, und der Platz des Gastes daran. */
 export interface TableSpot {
   readonly index: number;
@@ -230,6 +242,8 @@ export function blockedTiles(): Set<string> {
   for (const station of STATIONS) put(station.x, station.z);
   put(FRIDGE.x, FRIDGE.z);
   put(PASS_END.x, PASS_END.z);
+  put(ICE_STAND.x, ICE_STAND.z);
+  put(ICE_TUBS.x, ICE_TUBS.z);
   put(RETURN_GATE_TILE.x, RETURN_GATE_TILE.z);
   for (const t of TABLES) {
     for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) put(t.x + dx, t.z + dz);

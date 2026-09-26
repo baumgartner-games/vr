@@ -153,7 +153,7 @@ Controllern bleibt sie weg — eine Tafel an einer Hand ohne Knöpfe wäre Unsin
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | ohne Zone            | `A` Springen / Benutzen · (Trigger Auslösen, mit Werkzeug) · Griff Greifen bzw. „Loslassen: Ablegen"                      |
 | **Kart**             | Trigger R Gas · Trigger L Bremse · `A` halten Aussteigen                                                                  |
-| **Burgerladen**      | Griff Glocke läuten (zu) · Griff Nehmen · Loslassen Ablegen — dazu Stock L Gehen                                          |
+| **Restaurant**       | Griff Glocke läuten (zu) · Griff Nehmen · Loslassen Ablegen — dazu Stock L Gehen                                          |
 | **Baukasten** (Kran) | – (den Kran gibt es nur am Schirm)                                                                                        |
 | **Station**          | Techniker: `A` Benutzen/Springen · Griff Greifen · (Trigger); Monster: Stock L Jagen · `A` Klappe/Tür; Karte/Zuschauer: – |
 
@@ -165,17 +165,26 @@ gilt die Zeile des Menüs.
 | Zone                                                          | Pad                                                                             | Tastatur                                                         |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **Kart** (am Steuer, `TestWorld`)                             | RT Gas · LT Bremse · LS Lenken · Ⓐ halten Aussteigen                            | W Gas · S Bremse · A/D Lenken · E halten Aussteigen              |
-| **Burgerladen** (`PlateUpWorld`)                              | Ⓐ Glocke läuten (zu) · das Verb der Station/des Tisches¹ — oder wo es etwas tut | dito mit `E`                                                     |
+| **Restaurant** (`PlateUpWorld`)                               | Ⓐ Glocke läuten (zu) · das Verb der Station/des Tisches¹ — oder wo es etwas tut | dito mit `E`                                                     |
 | **Baukasten** (Kran, `PortalWorld`) — Schildchen mit Werkzeug | Ⓐ Nehmen/Stellen · ▲/▼ Werkzeug · RS Drehen · ◀/▶ Bild drehen · Zoom            | Klick · R Drehen · Q Bild drehen · Strg+Z Rückgängig             |
 | **Station** (`HauntingWorld`) — Schildchen mit Rolle          | Techniker: Ⓐ Benutzen; Monster: LS Jagen · Ⓐ Klappe/Tür                         | Techniker: 1 Sensor · 2 Lampe/Medkit · Strg Ducken; Karte: Klick |
 
-¹ **Im Burgerladen sagt die Zeile, was `A` am Gewählten genau tut** —
+¹ **Im Restaurant sagt die Zeile, was `A` am Gewählten genau tut** —
 „Servieren" am Tisch mit dem passenden Teller (sonst „Passt nicht"),
 „Abräumen" am schmutzigen Tisch, „Spülen" an der Spüle, „Patty auflegen" /
 „Patty nehmen" am Grill, „Schneiden" am Brett, „Brötchen nehmen" an der Kiste,
 „Hinstellen" mit dem Bauplan (`HintZone.action`, gerechnet in
 `plateup/plateUpHints.ts`). Das Gewählte ist das Objekt unter dem gelben Saum
 (`PortalWorld.pickedObject`); ohne Verb bleibt es bei _Nehmen_/_Ablegen_.
+
+**Am Eis im Restaurant** (Eisecke neben dem Kühlschrank,
+[Das Eis](./burgerladen.md#das-eis)) sagt sie „Hörnchen nehmen" am Stand,
+„Kugel Vanille"/„Kugel Erdbeere" an der Wanne, „Eis abstellen", „Eis nehmen"
+und „Wegwerfen" an Platte und Mülleimer (`plateUpIce.iceVerb`). Am Schirm
+gibt der Stand mit einem Druck Hörnchen **und** Portionierer, und `A` an einer
+Wanne setzt die Kugel gleich aufs Hörnchen. In der Brille nimmt eine Hand das
+Hörnchen (Griff/Trigger), die andere den Portionierer; eingetaucht und
+abgesetzt wird durch Hinhalten, ohne Knopf.
 
 Im Baukasten rückt die Zeile über die Werkzeugleiste (`controlHints.css`,
 `data-zone="build"`). **Das Kart fährt jetzt auch mit dem Pad am Schirm**
@@ -417,7 +426,7 @@ ohne Gitter täte es noch.
 
 **Die Tastenhilfe sagt es auch** (gemeldet: _„dein Hinweis springen ist nicht
 mehr korrekt"_): Zeile am Schirm, Beschriftung am Controller und die Zeile am
-Glas fragen `PlayerRig.canJump` — `false` mit `jumpLock` (Küche, Burgerladen)
+Glas fragen `PlayerRig.canJump` — `false` mit `jumpLock` (Küche, Restaurant)
 oder wenn die Fortbewegung den Sprung überhört (`Locomotion.canJump`:
 `PhysicsLocomotion` mit Ebene, `KernelLocomotion` in der Runde,
 `FreeLocomotion`). Dann steht für `A` ohne etwas in Reichweite nichts da, und

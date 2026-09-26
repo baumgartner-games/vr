@@ -41,6 +41,10 @@ vergessen zu haben. Geblieben sind der **Hub**, der **Bauplatz**, die
 **Testwelt** und **Haunting / Orbital**; alles, was die gelöschten Welten an
 Rechnung mitbrachten — Kartphysik, Trefferwertung, Kletterhalt, Effektzahlen,
 Türmathematik —, steht weiter als Modul da und wird von der Testwelt benutzt.
+Dazugekommen ist seitdem das **Restaurant** (`#plateup`, bis Ende September
+2026 „Burgerladen"): eine Spielküche mit Gastraum nach dem Vorbild von
+_PlateUp!_ — Gäste kommen, bestellen, und man bringt den Burger, bevor die
+Geduld reißt.
 
 Die **Testwelt** ist der Prüfstand: zehn Zonen auf einem Gelände, in einer
 Minute zu Fuß abzulaufen. **Die Seite macht mit ihr auf, und zwar in der
