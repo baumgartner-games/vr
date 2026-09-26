@@ -4,6 +4,7 @@ import type { Handedness } from '../../core/XRInput';
 import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
+import { clearPlanWalls } from '../grid/shelfWalls';
 import type { PlanSolidKind } from '../grid/solids';
 import { HAZARD_FIRE } from '../nav/navProfile';
 import { NO_TILE } from '../nav/navTile';
@@ -16,6 +17,7 @@ import {
   NAV_TESTS,
   SPAWN,
   navTestPlan,
+  navTestWalls,
   tileCentre,
   type NavSpot,
   type NavTest,
@@ -46,7 +48,7 @@ interface Bench {
 /**
  * **Test Navigation** — die Welt im Ordner _Test_ (`worlds/index.WORLD_FOLDERS`).
  *
- * Drei Kammern aus Glas (`navTestPlan.ts`), vor jeder ein roter Knopf: Er
+ * Drei Kammern aus Fensterwänden (`navTestPlan.ts`), vor jeder ein roter Knopf: Er
  * stellt eine Übungspuppe auf die grüne Platte und schickt sie zur blauen.
  * **Der berechnete Weg ist immer zu sehen** — die Ebene _Wege_ der
  * Navigationsansicht ist hier von Anfang an an (`setNavLayer('paths')`), und
@@ -69,8 +71,19 @@ export class NavTestWorld extends GridWorld {
     return 'Test Navigation';
   }
 
+  /**
+   * Der Plan **ohne feste Wände und Schrägen** — die stehen als Stücke aus dem
+   * Regal (`buildProps`, `navTestWalls`), wie in Sandbox und Haunting.
+   */
   protected override layout(): GridPlan {
-    return navTestPlan();
+    const plan = navTestPlan();
+    clearPlanWalls(plan);
+    return plan;
+  }
+
+  /** Ein gespeicherter Umbau genauso: Wände nur aus dem Regal. */
+  protected override planLoaded(plan: GridPlan): void {
+    clearPlanWalls(plan);
   }
 
   /** Hier steht nichts außerhalb des Plans — die NPCs planen auf ihm (`GridWorld.navFromPlan`). */
@@ -92,7 +105,7 @@ export class NavTestWorld extends GridWorld {
   }
 
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
-    return { floor: 0x8a93a6, wall: 0xa9b4c8 };
+    return { floor: 0x8a93a6 };
   }
 
   protected override spawnPoint(): THREE.Vector3 {
@@ -108,12 +121,17 @@ export class NavTestWorld extends GridWorld {
     this.root.add(createSky(0x6ea8e8, 0xdbe7f2));
   }
 
-  /** **Platten, Lava, Knöpfe** — und die Wege von Anfang an sichtbar. */
+  /** **Wände, Platten, Lava, Knöpfe** — und die Wege von Anfang an sichtbar. */
   protected override buildProps(): void {
     const ctx = this.context;
     const plan = this.grid;
     if (!ctx || !plan) return;
     this.setNavLayer('paths', true);
+    // **Die Wände aus dem Regal**, eingerastet wie aus der Hand: für das
+    // Zellgitter und die NPCs Wände und Schrägen (`GridWorld.collectWalls`).
+    // Steht schon ein Stück an seiner Stelle, kommt kein zweites (`placeModel`).
+    for (const wall of navTestWalls())
+      void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
     this.paintLava(plan);
     for (const test of NAV_TESTS) {
       this.plate(plan, test.start, START_COLOUR);
@@ -149,7 +167,7 @@ export class NavTestWorld extends GridWorld {
   /**
    * **Eine farbige Platte auf einer Kachel**, knapp über dem Boden — und
    * **immer zu sehen**, wie die Linie des Wegs (`navScene.navPathView`): Von
-   * oben verdeckte sonst die Glaswand der Kammer die Reihe dahinter, und dort
+   * oben verdeckte sonst die Wand der Kammer die Reihe dahinter, und dort
    * liegt der Start.
    */
   private plate(plan: GridPlan, at: NavSpot, colour: number): void {

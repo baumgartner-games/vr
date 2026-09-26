@@ -56,7 +56,7 @@ import { turnedHalf, yawOf } from '../portal/gridSnap';
 import { boxAround, type Box as DecorBox } from '../portal/decorPlace';
 import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { fixtureTile, type BlockPlacement, type GridPlan } from './gridPlan';
-import { shelfWallsToNav, type ShelfNavStamp } from './shelfNav';
+import { shelfWallsToNav, wallLevel, type ShelfNavStamp } from './shelfNav';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
 import { signRows } from './fixtures/signRows';
@@ -1113,8 +1113,7 @@ export abstract class GridWorld extends PortalWorld {
   private collectWalls(graph: NavGraph): void {
     for (const entry of this.placedModels(this.placedScratch)) {
       entry.object.getWorldPosition(_spot);
-      const at = graph.at(_spot.x, _spot.z, _spot.y - entry.halfExtents.y);
-      const level = at === NO_TILE ? 0 : keyLevel(at);
+      const level = wallLevel(graph, _spot.y - entry.halfExtents.y);
       const wall = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
       if (wall) {
         for (const cell of wall.cells)

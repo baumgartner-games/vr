@@ -1,5 +1,6 @@
 import { PLAN_FLOOR_T } from '../editor/levelPlan';
 import { GridPlan } from '../grid/gridPlan';
+import { planShelfWalls, SHELF_WINDOW_PIECES, type ShelfWall } from '../grid/shelfWalls';
 import { HAZARD_FIRE } from '../nav/navProfile';
 import { DIR_E, DIR_N, DIR_S, DIR_W, type Dir } from '../nav/navTile';
 import type { Slope } from '../nav/cellGrid';
@@ -15,10 +16,16 @@ import type { Slope } from '../nav/cellGrid';
  * Ende nach links gehen müsste. … es gibt ein grünes start platte und eine
  * blaues Ziel floor für jeden Test."_
  *
- * **Jeder Test ist eine Kammer aus Glas** (`GridPlan.window`): Der NPC kommt
- * nur auf dem Weg hinaus, den der Test prüft, und man sieht ihm von außen
- * dabei zu. Vor jeder Kammer steht ein roter Knopf (`NavTestWorld`), drinnen
- * eine grüne Start- und eine blaue Zielplatte.
+ * **Jeder Test ist eine Kammer mit Fensterwänden**: Der NPC kommt nur auf dem
+ * Weg hinaus, den der Test prüft, und man sieht ihm von außen dabei zu. Vor
+ * jeder Kammer steht ein roter Knopf (`NavTestWorld`), drinnen eine grüne
+ * Start- und eine blaue Zielplatte.
+ *
+ * **Die Wände sind nur aus dem Regal** — gewünscht: _„keine eigenen Wände
+ * nutzen, sondern nur die kaykit Wall Elemente"_. Im Plan stehen sie als feste
+ * Wände und Schrägen, damit ein Test die Wegsuche ohne Szene nachrechnen
+ * kann; die Welt räumt sie aus dem Plan (`shelfWalls.clearPlanWalls`) und
+ * stellt an ihre Stelle die Stücke aus `navTestWalls`.
  *
  * Reine Rechnung, ohne Szene: Die Welt baut daraus, und ein Test läuft
  * denselben Plan mit derselben Wegsuche ab (`navTestPlan.test.ts`).
@@ -120,13 +127,13 @@ export const GROUND = { x: -4, z: -4, w: 34, d: 22 } as const;
 export const SPAWN = { x: 13.5, z: 15.5 } as const;
 
 /**
- * **Der Plan der Welt**: Boden, drei Kammern aus Glas, die Schrägen, zwei
- * Treppen auf ihre Podeste und die Lava.
+ * **Der Plan der Welt**: Boden, drei Kammern, die Schrägen, zwei Treppen auf
+ * ihre Podeste und die Lava.
  */
 export function navTestPlan(): GridPlan {
   const plan = new GridPlan([...LEVELS]);
   plan.floor(GROUND);
-  for (const test of NAV_TESTS) glassRing(plan, test.room, 0);
+  for (const test of NAV_TESTS) wallRing(plan, test.room, 0);
 
   // 1 · Die beiden Schrägen „╱": x + z = 6 und x + z = 8 in der Kammer,
   // jede von Wand zu Wand.
@@ -144,7 +151,7 @@ export function navTestPlan(): GridPlan {
     const deck = { x: room.x, z: room.z, w: room.w, d: DECK_DEPTH };
     plan.floor({ ...deck, level: 1 });
     plan.stairs(stairX, room.z + DECK_DEPTH - 1 + STAIR_LENGTH, DIR_N, 0, STAIR_LENGTH);
-    glassRing(plan, deck, 1, { x: stairX, z: deck.z + deck.d - 1, dir: DIR_S });
+    wallRing(plan, deck, 1, { x: stairX, z: deck.z + deck.d - 1, dir: DIR_S });
     // Vier Säulen unter den Ecken, bis unter den Boden des Podests.
     const east = deck.x + deck.w - 1,
       south = deck.z + deck.d - 1;
@@ -160,10 +167,19 @@ export function navTestPlan(): GridPlan {
 }
 
 /**
- * **Ein Ring aus Fenstern um ein Kachelrechteck** — hält auf, lässt aber
- * hineinsehen. `gap` lässt eine Kante offen (die Mündung der Treppe).
+ * **Die Wände der Welt als Stücke aus dem Regal** — die geraden aus der
+ * Fensterwand (`Wall_Window_Closed`, am Ende `…_Narrow`), damit man in die
+ * Kammern hineinsieht, die Schrägen aus der Prototypwand (`Wall.glb`).
  */
-function glassRing(
+export function navTestWalls(): ShelfWall[] {
+  return planShelfWalls(navTestPlan(), SHELF_WINDOW_PIECES);
+}
+
+/**
+ * **Ein Ring aus Wänden um ein Kachelrechteck**. `gap` lässt eine Kante offen
+ * (die Mündung der Treppe).
+ */
+function wallRing(
   plan: GridPlan,
   rect: { x: number; z: number; w: number; d: number },
   level: number,
@@ -173,7 +189,7 @@ function glassRing(
     south = rect.z + rect.d - 1;
   const put = (x: number, z: number, dir: Dir): void => {
     if (gap && gap.x === x && gap.z === z && gap.dir === dir) return;
-    plan.window(x, z, dir, level);
+    plan.wall(x, z, dir, level);
   };
   for (let x = rect.x; x <= east; x++) {
     put(x, rect.z, DIR_N);

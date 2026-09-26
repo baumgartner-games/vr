@@ -40,3 +40,17 @@ export function shelfWallsToNav(
   }
   return { graph, walls };
 }
+
+/**
+ * **Auf welcher Etage eine Wand aus dem Regal steht** — nach der Höhe ihrer
+ * Unterkante, nicht nach der Kachel unter ihrer Mitte. Die Mitte liegt auf
+ * einer Fuge, und die Kachel dahinter ist am Rand eines Podests Luft: Dann
+ * fand `NavGraph.at` nur den Boden darunter, und die Brüstung oben sperrte
+ * die Kante unten (Test Navigation, Podest der Treppe).
+ */
+export function wallLevel(graph: NavGraph, bottom: number): number {
+  let level = 0;
+  for (let l = 1; l < graph.levels.length; l++)
+    if (Math.abs(graph.levelY(l) - bottom) < Math.abs(graph.levelY(level) - bottom)) level = l;
+  return level;
+}
