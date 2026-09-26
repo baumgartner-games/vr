@@ -6,7 +6,7 @@
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 **Jede Welt lässt sich auch von oben spielen.** Auf der Startseite steht „Von
-oben oder Aus den Augen", im Spiel steht es unter _Menü → Ansicht_ — und _Von
+oben oder Aus den Augen", im Spiel steht es unter _Menü → Spielen → Ansicht_ — und _Von
 oben_ heißt: **dieselbe** Welt, nur aus einer festen Kamera schräg darüber, wie
 in _Overcooked_. Dieselben Wände, dieselben Türen, dieselben Kisten, an denen
 gerade jemand anders mit der Brille steht; man sieht dabei seine eigene Figur.
@@ -236,7 +236,7 @@ einem hinterherlaufen (Haut und Hirn getrennt gewählt, dazu Spawnpunkte und
 Brutkäfige, mit Lebensbalken über dem Kopf — ein Zombie hat hundert Leben, die
 Pistole macht fünfundzwanzig, das Messer fünfzig und der große Hammer hundert,
 Kopftreffer vierfach; getroffen wird der Körper, den man sieht, und wer
-nachsehen will, schaltet die **Trefferzonen** im Menü ein — und jede Sorte
+nachsehen will, schaltet die **Trefferzonen** unter _Menü → Werkstatt_ ein — und jede Sorte
 liest dieselbe Karte mit ihren eigenen Beinen: Was der eine hochspringt, ist
 für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
 stehen — und durch ein **Portal** fallen sie wie jede Kiste: halb hier, halb
@@ -245,10 +245,10 @@ Peer-to-Peer-Sitzungen ohne eigenen Server — mit
 räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Hub,
 Bauplatz und Testwelt stehen auf einer Fläche bis zum Horizont und **ohne
 Dach**, damit die Kamera von oben hineinsieht; steht die Figur hinter einer
-Wand, wird die Wand für dieses Bild durchsichtig. Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
+Wand, wird die Wand für dieses Bild durchsichtig. Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht unter _Menü → Werkstatt → Welt-Physik_, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
-Unter **Menü → Grafik** steht das Häkchen **Schatten** — ab Werk an: Die
+Unter **Menü → Einstellungen → Grafik** steht das Häkchen **Schatten** — ab Werk an: Die
 hellste Sonne der Welt wirft sie, weich und über den Kopf mitwandernd, und das
 Grundlicht geht dafür etwas herunter. Es ist der erste Regler, wenn die
 Bildrate klemmt. Darunter der experimentelle
@@ -324,7 +324,7 @@ einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
 seinen Namen, die Zentrale sieht ihn auf der Karte, und ihr „Mission starten"
 schickt den Start zu ihm. Wer in der Quest im Hub **Haunting /
 Orbital** wählt, kommt ebenfalls in den Raum der Adresse. Wer in der Brille
-im Boden steckt, holt sich am Handgelenk heraus: Menü → **Feststecken? Zurück
+im Boden steckt, holt sich am Handgelenk heraus: Menü → _Haunting / Orbital_ → **Feststecken? Zurück
 auf den Boden** setzt einen mitten ins eigene Zimmer, draußen in die Zentrale.
 Ein weiteres Telefon kann das **Monster** spielen:
 Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
@@ -347,7 +347,7 @@ desselben Browsers, keine getrennten Geräte im WLAN.
 Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
 
 1. **Kein Häkchen.** Ob du das Schiff von oben oder aus den Augen siehst,
-   ist keine Frage des Aufbaus: Das ist _Menü → Ansicht_, wie in jeder Welt,
+   ist keine Frage des Aufbaus: Das ist _Menü → Spielen → Ansicht_, wie in jeder Welt,
    und du darfst es dir mitten in der Runde anders überlegen (in der Brille
    gibt es immer das Schiff). Ohne Monster spielt man, indem der Platz
    Monster auf „Aus" steht.
@@ -360,7 +360,7 @@ Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
    Reiter (Techniker, Rot, Gelb, Blau, Monster, Zuschauer), das Zahnrad, und
    die Leiste mit Systemen, Anzug und — sobald sie läuft — der Uhr. Der
    Reiter **Techniker** setzt dich an den Stock: Du stehst im Schiff am
-   Bildschirm — von oben oder aus den Augen, wie _Menü → Ansicht_ steht — und
+   Bildschirm — von oben oder aus den Augen, wie _Menü → Spielen → Ansicht_ steht — und
    läufst los. Das Monster bewegt sich im Test nur, wenn ein Mensch es
    steuert.
 4. **Mission starten** — im Zahnrad über der Karte des Telefons, in der
@@ -464,7 +464,7 @@ seines Geräts am Tisch vor der Scheibe — Rot, Gelb, Blau, das Monster —, di
 Zuschauer und wer noch keinen Platz hat in der Reihe dahinter. Niemand aus
 der Zentrale steht als Spieler mitten auf dem Vorplatz.
 
-**Von oben ist dasselbe Schiff.** _Menü → Ansicht_ schaltet jederzeit
+**Von oben ist dasselbe Schiff.** _Menü → Spielen → Ansicht_ schaltet jederzeit
 zwischen _Von oben_ und _Aus den Augen_ um, ohne Neustart und ohne neue
 Rolle: dieselbe Runde, dieselbe Uhr, derselbe Anzug, dasselbe Monster. Von
 oben hängt die Kamera schräg über der Figur, schneidet die Decke ab, macht
@@ -582,7 +582,7 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Taschenlampe an und aus                                  | `E`, wenn nichts zum Benutzen vor dir liegt                                                                         |
 | Ducken                                                   | `Ctrl` halten oder **Ducken** in der Tafel                                                                          |
 | Ersatzteil ablegen                                       | **Ablegen** in der Tafel                                                                                            |
-| Leistungsanzeige                                         | `F3` oder Menü → Grafik → _Bildrate im Bild_ (auch am Handy); in der Brille steht dieselbe Zahl unter Menü → Grafik |
+| Leistungsanzeige                                         | `F3` oder Menü → Werkstatt → _Bildrate im Bild_ (auch am Handy); in der Brille steht dieselbe Zahl unter Menü → Werkstatt |
 
 **Am Bildschirm ist die Steuerung die der Seite, wie in jeder Welt**: auf dem
 Handy der Bordstock links und `A`/`B` rechts, am Laptop `WASD`, Maus, `E`.
@@ -971,7 +971,7 @@ Manche Treiber melden die Knöpfe nicht dort, wo das Standard-Mapping sie
 hinlegt: Ein **Backbone am iPhone** meldet den unteren Gesichtsknopf als
 `buttons[1]`, wo `buttons[0]` erwartet wird. Wer damit unten drückt, benutzt
 nichts. Dafür gibt es zwei Einstellungen, die **auf der Seite** und **im Spiel**
-unter _Menü → Eingaben_ dieselben sind:
+unter _Menü → Steuerung & Hilfe → Eingaben_ dieselben sind:
 
 - **Karte dieses Geräts** — wo eine Nummer wirklich sitzt. Ein Tausch ist ein
   Handgriff (der andere Knopf zieht mit um), gilt nur für dieses Gerät, und
@@ -997,7 +997,7 @@ oder am Fernseher kostet die Adresszeile sonst ein Fünftel des Bildes. In der
 Brille gibt es ihn nicht — eine XR-Sitzung ist Vollbild —, und in Browsern, die
 es nicht erlauben, auch nicht: Ein Knopf, der nichts tut, ist schlimmer als
 keiner. `Esc` beendet es, und der Knopf weiß das (`core/fullscreen.ts`).
-Dieselbe Handlung steht auch als Zeile unter **Menü → Grafik** — auf dem Handy
+Dieselbe Handlung steht auch als Zeile unter **Menü → Einstellungen → Grafik** — auf dem Handy
 im Querformat verdeckt der Streifen mit dem Knopf genau das, was weg soll.
 
 **Auf dem iPhone gibt es beides nicht**, weil Safari dort Vollbild nur für ein
@@ -1090,16 +1090,16 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 ## Steuerung
 
 Die Tabelle ist die **Voreinstellung**: Tastatur und Controller lassen sich
-unter _Menü → Eingaben_ (und auf [`/inputs.html`](#eingabeseite)) umlegen,
+unter _Menü → Steuerung & Hilfe → Eingaben_ (und auf [`/inputs.html`](#eingabeseite)) umlegen,
 gespeichert und jederzeit auf Standard zurücksetzbar.
 
 |                               | VR                                                                                                                                                                         | Desktop                                                                | Handy                    |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
-| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick (Menü → Grafik → _Bildschirm-Steuerung_: automatisch / an / aus; automatisch heißt „nur am Handy, und nur ohne Gamepad") |
+| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick (Menü → Einstellungen → Grafik → _Bildschirm-Steuerung_: automatisch / an / aus; automatisch heißt „nur am Handy, und nur ohne Gamepad") |
 | Umsehen                       | Kopf, rechter Stick = Snap-Turn                                                                                                                                            | Maus (Klick = Pointer-Lock)                                            | wischen                  |
 | Springen / Ducken             | `A` rechts (springt nur, wenn nichts in Reichweite ist) / rechten Stick reindrücken                                                                                        | `Leertaste`                                                            | Knopf `A`, siehe links   |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
-| Von oben ↔ Aus den Augen      | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger in der oberen Hälfte zoomen |
+| Von oben ↔ Aus den Augen      | –                                                                                                                                                                          | Startseite oder Menü → Spielen → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger in der oberen Hälfte zoomen |
 | Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — der gelbe Saum sagt, was gemeint ist                  | Knopf `A`                |
 | Werkzeug wählen               | – (das Regal hängt am Handgelenk)                                                                                                                                          | Knopf unten rechts oder `Tab` — die Liste fängt mit _Hand (leer)_ an   | derselbe Knopf, antippen |
 | Zielen / Schießen (von oben)  | Trigger der Hand mit der Waffe                                                                                                                                             | Maus zielt, Linksklick schießt                                         | rechter Stick, Knopf `B` |
@@ -1107,10 +1107,10 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Werkzeug nehmen/ablegen       | Grip an der Hüfte; woanders loslassen lässt es fallen                                                                                                                      | –                                                                      | –                        |
 | Hüften verschieben            | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben                                                                                                   | –                                                                      | –                        |
 | Ohne Controller               | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger                                                                                                                | –                                                                      | –                        |
-| Sitzen oder stehen            | Startseite (nur dort gefragt) oder Menü → Bewegung → Haltung                                                                                                               | Menü → Bewegung → Haltung                                              | dito                     |
-| Verbinden                     | Menü → Verbindung → _Raum betreten_; geht mitten im Spiel, ohne die Sitzung zu verlassen                                                                                   | Raum-Code auf der Startseite                                           | dito                     |
-| Chat                          | Menü → Verbindung → Chat (lesen, _Schreiben_ öffnet die Tastatur)                                                                                                          | Panel _Verbindung_: tippen, je Zeile _Kopieren_ und _Übernehmen_       | dito                     |
-| Sprechen                      | Menü → Verbindung → _Mikrofon_ — die Stimmen kommen aus der Richtung, in der die anderen stehen                                                                            | Panel _Verbindung_ → _Sprache_                                         | dito                     |
+| Sitzen oder stehen            | Startseite (nur dort gefragt) oder Menü → Einstellungen → Bewegung → Haltung                                                                                                               | Menü → Einstellungen → Bewegung → Haltung                                              | dito                     |
+| Verbinden                     | Menü → Zusammen → _Raum betreten_; geht mitten im Spiel, ohne die Sitzung zu verlassen                                                                                   | Raum-Code auf der Startseite                                           | dito                     |
+| Chat                          | Menü → Zusammen → Chat (lesen, _Schreiben_ öffnet die Tastatur)                                                                                                          | Panel _Verbindung_: tippen, je Zeile _Kopieren_ und _Übernehmen_       | dito                     |
+| Sprechen                      | Menü → Zusammen → _Mikrofon_ — die Stimmen kommen aus der Richtung, in der die anderen stehen                                                                            | Panel _Verbindung_ → _Sprache_                                         | dito                     |
 | Werkzeug benutzen             | Trigger (Greifen = zweite Funktion)                                                                                                                                        | Links-/Rechtsklick                                                     | –                        |
 | Großer Hammer                 | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel                                                                                      | –                                                                      | –                        |
 | Hängegleiter                  | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen                                                    | –                                                                      | –                        |
@@ -1131,10 +1131,10 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
 | Küche: Radio | an der Westwand, neben der Tomatenausgabe: `A` macht an, `A` macht aus — und jedes Anmachen ist ein Sender weiter | dito mit `E` | dito mit `A` |
 | Küche: Ton wählen | vor dem Schneidebrett und vor der Ausgabetheke: linker Knopf schaltet den Ton weiter, rechter spielt ihn vor | dito mit `E` | dito mit `A` |
-| Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |
-| Hitboxen                      | Menü → Grafik → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
-| Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
-| Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |
+| Aussehen                      | Menü → _Figur_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |
+| Hitboxen                      | Menü → Werkstatt → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
+| Gitterlinien                  | Menü → Werkstatt → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
+| Zurücksetzen                  | `B` / `Y` oder Menü → _Name der Welt_ → Zurücksetzen                                                                                                                          | `R` oder dito                                                          | Menü → _Name der Welt_ → Zurücksetzen |
 
 Die vollständige Tabelle samt aller Werkzeuge steht im [Kapitel Steuerung](docs/agents/steuerung.md).
 
@@ -1143,7 +1143,7 @@ Die vollständige Tabelle samt aller Werkzeuge steht im [Kapitel Steuerung](docs
 Werkzeug-Posen, Handhaltungen, Anbauteile und Waffenwerte passen zusammen in
 eine kopierbare Zeile (`BG3…`) — und ein einzelnes Werkzeug an einer einzelnen
 Hand in eine so kurze, dass man sie abtippt. In VR unter
-_Einstellungen → Konfig-Code_,
+_Menü → Werkstatt → Konfig-Code_,
 am Rechner über die Kommandozeile:
 
 ```bash
