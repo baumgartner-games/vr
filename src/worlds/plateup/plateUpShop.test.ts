@@ -10,11 +10,12 @@ import {
   buy,
   dayOffers,
   decorCount,
+  extraStations,
   placeCheck,
   shopItem,
   type Placed,
 } from './plateUpShop';
-import { freshStations, useStation, type StationState } from './plateUpStations';
+import { freshStations, tickStation, useStation, type StationState } from './plateUpStations';
 import { STATIONS } from './plateUpPlan';
 import { TUTORIAL_SERVES, tutorialFinished, tutorialHint } from './plateUpTutorial';
 
@@ -25,7 +26,15 @@ describe('Burgerladen: Einrichten', () => {
     expect(offers[0]!.kind).toBe('table');
     expect(new Set(offers.map((o) => o.id)).size).toBe(OFFERS);
     expect(dayOffers(1, 42, TABLES.length)).toEqual(offers);
-    expect(dayOffers(2, 42, MAX_TABLES).every((o) => o.kind === 'decor')).toBe(true);
+    expect(dayOffers(2, 42, MAX_TABLES).some((o) => o.kind === 'table')).toBe(false);
+    // Eine Station liegt dabei, solange eine fehlt — und keine, die schon steht.
+    expect(offers.filter((o) => o.kind === 'station').length).toBe(1);
+    expect(
+      dayOffers(2, 42, TABLES.length, ['grill', 'board']).some((o) => o.kind === 'station'),
+    ).toBe(false);
+    expect(dayOffers(2, 42, TABLES.length, ['grill']).find((o) => o.kind === 'station')?.id).toBe(
+      'board',
+    );
     for (const item of SHOP_ITEMS) expect(item.cost).toBeGreaterThan(0);
   });
 
@@ -142,5 +151,52 @@ describe('Burgerladen: Einsteigerhilfe', () => {
     expect(tutorialFinished({ ...open, served: TUTORIAL_SERVES })).toBe(true);
     expect(tutorialFinished({ ...open, phase: 'closed' })).toBe(true);
     expect(tutorialFinished({ ...open, day: 2 })).toBe(true);
+  });
+});
+
+describe('Burgerladen: gekaufte Stationen', () => {
+  test('eine Station darf nur in die Küchenreihe vor der Durchreiche, auf Freies', () => {
+    expect(placeCheck('grill', 3, 2, [])).toEqual({ ok: true });
+    // In den Gastraum nicht — und nicht in die Reihe, in der man an der Nordwand steht.
+    expect(placeCheck('grill', 4, 6, []).ok).toBe(false);
+    expect(placeCheck('grill', 3, 1, []).ok).toBe(false);
+    // Nicht in den Durchgang östlich der Durchreiche, nicht auf den Startplatz.
+    expect(placeCheck('board', 12, 2, []).ok).toBe(false);
+    expect(placeCheck('board', 7, 2, []).ok).toBe(false);
+    // Nicht auf eine andere gekaufte Station.
+    const placed: Placed[] = [{ item: 'grill', x: 3, z: 2 }];
+    const check = placeCheck('board', 3, 2, placed);
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.why).toBe('Da steht schon etwas');
+    // Deko bleibt im Gastraum, auch mit einer Station daneben.
+    expect(placeCheck('cactus', 3, 2, []).ok).toBe(false);
+  });
+
+  test('gekauft ist sie eine volle Station: Patty drauf, es brät', () => {
+    const done = buy(100, [], 'grill', 3, 2)!;
+    expect(done.total).toBe(100 - shopItem('grill')!.cost);
+    const extra = extraStations(done.placed);
+    expect(extra).toHaveLength(1);
+    expect(extra[0]).toMatchObject({ kind: 'griddle', x: 3, z: 2 });
+    // Die Id kommt keiner festen Station in die Quere.
+    expect(STATIONS.some((s) => s.id === extra[0]!.id)).toBe(false);
+    let grill = freshStations(extra)[0]!;
+    grill = useStation(dish('patty'), grill).station;
+    for (let t = 0; t < 60; t++) grill = tickStation(grill, 0.1, false, false, 20).station;
+    expect(grill.on).toEqual(dish('patty-cooked'));
+    // Deko zählt sie nicht, und ein Tisch ist sie auch nicht.
+    expect(decorCount(done.placed)).toBe(0);
+    expect(allTables(done.placed).length).toBe(TABLES.length);
+    // Auch ein Brett schneidet.
+    const board = freshStations(extraStations([{ item: 'board', x: 5, z: 2 }]))[0]!;
+    expect(board.spot.kind).toBe('board');
+    let cut = useStation(dish('lettuce'), board).station;
+    for (let t = 0; t < 40; t++) cut = tickStation(cut, 0.1, true, true).station;
+    expect(cut.on).toEqual(dish('lettuce-cut'));
+  });
+
+  test('mit dem Bauplan in der Küche zielt man auf die Kachel vor sich', () => {
+    // Von der Nordwand-Reihe nach Süden geschaut: die Kachel davor.
+    expect(aimTile('grill', 3.5, 1.4, 0, 1)).toEqual({ x: 3, z: 2 });
   });
 });
