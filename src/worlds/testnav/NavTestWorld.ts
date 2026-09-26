@@ -8,7 +8,7 @@ import { clearPlanWalls } from '../grid/shelfWalls';
 import type { PlanSolidKind } from '../grid/solids';
 import { HAZARD_FIRE } from '../nav/navProfile';
 import type { NavGraph } from '../nav/navGraph';
-import { DIR_S, NO_TILE } from '../nav/navTile';
+import { NO_TILE } from '../nav/navTile';
 import type { Npc } from '../npc/Npc';
 import { npcSkin } from '../npc/npcKinds';
 import { createSky } from '../shared/environment';
@@ -16,6 +16,7 @@ import { BUTTON_DOME_R, buildRedButton, type RedButton } from '../shared/redButt
 import {
   LAVA,
   NAV_TESTS,
+  gateDir,
   gateTile,
   SPAWN,
   navTestPlan,
@@ -105,7 +106,7 @@ export class NavTestWorld extends GridWorld {
     super.navReady(baked);
     const graph = this.nav;
     if (!graph) return;
-    for (const test of NAV_TESTS) graph.setWall(gateTile(test), DIR_S, { kind: 'solid' });
+    for (const test of NAV_TESTS) graph.setWall(gateTile(test), gateDir(test), { kind: 'solid' });
   }
 
   protected override skyColor(): number {

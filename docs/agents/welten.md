@@ -459,7 +459,7 @@ rechnet `ui/menuGroups.folderWorlds`: Ein Ordner steht, wo seine erste Welt
 stünde. Die Tore im Hub bleiben eines je Welt.
 
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
-Ordner _Test_) sind vier Kammern aus Fensterwänden (`navTestPlan.ts`), vor
+Ordner _Test_) sind fünf Kammern aus Fensterwänden (`navTestPlan.ts`), vor
 jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
 Zielplatte** (immer sichtbar, ohne Tiefenprüfung).
 
@@ -485,11 +485,16 @@ Rand eines Podests Luft, sodass die Brüstung oben die Kante unten sperrte.
 4. **Enger schräger Gang** — dieselbe Kammer wie der erste, die zweite
    Schräge eine Kachel näher (`x + z = 8` statt `9` in der Kammer;
    gewünscht: _„45° Wände die aber einen näher aneinander stehen"_).
+5. **Engster schräger Gang** — noch eine Kachel näher (`x + z = 7`): Zwischen
+   den Schrägen bleibt eine einzige Kachelreihe (`x + z = 6`), die Randhälften
+   der Schrägkacheln daneben. Er stößt nicht an die Südwand, sein Tor steht
+   deshalb in der Westwand (`NavTest.gate.dir`, `gateDir`). Die Puppe kommt
+   durch — auf dem Plan (`navTestPlan.test.ts`) wie im Browser.
 
 **Jede Kammer hat ein Tor, durch das nur der Spieler kommt** (gewünscht:
 _„zu allen Bereichen auch ein Tor … über welches nur der Spieler rein und
 raus kann"_): `prototype-bits/Wall_Doorway.glb` in der Südwand, an der Kachel
-der Startplatte (`NavTest.gate`, `GATE_MODEL`). Für das Zellgitter des
+der Startplatte (`NavTest.gate`, `GATE_MODEL`; beim engsten Gang in der Westwand). Für das Zellgitter des
 Spielers ist der Durchgang offen (`MODEL_ARCHES`, `gridSnap.wallCells`); im
 Graphen der NPCs steht an derselben Kante eine feste Wand
 (`NavTestWorld.navReady`, und im Plan für `navTestPlan.test.ts`), also plant
