@@ -320,7 +320,7 @@ frei, erreichbar, der Weg in den Gastraum offen).
 | Datei                               | Was darin steht                                                                                                                                                                                                                                                            |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `worlds/plateup/plateUpIce.ts`      | **Rein**: Sorten, was die Hände vom Eis halten (`IceHands`), was ein Druck an Stand, Wanne und Station tut (`useStand`, `useTub`, `useCounter`), welche Wanne gemeint ist (`pickTub`, `tubUnder`), über welchem Hörnchen der Portionierer ist (`coneUnder`), Verben, Sätze |
-| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der wackelige Turm — Feder je Kugel, geschlossen gelöst, unabhängig von der Bildrate (`stepWobble`)                                                                                                                                                              |
+| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der Turm auf dem Hörnchen — Kette von Verzögerungen, nach oben träger, geschlossen gelöst (`followBall`, `stepWobble`)                                                                                                                                           |
 | `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke (gedreht nach `ICE_FACE`, `ICE_YAW`), Hörnchen mit Kugeln (`IceConeView`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht, Ersatzkörper (`fallback`)                                                                     |
 | `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Neigen, nie herunter, 30 gegen 144 Bilder je Sekunde)                                                                                                                  |
 
@@ -354,19 +354,30 @@ kleinsten Winkel zum Blick (`pickTub`: von oben die Richtung der Figur, aus
 den Augen die des Kopfes). In der Brille sind beide angemeldet, denn dort
 wählt die Hand mit einer Greifbox so groß wie die Wanne.
 
-**Der Turm wackelt, fällt aber nie** (`plateUpWobble.ts`). Jede Kugel hängt
-an einer gedämpften Feder an der Kugel darunter, und die Federn werden nach
-oben weicher — beim Losgehen bleiben die oberen Kugeln weiter zurück als die
-unteren und schwingen nach. Die Richtung des Turms folgt der Achse des
-Hörnchens mit einer Zeitkonstante von 0,35 s (`WOBBLE.tilt`) und hängt am
-Ende etwas weiter durch als das Hörnchen (`WOBBLE.sag`): Schräg gehalten
-neigt er sich langsam in dieselbe Richtung. Keine Kugel kommt weiter als
-0,45 Kugelabstände von ihrem Platz auf der unteren weg (`WOBBLE.lean`) —
-das ist das „nie herunter", als Zeile. Gerechnet wird in der Welt und erst
-danach in den Raum des Hörnchens zurückgelegt; die Feder ist geschlossen
-gelöst, und ein Bild wird in Stücke von 1/120 s geteilt, zwischen denen
-Hörnchen und Achse gleichmäßig wandern — 30 und 144 Bilder je Sekunde
-ergeben denselben Turm (Test: unter 3 mm nach zwei Sekunden Schwenken).
+**Der Turm folgt verzögert, schwingt nicht nach und fällt nie**
+(`plateUpWobble.ts`). Die unterste Kugel sitzt genau im Hörnchen; jede
+weitere läuft ihrem Platz auf der Kugel **darunter** mit einer Verzögerung
+erster Ordnung nach (`followBall`: Abstand schrumpft mit `exp(−t/τᵢ)`), und
+die Zeitkonstante wächst quadratisch mit der Höhe (`followTime`:
+`τᵢ = 0,003 s · i²`, höchstens 0,15 s — `WOBBLE.lag`, `.curve`, `.slowest`).
+Eine solche Kette schießt nie über das Ziel hinaus — **keine Welle, kein
+Nachwackeln** —, und sie ergibt die gewünschte Form: Bei gleichmäßiger
+Bewegung hängt Kugel `i` um `v · (τ₁ + … + τᵢ)` zurück, der Turm ist also
+**gebogen** statt schräg-gerade; beim Anhalten stehen die unteren Kugeln
+schnell, und die oberen holen danach auf (ihre größte Geschwindigkeit
+erreichen sie erst nach dem Anhalten, je höher, desto später). Die Richtung
+des Turms folgt der Achse des Hörnchens mit einer Zeitkonstante von 0,35 s
+(`WOBBLE.tilt`, ebenfalls ohne Überschießen) und hängt am Ende etwas weiter
+durch als das Hörnchen (`WOBBLE.sag`): Schräg gehalten neigt er sich langsam
+in dieselbe Richtung. Keine Kugel kommt weiter als 0,45 Kugelabstände von
+ihrem Platz auf der unteren weg (`WOBBLE.lean`, gezogen wird dabei zum Platz
+hin) — das ist das „nie herunter", als Zeile; bei vollem Gehtempo stoßen die
+oberen Glieder an diese Grenze, der untere Teil bleibt gebogen. Gerechnet
+wird in der Welt und erst danach in den Raum des Hörnchens zurückgelegt. Die
+Verzögerung ist geschlossen gelöst für ein Ziel, das während des Schritts
+gleichmäßig wandert, und ein Bild wird in Stücke von 1/120 s geteilt — 30 und
+144 Bilder je Sekunde ergeben denselben Turm (Test: unter 1 mm nach zwei
+Sekunden Schwenken).
 
 **Wohin mit dem Eis.** Es belegt dieselbe Hand wie ein Teller: Wer es hält,
 nimmt nichts anderes, bedient keinen Tisch und nimmt keinen Bauplan. Es geht
