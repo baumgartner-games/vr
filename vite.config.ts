@@ -407,8 +407,8 @@ export default defineConfig({
     target: 'es2022',
     outDir: 'dist',
     sourcemap: true,
-    // Drei Seiten: die Spielwiese selbst, die Werkzeugseite und die
-    // Eingabeseite. Ohne diese Liste baut Vite nur `index.html`, und die
+    // Vier Seiten: die Spielwiese selbst, die Werkzeugseite, die
+    // Eingabeseite und der KayKit-Editor. Ohne diese Liste baut Vite nur `index.html`, und die
     // anderen lägen im Netz als Dateien, die auf ein `src/`-Modul zeigen, das
     // es dort nicht gibt.
     //
@@ -421,6 +421,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         tools: resolve(__dirname, 'tools.html'),
         inputs: resolve(__dirname, 'inputs.html'),
+        kaykitEditor: resolve(__dirname, 'kaykit-editor.html'),
       },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
