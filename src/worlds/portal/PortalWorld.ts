@@ -180,6 +180,7 @@ import {
   mountSize,
   mountsOnWall,
   restOn,
+  surfaceSpot,
   wallFaces,
 } from './decorPlace';
 import { PlaceGhost } from './placeGhost';
@@ -1460,6 +1461,8 @@ export class PortalWorld implements World {
   private readonly pickedFrom = new WeakMap<PhysicsBody, BuildPose>();
   /** Der letzte Pinsel aus dem Regal — _Setzen_ mit leerem Haken nimmt ihn wieder. */
   private lastBrush: { path: string; yaw: number } | null = null;
+  /** _Kopieren_ ist scharf: Der nächste Druck auf ein Stück macht es zum Pinsel (`armCopy`). */
+  private pipette = false;
   /** Die Kästen, gegen die gestapelt und an die gehängt wird — je Bild neu gefüllt. */
   private readonly decorScratch: DecorBox[] = [];
   private readonly decorModels: PhysicsBody[] = [];
@@ -8988,7 +8991,12 @@ export class PortalWorld implements World {
     if (this.holdsStill(entry)) return;
     // Wo ein schon stehendes Stück aus dem Regal stand, bevor es aufgehoben
     // wurde — damit _Rückgängig_ es dorthin zurückstellen kann.
-    if (!this.shelfFresh.has(entry) && !entry.carried && this.modelPath(entry) !== null)
+    if (
+      !this.shelfFresh.has(entry) &&
+      !entry.carried &&
+      !this.pickedFrom.has(entry) &&
+      this.modelPath(entry) !== null
+    )
       this.pickedFrom.set(entry, this.buildPoseOf(entry));
     const loose = this.loose.get(entry);
     if (loose) {
@@ -9300,8 +9308,8 @@ export class PortalWorld implements World {
     paint.count += 1;
     void this.placeModelAt(
       paint.path,
-      new THREE.Vector3(decor?.mounted ? decor.x : pose.x, y, decor?.mounted ? decor.z : pose.z),
-      decor?.mounted ? decor.yaw : pose.yaw,
+      new THREE.Vector3(decor ? decor.x : pose.x, y, decor ? decor.z : pose.z),
+      decor ? decor.yaw : pose.yaw,
       true,
       // Im Baukasten steht, was gesetzt ist, **fest** — genau auf der Höhe,
       // die der Geist gezeigt hat. Sonst schiebt das nächste Stück am Haken
@@ -9503,7 +9511,8 @@ export class PortalWorld implements World {
       this.replaceWalls(entry, pose);
       this.fitWall(entry, pose);
       // Auf der Höhe, auf der es steht, und nicht auf der des Hakens.
-      _point.set(pose.x, decor && !this.floorPieces.has(entry) ? decor.y : _point.y, pose.z);
+      const own = decor && !this.floorPieces.has(entry);
+      _point.set(own ? decor.x : pose.x, own ? decor.y : _point.y, own ? decor.z : pose.z);
       _quaternion.setFromAxisAngle(UP, pose.yaw);
     }
 
@@ -9800,11 +9809,15 @@ export class PortalWorld implements World {
     const base = this.wallBase(entry);
     const pose = gridPose(x, z, _quaternion, base.half, base.long);
     const turned = turnedHalf(half, pose.yaw);
-    const plain = { x: pose.x, z: pose.z, yaw: pose.yaw, mounted: false, on: null };
+    // Kleinkram auf einer Fläche rastet auf Viertelkacheln der Fläche ein und
+    // nicht auf der Kachelmitte (`surfaceSpot`) — sonst stünde das Buch neben
+    // dem Wandbrett statt darauf.
+    const spot = surfaceSpot(x, z, turned, floorY, boxes) ?? pose;
+    const plain = { x: spot.x, z: spot.z, yaw: pose.yaw, mounted: false, on: null };
     if (pose.wall !== null || pose.diagonal || this.floorPieces.has(entry))
       return { ...plain, y: floorY + half.y, stacked: false, valid: true };
     const rest = restOn(
-      { x: pose.x, z: pose.z, halfX: turned.halfX, halfZ: turned.halfZ },
+      { x: spot.x, z: spot.z, halfX: turned.halfX, halfZ: turned.halfZ },
       2 * half.y,
       floorY,
       boxes,
@@ -9857,14 +9870,17 @@ export class PortalWorld implements World {
     const bar = (this.buildBar ??= new BuildBar());
     for (const event of bar.take()) this.onBuildEvent(ctx, event);
 
-    const tool: BuildTool = this.bomb
-      ? 'erase'
-      : carried && this.shelfFresh.has(carried)
-        ? 'place'
-        : 'move';
+    const tool: BuildTool = this.pipette
+      ? 'copy'
+      : this.bomb
+        ? 'erase'
+        : carried && this.shelfFresh.has(carried)
+          ? 'place'
+          : 'move';
     const path = carried ? this.modelPath(carried) : null;
     let status = '';
-    if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
+    if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
+    else if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
     else if (carried && path && target) {
       const name = propLabel(modelKind(path));
       const where = target.mounted
@@ -9887,6 +9903,50 @@ export class PortalWorld implements World {
       status,
       valid: carried && target && !this.bomb ? target.valid : null,
     });
+  }
+
+  /**
+   * **Verschieben am Schirm: ein Klick hebt auf, was unter dem Kran steht.**
+   *
+   * In der Brille nimmt die Hand ein Stück mit dem Griff; am Schirm gab es
+   * dafür keinen Weg — was aus dem Regal einmal stand, ließ sich nur noch
+   * abreißen und neu holen. Jetzt nimmt der Benutzen-Druck (Klick, `E`, `A`)
+   * mit leerem Haken das Modell unter dem Kran in die Bildschirmhand, in
+   * _Einrichten_ und _Baukasten_; der nächste Druck stellt es wieder hin,
+   * eingerastet wie jedes Stück, und _Rückgängig_ stellt es zurück.
+   *
+   * @returns ob etwas aufgehoben wurde — dann ist der Druck verbraucht
+   */
+  private liftUnderCrane(ctx: WorldContext): boolean {
+    const found = this.liftTarget(ctx);
+    if (!found) return false;
+    if (this.pipette) {
+      this.copyFrom(ctx, found);
+      return true;
+    }
+    this.pickedFrom.set(found, this.buildPoseOf(found));
+    if (!this.screenCatch(ctx, found)) {
+      this.pickedFrom.delete(found);
+      return false;
+    }
+    return true;
+  }
+
+  /** Was ein Druck mit leerem Kran aufheben würde (`liftUnderCrane`) — oder `null`. */
+  private liftTarget(ctx: WorldContext): PhysicsBody | null {
+    if (!ctx.crane || !movesFurniture(gameMode()) || ctx.renderer.xr.isPresenting) return null;
+    const side = this.screenCarrySide();
+    if (!side || this.grabs.has(side) || this.bomb) return null;
+    ctx.rig.getHeadPosition(_point);
+    const floor = ctx.rig.getFloorY();
+    // Von oben nach unten: Die Tasse auf dem Tisch ist gemeint, nicht der
+    // Tisch unter ihr — und das Bild an der Wand hängt auf Augenhöhe.
+    for (const height of [1.6, 1.2, 0.5]) {
+      _point.y = floor + height;
+      const one = this.findProp(_point);
+      if (one && this.modelPath(one) !== null && !this.holdsStill(one)) return one;
+    }
+    return null;
   }
 
   /** Ob ein Stück eine Wand aus dem Regal ist — die dreht in Achteln, alles andere in Vierteln. */
@@ -9936,7 +9996,7 @@ export class PortalWorld implements World {
         return;
       }
       case 'copy':
-        this.copyUnderCrane(ctx);
+        this.armCopy(ctx);
         return;
       case 'tool':
         this.pickTool(ctx, event.tool);
@@ -9946,6 +10006,7 @@ export class PortalWorld implements World {
 
   /** Das Werkzeug wechseln — der Haken wird dafür geleert oder gefüllt. */
   private pickTool(ctx: WorldContext, tool: BuildTool): void {
+    this.pipette = false;
     const side = this.screenCarrySide();
     const grab = side ? this.grabs.get(side) : undefined;
     // Den Pinsel weglegen: Ein frisches Stück war nie hingestellt (`letGo`).
@@ -9955,7 +10016,8 @@ export class PortalWorld implements World {
     if (tool === 'erase') {
       if (this.bomb) return;
       empty();
-      if (this.screenCarrySide() !== null) {
+      const still = this.screenCarrySide();
+      if (still && this.grabs.has(still)) {
         ctx.notify('Erst das Getragene abstellen');
         return;
       }
@@ -9978,34 +10040,32 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Kopieren: das Stück unter dem Kran wird zum Pinsel** — dieselbe Datei,
-   * dieselbe Drehung. Wer ein Bild schon an der Wand hat und ein zweites
-   * daneben will, muss es nicht im Regal suchen.
+   * **Kopieren: das Stück, das man als Nächstes anklickt, wird zum Pinsel** —
+   * dieselbe Datei, dieselbe Drehung. Wer ein Bild schon an der Wand hat und
+   * ein zweites daneben will, muss es nicht im Regal suchen.
+   *
+   * Ein **Werkzeug** und kein Sofort-Knopf: Wer mit der Maus zur Leiste
+   * fährt, zieht den Kran unterwegs vom Stück weg, und ein Knopf, der „das
+   * unter dem Kran" kopiert, träfe dann den Boden neben der Leiste. Also
+   * schaltet der Knopf nur um, und der nächste Druck auf ein Stück kopiert
+   * (`liftUnderCrane`) — wie die Abrissbombe beim Löschen.
    */
-  private copyUnderCrane(ctx: WorldContext): void {
+  private armCopy(ctx: WorldContext): void {
     const side = this.screenCarrySide();
     const grab = side ? this.grabs.get(side) : undefined;
-    let source: PhysicsBody | null = grab?.entry ?? null;
-    if (!source) {
-      ctx.rig.getHeadPosition(_point);
-      const floor = ctx.rig.getFloorY();
-      for (const height of [0.5, 1.2, 1.6]) {
-        _point.y = floor + height;
-        source = this.findProp(_point);
-        if (source && this.modelPath(source) !== null) break;
-        source = null;
-      }
-    }
-    const path = source ? this.modelPath(source) : null;
-    if (!source || path === null) {
-      ctx.notify('Unter dem Kran steht nichts aus dem Regal');
-      return;
-    }
+    if (side && grab && this.shelfFresh.has(grab.entry)) this.letGo(ctx, side, grab);
     if (this.bomb) this.putBombAway();
+    this.pipette = true;
+  }
+
+  /** Den Pinsel aus einem stehenden Stück machen (`armCopy`). */
+  private copyFrom(ctx: WorldContext, source: PhysicsBody): void {
+    const path = this.modelPath(source);
+    this.pipette = false;
+    if (path === null) return;
     source.object.getWorldQuaternion(_quaternion);
-    const yaw = eighthYaw(yawOf(_quaternion));
-    if (grab && this.shelfFresh.has(grab.entry)) return;
-    this.takeModel(ctx, path, side ?? null, yaw);
+    const side = this.screenCarrySide();
+    this.takeModel(ctx, path, side ?? null, eighthYaw(yawOf(_quaternion)));
     ctx.notify(`Kopiert: ${propLabel(modelKind(path))}`);
   }
 
@@ -11286,7 +11346,12 @@ export class PortalWorld implements World {
    * @returns ob die Bombe gerade hängt — dann gehören ihr die Tasten
    */
   private updateBomb(ctx: WorldContext): boolean {
-    const allowed = bombAllowed(gameMode(), Boolean(ctx.crane), this.screenCarrySide() !== null);
+    // **Leere Klauen heißt: nichts in der Bildschirmhand** — und nicht: keine
+    // Bildschirmhand. Die behält ihre Seite, auch wenn sie nichts mehr trägt,
+    // und damit ging die Bombe nach dem ersten getragenen Stück nie wieder.
+    const side = this.screenCarrySide();
+    const carrying = side !== null && this.grabs.has(side);
+    const allowed = bombAllowed(gameMode(), Boolean(ctx.crane), carrying);
     if (ctx.rig.takeBomb() && allowed) {
       if (this.bomb) this.putBombAway();
       else this.fetchBomb(ctx);
@@ -11410,11 +11475,13 @@ export class PortalWorld implements World {
       this.bodyPick = null;
       return;
     }
-    if (ctx.rig.takeUse()) this.useForward(ctx);
+    if (ctx.rig.takeUse() && !this.liftUnderCrane(ctx)) this.useForward(ctx);
     this.aimUse(ctx);
 
     const pick = this.usables.length > 0 ? this.pickBody(ctx) : null;
-    ctx.rig.useCandidate = pick !== null;
+    // Ein Modell unter dem leeren Kran ist auch etwas zum Benutzen: Der Klick
+    // hebt es auf (`liftUnderCrane`).
+    ctx.rig.useCandidate = pick !== null || this.liftTarget(ctx) !== null;
     const object = pick?.candidate.object ?? null;
     this.bodyPick = pick && object ? { usable: pick.candidate.usable, object } : null;
   }

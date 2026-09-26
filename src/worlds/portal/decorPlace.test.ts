@@ -16,6 +16,7 @@ import {
   mountSize,
   mountsOnWall,
   restOn,
+  surfaceSpot,
   wallFaces,
 } from './decorPlace';
 
@@ -83,6 +84,15 @@ describe('restOn — stapeln', () => {
     expect(rest.blocked).toBe(true);
   });
 
+  it('stellt kein Sofa auf einen Beistelltisch, auch wenn es halb aufliegt', () => {
+    const side = boxAround(0, 0.25, 0, 0.6, 0.5, 0.6);
+    const sofa = { x: 0, z: 0, halfX: 1, halfZ: 0.25 };
+    expect(coverShare(sofa, side)).toBeGreaterThanOrEqual(0.3);
+    expect(restOn(sofa, 0.8, 0, [side]).blocked).toBe(true);
+    // Eine Tischlampe dagegen passt.
+    expect(restOn({ x: 0, z: 0, halfX: 0.2, halfZ: 0.2 }, 0.5, 0, [side]).blocked).toBe(false);
+  });
+
   it('eine Vase auf einem schmalen Brett liegt ganz auf, auch wenn das Brett klein ist', () => {
     const board = boxAround(0, 1, 0, 0.3, 0.04, 0.2);
     const vase = { x: 0, z: 0, halfX: 0.1, halfZ: 0.1 };
@@ -100,6 +110,43 @@ describe('restOn — stapeln', () => {
   });
 });
 
+describe('surfaceSpot — Kleinkram auf Flächen', () => {
+  const mug = { halfX: 0.05, halfZ: 0.05 };
+  /** Ein Wandbrett an der Ostwand: 30 cm tief, einen Meter lang, auf 1,5 m. */
+  const board = boxAround(3.75, 1.5, 1.5, 0.3, 0.1, 1);
+
+  it('stellt eine Tasse auf das Wandbrett, weit weg von jeder Kachelmitte', () => {
+    const spot = surfaceSpot(3.7, 1.6, mug, 0, [board]);
+    expect(spot).not.toBeNull();
+    expect(spot!.x).toBeGreaterThanOrEqual(3.6 + 0.05);
+    expect(spot!.x).toBeLessThanOrEqual(3.9 - 0.05);
+    expect(spot!.z).toBeCloseTo(1.5);
+    const rest = restOn({ ...spot!, ...mug }, 0.1, 0, [board]);
+    expect(rest.support).toBe(0);
+    expect(rest.y).toBeCloseTo(1.55);
+  });
+
+  it('lässt zwei Tassen auf einem Tisch nebeneinander stehen', () => {
+    const a = surfaceSpot(-0.4, 0, mug, 0, [TABLE])!;
+    const b = surfaceSpot(0.4, 0, mug, 0, [TABLE])!;
+    expect(a.x).toBeCloseTo(-0.5);
+    expect(b.x).toBeCloseTo(0.5);
+  });
+
+  it('rückt an den Rand heran, aber nicht darüber hinaus', () => {
+    const spot = surfaceSpot(0.99, 0.49, mug, 0, [TABLE])!;
+    expect(spot.x).toBeCloseTo(0.95);
+    expect(spot.z).toBeCloseTo(0.45);
+  });
+
+  it('gilt nur für Kleinkram und nur über einer Fläche', () => {
+    expect(surfaceSpot(0, 0, { halfX: 0.5, halfZ: 0.4 }, 0, [TABLE])).toBeNull();
+    expect(surfaceSpot(5, 5, mug, 0, [TABLE])).toBeNull();
+    // Ein Teppich ist keine Fläche, auf der man Kleinkram verrückt.
+    expect(surfaceSpot(0, 0, mug, 0, [RUG])).toBeNull();
+  });
+});
+
 describe('mountsOnWall', () => {
   it.each([
     ['furniture-bits/pictureframe_large_A.glb', true],
@@ -108,6 +155,8 @@ describe('mountsOnWall', () => {
     ['dungeon/banner_red.glb', true],
     ['dungeon/torch_mounted.glb', true],
     ['holiday-bits/wall_decoration_candy_A.glb', true],
+    ['furniture-bits/shelf_A_big.glb', true],
+    ['furniture-bits/shelf_B_large.glb', false],
     ['furniture-bits/table_medium.glb', false],
     ['furniture-bits/lamp_standing.glb', false],
     ['dungeon/wall_doorway.glb', false],

@@ -18,7 +18,7 @@
  * Belegung der Spielsteuerung.
  */
 
-export type BuildTool = 'place' | 'move' | 'erase';
+export type BuildTool = 'place' | 'move' | 'erase' | 'copy';
 
 /** Was die Leiste meldet. */
 export type BuildEvent =
@@ -97,7 +97,7 @@ export class BuildBar {
   private readonly copy = this.button(
     '⧉',
     'Kopieren',
-    'Das Stück unter dem Kran als Pinsel nehmen',
+    'Ein Stück anklicken, um es als Pinsel zu nehmen',
     {
       kind: 'copy',
     },
@@ -150,6 +150,7 @@ export class BuildBar {
       ['place', this.place],
       ['move', this.move],
       ['erase', this.erase],
+      ['copy', this.copy],
     ] as const) {
       button.element.setAttribute('aria-pressed', String(state.tool === tool));
       button.element.classList.toggle('build-bar__btn--on', state.tool === tool);

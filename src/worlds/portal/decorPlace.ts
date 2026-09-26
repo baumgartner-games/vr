@@ -60,6 +60,9 @@ export const BLOCK_SHARE = 0.12;
  */
 export const SUPPORT_SHARE = 0.3;
 
+/** Wie viel breiter als seine Unterlage ein Stück sein darf, in Metern — Kanten stehen gern über. */
+export const STACK_SLACK = 0.1;
+
 /** Eine Grundfläche: Mitte und halbe Kantenlängen, schon gedreht (`gridSnap.turnedHalf`). */
 export interface Footprint {
   readonly x: number;
@@ -125,7 +128,16 @@ export function restOn(
     // Aufliegen heißt: Genug von der Grundfläche liegt auf der Oberkante. Eine
     // Tasse auf einem schmalen Brett liegt ganz auf; ein Sofa auf einer Tasse
     // zu einem Prozent.
-    if (coverShare(foot, others[support]!) < SUPPORT_SHARE) blocked = true;
+    const box = others[support]!;
+    if (coverShare(foot, box) < SUPPORT_SHARE) blocked = true;
+    // Und gestapelt wird **Kleines auf Großes**: Ein Sofa auf einem
+    // Beistelltisch liegt vielleicht zu einem Drittel auf, gemeint ist es
+    // trotzdem nicht. Was in einer Richtung breiter ist als seine Unterlage,
+    // steht dort nicht.
+    const fits =
+      2 * foot.halfX <= box.maxX - box.minX + STACK_SLACK &&
+      2 * foot.halfZ <= box.maxZ - box.minZ + STACK_SLACK;
+    if (!fits) blocked = true;
   }
   const top = y + Math.max(0, height);
   for (let i = 0; i < others.length && !blocked; i++) {
@@ -139,17 +151,62 @@ export function restOn(
   return { y, support, blocked };
 }
 
+/** Bis zu welcher halben Kantenlänge ein Stück als Kleinkram gilt, in Metern. */
+export const SMALL_HALF = 0.3;
+
+/** Wie fein Kleinkram auf einer Fläche einrastet, in Metern: Viertelkacheln. */
+export const SURFACE_STEP = 0.25;
+
+/**
+ * **Wo Kleinkram auf einer Fläche steht** — eine Tasse, ein Buch, eine
+ * Tischlampe — oder `null`, wenn unter dem Punkt keine Fläche ist.
+ *
+ * Kleinkram rastet nicht auf der Kachelmitte ein, sondern auf Viertelkacheln
+ * **innerhalb** der Fläche unter dem Zeiger: Ein Wandbrett ist 30 cm tief und
+ * liegt an der Wand, also weit weg von jeder Kachelmitte, und auf einem
+ * Tisch sollen zwei Tassen nebeneinander stehen können und nicht beide in der
+ * Mitte. Gerückt wird so, dass das Stück ganz auf der Fläche steht; ist die
+ * Fläche schmaler, steht es auf ihrer Mitte.
+ */
+export function surfaceSpot(
+  x: number,
+  z: number,
+  foot: { readonly halfX: number; readonly halfZ: number },
+  floorY: number,
+  others: readonly Box[],
+): { x: number; z: number } | null {
+  if (foot.halfX > SMALL_HALF || foot.halfZ > SMALL_HALF) return null;
+  let best: Box | null = null;
+  for (const box of others) {
+    if (x < box.minX || x > box.maxX || z < box.minZ || z > box.maxZ) continue;
+    if (box.maxY > floorY + STACK_MAX || box.maxY < floorY + 0.1) continue;
+    if (!best || box.maxY > best.maxY) best = box;
+  }
+  if (!best) return null;
+  const fit = (value: number, min: number, max: number, half: number): number => {
+    if (max - min <= 2 * half) return (min + max) / 2;
+    const snapped = Math.round(value / SURFACE_STEP) * SURFACE_STEP;
+    return Math.max(min + half, Math.min(max - half, snapped));
+  };
+  return {
+    x: fit(x, best.minX, best.maxX, foot.halfX),
+    z: fit(z, best.minZ, best.maxZ, foot.halfZ),
+  };
+}
+
 // --- an die Wand --------------------------------------------------------------
 
 /**
  * **Was an die Wand gehört** — am Dateinamen, wie die Haltung
  * (`modelStance.ts`): Bilderrahmen (nicht die stehenden), Banner und Wappen,
- * Wandfackeln, Zielscheiben für die Wand, Tafeln, Wandschmuck.
+ * Wandfackeln, Zielscheiben für die Wand, Tafeln, Wandschmuck und die
+ * Wandbretter aus `furniture-bits` (`shelf_A_*` — ein Brett mit Konsolen, das
+ * auf dem Boden lag wie ein Stück Holz).
  */
 export function mountsOnWall(path: string): boolean {
   const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
   if (name.startsWith('pictureframe_')) return !name.includes('standing');
-  return /^(banner_|torch_mounted|plaque_|target_wall_|wall_decoration_|shield_wall|sign_(left|right|both))/.test(
+  return /^(banner_|torch_mounted|plaque_|target_wall_|wall_decoration_|shelf_a_|sign_(left|right|both))/.test(
     name,
   );
 }
