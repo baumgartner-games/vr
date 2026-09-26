@@ -234,6 +234,17 @@ Drei Regeln halten den Baum ehrlich (`groupMenu`):
 - **`Esc` geht eine Ebene zurück** und macht erst ganz oben zu
   (`PageMenu.back`); steht ein Suchbegriff im Regal, wird zuerst der gelöscht.
   Vorher schloss `Esc` das ganze Menü, egal wie tief man stand.
+- **Die Fußzeile am Handgelenk sagt, wie man zurückkommt.** Auf einer
+  langen Seite unter einer anderen steht dort „Stick oder wischen blättert ·
+  B/Y zurück", sonst „Andere Hand: zielen + Trigger/A · B/Y zurück". Eine
+  Meldung (`notify`) nimmt den Platz nur noch **zehn Sekunden** ein
+  (`UIPanel.STATUS_MS`) — vorher blieb sie stehen, bis die nächste kam, und
+  weil jede Welt beim Betreten eine schickt, war der Hinweis praktisch nie zu
+  sehen. Geprüft als 3D-Panel in der Ego-Ansicht (0,3 m breit, 0,45 m vor dem
+  Auge): Wurzel, _Einstellungen → Grafik_, _Werkstatt_ (lang, blättert),
+  _Steuerung & Hilfe → Eingaben_, _Bauen & Gestalten → Magischer Beutel_
+  (Raster) — nichts abgeschnitten außer langen Unterzeilen, die mit „…"
+  enden, wie gewollt.
 - **`WristMenus.back()`** ist dieselbe Treppe für jede Taste, die „zurück"
   heißen soll (`B` am Pad, in der Brille), egal welches Gesicht des Menüs
   gerade oben ist; `false` heißt, es war gar nichts offen. Die Belegung
@@ -537,7 +548,8 @@ Eine Welt aus dem Speicher ist in 150 ms da, und ein Bildschirm, der nur
 aufblitzt, ist unruhiger als keiner.
 
 **Nur am Schirm und nur im Spiel.** In der Brille gibt es kein DOM im Bild
-(geht die Brille während des Ladens auf, verschwindet er sofort), und auf der
+(geht die Brille während des Ladens auf, verschwindet er sofort) — dort blendet
+es stattdessen ab, mit einer Tafel im Raum (unten, _In der Brille_), und auf der
 Startseite sagt der Knopf selbst, wie weit es ist („Lädt … 17 %"). Scheitert
 die Ladung, geht er ebenfalls sofort; die Meldung kommt wie bisher.
 
@@ -556,7 +568,8 @@ eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
   und ☰. Gezeichnet als dieselben Chips wie die Tastenhilfe.
 - **Wann**: gefragt wird jedes Bild (`App.updateWelcome`), und sie kommt erst,
   wenn man die Welt **sieht** — nicht hinter der Startseite, nicht unter dem
-  Ladebildschirm, nicht hinter einem Menü, nicht in der Brille. Die erste Welt
+  Ladebildschirm, nicht hinter einem Menü, nicht in der Brille (dort steht
+  stattdessen eine Tafel im Raum, unten). Die erste Welt
   lädt ja, während die Startseite noch davorsteht.
 - **Wie lange**: neun Sekunden, oder bis _Verstanden_. Geht ein Menü auf oder
   wechselt die Welt, geht sie mit.
@@ -564,6 +577,59 @@ eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
   Ids). **Abschaltbar** unter _Menü → Steuerung & Hilfe → Eingaben →
   Willkommen je Welt_ (`bgvr.welcome`); wer sie wieder einschaltet, bekommt
   alle Welten noch einmal begrüßt.
+
+### In der Brille: Abblenden, Tafel, Beschriftung (`ui/XRGuide.ts`)
+
+Am Schirm gab es Ladebildschirm, Willkommens-Karte und Tastenhilfe — in der
+Brille nichts davon: Ein Weltwechsel war ein harter Schnitt, der Gruß der Welt
+stand nur als Zeile am Handgelenk, und welcher Knopf was tut, sagte niemand.
+Jetzt gibt es dort dasselbe, mit denselben Texten, Zahlen und Einstellungen,
+nur **im Raum statt als DOM**. Was wann steht, rechnet `core/xrGuide.ts` (mit
+Test); gezeichnet wird in `ui/XRGuide.ts` (Leinwand-Malerei in
+`ui/xrCard.ts`, dieselben Farben wie `--hud-*`).
+
+- **Abblenden beim Weltwechsel.** `App.goTo` blendet in der Brille in
+  `XR_FADE_IN` (0,25 s) auf eine dunkle Farbe der Zielwelt ab (12 % der
+  Akzentfarbe auf Schwarz, `fadeColor` — „Augen zu", keine bunte Wand),
+  **tauscht die Welt erst, wenn es dunkel ist** (`XRGuide.whenDark`, höchstens
+  0,8 s — eine Welt aus dem Speicher ist schneller da als die Blende zu), hält
+  mindestens `LOADER_MIN_MS` wie am Schirm und wartet auf die Modelle
+  (`assets.settle`, Deckel `LOADER_CAP_MS`), dann in `XR_FADE_OUT` (0,45 s)
+  wieder auf. Die Blende ist eine Kugel an der Kamera (Innenseite, ohne
+  Tiefenprüfung) — gleich dunkel in jede Richtung, also egal, ob der Kopf in
+  einem ausgelassenen Bild schon weiter ist.
+- **Die Ladetafel** steht über der Blende 1,5 m vor dem Spieler: das
+  Vorschaubild der Zielwelt (`WorldDefinition.preview`), „Nächste Welt", Name,
+  Zeile, der Balken in der Akzentfarbe und die Zeile aus `loadLine` („Modelle
+  und Töne · 14 von 40"). Der Balken ist Geometrie und kriecht wie am Schirm
+  (`creep`); neu gemalt wird die Leinwand nur, wenn sich die Zeile ändert.
+- **Die Tafeln hängen am Rig, nicht am Kopf.** Sie stehen da, wo man beim
+  Aufgehen hinsah, und rücken erst nach, wenn man sich mehr als 40° wegdreht —
+  dann weich, bis sie wieder fast geradeaus stehen (`followYaw`, mit Abstand
+  zwischen Anfangen und Aufhören, damit sie am Rand nicht zittern). Eine Tafel
+  am Kopf ruckelte mit jedem ausgelassenen Bild mit, und beim Laden fallen
+  Bilder aus.
+- **Die Willkommens-Tafel**: dieselben Texte aus `core/worldIntro.ts`, 1,45 m
+  vor dem Spieler, etwas unter Augenhöhe und zu ihm geneigt; die Knöpfe heißen
+  wie in der Hand (`xrIntroKeys`): „Stock L Gehen · A Nehmen & Benutzen · Griff
+  Greifen · ☰ Menü". _Werkzeug_ ist der Griff (man nimmt es aus dem Regal),
+  _Ansicht_ fällt weg. Sie kommt nur, wenn man die Welt **sieht** — nicht unter
+  der Blende, nicht hinter dem Handgelenkmenü (`xrWorldVisible`) —, steht
+  zwölf Sekunden (`XR_WELCOME_SECONDS`) oder bis **Trigger (oder `A`) auf die
+  Tafel** (_Verstanden_), und geht mit, wenn die Welt wechselt oder das Menü
+  aufgeht. **Eine Liste für Schirm und Brille** (`welcomedWorlds`/
+  `markWelcomed` in `ui/WorldWelcome.ts`, `bgvr.welcomed`): Wer eine Welt am
+  Schirm begrüßt bekam, wird in der Brille nicht noch einmal begrüßt.
+  Abschaltbar mit derselben Zeile _Willkommen je Welt_.
+- **Die Beschriftung am Controller** — siehe
+  [Steuerung](./steuerung.md#die-tastenhilfe--uicontrolhintsts): zwei, drei
+  Knöpfe der Zone am rechten Controller, abschaltbar mit _Tastenhilfe_.
+
+**Prüfen ohne Brille**: `bgvr.xrPreview = true` in der Konsole stellt alles
+davon in die Ansicht aus den Augen (und lässt die Schirm-Gegenstücke schweigen,
+wie mit Brille); `bgvr.xrGuide.previewHand` nimmt ein Objekt vor der Kamera
+als rechte Hand für die Beschriftung. So sind die Bilder der Bild-Schleife
+entstanden (Weltwechsel Hub → Burgerladen: Tafel, Blende, Ankunft).
 
 ### Ein Stil für Leisten und Schilder (`--hud-*`)
 

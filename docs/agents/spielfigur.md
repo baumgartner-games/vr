@@ -468,6 +468,27 @@ Hutgruppe (`headgearFor`) wieder herausgerechnet. Nach dem Kopfhalbmesser
 geschätzt saß er im großen Kopf der Figur und war unsichtbar. Auf dem gebauten
 Koch wird er wie jeder Hut nach dem Kopf eingepasst.
 
+## Was vor einem und an der Hand steht (Brille)
+
+In der Brille hängen außer dem Handgelenkmenü drei Dinge am Spieler, alle in
+`ui/XRGuide.ts` (Rechnung in `core/xrGuide.ts`, ausführlich in
+[Die Seite selbst](./seite.md#in-der-brille-abblenden-tafel-beschriftung-uixrguidets)):
+
+- **Die Blende** beim Weltwechsel — eine Kugel an der Kamera, 0,6 m Radius,
+  Innenseite, ohne Tiefenprüfung (`renderOrder` 9000); darüber die
+  **Ladetafel** (9001–9003).
+- **Die Willkommens-Tafel** beim ersten Betreten, 1,45 m vor dem Spieler, am
+  Rig und nicht am Kopf; sie ist ein Zeigerziel (`XRGuide.asPointerTarget`) —
+  Trigger oder `A` darauf heißt _Verstanden_.
+- **Die Beschriftung am rechten Controller** — eine Tafel von 15 cm am
+  Griff (`ControllerState.grip`), 7,5 cm über der Hand, zum Kopf gedreht. Nur
+  mit Controllern; mit Handtracking bleibt sie weg. Ohne rechten Controller
+  wandert sie an den linken.
+
+Alle drei zeichnen ohne Tiefenprüfung: Sie sollen vor der Welt stehen und
+nicht in einer Wand (dasselbe Mittel wie `TextPlane.front`), und sie stehen nur
+kurz oder nur an der eigenen Hand.
+
 ## Die Karte in der Hand
 
 Ein Werkzeug im Regal, das nichts tut außer zu sagen, wo man ist
