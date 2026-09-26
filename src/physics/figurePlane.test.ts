@@ -1,23 +1,24 @@
 /**
- * **Zwei Figuren in der Ebene, mit echtem Rapier.**
+ * **Figuren gehen durcheinander hindurch, mit echtem Rapier.**
  *
- * Gemeldet: _„Ich will, dass die Physik, ob man wo lang gehen kann oder nicht,
- * wirklich nur auf der 2D-Ebene ist … und nun ist das Problem wieder, aber wenn
- * zwei Charaktere zusammen laufen."_ Auf dem Bild stand der Koch oben auf der
- * Übungspuppe, die im engen Gang der Test-Navigation neben ihm herlief. Der
- * Körper des NPC ist ein Zylinder in der Physik; die Kapsel des Spielers stieß
- * an ihm an, und der Formwurf nach unten nahm seinen Kopf als Boden.
- *
- * Jetzt berühren sich die Körper auf dem Gitter nicht mehr
- * (`PhysicsBody.gridFigure`, `PhysicsLocomotion.walkPlane`), und wer wem im
- * Weg steht, sagt die Ebene (`planeMove.figureWalls`).
+ * Gewünscht (September 2026): _„Charaktere so eingestellt, dass diese durch
+ * einander gehen dürfen und können und sich nicht gegenseitig blockieren"_.
+ * Davor gemeldet: Im engen Gang der Test-Navigation stand der Koch oben auf
+ * der Übungspuppe — der Formwurf nach unten nahm den Kopf ihres Zylinders als
+ * Boden. Jetzt sieht die Kapsel keinen NPC (`PhysicsLocomotion.PLAYER_FILTER`)
+ * und kein NPC die Kapsel oder einen anderen NPC (`Npc`, `filter`).
  */
 import * as THREE from 'three';
-import { ALL_GROUPS, GROUP_CELL, GROUP_NPC, GROUP_WORLD, PhysicsWorld } from './PhysicsWorld';
+import {
+  ALL_GROUPS,
+  GROUP_CELL,
+  GROUP_NPC,
+  GROUP_PLAYER,
+  GROUP_WORLD,
+  PhysicsWorld,
+} from './PhysicsWorld';
 import { PhysicsLocomotion } from './PhysicsLocomotion';
-import { PLAYER_CAPSULE_RADIUS } from './playerClearance';
 import type { PlayerRig } from '../core/PlayerRig';
-import { slideCircle, figureWalls, PLAYER_PLANE_RADIUS } from '../worlds/nav/planeMove';
 
 const _move = new THREE.Vector3();
 
@@ -47,24 +48,14 @@ class TestRig {
 /** Die Übungspuppe: 1,7 m hoch, 0,28 m Halbmesser (`npcKinds`). */
 const NPC_HEIGHT = 1.7;
 const NPC_RADIUS = 0.28;
+/** Derselbe Filter wie am Körper eines NPC (`Npc`). */
+const NPC_FILTER = ALL_GROUPS & ~GROUP_CELL & ~GROUP_PLAYER & ~GROUP_NPC;
 
-async function stage(
-  figuresInPlane = true,
-  offset = 0,
-): Promise<{
-  physics: PhysicsWorld;
-  rig: TestRig;
-  npc: ReturnType<PhysicsWorld['addDynamic']>;
-  run: (seconds: number, player: number, npc: number) => void;
-}> {
-  const physics = await PhysicsWorld.create(-9.81);
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 0.2, 20));
-  floor.position.set(0, -0.1, 0);
-  floor.updateMatrixWorld(true);
-  physics.addStatic(floor, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+type Body = ReturnType<PhysicsWorld['addDynamic']>;
 
+function addNpc(physics: PhysicsWorld, x: number, z: number): Body {
   const holder = new THREE.Object3D();
-  holder.position.set(offset, NPC_HEIGHT / 2, -2);
+  holder.position.set(x, NPC_HEIGHT / 2, z);
   holder.updateWorldMatrix(true, false);
   const npc = physics.addDynamic(holder, {
     shape: { kind: 'cylinder' },
@@ -73,31 +64,33 @@ async function stage(
     friction: 0.25,
     restitution: 0,
     membership: GROUP_NPC,
-    filter: ALL_GROUPS & ~GROUP_CELL,
+    filter: NPC_FILTER,
   });
   npc.body.lockRotations(true, true);
-  // So wie `Npc.update` auf dem Gitter.
-  physics.setGridFigure(npc, true);
+  return npc;
+}
+
+async function stage(
+  offset: number,
+  plane: boolean,
+): Promise<{
+  physics: PhysicsWorld;
+  rig: TestRig;
+  npc: Body;
+  run: (seconds: number, player: number, npc: number) => void;
+}> {
+  const physics = await PhysicsWorld.create(-9.81);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 0.2, 20));
+  floor.position.set(0, -0.1, 0);
+  floor.updateMatrixWorld(true);
+  physics.addStatic(floor, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+  const npc = addNpc(physics, offset, -2);
 
   const rig = new TestRig();
-  rig.position.set(0, 0, 0);
   const loco = new PhysicsLocomotion(physics, rig.asRig);
-  // Die Ebene kennt nur den NPC — so wie `GridWorld.playerPlane`.
-  loco.plane = {
-    slide: (x, z, dx, dz) => {
-      const t = npc.body.translation();
-      const figures = figuresInPlane ? [{ x: t.x, z: t.z, radius: NPC_RADIUS }] : [];
-      return slideCircle(
-        figureWalls(figures, x, z, dx, dz, PLAYER_CAPSULE_RADIUS),
-        x,
-        z,
-        dx,
-        dz,
-        PLAYER_PLANE_RADIUS,
-      );
-    },
-    flightFloor: () => null,
-  };
+  // Mit Ebene (Gitterwelt) oder ohne (reine Physik) — beide lassen durch.
+  if (plane)
+    loco.plane = { slide: (x, z, dx, dz) => ({ x: x + dx, z: z + dz }), flightFloor: () => null };
   const dt = 1 / 60;
   const run = (seconds: number, player: number, towards: number): void => {
     for (let i = 0; i < Math.round(seconds / dt); i++) {
@@ -111,56 +104,56 @@ async function stage(
   return { physics, rig, npc, run };
 }
 
-describe('zwei Figuren auf dem Gitter', () => {
-  /**
-   * Genau der gemeldete Fall, ohne die Ebene dazwischen: frontal gegen den
-   * Zylinder gelaufen, stand die Kapsel vorher nach vier Sekunden auf 1,70 m —
-   * auf seinem Kopf. Jetzt geht sie in der Physik durch ihn hindurch und
-   * bleibt auf dem Boden; aufhalten muss sie die Ebene.
-   */
-  it('nimmt den Kopf eines NPC nicht als Boden', async () => {
-    // Frontal, leicht versetzt, der NPC steht, kommt entgegen oder geht voraus.
-    const cases: [number, number][] = [
-      [0, 0],
-      [0.2, 1],
-      [0.4, 1],
-      [0, -1],
-      [0.5, 0],
-    ];
-    for (const [offset, towards] of cases) {
-      const { rig, npc, run } = await stage(false, offset);
-      let highest = 0;
-      for (let i = 0; i < 40; i++) {
-        run(0.1, -1.5, towards);
-        highest = Math.max(highest, rig.position.y, npc.body.translation().y - NPC_HEIGHT / 2);
+describe('Figuren gehen durcheinander hindurch', () => {
+  // Frontal, leicht versetzt; der NPC steht, kommt entgegen oder geht voraus.
+  const cases: [number, number][] = [
+    [0, 0],
+    [0.2, 1],
+    [0.4, 1],
+    [0, -1],
+    [0.5, 0],
+  ];
+
+  for (const plane of [true, false])
+    it(`der Spieler geht durch den NPC, ohne auf ihn zu steigen (${plane ? 'Ebene' : 'Physik'})`, async () => {
+      for (const [offset, towards] of cases) {
+        const { rig, npc, run } = await stage(offset, plane);
+        let highest = 0;
+        for (let i = 0; i < 30; i++) {
+          run(0.1, -1.5, towards);
+          highest = Math.max(highest, rig.position.y, npc.body.translation().y - NPC_HEIGHT / 2);
+        }
+        // Keiner steigt, und der Spieler kam ungebremst voran: 3 s × 1,5 m/s.
+        expect({ offset, towards, up: highest < 0.05 }).toEqual({ offset, towards, up: true });
+        expect(rig.position.z).toBeLessThan(-4.3);
       }
-      expect({ offset, towards, highest: highest < 0.05 }).toEqual({
-        offset,
-        towards,
-        highest: true,
-      });
-    }
-  });
+    });
 
-  it('der Spieler steigt nicht auf den NPC, wenn er gegen ihn läuft', async () => {
-    const { rig, npc, run } = await stage();
+  it('der NPC bleibt stehen, wo er steht, wenn der Spieler durch ihn geht', async () => {
+    const { npc, run } = await stage(0, true);
     run(3, -1.5, 0);
-    expect(rig.position.y).toBeLessThan(0.05);
-    // Er bleibt vor ihm stehen, so weit weg wie beide Körper zusammen.
     const t = npc.body.translation();
-    expect(rig.position.z - t.z).toBeGreaterThan(NPC_RADIUS + PLAYER_CAPSULE_RADIUS - 0.02);
-    // Und der NPC ist nicht weggeschoben worden und nicht gestiegen.
-    expect(t.z).toBeCloseTo(-2, 1);
-    expect(t.y).toBeCloseTo(NPC_HEIGHT / 2, 1);
+    expect(t.x).toBeCloseTo(0, 2);
+    expect(t.z).toBeCloseTo(-2, 2);
   });
 
-  it('der NPC hebt den Spieler nicht an, wenn er in ihn hineinläuft', async () => {
-    const { rig, npc, run } = await stage();
-    let highest = 0;
-    for (let i = 0; i < 30; i++) {
-      run(0.1, 0, 1.5);
-      highest = Math.max(highest, rig.position.y, npc.body.translation().y - NPC_HEIGHT / 2);
+  it('zwei NPCs gehen durcheinander hindurch', async () => {
+    const physics = await PhysicsWorld.create(-9.81);
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 0.2, 20));
+    floor.position.set(0, -0.1, 0);
+    floor.updateMatrixWorld(true);
+    physics.addStatic(floor, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+    const a = addNpc(physics, 0, -2);
+    const b = addNpc(physics, 0.1, 2);
+    const dt = 1 / 60;
+    for (let i = 0; i < 240; i++) {
+      a.body.setLinvel({ x: 0, y: a.body.linvel().y, z: 1.2 }, true);
+      b.body.setLinvel({ x: 0, y: b.body.linvel().y, z: -1.2 }, true);
+      physics.step(dt);
     }
-    expect(highest).toBeLessThan(0.05);
+    expect(a.body.translation().z).toBeGreaterThan(2);
+    expect(b.body.translation().z).toBeLessThan(-2);
+    expect(a.body.translation().y).toBeCloseTo(NPC_HEIGHT / 2, 1);
+    expect(b.body.translation().y).toBeCloseTo(NPC_HEIGHT / 2, 1);
   });
 });

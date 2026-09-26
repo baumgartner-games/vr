@@ -85,8 +85,11 @@ darin sind es wert, hier zu stehen:
 
 **Ein NPC ist ein Körper in der Physik**, ein Zylinder mit **gesperrter
 Drehung** (`worlds/npc/Npc.ts`): er fällt, stößt gegen Wände, lässt sich
-schieben — kippt aber nicht um, denn einer, der beim ersten Schubser auf dem
-Rücken liegt, ist kein Gegner, sondern ein Kegel. Seine **Waagerechte** setzt
+von Kisten schieben — kippt aber nicht um, denn einer, der beim ersten
+Schubser auf dem Rücken liegt, ist kein Gegner, sondern ein Kegel. **Durch
+Figuren geht er hindurch**, und sie durch ihn: Spieler und andere NPCs
+blockieren ihn nicht (siehe [Zellgitter](zellgitter.md), _Figuren gehen
+durcheinander hindurch_). Seine **Waagerechte** setzt
 das Hirn jedes Bild, die **Senkrechte** bleibt bei der Schwerkraft; darum
 fällt er von einer Kante und läuft trotzdem nicht in den Himmel. Weil die
 Drehung gesperrt ist, schreibt `physics.sync()` sie als Einheitsdrehung
