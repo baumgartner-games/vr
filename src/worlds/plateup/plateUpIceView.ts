@@ -9,7 +9,8 @@ import {
   type IceHands,
   type TubBox,
 } from './plateUpIce';
-import { ICE_STAND, ICE_TUBS } from './plateUpPlan';
+import { ICE_FACE, ICE_STAND, ICE_TUBS } from './plateUpPlan';
+import { dirX, dirZ } from '../nav/navTile';
 import { NO_WOBBLE, stepWobble, type WobbleState } from './plateUpWobble';
 
 /**
@@ -19,12 +20,20 @@ import { NO_WOBBLE, stepWobble, type WobbleState } from './plateUpWobble';
  *
  * **Aus dem Regal** (_Restaurant Bits_, `core/kaykitModel`): das Hörnchen
  * (`icecream_cone`), der Hörnchenstapel (`icecream_cone_stacked`), der
- * Portionierer (`icecream_scoop`) und die beiden Wannen
- * (`icecream_container_icecream_vanilla`/`_strawberry`); die Arbeitsplatten
- * darunter aus dem Restaurant-Katalog wie alle Stationen. **Gebaut** sind nur
- * die Kugeln: Kugeln in zwei Farben, eine Geometrie und ein Material je
+ * Portionierer (`icecream_scoop`) und die beiden Wannen — jede aus **zwei**
+ * Dateien: der Kasten (`icecream_container`) und das Eis darin
+ * (`icecream_container_icecream_vanilla`/`_strawberry`). Das Eis allein ist
+ * nur eine flache Platte ohne Rand; so stand es anfangs da, und von oben war
+ * die Eisecke zwei blasse Zettel auf einer Arbeitsplatte. Die Arbeitsplatten
+ * darunter kommen aus dem Restaurant-Katalog wie alle Stationen. **Gebaut**
+ * sind die Kugeln: Kugeln in zwei Farben, eine Geometrie und ein Material je
  * Sorte für alle, damit ein Turm von zwanzig Kugeln zwanzig Aufrufe kostet und
  * keine vierzig Materialien.
+ *
+ * **Und gebaut ist alles, was nicht kommt** (`fallback`): Lädt ein Modell
+ * nicht — kein WebGL, keine Leitung, ein falscher Name —, steht an seiner
+ * Stelle ein einfacher Körper in denselben Maßen. Die Eisecke wird nie
+ * unsichtbar, nur schlichter.
  */
 
 /** Maße in Metern, so wie das Eis auf einer Arbeitsplatte steht. */
@@ -39,10 +48,25 @@ export const ICE_SIZE = {
   seat: 0.012,
   /** Länge des Portionierers. */
   scoop: 0.2,
+} as const;
+
+/**
+ * **Was in der Eisecke steht, in Metern** — größer als das Eis in der Hand
+ * (`ICE_SIZE`), und zwar mit Absicht: Die Möbel dieses Ladens sind halb so
+ * groß wie echte (`core/dinerFit.DINER_SCALE`), und die Kisten daneben zeigen
+ * ihren Inhalt in der Größe des Pakets. Ein Stapel von 26 cm und Wannen von
+ * 30 cm waren von oben Krümel. Jetzt stehen die Wannen so groß wie im Paket
+ * (zwei nebeneinander füllen die Platte) und der Stapel etwas darunter.
+ */
+export const CORNER_SIZE = {
   /** Höhe des Hörnchenstapels. */
-  stack: 0.26,
-  /** Länge einer Wanne (entlang der Tiefe der Platte). */
-  tub: 0.3,
+  stack: 0.5,
+  /** Länge des liegenden Portionierers. */
+  scoop: 0.3,
+  /** Länge einer Wanne — quer zur Platte, von vorn nach hinten. */
+  tub: 0.66,
+  /** Wie weit die Mitte einer Wanne neben der Mitte der Platte steht. */
+  tubOffset: 0.23,
 } as const;
 
 /** Wie groß ein abgestelltes Eis auf der Platte ist — von oben soll man es sehen. */
@@ -56,11 +80,20 @@ const MODEL = {
   cone: 'restaurant-bits/icecream_cone.glb',
   stack: 'restaurant-bits/icecream_cone_stacked.glb',
   scoop: 'restaurant-bits/icecream_scoop.glb',
+  /** Der leere Kasten einer Wanne — das Eis kommt als zweite Datei hinein. */
+  tubBox: 'restaurant-bits/icecream_container.glb',
   tub: {
     vanilla: 'restaurant-bits/icecream_container_icecream_vanilla.glb',
     strawberry: 'restaurant-bits/icecream_container_icecream_strawberry.glb',
   } satisfies Record<IceFlavor, string>,
 } as const;
+
+/**
+ * **Die Drehung der Eisecke** — ihre Platten sind so gebaut, dass die
+ * Vorderseite nach +x zeigt; gedreht wird das Ganze, bis +x auf `ICE_FACE`
+ * zeigt.
+ */
+export const ICE_YAW = Math.atan2(-dirZ(ICE_FACE), dirX(ICE_FACE));
 
 /** Wie hoch die Arbeitsplatte ist, bis ihr Modell gemessen ist. */
 const COUNTER_TOP = 0.5;
@@ -83,17 +116,145 @@ function fitModel(model: THREE.Object3D, size: number, axis: 'x' | 'y' | 'z'): v
   model.position.y -= box.min.y;
 }
 
+/** Ein Modell aus dem Regal — `null`, wenn es nicht kommt (und nie ein Fehler). */
 async function loadKaykit(path: string): Promise<THREE.Object3D | null> {
   if (!canLoadModels()) return null;
-  const { kaykitModel } = await import('../../core/kaykitModel');
-  return kaykitModel(path);
+  try {
+    const { kaykitModel } = await import('../../core/kaykitModel');
+    return await kaykitModel(path);
+  } catch (error) {
+    console.warn(`Eisecke: ${path} nicht geladen`, error);
+    return null;
+  }
 }
 
 async function loadCounter(): Promise<THREE.Object3D | null> {
   if (!canLoadModels()) return null;
-  const { dinerModel } = await import('../../core/dinerModel');
-  return dinerModel('kitchencounter_straight_A');
+  try {
+    const { dinerModel } = await import('../../core/dinerModel');
+    return await dinerModel('kitchencounter_straight_A');
+  } catch (error) {
+    console.warn('Eisecke: Arbeitsplatte nicht geladen', error);
+    return null;
+  }
 }
+
+/**
+ * **Eine Wanne**: Kasten und Eis, zwei Dateien mit demselben Ursprung — das
+ * Eis sitzt darin, ein paar Zentimeter unter dem Rand. Fehlt der Kasten, ist
+ * es keine Wanne mehr (`null`, dann steht der Ersatz da).
+ */
+async function loadTub(flavor: IceFlavor): Promise<THREE.Object3D | null> {
+  const [box, fill] = await Promise.all([loadKaykit(MODEL.tubBox), loadKaykit(MODEL.tub[flavor])]);
+  if (!box) return null;
+  const tub = new THREE.Group();
+  tub.add(box);
+  if (fill) tub.add(fill);
+  else tub.add(fallback.tubFill(flavor));
+  return tub;
+}
+
+/**
+ * **Ersatz für jedes Modell, das nicht kommt** — schlichte Körper in den
+ * Farben und Maßen des Pakets, jeder mit dem Fuß auf y = 0 und der Mitte auf
+ * x/z = 0 (wie nach `fitModel`). Sie werden nur gebaut, wenn das Modell
+ * fehlt, und gehören dem, der sie bekommt.
+ */
+export const fallback = {
+  /** Eine Arbeitsplatte, 1 × 1 m und einen halben Meter hoch, Vorderseite +z. */
+  counter(): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = 'plateup-ice-fallback:counter';
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.96, 0.46, 0.96),
+      new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.8 }),
+    );
+    body.position.y = 0.23;
+    const top = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 0.04, 1),
+      new THREE.MeshStandardMaterial({ color: 0xd9783c, roughness: 0.7 }),
+    );
+    top.position.y = 0.48;
+    group.add(body, top);
+    return group;
+  },
+  /** Ein Stapel Hörnchen: fünf Spitztüten ineinander. */
+  stack(): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = 'plateup-ice-fallback:stack';
+    const material = new THREE.MeshStandardMaterial({ color: 0xd6a15c, roughness: 0.9 });
+    const geometry = new THREE.ConeGeometry(0.1, 0.25, 12);
+    geometry.rotateX(Math.PI);
+    for (let i = 0; i < 5; i++) {
+      const cone = new THREE.Mesh(geometry, material);
+      cone.position.y = 0.125 + i * 0.075;
+      group.add(cone);
+    }
+    return group;
+  },
+  /** Ein Hörnchen, Spitze unten. */
+  cone(): THREE.Object3D {
+    const geometry = new THREE.ConeGeometry(0.1, 0.25, 12);
+    geometry.rotateX(Math.PI);
+    geometry.translate(0, 0.125, 0);
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ color: 0xd6a15c, roughness: 0.9 }),
+    );
+    mesh.name = 'plateup-ice-fallback:cone';
+    return mesh;
+  },
+  /** Ein Portionierer, aufrecht: Griff unten, Schale oben. */
+  scoop(): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = 'plateup-ice-fallback:scoop';
+    const handle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.035, 0.34, 10),
+      new THREE.MeshStandardMaterial({ color: 0x3d7be0, roughness: 0.6 }),
+    );
+    handle.position.y = 0.17;
+    const bowl = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xaab4c0, metalness: 0.4, roughness: 0.4 }),
+    );
+    bowl.rotation.x = Math.PI / 2;
+    bowl.position.y = 0.4;
+    group.add(handle, bowl);
+    return group;
+  },
+  /** Das Eis in einer Wanne: eine Platte in der Farbe der Sorte (Maße des Pakets). */
+  tubFill(flavor: IceFlavor): THREE.Object3D {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.17, 0.7),
+      new THREE.MeshStandardMaterial({ color: FLAVOR_COLORS[flavor], roughness: 0.85 }),
+    );
+    mesh.name = `plateup-ice-fallback:fill:${flavor}`;
+    return mesh;
+  },
+  /** Eine Wanne: offener Kasten mit Eis darin, 0,5 × 0,8 m wie im Paket. */
+  tub(flavor: IceFlavor): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = `plateup-ice-fallback:tub:${flavor}`;
+    const material = new THREE.MeshStandardMaterial({ color: 0xe9eef3, roughness: 0.6 });
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.8), material);
+    floor.position.y = 0.02;
+    group.add(floor);
+    for (const [w, d, x, z] of [
+      [0.04, 0.8, -0.23, 0],
+      [0.04, 0.8, 0.23, 0],
+      [0.5, 0.04, 0, -0.38],
+      [0.5, 0.04, 0, 0.38],
+    ] as const) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, d), material);
+      side.position.set(x, 0.125, z);
+      group.add(side);
+    }
+    const fill = fallback.tubFill(flavor);
+    fill.position.y = 0.095;
+    group.add(fill);
+    return group;
+  },
+};
 
 /** Geometrie und Materialien der Kugeln — einmal für alle. */
 class BallKit {
@@ -143,8 +304,9 @@ export class IceConeView {
 
   constructor(private readonly kit: BallKit) {
     this.root.name = 'plateup-ice-cone';
-    void loadKaykit(MODEL.cone).then((model) => {
-      if (!model || !this.alive) return;
+    void loadKaykit(MODEL.cone).then((loaded) => {
+      if (!this.alive) return;
+      const model = loaded ?? fallback.cone();
       fitModel(model, ICE_SIZE.cone, 'y');
       this.root.add(model);
     });
@@ -243,8 +405,9 @@ export class ScoopView {
     this.ball.position.set(0, ICE_SIZE.scoop * 0.8, 0.025);
     this.ball.visible = false;
     holder.add(this.ball);
-    void loadKaykit(MODEL.scoop).then((model) => {
-      if (!model || !this.alive) return;
+    void loadKaykit(MODEL.scoop).then((loaded) => {
+      if (!this.alive) return;
+      const model = loaded ?? fallback.scoop();
       fitModel(model, ICE_SIZE.scoop, 'y');
       holder.add(model);
     });
@@ -310,6 +473,7 @@ export class IceCorner {
     this.stand = new THREE.Group();
     this.stand.name = 'plateup-ice-stand';
     this.stand.position.set(ICE_STAND.x + 0.5, 0, ICE_STAND.z + 0.5);
+    this.stand.rotation.y = ICE_YAW;
     root.add(this.stand);
     this.cones = new THREE.Group();
     this.cones.name = 'plateup-ice-cones';
@@ -319,6 +483,7 @@ export class IceCorner {
     this.tubRoot = new THREE.Group();
     this.tubRoot.name = 'plateup-ice-tubs';
     this.tubRoot.position.set(ICE_TUBS.x + 0.5, 0, ICE_TUBS.z + 0.5);
+    this.tubRoot.rotation.y = ICE_YAW;
     root.add(this.tubRoot);
     this.tubs = ICE_FLAVORS.map((flavor) => {
       const anchor = new THREE.Group();
@@ -330,7 +495,7 @@ export class IceCorner {
     // bleibt, auch wenn er weg ist: In der Brille muss die Hand wissen, wohin
     // sie ihn zurücklegt, und ein leerer Anker hätte keine Ausdehnung.
     const mat = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.012, ICE_SIZE.scoop + 0.04),
+      new THREE.BoxGeometry(0.16, 0.012, CORNER_SIZE.scoop + 0.05),
       new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.9 }),
     );
     mat.name = 'plateup-ice-mat';
@@ -342,52 +507,56 @@ export class IceCorner {
     void this.furnish(round);
   }
 
-  /** Stapel, Portionierer und Wannen auf die Plattenhöhe setzen. */
+  /**
+   * Stapel, Portionierer und Wannen auf die Plattenhöhe setzen — im Raum der
+   * Platten: Vorderseite +x, ihre Länge entlang z (gedreht wird das Ganze,
+   * `ICE_YAW`).
+   */
   private place(): void {
-    // Die Platten schauen nach Osten: ihre Länge liegt entlang z.
-    this.cones.position.set(0.05, this.top, -0.2);
+    this.cones.position.set(0.05, this.top, -0.22);
     this.scoop.position.set(0.08, this.top, 0.2);
     this.tubs.forEach((tub, i) => {
-      tub.anchor.position.set(0.02, this.top, i === 0 ? -0.16 : 0.16);
+      const side = i === 0 ? -1 : 1;
+      tub.anchor.position.set(0, this.top, side * CORNER_SIZE.tubOffset);
     });
   }
 
   private async furnish(round: number): Promise<void> {
     const counters = await Promise.all([loadCounter(), loadCounter()]);
     if (round !== this.round) return;
-    counters.forEach((counter, i) => {
-      if (!counter) return;
-      // Vorderseite nach Osten (+x): das Möbel schaut von Haus aus nach +z.
+    counters.forEach((loaded, i) => {
+      const counter = loaded ?? fallback.counter();
+      // Vorderseite nach +x: das Möbel schaut von Haus aus nach +z.
       counter.rotation.y = Math.PI / 2;
-      (i === 0 ? this.stand : this.tubRoot).add(counter);
+      const parent = i === 0 ? this.stand : this.tubRoot;
+      parent.add(counter);
       const box = new THREE.Box3().setFromObject(counter);
-      if (!box.isEmpty()) this.top = box.max.y - (i === 0 ? this.stand : this.tubRoot).position.y;
+      if (!box.isEmpty()) this.top = box.max.y - parent.position.y;
     });
     this.place();
     const [stack, scoop, ...tubs] = await Promise.all([
       loadKaykit(MODEL.stack),
       loadKaykit(MODEL.scoop),
-      ...this.tubs.map((tub) => loadKaykit(MODEL.tub[tub.flavor])),
+      ...this.tubs.map((tub) => loadTub(tub.flavor)),
     ]);
     if (round !== this.round) return;
-    if (stack) {
-      fitModel(stack, ICE_SIZE.stack, 'y');
-      this.cones.add(stack);
-    }
-    if (scoop) {
-      fitModel(scoop, ICE_SIZE.scoop, 'y');
-      // Umgelegt, längs der Platte, die Schale nach Norden.
-      const lying = new THREE.Group();
-      lying.add(scoop);
-      lying.rotation.set(-Math.PI / 2, 0, 0);
-      lying.position.set(0, 0.03, ICE_SIZE.scoop / 2);
-      this.scoop.add(lying);
-      this.lying = lying;
-    }
-    tubs.forEach((model, i) => {
+    const cones = stack ?? fallback.stack();
+    fitModel(cones, CORNER_SIZE.stack, 'y');
+    this.cones.add(cones);
+    const lyingScoop = scoop ?? fallback.scoop();
+    fitModel(lyingScoop, CORNER_SIZE.scoop, 'y');
+    // Umgelegt, längs der Platte, die Schale zum Stapel hin.
+    const lying = new THREE.Group();
+    lying.add(lyingScoop);
+    lying.rotation.set(-Math.PI / 2, 0, 0);
+    lying.position.set(0, 0.03, CORNER_SIZE.scoop / 2);
+    this.scoop.add(lying);
+    this.lying = lying;
+    tubs.forEach((loaded, i) => {
       const tub = this.tubs[i];
-      if (!model || !tub) return;
-      fitModel(model, ICE_SIZE.tub, 'z');
+      if (!tub) return;
+      const model = loaded ?? fallback.tub(tub.flavor);
+      fitModel(model, CORNER_SIZE.tub, 'z');
       // Gedreht wird eine Hülle und nicht das Modell: Dessen Versatz aus
       // `fitModel` gilt im ungedrehten Raum.
       const turned = new THREE.Group();
@@ -402,10 +571,14 @@ export class IceCorner {
     return this.tubs.map((tub) => {
       const box = new THREE.Box3().setFromObject(tub.anchor);
       if (box.isEmpty()) {
+        // Noch kein Modell: ein Kasten in den Maßen der Wanne, quer zur Platte.
         const at = tub.anchor.getWorldPosition(new THREE.Vector3());
+        const deep = CORNER_SIZE.tub / 2;
+        const wide = CORNER_SIZE.tub * 0.31;
+        const alongX = Math.abs(Math.cos(ICE_YAW)) > 0.5;
         return {
-          centre: { x: at.x, y: at.y + 0.04, z: at.z },
-          half: { x: ICE_SIZE.tub / 2, y: 0.04, z: 0.09 },
+          centre: { x: at.x, y: at.y + 0.08, z: at.z },
+          half: { x: alongX ? deep : wide, y: 0.08, z: alongX ? wide : deep },
         };
       }
       const c = box.getCenter(new THREE.Vector3());

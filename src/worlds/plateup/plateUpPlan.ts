@@ -30,7 +30,7 @@ import type { KitchenItem } from '../test/zones/kitchenRecipes';
  *        x: 0 1 2 3 4 5 6 7 8 9 10 11 12 13
  *  z=0      K B P S T o b o G G o  s  T  M     Nordwand: Stationen
  *  z=1      . . . . . . . . . . .  .  .  .     Küche
- *  z=2      . . . . . . . . . . .  .  .  .
+ *  z=2      . . . . . . . @ H W .  .  .  .     @ Start, H W: Eisecke (Hörnchen, Wannen)
  *  z=3      d o o o o o o o o o o  .  .  .     Durchreiche, rechts offen
  *  z=4      . . . . . . . . . . .  .  .  .     Gang
  *  z=5      . c . . . . . . . . .  c  .  .     Stühle (Nord)
@@ -149,16 +149,25 @@ export const PASS_END = { x: 0, z: 3 } as const;
 export const FRIDGE = { x: 0, z: 0 } as const;
 
 /**
- * **Die Eisecke** — zwei Arbeitsplatten an der Westwand, gleich südlich des
- * Kühlschranks, mit der Vorderseite nach Osten (`plateUpIce.ts`): auf der
- * nördlichen der Stapel Hörnchen und der Portionierer, auf der südlichen die
- * beiden Eiswannen. Keine Stationen der Küche (`STATIONS`) — ihre Regel ist
- * das Eis und nicht `kitchenDeed`.
+ * **Die Eisecke** — zwei Arbeitsplatten in der Stationsreihe
+ * (`plateUpShop.STATION_ROW`), gleich östlich der Stelle, an der man morgens
+ * anfängt (`SPAWN_TILE`), mit der Vorderseite nach Norden in den Gang
+ * (`plateUpIce.ts`): auf der westlichen der Stapel Hörnchen und der
+ * Portionierer, auf der östlichen die beiden Eiswannen. Keine Stationen der
+ * Küche (`STATIONS`) — ihre Regel ist das Eis und nicht `kitchenDeed`.
+ *
+ * **Warum hier und nicht mehr an der Westwand.** Dort stand sie zuerst
+ * (0 | 1 und 0 | 2, neben dem Kühlschrank) — in der hintersten Ecke, am Rand
+ * dessen, was die Kamera von oben zeigt, und auf dem Telefon, dessen Bild
+ * nur gut vier Kacheln breit ist, gar nicht, solange man nicht eigens
+ * hinläuft. Gemeldet wurde: „ich sehe den Eisbereich überhaupt nicht". Hier
+ * steht sie vom ersten Bild an neben der Figur, auch auf dem Telefon, und
+ * auf dem Weg aus der Küche in den Gastraum (der Durchgang ist östlich).
  */
-export const ICE_STAND = { x: 0, z: 1 } as const;
-export const ICE_TUBS = { x: 0, z: 2 } as const;
+export const ICE_STAND = { x: 8, z: 2 } as const;
+export const ICE_TUBS = { x: 9, z: 2 } as const;
 /** Wohin die Eisecke schaut — dort steht, wer Eis macht. */
-export const ICE_FACE: Dir = DIR_E;
+export const ICE_FACE: Dir = DIR_N;
 
 /** Ein Gasttisch: zwei mal zwei Kacheln, und der Platz des Gastes daran. */
 export interface TableSpot {

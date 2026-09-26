@@ -233,10 +233,11 @@ export function extraStations(placed: readonly Placed[]): StationSpot[] {
 
 /**
  * **Wo eine gekaufte Station hindarf**: die Reihe direkt nördlich der
- * Durchreiche (`z = 2`), von der Westwand bis zu ihrem Ende. Die Reihe davor
- * (`z = 1`) bleibt frei — dort steht, wer an der Nordwand arbeitet, und
- * jetzt auch, wer an der neuen Station arbeitet. Östlich davon ist der
- * Durchgang in den Gastraum.
+ * Durchreiche (`z = 2`), von der Westwand bis zu ihrem Ende — zwei Kacheln
+ * darin hat die Eisecke (`plateUpPlan.ICE_STAND`, `ICE_TUBS`, über
+ * `blockedTiles` gesperrt). Die Reihe davor (`z = 1`) bleibt frei — dort
+ * steht, wer an der Nordwand arbeitet, und jetzt auch, wer an der neuen
+ * Station arbeitet. Östlich davon ist der Durchgang in den Gastraum.
  */
 export const STATION_ROW = { z: 2, x0: 0, x1: 10 } as const;
 

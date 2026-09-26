@@ -177,7 +177,7 @@ gilt die Zeile des Menüs.
 `plateup/plateUpHints.ts`). Das Gewählte ist das Objekt unter dem gelben Saum
 (`PortalWorld.pickedObject`); ohne Verb bleibt es bei _Nehmen_/_Ablegen_.
 
-**Am Eis im Restaurant** (Eisecke neben dem Kühlschrank,
+**Am Eis im Restaurant** (Eisecke gleich östlich des Startplatzes,
 [Das Eis](./burgerladen.md#das-eis)) sagt sie „Hörnchen nehmen" am Stand,
 „Kugel Vanille"/„Kugel Erdbeere" an der Wanne, „Eis abstellen", „Eis nehmen"
 und „Wegwerfen" an Platte und Mülleimer (`plateUpIce.iceVerb`). Am Schirm
