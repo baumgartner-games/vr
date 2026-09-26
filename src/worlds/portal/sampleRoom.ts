@@ -78,13 +78,13 @@ export const SAMPLE_ITEMS: readonly SampleItem[] = [
 
 /**
  * **Das kleine Café** — die zweite Vorlage, mit den Restaurantmöbeln von
- * KayKit: Küchenfliesen, dunkle Fliesen hinter der Theke (der Küchenzeile
+ * KayKit: rot-weiße Küchenfliesen, dunkle Fliesen hinter der Theke (der Küchenzeile
  * des Startzimmers), Hocker davor, Eis und Menükarte auf der Theke, drei
  * runde Tische mit Stühlen und etwas darauf, Bilder und ein Kaktus.
  */
 export const CAFE_SURFACES: readonly SampleSurface[] = [
-  // Küchenfliesen im ganzen Raum.
-  { tool: 'floor', style: 2, x: 1.5, z: 1.5 },
+  // Rot-weiße Küchenfliesen im ganzen Raum, wie in einem Diner.
+  { tool: 'floor', style: 4, x: 1.5, z: 1.5 },
   // Dunkle Fliesen hinter der Theke, an der Nordwand.
   { tool: 'wall', style: 1, x: -1.5, z: -3.4 },
 ];
@@ -139,7 +139,7 @@ export const SAMPLE_ROOMS: readonly SampleRoom[] = [
   {
     id: 'cafe',
     label: 'Kleines Café',
-    sub: 'Theke mit Hockern, runde Tische · Küchenfliesen',
+    sub: 'Theke mit Hockern, runde Tische · rot-weiße Fliesen',
     surfaces: CAFE_SURFACES,
     items: CAFE_ITEMS,
   },

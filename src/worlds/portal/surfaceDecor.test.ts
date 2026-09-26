@@ -42,8 +42,12 @@ describe('Muster', () => {
 
   it('jedes Muster hat ein eigenes Farbfeld für die Leiste', () => {
     for (const list of [FLOOR_STYLES, WALL_STYLES]) {
-      for (const style of list) expect(style.swatch).toMatch(/^#[0-9a-f]{6}$/);
-      expect(new Set(list.map((style) => style.swatch)).size).toBe(list.length);
+      for (const style of list) {
+        expect(style.swatch).toMatch(/^#[0-9a-f]{6}$/);
+        if (style.swatch2) expect(style.swatch2).toMatch(/^#[0-9a-f]{6}$/);
+      }
+      const tones = list.map((style) => `${style.swatch}/${style.swatch2 ?? ''}`);
+      expect(new Set(tones).size).toBe(list.length);
       expect(new Set(list.map((style) => style.label)).size).toBe(list.length);
     }
     expect(stylePattern(FLOOR_STYLES[0]!)).toEqual({

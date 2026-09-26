@@ -62,7 +62,30 @@ export const FLOOR_STYLES: readonly SurfaceStyle[] = [
     swatch: '#d9b48e',
     swatch2: '#8c5b3e',
   },
+  // Dieselben Küchenfliesen in anderen Feldern des Farbatlas
+  // (`tools/surface-variants.mjs`): je ein Netz von 5 KB, dieselbe Textur.
+  {
+    path: 'restaurant-bits/floor_kitchen_small_red.glb',
+    label: 'Küchenfliesen rot',
+    swatch: '#e6e8ea',
+    swatch2: '#c8283a',
+  },
+  {
+    path: 'restaurant-bits/floor_kitchen_small_green.glb',
+    label: 'Küchenfliesen grün',
+    swatch: '#e6e8ea',
+    swatch2: '#0a8a55',
+  },
+  {
+    path: 'restaurant-bits/floor_kitchen_small_blue.glb',
+    label: 'Küchenfliesen blau',
+    swatch: '#e6e8ea',
+    swatch2: '#4f86c6',
+  },
   { path: 'dungeon/floor_tile_small.glb', label: 'Steinplatten', swatch: '#8f8b85' },
+  // Aus einem weiteren Paket, das schon im Regal liegt: kein neues Stück,
+  // kein neuer Download, solange es niemand wählt.
+  { path: 'holiday-bits/floor_gingerbread_small.glb', label: 'Zuckerguss', swatch: '#dfe3ea' },
 ];
 
 /** Die Wände: erst Fliesen für eine Seite, dann ganze Wände. */
