@@ -35,15 +35,16 @@
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
-    <script type="module" crossorigin src="/vr/assets/main-CMLnFExv.js"></script>
+    <script type="module" crossorigin src="/vr/assets/main-DKJcdPam.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-DSTaadZm.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-1nuLVGLs.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/posture-BiXtEZiL.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/inputStore-BfwAqLZX.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-CMKnc4jh.js">
-    <link rel="stylesheet" crossorigin href="/vr/assets/main-8vmWVL1T.css">
-    <meta name="bgvr-build" content="b174e7dd310c">
+    <link rel="modulepreload" crossorigin href="/vr/assets/roundFlow-DWDzGA3m.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-Co3do8M7.css">
+    <meta name="bgvr-build" content="1280c4cd65c2">
   </head>
   <body>
     <canvas id="scene"></canvas>
@@ -179,6 +180,18 @@
               Wer denselben Raum-Code eingibt, steht hier. Dann wählt jeder seinen Weg —
               alle bleiben in diesem Raum.
             </p>
+
+            <!--
+              **Was nach dem Beitreten kommt** (`rules/roundFlow.LOBBY_FLOW`,
+              gefüllt von `main.ts`): Man landet in der Übungsrunde, verteilt
+              die Rollen, und „Echte Runde starten" macht es ernst — dieselben
+              Worte und Farben wie die Knöpfe und das Schild im Spiel.
+            -->
+            <section id="haunt-flow" class="haunt-flow" aria-labelledby="haunt-flow-title">
+              <h3 id="haunt-flow-title" class="haunt-flow__title"></h3>
+              <ol id="haunt-flow-steps" class="haunt-flow__steps"></ol>
+              <div id="haunt-flow-modes" class="haunt-flow__modes"></div>
+            </section>
 
             <!--
               **Ein Knopf, drei Wege** — welcher, sagt das Gerät und die Wahl
