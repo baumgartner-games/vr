@@ -36,6 +36,16 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./test/TestWorld')).TestWorld(),
   },
   {
+    id: 'plateup',
+    title: 'Burgerladen',
+    tagline: 'Küche, Gastraum und ein Tag voller Gäste',
+    description:
+      'Eine eingerichtete Spielküche mit Gastraum: Gäste kommen herein, setzen sich und bestellen. Brötchen, Patty von der Grillplatte, Salat vom Brett — auf einen Teller und an den Tisch, bevor die Geduld reißt. Jeden Tag mehr Gäste und eine längere Karte.',
+    accent: 0xf2a33a,
+    roles: ['vr', 'desktop', 'handheld'],
+    load: async () => new (await import('./plateup/PlateUpWorld')).PlateUpWorld(),
+  },
+  {
     id: 'haunting',
     title: 'Haunting / Orbital',
     tagline: 'Eine Quest, zwei in der Einsatzzentrale',
