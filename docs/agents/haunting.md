@@ -1852,7 +1852,11 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
      `.haunt__mode` (**ÜBUNGSRUNDE** blau, **ECHTE RUNDE** rot,
      **VORFÜHRUNG**, **RUNDE VORBEI**), im Aufbau „Jetzt: …" über der Tafel,
      am Bildschirm in der Titelzeile („ORBITAL · ECHTE RUNDE · ANZUG …"), in
-     der Brille als erster Eintrag **„Jetzt: Übungsrunde"** (`haunt:status`).
+     der Brille als erster Eintrag **„Jetzt: Übungsrunde"** (`haunt:status`),
+     im HUD-Streifen an der Kamera (Brille) und `.orbital-hud` statt der Uhr
+     (`paintHud`: in der Übung zählt keine) und oben auf der Konsole der
+     Zentrale („ORBITAL · JETZT: …", neu gezeichnet bei jedem Wechsel,
+     `paintedMode`).
      Das Menü wird neu gebaut, sobald der Modus wechselt (`shownMode` in
      `tick`) — vorher stand nach dem Start noch der alte Stand darin.
 
