@@ -2193,24 +2193,35 @@ export class App {
             );
           },
         },
-        {
-          // **Wann die Stöcke auf dem Glas liegen** (`index.html`, `#touch`).
-          // Die Zeile stellt nur die Frage; die Antwort rechnet
-          // `core/screenPads.ts`, und angewendet wird sie in `main.ts` — auch
-          // sofort, denn `saveGraphics` sagt allen Bescheid, die zuhören.
-          id: 'gfx:screen-pads',
-          label: `Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[settings.screenPads]}`,
-          sub: SCREEN_PADS_SUBS[settings.screenPads],
-          caption: 'Automatisch → An → Aus · in der Brille und in eigenen Welten nie',
-          icon: 'settings',
-          accent,
-          run: () => {
-            const next = saveGraphics({ screenPads: nextScreenPads(graphics().screenPads) });
-            this.menuDirty = true;
-            this.notify(`Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[next.screenPads]}`);
-          },
-        },
-        ...this.fullscreenRow(accent),
+        // **Nur am Schirm**: Stöcke auf dem Glas und Vollbild gibt es in der
+        // Brille nicht — am Handgelenk wären es zwei Zeilen, die nichts tun
+        // (beim Prüfen des Handgelenkmenüs aufgefallen, wie die Links in
+        // einen neuen Tab unter _Steuerung & Hilfe_).
+        ...(this.renderer.xr.isPresenting
+          ? []
+          : [
+              {
+                // **Wann die Stöcke auf dem Glas liegen** (`index.html`,
+                // `#touch`). Die Zeile stellt nur die Frage; die Antwort
+                // rechnet `core/screenPads.ts`, und angewendet wird sie in
+                // `main.ts` — auch sofort, denn `saveGraphics` sagt allen
+                // Bescheid, die zuhören.
+                id: 'gfx:screen-pads',
+                label: `Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[settings.screenPads]}`,
+                sub: SCREEN_PADS_SUBS[settings.screenPads],
+                caption: 'Automatisch → An → Aus · in der Brille und in eigenen Welten nie',
+                icon: 'settings' as const,
+                accent,
+                run: () => {
+                  const next = saveGraphics({
+                    screenPads: nextScreenPads(graphics().screenPads),
+                  });
+                  this.menuDirty = true;
+                  this.notify(`Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[next.screenPads]}`);
+                },
+              },
+              ...this.fullscreenRow(accent),
+            ]),
         {
           id: 'gfx:reset',
           label: 'Zurück auf Einfach',

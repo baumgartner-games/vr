@@ -244,7 +244,9 @@ Drei Regeln halten den Baum ehrlich (`groupMenu`):
   Auge): Wurzel, _Einstellungen → Grafik_, _Werkstatt_ (lang, blättert),
   _Steuerung & Hilfe → Eingaben_, _Bauen & Gestalten → Magischer Beutel_
   (Raster) — nichts abgeschnitten außer langen Unterzeilen, die mit „…"
-  enden, wie gewollt.
+  enden, wie gewollt. In der Brille fehlen unter _Einstellungen → Grafik_
+  jetzt _Bildschirm-Steuerung_ und _Vollbild_ — beide tun dort nichts
+  (`App.graphicsMenu`, wie die Links in einen neuen Tab).
 - **`WristMenus.back()`** ist dieselbe Treppe für jede Taste, die „zurück"
   heißen soll (`B` am Pad, in der Brille), egal welches Gesicht des Menüs
   gerade oben ist; `false` heißt, es war gar nichts offen. Die Belegung
