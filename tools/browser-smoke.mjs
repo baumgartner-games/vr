@@ -134,7 +134,7 @@ for (const name of browserNames) {
       };
       // Zwei Seiten, ein Kopf (`stationUi.ts`): Im Aufbau steht die Tafel — die
       // drei Faehigkeiten werden dort als Laempchen je Platz angeknipst —, und
-      // „Rollen testen" fuehrt auf die Karte; erst dort ist die Reiterzeile die
+      // „Übungsrunde" fuehrt auf die Karte; erst dort ist die Reiterzeile die
       // Rollenwahl (`[data-me]`). Die Stuehle heissen Farben (`stations.ts`).
       const SEAT_OF = { archive: 'red', hack: 'yellow', scout: 'blue', watch: 'watch:all' };
       const POWER_OF = { archive: 'archive', hack: 'panel', scout: 'scout' };
@@ -396,7 +396,8 @@ for (const name of browserNames) {
         });
         await page.locator('.orbital-result').waitFor();
         await shot('lost-restart');
-        await page.getByRole('button', { name: 'Runde neu starten', exact: true }).click();
+        // Nach dem Ende heißt der Knopf wie überall (`rules/roundFlow.ts`, `FLOW.again`).
+        await page.getByRole('button', { name: 'Nochmal: echte Runde', exact: true }).click();
         await page.waitForFunction(() => {
           const state = window.bgvr.world?.state;
           return state?.phase === 'running' && state.crew.hp === 3;
@@ -405,9 +406,10 @@ for (const name of browserNames) {
         if (!(await controls.evaluate((node) => node.open)))
           await controls.locator(':scope > summary').click();
         // Die drei Absichten der Lobby stehen hier als Knöpfe (`rules/lobby.ts`):
-        // Trainieren ist der sichere Test ohne Monster.
+        // „Übungsrunde" (Kennung `train`) ist der sichere Stand ohne Monster; die
+        // Titelzeile nennt den Modus (`roundFlow.MODE_TEXT`).
         await page.locator('[data-action="intent:train"]').click();
-        await page.locator('.orbital-player strong').filter({ hasText: /TEST/ }).waitFor();
+        await page.locator('.orbital-player strong').filter({ hasText: /ÜBUNGSRUNDE/ }).waitFor();
         // Starting a test rebuilds the controls with both disclosure panels closed.
         if (!(await controls.evaluate((node) => node.open)))
           await controls.locator(':scope > summary').click();
@@ -437,7 +439,8 @@ for (const name of browserNames) {
           await tests.locator(':scope > summary').click();
         await page.locator('[data-action="simulate"]').click();
         await page.locator('.orbital-player').waitFor();
-        await page.locator('.orbital-player strong').filter({ hasText: /TEST/ }).waitFor();
+        // Die Bot-Runde ist die Vorführung (`roundFlow.MODE_TEXT.demo`).
+        await page.locator('.orbital-player strong').filter({ hasText: /VORFÜHRUNG/ }).waitFor();
         await page
           .locator('[data-action="simulate"]')
           .filter({ hasText: /beenden/ })
