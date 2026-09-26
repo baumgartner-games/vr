@@ -107,7 +107,7 @@ describe('Burgerladen: Grundriss', () => {
     expect(there?.props.world).toBe('plateup');
     expect(testPlan().graph.walkable(tileKey(BURGER_GATE_TILE.x, BURGER_GATE_TILE.z))).toBe(true);
     const back = plateUpGrid().fixture(RETURN_GATE);
-    expect(back?.props.world).toBe('test');
+    expect(back?.props.world).toBe('sandbox');
     expect(findWorld('plateup')?.title).toBe('Burgerladen');
   });
 

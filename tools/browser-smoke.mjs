@@ -33,7 +33,7 @@ const screenshots = !args.has('no-screenshots');
  * `src/worlds/index.ts` (`DEFAULT_WORLD`); warum abgeschrieben, steht unten an
  * der Stelle, die sie prüft.
  */
-const START_WORLD = 'test';
+const START_WORLD = 'sandbox';
 const results = [];
 const summary = () =>
   writeFile(path.join(output, 'report.json'), JSON.stringify({ base, output, results }, null, 2));
@@ -173,7 +173,7 @@ for (const name of browserNames) {
         //
         // **Welche Welt das ist, steht in `src/worlds/index.ts`**
         // (`DEFAULT_WORLD`) und hier abgeschrieben: Hier stand `hub`, und seit
-        // die Seite in der **Küche** der Testwelt aufmacht, steht hier `test`.
+        // die Seite in der **Küche** der Sandbox aufmacht, steht hier `sandbox`.
         // Die Zahl lässt sich nicht importieren — geprüft wird die gebaute
         // Seite und nicht der Quelltext —, und ein Test, der jede Welt
         // durchgehen ließe, prüfte gar nichts mehr: Genau diese Zeile hat den

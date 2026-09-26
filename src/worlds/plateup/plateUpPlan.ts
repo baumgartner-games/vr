@@ -261,8 +261,8 @@ export function plateUpGrid(): GridPlan {
     z: RETURN_GATE_TILE.z,
     dir: DIR_N,
     props: {
-      world: 'test',
-      label: '→ Testwelt',
+      world: 'sandbox',
+      label: '→ Sandbox',
       accent: 0x5ee0a0,
       note: 'Zurück zur Prüfküche',
     },

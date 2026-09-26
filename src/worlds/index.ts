@@ -1,4 +1,4 @@
-import type { WorldDefinition } from '../core/types';
+import type { WorldDefinition, WorldFolder } from '../core/types';
 
 /**
  * The world catalogue. Adding a game means adding one entry here plus a module
@@ -30,16 +30,31 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
   },
   {
-    id: 'test',
-    title: 'Testwelt',
+    id: 'sandbox',
+    title: 'Sandbox',
     tagline: 'Neun Zonen, ein Gelände',
     description:
-      'Der Prüfstand: Türen in drei Betriebsarten, vier Effektquellen, eine Treppe auf ein Podest, Wegsuche mit Kiste und Stacheln, ein Schießstand ohne Dach, eine Kartbahn mit zwei Karts in der Box, eine Kletterwand mit Sprungkissen und drei Portaltafeln. A benutzt alles, B stellt alles zurück — und gebaut werden darf hier auch.',
+      'Der Sandkasten: Türen in drei Betriebsarten, vier Effektquellen, eine Treppe auf ein Podest, Wegsuche mit Kiste und Stacheln, ein Schießstand ohne Dach, eine Kartbahn mit zwei Karts in der Box, eine Kletterwand mit Sprungkissen und drei Portaltafeln. A benutzt alles, B stellt alles zurück — und gebaut werden darf hier auch.',
     accent: 0x5ee0a0,
-    preview: 'worlds/test.webp',
+    preview: 'worlds/sandbox.webp',
     roles: ['vr', 'desktop', 'handheld'],
     test: true,
     load: async () => new (await import('./test/TestWorld')).TestWorld(),
+  },
+  {
+    id: 'test-navigation',
+    title: 'Test Navigation',
+    tagline: 'Einem NPC beim Wegfinden zusehen',
+    description:
+      'Drei Kammern aus Glas, vor jeder ein roter Knopf: ein schräger Gang zwischen zwei 45°-Wänden, eine Treppe aufs Podest und eine Treppe mit Lava oben, um die er links herum muss. Grün ist der Start, blau das Ziel, und der berechnete Weg steht als Linie im Bild.',
+    accent: 0xb58cff,
+    preview: 'worlds/test-navigation.webp',
+    // Alle drei Kammern von oben, Rand bis Rand.
+    topDownSpan: 30,
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./testnav/NavTestWorld')).NavTestWorld(),
   },
   {
     id: 'plateup',
@@ -66,7 +81,8 @@ export const WORLDS: WorldDefinition[] = [
 ];
 
 /**
- * **Wo man landet, wenn die Adresse nichts sagt** — die Testwelt, und dort die
+ * **Wo man landet, wenn die Adresse nichts sagt** — die Sandbox (bis September
+ * 2026 _Testwelt_, `WORLD_ALIASES`), und dort die
  * Küche (`test/TestWorld.spawnPoint`).
  *
  * Hier stand der Hub, und das war richtig, solange er der Ort war, an dem
@@ -80,8 +96,31 @@ export const WORLDS: WorldDefinition[] = [
  * der Adresse führt weiter dorthin, und das Tor am Startplatz der Testwelt tut
  * es auch (`test/zones/start.ts`).
  */
-export const DEFAULT_WORLD = 'test';
+export const DEFAULT_WORLD = 'sandbox';
+
+/**
+ * **Die Ordner** (`WorldDefinition.folder`). _Test_ hält die Prüfstände, an
+ * denen man einer Sache beim Arbeiten zusieht — gewünscht: _„eine Test Ordner
+ * Welt …, wenn ich drauf drücke habe ich Auswahl eine erste und einzige Welt:
+ * Test Navigation Welt"_.
+ */
+export const WORLD_FOLDERS: readonly WorldFolder[] = [
+  { id: 'test', title: 'Test', tagline: 'Prüfstände zum Zuschauen', accent: 0xb58cff },
+];
+
+/**
+ * **Alte Namen von Welten** — damit ein Lesezeichen, ein Link und ein Stand im
+ * Browser, die unter dem alten Namen stehen, weiter ankommen.
+ *
+ * Die Testwelt heißt seit September 2026 _Sandbox_ (gewünscht: _„die „Test"
+ * Welt sollte in sandbox Welt umbenannt werden"_) — _Test_ ist seitdem der
+ * Ordner mit den Prüfständen (`WORLD_FOLDERS`). `#test` in der Adresse führt
+ * weiter in die Sandbox, und ihr gespeicherter Umbau zieht beim ersten Laden
+ * um (`grid/worldStore.storedWorld`).
+ */
+export const WORLD_ALIASES: Readonly<Record<string, string>> = { test: 'sandbox' };
 
 export function findWorld(id: string): WorldDefinition | undefined {
-  return WORLDS.find((world) => world.id === id);
+  const wanted = WORLD_ALIASES[id] ?? id;
+  return WORLDS.find((world) => world.id === wanted);
 }

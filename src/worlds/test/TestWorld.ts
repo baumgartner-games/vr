@@ -125,8 +125,12 @@ export class TestWorld extends GridWorld {
     return this.kitchen.footprintCells().has(cellKey(ix, iz, level));
   }
 
+  /**
+   * `sandbox` — bis September 2026 hieß sie `test` (_Testwelt_); ein Stand
+   * unter dem alten Namen zieht beim Laden um (`worlds/index.WORLD_ALIASES`).
+   */
   protected override worldId(): string {
-    return 'test';
+    return 'sandbox';
   }
 
   /**
@@ -154,7 +158,7 @@ export class TestWorld extends GridWorld {
   }
 
   protected override editorTitle(): string {
-    return 'Testwelt';
+    return 'Sandbox';
   }
 
   protected override originalName(): string {
@@ -329,7 +333,7 @@ export class TestWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Testwelt · A benutzt alles · Norden Effekte und Küche, Osten Schießstand, Süden Gokart';
+    return 'Sandbox · A benutzt alles · Norden Effekte und Küche, Osten Schießstand, Süden Gokart';
   }
 
   /**

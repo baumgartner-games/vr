@@ -476,7 +476,10 @@ export class Npc {
         step.vz = (to.z - t.z) / dt;
       }
       const velocity = this.entry.body.linvel();
-      this.entry.body.setLinvel({ x: step.vx, y: velocity.y, z: step.vz }, true);
+      this.entry.body.setLinvel(
+        { x: step.vx, y: this.stairLift(nav, velocity.y, dt), z: step.vz },
+        true,
+      );
     }
 
     this.yaw = step.yaw;
@@ -525,6 +528,33 @@ export class Npc {
     this.striking = false;
     this.model.update(dt, 0, false);
     this.model.setAlert(false);
+  }
+
+  /**
+   * **Auf einer Treppe trägt ihn die Höhe des Laufs** (`NavRun.stairs`,
+   * `GridPlan.flightFloor`) — die senkrechte Geschwindigkeit, die ihn bis zum
+   * nächsten Bild eine Handbreit darüber hält. Sonst die der Physik.
+   *
+   * Sein Zylinder kam keine Stufe von 17,5 cm hinauf und blieb vor der ersten
+   * stehen (gemessen in der _Test Navigation_). Der Spieler geht Treppen schon
+   * so (`PhysicsLocomotion.plane`, _Auf der Treppe wird nur die Höhe bewegt_);
+   * die Höhe folgt einer Linie über die Vorderkanten der Stufen, und
+   * `STAIR_CLEAR` darüber streift er keine davon.
+   */
+  private stairLift(nav: NavRun | null | undefined, vy: number, dt: number): number {
+    if (!nav?.stairs || dt <= 0) return vy;
+    const feet = this.feet(_feet);
+    // An der Mitte **und am Rand** seines Zylinders gefragt: Sonst stieße er
+    // mit dem Rand an die erste Stufe, bevor seine Mitte über ihr steht.
+    const r = this.skin.radius;
+    let floor: number | null = null;
+    for (const [ox, oz] of STAIR_PROBES) {
+      const here = nav.stairs(feet.x + ox * r, feet.z + oz * r, feet.y);
+      if (here !== null && (floor === null || here > floor)) floor = here;
+    }
+    if (floor === null) return vy;
+    const want = (floor + STAIR_CLEAR - feet.y) / dt;
+    return THREE.MathUtils.clamp(want, -STAIR_SPEED, STAIR_SPEED);
   }
 
   /** Die Etage, auf der seine Füße stehen — `null` außerhalb des Grundrisses. */
@@ -1048,6 +1078,8 @@ export interface NavRun {
   graph: NavGraph;
   /** Das Zellgitter der Welt (`NpcWorld.cells`) — `null` ohne. */
   cells?: CellGrid | null;
+  /** Die Höhe auf einer Treppe (`NpcWorld.stairs`) — ohne: keine Treppen. */
+  stairs?: (x: number, z: number, footY: number) => number | null;
   /** Wo der Spieler steht, mit Höhe — die Etage hängt daran. */
   at: Spot3 | null;
   /** Weltzeit in Sekunden. */
@@ -1081,6 +1113,18 @@ const _look = new THREE.Vector3();
 
 /** Wie hoch ein Sprung über das höhere Ende hinausgeht, in Metern. */
 const LEAP_RISE = 0.7;
+/** Wie weit über der Linie der Stufen er auf einer Treppe geht, in Metern. */
+const STAIR_CLEAR = 0.05;
+/** Wie schnell ihn eine Treppe höchstens hebt oder senkt, in m/s. */
+const STAIR_SPEED = 4;
+/** Wo `stairLift` fragt: die Mitte und vier Punkte am Rand, in Halbmessern. */
+const STAIR_PROBES: ReadonlyArray<readonly [number, number]> = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 /** Wie tief sein Kreis in einer Wand stecken darf, bevor `holdOnCells` eingreift, in Metern. */
 const HOLD_SLACK = 1e-3;
 /** Weiter als so weit in einem Bild versetzt, gilt es als Versetzen und nicht als Stoß (m). */

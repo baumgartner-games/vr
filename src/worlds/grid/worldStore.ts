@@ -6,6 +6,7 @@ import {
   type WorldMeta,
 } from './worldFile';
 import { worldFileName } from './worldFile';
+import { WORLD_ALIASES } from '../index';
 import type { GridPlan } from './gridPlan';
 
 /**
@@ -65,6 +66,7 @@ export function keepWorld(id: string, plan: GridPlan, meta: WorldMeta = {}): boo
  * *will* man wissen, warum sie nicht geht.
  */
 export function storedWorld(id: string): WorldContents | null {
+  adoptFormer(id);
   let raw: unknown;
   try {
     const text = window.localStorage.getItem(worldKey(id));
@@ -80,8 +82,32 @@ export function storedWorld(id: string): WorldContents | null {
   }
 }
 
+/**
+ * **Einen Stand unter altem Namen übernehmen** (`WORLD_ALIASES`): Liegt unter
+ * dem neuen Namen nichts, aber unter einem alten etwas, zieht es um — die
+ * Testwelt heißt seit September 2026 _Sandbox_, und ein Umbau darin soll das
+ * nicht merken.
+ */
+function adoptFormer(id: string): void {
+  try {
+    const store = window.localStorage;
+    if (store.getItem(worldKey(id)) !== null) return;
+    for (const [former, now] of Object.entries(WORLD_ALIASES)) {
+      if (now !== id) continue;
+      const text = store.getItem(worldKey(former));
+      if (text === null) continue;
+      store.setItem(worldKey(id), text);
+      store.removeItem(worldKey(former));
+      return;
+    }
+  } catch {
+    // Kein Speicher, also auch nichts umzuziehen.
+  }
+}
+
 /** Ob für diese Welt etwas im Browser liegt. */
 export function hasStoredWorld(id: string): boolean {
+  adoptFormer(id);
   try {
     return window.localStorage.getItem(worldKey(id)) !== null;
   } catch {

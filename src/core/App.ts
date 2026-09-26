@@ -10,7 +10,7 @@ import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { MenuNav } from '../ui/menuNav';
 import { catalogRecall } from '../ui/menuRecall';
-import { WORLD_BADGES, groupMenu, sortWorlds, worldKind } from '../ui/menuGroups';
+import { WORLD_BADGES, folderWorlds, groupMenu, worldKind } from '../ui/menuGroups';
 import { PageMenu } from '../ui/PageMenu';
 import { padNav } from '../ui/padNav';
 import { ControlHints, hintsOn, setHintsOn } from '../ui/ControlHints';
@@ -124,12 +124,12 @@ import {
   savePlayerPosture,
   seatedLift,
 } from './posture';
-import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
+import { DEFAULT_WORLD, WORLDS, WORLD_FOLDERS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import { MirrorRenderer } from '../worlds/shared/Mirror';
 import { setImmersive } from './systemKeyboard';
 import { PlayerGuides } from './playerGuides';
-import type { PlayerRole, ToolChoice, World, WorldContext } from './types';
+import type { PlayerRole, ToolChoice, World, WorldContext, WorldDefinition } from './types';
 import type { MenuEntry } from '../ui/menu';
 import { cssColor } from '../ui/PageMenu';
 import type { Peer } from '../net/NetSession';
@@ -1246,7 +1246,7 @@ export class App {
     this.menuDirty = false;
     // **Die Spiele zuerst, die Prüfstände zuletzt** — und jede Welt sagt mit
     // einem Schildchen, was sie ist (`ui/menuGroups.worldKind`).
-    const worlds: MenuEntry[] = sortWorlds(WORLDS).map((world) => ({
+    const row = (world: WorldDefinition): MenuEntry => ({
       id: `world:${world.id}`,
       label: world.title,
       sub: world.tagline,
@@ -1254,7 +1254,24 @@ export class App {
       badge: WORLD_BADGES[worldKind(world)],
       selected: world.id === this.worldId,
       run: () => this.selectWorld(world.id),
-    }));
+    });
+    // **Ein Ordner ist eine Zeile, die aufgeht** (`WorldDefinition.folder`):
+    // _Test_ mit den Prüfständen darin. Er trägt das Schildchen, das alle
+    // seine Welten tragen, und ist markiert, solange man in einer davon ist.
+    const worlds: MenuEntry[] = folderWorlds(WORLDS, WORLD_FOLDERS).map((item) => {
+      if (item.kind === 'world') return row(item.world);
+      const kinds = new Set(item.worlds.map((world) => worldKind(world)));
+      const badge = kinds.size === 1 ? WORLD_BADGES[[...kinds][0]!] : undefined;
+      return {
+        id: `world:folder:${item.folder.id}`,
+        label: item.folder.title,
+        sub: item.folder.tagline,
+        accent: item.folder.accent,
+        ...(badge ? { badge } : {}),
+        selected: item.worlds.some((world) => world.id === this.worldId),
+        children: item.worlds.map(row),
+      };
+    });
     const here = WORLDS.find((world) => world.id === this.worldId);
 
     // **Eine flache Liste, und die Ordnung macht eine Tabelle daraus**

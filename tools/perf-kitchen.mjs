@@ -417,7 +417,7 @@ page.on('console', (message) => {
 
 const url = new URL(base);
 url.searchParams.set('at', 'kitchen');
-url.hash = 'test';
+url.hash = 'sandbox';
 console.log(`Messstrecke Küche: ${url.href}`);
 await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
 // Aus den Augen und nicht von oben — von oben zeichnet `TopDownCamera` etwas
@@ -432,14 +432,14 @@ await page.locator('#enter').click();
 // Und hier wartet man nicht blind: Lädt die Welt nicht, soll der Fehler kommen
 // und nicht die Zeitüberschreitung.
 await Promise.race([
-  page.waitForFunction(() => globalThis.bgvr?.currentWorldId === 'test' && globalThis.bgvr.world, null, {
+  page.waitForFunction(() => globalThis.bgvr?.currentWorldId === 'sandbox' && globalThis.bgvr.world, null, {
     timeout: 120000,
   }),
   new Promise((_, reject) => {
     const watch = setInterval(() => {
       if (!crashes.length) return;
       clearInterval(watch);
-      reject(new Error(`Die Testwelt lädt nicht: ${crashes[0]}`));
+      reject(new Error(`Die Sandbox lädt nicht: ${crashes[0]}`));
     }, 250);
     watch.unref?.();
   }),
@@ -478,7 +478,7 @@ const scene = await page.evaluate(() => {
     gpu: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
   };
 });
-if (scene.world !== 'test' || scene.topDown)
+if (scene.world !== 'sandbox' || scene.topDown)
   throw new Error(`Falsche Ansicht: ${scene.world}, topDown=${scene.topDown}`);
 console.log(
   `Augen bei ${scene.eye.join(' / ')} (Bildschirm), Szene ${scene.nodes} Knoten, ` +

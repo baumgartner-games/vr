@@ -1809,6 +1809,7 @@ export class PortalWorld implements World {
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
       cells: () => this.cellsForAgents(),
+      stairs: (x, z, footY) => this.stairsForAgents(x, z, footY),
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
@@ -5264,6 +5265,7 @@ export class PortalWorld implements World {
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
       cells: () => this.cellsForAgents(),
+      stairs: (x, z, footY) => this.stairsForAgents(x, z, footY),
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
@@ -5686,6 +5688,14 @@ export class PortalWorld implements World {
    * Gitter stellen es (`GridWorld`).
    */
   protected cellsForAgents(): CellGrid | null {
+    return null;
+  }
+
+  /**
+   * **Wie hoch ein NPC auf einer Treppe steht** (`NpcWorld.stairs`) — `null`,
+   * wo keine ist. Ohne Gitter weiß die Welt von keiner.
+   */
+  protected stairsForAgents(_x: number, _z: number, _footY: number): number | null {
     return null;
   }
 

@@ -2,6 +2,7 @@ import {
   MENU_GROUPS,
   MENU_PLACEMENT,
   findMenuPath,
+  folderWorlds,
   groupMenu,
   placementOf,
   sortWorlds,
@@ -198,5 +199,49 @@ describe('Welten: Spiel, Baustelle, Prüfstand', () => {
       'editor',
       'test',
     ]);
+  });
+});
+
+describe('Ordner von Welten', () => {
+  const folders = [{ id: 'test', title: 'Test' }];
+
+  it('fasst die Welten eines Ordners zusammen — an der Stelle seiner ersten', () => {
+    const items = folderWorlds(
+      [
+        { id: 'hub' },
+        { id: 'nav', test: true, folder: 'test' },
+        { id: 'sandbox', test: true },
+        { id: 'more', test: true, folder: 'test' },
+        { id: 'lost', folder: 'nirgends' },
+      ],
+      folders,
+    );
+    expect(
+      items.map((item) =>
+        item.kind === 'world'
+          ? item.world.id
+          : `${item.folder.id}[${item.worlds.map((w) => w.id).join(',')}]`,
+      ),
+    ).toEqual(['hub', 'lost', 'test[nav,more]', 'sandbox']);
+  });
+
+  it('lässt die Welten im Ordner, statt sie einzeln unter „Spielen" zu stellen', () => {
+    const root = groupMenu([
+      { id: 'world:hub', label: 'Hub' },
+      {
+        id: 'world:folder:test',
+        label: 'Test',
+        children: [{ id: 'world:test-navigation', label: 'Test Navigation' }],
+      },
+      { id: 'view', label: 'Ansicht' },
+    ]);
+    const play = root.find((entry) => entry.id === 'spielen')!;
+    expect(play.children!.map((entry) => entry.id)).toEqual([
+      'world:hub',
+      'world:folder:test',
+      'view',
+    ]);
+    const folder = play.children!.find((entry) => entry.id === 'world:folder:test')!;
+    expect(folder.children!.map((entry) => entry.id)).toEqual(['world:test-navigation']);
   });
 });

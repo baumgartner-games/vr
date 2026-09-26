@@ -358,6 +358,14 @@ export class NavGraph {
    */
   cellBlocked: (ix: number, iz: number, level: number) => boolean = () => false;
 
+  /**
+   * **Die Treppe oder Rampe auf einer Kachel** — die Richtung, in die sie
+   * steigt, oder `null` (`GridPlan.flightOn`). Die Wegsuche fragt es, damit
+   * niemand seitlich auf eine hohe Stufe plant (`navPath.sidestep`); wie
+   * `slopeAt` eine Frage, die der Plan einhängt. Ohne Plan gibt es keine.
+   */
+  flightAt: (key: TileKey) => Dir | null = () => null;
+
   constructor(levels: readonly number[] = [0]) {
     this.levels = levels.length > 0 ? [...levels] : [0];
   }

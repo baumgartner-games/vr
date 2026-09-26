@@ -189,6 +189,8 @@ export class GridPlan {
     this.graph = new NavGraph(levels);
     // Der Graph fragt die Schrägen beim Plan nach (`NavGraph.slopeAt`).
     this.graph.slopeAt = (key) => this.slopeTiles.get(key) ?? null;
+    // Und die Treppen (`NavGraph.flightAt`).
+    this.graph.flightAt = (key) => this.flightOn(key)?.dir ?? null;
   }
 
   /**

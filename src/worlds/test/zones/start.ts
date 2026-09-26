@@ -92,7 +92,7 @@ export function fitStart(plan: GridPlan): void {
     z: north,
     dir: DIR_N,
     props: {
-      text: 'Testwelt · Norden Effekte · Westen Navigation · Osten Schießstand · Süden Gokart',
+      text: 'Sandbox · Norden Effekte · Westen Navigation · Osten Schießstand · Süden Gokart',
     },
   });
 

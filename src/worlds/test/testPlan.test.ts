@@ -202,7 +202,7 @@ describe('Start und Tor', () => {
   it('setzt den Startplatz der Welt in die Küche', () => {
     // Die Welt, mit der die Seite ohne Adresse aufmacht — sonst führte diese
     // Kachel niemanden irgendwohin.
-    expect(DEFAULT_WORLD).toBe('test');
+    expect(DEFAULT_WORLD).toBe('sandbox');
     const tile = tileKey(KITCHEN_SPAWN.x, KITCHEN_SPAWN.z, 0);
     expect(plan.graph.has(tile)).toBe(true);
     expect(plan.fixturesOn(tile)).toHaveLength(0);
@@ -245,7 +245,7 @@ describe('Start und Tor', () => {
   it('hängt ein Schild mit einer Begrüßung daneben', () => {
     const sign = plan.fixture('schild-start');
     expect(sign?.kind).toBe('sign');
-    expect(String(sign?.props.text ?? '')).toContain('Testwelt');
+    expect(String(sign?.props.text ?? '')).toContain('Sandbox');
   });
 });
 

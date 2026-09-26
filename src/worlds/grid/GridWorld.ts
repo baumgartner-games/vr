@@ -13,6 +13,7 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
+import { readNav, writeNav } from '../nav/navSerial';
 import { CellGrid, cellKey, navCellSource, type Slope } from '../nav/cellGrid';
 import { slideOnCells } from '../nav/planeMove';
 import { wallCells, type DiagonalWall } from '../portal/gridSnap';
@@ -1187,6 +1188,11 @@ export abstract class GridWorld extends PortalWorld {
 
   protected override cellsForAgents(): CellGrid | null {
     return this.cellGrid();
+  }
+
+  /** Die Treppen des Plans tragen auch die NPCs (`Npc.stairLift`). */
+  protected override stairsForAgents(x: number, z: number, footY: number): number | null {
+    return this.grid?.flightFloor(x, z, footY) ?? null;
   }
 
   /**
@@ -3152,10 +3158,30 @@ export abstract class GridWorld extends PortalWorld {
     return this.grid?.graph.levels ?? null;
   }
 
-  protected override navReady(graph: NavGraph): void {
-    super.navReady(graph);
+  /**
+   * **Der Graph der NPCs ist der des Plans** — statt des abgetasteten, über den
+   * der Plan nur gelegt wird.
+   *
+   * Das Abtasten sieht Quader und rät daraus Etagen, Absprünge und Sprünge; in
+   * einer Welt, die ganz aus ihrem Plan besteht, rät es daneben: Über einer
+   * Treppe fand es Kacheln der Etage darüber, am Rand eines Podests Absprünge
+   * in jede Richtung und quer über den Lauf einen Sprung (gemessen in der
+   * _Test Navigation_). Eine Welt, in der nichts außerhalb des Plans steht,
+   * sagt hier `true` und bekommt eine Kopie des Plangraphen.
+   */
+  protected navFromPlan(): boolean {
+    return false;
+  }
+
+  protected override navReady(baked: NavGraph): void {
+    super.navReady(baked);
     const plan = this.grid;
     if (!plan) return;
+    let graph = baked;
+    if (this.navFromPlan()) {
+      graph = readNav(writeNav(plan.graph));
+      this.nav = graph;
+    }
     // **Was im Plan steht, gewinnt.** Das Abtasten sieht nur Quader: Es findet
     // die Wand, aber nicht, dass sie aufgehen kann, und die Kachel, aber nicht,
     // dass eine Küchenzeile darauf steht. Beides steht im Grundriss, und
@@ -3175,9 +3201,20 @@ export abstract class GridWorld extends PortalWorld {
       }
     }
     for (const link of plan.graph.links()) graph.addLink({ ...link });
+    // **Über einer Treppe liegt kein Boden** — der Plan schlägt dort ein Loch
+    // (`GridPlan.flight`), das Abtasten aber sieht die oberen Stufen als
+    // Kacheln der Etage darüber (die letzte liegt nur 17,5 cm unter ihr).
+    // Über diese Phantome plante ein NPC neben der Treppe hoch und stand dann
+    // unter dem Podest (gemeldet in der _Test Navigation_).
+    for (const key of plan.graph.tileKeys()) {
+      if (!plan.flightOn(key)) continue;
+      const above = tileKey(keyX(key), keyZ(key), keyLevel(key) + 1);
+      if (!plan.graph.has(above)) graph.removeTile(above);
+    }
     // Und die Schrägen: Die NPCs laufen auf Zellen (`nav/cellRoute.ts`), und
     // dort sperrt eine Schräge zwei Zellen ihrer Kachel.
     graph.slopeAt = (key) => plan.slopeAt(key) ?? this.wallSlopes.get(key) ?? null;
+    graph.flightAt = (key) => plan.flightOn(key)?.dir ?? null;
     // Und was auf Zellen steht, wie beim Gehen (`cellTaken`).
     graph.cellBlocked = (ix, iz, level) => this.cellTaken(plan, ix, iz, level);
     // Die Wände aus dem Regal kennt das Abtasten nicht (`syncShelfNav`).

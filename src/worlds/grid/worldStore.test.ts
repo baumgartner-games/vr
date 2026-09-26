@@ -100,3 +100,23 @@ describe('Der Speicher im Browser', () => {
     expect(storedWorld('dark')).toBeNull();
   });
 });
+
+describe('Ein Stand unter altem Namen', () => {
+  it('zieht von der Testwelt in die Sandbox um (`WORLD_ALIASES`)', () => {
+    const storage = fakeStorage();
+    use(storage);
+    expect(keepWorld('test', house(), { name: 'Umbau' })).toBe(true);
+    expect(hasStoredWorld('sandbox')).toBe(true);
+    expect(storedWorld('sandbox')).not.toBeNull();
+    expect(storage.map.has(worldKey('test'))).toBe(false);
+  });
+
+  it('lässt einen Stand unter dem neuen Namen stehen, wie er ist', () => {
+    const storage = fakeStorage();
+    use(storage);
+    keepWorld('sandbox', house());
+    storage.map.set(worldKey('test'), 'alt');
+    storedWorld('sandbox');
+    expect(storage.map.get(worldKey('test'))).toBe('alt');
+  });
+});
