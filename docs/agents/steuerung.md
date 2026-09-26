@@ -177,6 +177,15 @@ gilt die Zeile des Menüs.
 `plateup/plateUpHints.ts`). Das Gewählte ist das Objekt unter dem gelben Saum
 (`PortalWorld.pickedObject`); ohne Verb bleibt es bei _Nehmen_/_Ablegen_.
 
+**Am Eis im Restaurant** (Eisecke neben dem Kühlschrank,
+[Das Eis](./burgerladen.md#das-eis)) sagt sie „Hörnchen nehmen" am Stand,
+„Kugel Vanille"/„Kugel Erdbeere" an der Wanne, „Eis abstellen", „Eis nehmen"
+und „Wegwerfen" an Platte und Mülleimer (`plateUpIce.iceVerb`). Am Schirm
+gibt der Stand mit einem Druck Hörnchen **und** Portionierer, und `A` an einer
+Wanne setzt die Kugel gleich aufs Hörnchen. In der Brille nimmt eine Hand das
+Hörnchen (Griff/Trigger), die andere den Portionierer; eingetaucht und
+abgesetzt wird durch Hinhalten, ohne Knopf.
+
 Im Baukasten rückt die Zeile über die Werkzeugleiste (`controlHints.css`,
 `data-zone="build"`). **Das Kart fährt jetzt auch mit dem Pad am Schirm**
 (RT, LT, linker Stock — `WorldContext.pad`, `KartZone.updateDriving`); bis

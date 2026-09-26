@@ -940,3 +940,16 @@ abgesetzt, holt `kitchen.backToBelly` es dorthin zurück. Ein **Gegenstand der
 Welt** — einer mit Körper, aus dem Beutel oder dem Regal — hängt dort seit
 Kurzem ebenfalls, nur an einem eigenen Anker: siehe _Und am Schirm trägt die
 Figur_.
+
+**Zwei Hände, zwei Dinge — das Eis im Restaurant.** Die Küchen tragen ein
+Ding, und in der Brille liegt es in der Hand, die es genommen hat. Das Eis
+([Das Eis](./burgerladen.md#das-eis)) braucht beide Hände zugleich: das
+Hörnchen in der einen, den Portionierer in der anderen. Beides hängt — wie
+jedes Küchending — ohne Körper an `ControllerState.hold` der jeweiligen Hand,
+gehört also nicht zu `PortalWorld.grabs`; die Hände bleiben für den Kern frei
+und bedienen weiter über `useByHand`. Welche Hand was darf, rechnet
+`plateup/plateUpIce.ts` mit `UseSource.hand`: Die Hand des Portionierers
+bedient keine Station, und keine Hand hält Hörnchen und Portionierer
+zugleich. Eintauchen und Absetzen sind Geometrie (die Schale in der Wanne,
+die Schale über dem Turm) und kein Knopf. Am Schirm gibt es diese Trennung
+nicht: Ein Druck gibt beides in die eine Hand der Figur.
