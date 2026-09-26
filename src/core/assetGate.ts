@@ -56,6 +56,8 @@ export interface LoadWatch {
   onStart?: ((url: string, loaded: number, total: number) => void) | undefined;
   /** Alles, was angemeldet war, ist durch — auch das, was dabei scheiterte. */
   onLoad?: (() => void) | undefined;
+  /** Eine Datei ist durch: so viele von so vielen (für den Ladebildschirm). */
+  onProgress?: ((url: string, loaded: number, total: number) => void) | undefined;
 }
 
 export interface SettleOptions {
@@ -84,6 +86,10 @@ export interface SettleOptions {
 export class AssetGate {
   /** Ob der Lade-Manager gerade etwas offen hat. */
   private busy = false;
+  /** Wie viele Dateien dieser Welle schon durch sind — für den Ladebalken. */
+  loaded = 0;
+  /** Und wie viele angemeldet waren. */
+  total = 0;
   /** Wer beim nächsten Ereignis nachrechnen will (`settle`). */
   private readonly listeners = new Set<() => void>();
 
@@ -94,15 +100,24 @@ export class AssetGate {
   constructor(watch: LoadWatch) {
     const wasStart = watch.onStart;
     const wasLoad = watch.onLoad;
+    const wasProgress = watch.onProgress;
     watch.onStart = (url, loaded, total): void => {
       this.busy = true;
+      this.loaded = loaded;
+      this.total = total;
       wasStart?.(url, loaded, total);
       this.tell();
     };
     watch.onLoad = (): void => {
       this.busy = false;
+      this.loaded = this.total;
       wasLoad?.();
       this.tell();
+    };
+    watch.onProgress = (url, loaded, total): void => {
+      this.loaded = loaded;
+      this.total = total;
+      wasProgress?.(url, loaded, total);
     };
   }
 
