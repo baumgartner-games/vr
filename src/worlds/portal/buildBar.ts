@@ -58,6 +58,15 @@ export interface BuildBarState {
 export interface BuildPattern {
   readonly label: string;
   readonly swatch: string;
+  /** Der zweite Ton eines Schachbretts — das Farbfeld wird kariert. */
+  readonly swatch2?: string;
+}
+
+/** **Der Hintergrund eines Farbfelds** — einfarbig, oder kariert mit zwei Tönen. */
+export function swatchBackground(swatch: string, swatch2?: string): string {
+  return swatch2
+    ? `repeating-conic-gradient(${swatch} 0 25%, ${swatch2} 0 50%) 50% / 8px 8px`
+    : swatch;
 }
 
 /**
@@ -259,7 +268,9 @@ export class BuildBar {
     this.status.hidden = !state.status && !state.pattern;
     this.chip.hidden = !state.pattern;
     this.chipLabel.textContent = state.pattern?.label ?? '';
-    this.chipSwatch.style.background = state.pattern?.swatch ?? '';
+    this.chipSwatch.style.background = state.pattern
+      ? swatchBackground(state.pattern.swatch, state.pattern.swatch2)
+      : '';
     this.floor.dot.style.background = state.floorSwatch;
     this.floor.dot.hidden = !state.floorSwatch;
     this.wall.dot.style.background = state.wallSwatch;

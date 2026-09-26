@@ -126,7 +126,7 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
-import { SAMPLE_ITEMS, SAMPLE_SURFACES } from './sampleRoom';
+import { SAMPLE_ROOMS, type SampleRoom } from './sampleRoom';
 import {
   eighthYaw,
   gridPose,
@@ -172,6 +172,7 @@ import {
   BuildBar,
   HIDDEN_BUILD_BAR,
   nextBuildTool,
+  swatchBackground,
   type BuildEvent,
   type BuildTool,
 } from './buildBar';
@@ -10130,8 +10131,14 @@ export class PortalWorld implements World {
       status,
       valid: surface ? surface.valid : carried && target && !this.bomb ? target.valid : null,
       pattern: this.surfaceTool ? stylePattern(this.surfaceStyle(this.surfaceTool)) : null,
-      floorSwatch: this.surfaceStyle('floor').swatch,
-      wallSwatch: this.surfaceStyle('wall').swatch,
+      floorSwatch: swatchBackground(
+        this.surfaceStyle('floor').swatch,
+        this.surfaceStyle('floor').swatch2,
+      ),
+      wallSwatch: swatchBackground(
+        this.surfaceStyle('wall').swatch,
+        this.surfaceStyle('wall').swatch2,
+      ),
     });
   }
 
@@ -10827,14 +10834,24 @@ export class PortalWorld implements World {
       wallStyle,
       fine,
     ];
+    // **Vorlagen**: fertig eingerichtete Zimmer, je eines ein Knopf in einem
+    // Untermenü — mit zwei und mehr wäre die Werkzeugseite sonst lang.
     if (this.sampleRoomOrigin())
       children.push({
-        id: 'build:sample',
-        label: 'Beispielraum',
-        sub: 'Ein fertig eingerichtetes Zimmer laden, Zurück nimmt es wieder weg',
+        id: 'build:templates',
+        label: 'Vorlagen',
+        sub: `${SAMPLE_ROOMS.map((room) => room.label).join(', ')} · Zurück räumt ab`,
         icon: 'hammer',
         accent,
-        run: run((ctx) => void this.loadSampleRoom(ctx)),
+        grid: true,
+        children: SAMPLE_ROOMS.map((room) => ({
+          id: `build:sample:${room.id}`,
+          label: room.label,
+          sub: room.sub,
+          icon: 'hammer',
+          accent,
+          run: run((ctx) => void this.loadSampleRoom(ctx, room)),
+        })),
       });
     return {
       id: 'build-tools',
@@ -10946,29 +10963,29 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Den Beispielraum laden** (`sampleRoom.ts`): Boden, Fliesen, eine Wand,
+   * **Eine Vorlage laden** (`sampleRoom.SAMPLE_ROOMS`): Boden, Fliesen, Wände,
    * dann Stück für Stück die Einrichtung — jedes eingerastet wie aus der
    * Hand (`placeModelAt` mit `snap`), also auf dem Tisch, an der Wand, in
    * 45°, wo es dort steht. Alles zusammen ist **ein** Schritt: _Zurück_ nimmt
    * den ganzen Raum wieder weg.
    */
-  private async loadSampleRoom(ctx: WorldContext): Promise<void> {
+  private async loadSampleRoom(ctx: WorldContext, room: SampleRoom): Promise<void> {
     const origin = this.sampleRoomOrigin();
     if (!origin) return;
-    ctx.notify('Beispielraum wird eingerichtet …');
+    ctx.notify(`${room.label} wird eingerichtet …`);
     const floorY = ctx.rig.getFloorY();
     const fine = this.fineTurn;
     const styles = [this.floorStyle, this.wallStyle] as const;
     const physics = this.physics;
     this.buildHistory.begin();
     try {
-      for (const surface of SAMPLE_SURFACES) {
+      for (const surface of room.surfaces) {
         if (surface.tool === 'floor') this.floorStyle = surface.style;
         else this.wallStyle = surface.style;
         await this.applySurface(ctx, surface.tool, origin.x + surface.x, origin.z + surface.z);
         if (this.physics !== physics) return;
       }
-      for (const item of SAMPLE_ITEMS) {
+      for (const item of room.items) {
         this.fineTurn = isDiagonal(item.yaw);
         const at = new THREE.Vector3(origin.x + item.x, floorY + 1.2, origin.z + item.z);
         await this.placeModelAt(item.path, at, item.yaw, true, false, true);
@@ -10980,7 +10997,7 @@ export class PortalWorld implements World {
       this.wallStyle = styles[1];
       this.buildHistory.end();
     }
-    ctx.notify(`Beispielraum: ${SAMPLE_ITEMS.length} Stücke, Boden und Wände`);
+    ctx.notify(`${room.label}: ${room.items.length} Stücke, Boden und Wände`);
   }
 
   /** Für die Brille und das Menü: _Rückgängig_ und _Wiederholen_ ohne Leiste. */

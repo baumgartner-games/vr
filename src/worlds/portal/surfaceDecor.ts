@@ -35,6 +35,8 @@ export interface SurfaceStyle {
    * dem Namen, damit man das Muster erkennt, bevor man klickt.
    */
   readonly swatch: string;
+  /** Der zweite Ton eines Schachbretts (Küchenfliesen) — das Farbfeld wird dann kariert. */
+  readonly swatch2?: string;
   /**
    * Für Wände: `panel` sind dünne Platten auf **einer** Seite, `wall` ganze
    * Wände auf der Fuge. Ein Boden hat keine Art.
@@ -48,11 +50,17 @@ export interface SurfaceStyle {
 export const FLOOR_STYLES: readonly SurfaceStyle[] = [
   { path: 'dungeon/floor_wood_small.glb', label: 'Dielen hell', swatch: '#b3664a' },
   { path: 'dungeon/floor_wood_small_dark.glb', label: 'Dielen dunkel', swatch: '#6e3f2e' },
-  { path: 'restaurant-bits/floor_kitchen_small.glb', label: 'Küchenfliesen', swatch: '#c9c6bd' },
+  {
+    path: 'restaurant-bits/floor_kitchen_small.glb',
+    label: 'Küchenfliesen',
+    swatch: '#e6e8ea',
+    swatch2: '#2a2c30',
+  },
   {
     path: 'restaurant-bits/floor_kitchen_small_styleB.glb',
-    label: 'Küchenfliesen blau',
-    swatch: '#7fa6c4',
+    label: 'Küchenfliesen beige',
+    swatch: '#d9b48e',
+    swatch2: '#8c5b3e',
   },
   { path: 'dungeon/floor_tile_small.glb', label: 'Steinplatten', swatch: '#8f8b85' },
 ];
@@ -93,8 +101,14 @@ export function isWallPanel(path: string): boolean {
 }
 
 /** Name und Farbfeld eines Musters — das, was die Leiste davon zeigt. */
-export function stylePattern(style: SurfaceStyle): { label: string; swatch: string } {
-  return { label: style.label, swatch: style.swatch };
+export function stylePattern(style: SurfaceStyle): {
+  label: string;
+  swatch: string;
+  swatch2?: string;
+} {
+  return style.swatch2
+    ? { label: style.label, swatch: style.swatch, swatch2: style.swatch2 }
+    : { label: style.label, swatch: style.swatch };
 }
 
 /**
