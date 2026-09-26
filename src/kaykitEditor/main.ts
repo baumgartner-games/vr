@@ -20,6 +20,7 @@ import { kaykitFiles } from '../core/kaykitIndex';
 import { PlateFloor, type PlateSeat } from '../worlds/shared/plateFloor';
 import { fitProp } from '../worlds/haunting/world3d/stationProps';
 import { CELL } from '../worlds/nav/cellGrid';
+import { DETAIL_POSE, detailDrag, detailZoom, type DetailPose } from '../ui/detailDrag';
 import {
   ANCHOR,
   OFFSET_MAX,
@@ -44,6 +45,9 @@ import {
 } from './editorModel';
 
 const STORE = 'bgvr.kaykitEditor';
+/** Der Öffnungswinkel der 3D-Ansicht — derselbe wie auf der Detailseite. */
+const ORBIT_FOV = 32;
+type ViewMode = 'top' | '3d';
 /** So weit liegt Boden, in Kacheln um die Mitte. */
 const REACH = 6;
 /** Der Kreis, als der der Spieler in der Ebene läuft (`nav/planeMove.PLAYER_PLANE_RADIUS`). */
@@ -94,6 +98,26 @@ camera.up.set(0, 0, -1);
 const look = new THREE.Vector3(ANCHOR.x - 0.75, 0, ANCHOR.z);
 let span = 7; // Meter, die in die kürzere Seite passen
 
+/**
+ * **Die 3D-Ansicht** — dieselbe Kamera wie auf der Detailseite eines Modells
+ * (`ui/PageDetail.ts`): perspektivisch, sie kreist um das Element, und
+ * gerechnet wird mit derselben Lage (`ui/detailDrag.ts`: Wischen dreht und
+ * kippt, das Rad zoomt). Gedreht wird die Kamera, nicht das Element — Gitter
+ * und rote Zellen bleiben, wo sie sind.
+ */
+const orbit = new THREE.PerspectiveCamera(ORBIT_FOV, 1, 0.02, 200);
+let pose: DetailPose = DETAIL_POSE;
+const orbitTarget = new THREE.Vector3();
+let mode: ViewMode = readMode();
+
+function readMode(): ViewMode {
+  try {
+    return localStorage.getItem(`${STORE}.view`) === '3d' ? '3d' : 'top';
+  } catch {
+    return 'top';
+  }
+}
+
 function placeCamera(): void {
   const w = view.clientWidth || 1,
     h = view.clientHeight || 1;
@@ -106,6 +130,24 @@ function placeCamera(): void {
   camera.position.set(look.x, 30, look.z);
   camera.lookAt(look);
   camera.updateProjectionMatrix();
+
+  // Um die Mitte des Elements, so weit weg, dass es mit etwas Boden ringsum
+  // ins Bild passt — wie `PageDetail.frame`, nur mit Mindestabstand, damit
+  // ein kleines Ding nicht ohne Gitter dasteht.
+  const size = base ? Math.hypot(base.width, base.depth, base.height) * scaler.scale.x : 1.5;
+  const height = base ? base.height * scaler.scale.x : 0.5;
+  orbitTarget.set(holder.position.x, height / 2, holder.position.z);
+  const reach = Math.max((size / 2 / Math.sin((ORBIT_FOV * Math.PI) / 360)) * 1.35, 2.5);
+  const dist = reach / pose.zoom;
+  const cos = Math.cos(pose.pitch);
+  orbit.aspect = aspect;
+  orbit.position.set(
+    orbitTarget.x + Math.sin(pose.yaw) * cos * dist,
+    orbitTarget.y + Math.sin(pose.pitch) * dist,
+    orbitTarget.z + Math.cos(pose.yaw) * cos * dist,
+  );
+  orbit.lookAt(orbitTarget);
+  orbit.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
 
@@ -423,37 +465,72 @@ window.addEventListener('keydown', (event) => {
     '-': ['scale', -0.05],
     r: ['yaw', 90],
   };
+  if (event.key === 'v') {
+    setMode(mode === '3d' ? 'top' : '3d');
+    return;
+  }
   const hit = keys[event.key];
   if (!hit) return;
   event.preventDefault();
   nudge(hit[0], hit[1]);
 });
 
-// Zoomen mit dem Mausrad, verschieben durch Ziehen.
+// Draufsicht: Rad zoomt, Ziehen verschiebt. 3D: Rad zoomt, Ziehen dreht und kippt.
 view.addEventListener(
   'wheel',
   (event) => {
     event.preventDefault();
-    span = Math.min(20, Math.max(2, span * Math.exp(event.deltaY * 0.001)));
+    const factor = Math.exp(event.deltaY * 0.001);
+    if (mode === '3d') pose = detailZoom(pose, 1 / factor);
+    else span = Math.min(20, Math.max(2, span * factor));
     placeCamera();
   },
   { passive: false },
 );
 let drag: { x: number; y: number } | null = null;
 view.addEventListener('pointerdown', (event) => {
+  if ((event.target as HTMLElement).closest('button')) return;
   drag = { x: event.clientX, y: event.clientY };
   view.setPointerCapture(event.pointerId);
 });
 view.addEventListener('pointermove', (event) => {
   if (!drag) return;
-  const perPixel = (camera.right - camera.left) / (view.clientWidth || 1);
-  look.x -= (event.clientX - drag.x) * perPixel;
-  look.z -= (event.clientY - drag.y) * perPixel;
+  const dx = event.clientX - drag.x,
+    dy = event.clientY - drag.y;
+  if (mode === '3d') {
+    pose = detailDrag(pose, dx, dy, view.clientWidth, view.clientHeight);
+  } else {
+    const perPixel = (camera.right - camera.left) / (view.clientWidth || 1);
+    look.x -= dx * perPixel;
+    look.z -= dy * perPixel;
+  }
   drag = { x: event.clientX, y: event.clientY };
   placeCamera();
 });
 view.addEventListener('pointerup', () => (drag = null));
 view.addEventListener('pointercancel', () => (drag = null));
+
+const modeButtons = [...document.querySelectorAll<HTMLButtonElement>('button[data-view]')];
+function setMode(next: ViewMode): void {
+  mode = next;
+  try {
+    localStorage.setItem(`${STORE}.view`, mode);
+  } catch {
+    // egal
+  }
+  for (const button of modeButtons)
+    button.setAttribute('aria-pressed', String(button.dataset['view'] === mode));
+  view.dataset['mode'] = mode;
+  placeCamera();
+}
+for (const button of modeButtons)
+  button.addEventListener('click', () => setMode(button.dataset['view'] as ViewMode));
+$<HTMLButtonElement>('view-reset').addEventListener('click', () => {
+  pose = DETAIL_POSE;
+  span = 7;
+  look.set(ANCHOR.x - 0.75, 0, ANCHOR.z);
+  placeCamera();
+});
 
 // ── Stand zeigen ───────────────────────────────────────────────────────────
 
@@ -505,6 +582,7 @@ function update(): void {
       cellGroup.add(mesh);
     }
   player.visible = showPlayer.checked;
+  placeCamera();
 
   const lines: string[] = [`<b>${element.label}</b><br><code>${element.path}</code>`];
   if (base && modelBox) {
@@ -533,11 +611,11 @@ function update(): void {
 // ── Los ────────────────────────────────────────────────────────────────────
 
 window.addEventListener('resize', placeCamera);
-placeCamera();
+setMode(mode);
 fillSelect();
 void showElement(current());
 
 renderer.setAnimationLoop(() => {
   body.update(1 / 60, head, null, null);
-  renderer.render(scene, camera);
+  renderer.render(scene, mode === '3d' ? orbit : camera);
 });

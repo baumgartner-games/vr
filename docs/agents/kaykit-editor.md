@@ -25,6 +25,18 @@ Anlass: Möbel der Raumstation sperren zu viele Zellen oder stehen so, dass ein
   Stellfläche des Spiels, die Spielfigur (`AvatarBody`) mit ihrem Kreis
   (0,35 m).
 
+## Draufsicht und 3D
+
+Oben rechts im Bild (und mit `V`) wird zwischen **Draufsicht** und **3D**
+umgeschaltet; gemerkt wird die Wahl in `bgvr.kaykitEditor.view`. Gewünscht:
+_„umschalten können zur 3D-Ansicht wie bei der Element-Details-Ansicht."_ Die
+3D-Kamera ist die der Detailseite (`ui/PageDetail.ts`): perspektivisch, 32°,
+sie kreist um die Mitte des Elements, und Wischen/Rad rechnen mit derselben
+Lage (`ui/detailDrag.ts`: `detailDrag`, `detailZoom`, `DETAIL_POSE`). Gedreht
+wird die Kamera, nicht das Element — Gitter, rote Zellen und Rahmen bleiben
+liegen. In der Draufsicht verschiebt Ziehen die Ansicht. ⟲ setzt beide Kameras
+zurück.
+
 ## Was gerechnet wird
 
 - Das Modell wird **wie im Spiel** eingepasst (`stationProps.fitProp` in
