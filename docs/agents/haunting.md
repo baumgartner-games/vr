@@ -1914,6 +1914,19 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   Was `HAUNT_PAGE_OF` nicht kennt, bleibt oben stehen und geht nicht
   verloren. Das ⚙-Menü des Technikers am Bildschirm
   (`ShipExperience.shipOptions`) ist davon unberührt.
+- **Die Konsole der Zentrale rechnet mit Namen, nicht mit Nummern**
+  (`rules/commandConsole.ts`, mit Test). Der Bildschirm an der Wand hat
+  sechs Zeilen — Modus, „ECHTE RUNDE STARTEN", „ÜBUNGSRUNDE · OHNE MONSTER",
+  Station, Gegner, Übungslicht. Vorher war ein Tipp
+  `Math.floor((1 − uv.y) · 6)` und `commandAction(3)` hieß „Station
+  weiterschalten"; dieselben Zahlen standen in den Knöpfen der Tafel
+  (`rooms` → 3, `monster` → 4, `light` → 5). Jetzt baut `commandRows` die
+  Zeilen samt `CommandAction` (`status` · `real` · `practice` · `rooms` ·
+  `monster` · `light`), `commandActionAt` findet die getroffene aus der Höhe,
+  und `ShipExperience.commandAction` schaltet nach Namen. Die Modus-Zeile
+  sagt beim Antippen den Satz des Modus; das Übungslicht außerhalb der
+  Übungsrunde sagt, warum es nichts tut (vorher still), und heißt dort
+  „ÜBUNGSLICHT: NUR IN DER ÜBUNGSRUNDE" statt „TESTLABOR: …".
 - **Eine Runde in der Brille starten** (`HauntingWorld.menu()`,
   `rules/worldMenu.ts`): Handgelenk-Knopf drücken, im Panel unter den fünf
   Einträgen der Engine (Welten, Verbindung, Bewegung, Aussehen, Grafik) stehen
