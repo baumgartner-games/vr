@@ -1,5 +1,5 @@
 import { freshCrew, stationOptions } from './mission';
-import { LampShadowTurns, lampShadowDue, stationLighting } from './stationLighting';
+import { lampReach, stationLighting } from './stationLighting';
 
 describe('station darkness', () => {
   it('switches off all broad station lighting while retaining safe test mode', () => {
@@ -38,34 +38,13 @@ describe('station darkness', () => {
   });
 });
 
-describe('Schattenkarten der Deckenleuchten', () => {
-  it('lässt die Leuchten abwechselnd zeichnen und nie beide im selben Bild', () => {
-    const turns = new LampShadowTurns(2, 0.25);
-    const picked: number[] = [];
-    // Eine Sekunde bei 64 Bildern (ein Bruch, den Gleitkomma genau trifft).
-    for (let i = 0; i < 64; i++) {
-      const turn = turns.step(1 / 64);
-      if (turn >= 0) picked.push(turn);
-    }
-    // Jede kommt viermal je Sekunde dran, abwechselnd.
-    expect(picked.filter((one) => one === 0)).toHaveLength(4);
-    expect(picked.filter((one) => one === 1)).toHaveLength(4);
-    for (let i = 1; i < picked.length; i++) expect(picked[i]).not.toBe(picked[i - 1]);
-  });
-
-  it('zeichnet für eine dunkle Leuchte nichts, sofort beim Umzug oder Anschalten', () => {
-    expect(lampShadowDue(true, false, 1, 0)).toBe(false);
-    expect(lampShadowDue(false, true, 1, 0)).toBe(false);
-    expect(lampShadowDue(false, false, 1, 1)).toBe(false);
-    expect(lampShadowDue(true, false, 1, 1)).toBe(true);
-    expect(lampShadowDue(false, true, 1, 1)).toBe(true);
-    expect(lampShadowDue(false, false, 0, 1)).toBe(true);
-  });
-
-  it('zeichnet eine Leuchte ohne Karte einmal, auch wenn sie dunkel ist', () => {
-    // Sonst bindet three.js eine leere Farbtextur an den Schatten-Sampler, und
-    // WebGL verwirft jeden beleuchteten Zeichenaufruf der Station.
-    expect(lampShadowDue(false, false, 0, 0, false)).toBe(true);
-    expect(lampShadowDue(false, false, 0, 0, true)).toBe(false);
+describe('Deckenleuchten ohne Schattenkarte', () => {
+  it('reichen über die fernste Ecke ihres Raums, aber nicht weit darüber hinaus', () => {
+    const reach = lampReach({ w: 4, d: 3 }, 2, 2.6);
+    const corner = Math.hypot(4, 3, 2.6);
+    expect(reach).toBeGreaterThan(corner);
+    expect(reach).toBeLessThan(corner * 1.5);
+    // Ein größerer Raum, ein weiteres Licht.
+    expect(lampReach({ w: 8, d: 6 }, 2, 2.6)).toBeGreaterThan(reach);
   });
 });

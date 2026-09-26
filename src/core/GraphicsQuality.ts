@@ -6,6 +6,7 @@ import {
   type GraphicsProfile,
   type GraphicsSettings,
 } from './graphicsSettings';
+import { BlobShadows } from './BlobShadows';
 import { aimSun, applySceneQuality } from './graphicsScene';
 
 /**
@@ -40,6 +41,8 @@ export class GraphicsQuality {
   /** Sekunden seit dem letzten Durchlauf über die Szene. */
   private since = Number.POSITIVE_INFINITY;
   private readonly stopListening: () => void;
+  /** Die Schatten-Kreise unter den Figuren (Modus _Einfach_). */
+  private readonly blobs: BlobShadows;
 
   /**
    * Wie oft die Szene abgelaufen wird.
@@ -57,9 +60,11 @@ export class GraphicsQuality {
   ) {
     this.settings = graphics();
     this.profile = graphicsProfile(this.settings);
+    this.blobs = new BlobShadows(scene);
+    this.blobs.setEnabled(this.profile.blobShadows);
     this.stopListening = onGraphicsChange(() => this.refresh());
     this.applyRenderer();
-    this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.shadows;
+    this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows;
   }
 
   /** Ob die Szene dieser Welt schon einmal abgelaufen wurde. */
@@ -70,6 +75,7 @@ export class GraphicsQuality {
     this.sun = null;
     this.since = Number.POSITIVE_INFINITY;
     this.scanned = false;
+    this.blobs.worldChanged();
   }
 
   /**
@@ -83,7 +89,10 @@ export class GraphicsQuality {
    */
   private get rescans(): boolean {
     return (
-      this.touched || this.profile.shadows || this.profile.outlines || this.profile.toonBands > 0
+      this.touched ||
+      this.profile.lightShadows ||
+      this.profile.outlines ||
+      this.profile.toonBands > 0
     );
   }
 
@@ -100,8 +109,9 @@ export class GraphicsQuality {
       this.scanned = true;
     }
 
-    if (!this.profile.shadows) return;
-    if (this.sun) aimSun(this.sun, head, this.profile);
+    this.blobs.update(dt);
+    if (!this.profile.lightShadows) return;
+    if (this.sun && this.profile.shadows) aimSun(this.sun, head, this.profile);
     // Bestellt wird die Schattenkarte einmal pro Bild — `autoUpdate` ist aus,
     // damit Spiegel und Portalsichten sie nicht jedes Mal neu bauen lassen.
     this.renderer.shadowMap.needsUpdate = true;
@@ -109,6 +119,7 @@ export class GraphicsQuality {
 
   dispose(): void {
     this.stopListening();
+    this.blobs.dispose();
   }
 
   /** Nach einer Änderung im Menü: alles neu stellen, sofort sichtbar. */
@@ -117,16 +128,23 @@ export class GraphicsQuality {
     this.settings = graphics();
     this.profile = graphicsProfile(this.settings);
     this.applyRenderer();
-    this.sun = applySceneQuality(this.scene, this.profile, before.shadows !== this.profile.shadows);
+    this.blobs.setEnabled(this.profile.blobShadows);
+    this.sun = applySceneQuality(
+      this.scene,
+      this.profile,
+      before.lightShadows !== this.profile.lightShadows,
+    );
     this.since = 0;
     this.scanned = true;
-    if (this.profile.outlines || this.profile.toonBands > 0 || this.profile.shadows)
+    if (this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows)
       this.touched = true;
   }
 
   private applyRenderer(): void {
     const renderer = this.renderer;
-    renderer.shadowMap.enabled = this.profile.shadows;
+    // An, sobald irgendein Licht eine Karte zeichnen darf — im Kreis-Modus
+    // nur die Taschenlampe. Ohne Licht mit `castShadow` kostet das nichts.
+    renderer.shadowMap.enabled = this.profile.lightShadows;
     // `PCFShadowMap` und nicht `PCFSoftShadowMap`: Die weiche Fassung ist seit
     // three r185 abgemeldet und fällt intern ohnehin auf diese zurück — sie
     // kostete nur noch eine Warnung pro Bild in der Konsole.

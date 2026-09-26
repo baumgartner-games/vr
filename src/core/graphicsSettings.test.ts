@@ -15,6 +15,8 @@ import {
   graphicsSummary,
   nextMovePad,
   nextGraphicsMode,
+  nextShadowMode,
+  readShadowMode,
   nextSquishScale,
   nextSquishSpeed,
   nextXrScale,
@@ -40,7 +42,8 @@ describe('Grafikeinstellungen', () => {
       gridHitBoxes: false,
       ghostBoxes: false,
       showHandles: false,
-      shadows: true,
+      // Ab Werk der weiche Kreis unter den Figuren, keine Schattenkarte.
+      shadows: 'simple',
       // Die Animationen sind ab Werk aus — nachgerechnet wird die Kurve
       // dahinter in `squish.test.ts`.
       squish: false,
@@ -118,7 +121,7 @@ describe('Grafikeinstellungen', () => {
     // Der Sinn der unteren Stufe: flache Farben ohne Zeichnung. Was sie nicht
     // mehr ist, ist „das Bild von vorher" — Schatten gibt es jetzt auch hier,
     // und die haben ihren eigenen Schalter.
-    const profile = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: false });
+    const profile = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: 'off' });
     expect(profile.shadows).toBe(false);
     expect(profile.framebufferScale).toBe(1);
     expect(profile.foveation).toBe(1);
@@ -134,16 +137,39 @@ describe('Grafikeinstellungen', () => {
    * Konturen dazu, und wer die Konturen nicht wollte, bekam eine Welt, in der
    * alles einen Zentimeter über dem Boden schwebt.
    */
-  it('wirft Schatten ab Werk, auch ohne Comic — und dämpft dafür das Grundlicht', () => {
+  it('legt ab Werk einen Kreis unter die Figuren statt einer Schattenkarte', () => {
     const plain = graphicsProfile({ mode: 'simple', xrScale: 1 });
-    expect(plain.shadows).toBe(true);
+    expect(plain.shadows).toBe(false);
+    expect(plain.blobShadows).toBe(true);
+    // Die Taschenlampe behält ihre Karte — sie ist der Horror der Station.
+    expect(plain.lightShadows).toBe(true);
     expect(plain.outlines).toBe(false);
+    // Ohne Sonnenschatten bleibt das Grundlicht, wo es war.
+    expect(plain.ambientScale).toBe(1);
+    // Aus ist ganz aus: kein Kreis, keine Karte, auch nicht an der Lampe.
+    const off = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: 'off' });
+    expect([off.shadows, off.blobShadows, off.lightShadows]).toEqual([false, false, false]);
+  });
+
+  it('zeichnet im Modus Voll die Schattenkarte der Sonne — und dämpft dafür das Grundlicht', () => {
+    const full = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: 'full' });
+    expect(full.shadows).toBe(true);
+    expect(full.lightShadows).toBe(true);
+    // Kein Kreis unter einer Figur, die schon einen echten Schatten wirft.
+    expect(full.blobShadows).toBe(false);
     // Ein Schatten ist nur so dunkel, wie das Licht daneben hell ist.
-    expect(plain.ambientScale).toBeLessThan(1);
-    // Und ohne Schatten bleibt das Grundlicht, wo es war.
-    expect(graphicsProfile({ mode: 'simple', xrScale: 1, shadows: false }).ambientScale).toBe(1);
-    // Auch der Comic darf sie loswerden, wenn die Bildrate klemmt.
-    expect(graphicsProfile({ mode: 'comic', xrScale: 1, shadows: false }).shadows).toBe(false);
+    expect(full.ambientScale).toBeLessThan(1);
+  });
+
+  it('liest den alten Schalter als Modus und wechselt im Menü nur zwischen Aus und Kreis', () => {
+    expect(readShadowMode(false)).toBe('off');
+    expect(readShadowMode(true)).toBe('simple');
+    expect(readShadowMode(undefined)).toBe('simple');
+    expect(readShadowMode('full')).toBe('full');
+    expect(readShadowMode('schön')).toBe('simple');
+    expect(nextShadowMode('off')).toBe('simple');
+    expect(nextShadowMode('simple')).toBe('off');
+    expect(nextShadowMode('full')).toBe('off');
   });
 
   /**
@@ -151,13 +177,17 @@ describe('Grafikeinstellungen', () => {
    * Schatten, nicht das Gegenteil. Deshalb steht in `clampGraphics` an dieser
    * einen Stelle kein `=== true`.
    */
-  it('gibt einem alten Speicher ohne den Schlüssel die Schatten', () => {
-    expect(clampGraphics({ mode: 'simple' }).shadows).toBe(true);
-    expect(clampGraphics({ shadows: false }).shadows).toBe(false);
-    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: false })).toBe(
+  it('gibt einem alten Speicher den Kreis — und wer sie aus hatte, behält aus', () => {
+    expect(clampGraphics({ mode: 'simple' }).shadows).toBe('simple');
+    expect(clampGraphics({ shadows: false } as never).shadows).toBe('off');
+    expect(clampGraphics({ shadows: true } as never).shadows).toBe('simple');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: 'off' })).toBe(
       'Einfach · ohne Schatten',
     );
-    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: true })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: 'simple' })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: 'full' })).toBe(
+      'Einfach · Schatten voll',
+    );
   });
 
   it('zeichnet im Comic Konturen, Stufen und Schatten', () => {
@@ -165,9 +195,9 @@ describe('Grafikeinstellungen', () => {
     expect(profile.outlines).toBe(true);
     expect(profile.toonBands).toBeGreaterThan(1);
     expect(profile.outlineWidth).toBeGreaterThan(0);
-    // Ohne Schatten schwebt in einer Zeichnung alles — der Schalter daneben
-    // ist ab Werk an.
-    expect(profile.shadows).toBe(true);
+    // Ohne Schatten schwebt in einer Zeichnung alles — ab Werk liegt der
+    // Kreis darunter.
+    expect(profile.blobShadows).toBe(true);
     expect(profile.framebufferScale).toBeGreaterThan(1);
     expect(profile.foveation).toBeLessThan(1);
     // Die Schattenkarte muss den Spieler umgeben und dabei vor die Sonne

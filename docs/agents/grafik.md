@@ -6,7 +6,44 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 _Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Der Grafik-Modus
 und die Auflösung der Brille sind Experimente, und beide kosten Bildrate.
 
-**Schatten sind ein eigener Schalter** (`GraphicsSettings.shadows`) und ab Werk
+**Schattenmodus** (`GraphicsSettings.shadows`, Typ `ShadowMode`, seit Welle 4):
+_Menü → Grafik → Schatten_ wechselt zwischen **Aus** und **Einfach (Kreis)**
+(ab Werk). Der dritte Wert **Voll** — die echte Schattenkarte der Sonne, wie
+sie hier unten beschrieben ist — steht nur noch in der **Werkstatt (TEST)**
+als Zeile `gfx:shadows-full` (`ui/menuGroups.ts`, `MENU_PLACEMENT`). Wunsch
+des Besitzers: _„Der Spieler wirft nur Schatten nach unten, also eigentlich
+nur einen Schatten-Kreis unter sich."_
+
+- **Einfach (Kreis)** — die Sonne wirft nichts (`profile.shadows` aus, das
+  Grundlicht bleibt voll), stattdessen liegt unter jeder **angemeldeten
+  Figur** ein weicher runder Fleck (`core/BlobShadows.ts`, Rechnung in
+  `core/blobShadow.ts` mit Test). Alle Kreise sind **ein** `InstancedMesh`
+  (ein Zeichenaufruf, eine 64²-Textur), gezeichnet ohne Tiefenschreiben, nach
+  allem Durchsichtigen (`renderOrder` 2) und mit einer Mischung, die nur
+  abdunkelt: `Ziel × (1 − Quelle)` — die Farbe je Instanz ist die Deckkraft,
+  so verblasst jeder Kreis einzeln. **Der Alphakanal bleibt stehen**
+  (`blendSrcAlpha` 0, `blendDstAlpha` 1): Ohne das stanzte der Fleck ein
+  Loch in die Leinwand, und die helle Seite schien als _heller_ Kreis durch.
+  Angemeldet wird mit `markBlobShadow(fußpunkt, radius)` am Objekt, dessen
+  Weltposition zwischen den Füßen liegt: `AvatarBody` (Spieler, Mitspieler,
+  Koch) am Rumpf, `NpcBody`, Haunting-`Actor`, Gäste im Burgerladen, `Kart`.
+  Die Szene wird zweimal die Sekunde danach abgesucht. Wo der Boden liegt,
+  weiß niemand — jeder Kreis merkt sich den tiefsten Fußpunkt (`followFloor`:
+  hinunter sofort, hinauf mit 0,6 m/s, ab 2,5 m Sprung sofort), und je höher
+  die Figur darüber ist, desto blasser und breiter wird er (`blobLook`, weg ab
+  1,4 m). **Lampen mit eigener Karte** (die Taschenlampe) zeichnen weiter:
+  `renderer.shadowMap.enabled` folgt `profile.lightShadows`, und der
+  Szenendurchlauf setzt `castShadow`/`receiveShadow` wie vorher — ohne ein
+  Licht mit `castShadow` kostet das keinen Durchgang.
+- **Aus** — keine Karte, kein Kreis, auch die Taschenlampe leuchtet ohne.
+- **Voll** — alles, was ab hier steht.
+
+**Ein gespeicherter Stand von gestern** kennt noch den Schalter:
+`readShadowMode` macht aus `false` _Aus_ und aus `true` _Einfach_ (nicht
+_Voll_). Der Konfig-Code trägt keine Grafikeinstellung und bleibt unberührt.
+`npm run perf:worlds -- --shadows=off|simple|full` misst jeden Modus.
+
+**Die Geschichte:** Schatten wurden ein eigener Schalter und waren ab Werk
 **an**. Das war einmal anders, und die Änderung ist eine Antwort auf eine
 Beschwerde: Sie hingen am Comic, also am Bild mit schwarzen Konturen und Licht
 in Stufen — wer nur Schatten wollte, bekam eine Zeichnung dazu, und wer die
@@ -1158,7 +1195,8 @@ Blickrichtung tun das auch.
 **Die Bildprüfung des Cullers.** Im Container blieb die Station unsichtbar,
 solange Schatten an waren — dunkle Punktleuchten hatten nie eine
 Schattenkarte, und WebGL verwarf jeden beleuchteten Aufruf (behoben auf einem anderen Zweig in
-`stationLighting.lampShadowDue`). Mit Schatten aus steht sie da, und so ist
+`stationLighting.lampShadowDue`; seit Welle 4 haben die Deckenleuchten gar
+keine Karte mehr). Mit Schatten aus steht sie da, und so ist
 geprüft worden: Übungsrunde, Ego-Sicht, **alle Türblätter offen**, an acht
 Stellen — Raum mit Tür zum Gang, Gang mit Blick durch zwei Türen, zwei
 offene Gangfugen (`passage: true`, sie zählen wie offene Türen), die

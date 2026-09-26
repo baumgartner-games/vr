@@ -206,6 +206,7 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'gfx:grid-hitboxes', group: 'werkstatt' },
   { match: 'gfx:ghost-boxes', group: 'werkstatt' },
   { match: 'gfx:handles', group: 'werkstatt' },
+  { match: 'gfx:shadows-full', group: 'werkstatt' },
   // Wie diese Anzeigen zeichnen (nur 2D-Pfad, Wände, Räume …) — gleich daneben.
   { match: 'info:views', group: 'werkstatt' },
   { match: 'npc:hits', group: 'werkstatt' },

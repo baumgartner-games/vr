@@ -33,7 +33,7 @@
  * Foto zum Vergleich), `--yaw=…` (Blickrichtung des Fotos), `--depth=3` (wie
  * tief die Rangliste je Objekt schaut), `--profile` (CPU-Profil: wer in
  * `world.update` die Zeit braucht), `--output=…`, `--no-software`,
- * `--headed`. `SMOKE_EXECUTABLE` zeigt auf einen vorinstallierten Browser.
+ * `--headed`, `--shadows=off|simple|full` (ab Werk `simple`). `SMOKE_EXECUTABLE` zeigt auf einen vorinstallierten Browser.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -58,6 +58,8 @@ const yawOverride = args.has('yaw') ? Number(args.get('yaw')) : null;
 const depth = Math.max(1, Number(args.get('depth') ?? 3));
 /** Ein CPU-Profil über `world.update` (`--profile`): wer darin die Zeit braucht. */
 const profile = args.has('profile');
+/** Der Schattenmodus (`--shadows=off|simple|full`, ab Werk der Kreis wie im Spiel). */
+const shadowMode = args.get('shadows') ?? 'simple';
 const output = path.resolve(
   args.get('output') ??
     path.join(root, `.artifacts/perf-worlds/${new Date().toISOString().replace(/[:.]/g, '-')}`),
@@ -550,7 +552,7 @@ for (const scenario of chosen) {
   await context.route('**/@vite/client', (route) =>
     route.fulfill({ contentType: 'text/javascript', body: VITE_CLIENT_STUB }),
   );
-  await context.addInitScript(() => {
+  await context.addInitScript((shadows) => {
     localStorage.setItem(
       'bgvr.graphics',
       JSON.stringify({
@@ -560,11 +562,11 @@ for (const scenario of chosen) {
         gridLines: false,
         hitBoxes: false,
         showHandles: false,
-        shadows: true,
+        shadows,
         screenPads: 'off',
       }),
     );
-  });
+  }, shadowMode);
   const page = await context.newPage();
   const errors = [];
   const crashes = [];
