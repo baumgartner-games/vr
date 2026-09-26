@@ -12,9 +12,10 @@
  * `sidestep` fragt, ob jemand **vor** einem steht (in einem Kegel in
  * Laufrichtung, näher als `radius`), und schlägt dann einen Punkt schräg
  * rechts davor vor — ein kurzer Umweg, nach dem der Läufer wieder seinen Weg
- * nimmt. Wer steht, weicht nicht aus, sondern wartet, dass der andere es tut;
- * sonst tanzen zwei, die sich gegenüberstehen, im Gleichtakt nach links und
- * rechts.
+ * nimmt. Wer vorne in **dieselbe** Richtung geht, zählt nicht: Dem geht man
+ * nach, statt ihn zu überholen. Wer steht, weicht nicht aus, sondern wartet,
+ * dass der andere es tut; sonst tanzen zwei, die sich gegenüberstehen, im
+ * Gleichtakt nach links und rechts.
  *
  * Reine Rechnung (`npcAvoid.test.ts`), dieselbe Richtungskonvention wie das
  * Hirn: Gierwinkel 0 schaut nach −Z.
@@ -55,6 +56,11 @@ export function sidestep(
     if (distance < 1e-6 || distance > radius) continue;
     const ahead = (dx * heading.x + dz * heading.z) / distance;
     if (ahead < AHEAD_COS) continue;
+    // **Wer in dieselbe Richtung geht, wird nicht überholt** — man geht ihm
+    // nach. Sonst schert in einer Kolonne jeder hinter dem Vordermann nach
+    // rechts aus, und die ganze Reihe wandert zur Seite.
+    const along = other.heading;
+    if (along && along.x * heading.x + along.z * heading.z > 0.3) continue;
     nearest = Math.min(nearest, distance);
   }
   if (!Number.isFinite(nearest)) return null;

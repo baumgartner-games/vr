@@ -43,6 +43,19 @@ const BUTTON_TILE = { x: -9, z: -2 } as const;
 const ADMIT = 6;
 
 const CHAIR_MODEL = 'furniture-bits/chair_A_wood.glb';
+/**
+ * **Die Möbel wachsen mit den Figuren.** Eine Figur aus dem Regal steht als
+ * NPC auf 1,75 m (`npcKinds.shelfHeight`) und damit gut ein Drittel größer als
+ * im Maßstab ihres Pakets; die Stühle kommen im Maßstab des Pakets. Im ersten
+ * Bild saßen die Abenteurer deshalb eine Handbreit **über** der Sitzfläche
+ * und ließen die Beine baumeln.
+ */
+const FURNITURE_SCALE = 1.4;
+/**
+ * Wie weit das Möbel hinter dem Platz steht, in Metern: Die Spur des Sitzens
+ * schiebt die Hüfte hinter die Füße, und der Platz ist die Stelle der Füße.
+ */
+const SEAT_BACK = 0.12;
 const BENCH_MODEL = 'dungeon/bench.glb';
 
 /** Blick nach Norden — der Gierwinkel 0 schaut nach −Z. */
@@ -72,9 +85,9 @@ export function seatingPlaces(): Place[] {
     z: centre(SEAT_ROW),
     yaw: FACE_NORTH,
   }));
-  // Die Bank ist 1,5 m breit und hat zwei Plätze, je einen Viertelmeter
-  // links und rechts ihrer Mitte.
-  for (const [i, dx] of [-0.4, 0.4].entries()) {
+  // Die Bank hat zwei Plätze, je 45 cm links und rechts ihrer Mitte — die
+  // Figuren sind breit, und mit 40 cm saßen zwei Köpfe ineinander.
+  for (const [i, dx] of [-0.45, 0.45].entries()) {
     places.push({
       id: `bank-${i}`,
       kind: 'seat',
@@ -213,15 +226,19 @@ export class SeatingCorner {
       chairs.forEach((chair, i) => {
         if (!chair) return;
         const seat = seats[i]!;
-        // Die Lehne nach Süden, die Sitzfläche zum Raum. Nachgesehen und
-        // nicht geraten: Der Stuhl schaut in der Datei nach −X (mit `+ π`
-        // stand die Lehne im ersten Bild im Westen), der Platz nach Norden.
-        chair.position.set(seat.x, 0, seat.z);
-        chair.rotation.y = seat.yaw - Math.PI / 2;
+        // Die Lehne nach Süden, die Sitzfläche zum Raum: Der Stuhl schaut in
+        // der Datei nach +Z, der Platz nach Norden (−Z). Nachgesehen — mit
+        // einer Vierteldrehung daneben stand die Lehne im Osten.
+        chair.position.set(
+          seat.x + Math.sin(seat.yaw) * SEAT_BACK,
+          0,
+          seat.z + Math.cos(seat.yaw) * SEAT_BACK,
+        );
+        chair.rotation.y = seat.yaw + Math.PI;
         this.place(world, chair);
       });
       if (bench) {
-        bench.position.set(centre(BENCH_TILE.x), 0, centre(BENCH_TILE.z));
+        bench.position.set(centre(BENCH_TILE.x), 0, centre(BENCH_TILE.z) + SEAT_BACK);
         bench.rotation.y = FACE_NORTH + Math.PI;
         this.place(world, bench);
       }
@@ -229,6 +246,7 @@ export class SeatingCorner {
   }
 
   private place(world: ZoneHost, model: THREE.Object3D): void {
+    model.scale.multiplyScalar(FURNITURE_SCALE);
     model.traverse((node) => {
       node.raycast = () => {};
     });

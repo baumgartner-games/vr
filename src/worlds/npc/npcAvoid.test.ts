@@ -18,6 +18,12 @@ describe('Ausweichen', () => {
     expect(sidestep(self, [{ x: 0, z: -(AVOID_RADIUS + 0.2), heading: null }])).toBeNull();
   });
 
+  it('geht dem Vordermann nach, statt ihn zu überholen', () => {
+    expect(
+      sidestep({ x: 0, z: 0, heading: north }, [{ x: 0, z: -0.8, heading: north }]),
+    ).toBeNull();
+  });
+
   it('lässt den Stehenden stehen — er hat Vorrang', () => {
     expect(sidestep({ x: 0, z: 0, heading: null }, [{ x: 0, z: -0.5, heading: north }])).toBeNull();
   });

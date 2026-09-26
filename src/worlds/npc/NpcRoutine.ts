@@ -116,9 +116,16 @@ export class VisitorRoutine {
 
   update(dt: number, random: () => number = Math.random): void {
     const config = this.config;
+    // Wohin jeder gerade will — aus dem Ziel, zu dem er zuletzt geschickt
+    // wurde. Wer sitzt oder wartet, hat keines und gilt als stehend.
     const movers: (Mover & { visitor: Visitor })[] = this.visitors.map((visitor) => {
       visitor.npc.feet(_at);
-      return { x: _at.x, z: _at.z, heading: null, visitor };
+      const sent = visitor.sent;
+      const dx = sent ? sent.x - _at.x : 0;
+      const dz = sent ? sent.z - _at.z : 0;
+      const length = Math.hypot(dx, dz);
+      const heading = length > 0.2 ? { x: dx / length, z: dz / length } : null;
+      return { x: _at.x, z: _at.z, heading, visitor };
     });
 
     for (let i = this.visitors.length - 1; i >= 0; i--) {
