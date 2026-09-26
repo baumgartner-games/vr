@@ -431,7 +431,7 @@ erarbeiten musste:
   Ein Zimmer ohne Tür merkt man sonst erst, wenn man davorsteht — nach dem
   Laden, nach dem Aufsetzen, nach dem Hinlaufen.
 - **Gitterlinien und Wand-Ghosting.** Das Netz der eigenen Ebene (_Menü →
-  Grafik → Gitterlinien_) und die durchsichtige Wand vor der Figur kommen aus
+  Werkstatt → Gitterlinien_) und die durchsichtige Wand vor der Figur kommen aus
   `GridWorld` und nicht aus der Welt — beides hängt an den Kacheln und den
   Quadern, die ohnehin dort liegen (siehe _Von oben_ und
   _Wie schön es aussieht_).

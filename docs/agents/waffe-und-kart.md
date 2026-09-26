@@ -54,7 +54,7 @@ laufen an den Leben der NPCs entlang; jede Zahl von 1 bis 1000 geht unter
 _Werte eingeben_.
 
 **Ducken und Sprinten** hängen an den Sticks: rechten Stick reindrücken duckt,
-linken Stick reindrücken sprintet. Unter **Menü → Bewegung** lässt sich für
+linken Stick reindrücken sprintet. Unter **Menü → Einstellungen → Bewegung** lässt sich für
 beide einstellen, ob gedrückt gehalten oder umgeschaltet wird (Ducken schaltet
 standardmäßig um, Sprint wird gehalten), dazu Sprint-Tempo und Duck-Tiefe.
 
@@ -71,7 +71,7 @@ bleibt stehen, solange der Stick ausgelenkt ist; beim Loslassen ist die Marke
 weg, und der nächste Schritt geht wieder dorthin, wo man gerade hinsieht. **Der
 Snap-Turn dreht die Marke mit** — bliebe sie stehen, liefe man nach einer
 Vierteldrehung seitwärts weiter und wüßte nicht, warum. Wer es anders mag,
-stellt unter **Menü → Bewegung → Laufrichtung** auf _Blickrichtung_ zurück; das
+stellt unter **Menü → Einstellungen → Bewegung → Laufrichtung** auf _Blickrichtung_ zurück; das
 ist das alte Verhalten, Zeile für Zeile.
 
 Geduckt wird, indem das ganze Rig sinkt — im Headset gehört die Kamera der
