@@ -164,6 +164,8 @@ export class PlateUpWorld extends GridWorld {
   /** Die Baupläne des Abends, die im Gastraum liegen. */
   private readonly offerViews: OfferView[] = [];
   private offerKey = '';
+  /** Was an diesem Abend schon gekauft wurde. */
+  private readonly sold = new Set<string>();
   /** Der Bauplan in der Hand — dann trägt man kein Essen, sondern ein Möbel. */
   private blueprint: ShopItem | null = null;
   private readonly shopGhost = new PlaceGhost();
@@ -172,6 +174,8 @@ export class PlateUpWorld extends GridWorld {
   /** Wohin der Bauplan zeigt — die Kachel und ob sie passt. */
   private aim: { x: number; z: number; ok: boolean; why: string } | null = null;
   private readonly aimAnchor = new THREE.Group();
+  /** Die Mitte dessen, was hingestellt würde. */
+  private readonly aimSpot = new THREE.Vector3();
   /** Die Einsteigerhilfe: an, solange sie nicht fertig oder abgeschaltet ist. */
   private tutorialOn = readTutorialOn();
   private hint: TutorialHint | null = null;
@@ -618,6 +622,11 @@ export class PlateUpWorld extends GridWorld {
   private useStationAt(index: number, by: UseSource): boolean {
     const state = this.stations[index];
     if (!state) return false;
+    if (this.blueprint) {
+      // Mit einem Bauplan unter dem Arm wird nicht gekocht.
+      this.announce('Erst den Bauplan hinstellen — oder im Menü zurücklegen');
+      return false;
+    }
     const result = useStation(this.carried, state);
     const deed = result.deed;
     if (deed.do === 'nothing') return false;
@@ -820,6 +829,9 @@ export class PlateUpWorld extends GridWorld {
           at.z - (t.z + 1),
         );
         plate.rotation.y = i * 0.7;
+        // Etwas größer als ein sauberer: Von oben ist er sonst zwischen Senf
+        // und Karte kaum zu finden.
+        plate.scale.multiplyScalar(1.25);
         view.anchor.add(plate);
         view.dirty.push(plate);
       }
@@ -1018,6 +1030,7 @@ export class PlateUpWorld extends GridWorld {
     // frei, und wer noch einen Bauplan trug, hat ihn zurückgelegt.
     this.blueprint = null;
     this.clearOffers();
+    this.sold.clear();
     this.stations = freshStations(STATIONS);
     this.setHeld(null, null);
     this.shift = { ...openDay(this.shift), decor: decorCount(this.placed) };
@@ -1201,6 +1214,7 @@ export class PlateUpWorld extends GridWorld {
     this.stations = freshStations(STATIONS);
     this.setHeld(null, null);
     this.blueprint = null;
+    this.sold.clear();
     this.clearPlaced();
   }
 
@@ -1389,7 +1403,12 @@ export class PlateUpWorld extends GridWorld {
    */
   private stepShop(ctx: WorldContext): void {
     const closed = this.shift.phase === 'closed';
-    const offers = closed ? dayOffers(this.shift.day, this.shift.seed, this.tables.length) : [];
+    // Jeder Bauplan einmal je Abend: Was gekauft ist, liegt nicht wieder da.
+    const offers = closed
+      ? dayOffers(this.shift.day, this.shift.seed, this.tables.length).filter(
+          (item) => !this.sold.has(item.id),
+        )
+      : [];
     const key = closed ? `${this.shift.day}:${this.tables.length}:${this.placed.length}` : '';
     if (key !== this.offerKey) {
       // Erst wegräumen (das setzt den Schlüssel zurück), dann den neuen merken.
@@ -1530,7 +1549,16 @@ export class PlateUpWorld extends GridWorld {
     const table = item.kind === 'table';
     const cx = table ? tile.x + 1 : tile.x + 0.5;
     const cz = table ? tile.z + 1 : tile.z + 0.5;
-    this.aimAnchor.position.set(cx, 0, cz);
+    // **Die Anmeldung steht eine halbe Armlänge vor der Figur**, nicht auf
+    // der Kachel: Die liegt bei einem Tisch fast zwei Meter weit weg, und `A`
+    // reicht nur anderthalb (`usable.USE_REACH`).
+    const len = Math.hypot(forward.x, forward.z) || 1;
+    this.aimAnchor.position.set(
+      feet.x + (forward.x / len) * 0.6,
+      0.6,
+      feet.z + (forward.z / len) * 0.6,
+    );
+    this.aimSpot.set(cx, 0, cz);
     if (this.ghostModel && this.ghostModelFor === item.id) {
       this.shopGhost.show(this.ghostModel, cx, 0, cz, 0, check.ok);
     } else if (this.ghostModelFor !== item.id) {
@@ -1548,7 +1576,7 @@ export class PlateUpWorld extends GridWorld {
           usePrompt: () =>
             this.aim?.ok ? `${this.blueprint?.label ?? ''} hier hinstellen` : (this.aim?.why ?? ''),
         },
-        { radius: table ? 1.1 : 0.6, half: 0.8 },
+        { radius: 0.5, half: 0.6 },
       );
     }
   }
@@ -1567,6 +1595,7 @@ export class PlateUpWorld extends GridWorld {
       return false;
     }
     this.placed = done.placed;
+    this.sold.add(item.id);
     this.shift = { ...this.shift, total: done.total, decor: decorCount(done.placed) };
     const placed = done.placed[done.placed.length - 1]!;
     this.blueprint = null;
@@ -1578,7 +1607,7 @@ export class PlateUpWorld extends GridWorld {
         : `${item.label} steht — die Gäste warten jetzt etwas geduldiger`,
     );
     chime([523, 659, 784], 0.08);
-    this.effects.push(new Ring(this.root, this.aimAnchor.position, 0x5aa0e0));
+    this.effects.push(new Ring(this.root, this.aimSpot, 0x5aa0e0));
     return true;
   }
 
