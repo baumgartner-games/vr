@@ -70,7 +70,7 @@ export const SAMPLE_ITEMS: readonly SampleItem[] = [
   { path: 'furniture-bits/rug_oval_A.glb', x: 2, z: -0.8, yaw: 0 },
   { path: 'furniture-bits/pictureframe_medium.glb', x: 3.6, z: -1.8, yaw: 0 },
   { path: 'furniture-bits/shelf_A_big.glb', x: 3.6, z: -0.3, yaw: 0 },
-  { path: 'furniture-bits/book_single.glb', x: 3.6, z: -0.3, yaw: 0 },
+  { path: 'furniture-bits/book_single.glb', x: 3.75, z: -0.5, yaw: 0 },
   // Ein Kaktus neben der Tür.
   { path: 'furniture-bits/cactus_medium_A.glb', x: 1.5, z: 3.5, yaw: 0 },
 ];
