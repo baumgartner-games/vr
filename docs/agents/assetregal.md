@@ -995,6 +995,10 @@ auf die Kachelmitte —, und beides beantwortet jetzt jede Achse für sich:
 Auf der Fuge wird mit `Math.round` gerastet — gemeint ist die nächste, und was
 schon darauf steht, bleibt dort (ein Test stellt jede Lage zweimal hin).
 
+**Die Höhe beantwortet seit September 2026 eine eigene Rechnung** — was unter
+der Mitte liegt, trägt, und Bilder hängen an der Wand (`decorPlace.ts`, siehe
+[Bauen](bauen.md), _Räume dekorieren_). Für das Einrasten selbst gilt weiter:
+
 **Die Höhe bleibt, wie sie ist**, und das ist Absicht: Wo der Boden unter einem
 Punkt liegt, weiß hier niemand — es kann der Estrich sein, ein Tisch oder das
 Dach eines Hauses. Also bleibt y stehen, Geschwindigkeit und Drall gehen auf
