@@ -42,6 +42,7 @@ import {
   followBall,
   followTime,
   restTower,
+  softLean,
   stepWobble,
   turnToward,
   wobbleLag,
@@ -458,13 +459,41 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     for (let i = 2; i < lag.length; i++) {
       expect(lag[i]! - lag[i - 1]!).toBeGreaterThan(1.3 * (lag[i - 1]! - lag[i - 2]!));
     }
-    // Wie gerechnet: Kugel i hängt um v · (τ₁ + … + τᵢ) zurück.
+    // Wie gerechnet: Glied i hängt um v · τᵢ über, weich begrenzt.
+    const limit = WOBBLE.lean * SPACING;
     let sum = 0;
     for (let i = 1; i < lag.length; i++) {
-      sum += followTime(i);
-      expect(lag[i]!).toBeCloseTo(0.3 * sum, 4);
+      const over = 0.3 * followTime(i);
+      sum += (limit * over) / (limit + over);
+      expect(lag[i]!).toBeCloseTo(sum, 5);
     }
     expect(lag[5]!).toBeGreaterThan(0.02);
+  });
+
+  test('auch im vollen Gehtempo bleibt er bis oben gebogen — und unter der Grenze', () => {
+    // 2,6 m/s, so schnell wie die Figur geht.
+    const moving = run(6, 3, 60, walk(2.6), run(6, 1, 60, still));
+    const lag = behind(moving, walk(2.6)(3).base);
+    const links = lag.slice(1).map((l, i) => l - lag[i]!);
+    // Jedes Glied hängt merklich weiter über als das darunter …
+    for (let i = 1; i < links.length; i++) {
+      expect(links[i]!).toBeGreaterThan(links[i - 1]! + 0.001);
+    }
+    // … und keines erreicht die Grenze.
+    for (const link of links) expect(link).toBeLessThan(WOBBLE.lean * SPACING);
+    expect(lag[5]!).toBeGreaterThan(0.06);
+  });
+
+  test('der weiche Überhang wächst streng und bleibt unter der Grenze', () => {
+    let last = 0;
+    for (const r of [1e-4, 0.001, 0.01, 0.05, 0.2, 1, 10, 1000]) {
+      const soft = softLean({ x: r, y: 0, z: 0 }, 0.026).x;
+      expect(soft).toBeGreaterThan(last);
+      expect(soft).toBeLessThan(0.026);
+      expect(soft).toBeLessThanOrEqual(r);
+      last = soft;
+    }
+    expect(softLean({ x: 0, y: 0, z: 0 }, 0.026)).toEqual({ x: 0, y: 0, z: 0 });
   });
 
   test('nach dem Anhalten: kein Nachschwingen, keine Kugel über ihren Platz hinaus', () => {
@@ -488,32 +517,29 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     }
   });
 
-  test('ein kurzer Ruck: die oberen Kugeln holen erst auf, wenn die unteren schon stehen', () => {
-    // 5 cm in 0,1 s, dann steht das Hörnchen.
-    const jerk = walk(0.5, 0, 0.1);
-    let state = run(6, 1, 120, still);
-    const fastest = Array<number>(6).fill(0);
-    const when = Array<number>(6).fill(0);
-    for (let k = 1; k <= 240; k++) {
-      const before = state.balls.map((b) => b.x);
-      state = stepWobble(state, jerk(k / 120).base, UP, 6, SPACING, 1 / 120);
-      state.balls.forEach((b, i) => {
-        const speed = (b.x - before[i]!) * 120;
+  test('Anhalten aus dem Gehen: erst stehen die unteren, dann holen die oberen auf', () => {
+    let state = run(6, 3, 60, walk(2.6), run(6, 1, 60, still));
+    const base = walk(2.6)(3).base;
+    const links = (s: WobbleState): number[] => s.balls.slice(1).map((b, i) => s.balls[i]!.x - b.x);
+    // Wann zieht sich jedes Glied am schnellsten zusammen?
+    const fastest = Array<number>(5).fill(0);
+    const when = Array<number>(5).fill(0);
+    for (let k = 1; k <= 120; k++) {
+      const before = links(state);
+      state = stepWobble(state, base, UP, 6, SPACING, 1 / 120);
+      links(state).forEach((l, i) => {
+        const speed = (before[i]! - l) * 120;
+        expect(speed).toBeGreaterThanOrEqual(-1e-9);
         if (speed > fastest[i]!) {
           fastest[i] = speed;
           when[i] = k / 120;
         }
       });
     }
-    // Die oberen sind am schnellsten erst nach dem Anhalten, und je höher,
-    // desto später.
-    expect(when[5]!).toBeGreaterThan(0.1);
-    for (let i = 1; i < 6; i++) expect(when[i]!).toBeGreaterThanOrEqual(when[i - 1]!);
-    expect(when[5]!).toBeGreaterThan(when[3]!);
-    // Die Spitze legt den größeren Teil ihres Wegs erst nach dem Anhalten zurück.
-    const atStop = run(6, 0.1, 120, jerk, run(6, 1, 120, still));
-    const lag = behind(atStop, jerk(0.1).base)[5]!;
-    expect(lag).toBeGreaterThan(0.025);
+    // Je höher das Glied, desto später holt es am schnellsten auf — die oberen
+    // warten, bis die unteren fast stehen.
+    for (let i = 1; i < 5; i++) expect(when[i]!).toBeGreaterThan(when[i - 1]!);
+    expect(when[4]!).toBeGreaterThan(0.1);
   });
 
   test('schräg gehalten neigt er sich langsam in dieselbe Richtung — und fällt nicht', () => {
@@ -564,7 +590,7 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
         if (j === 0) return;
         const below = state.balls[j - 1]!;
         const d = Math.hypot(b.x - below.x, b.y - below.y, b.z - below.z);
-        expect(d).toBeLessThanOrEqual(SPACING * (1 + WOBBLE.lean) + 1e-9);
+        expect(d).toBeLessThan(SPACING * (1 + WOBBLE.lean));
       });
     }
   });
