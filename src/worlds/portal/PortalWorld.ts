@@ -1140,6 +1140,15 @@ export class PortalWorld implements World {
    * und ist in der Brille der Rückfall, solange keine Hand etwas meint.
    */
   private bodyPick: { readonly usable: Usable; readonly object: THREE.Object3D } | null = null;
+
+  /**
+   * **Was `A` am Schirm gerade meint** — das angemeldete Objekt unter dem
+   * gelben Saum, oder `null`. Für die Tastenhilfe einer Welt (`hintZone`), die
+   * sagen will, _was_ dort passiert (der Burgerladen: „Servieren").
+   */
+  protected pickedObject(): THREE.Object3D | null {
+    return this.bodyPick?.object ?? null;
+  }
   /**
    * **Der Stand der Greif-Taste zwischen Drücken und Loslassen**, je Hand
    * (`core/handUse.ts`, _Halten oder Tippen_).

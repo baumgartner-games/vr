@@ -93,6 +93,7 @@ import {
   type ShopItem,
 } from './plateUpShop';
 import { tutorialFinished, tutorialHint, type TutorialHint } from './plateUpTutorial';
+import { stationAction, tableAction } from './plateUpHints';
 
 /**
  * **Der Burgerladen** — eine kleine Küchenwelt mit Gastraum und einem Spiel
@@ -220,7 +221,32 @@ export class PlateUpWorld extends GridWorld {
       kind: 'burger',
       holding: this.carried !== null,
       closed: phase !== 'open' && phase !== 'closing',
+      action: this.pickedAction(),
     };
+  }
+
+  /**
+   * **Das Verb zum Gewählten** (`plateUpHints.ts`): „Servieren" am Tisch mit
+   * dem passenden Teller, „Abräumen" am schmutzigen, „Spülen" an der Spüle,
+   * „Patty auflegen" am Grill — statt überall nur _Nehmen_/_Ablegen_.
+   */
+  private pickedAction(): string | null {
+    const object = this.pickedObject();
+    if (!object) return null;
+    if (object === this.aimAnchor) return this.aim?.ok ? 'Hinstellen' : 'Passt hier nicht';
+    if (this.offerViews.some((offer) => offer.anchor === object)) return 'Bauplan nehmen';
+    const station = this.stationViews.find((view) => view.anchor === object);
+    if (station) {
+      const state = this.stations[station.index];
+      if (!state) return null;
+      return stationAction(state.spot, stationDeed(this.carried, state), this.carried);
+    }
+    const table = this.tableViews.find((view) => view.anchor === object);
+    if (table) {
+      const serves = !!this.carried && serveTable(this.shift, table.table, this.carried).ok;
+      return tableAction(this.tableDeed(table.table), serves, this.carried !== null);
+    }
+    return null;
   }
 
   protected override worldId(): string {

@@ -20,6 +20,7 @@ auf den Teller geht als dort.
 | `worlds/plateup/plateUpGame.ts`      | **Rein**: der Tag — Kundenstrom, Zustände eines Gastes, Geduld, Bestellung, Bewertung, Kasse, Schwierigkeit, Schildtexte                                                                                                                                               |
 | `worlds/plateup/plateUpStations.ts`  | **Rein**: was ein Druck an einer Station tut — `kitchenDeed` fragen und das Ergebnis auf Hand und Station anwenden; die Uhren von Brett, Grillplatte und Spüle (`kitchenWork`), das Verbrennen (`heat`, `burnShare`) und der zählende Tellerstapel (`stock`, `PLATES`) |
 | `worlds/plateup/plateUpShop.ts`      | **Rein**: Einrichten zwischen den Tagen — Katalog (`SHOP_ITEMS`), Baupläne des Abends (`dayOffers`), wo etwas hindarf (`placeCheck`, mit Wegsuche), kaufen (`buy`), alle Tische samt gekauften (`allTables`)                                                           |
+| `worlds/plateup/plateUpHints.ts`     | **Rein**: das Verb für die Tastenhilfe — was `A` an dieser Station bzw. diesem Tisch gerade tut (`stationAction`, `tableAction`)                                                                                                                                       |
 | `worlds/plateup/plateUpTutorial.ts`  | **Rein**: die Einsteigerhilfe — ein Satz und ein Ziel aus dem Stand (`tutorialHint`), und wann sie fertig ist (`tutorialFinished`)                                                                                                                                     |
 | `worlds/plateup/plateUpDecor.ts`     | **Rein**: das Inventar — Wände, Fenster, Tische, Stühle, Lampen, Bilder, Kakteen, Straße                                                                                                                                                                               |
 | `worlds/plateup/PlateUpWorld.ts`     | Die Darstellung: Modelle, Körper, Anmeldungen, Figuren, Sprechblasen, Tafeln                                                                                                                                                                                           |
@@ -189,6 +190,15 @@ Berührung ab (`pointer-events: none`).
 zurück vor Tag 1.
 
 ## Steuerung
+
+**Die Tastenhilfe unten sagt das Verb** (`plateUpHints.ts`, über
+`HintZone.action`): „Servieren", wenn der Teller in der Hand zum wartenden
+Gast passt (sonst „Passt nicht"), „Abräumen" am schmutzigen Tisch, „Spülen"
+an der Spüle, „Patty auflegen"/„Patty nehmen"/„Patty auf den Teller" am Grill,
+„Schneiden" am Brett, „Brötchen nehmen" an der Kiste, „Hinstellen" mit dem
+Bauplan. Gewählt ist, was unter dem gelben Saum liegt
+(`PortalWorld.pickedObject`); in der Brille greift die Hand, dort bleibt die
+Tafel bei _Nehmen_/_Ablegen_.
 
 Dieselbe wie in der Testküche — die Stationen melden sich mit
 `kitchenInteractionSpec` an:
