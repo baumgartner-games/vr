@@ -30,7 +30,7 @@
  * Und was hier **nicht** steht: die Sticks. Laufen und Zielen sind Achsen und
  * keine Knöpfe (`AXIS_MOVE_X` … in `gamepad.ts`); eine Achse auf einen Knopf
  * zu legen wäre ein anderes Gefühl und nicht dieselbe Sache. Am Pad sind
- * deshalb die sechs Knopf-Absichten einstellbar, an der Tastatur auch das
+ * deshalb die zehn Knopf-Absichten einstellbar, an der Tastatur auch das
  * Laufen — dort ist es ohnehin je eine Taste.
  *
  * Reine Rechnung: kein DOM, kein `navigator`, kein `localStorage` (der steht in
@@ -41,11 +41,22 @@
 import { PAD_BUTTONS, type PadSlot } from './gamepadReport';
 
 /**
- * **Was ein Knopf am Pad auslösen kann** — genau die sechs Absichten, die
+ * **Was ein Knopf am Pad auslösen kann** — genau die Absichten, die
  * `GamepadFrame` kennt, und keine erfundene dazu: Eine Belegung, die etwas
  * anbietet, das das Spiel nicht liest, ist ein Schalter ohne Draht.
  */
-export const PAD_ACTIONS = ['use', 'fire', 'sprint', 'tools', 'zoomIn', 'zoomOut'] as const;
+export const PAD_ACTIONS = [
+  'use',
+  'cancel',
+  'menu',
+  'fire',
+  'sight',
+  'sprint',
+  'tools',
+  'view',
+  'zoomIn',
+  'zoomOut',
+] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
 
 /** **Und was eine Taste auslösen kann.** Hier gehört das Laufen dazu. */
@@ -58,43 +69,58 @@ export const KEY_ACTIONS = [
   'jump',
   'use',
   'tools',
+  'menu',
+  'view',
 ] as const;
 export type KeyAction = (typeof KEY_ACTIONS)[number];
 
 /** Wie eine Aktion in einem Menü heißt, und was sie tut. */
 export const ACTION_LABELS: Record<PadAction | KeyAction, { label: string; sub: string }> = {
-  use: { label: 'Benutzen', sub: 'Was in Reichweite steht — sonst springen' },
+  use: { label: 'Benutzen', sub: 'Bestätigen · was in Reichweite steht — sonst springen' },
+  cancel: { label: 'Zurück', sub: 'Im Menü eine Seite zurück · sonst Getragenes ablegen' },
+  menu: { label: 'Menü', sub: 'Das Menü auf- und zumachen' },
   fire: { label: 'Schießen', sub: 'Der Trigger der rechten Hand' },
+  sight: { label: 'Zielen', sub: 'Aus den Augen: über die Waffe zielen' },
+  view: { label: 'Ansicht', sub: 'Von oben ↔ aus den Augen' },
   sprint: { label: 'Sprint', sub: 'Schneller laufen' },
   tools: { label: 'Werkzeugliste', sub: 'Das Regal auf- und zuklappen' },
   zoomIn: { label: 'Zoom heran', sub: 'Von oben: eine Stufe näher' },
   zoomOut: { label: 'Zoom zurück', sub: 'Von oben: eine Stufe weiter weg' },
   forward: { label: 'Vorwärts', sub: 'Nach Norden — auch wenn die Figur anders schaut' },
-  back: { label: 'Zurück', sub: 'Nach Süden' },
+  back: { label: 'Rückwärts', sub: 'Nach Süden' },
   left: { label: 'Links', sub: 'Nach Westen' },
   right: { label: 'Rechts', sub: 'Nach Osten' },
   jump: { label: 'Springen', sub: 'Immer, auch mit etwas in Reichweite' },
 };
 
 /**
- * **Die Belegung ab Werk am Pad** — Zeile für Zeile das, was dieses Projekt
- * immer hatte (`core/gamepad.ts`), nur in Stellen statt in Nummern
- * ausgedrückt. Wer nichts einstellt, merkt von dieser Datei nichts.
+ * **Die Belegung ab Werk am Pad** — dieselbe wie `DEFAULT_PLAN` in
+ * `core/gamepad.ts`, nur in Stellen statt in Nummern ausgedrückt. Wer nichts
+ * einstellt, merkt von dieser Datei nichts.
  *
- * `fire` hat **zwei** Stellen, und das ist kein Versehen: `B` ist ein Schalter,
- * der Trigger ist analog, und beide sollen schießen. Der Zug kommt dann von
- * der Stelle, die am weitesten gedrückt ist.
+ * **Das einheitliche Schema** (`docs/agents/steuerung.md`, oben): dieselbe
+ * Stelle tut in jeder Ansicht und in der Brille dasselbe. Unten bestätigt und
+ * benutzt (`A`), rechts geht zurück (`B`), oben ist die Werkzeugliste (`Y`),
+ * ☰ ist das Menü, ⊟ wechselt die Ansicht. Geschossen wird mit dem **rechten
+ * Trigger** — wie in der Brille, wo der Trigger der Hand auslöst —, gezielt
+ * über die Waffe mit dem **linken**. `B` schoss bis dahin mit, und genau das
+ * war der Knopf, der im Menü _Zurück_ heißen muss: Eine Stelle gehört einer
+ * Sache (`bindPad`).
  */
 export const DEFAULT_PAD: Record<PadAction, readonly PadSlot[]> = {
   use: ['face-down'],
-  fire: ['face-right', 'trigger-right'],
+  cancel: ['face-right'],
+  menu: ['start'],
+  fire: ['trigger-right'],
+  sight: ['trigger-left'],
   sprint: ['stick-left'],
   tools: ['face-up'],
+  view: ['select'],
   zoomIn: ['shoulder-left'],
   zoomOut: ['shoulder-right'],
 };
 
-/** **Und an der Tastatur** — ebenfalls genau das, was bisher gilt. */
+/** **Und an der Tastatur** — `M` ist das Menü, `V` die Ansicht (das Schema oben). */
 export const DEFAULT_KEYS: Record<KeyAction, readonly string[]> = {
   forward: ['KeyW', 'ArrowUp'],
   back: ['KeyS', 'ArrowDown'],
@@ -104,6 +130,8 @@ export const DEFAULT_KEYS: Record<KeyAction, readonly string[]> = {
   jump: ['Space'],
   use: ['KeyE', 'Enter', 'NumpadEnter'],
   tools: ['Tab'],
+  menu: ['KeyM'],
+  view: ['KeyV'],
 };
 
 /**

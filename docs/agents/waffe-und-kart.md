@@ -178,7 +178,8 @@ einem Werkzeug geht sie aus dem Bild.
   Gerechnet wird aus der **Haltung** und nicht aus der Lage der Waffe, sonst
   drehte die Hand den Rückstoß jedes Mal wieder weg.
 - **Der Linksklick ist der Trigger** (`PlayerRig.armed`, `FlatControls`),
-  dazu RT und `B` auf dem Glas — und zwar **vor** dem Benutzen, anders als
+  dazu RT und der Auslöser-Knopf auf dem Glas (bis zum einheitlichen Schema
+  in [Steuerung](./steuerung.md) auch `B` am Pad) — und zwar **vor** dem Benutzen, anders als
   von oben: Aus den Augen liegt `E` neben `WASD`, und eine Pistole, die in der
   Küche nicht schießt, weil ein Topf in Reichweite steht, sähe kaputt aus.
   Portale schießt die Maus nur noch mit leerer Hand; der Vorschauring geht mit
@@ -196,7 +197,8 @@ einem Werkzeug geht sie aus dem Bild.
   Raum. **Von oben und in der Brille bleibt alles in echter Größe**: Von oben
   ist die Kamera weit weg, und in der Brille muss ein Ding so groß sein, wie
   die Hand es fühlt.
-- **Zielen über die Waffe: rechte Maustaste oder LB halten**
+- **Zielen über die Waffe: rechte Maustaste oder LT halten** (bis zum
+  einheitlichen Schema LB, siehe [Steuerung](./steuerung.md))
   (`PlayerRig.sighting`). Die Waffe kommt in `EYE_SIGHT_TIME` ans Auge, bis
   ihre Visierlinie auf der Blickachse liegt (`eyeHand.eyeSightPose`, mit
   Test); das Fadenkreuz geht dabei weg. Welche Linie, sagt das Werkzeug

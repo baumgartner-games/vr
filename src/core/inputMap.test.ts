@@ -2,6 +2,8 @@ import { readGamepad, type GamepadLike } from './gamepad';
 import {
   DEFAULT_KEYS,
   DEFAULT_PAD,
+  KEY_ACTIONS,
+  PAD_ACTIONS,
   assignSlot,
   bindKey,
   bindPad,
@@ -115,16 +117,30 @@ describe('Die Karte des Geräts', () => {
 });
 
 describe('Vom Knopf zur Absicht', () => {
-  it('spielt ab Werk genau das, was das Projekt immer spielte', () => {
+  it('spielt ab Werk das einheitliche Schema', () => {
     const plan = defaultPadPlan();
     expect(plan).toEqual({
       use: [0],
-      fire: [1, 7],
+      cancel: [1],
+      menu: [9],
+      fire: [7],
+      sight: [6],
       sprint: [10],
       tools: [3],
+      view: [8],
       zoomIn: [4],
       zoomOut: [5],
     });
+  });
+
+  it('gibt jeder Stelle ab Werk höchstens eine Sache', () => {
+    // `bindPad` hält diese Regel für jede Änderung ein — die Voreinstellung
+    // muss sie deshalb selbst schon erfüllen, sonst nähme die erste
+    // Änderung stillschweigend mehr weg, als dasteht.
+    const slots = PAD_ACTIONS.flatMap((action) => [...DEFAULT_PAD[action]]);
+    expect(new Set(slots).size).toBe(slots.length);
+    const keys = KEY_ACTIONS.flatMap((action) => [...DEFAULT_KEYS[action]]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it('macht aus der Gerätekarte die Nummern, die das Spiel abfragt', () => {
@@ -133,12 +149,12 @@ describe('Vom Knopf zur Absicht', () => {
     const config = assignSlot(defaultInputConfig(), BACKBONE, 1, 'face-down');
     const plan = padPlan(config, config.layouts[BACKBONE]!, 18);
     expect(plan.use).toEqual([1]);
-    expect(plan.fire).toEqual([0, 7]);
+    expect(plan.cancel).toEqual([0]);
 
     // Und das Spiel hört wirklich darauf: unten drücken heißt benutzen.
     expect(readGamepad(pad({ 1: true }), plan).use).toBe(true);
     expect(readGamepad(pad({ 0: true }), plan).use).toBe(false);
-    expect(readGamepad(pad({ 0: true }), plan).fire).toBe(true);
+    expect(readGamepad(pad({ 0: true }), plan).cancel).toBe(true);
     // Ohne Karte bleibt es beim Alten — kein anderes Gerät merkt etwas.
     expect(readGamepad(pad({ 1: true })).use).toBe(false);
     expect(readGamepad(pad({ 0: true })).use).toBe(true);
@@ -149,7 +165,8 @@ describe('Vom Knopf zur Absicht', () => {
     // eine Nummer dafür wäre ein Knopf, der zufällig irgendwo anliegt.
     const plan = padPlan(defaultInputConfig(), {}, 8);
     expect(plan.sprint).toEqual([]);
-    expect(plan.fire).toEqual([1, 7]);
+    expect(plan.fire).toEqual([7]);
+    expect(plan.menu).toEqual([]);
     expect(readGamepad(pad({ 1: true }, 8), plan).sprint).toBe(false);
   });
 
@@ -170,15 +187,14 @@ describe('Die Belegung', () => {
     // Ein Knopf, der zugleich schießt und zoomt, ist kein eingestellter Knopf.
     const config = bindPad(defaultInputConfig(), 'zoomIn', 'face-right');
     expect(padSlotsFor(config, 'zoomIn')).toEqual(['face-right']);
-    expect(padSlotsFor(config, 'fire')).toEqual(['trigger-right']);
+    expect(padSlotsFor(config, 'cancel')).toEqual([]);
     expect(padSlotsFor(config, 'use')).toEqual(DEFAULT_PAD.use);
   });
 
   it('darf eine Aktion leer laufen lassen — das ist eine Entscheidung', () => {
-    // `fire` hatte zwei Stellen; beide weggenommen heißt: Am Pad wird nicht
-    // mehr geschossen. Das muss gehen und darf nicht heimlich zurückspringen.
-    let config = bindPad(defaultInputConfig(), 'use', 'face-right');
-    config = bindPad(config, 'zoomIn', 'trigger-right');
+    // Den Trigger weggenommen heißt: Am Pad wird nicht mehr geschossen. Das
+    // muss gehen und darf nicht heimlich zurückspringen.
+    const config = bindPad(defaultInputConfig(), 'zoomIn', 'trigger-right');
     expect(padSlotsFor(config, 'fire')).toEqual([]);
     expect(padPlan(config, {}, 18).fire).toEqual([]);
   });

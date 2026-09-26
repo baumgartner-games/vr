@@ -86,7 +86,7 @@ describe('Das Gamepad lesen', () => {
     expect(frame.trigger).toBe(0);
   });
 
-  it('macht aus B und dem analogen Trigger **eine** Zahl', () => {
+  it('liest den Zug des Triggers als Zahl — und B schießt nicht mehr', () => {
     const half = readGamepad(pad([0, 0, 0, 0], { [BUTTON_RT]: 0.5 }));
     expect(half.fire).toBe(true);
     expect(half.trigger).toBeCloseTo(0.5, 6);
@@ -96,10 +96,12 @@ describe('Das Gamepad lesen', () => {
     expect(touched.fire).toBe(false);
     expect(touched.trigger).toBeCloseTo(0.1, 6);
 
-    // `B` ist digital und heißt deshalb: ganz durchgedrückt.
+    // `B` ist _Zurück_ (das Schema in `docs/agents/steuerung.md`) und
+    // gehört damit nicht mehr dem Auslöser.
     const b = readGamepad(pad([0, 0, 0, 0], { [BUTTON_B]: true }));
-    expect(b.fire).toBe(true);
-    expect(b.trigger).toBe(1);
+    expect(b.fire).toBe(false);
+    expect(b.cancel).toBe(true);
+    expect(b.trigger).toBe(0);
   });
 
   it('kommt ohne Pad aus', () => {

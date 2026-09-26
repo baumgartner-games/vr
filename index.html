@@ -463,7 +463,8 @@
       <div id="touch-right" class="touch__right" hidden>
         <div id="touch-aim" class="touch__stick touch__stick--aim"><span></span></div>
         <div id="touch-a" class="touch__btn touch__btn--a">A</div>
-        <div id="touch-b" class="touch__btn touch__btn--b">B</div>
+        <!-- Der Auslöser — kein „B" mehr: `B` heißt überall _Zurück_ (docs/agents/steuerung.md). -->
+        <div id="touch-b" class="touch__btn touch__btn--b" aria-label="Auslösen"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div>
       </div>
       <div class="touch__hint">Links ziehen = gehen · rechts wischen = umsehen</div>
     </div>

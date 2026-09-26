@@ -11625,6 +11625,9 @@ export class PortalWorld implements World {
 
   private handleReset(ctx: WorldContext): void {
     if (!ctx.renderer.xr.isPresenting) return;
+    // Im offenen Menü ist `B`/`Y` _Zurück_ (`WristMenu.updateBack`) — und
+    // eine Welt, die dabei zurückgesetzt wird, wäre ein teures Zurück.
+    if (ctx.menu.isOpen) return;
     for (const controller of ctx.input.controllers) {
       if (controller.secondary.justPressed) this.resetWorld(ctx);
     }

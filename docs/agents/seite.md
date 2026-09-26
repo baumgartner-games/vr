@@ -174,6 +174,15 @@ einem auffällt (`App.inputsMenu`). Vier Zeilen:
   nur mit Pad.
 - **Alles auf Standard**, und in den Untermenüs die kleineren Rückwege.
 
+Dazu ganz oben die **Tastenhilfe** (an/aus) — die Zeile unten im Bild, die
+sagt, welcher Knopf gerade was tut (`ui/ControlHints.ts`, siehe
+[Steuerung](./steuerung.md#die-tastenhilfe--uicontrolhintsts)). Seit dem
+einheitlichen Schema stehen am Pad auch _Zurück_ (`B`), _Menü_ (☰),
+_Ansicht_ (⊟) und _Zielen_ (LT) in der Belegung, an der Tastatur _Menü_ (`M`)
+und _Ansicht_ (`V`). Und das ganze Menü ist mit dem Pad bedienbar
+(`ui/padNav.ts`) — Zeile wählen mit dem Steuerkreuz, `A` drücken, dann den
+Knopf drücken, den sie tun soll.
+
 Eingestellt wird überall gleich: Zeile antippen, dann drücken, was es tun soll.
 Abgehört wird dabei **nichts Neues** — `FlatControls.captureNext` biegt den
 nächsten Druck einmal um, statt eine zweite Stelle aufzumachen, die Tasten

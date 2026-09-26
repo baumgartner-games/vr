@@ -77,7 +77,7 @@ export interface TouchPads {
   aim: HTMLElement | null;
   /** Knopf `A`: benutzen. */
   use: HTMLElement | null;
-  /** Knopf `B`: schießen. */
+  /** Der Auslöser (`#touch-b`, ein Fadenkreuz): schießen. `B` heißt er nicht mehr — `B` ist _Zurück_. */
   fire: HTMLElement | null;
   /** Der Block mit Zielstock und Knöpfen — steht nur in der Ansicht von oben. */
   right: HTMLElement | null;
@@ -115,6 +115,21 @@ export class FlatControls {
    * Taste dafür mitbringt.
    */
   onTools: (() => void) | null = null;
+  /**
+   * **Das Menü auf oder zu** — die Taste `M` (`KeyAction` `menu`). Am Pad
+   * gehört ☰ dem Menü-Fahrer (`ui/padNav.ts`), der es auch dann hört, wenn
+   * diese Steuerung schweigt: auf der Startseite und im offenen Menü.
+   */
+  onMenu: (() => void) | null = null;
+  /** **Von oben ↔ aus den Augen** — `V` und ⊟ am Pad (`App.toggleScreenView`). */
+  onView: (() => void) | null = null;
+  /**
+   * **Was gerade vor dem Spiel liegt** — ein offenes Menü (`'menu'`) oder die
+   * Werkzeugliste (`'tools'`), sonst `null`. Solange etwas davor liegt,
+   * läuft und springt niemand: Der Stock und `A` gehören dann dem Menü
+   * (`ui/padNav.ts`), und wer im Menü `A` drückt, soll nicht nebenher hüpfen.
+   */
+  blocker: () => 'menu' | 'tools' | null = () => null;
   speed = 3.2;
   lookSpeed = 0.0024;
 
@@ -209,6 +224,8 @@ export class FlatControls {
   private readonly padZoomIn = new ButtonState();
   private readonly padZoomOut = new ButtonState();
   private readonly padTools = new ButtonState();
+  private readonly padBack = new ButtonState();
+  private readonly padView = new ButtonState();
   /**
    * Die Finger, die gerade frei auf dem Glas liegen — weder auf einem Stock
    * noch auf einem Knopf —, mit dem Ort, an dem sie zuletzt waren. Zwei davon
@@ -376,6 +393,17 @@ export class FlatControls {
 
     const pad = this.readPad();
 
+    // **Liegt ein Menü davor, spielt das Pad nicht** — gelesen wurde es
+    // trotzdem, damit die Flanken stimmen: Wer das Menü mit `A` schließt,
+    // hält `A` danach noch, und das darf dann kein Sprung sein.
+    if (this.blocker()) {
+      this.rig.aiming = false;
+      this.rig.sighting = false;
+      this.rig.useHeld = false;
+      this.rig.setTrigger(0);
+      return;
+    }
+
     // **Ob gerade gezielt wird**, über beide Stöcke zusammen
     // (`core/gamepad.aimHeld`) — in **beiden** flachen Ansichten und nicht nur
     // von oben: Aus den Augen dreht derselbe Stock den Blick, und das ist für
@@ -418,13 +446,15 @@ export class FlatControls {
     }
     // **Und der Trigger aus den Augen**: Hält die Hand vor dem Auge ein
     // Werkzeug (`PlayerRig.armed`), ist er dasselbe wie von oben — Linksklick,
-    // RT, `B` auf dem Glas. Sonst bleibt er zu, und die Maus schießt weiter,
+    // RT, der Auslöser auf dem Glas. Sonst bleibt er zu, und die Maus schießt weiter,
     // was sie ohne Werkzeug schon immer geschossen hat (die Portale, über die
     // Welt): ein zweiter Weg dorthin wäre ein zweiter Schuss.
     this.rig.setTrigger(this.rig.armed ? this.triggerValue(pad) : 0);
-    // **Zielen über die Waffe**: rechte Maustaste oder LB halten. LB ist von
-    // oben der Zoom und hat aus den Augen sonst nichts zu tun.
-    this.rig.sighting = this.rig.armed && (this.mouseSight || pad.zoomIn);
+    // **Zielen über die Waffe**: rechte Maustaste oder den **linken Trigger**
+    // halten — die beiden Trigger sind die Waffe (links zielen, rechts
+    // schießen), wie in jedem Spiel, das man mit einem Pad in der Hand kennt.
+    // Bis zum einheitlichen Schema lag das Zielen auf LB, dem Zoom von oben.
+    this.rig.sighting = this.rig.armed && (this.mouseSight || pad.sight);
 
     if (x === 0 && z === 0) {
       if (jump) this.rig.requestJump();
@@ -582,6 +612,15 @@ export class FlatControls {
   private applyUse(pad: GamepadFrame): boolean {
     if (this.toolsQueued || this.padTools.justPressed) this.onTools?.();
     this.toolsQueued = false;
+    // **⊟ wechselt die Ansicht** — dieselbe Wahl wie `V` und die Zeile im Menü.
+    if (this.padView.justPressed) this.onView?.();
+    // **`B` ist _Zurück_** (das Schema, `docs/agents/steuerung.md`). Im Spiel
+    // gibt es keine Seite, zu der es zurückginge — aber etwas, das man
+    // abbricht: Was die Figur trägt, legt `B` ab, wie ein Klick
+    // (`pressMouseUse`). Ohne Last tut der Knopf nichts; er springt nicht und
+    // schießt nicht, damit ein `B`, das im Menü gemeint war, im Spiel nichts
+    // anrichtet.
+    if (this.padBack.justPressed && this.rig.carrying) this.rig.requestDrop();
 
     // **Und was gerade _liegt_** (`PlayerRig.useHeld`). Die Flanke darunter
     // ist für Knöpfe; was ein Halten verlangt — der Ausstieg aus dem Kart —,
@@ -621,7 +660,7 @@ export class FlatControls {
     this.rig.requestDrop();
   }
 
-  /** Alle Geber des Triggers zusammen: RT, die linke Maustaste, `B` auf dem Glas. */
+  /** Alle Geber des Triggers zusammen: RT, die linke Maustaste, der Auslöser auf dem Glas. */
   private triggerValue(pad: GamepadFrame): number {
     return Math.max(pad.trigger, this.mouseFire ? 1 : 0, this.firePointer !== null ? 1 : 0);
   }
@@ -739,6 +778,8 @@ export class FlatControls {
     edge(this.padZoomIn, frame.zoomIn);
     edge(this.padZoomOut, frame.zoomOut);
     edge(this.padTools, frame.tools);
+    edge(this.padBack, frame.cancel);
+    edge(this.padView, frame.view);
     return frame;
   }
 
@@ -788,7 +829,30 @@ export class FlatControls {
         take({ kind: 'key', code: e.code });
         return;
       }
+      // **Das Menü** — auch dann, wenn es schon offen ist (zu), und auch dann,
+      // wenn die Steuerung sonst schweigt: Wer das Menü mit `M` aufmacht,
+      // macht es mit `M` wieder zu.
+      if (this.bound(e.code, 'menu') && !e.repeat) {
+        e.preventDefault();
+        this.onMenu?.();
+        return;
+      }
       if (!this.enabled) return;
+      // **Liegt ein Menü davor, gehören ihm die Tasten** (Pfeile, Eingabe,
+      // Rücktaste — `ui/padNav.ts`). Nur die Werkzeugliste lässt sich mit
+      // ihrer eigenen Taste auch wieder zumachen.
+      const blocker = this.blocker();
+      if (blocker) {
+        if (blocker === 'tools' && this.bound(e.code, 'tools') && !e.repeat) {
+          e.preventDefault();
+          this.onTools?.();
+        }
+        return;
+      }
+      if (this.bound(e.code, 'view') && !e.repeat) {
+        e.preventDefault();
+        this.onView?.();
+      }
       if (this.bound(e.code, 'jump')) {
         e.preventDefault();
         this.jumpQueued = true;
@@ -925,7 +989,7 @@ export class FlatControls {
         this.aQueued = true;
         this.setPressed(pads.use, true);
       } else if (this.topDownOn && this.craneOn && hitsElement(pads.fire, event)) {
-        // Als Kran ist `B` auf dem Glas der Rechtsklick: die Abrissbombe.
+        // Als Kran ist der Auslöser auf dem Glas der Rechtsklick: die Abrissbombe.
         // Gezündet wird sie mit `A` — dort, wo auch sonst genommen wird.
         this.rig.requestBomb();
       } else if (hitsElement(pads.fire, event)) {

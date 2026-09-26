@@ -134,7 +134,7 @@ Stichpunkten).
 
 ### Steuerung
 
-- **[Steuerung](docs/agents/steuerung.md)** — Die Tabelle — welche Taste, welcher Knopf, welcher Stick, in jeder der drei Ansichten.
+- **[Steuerung](docs/agents/steuerung.md)** — Das einheitliche Schema (gleiche Absicht, gleicher Knopf), Menüs mit dem Pad, die Tastenhilfe — und die Tabelle: welche Taste, welcher Knopf, welcher Stick, in jeder der drei Ansichten.
 - **[Greifen, Reichweite, Benutzen](docs/agents/greifen.md)** — Was ein Ding will und womit man es bekommt: Saum, Griff, Trigger und die drei Reichweiten.
   Darin: Drei Dinge, drei Reichweiten — und ihre Namen · Ein Griff ist auch für das, was kein Werkzeug ist · Vier Reichweiten? Nein — drei, und eine Einschränkung · Was ein Ding will — und womit man es bekommt · Der Feuerlöscher: wo er hingestellt wird und was ihn anmacht · Benutzen mit der Hand — die Brille · Und am Schirm trägt die Figur · Halten oder Tippen — zwei Greif-Arten, beide gültig · Abgelegt wird beim Loslassen und nicht beim Hinlangen · Was in der Brille in der Hand liegt.
 - **[Die Waffe und die Kartzone](docs/agents/waffe-und-kart.md)** — Zwei Zonen, die ihre eigene Steuerung mitbringen.

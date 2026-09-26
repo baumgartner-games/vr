@@ -65,6 +65,7 @@ import {
 } from './core/fullDownloadRun';
 import type { KaykitIndex } from './core/kaykitIndex';
 import { trackViewport } from './ui/safeArea';
+import { padNav } from './ui/padNav';
 
 /**
  * **Wie groß der Schirm wirklich ist**, als Erstes und vor allem anderen: Die
@@ -903,6 +904,20 @@ enterButton.addEventListener('click', () => {
 // Dasselbe Menü wie im Spiel, schon auf der Startseite: Welten, Bewegung,
 // Aussehen, Grafik — als Seite (`ui/PageMenu.ts`), weil hier keine Brille auf ist.
 landingMenu.addEventListener('click', () => withApp((ready) => ready.toggleMenu()));
+
+// **Die Seite am Gamepad** (`ui/padNav.ts`): ☰ macht überall das Menü auf —
+// auf der Startseite wie im Spiel —, und die Startseite selbst ist mit
+// Steuerkreuz und `A` bedienbar. Angemeldet wird nur ihr Rahmen und nicht
+// jeder Knopf: Was darin steht, findet der Fokus selbst.
+padNav.onMenu = () => withApp((ready) => ready.toggleMenu());
+padNav.addScope({
+  priority: 0,
+  active: () => !landing.hidden && !landing.classList.contains('is-hiding'),
+  root: () => landing,
+  // Der Fokus fängt auf _Beitreten_ an — dafür ist man hier.
+  initial: () => (enterButton.disabled ? null : enterButton),
+});
+padNav.start();
 
 async function startVR(button: HTMLButtonElement = enterButton): Promise<void> {
   button.disabled = true;
