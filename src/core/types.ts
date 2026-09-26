@@ -312,5 +312,17 @@ export interface WorldDefinition {
   roles: PlayerRole[];
   /** Marks work-in-progress worlds in the menu. */
   experimental?: boolean;
+  /**
+   * **Ein Prüfstand und kein Spiel** — Menü und Startseite sagen es mit einem
+   * Schildchen `TEST` und stellen die Welt hinter die Spiele
+   * (`ui/menuGroups.worldKind`).
+   */
+  test?: boolean;
+  /**
+   * **Das Bild der Welt auf der Startseite** — ein Pfad unter `public/`, ohne
+   * führenden Schrägstrich (`worlds/hub.webp`). Ohne Bild zeichnet die
+   * Startseite eine Fläche in der Akzentfarbe (`ui/landingWorlds.ts`).
+   */
+  preview?: string;
   load(): Promise<World>;
 }

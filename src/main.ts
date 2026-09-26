@@ -14,7 +14,8 @@ import {
   startOptions,
   type ScreenView,
 } from './core/screenView';
-import { DEFAULT_WORLD, findWorld } from './worlds';
+import { DEFAULT_WORLD, WORLDS, findWorld } from './worlds';
+import { markWorldCard, renderWorldCards, worldCards, type WorldCard } from './ui/landingWorlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
 import {
   fullscreenActive,
@@ -80,6 +81,9 @@ const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
 const landingTitle = document.querySelector<HTMLElement>('#landing-title')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter')!;
+const enterLabel = document.querySelector<HTMLElement>('#enter-label');
+const enterSub = document.querySelector<HTMLElement>('#enter-sub');
+const worldCardsEl = document.querySelector<HTMLElement>('#world-cards');
 /**
  * **Der Ladebalken des Starts** (`index.html`, `#boot`) — der Kasten und die
  * Zeile darin. Beide stehen **im HTML** und nicht hier: Sie werden genau in
@@ -142,7 +146,13 @@ const RELOADED_FOR = 'bgvr:stale-reload';
 
 const params = new URLSearchParams(window.location.search);
 const requested = window.location.hash.slice(1) || params.get('world') || DEFAULT_WORLD;
-const startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
+/**
+ * **Die Welt, in die _Spielen_ führt.** Sie steht in der Adresse oder ist die
+ * Standardwelt — und seit der Weltauswahl auf der Startseite
+ * (`ui/landingWorlds.ts`) kann sie sich ändern, bevor jemand drückt
+ * (`pickWorld`). Deshalb `let`.
+ */
+let startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
 
 /**
  * **Die Startseite einer Runde statt der Spielwiese.** Wer `#haunting` öffnet,
@@ -286,6 +296,13 @@ async function startApp(): Promise<App | null> {
     app = new App(canvas, pads, {
       onWorldChanged: (id, title) => {
         hudWorld.textContent = title;
+        // Im Menü der Startseite eine andere Welt gewählt: Karte und Knopf
+        // ziehen nach, sonst sagte _Spielen_ noch die alte.
+        if (!landing.hidden && !hauntLanding && id !== startWorld) {
+          startWorld = id;
+          if (worldCardsEl) markWorldCard(worldCardsEl, id);
+          paintEnterLabel();
+        }
         if (window.location.hash.slice(1) !== id) {
           window.history.replaceState(null, '', `#${id}`);
         }
@@ -510,7 +527,7 @@ function showScreenView(view: ScreenView): void {
   screenHint.textContent = hauntLanding
     ? ENTRY_HINTS[view]
     : view === '2d'
-      ? `${SCREEN_VIEW_SUBS['2d']} Umschalten geht auch im Spiel: Menü → Ansicht.`
+      ? `${SCREEN_VIEW_SUBS['2d']} Umschalten geht auch im Spiel: Menü → Spielen → Ansicht.`
       : SCREEN_VIEW_SUBS['3d'];
 }
 
@@ -550,12 +567,65 @@ function showStart(): void {
  */
 function paintEnterLabel(): void {
   if (noGraphics) return;
-  const label = fullLabel(fullState) ?? startOptions(headset, screenView(detectFlatRole())).label;
-  for (const button of [enterButton, hauntEnter]) button.textContent = label;
+  const options = startOptions(headset, screenView(detectFlatRole()));
+  const busy = fullLabel(fullState);
+  hauntEnter.textContent = busy ?? options.label;
+  // **Die Spielwiese sagt „Spielen" — und darunter, wohin.** Die Lobby einer
+  // Runde bleibt bei _Beitreten_: Dort tritt man einer Runde bei, hier fängt
+  // man an zu spielen. Ohne die beiden Zeilen im HTML (ein altes Bild aus
+  // dem Speicher) steht wie früher nur ein Wort da.
+  const where = findWorld(startWorld)?.title ?? '';
+  const how = options.way === 'vr' ? 'mit Brille' : SCREEN_VIEW_LABELS[options.way];
+  const label = busy ?? (options.way === 'vr' ? 'In VR spielen' : 'Spielen');
+  if (enterLabel && enterSub) {
+    enterLabel.textContent = label;
+    enterSub.textContent = busy ? '' : [where, how].filter(Boolean).join(' · ');
+  } else enterButton.textContent = label;
 }
 
 showStart();
 onScreenViewChange(showStart);
+
+/**
+ * **Eine Karte der Weltauswahl wurde getippt** (`ui/landingWorlds.ts`).
+ *
+ * Gewählt heißt: Die Adresse sagt es (`#hub` — ein Neuladen landet wieder
+ * dort), der Knopf sagt es, und die Welt wird **sofort** angefordert. Wer eine
+ * Karte tippt, will gleich hinein; die Sekunden bis zum Druck auf _Spielen_
+ * sind genau die, die das Laden braucht. Das Vorwärmen der Standardwelt tritt
+ * dafür zurück (`stopWarming`) — eine Welt, die niemand mehr will, bekommt
+ * keine Leitung mehr.
+ *
+ * **Die Lobby-Karte wählt nicht**, sie schlägt eine andere Startseite auf:
+ * Haunting will erst Name und Raum-Code (`hauntLanding`), und die Seite
+ * entscheidet das beim Laden. Also Adresse setzen und einmal neu laden —
+ * mit `replaceState`, damit kein `hashchange` die Welt ohne Lobby lädt.
+ */
+function pickWorld(card: WorldCard): void {
+  if (card.lobby) {
+    window.history.replaceState(null, '', `#${card.id}`);
+    window.location.reload();
+    return;
+  }
+  if (card.id === startWorld) return;
+  startWorld = card.id;
+  window.history.replaceState(null, '', `#${card.id}`);
+  if (worldCardsEl) markWorldCard(worldCardsEl, card.id);
+  paintEnterLabel();
+  stopWarming();
+  worldPending = null;
+  worldPhase = 'ruht';
+  void ensureWorld();
+}
+
+if (worldCardsEl && !hauntLanding) {
+  renderWorldCards(
+    worldCardsEl,
+    worldCards(WORLDS, import.meta.env.BASE_URL),
+    startWorld,
+    pickWorld,
+  );
+}
 screenSeg.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   const picked = button?.dataset['view'];
@@ -627,16 +697,20 @@ function ensureWorld(): Promise<void> {
  * Welt, die es nicht gibt.
  */
 async function loadWorld(): Promise<void> {
+  // Welche Welt diese Ladung meint — wählt jemand auf der Startseite
+  // inzwischen eine andere (`pickWorld`), hat sie nichts mehr zu melden.
+  const target = startWorld;
   worldPhase = 'lädt';
   paintStart();
   const ready = await ensureApp();
   // Kein 3D auf diesem Gerät: Die Erklärung steht schon auf der Seite, und
   // jeder Knopf ist stumpf (`startApp`). Hier ist nichts mehr zu malen.
   if (!ready) return;
-  await ready.goTo(startWorld);
-  if (worldPending === null) return;
+  if (target !== startWorld) return;
+  await ready.goTo(target);
+  if (worldPending === null || target !== startWorld) return;
   const settled = await ready.assetsSettled(ASSET_CAP_MS);
-  if (worldPending === null) return;
+  if (worldPending === null || target !== startWorld) return;
   worldPhase = settled ? 'steht' : 'dauert';
   paintStart();
   // Der Deckel hat den Knopf freigegeben, die Ladung läuft weiter — und wenn

@@ -9,6 +9,7 @@ import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { MenuNav } from '../ui/menuNav';
 import { catalogRecall } from '../ui/menuRecall';
+import { WORLD_BADGES, groupMenu, sortWorlds, worldKind } from '../ui/menuGroups';
 import { PageMenu } from '../ui/PageMenu';
 import { padNav } from '../ui/padNav';
 import { ControlHints, hintsOn, setHintsOn } from '../ui/ControlHints';
@@ -1095,46 +1096,99 @@ export class App {
 
   private refreshMenu(): void {
     this.menuDirty = false;
-    const worlds: MenuEntry[] = WORLDS.map((world) => ({
+    // **Die Spiele zuerst, die Prüfstände zuletzt** — und jede Welt sagt mit
+    // einem Schildchen, was sie ist (`ui/menuGroups.worldKind`).
+    const worlds: MenuEntry[] = sortWorlds(WORLDS).map((world) => ({
       id: `world:${world.id}`,
       label: world.title,
       sub: world.tagline,
       accent: world.accent,
-      badge: world.experimental ? 'WIP' : undefined,
+      badge: WORLD_BADGES[worldKind(world)],
       selected: world.id === this.worldId,
       run: () => this.selectWorld(world.id),
     }));
+    const here = WORLDS.find((world) => world.id === this.worldId);
 
-    const root: MenuEntry[] = [
-      {
-        id: 'worlds',
-        label: 'Welten',
-        sub: 'Wohin soll es gehen?',
-        icon: 'worlds',
-        accent: 0x4aa8ff,
-        children: worlds,
-      },
+    // **Eine flache Liste, und die Ordnung macht eine Tabelle daraus**
+    // (`ui/menuGroups.ts`): Welten, App-Menüs und alles, was die Welt
+    // mitbringt, gehen gleichberechtigt hinein; in welchen Hauptbereich
+    // etwas gehört — und welche Zeile aus ihrem Menü in die Werkstatt
+    // wandert —, steht dort an einer Stelle.
+    const flat: MenuEntry[] = [
+      ...worlds,
       this.viewMenu(),
       this.networkMenu(),
       this.movementMenu(),
       this.inputsMenu(),
       this.appearanceMenu(),
       this.graphicsMenu(),
+      ...this.helpLinks(),
       ...this.worldMenu,
-      {
-        id: 'menu:close',
-        label: 'Weiterspielen',
-        sub: 'Menü schließen',
-        icon: 'close',
-        accent: 0x6f7d99,
-        run: () => this.wristMenu.toggle(false),
-      },
     ];
+    const root = groupMenu(flat, {
+      // _Weiterspielen_ steht über allem: Das Häufigste, was man mit einem
+      // offenen Menü tut, ist, es wieder zuzumachen.
+      lead: [
+        {
+          id: 'menu:close',
+          label: 'Weiterspielen',
+          sub: 'Menü schließen',
+          icon: 'close',
+          accent: 0x6f7d99,
+          run: () => this.wristMenu.toggle(false),
+        },
+      ],
+      // _Diese Welt_ heißt, wie die Welt heißt, und trägt ihre Farbe.
+      overrides: here
+        ? {
+            spielen: { sub: `Gerade: ${here.title} · Welt wählen, Ansicht` },
+            welt: {
+              label: here.title,
+              sub: here.tagline,
+              accent: here.accent,
+              badge: WORLD_BADGES[worldKind(here)],
+            },
+          }
+        : {},
+    });
 
     // Rebuilding while the menu is open is normal here: the peer list and the
     // spectator switches change under the player's nose. The menu keeps the
     // page and the scroll position through it, open or closed.
     this.wristMenu.setRoot(root);
+  }
+
+  /**
+   * **Die zwei Seiten neben dem Spiel**, unter _Steuerung & Hilfe_ — die
+   * Eingabeseite und die Werkzeugseite (`inputs.html`, `tools.html`).
+   *
+   * Nur am Schirm: In der Brille hieße ein neuer Tab, die Sitzung zu
+   * verlassen, und das tut niemand mit einem Menüpunkt, der „Hilfe" heißt.
+   * Geöffnet wird daneben (`_blank`), damit die Welt stehen bleibt.
+   */
+  private helpLinks(): MenuEntry[] {
+    if (this.renderer.xr.isPresenting || typeof window === 'undefined') return [];
+    const open = (page: string): void => {
+      window.open(`./${page}`, '_blank', 'noopener');
+    };
+    return [
+      {
+        id: 'help:inputs',
+        label: 'Controller und Tasten prüfen',
+        sub: 'Was ankommt, Knopf für Knopf · neuer Tab',
+        icon: 'controller',
+        accent: 0x9fe3ff,
+        run: () => open('inputs.html'),
+      },
+      {
+        id: 'help:tools',
+        label: 'Werkzeuge, Welten und Beutel ansehen',
+        sub: 'Alles, was es gibt, mit Vorschau · neuer Tab',
+        icon: 'tools',
+        accent: 0x9fe3ff,
+        run: () => open('tools.html'),
+      },
+    ];
   }
 
   /**
@@ -2578,6 +2632,9 @@ export class App {
     this.role = 'vr';
     // Ab jetzt tragen die Handgelenke das Menü, nicht die Seite.
     this.wristMenu.presenting = true;
+    // Und das Menü sieht in der Brille anders aus: keine Links in einen neuen
+    // Tab (`helpLinks`), keine Ansicht von oben (`viewMenu`).
+    this.menuDirty = true;
     // Und in der Brille gibt es die Karte von oben nicht: Man steht darin.
     this.applyView();
     // Ab jetzt darf eine Texteingabe die Tastatur des Geräts anfordern: Im
@@ -2596,6 +2653,7 @@ export class App {
   };
 
   private onSessionEnd = (): void => {
+    this.menuDirty = true;
     this.frameStats.setImmersive(false);
     this.positionHud.setImmersive(false);
     this.resizeWebBuffer();

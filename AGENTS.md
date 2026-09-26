@@ -169,8 +169,8 @@ Stichpunkten).
 
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
-- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild, der Start — und die Seite als App.
-  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft und geladen wird von selbst, und solange hält es _Beitreten_ auf.
+- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, das Menü und seine Bereiche, die Startseite mit Weltauswahl, Vollbild, der Start — und die Seite als App.
+  Darin: Die Eingabeseite · Das Menü: acht Bereiche und eine Tabelle (Brotkrumen, Esc, alte und neue Wege) · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Startseite: eine Welt wählen, einmal drücken · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft und geladen wird von selbst, und solange hält es _Beitreten_ auf.
 
 ### Betrieb
 
