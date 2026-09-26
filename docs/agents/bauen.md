@@ -1346,6 +1346,13 @@ Küchenboden grau und blau, Dielen hell und dunkel), sind das die Muster.
   draußen gibt es _▦ Fläche_). Die Vorschau leuchtet den ganzen Raum im
   Gitter. Bodenstücke eines **anderen** Musters im Raum gehen dabei weg (als
   Schritt), dasselbe Muster bleibt liegen.
+- **Sechs Millimeter über dem Boden** (`FLOOR_LIFT` in `sinkFloor`): Bündig
+  lag die Lauffläche jedes Bodenstücks in derselben Ebene wie die Oberkante
+  des gebauten Bodens, und der Bauplatz blendet seine Böden (Quader, keine
+  Platten) darunter nicht aus — beide stritten um jeden Bildpunkt, dunkle
+  zackige Streifen quer über die Dielen (Z-Fighting). Geprüft von oben, aus
+  den Augen und flach über dem Boden für Dielen, Küchenfliesen und
+  Steinplatten.
 - **Wand** belegt **eine Seite** der Wand vor dem Kran (`nearestFace`, bis
   1,2 m davor). Zwei Arten Muster (`WALL_STYLES`):
   - **Fliesen** (`restaurant-bits/wall_tiles_A/B`, eine Platte 1 m × 70 cm ×

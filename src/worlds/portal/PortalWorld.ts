@@ -521,6 +521,12 @@ const UP = new THREE.Vector3(0, 1, 0);
 const AREA_PREVIEW = 1600;
 /** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
 const AREA_LIFT = 0.01;
+/**
+ * Wie weit ein Bodenstück aus dem Regal über dem Boden darunter liegt, in
+ * Metern (`sinkFloor`) — genug gegen Z-Fighting auch von oben aus zwanzig
+ * Metern, zu wenig, um darüber zu stolpern oder eine Kante zu sehen.
+ */
+const FLOOR_LIFT = 0.006;
 /** Wohin man sieht — für _Wand_ in der Brille (`surfaceHere`). */
 const _surfaceLook = new THREE.Vector3();
 /**
@@ -9646,7 +9652,12 @@ export class PortalWorld implements World {
     );
     const top = this.floorTopAt(tiles, _point.y);
     if (top === null) return false;
-    _point.y = top - tread;
+    // **Ein paar Millimeter über dem Boden** (`FLOOR_LIFT`): Genau bündig
+    // lag die Lauffläche in derselben Ebene wie die Oberkante des gebauten
+    // Bodens, und wo die Welt ihn nicht ausblendet (der Bauplatz zeichnet
+    // seine Böden als Quader, nicht als Platten), stritten beide Flächen um
+    // jeden Bildpunkt — dunkle, zackige Streifen quer über die Dielen.
+    _point.y = top - tread + FLOOR_LIFT;
     entry.object.position.copy(_point);
     entry.object.updateWorldMatrix(true, false);
     entry.previousPosition.copy(_point);
