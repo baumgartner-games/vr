@@ -28,6 +28,7 @@
  */
 import type { PlayerRole } from '../../../core/types';
 import { MY_ROLES, withWho, type MyRole, type RoundSetup } from './roundSetup';
+import { FLOW } from './roundFlow';
 
 /** Was ich vorhabe: spielen, zusehen oder ohne Monster üben. */
 export type Intent = 'play' | 'watch' | 'train';
@@ -52,16 +53,21 @@ export const INTENTS: readonly Intent[] = ['play', 'watch', 'train'];
 
 export const LOBBY_STORAGE = 'bgvr.haunting.lobby.v1';
 
+/**
+ * **Die Namen der drei Absichten** — aus `roundFlow.FLOW`, damit Brille,
+ * Bildschirm und Telefon dasselbe Wort sagen: „Echte Runde" und
+ * „Übungsrunde" statt „Spielen", „Mission", „Trainieren" und „Test".
+ */
 export const INTENT_LABELS: Readonly<Record<Intent, string>> = {
-  play: 'Spielen',
-  watch: 'Zuschauen',
-  train: 'Trainieren',
+  play: FLOW.real,
+  watch: FLOW.demo,
+  train: FLOW.practice,
 };
 
 export const INTENT_HINTS: Readonly<Record<Intent, string>> = {
-  play: 'Die Mission, mit Monster',
-  watch: 'Der Runde im Raum folgen — sonst Bot gegen Bot',
-  train: 'Ohne Monster · jeder darf jede Rolle wechseln',
+  play: FLOW.realHint,
+  watch: FLOW.demoHint,
+  train: FLOW.practiceHint,
 };
 
 /**
@@ -215,6 +221,6 @@ export function intentOf(setup: RoundSetup): Intent {
  */
 export function startLabel(setup: RoundSetup): string {
   const intent = intentOf(setup);
-  if (intent === 'watch') return 'Zuschauen';
-  return intent === 'play' ? 'Mission starten' : 'Test starten';
+  if (intent === 'watch') return FLOW.demo;
+  return intent === 'play' ? FLOW.real : `${FLOW.practice} starten`;
 }

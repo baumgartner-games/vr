@@ -245,8 +245,11 @@ describe('Das Steuer übers Netz beim Gastgeber', () => {
     port.input({ x: 0, z: 0, sprint: false });
     wire();
     // Der Techniker versteckt sich; das Monster stellt sich davor.
+    // **Eine Kabine in einem anderen Raum**: Im Raum des Monsters stand der
+    // Techniker seit dem schmaleren Grundriss (`stationRules`) auf dem Weg
+    // zur Kabine schon in Reichweite und bekam den Treffer vor dem Verstecken.
     const cabin =
-      round.items().find((i) => i.kind === 'locker' && i.roomId === round.monster.space) ??
+      round.items().find((i) => i.kind === 'locker' && i.roomId !== round.monster.space) ??
       round.items().find((i) => i.kind === 'locker')!;
     expect(round.place(cabin.at)).toBe(true);
     step(1);

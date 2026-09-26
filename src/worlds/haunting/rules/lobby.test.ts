@@ -111,10 +111,10 @@ describe('lobby', () => {
 
   test('der Startknopf sagt, was die Verteilung tut — und nur das', () => {
     const setup = defaultSetup();
-    expect(startLabel(setup)).toBe('Mission starten');
-    expect(startLabel(applyIntent(setup, 'train'))).toBe('Test starten');
-    expect(startLabel(applyIntent(setup, 'watch'))).toBe('Zuschauen');
-    expect(startLabel(withWho(setup, 'monster', 'off'))).toBe('Test starten');
+    expect(startLabel(setup)).toBe('Echte Runde starten');
+    expect(startLabel(applyIntent(setup, 'train'))).toBe('Übungsrunde starten');
+    expect(startLabel(applyIntent(setup, 'watch'))).toBe('Bots spielen lassen');
+    expect(startLabel(withWho(setup, 'monster', 'off'))).toBe('Übungsrunde starten');
   });
 
   test('fremder Text wird gelesen, Unbekanntes ersetzt — und ein altes Feld für die Ansicht vergessen', () => {

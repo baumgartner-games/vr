@@ -48,9 +48,9 @@ describe('Das Menü in der Brille', () => {
       'haunt:train',
     ]);
     expect(startEntries(inHeadset()).map((entry) => entry.label)).toEqual([
-      'Spielen',
-      'Zuschauen',
-      'Trainieren',
+      'Echte Runde starten',
+      'Bots spielen lassen',
+      'Übungsrunde',
     ]);
   });
 
@@ -137,7 +137,7 @@ describe('Nach dem Start', () => {
 describe('Die Beschriftungen', () => {
   it('stehen fest und passen zum Stand', () => {
     const idle = startEntries(inHeadset()).map((entry) => entry.label);
-    expect(idle).toEqual(['Spielen', 'Zuschauen', 'Trainieren']);
+    expect(idle).toEqual(['Echte Runde starten', 'Bots spielen lassen', 'Übungsrunde']);
     const running = startEntries(inHeadset({ phase: 'running' }));
     // Der Name bleibt derselbe, auch wenn eine Runde läuft — dass sie damit
     // endet, steht in der Zeile darunter.

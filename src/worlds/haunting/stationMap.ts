@@ -24,6 +24,15 @@
  *
  * Zwei Räume berühren sich nie — dazwischen liegt immer ein Gang oder eine
  * Fuge (`house.test`).
+ *
+ * **Die Gänge folgen nicht mehr der Zeichnung, sondern drei Regeln des
+ * Besitzers** (`stationRules.ts`, geprüft in `stationRules.test.ts`):
+ * höchstens vier Felder (zwei Kacheln) breit, zwischen parallelen Gängen
+ * ohne Raum dazwischen genau vier Felder, und keine zwei Türen direkt
+ * hintereinander — also kein Stummelgang zwischen Gang und Raumtür: Jeder
+ * Gang läuft bis an die Wand des Raums, in den er führt. Die Räume sind
+ * geblieben, wie gezeichnet; Shields ist eine Kachel breiter, damit die
+ * Einrichtung neben der tiefer liegenden Westtür Platz hat.
  */
 export const STATION_MAP: readonly string[] = [
   '............................aAAAAAAAAAAa.........................',
@@ -32,33 +41,33 @@ export const STATION_MAP: readonly string[] = [
   '..........................AAAAAAAAAAAAAAAAa...BBBBb..............',
   '.......cCCCCCC............AAAAAAAAAAAAAAAAA...BBBBBb.............',
   '......cCCCCCCC............AAAAAAAAAAAAAAAAA...BBBBBBb............',
-  '......CCCCCCCC::::::::::::AAAAAAAAAAAAAAAAA:::BBBBBBB............',
-  '......CCCCCCCC::::::::::::AAAAAAAAAAAAAAAAA:::BBBBBBB............',
-  '......CCCCCCCC::::::::::::AAAAAAAAAAAAAAAAA:::BBBBBBB............',
-  '......CCCCCCCC.......::...AAAAAAAAAAAAAAAAA...bBBBBBB............',
+  '......CCCCCCCC............AAAAAAAAAAAAAAAAA:::BBBBBBB............',
+  '......CCCCCCCC............AAAAAAAAAAAAAAAAA:::BBBBBBB............',
+  '......CCCCCCCC::::::::::::AAAAAAAAAAAAAAAAA...BBBBBBB............',
+  '......CCCCCCCC::::::::::::AAAAAAAAAAAAAAAAA...bBBBBBB............',
   '......CCCCCCCC.....DDDDDD.AAAAAAAAAAAAAAAAA....bBBBBB............',
   '.eEEE.CCCCCCCC.....DDDDDD.AAAAAAAAAAAAAAAAA......::..............',
-  'eEEEE....:::.......DDDDDD.AAAAAAAAAAAAAAAAa.fFFFF::..............',
-  'EEEEE....:::..gGGg.DDDDDD.aAAAAAAAAAAAAAAa.fFFFFF::::::....HHHHh.',
-  'EEEEEEE..:::..GGGG.DDDDDDd.aAAAAAAAAAAAAa..FFFFFF::::::....HHHHHh',
-  'EEEEEEE..:::..GGGG.DDDDDDDd.aAAAAAAAAAAa...FFFFFF::::::::::HHHHHH',
-  'EEEEEEE:::::::GGGG.DDDDDDDDd.aAAAAAAAAa....FFFFFF..::::::::HHHHHH',
-  'EEEEEEE:::::::GGGG.DDDDDDDDD.....:::.......FFFFFF..::::::::HHHHHH',
-  'EEEEEEE:::::::GGGG.dDDDDDDDD.....:::.............::::::....HHHHHh',
-  'EEEEEEE..:::..GGGG...............::::::IIIIIII...::::::....HHHHh.',
-  'EEEEEEE..:::..GGGG..JJJJJJJJ.....::::::IIIIIII...::::::..........',
-  'EEEEE....:::........JJJJJJJJ.....::::::IIIIIII...::..............',
-  'eEEEE....:::........JJJJJJJJ.....:::...IIIIIII...::..............',
+  'eEEEE.......::.....DDDDDD.AAAAAAAAAAAAAAAAa.fFFFF::..............',
+  'EEEEE.......::gGGg.DDDDDD.aAAAAAAAAAAAAAAa.fFFFFF::........HHHHh.',
+  'EEEEEEE:::::::GGGG.DDDDDDd.aAAAAAAAAAAAAa..FFFFFF::........HHHHHh',
+  'EEEEEEE:::::::GGGG.DDDDDDDd.aAAAAAAAAAAa...FFFFFF::........HHHHHH',
+  'EEEEEEE.....::GGGG.DDDDDDDDd.aAAAAAAAAa....FFFFFF::........HHHHHH',
+  'EEEEEEE.....::GGGG.DDDDDDDDD......::.......FFFFFF::::::::::HHHHHH',
+  'EEEEEEE.....::GGGG.dDDDDDDDD......::.............::::::::::HHHHHh',
+  'EEEEEEE.....::GGGG................::...IIIIIII...::........HHHHh.',
+  'EEEEEEE.....::GGGG..JJJJJJJJ......::...IIIIIII...::..............',
+  'EEEEE.......::......JJJJJJJJ......::...IIIIIII:::::..............',
+  'eEEEE.......::......JJJJJJJJ......::...IIIIIII:::::..............',
   '.eEEE.LLLLLLLL......JJJJJJJj.kKKKKKKK..IIIIIII...::..............',
   '......LLLLLLLL......JJJJJJj.kKKKKKKKK..IIIIIII...::..............',
-  '......LLLLLLLL......JJJJJJ..KKKKKKKKK..IIIIIIi.mMMMMM............',
-  '......LLLLLLLL:::::.JJJJJJ..KKKKKKKKK.........mMMMMMM............',
-  '......LLLLLLLL:::::.JJJJJj..KKKKKKKKK:::::::::MMMMMMM............',
-  '......LLLLLLLL:::::.JJJJj...KKKKKKKKK:::::::::MMMMMMM............',
-  '......lLLLLLLL..:::.::......KKKKKKKKK:::::::::MMMMMMM............',
-  '.......lLLLLLL..::::::::::::KKKKKKKKK.....:::.MMMMMMm............',
-  '................::::::::::::KKKKKKKKK.NNNNNNN.MMMMMm.............',
-  '................::::::::::::KKKKKKKKK.NNNNNNN.MMMMm..............',
+  '......LLLLLLLL......JJJJJJ..KKKKKKKKK..IIIIIIi.mMMMMMM...........',
+  '......LLLLLLLL......JJJJJJ..KKKKKKKKK.........mMMMMMMM...........',
+  '......LLLLLLLL......JJJJJj..KKKKKKKKK.........MMMMMMMM...........',
+  '......LLLLLLLL......JJJJj...KKKKKKKKK.........MMMMMMMM...........',
+  '......lLLLLLLL::::::::::::::KKKKKKKKK:::::::::MMMMMMMM...........',
+  '.......lLLLLLL::::::::::::::KKKKKKKKK:::::::::MMMMMMMm...........',
+  '............................KKKKKKKKK.NNNNNNN.MMMMMMm............',
+  '............................KKKKKKKKK.NNNNNNN.MMMMMm.............',
   '............................KKKKKKKKK.NNNNNNN....................',
   '............................kKKKKKKKK.NNNNNNN....................',
   '.............................kKKKKKKK.nNNNNNn....................',

@@ -32,6 +32,14 @@ export const STATION_DOOR_W = TILE;
  */
 export const STATION_DOOR_SPAN = 2;
 
+/**
+ * **Mindestens drei Meter Boden zwischen zwei Türen, die man nacheinander
+ * durchschreitet** — Türmitte zu Türmitte, sechs Felder
+ * (`stationRules.DOOR_GAP_CELLS`). Gewünscht: _„Keine zwei Türen direkt
+ * hintereinander"_. `connectStation` setzt die Raumtüren danach.
+ */
+export const STATION_DOOR_GAP = 3;
+
 /** Längs welcher Achse eine Tür in Richtung `dir` weiterläuft: an N/S nach Osten, an O/W nach Süden. */
 export function doorAlong(dir: Dir): { x: number; z: number } {
   return dir === DIR_N || dir === DIR_S ? { x: 1, z: 0 } : { x: 0, z: 1 };
@@ -961,7 +969,8 @@ export function stationShapes(): Map<string, Map<string, Corner | null>> {
 function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Rect } {
   // **Nach der Vorlage des Besitzers, 20 Pixel = 1 m** (`STATION_MAP`). Die
   // Räume sind so geformt, wie sie gezeichnet sind — mit Nischen, Anbauten
-  // und 45°-Wänden —, die Gänge so breit, wie sie gezeichnet sind. **Kein
+  // und 45°-Wänden —, die Gänge nach den Regeln des Besitzers
+  // (`stationRules.ts`): vier Felder breit, ohne Stummel. **Kein
   // Raum berührt einen anderen Raum**: Zwischen zwei Räumen liegt immer ein
   // Gang oder eine Fuge — sonst hörte das Monster durch eine Wand, die es
   // vorher nicht gab (`roomGraph.earshot`, `WALL_LOSS`).
@@ -1079,34 +1088,149 @@ function connectStation(
       span,
     });
   };
-  // A room is entered from the gallery above/below. Keep the middle of each
-  // wall free for the approach; no random corner doorway can pinch the capsule.
-  // **Zwei Kacheln je Tür** (`STATION_DOOR_SPAN`): `spots` läuft längs der
-  // Wand, also ist `spots[k + 1]` die zweite Kante einer Tür, die bei `k`
-  // anfängt.
-  for (const room of rooms) {
-    const links = passages
-      .map((p) => ({
-        p,
-        spots: sharedWith(room, p.rect).filter((spot) => cutAt(room, spot.x, spot.z) === null),
-      }))
-      .filter(({ spots }) => spots.length > 0);
-    for (const { p, spots } of links) {
-      if (spots.length < STATION_DOOR_SPAN) add(room, p, spots[0]!, spots.length);
-      else if (links.length === 1 && spots.length >= 6) {
-        add(room, p, spots[1]!);
-        add(room, p, spots[spots.length - 3]!);
-      } else add(room, p, spots[Math.max(0, Math.floor(spots.length / 2) - 1)]!);
-    }
-  }
-  // Zwischen zwei Gängen steht die ganze gemeinsame Kante offen — jetzt in
-  // Türen zu zwei Kacheln, und ein ungerader Rest bekommt eine einzelne.
+  // Zwischen zwei Gängen steht die ganze gemeinsame Kante offen — in Türen
+  // zu zwei Kacheln, und ein ungerader Rest bekommt eine einzelne. Diese
+  // Fugen liegen fest; sie werden zuerst gerechnet, damit die Raumtüren
+  // ihnen ausweichen können (`stationRules`, Regel 3), und erst hinter den
+  // Raumtüren eingereiht, damit die Kennungen `d0` … bleiben, wie sie waren.
+  const seams: Array<{
+    a: HouseRoom;
+    b: HouseRoom;
+    spot: { x: number; z: number; dir: Dir };
+    span: number;
+  }> = [];
   for (let i = 0; i < passages.length; i++)
     for (let j = i + 1; j < passages.length; j++) {
       const spots = shared(passages[i]!.rect, passages[j]!.rect);
       for (let k = 0; k < spots.length; k += STATION_DOOR_SPAN)
-        add(passages[i]!, passages[j]!, spots[k]!, Math.min(STATION_DOOR_SPAN, spots.length - k));
+        seams.push({
+          a: passages[i]!,
+          b: passages[j]!,
+          spot: spots[k]!,
+          span: Math.min(STATION_DOOR_SPAN, spots.length - k),
+        });
     }
+  // Wo schon eine Tür sitzt, je Raum oder Gang: Mitte und wohin sie führt.
+  const placed = new Map<string, Array<{ x: number; z: number; to: string }>>();
+  const note = (
+    a: HouseRoom,
+    b: HouseRoom,
+    spot: { x: number; z: number; dir: Dir },
+    span: number,
+  ): void => {
+    const middle = doorMiddle({ ...spot, span });
+    for (const [here, there] of [
+      [a, b],
+      [b, a],
+    ] as const)
+      placed.set(here.id, [...(placed.get(here.id) ?? []), { ...middle, to: there.id }]);
+  };
+  for (const seam of seams) note(seam.a, seam.b, seam.spot, seam.span);
+  // **Keine zwei Türen direkt hintereinander** (`stationRules.DOOR_GAP_CELLS`):
+  // Wie weit eine Tür bei `spot` von der nächsten Tür desselben Raums oder
+  // Gangs liegt, die woandershin führt — gedeckelt bei `STATION_DOOR_GAP`,
+  // denn weiter weg ist gleich gut.
+  const clearance = (
+    a: HouseRoom,
+    b: HouseRoom,
+    spot: { x: number; z: number; dir: Dir },
+  ): number => {
+    const middle = doorMiddle({ ...spot, span: STATION_DOOR_SPAN });
+    let least = STATION_DOOR_GAP;
+    for (const [here, there] of [
+      [a, b],
+      [b, a],
+    ] as const)
+      for (const other of placed.get(here.id) ?? [])
+        if (other.to !== there.id)
+          least = Math.min(least, Math.hypot(other.x - middle.x, other.z - middle.z));
+    return least;
+  };
+  // A room is entered from the gallery above/below. Keep the middle of each
+  // wall free for the approach; no random corner doorway can pinch the capsule.
+  // **Zwei Kacheln je Tür** (`STATION_DOOR_SPAN`): `spots` läuft längs der
+  // Wand, also ist `spots[k + 1]` die zweite Kante einer Tür, die bei `k`
+  // anfängt — wenn beide auf derselben geraden Wand liegen.
+  const put = (
+    a: HouseRoom,
+    b: HouseRoom,
+    spot: { x: number; z: number; dir: Dir },
+    span?: number,
+  ): void => {
+    add(a, b, spot, span);
+    note(a, b, spot, span ?? STATION_DOOR_SPAN);
+  };
+  for (const r of rooms) {
+    const links = passages
+      .map((p) => ({
+        p,
+        spots: sharedWith(r, p.rect).filter((spot) => cutAt(r, spot.x, spot.z) === null),
+      }))
+      .filter(({ spots }) => spots.length > 0);
+    for (const { p, spots } of links) {
+      if (spots.length < STATION_DOOR_SPAN) {
+        put(r, p, spots[0]!, spots.length);
+        continue;
+      }
+      const starts = spots
+        .map((spot, k) => ({ spot, k }))
+        .filter(({ spot, k }) => {
+          const next = spots[k + 1];
+          const along = doorAlong(spot.dir);
+          return (
+            !!next &&
+            next.dir === spot.dir &&
+            next.x === spot.x + along.x &&
+            next.z === spot.z + along.z
+          );
+        });
+      if (starts.length === 0) {
+        put(r, p, spots[0]!, 1);
+        continue;
+      }
+      // Die Mitte der Wand, wenn sie weit genug von den anderen Türen liegt —
+      // sonst die Stelle, die am weitesten davon weg ist. Ein Raum mit nur
+      // einem Gang bekommt bei langer Wand zwei Türen, nahe den Enden, wenn
+      // beide die Regel halten.
+      const middle = Math.max(0, Math.floor(spots.length / 2) - 1);
+      const score = (k: number): number => clearance(r, p, spots[k]!);
+      // Die Wahl: erst die größte Freiheit zu den anderen Türen, dann die
+      // Nähe zu den gewünschten Stellen.
+      const better = (
+        a: { free: number; off: number },
+        b: { free: number; off: number },
+      ): boolean => (Math.abs(a.free - b.free) > 1e-9 ? b.free > a.free : b.off < a.off);
+      let pick: number[] = [];
+      let top = { free: -1, off: Infinity };
+      for (const { k } of starts) {
+        const one = { free: score(k), off: Math.abs(k - middle) };
+        if (better(top, one)) {
+          top = one;
+          pick = [k];
+        }
+      }
+      if (links.length === 1 && spots.length >= 6 && roomTiles(r).length >= SMALL_ROOM_TILES) {
+        let pair: number[] = [];
+        let best = { free: -1, off: Infinity };
+        for (const { k: i } of starts)
+          for (const { k: j } of starts) {
+            if (j - i <= STATION_DOOR_SPAN) continue;
+            const two = {
+              free: Math.min(score(i), score(j)),
+              off: Math.abs(i - 1) + Math.abs(j - (spots.length - 3)),
+            };
+            if (better(best, two)) {
+              best = two;
+              pair = [i, j];
+            }
+          }
+        // Zwei Türen nur, wenn beide die Regel halten — sonst lieber eine.
+        if (pair.length === 2 && best.free >= STATION_DOOR_GAP - 1e-9) pick = pair;
+      }
+      for (const k of pick) put(r, p, spots[k]!);
+    }
+  }
+  for (const seam of seams) add(seam.a, seam.b, seam.spot, seam.span);
   // Die Schleuse geht **in die Kantine** und nicht mehr in eine leere Röhre:
   // Die Einsatzzentrale liegt nördlich davon, mit der Fensterfront dazwischen.
   const entry = rooms.find((room) => room.name === 'Cafeteria') ?? rooms[0]!;

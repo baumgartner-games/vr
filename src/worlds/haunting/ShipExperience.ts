@@ -77,6 +77,14 @@ import {
 } from './botTraining';
 import { botArchivist, describeSetup, loadSetup, powersOf } from './rules/roundSetup';
 import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
+import {
+  FLOW,
+  MODE_TEXT,
+  pauseActions,
+  pauseTitle,
+  roundMode,
+  type RoundMode,
+} from './rules/roundFlow';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
   APRON,
@@ -147,6 +155,8 @@ interface ShipHost {
   configure(options: StationOptions): void;
   start(): void;
   test(): void;
+  /** Die echte Runde abbrechen — zurück in die Übungsrunde (`HauntingWorld.stopRound`). */
+  stop?(): void;
   stations?(): void;
   door(id: string): void;
   doorOpen?(id: string): boolean;
@@ -466,6 +476,8 @@ export class ShipExperience {
    * ist dort unsichtbar. Wo es liegt, sagt `haunting.css` (`.flat__panel`).
    */
   private readonly optionsRoot = el('div', 'flat orbital-options');
+  /** Welcher Modus zuletzt auf der Konsole stand (`update` → `paint`). */
+  private paintedMode: RoundMode | null = null;
   private readonly optionsPanel = el('div', 'ui-panel flat__panel');
   private optionsOpen = false;
   /**
@@ -2122,7 +2134,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       options.bright = !options.bright;
       this.crew.options = options;
       this.host.say(
-        options.bright ? 'Testlicht an.' : 'Test im Dunkeln. Es gibt weiterhin kein Monster.',
+        options.bright
+          ? 'Übungslicht an.'
+          : 'Übungsrunde im Dunkeln. Es gibt weiterhin kein Monster.',
       );
     }
   }
@@ -2316,6 +2330,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const ctx = this.host.ctx;
     const state = this.host.state();
     const crew = this.crew;
+    // **Wechselt die Runde, schreibt die Konsole der Zentrale neu** — sie nennt
+    // oben den Modus (`paint`), und sonst zeichnet sie nur auf einen Handgriff.
+    const mode = this.roundMode();
+    if (mode !== this.paintedMode) {
+      this.paintedMode = mode;
+      this.paint();
+    }
     this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
@@ -2481,14 +2502,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (this.disposed) return;
     const crew = this.crew;
     this.rows(this.command, [
-      'HAUNTING / ORBITAL · 1 VR + 2 HANDYS',
-      'MISSION STARTEN',
-      'TEST / OHNE MONSTER',
+      // Die Konsole der Zentrale nennt die Runde wie jede andere Stelle
+      // (`rules/roundFlow.ts`): oben der Modus, dann die zwei Starts.
+      `ORBITAL · JETZT: ${MODE_TEXT[this.roundMode()].badge}`,
+      FLOW.real.toUpperCase(),
+      'ÜBUNGSRUNDE · OHNE MONSTER',
       `SKELD · FESTE KARTE · ${crew.options.rooms} RÄUME`,
       `GEGNER: ${MONSTERS.find((m) => m.id === crew.options.monster)!.name}`,
       crew.options.test
-        ? `TESTLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
-        : 'TESTLABOR: MIT TEST ÖFFNEN',
+        ? `ÜBUNGSLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
+        : 'TESTLABOR: IN DER ÜBUNGSRUNDE OFFEN',
     ]);
     // Die Türen zeigen ihren Stand an den Hebeln (`DoorLever`, im Bildtakt).
     for (const screen of this.screens)
@@ -2659,7 +2682,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    * das einmal je Sekunde.
    */
   private paintHud(round: MapRound): void {
-    const hud = roundHud(round);
+    // **Am Kopf steht, in welcher Runde man ist** (`rules/roundFlow.ts`): In
+    // der Übung läuft keine Uhr, die man lesen müsste — dort steht an ihrer
+    // Stelle „ÜBUNGSRUNDE", in der Brille wie am Bildschirm. Die echte Runde
+    // und die Vorführung zeigen den Sauerstoff wie bisher.
+    const mode = this.roundMode();
+    const clock = roundHud(round);
+    const hud =
+      mode === 'practice' || mode === 'over'
+        ? { ...clock, oxygen: MODE_TEXT[mode].badge, low: false, color: '#8cc8ff' }
+        : clock;
     // **Die zweite Zeile gibt es nur, wenn er allein spielt**
     // (`hudTasksVisible`): Sitzt am Archiv ein Mensch, ist das Wissen dessen
     // Platz, und der Techniker holt es sich am Funk. Die erste Zeile — Uhr
@@ -2902,7 +2934,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const title = el(
       'strong',
       '',
-      `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.simulation ? 'TEST / SICHERE BOT-RUNDE / MONSTER' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`,
+      // **Vorn das Schild der Runde** (`rules/roundFlow.ts`): Übungsrunde, echte
+      // Runde, Vorführung — dieselben Worte wie auf dem Telefon und in der Brille.
+      `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : MODE_TEXT[this.roundMode()].badge} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`,
     );
     const oxygen = el('span', '', oxygenText);
     oxygen.dataset['oxygen'] = '';
@@ -2947,7 +2981,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
             ? 'Dein Anzug wurde zerstört. Die Runde ist vorbei.'
             : 'Alle Reparaturen abgeschlossen. Die Crew ist gerettet.',
         ),
-        actionKey('Runde neu starten', 'start'),
+        actionKey(FLOW.again, 'start'),
       );
       this.dom.append(result);
     }
@@ -3068,7 +3102,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       details.open = testsExpanded;
       details.append(el('summary', '', 'Test / Räume / Simulation'));
       panel.append(details);
-      button(crew.options.bright ? 'Testlicht aus' : 'Testlicht an', 'light', details);
+      button(crew.options.bright ? 'Übungslicht aus' : 'Übungslicht an', 'light', details);
       button(crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen', 'simulate', details);
       // Das Tempo der Bot-Runde steht im Optionsmenü (`shipOptions`), nicht
       // mehr hier: Der Besitzer wollte es dort, wo es die 2D-Welt auch hat.
@@ -3312,11 +3346,20 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    */
   private shipOptions(): OptionItem[] {
     const crew = this.crew;
+    // **Ein Pausemenü** (`rules/roundFlow.ts`): oben, in welcher Runde man
+    // ist; zuerst „Weiterspielen"; dann genau ein Weg, die Runde zu ändern;
+    // die Ansicht; unten der Weg zu den Rollen. Der Eintrag „Zentrale" ist
+    // weg — er führte an dieselbe Stelle wie „Rollen & Aufbau".
+    const mode = this.roundMode();
     const items: OptionItem[] = [
-      head(crew.simulation ? 'Zuschauer' : 'Techniker'),
+      head(pauseTitle(mode)),
+      note(MODE_TEXT[mode].line),
+      key({ closeOptions: '' }, FLOW.resume),
+      head('Runde'),
+      ...this.roundKeys(mode),
+      watchKey(crew.simulation),
       head(SHARED.view),
       note(`Realitätsnah · ${SHARED.playerView}`),
-      watchKey(crew.simulation),
     ];
     if (this.host.setBlueprint)
       items.push(
@@ -3329,10 +3372,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       );
     if (crew.simulation) items.push(...speedKeys(this.host.simulationSpeed?.() ?? 1));
     items.push(head(SHARED.open));
-    if (this.host.stations)
-      items.push(
-        key({ stations: '' }, 'Zentrale', 'Zurück in die Lobby · Rolle wechseln, Aufbau ändern'),
-      );
     items.push(
       key(
         { pagemenu: '' },
@@ -3350,8 +3389,37 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ambient: this.audioOn ? levelLabel(this.hearingAudio.levels.ambient) : 'aus',
       }),
     );
-    items.push(...leaveKeys());
+    items.push(
+      ...leaveKeys().filter((one) => one.kind === 'key' && one.data['leave'] !== undefined),
+    );
     return items;
+  }
+
+  /** In welcher Runde man ist — Übung, echt, Vorführung, vorbei. */
+  private roundMode(): RoundMode {
+    return roundMode({
+      phase: this.host.state().phase,
+      test: this.crew.options.test,
+      simulation: this.crew.simulation,
+    });
+  }
+
+  /**
+   * **Die Rundenknöpfe des Pausemenüs** — je Modus genau einer
+   * (`roundFlow.pauseActions`). In der Vorführung ist es der Schalter
+   * „Zuschauen" darunter, kein zweiter Knopf daneben.
+   */
+  private roundKeys(mode: RoundMode): OptionItem[] {
+    if (mode === 'demo') return [];
+    return pauseActions(mode).map((action) =>
+      action === 'real'
+        ? key({ start: '' }, FLOW.real, FLOW.realHint)
+        : action === 'again'
+          ? key({ start: '' }, FLOW.again, FLOW.realHint)
+          : action === 'back'
+            ? key({ stopround: '' }, FLOW.back, FLOW.practiceHint)
+            : key({ stopround: '' }, FLOW.stop, FLOW.stopHint, { leave: true }),
+    );
   }
 
   private optionsClick(event: Event): void {
@@ -3359,6 +3427,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!pressed) return;
     const data = pressed.dataset;
     if (data['watch'] !== undefined) this.toggleSimulation();
+    else if (data['start'] !== undefined) this.host.start();
+    else if (data['stopround'] !== undefined) this.host.stop?.();
     else if (data['blueprint'] !== undefined) {
       // Das Menü bleibt offen: Man will sehen, dass der Schalter umgelegt ist.
       this.host.setBlueprint?.(!this.host.blueprint?.());

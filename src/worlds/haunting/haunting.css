@@ -230,6 +230,12 @@ body.orbital-on #hud { display: none; }
 /* Keine Uhr, solange keine Mission läuft: Der Test sagt das an ihrer Stelle. */
 .haunt__quest-idle { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--haunt-warn); white-space: nowrap; }
 .haunt__quest-cabins { color: var(--haunt-warn); }
+/* Auf dem Telefon im Hochformat hat das Schild der Runde (`.haunt__mode`) Vorrang
+   vor den Wörtern „Systeme" und „Anzug" — Balken und Punkte sprechen für sich. */
+@media (max-width: 440px) {
+  .haunt__quest { gap: 7px; padding: 7px 10px; }
+  .haunt__quest-label { display: none; }
+}
 .haunt__quest.is-low .haunt__quest-oxygen { color: #ff7a8a; animation: haunt-low-oxygen 1s ease-in-out infinite; }
 .haunt__quest.is-low { border-bottom-color: rgba(255, 82, 103, 0.6); }
 @keyframes haunt-low-oxygen {
@@ -303,6 +309,8 @@ body.orbital-on #hud { display: none; }
 .haunt .haunt__menu .ui-option small { color: var(--haunt-dim); }
 .haunt .haunt__menu .ui-option--go { border-color: rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; }
 .haunt .haunt__menu .ui-option--leave { border-color: rgba(255, 90, 95, 0.5); }
+/* Die echte Runde ist rot wie ihr Knopf im Aufbau (`.lobby__start--real`) — „Weiterspielen" ist grün. */
+.haunt .haunt__menu [data-start-setup], .haunt .haunt__menu [data-restart] { border-color: rgba(255, 94, 104, 0.75); background: rgba(64, 18, 24, 0.92); color: #ffe2e4; }
 
 /* --- breiter --- */
 @media (min-width: 760px) {
@@ -336,6 +344,10 @@ body.orbital-on #hud { display: none; }
 .flat.orbital-options { pointer-events: none; background: none; z-index: 5; }
 .flat.orbital-options .flat__panel { pointer-events: auto; }
 .flat.orbital-options[hidden] { display: none; }
+/* Das Pausemenü des Schiffs in denselben Farben wie das Zahnrad der Zentrale:
+   „Weiterspielen" grün, „Echte Runde starten" rot (`rules/roundFlow.ts`). */
+.flat.orbital-options .ui-option[data-close-options] { border-color: rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; }
+.flat.orbital-options .ui-option[data-start] { border-color: rgba(255, 94, 104, 0.75); background: rgba(64, 18, 24, 0.92); color: #ffe2e4; }
 .flat__panel { position: absolute; left: 50%; top: calc(var(--flat-top) + 60px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100vh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); max-height: calc(100dvh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); overflow: auto; z-index: 3; }
 /* Eine Zeile im Optionsmenü, die nur Auskunft gibt und kein Knopf ist. */
 .flat__note { color: #9aa6c0; font-size: 12px; line-height: 1.45; }
@@ -516,6 +528,26 @@ body.orbital-on #hud { display: none; }
 .lobby__start small { font-size: 11px; color: var(--haunt-dim); line-height: 1.4; }
 /* „Rollen testen": der erste Weg auf die Karte — gelb, weil noch nichts losgeht. */
 .lobby__start--test { border-color: var(--haunt-warn); background: rgba(58, 46, 20, 0.85); color: #ffe8a0; }
+/*
+ * **Übungsrunde und echte Runde, nebeneinander und verschieden** (`rules/roundFlow.ts`):
+ * die Übung ruhig in Blau, die echte Runde in Rot — auf dem Telefon untereinander,
+ * ab 560 px nebeneinander. Dazu das Schild „Jetzt: …" über der Tafel und vorn in der
+ * Leiste über der Karte (`.haunt__mode`), das sagt, in welcher Runde man ist.
+ */
+.lobby__modes { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 560px) { .lobby__modes { grid-template-columns: 1fr 1fr; } }
+.lobby__modes .lobby__start--test { border-color: rgba(74, 168, 255, 0.7); background: rgba(16, 36, 64, 0.92); color: #d8ecff; }
+.lobby__start--real { border-color: rgba(255, 94, 104, 0.75); background: rgba(64, 18, 24, 0.92); color: #ffe2e4; }
+.lobby__start--real[disabled] { opacity: 0.55; }
+.lobby__mode { margin: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--haunt-line); background: rgba(12, 17, 30, 0.7); font-size: 12px; line-height: 1.4; color: var(--haunt-ink); }
+.haunt__mode { flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; white-space: nowrap; }
+.haunt__mode--calm { color: #8cc8ff; }
+.haunt__mode--live { color: #ff7a82; }
+.haunt__mode--watch { color: #c9a8ff; }
+.haunt__mode--done { color: var(--haunt-dim); }
+.lobby__mode.haunt__mode--calm { border-color: rgba(74, 168, 255, 0.5); }
+.lobby__mode.haunt__mode--live { border-color: rgba(255, 94, 104, 0.6); }
+.haunt__menu-mode { margin: 0 0 6px; font-size: 12px; line-height: 1.4; }
 .lobby__help { border-radius: 12px; border: 1px solid var(--haunt-line); background: rgba(12, 17, 30, 0.7); padding: 4px 8px; }
 .lobby__help > summary { padding: 10px 6px; cursor: pointer; font-size: 13px; color: var(--haunt-dim); }
 .lobby__help[open] > summary { border-bottom: 1px solid var(--haunt-line); margin-bottom: 8px; }
