@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070d" />
+    <title>KayKit-Editor — Baumgartner VR</title>
+    <meta name="description" content="Ein KayKit-Element von oben auf dem Zellgitter: Größe und Lage einstellen, belegte Zellen sehen, Änderungen als JSON an Claude schicken." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%93%90%3C/text%3E%3C/svg%3E" />
+    <!--
+      **Der KayKit-Editor.** Ein Element in der Mitte, die Spielfigur daneben,
+      von oben auf Prototyp-Platten und dem Zellgitter; rot die Zellen, die das
+      Element sperrt (dieselbe Regel wie im Spiel), gelb gestrichelt die
+      Stellfläche, die das Spiel ihm heute gibt. Alles, was man verstellt, steht
+      im Protokoll und geht als JSON heraus. Siehe `src/kaykitEditor/`.
+    -->
+    <style>
+      :root { color-scheme: dark; --bg: #05070d; --fg: #e8ecf7; --muted: #8e9ab8; --accent: #4aa8ff; --panel: #0c1220; --border: rgba(140,170,230,.22); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
+      body { display: flex; }
+      #view { flex: 1; position: relative; min-width: 0; touch-action: none; cursor: grab; }
+      #view canvas { display: block; width: 100%; height: 100%; }
+      #legend { position: absolute; left: 10px; bottom: 10px; font-size: 12px; background: rgba(5,7,13,.7); padding: 6px 9px; border-radius: 8px; line-height: 1.6; pointer-events: none; }
+      #modes { position: absolute; right: 10px; top: 10px; display: flex; gap: 4px; }
+      #modes button[aria-pressed=true] { background: var(--accent); color: #05070d; border-color: var(--accent); }
+      #view[data-mode="3d"] .top-only, #view[data-mode="top"] .orbit-only { display: none; }
+      #status { position: absolute; left: 10px; top: 10px; font-size: 13px; color: var(--muted); pointer-events: none; }
+      aside { width: 360px; max-width: 100%; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--border); padding: 12px 14px 24px; font-size: 14px; }
+      h1 { font-size: 17px; margin: 0 0 10px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
+      select, input[type=number], input[type=text], textarea { width: 100%; background: #111a2e; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; }
+      .row { display: grid; grid-template-columns: 1fr 76px; gap: 8px; align-items: center; margin: 4px 0; }
+      .row input[type=range] { width: 100%; }
+      .steps { display: flex; gap: 4px; flex-wrap: wrap; margin: 2px 0 8px; }
+      button { background: #1a2742; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px; font: inherit; font-size: 13px; cursor: pointer; }
+      button:hover { border-color: var(--accent); }
+      button.danger { color: #ff8a80; }
+      label.check { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+      #info { font-size: 13px; line-height: 1.55; background: #0a1222; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+      #info code { font-size: 12px; color: var(--muted); }
+      .red { color: #ff7a70; } .yellow { color: #ffd23f; } .white { color: #ffffff; } .green { color: #48e08a; }
+      textarea { height: 220px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; }
+      .hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+      form { display: flex; gap: 6px; }
+      @media (max-width: 760px) {
+        body { flex-direction: column; }
+        #view { flex: none; height: 55vh; }
+        aside { width: 100%; border-left: none; border-top: 1px solid var(--border); flex: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="view">
+      <div id="status"></div>
+      <div id="modes" role="group" aria-label="Ansicht">
+        <button type="button" data-view="top" aria-pressed="true">Draufsicht</button>
+        <button type="button" data-view="3d" aria-pressed="false">3D</button>
+        <button type="button" id="view-reset" title="Kamera zurücksetzen">⟲</button>
+      </div>
+      <div id="legend">
+        <span class="red">■</span> belegte Zellen ·
+        <span class="white">□</span> Modell ·
+        <span class="yellow">□</span> Stellfläche im Spiel ·
+        <span class="green">○</span> Spieler<br />
+        <span class="top-only">Ziehen: verschieben</span><span class="orbit-only">Ziehen: drehen/kippen</span> · Mausrad: zoomen · V: 2D/3D · Pfeile: ¼ Kachel (⇧ 5 cm) · +/−: Größe · R: drehen
+      </div>
+    </div>
+    <aside>
+      <h1>KayKit-Editor</h1>
+      <select id="element" aria-label="Element"></select>
+      <div id="info"></div>
+
+      <h2>Größe</h2>
+      <div class="row">
+        <input id="scale-range" type="range" aria-label="Größe" />
+        <input id="scale-number" type="number" aria-label="Größe (Faktor)" />
+      </div>
+      <div class="steps">
+        <button type="button" data-field="scale" data-by="-0.1">−10 %</button>
+        <button type="button" data-field="scale" data-by="-0.05">−5 %</button>
+        <button type="button" data-field="scale" data-by="0.05">+5 %</button>
+        <button type="button" data-field="scale" data-by="0.1">+10 %</button>
+      </div>
+
+      <h2>Position x (links / rechts)</h2>
+      <div class="row">
+        <input id="offsetX-range" type="range" aria-label="Position x" />
+        <input id="offsetX-number" type="number" aria-label="Position x in Metern" />
+      </div>
+      <div class="steps">
+        <button type="button" data-field="offsetX" data-by="-0.5">−1 Zelle</button>
+        <button type="button" data-field="offsetX" data-by="-0.25">−½ Zelle</button>
+        <button type="button" data-field="offsetX" data-by="0.25">+½ Zelle</button>
+        <button type="button" data-field="offsetX" data-by="0.5">+1 Zelle</button>
+      </div>
+
+      <h2>Position y (oben / unten)</h2>
+      <div class="row">
+        <input id="offsetZ-range" type="range" aria-label="Position y" />
+        <input id="offsetZ-number" type="number" aria-label="Position y in Metern" />
+      </div>
+      <div class="steps">
+        <button type="button" data-field="offsetZ" data-by="-0.5">−1 Zelle</button>
+        <button type="button" data-field="offsetZ" data-by="-0.25">−½ Zelle</button>
+        <button type="button" data-field="offsetZ" data-by="0.25">+½ Zelle</button>
+        <button type="button" data-field="offsetZ" data-by="0.5">+1 Zelle</button>
+      </div>
+      <p class="hint">Eine Zelle ist eine halbe Kachel (0,5 m). Die Mitte des Elements steht auf der Mitte einer Kachel — dort nimmt ein kleines Ding vier Zellen; ½ Zelle daneben nur eine.</p>
+
+      <h2>Drehung</h2>
+      <div class="steps">
+        <button type="button" data-field="yaw" data-by="-90">⟲ 90°</button>
+        <button type="button" data-field="yaw" data-by="90">⟳ 90°</button>
+        <span id="yaw-value" class="hint" style="align-self:center"></span>
+      </div>
+
+      <h2>Anzeige</h2>
+      <label class="check"><input id="show-cells" type="checkbox" checked /> <span class="red">Belegte Zellen (rot)</span></label>
+      <label class="check"><input id="show-model" type="checkbox" checked /> <span class="white">Umriss des Modells</span></label>
+      <label class="check"><input id="show-game" type="checkbox" checked /> <span class="yellow">Stellfläche im Spiel</span></label>
+      <label class="check"><input id="show-player" type="checkbox" checked /> Spielfigur</label>
+
+      <div class="steps" style="margin-top:10px">
+        <button id="reset" type="button">Element zurücksetzen</button>
+      </div>
+
+      <h2>Weiteres Modell aus dem Regal</h2>
+      <form id="add-form">
+        <input id="add-path" type="text" list="kaykit-files" placeholder="z. B. dungeon/barrel_large.glb" aria-label="Adresse im Regal" />
+        <button type="submit">Dazu</button>
+      </form>
+      <datalist id="kaykit-files"></datalist>
+
+      <h2>Änderungen an Claude</h2>
+      <p class="hint" id="summary"></p>
+      <label class="check"><input id="export-all" type="checkbox" /> auch unveränderte Elemente</label>
+      <textarea id="output" readonly spellcheck="false" aria-label="Änderungen als JSON"></textarea>
+      <div class="steps" style="margin-top:6px">
+        <button id="copy" type="button">Kopieren</button>
+        <button id="download" type="button">Herunterladen</button>
+        <button id="clear-all" type="button" class="danger">Alles löschen</button>
+      </div>
+      <p class="hint">Alles wird im Browser gemerkt und überlebt ein Neuladen. Den Text einfach in den Chat kopieren.</p>
+    </aside>
+    <script type="module" src="/src/kaykitEditor/main.ts"></script>
+  </body>
+</html>
