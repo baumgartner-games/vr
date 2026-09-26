@@ -482,9 +482,10 @@ dort führt _← Andere Welt wählen_ zurück.
 **Die Bilder** liegen in `public/worlds/` (WebP, 480 × 270, zusammen rund
 35 kB, `loading="lazy"`) und stehen in der Definition der Welt
 (`WorldDefinition.preview`). Es sind Aufnahmen der Welten selbst — Hub und
-Bauplatz aus den Augen, die Testwelt (Küche) von oben —, Haunting nimmt den
-vorhandenen Stationsplan (`public/haunting/station-outline.png`) vor einem
-Sternenfeld. **Eine neue Welt ohne Bild** bekommt eine Fläche in ihrer
+Bauplatz aus den Augen, die Testwelt (Küche) von oben —, Haunting ist der
+gebaute Grundriss vor einem Sternenfeld, gerechnet von
+`tools/station-outline.mjs` (zusammen mit der Vorlage am Boden, siehe
+[Haunting](haunting.md)). **Eine neue Welt ohne Bild** bekommt eine Fläche in ihrer
 Akzentfarbe; wer ein Bild will, nimmt die Welt im Browser auf (Hände und
 Handgelenk-Knopf ausblenden: `bgvr.handVisuals.hidden = true`,
 `bgvr.wristMenu.visible = false`), verkleinert auf 480 × 270 und trägt den

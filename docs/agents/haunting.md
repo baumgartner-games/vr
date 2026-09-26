@@ -65,8 +65,9 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
       **Shields, eine Kachel breiter** (die Westtür liegt jetzt tiefer, und
       die Einrichtung fand bei 11 von 300 Samen keinen Platz mehr; die
       Klappe `vent-shields` wandert mit an die neue Ostwand). Die
-      Grundriss-Vorlage am Boden zeigt die Gänge daher breiter, als sie
-      gebaut sind.
+      Grundriss-Vorlage am Boden wird seither aus dem gebauten Grundriss
+      gerechnet (siehe _Die Vorlage am Boden_) und zeigt die Gänge so
+      schmal, wie sie sind.
     `stationRooms` legt die `:`-Kacheln zu Rechtecken zusammen.
   - **Kein Raum berührt einen anderen** (`roomGraph.test`: keine Wandnachbarn
     ohne Tür); wo die Zeichnung zwei Schrägen dichter zusammenlegt, ist eine
@@ -88,10 +89,19 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   (`localStorage` `haunting:blueprint`). Eichung: **20 Pixel = 1 m**, die
   beste Deckung aller Wandlinien mit den Kachelkanten — Pixelspalte 52 ist
   `x = −34`, Pixelzeile 36,2 ist `z = −52`. Das Bild
-  `public/haunting/station-outline.png` ist aus der Vorlage gerechnet
-  (Wände gelb, Räume blau, Gänge grün getönt, der Rest durchsichtig);
-  `blueprint.test` prüft, dass jede Raummitte höchstens 1,5 m neben ihrer
-  Zeichnung liegt.
+  `public/haunting/station-outline.png` war zuerst aus der Zeichnung
+  gepaust; seit die Gänge vier Felder breit sind, passte es nicht mehr
+  (breite grüne Gänge unter schmalen Wänden). **Jetzt wird es aus dem
+  gebauten Grundriss gerechnet** (`world3d/blueprintDrawing.ts`:
+  `roomOutline` je Raum und Gang, Wände aus `map/geometry.wallSegments`
+  samt Türlücken, Fenster hellblau) und mit
+  `SMOKE_EXECUTABLE=/opt/pw-browsers/chromium node tools/station-outline.mjs`
+  im Chromium gerastert — **wer `stationMap.ts` ändert, lässt das noch einmal
+  laufen**. Dasselbe Werkzeug schreibt das Vorschaubild der Startseite
+  (`public/worlds/haunting.webp`, 480 × 270, die Zeichnung vor einem
+  Sternenfeld aus festem Samen). `blueprint.test` prüft, dass jede
+  Raummitte höchstens 1,5 m neben der Zeichnung des Besitzers liegt,
+  `blueprintDrawing.test` Fläche je Raum und Gang, Wände und Bildgrenzen.
 - **Die schrägen Wände** (45°-Wände der Vorlage). Die Schrägkacheln stehen in
   der Karte (`STATION_MAP`, kleine Buchstaben); außerhalb der Station gibt es
   noch Ecken als `HouseRoom.cuts` (Ecke und Länge, `'sw2 se2'`).
