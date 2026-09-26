@@ -220,3 +220,46 @@ describe('Gleiten über einen Boden aus vielen Stücken', () => {
     expect(Math.abs(rig.position.y)).toBeLessThan(0.05);
   });
 });
+
+describe('ein Kasten, den die Ebene nicht kennt', () => {
+  /**
+   * Gemeldet in der Küche: _„ich komme auf Möbel rauf, wenn ich nur einfach
+   * dagegen laufe"_. Steckt die Kapsel seitlich in einem hohen Kasten, traf
+   * der Formwurf nach unten sofort, und jedes Bild hob sie um eine Stufe —
+   * bis sie oben stand (`PhysicsLocomotion.stuckAtStep`).
+   */
+  it('hebt eine Kapsel, die seitlich darin steckt, nicht auf seine Oberkante', async () => {
+    const physics = await PhysicsWorld.create(-9.81);
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 10));
+    floor.position.set(0, -0.1, 0);
+    floor.updateMatrixWorld(true);
+    physics.addStatic(floor, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1.4, 1));
+    box.position.set(0, 0.7, 0);
+    box.updateMatrixWorld(true);
+    physics.addStatic(box, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+
+    const rig = new TestRig();
+    rig.position.set(0, 0, 2);
+    const loco = new PhysicsLocomotion(physics, rig.asRig);
+    // Eine Ebene ohne Wände: Sie lässt jeden Schritt durch.
+    loco.plane = {
+      slide: (x, z, dx, dz) => ({ x: x + dx, z: z + dz }),
+      flightFloor: () => null,
+    };
+    const dt = 1 / 60;
+    const step = (seconds: number, vz: number): void => {
+      for (let i = 0; i < Math.round(seconds / dt); i++) {
+        loco.apply(rig.asRig, _move.set(0, 0, vz), false, dt);
+        physics.step(dt);
+      }
+    };
+    step(0.5, 0);
+    // Seitlich hineingesetzt, wie nach einem Stoß oder einem Möbel, das auf
+    // den Spieler gestellt wurde — und dann weiter dagegen gelaufen.
+    rig.position.set(0, 0, 0.6);
+    loco.resync(rig.asRig);
+    step(3, -1.5);
+    expect(rig.position.y).toBeLessThan(0.1);
+  });
+});

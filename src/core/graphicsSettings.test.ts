@@ -42,6 +42,9 @@ describe('Grafikeinstellungen', () => {
       gridHitBoxes: false,
       ghostBoxes: false,
       showHandles: false,
+      // Quest-3-Blickfeld und Mensch als Boxen: Werkstattansichten, ab Werk aus.
+      showVrFrustum: false,
+      showBodyModel: false,
       // Ab Werk der weiche Kreis unter den Figuren, keine Schattenkarte.
       shadows: 'simple',
       // Die Animationen sind ab Werk aus — nachgerechnet wird die Kurve

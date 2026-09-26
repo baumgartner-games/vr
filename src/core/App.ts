@@ -128,6 +128,7 @@ import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import { MirrorRenderer } from '../worlds/shared/Mirror';
 import { setImmersive } from './systemKeyboard';
+import { PlayerGuides } from './playerGuides';
 import type { PlayerRole, ToolChoice, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
 import { cssColor } from '../ui/PageMenu';
@@ -303,6 +304,8 @@ export class App {
   private readonly frameStats: FrameStats;
   /** Wo man steht, als Zahl (`core/positionHud.ts`, _Grafik → Position zeigen_). */
   private readonly positionHud: PositionHud;
+  /** Quest-3-Blickfeld und Mensch als Boxen (`core/playerGuides.ts`). */
+  private readonly playerGuides = new PlayerGuides();
 
   private world: World | null = null;
   private worldMenu: MenuEntry[] = [];
@@ -516,6 +519,7 @@ export class App {
 
     this.avatars = new RemoteAvatars(this.net);
     this.scene.add(this.avatars);
+    this.scene.add(this.playerGuides);
     this.spectator = new SpectatorCamera(this.rig, canvas, this.pointer);
     this.spectator.onChange = () => this.hooks.onNetChanged?.();
     this.voice = new Voice(this.net);
@@ -2150,6 +2154,39 @@ export class App {
             this.notify(next.showHandles ? 'Griffe sichtbar' : 'Griffe unsichtbar');
           },
         },
+        {
+          // **Wohin die Brille schaut** — `core/playerGuides.ts`: das
+          // Blickfeld einer Quest 3 als Pyramide am Kopf, wie die Kamera in
+          // Blender, und die beiden Augen darin.
+          id: 'gfx:vr-frustum',
+          label: 'Quest-3-Blickfeld',
+          sub: '110° × 96° als Pyramide am Kopf · mit beiden Augen',
+          caption: 'Von oben, im Spiegel und durchs Portal zu sehen · ab Werk aus',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.showVrFrustum,
+          run: () => {
+            const next = saveGraphics({ showVrFrustum: !graphics().showVrFrustum });
+            this.menuDirty = true;
+            this.notify(next.showVrFrustum ? 'Quest-3-Blickfeld an' : 'Quest-3-Blickfeld aus');
+          },
+        },
+        {
+          // **Der Mensch als Boxen** — `core/playerGuides.ts`: in echter
+          // Augenhöhe, mit Gürtelband, die Hände fast auf dem Boden.
+          id: 'gfx:body-model',
+          label: 'Mensch als Boxen',
+          sub: 'Kopf, Rumpf, Arme, Beine in echter Augenhöhe · Gürtel orange',
+          caption: 'Von oben, im Spiegel und durchs Portal zu sehen · ab Werk aus',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.showBodyModel,
+          run: () => {
+            const next = saveGraphics({ showBodyModel: !graphics().showBodyModel });
+            this.menuDirty = true;
+            this.notify(next.showBodyModel ? 'Mensch als Boxen an' : 'Mensch als Boxen aus');
+          },
+        },
         // **Wie die Info-Ansichten zeichnen** — ein Optionsfeld je Ansicht,
         // überall dasselbe (`ui/infoViewMenu.ts`). Eine Zeile hier, damit ein
         // neues Hauptmenü sie mit einem Griff woanders einhängen kann.
@@ -2982,6 +3019,7 @@ export class App {
     this.rig.getHeadMatrix(_head);
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);
     this.avatar.updateFromRig(dt, this.rig, this.input, _headLocal);
+    this.playerGuides.update(_head, this.rig.getFloorY());
     this.wristMenu.update(dt, this.input, _head);
     this.updateXRGuide(dt, presenting || this.xrPreview);
     this.pointer.update(this.input, presenting);

@@ -204,6 +204,18 @@ export interface GraphicsSettings {
    */
   showHandles: boolean;
   /**
+   * **Das Blickfeld einer Quest 3 als Pyramide am Kopf** (`core/playerGuides.ts`)
+   * — wie die Kamera in Blender, mit den beiden Augen darin. Gewünscht, um zu
+   * sehen, wo die Augen in der Brille wären. Ab Werk aus.
+   */
+  showVrFrustum: boolean;
+  /**
+   * **Der Mensch als Boxen** (`core/playerGuides.ts`) — Kopf, Rumpf, Arme,
+   * Beine und das Gürtelband in echter Augenhöhe; die Hände hängen fast bis
+   * auf den Boden. Ab Werk aus.
+   */
+  showBodyModel: boolean;
+  /**
    * **Wie Schatten entstehen** (`ShadowMode`): aus, als weicher Kreis unter
    * den Figuren (ab Werk), oder als echte Schattenkarte (nur Werkstatt).
    * Gespeichert war hier früher ein Schalter; `readShadowMode` liest ihn.
@@ -495,6 +507,8 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   gridHitBoxes: false,
   ghostBoxes: false,
   showHandles: false,
+  showVrFrustum: false,
+  showBodyModel: false,
   shadows: 'simple',
   squish: false,
   squishScale: 1,
@@ -667,6 +681,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const gridHitBoxes = raw.gridHitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
   const showHandles = raw.showHandles === true;
+  const showVrFrustum = raw.showVrFrustum === true;
+  const showBodyModel = raw.showBodyModel === true;
   // Die Schatten sind ab Werk **der Kreis**, und ein Stand von gestern kann
   // hier noch den alten Schalter stehen haben: `false` wird Aus, `true` wird
   // der Kreis (`readShadowMode`) — nicht die teure Karte.
@@ -713,6 +729,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     gridHitBoxes,
     ghostBoxes,
     showHandles,
+    showVrFrustum,
+    showBodyModel,
     shadows,
     squish,
     squishScale,

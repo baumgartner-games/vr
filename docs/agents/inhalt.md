@@ -662,6 +662,11 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Augenhöhe, also der Schritt und nicht der Hosenbund, und jeder Griff zum
   Holster ein Bücken. 0,65 sind 1,04 m, gut einen halben Meter unter dem Kopf.
   Wer den Gürtel schon einmal selbst verschoben hat, behält seine Zahl.
+  **Seit September 2026 0,825**: gemeldet _„der Gürtel für Werkzeuge ist viel
+  zu niedrig, der muss zwischen VR-Augen und der aktuellen Position nochmal
+  halbiert werden"_ — die Mitte zwischen 0,65 und den Augen, 1,32 m bei
+  1,60 m Augenhöhe. Zu sehen ist die Höhe als orangefarbenes Band am
+  _Mensch als Boxen_ ([Grafik](grafik.md)).
 - **Loslassen heißt fallen lassen**: wer ein Werkzeug irgendwo _anders_ als
   über einer Hüfte loslässt, lässt es fallen — es liegt dann als Objekt im
   Raum, kann angestoßen und von jeder Hand wieder aufgehoben oder in der Luft

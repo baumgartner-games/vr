@@ -16,6 +16,7 @@ import { USE_REACH, type UseSource } from '../../../core/usable';
 import { holdFor, nearestHandle, type GrabHandle, type GrabPose } from '../../../core/grabHandles';
 import { HandleView } from '../../../core/handleView';
 import type { Handedness } from '../../../core/XRInput';
+import { footprintCellKeys } from '../../nav/cellGrid';
 import { TILE } from '../../nav/navTile';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
 import type { PlayerAvatar } from '../../../core/PlayerAvatar';
@@ -1002,6 +1003,14 @@ export class KitchenZone implements TestZone {
    * gehört, gehört danach ihm allein, samt Aufheben und Umstellen im Baumodus.
    */
   private readonly blocks = new Map<Spot, { box: THREE.Mesh; body: PhysicsBody }>();
+  /**
+   * **Jeder Trefferkasten, der in der Physik steht** — Möbel, Knopfsäulen,
+   * Radio. Aus ihnen kommen die Zellen, die das Gitter für die Füße sperrt
+   * (`footprintCells`).
+   */
+  private readonly hitboxes = new Set<THREE.Mesh>();
+  /** Die gesperrten Zellen daraus, neu gerechnet, sobald ein Kasten kommt oder geht. */
+  private footCells: Set<string> | null = null;
   private readonly owned: THREE.Material[] = [];
   private readonly shapes: THREE.BufferGeometry[] = [];
   /** Ein Material für alle Trefferkästen — unsichtbar ist unsichtbar. */
@@ -3115,6 +3124,8 @@ export class KitchenZone implements TestZone {
     // (`core/kitchenModel.ts`); weggeräumt wird nur, was hier hängt.
     for (const object of this.placed) object.removeFromParent();
     this.placed.length = 0;
+    this.hitboxes.clear();
+    this.footCells = null;
     for (const label of this.labels) label.dispose();
     this.labels.length = 0;
     for (const shape of this.shapes) shape.dispose();
@@ -3460,9 +3471,44 @@ export class KitchenZone implements TestZone {
     world.root.add(box);
     box.updateWorldMatrix(true, false);
     this.placed.push(box);
-    const body = world.addSolid(box);
+    const body = this.addHitbox(world, box);
     this.bodies.push(body);
     return { box, body };
+  }
+
+  /**
+   * **Ein Trefferkasten in die Physik — und in das Zellgitter.**
+   *
+   * Gemeldet: _„ich komme als Spieler auf Möbel rauf wie in der Küche, wenn
+   * ich nur einfach dagegen laufe … auf dem 2D-Grid die Logik behalten"_. Die
+   * Küche stellte ihre Möbel nur als Körper auf; die Ebene des Spielers
+   * (`GridWorld.playerPlane`) kannte sie nicht, und der Formwurf nach unten
+   * (`PhysicsLocomotion.walkPlane`) hob ihn auf die Oberkante. Jetzt sperrt
+   * jeder Kasten seine Zellen (`TestWorld.cellBlocked`) — dieselbe Regel wie
+   * im Burgerladen (`cellGrid.footprintCellKeys`).
+   */
+  private addHitbox(world: ZoneHost, box: THREE.Mesh): PhysicsBody {
+    this.hitboxes.add(box);
+    this.footCells = null;
+    return world.addSolid(box);
+  }
+
+  private dropHitbox(box: THREE.Mesh): void {
+    if (this.hitboxes.delete(box)) this.footCells = null;
+  }
+
+  /** **Die Zellen, auf denen ein Kasten der Küche steht** — Schlüssel wie `cellKey`. */
+  footprintCells(): ReadonlySet<string> {
+    if (this.footCells) return this.footCells;
+    const cells = new Set<string>();
+    for (const box of this.hitboxes) {
+      const shape = box.geometry as THREE.BoxGeometry;
+      const { width, depth } = shape.parameters;
+      for (const key of footprintCellKeys(box.position.x, box.position.z, width, depth))
+        cells.add(key);
+    }
+    this.footCells = cells;
+    return cells;
   }
 
   /** Und wieder heraus — beim Aufheben im Baumodus (`ZoneHost.removeSolid`). */
@@ -3470,6 +3516,7 @@ export class KitchenZone implements TestZone {
     const world = this.world;
     if (!world || !furnish.box || !furnish.body) return;
     world.removeSolid(furnish.box, furnish.body);
+    this.dropHitbox(furnish.box);
     const at = this.bodies.indexOf(furnish.body);
     if (at >= 0) this.bodies.splice(at, 1);
     furnish.box.removeFromParent();
@@ -3917,7 +3964,7 @@ export class KitchenZone implements TestZone {
     world.root.add(block);
     block.updateWorldMatrix(true, false);
     this.placed.push(block);
-    this.bodies.push(world.addSolid(block));
+    this.bodies.push(this.addHitbox(world, block));
     world.addUsable(
       button.dome,
       {
@@ -3977,7 +4024,7 @@ export class KitchenZone implements TestZone {
     world.root.add(block);
     block.updateWorldMatrix(true, false);
     this.placed.push(block);
-    this.bodies.push(world.addSolid(block));
+    this.bodies.push(this.addHitbox(world, block));
     world.addUsable(
       button.dome,
       {
@@ -4245,7 +4292,7 @@ export class KitchenZone implements TestZone {
     world.root.add(block);
     block.updateWorldMatrix(true, false);
     this.placed.push(block);
-    this.bodies.push(world.addSolid(block));
+    this.bodies.push(this.addHitbox(world, block));
     world.addUsable(
       button.dome,
       {
@@ -4337,7 +4384,7 @@ export class KitchenZone implements TestZone {
     world.root.add(block);
     block.updateWorldMatrix(true, false);
     this.placed.push(block);
-    this.bodies.push(world.addSolid(block));
+    this.bodies.push(this.addHitbox(world, block));
     world.addUsable(
       radio.face,
       {
@@ -5199,7 +5246,7 @@ export class KitchenZone implements TestZone {
     world.root.add(block);
     block.updateWorldMatrix(true, false);
     this.placed.push(block);
-    this.bodies.push(world.addSolid(block));
+    this.bodies.push(this.addHitbox(world, block));
     world.addUsable(
       button.dome,
       {

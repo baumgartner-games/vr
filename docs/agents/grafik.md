@@ -450,6 +450,35 @@ einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
 Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
 einer Hand richtig liegt, entscheidet kein Jest-Test.
 
+## Quest-3-Blickfeld und Mensch als Boxen
+
+Zwei Häkchen, die **im Grafik-Menü bleiben** und nicht in die Werkstatt
+wandern (`core/playerGuides.ts`, beide ab Werk aus):
+
+- **Quest-3-Blickfeld** (`GraphicsSettings.showVrFrustum`). Gewünscht: _„den
+  VR-Blickwinkel einer Quest 3 darstellen … wie bei Blender mit einem
+  Kamera-Frustum, damit ich auch sehe, wo die Augen wären"_. Eine gelbe
+  Pyramide aus Linien am Kopf (`PlayerRig.getHeadMatrix`), 110° × 96°
+  (`QUEST3_FOV`, beide Augen zusammen, wie Meta es angibt) und 1,2 m lang
+  (`FRUSTUM_LENGTH`), mit dem Dreieck über der Oberkante, das in Blender
+  „oben" heißt, und der Blickachse. Die Augen sind zwei Kugeln im
+  Augenabstand der Quest 3 (`QUEST3_IPD`, 63 mm): links blau, rechts rot.
+  Ohne Tiefenprüfung, wie die Hitboxen.
+- **Mensch als Boxen** (`GraphicsSettings.showBodyModel`). Gewünscht: _„den
+  Menschen visuell darstellen … einfaches Modell, Boxen"_. Kopf, Hals,
+  Rumpf, Arme, Hände und Beine als halbdurchsichtige Kästen in der **echten**
+  Augenhöhe (die Kochfigur ist kleiner gerechnet, `chefFit.POSE_SCALE`),
+  nach den üblichen Anteilen der Körpergröße (`bodyBoxes`). Die Arme hängen
+  mit Absicht länger: _„dass der Spieler mit den Händen nach unten den Boden
+  berühren kann (bzw. fast)"_ — die Hände enden `HAND_CLEARANCE` (5 cm) über
+  dem Boden. Das orange Band ist der Gürtel, auf der Höhe, auf der die
+  Hüften hängen (`beltSettings`). Der Rumpf dreht mit dem Blick nach links
+  und rechts, der Kopf nickt zusätzlich mit.
+
+Beide stehen auf `LAYER_SELF_ONLY` wie der eigene Körper: Von oben, im
+Spiegel und durchs Portal sieht man sie, aus den eigenen Augen nicht — dort
+stünde man mitten in der Pyramide.
+
 ## Info-Ansichten: ein Optionsfeld für alle
 
 Karte in der Hand, Navigationsgitter, Gitterlinien, belegte Felder, Hitboxen

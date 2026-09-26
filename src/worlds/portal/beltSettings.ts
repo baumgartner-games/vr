@@ -48,8 +48,13 @@ export interface BeltOffset {
  * also gut einen halben Meter unter dem Kopf, dort, wo die Hand beim Stehen
  * von selbst hinfällt. Test- und Spukwelt teilen diese eine Zahl, weil beide
  * denselben `ToolBelt` aus `PortalWorld` tragen.
+ *
+ * **Und seit September 2026 0,825**: Gemeldet _„der Gürtel für Werkzeuge ist
+ * viel zu niedrig, der muss zwischen VR-Augen und der aktuellen Position
+ * nochmal halbiert werden"_ — also die Mitte zwischen 0,65 und den Augen
+ * (1,0): 1,32 m bei 1,60 m Augenhöhe, knapp unter der Brust.
  */
-export const DEFAULT_BELT: BeltOffset = { side: 0.26, height: 0.65, forward: -0.04 };
+export const DEFAULT_BELT: BeltOffset = { side: 0.26, height: 0.825, forward: -0.04 };
 
 /** Grenzen, damit eine ziehende Hand den Gürtel nicht in die nächste Wand schiebt. */
 export const BELT_LIMITS = {
@@ -164,7 +169,9 @@ export function beltLabel(offset: BeltOffset): string {
   const belt = clampBelt(offset);
   const depth = Math.abs(Math.round(belt.forward * 100));
   const where = belt.forward >= 0 ? 'vorn' : 'hinten';
-  return `${Math.round(belt.side * 100)} cm · ${belt.height.toFixed(2)} · ${depth} cm ${where}`;
+  // Drei Stellen, wo es sie braucht: 0,825 ist nicht 0,82.
+  const height = belt.height.toFixed(3).replace(/0$/, '');
+  return `${Math.round(belt.side * 100)} cm · ${height} · ${depth} cm ${where}`;
 }
 
 /** Was der Spieler eingestellt hat, oder die Auslieferung. */

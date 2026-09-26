@@ -160,6 +160,25 @@ den großen Kacheln bleibt.
   `HauntingWorld` die Einrichtung der Station. **Wer eine neue Welt mit
   eigener Einrichtung baut, geht diesen Weg**, nicht über einen Physik-Körper
   allein.
+  - **Die Küche der Testwelt ebenso** (September 2026, gemeldet: _„ich komme
+    als Spieler auf Möbel rauf wie in der Küche, wenn ich nur einfach dagegen
+    laufe … auf dem 2D-Grid die Logik behalten"_). Ihre Möbel, Knopfsäulen
+    und das Radio standen nur als Kästen in der Physik (`kitchenBlocks.ts`)
+    und als teure Kacheln für die NPCs. Jetzt merkt sich die Zone jeden
+    Kasten (`KitchenZone.addHitbox`), rechnet daraus die Zellen
+    (`footprintCells`, dieselbe 15-cm-Regel) und die Testwelt meldet sie
+    über `TestWorld.cellBlocked`. Umgestellt im Baumodus wandern die Zellen
+    mit (`dropHitbox`). Nachgelaufen in `kitchenFeet.test.ts`: aus allen vier
+    Richtungen gegen jedes Möbel.
+  - **Und die Physik hebt niemanden mehr auf einen Kasten, in dem er
+    steckt** (`PhysicsLocomotion.stuckAtStep`). Der Formwurf nach unten
+    beginnt eine Stufe über der Sohle; steckte die Kapsel dort seitlich in
+    einem hohen Kasten (ein Stoß, das Nachführen hinter dem Kopf, ein Möbel,
+    das auf sie gestellt wurde), traf er sofort, und jedes Bild hob sie um
+    eine Stufe — bis sie oben stand. Ein Treffer bei null, bei dem die
+    Kapsel auf Stufenhöhe in etwas steckt, ist jetzt eine Wand und kein
+    Boden: Die Höhe bleibt. Getestet mit echtem Rapier
+    (`physics/playerPlane.test.ts`).
 - **Möbel sperren Zellen** (`GridPlan.furnitureCells`, `boxCells`):
   - Gesperrt ist jede Zelle, in die ein Quader eines Bausteins mindestens
     15 cm hineinragt (`CELL_OVERLAP`) und der höher ist als eine Stufe

@@ -223,6 +223,12 @@ const FLIGHT_CATCH = 0.35;
  */
 const PLANE_STEP = 0.32;
 
+/**
+ * Unter welcher Zeit ein Treffer des Wurfs nach unten „sofort" ist
+ * (`stuckAtStep`), in Metern.
+ */
+const STUCK_TOI = 1e-3;
+
 export class PhysicsLocomotion implements Locomotion {
   readonly velocity = new THREE.Vector3();
   grounded = false;
@@ -605,7 +611,14 @@ export class PhysicsLocomotion implements Locomotion {
       this.collider,
       this.body,
     );
-    if (hit) {
+    if (hit && this.stuckAtStep(t.x + hx, top, t.z + hz, hit.time_of_impact, groups)) {
+      // **Kein Boden, sondern eine Wand, in der die Kapsel steckt** — sie
+      // bleibt auf ihrer Höhe. Ohne das hob der Wurf sie Bild für Bild um eine
+      // Stufe, bis sie oben auf dem Möbel stand (gemeldet in der Küche: _„ich
+      // komme auf Möbel rauf, wenn ich einfach dagegen laufe"_).
+      _applied.set(hx, 0, hz);
+      this.grounded = true;
+    } else if (hit) {
       _applied.set(hx, top - hit.time_of_impact - t.y, hz);
       this.grounded = true;
     } else {
@@ -613,6 +626,31 @@ export class PhysicsLocomotion implements Locomotion {
       this.grounded = false;
     }
     this.recovered = 0;
+  }
+
+  /**
+   * **Ob der Wurf nach unten nur deshalb sofort trifft, weil die Kapsel schon
+   * auf Stufenhöhe in etwas steckt.**
+   *
+   * Ein Treffer bei null heißt „der Boden liegt eine volle Stufe höher" — oder
+   * eben, dass die Kapsel seitlich in einem Kasten steckt, der viel höher ist
+   * als eine Stufe (ein Stoß, das Nachführen hinter dem Kopf, ein Möbel, das
+   * auf sie gestellt wurde). Eine echte Stufe reicht nicht bis `top`, ein
+   * Kasten schon; nur den zweiten Fall fragt `intersectionWithShape`.
+   */
+  private stuckAtStep(x: number, top: number, z: number, toi: number, groups: number): boolean {
+    if (toi > STUCK_TOI) return false;
+    return (
+      this.physics.world.intersectionWithShape(
+        { x, y: top, z },
+        UPRIGHT,
+        this.collider.shape,
+        undefined,
+        groups,
+        this.collider,
+        this.body,
+      ) !== null
+    );
   }
 
   /** Der Schritt durch den Character-Controller: Boden, Kisten, Fallen. */
