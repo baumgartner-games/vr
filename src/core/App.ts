@@ -1301,8 +1301,9 @@ export class App {
   }
 
   /**
-   * **Die zwei Seiten neben dem Spiel**, unter _Steuerung & Hilfe_ — die
-   * Eingabeseite und die Werkzeugseite (`inputs.html`, `tools.html`).
+   * **Die Seiten neben dem Spiel**, unter _Steuerung & Hilfe_ — die
+   * Eingabeseite, die Werkzeugseite und der KayKit-Editor (`inputs.html`,
+   * `tools.html`, `kaykit-editor.html`).
    *
    * Nur am Schirm: In der Brille hieße ein neuer Tab, die Sitzung zu
    * verlassen, und das tut niemand mit einem Menüpunkt, der „Hilfe" heißt.
@@ -1329,6 +1330,14 @@ export class App {
         icon: 'tools',
         accent: 0x9fe3ff,
         run: () => open('tools.html'),
+      },
+      {
+        id: 'help:kaykit-editor',
+        label: 'KayKit-Editor',
+        sub: 'Größe und Lage der Möbel, belegte Zellen · neuer Tab',
+        icon: 'cube',
+        accent: 0x9fe3ff,
+        run: () => open('kaykit-editor.html'),
       },
     ];
   }
