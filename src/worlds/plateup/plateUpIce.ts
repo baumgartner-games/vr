@@ -7,10 +7,10 @@ import type { Vec3 } from './plateUpWobble';
  * **Das Eis im Restaurant** — Hörnchen, Portionierer, zwei Eiswannen und was
  * ein Druck daran bewirkt. Ohne three.js.
  *
- * Neben dem Kühlschrank steht eine **Eisecke** aus zwei Arbeitsplatten
- * (`plateUpPlan.ICE_STAND`, `ICE_TUBS`): auf der einen ein Stapel Hörnchen,
- * der nie leer wird, und daneben der Portionierer; auf der anderen zwei
- * Wannen, Vanille und Erdbeere.
+ * Am Ostende der Stationsreihe, vor der Durchreiche, steht eine **Eisecke**
+ * aus zwei Arbeitsplatten (`plateUpPlan.ICE_STAND`, `ICE_TUBS`): auf der
+ * einen ein Stapel Hörnchen, der nie leer wird, und daneben der
+ * Portionierer; auf der anderen zwei Wannen, Vanille und Erdbeere.
  *
  * **Zwei Bedienungen, eine Regel.**
  *
@@ -229,7 +229,7 @@ export function tubDeed(hands: IceHands, flavor: IceFlavor, hand: Handedness | n
     if (hands.cone && hands.coneHand === null) return { do: 'scoop', flavor };
     if (scoop && !scoop.ball) return { do: 'fill', flavor };
     if (hands.cone) return { do: 'scoop', flavor };
-    return { do: 'refuse', why: 'Erst ein Hörnchen nehmen — am Eisstand neben dem Kühlschrank' };
+    return { do: 'refuse', why: 'Erst ein Hörnchen nehmen — am Eisstand vor der Durchreiche' };
   }
   if (hands.cone && hands.coneHand === hand) {
     return { do: 'refuse', why: 'Mit dem Portionierer eintauchen — er liegt beim Hörnchenstapel' };

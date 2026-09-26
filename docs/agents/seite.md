@@ -580,8 +580,9 @@ eine); eine neue Welt ohne Eintrag bleibt still und ist nicht kaputt.
   Ladebildschirm, nicht hinter einem Menü, nicht in der Brille (dort steht
   stattdessen eine Tafel im Raum, unten). Die erste Welt
   lädt ja, während die Startseite noch davorsteht.
-- **Wie lange**: neun Sekunden, oder bis _Verstanden_. Geht ein Menü auf oder
-  wechselt die Welt, geht sie mit.
+- **Wie lange**: neun Sekunden, oder bis zum ✕ rechts oben (_Verstanden_,
+  ebenso `Esc`). Geht ein Menü auf oder wechselt die Welt, geht sie mit. Sie
+  ist eine Meldung wie alle (`ui/ScreenMessage.ts`, unten).
 - **Wo**: oben mittig. Im Schiff (`body.orbital-on`) steht dort links die
   Tafel des Technikers, und die Karte lag 26 px darüber — ab 820 Punkten
   Breite rückt sie rechts daneben (`worldTransit.css`). **Am Telefon quer**
@@ -656,6 +657,51 @@ davon in die Ansicht aus den Augen (und lässt die Schirm-Gegenstücke schweigen
 wie mit Brille); `bgvr.xrGuide.previewHand` nimmt ein Objekt vor der Kamera
 als rechte Hand für die Beschriftung. So sind die Bilder der Bild-Schleife
 entstanden (Weltwechsel Hub → Restaurant: Tafel, Blende, Ankunft).
+
+### Eine Meldung am Schirm, mit ✕ (`ui/ScreenMessage.ts`)
+
+Gewünscht: _„Mach die Meldungen schließbar. Alle Meldungen im Web sollen
+dieselbe UI benutzen, die man schließen kann."_ Anlass war die Karte des
+Restaurants am Telefon (Hochformat, Laden zu): mitten im Bild, ohne Knopf.
+Vorher gab es fünf Formen: _Verstanden_ an der Willkommens-Karte, ein ✕ von
+28 px nur am Tipp des Restaurants, _Schließen_ an der Sturz-Box, und die
+Einblendungen im Haunting gingen nur von selbst.
+
+Jetzt gibt es **eine** Form, `ScreenMessage` (Aussehen in
+`ui/screenMessage.css`, Test `ui/screenMessage.test.ts`):
+
+- **Zwei Größen**: `card` (Kopfzeile, Titel, Text; wer mehr braucht, hängt es
+  an `body`) und `pill` (eine Zeile; `messagePill()` für Pillen, die jedes Mal
+  neu gebaut werden). Farben aus `--hud-*`, Akzent über `--msg-accent`.
+- **Dasselbe ✕** rechts: sichtbar ein Kreis von 28 px, getroffen ein Feld von
+  **44 × 44 px**, vorgelesen immer „Schließen" (`CLOSE_LABEL`); was es genau
+  tut, steht als Tooltip (`closeHint`). Das Zeichen malt das CSS, damit
+  `textContent` der Meldung ihr Text bleibt.
+- **`onClose`** sagt, was Schließen heißt; `hide()` nimmt eine Meldung still
+  weg (die Zeit ist um, die Welt wechselt). **`Esc`** schließt die zuletzt
+  geöffnete Karte — nicht aber Pillen, nicht wenn ein Menü die Taste schon
+  genommen hat, nicht in Eingabefeldern.
+- **Die Fläche fängt keine Berührung ab** (`pointer-events: none`), nur das ✕:
+  Am Telefon liegen darunter Stöcke und Welt.
+- **Wo** eine Meldung steht, sagt ihre eigene Klasse; die Grundform steht in
+  `:where()` und wiegt nichts, damit die Klasse des Orts immer gewinnt.
+
+Wer sie benutzt, und was das ✕ dort heißt:
+
+| Meldung | Klasse | ✕ / `Esc` |
+| ------- | ------ | --------- |
+| Willkommens-Karte (`ui/WorldWelcome.ts`) | `.welcome` | _Verstanden_ — die Welt ist begrüßt |
+| Karte des Schildes im Restaurant (Hochformat) | `.plateup-card` | weg, bis das Schild etwas anderes sagt |
+| Tipp der Einsteigerhilfe im Restaurant | `.plateup-tip` (Pille) | Einsteigerhilfe aus (`closeTutorial`), kein `Esc` |
+| Meldungen des Schiffs im Haunting (`ui/shipToast.ts`) | `.orbital-toast` (Pille) | weg vor der Zeit |
+| Meldungen der Rollen und des Monsters im Haunting (`Toast`, `ui/widgets.ts`) | `.ui-toast` (Pille) | weg vor der Zeit |
+| Sturz aus der Welt (`ui/fallReport.ts`) | `.fall-report` | weg; _Kopieren_ bleibt als Knopf |
+
+Bewusst **keine** Meldungen und ohne ✕: was einen Stand zeigt und von selbst
+geht, wenn er sich ändert — die Zeile und die Bestellzettel im Restaurant,
+„In der Hand: …", die Tafel des Technikers, die Baukasten-Leiste, die
+Tastenhilfe (abschaltbar im Menü) und der Ladebildschirm. In der Brille gibt es
+kein DOM; dort ist es das ✕ im Raum (`ui/CloseButton.ts`, oben).
 
 ### Ein Stil für Leisten und Schilder (`--hud-*`)
 

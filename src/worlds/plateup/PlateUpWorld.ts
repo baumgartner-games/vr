@@ -12,6 +12,7 @@ import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/Physics
 import type { MenuEntry } from '../../ui/menu';
 import { TextPlane } from '../../ui/TextPlane';
 import { CloseButton } from '../../ui/CloseButton';
+import { ScreenMessage, messagePill } from '../../ui/ScreenMessage';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
@@ -188,9 +189,13 @@ export class PlateUpWorld extends GridWorld {
   /**
    * **Das Schild als Karte am Telefon** — im Hochformat ist die Tafel im Raum
    * zu klein zum Lesen (sie muss ins Bild passen), also steht derselbe Text
-   * unten als Karte, solange der Laden zu ist.
+   * unten als Karte, solange der Laden zu ist. Eine Meldung wie alle
+   * (`ui/ScreenMessage.ts`), mit ✕: Weggeklickt bleibt sie weg, bis das
+   * Schild etwas anderes sagt (`cardClosed`, nächster Tag, Ende).
    */
-  private card: HTMLDivElement | null = null;
+  private card: ScreenMessage | null = null;
+  /** Der Text der Karte, die zuletzt weggeklickt wurde. */
+  private cardClosed = '';
   private signKey = '';
   private route = routePlan();
   /** Was zwischen den Tagen gekauft und hingestellt wurde (`plateUpShop`). */
@@ -538,7 +543,7 @@ export class PlateUpWorld extends GridWorld {
     this.blueprint = null;
     this.stackKey = -1;
     this.stackPlates.length = 0;
-    this.card?.remove();
+    this.card?.dispose();
     this.card = null;
     this.board?.dispose();
     this.sign?.dispose();
@@ -1375,31 +1380,33 @@ export class PlateUpWorld extends GridWorld {
     // so klein, dass man nur noch den Titel liest.
     const cardOn = !open && flat && narrow && !this.blueprint && !this.quietStart(ctx);
     if (this.sign) this.sign.visible = this.sign.visible && !cardOn;
-    if (!cardOn) {
-      if (this.card) this.card.hidden = true;
+    const sign = signText(this.shift);
+    const text = `${sign.title}\n${sign.body}`;
+    // Weggeklickt heißt: bis das Schild etwas Neues sagt. Die Tafel im Raum
+    // kommt dafür nicht zurück — wer die Karte schließt, will freie Sicht.
+    if (!cardOn || text === this.cardClosed) {
+      this.card?.hide();
       return;
     }
     if (!this.card) {
-      const card = document.createElement('div');
-      card.className = 'plateup-card';
-      document.body.appendChild(card);
+      const card = new ScreenMessage({
+        className: 'plateup-card',
+        onClose: () => {
+          this.cardClosed = card.element.dataset.text ?? '';
+        },
+      });
+      document.body.appendChild(card.element);
       this.card = card;
     }
-    this.card.hidden = false;
+    const card = this.card;
+    card.show();
     // Wie die Leiste in `refreshHud`: über der Tastenleiste, nicht dahinter.
     const cardBottom = `${aboveHints(18)}px`;
-    if (this.card.style.bottom !== cardBottom) this.card.style.bottom = cardBottom;
-    const sign = signText(this.shift);
-    const text = `${sign.title}\n${sign.body}`;
-    if (this.card.dataset.text !== text) {
-      this.card.dataset.text = text;
-      this.card.textContent = '';
-      const head = document.createElement('div');
-      head.textContent = sign.title;
-      head.style.cssText = 'font:700 20px/1.2 system-ui,sans-serif;color:#fff;margin-bottom:6px';
-      const body = document.createElement('div');
-      body.textContent = sign.body.replace(/\n(?=[a-zäöüß(])/g, ' ');
-      this.card.append(head, body);
+    if (card.element.style.bottom !== cardBottom) card.element.style.bottom = cardBottom;
+    if (card.element.dataset.text !== text) {
+      card.element.dataset.text = text;
+      card.setTitle(sign.title);
+      card.setText(sign.body.replace(/\n(?=[a-zäöüß(])/g, ' '));
     }
   }
 
@@ -2415,7 +2422,7 @@ export class PlateUpWorld extends GridWorld {
     }
     // Unter der Karte des Schildes (Hochformat, Laden zu) steht der Hinweis
     // schon auf der Karte — die Leiste läge sonst genau darüber.
-    const cardShown = !!this.card && this.card.hidden === false;
+    const cardShown = !!this.card?.open;
     const tip = flat && this.hint && !cardShown ? this.hint.text : '';
     const hand = this.blueprint
       ? `Bauplan: ${this.blueprint.label}${this.aim ? (this.aim.ok ? ' — hier passt es (A)' : ` — ${this.aim.why}`) : ''}`
@@ -2435,8 +2442,17 @@ export class PlateUpWorld extends GridWorld {
     if (this.handBar.dataset.key !== key) {
       this.handBar.dataset.key = key;
       this.handBar.textContent = '';
-      if (tip) this.handBar.append(tipPill(tip, () => this.closeTutorial()));
-      if (hand) this.handBar.append(pill(hand, false));
+      if (tip) {
+        // Das ✕ der Meldungen (`ui/ScreenMessage.ts`) — hier schaltet es die
+        // Einsteigerhilfe aus (`closeTutorial`).
+        this.handBar.append(
+          messagePill(`Tipp: ${tip}`, () => this.closeTutorial(), {
+            className: 'plateup-tip',
+            closeHint: 'Einsteigerhilfe ausschalten',
+          }),
+        );
+      }
+      if (hand) this.handBar.append(pill(hand));
     }
 
     if (!this.tickets) {
@@ -3006,30 +3022,15 @@ function writeTutorial(value: 'done' | 'off' | 'on'): void {
   }
 }
 
-/** Eine Pille am Schirm — ein Satz mit Rand in einer Farbe. */
-function pill(text: string, tip: boolean): HTMLDivElement {
+/**
+ * Eine Pille am Schirm — ein Satz mit Rand in einer Farbe. Keine Meldung,
+ * sondern Stand (was in der Hand liegt): Sie geht, wenn die Hand leer ist, und
+ * hat deshalb kein ✕.
+ */
+function pill(text: string): HTMLDivElement {
   const el = document.createElement('div');
-  el.className = tip ? 'plateup-pill plateup-pill--tip' : 'plateup-pill';
+  el.className = 'plateup-pill';
   el.textContent = text;
-  return el;
-}
-
-/** Der Tipp am Schirm — mit einem ✕, das die Einsteigerhilfe ausschaltet. */
-function tipPill(text: string, close: () => void): HTMLDivElement {
-  const el = pill(`Tipp: ${text}`, true);
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'plateup-pill__close';
-  button.textContent = '✕';
-  button.title = 'Einsteigerhilfe ausschalten';
-  button.setAttribute('aria-label', 'Einsteigerhilfe ausschalten');
-  // Der Druck gehört dem Knopf und nicht dem Spiel darunter (Stöcke am Glas).
-  button.addEventListener('pointerdown', (event) => event.stopPropagation());
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    close();
-  });
-  el.append(button);
   return el;
 }
 

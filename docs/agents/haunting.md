@@ -1071,7 +1071,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   `ctx.notify` allein landete dort nur im Status des Handgelenk-Menüs, das
   niemand ansieht. `HauntingWorld.announce` reicht jede Ansage an
   `ShipExperience.flash`; die neueste ersetzt die vorige, sie steht 2–3 s
-  (`toastSeconds`). Wo, rechnet `toastPlace`: rechts neben der Tafel bis zum
+  (`toastSeconds`) oder bis zu ihrem ✕ — sie ist eine Meldung wie alle am
+  Schirm (`ui/ScreenMessage.ts`, [Die Seite selbst](./seite.md)), ebenso die
+  Meldungen der Rollen am Telefon (`Toast` in `ui/widgets.ts`). Wo, rechnet `toastPlace`: rechts neben der Tafel bis zum
   ersten Knopf an der Seite (Desktop, Telefon quer), sonst mittig unter der
   Tafel (Telefon hochkant) — immer unter Kompass, Tastenhilfe oben und
   Werkzeugknopf. Solange sie steht, wird sie je Bild nachgerückt, denn die

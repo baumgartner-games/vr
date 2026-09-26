@@ -12,7 +12,11 @@
  * Telefon quer), steht sie daneben; sonst (Telefon hochkant, die Tafel geht
  * über die ganze Breite) direkt darunter. Unten liegen Tastenhilfe, Streifen
  * und die Knöpfe am Glas, dort also nicht.
+ *
+ * **Wie sie aussieht**: eine Meldung wie alle am Schirm (`ui/ScreenMessage.ts`,
+ * die Pille) — mit demselben ✕, das sie vor der Zeit wegnimmt.
  */
+import { ScreenMessage } from '../../../ui/ScreenMessage';
 
 /** Ein Rechteck in Bildschirmpunkten, wie `getBoundingClientRect` es gibt. */
 export interface ToastRect {
@@ -94,22 +98,24 @@ export function toastSeconds(text: string): number {
 
 /** Die Einblendung selbst: ein Element, die neueste Meldung, ein Zeitgeber. */
 export class ShipToast {
-  readonly element: HTMLDivElement;
+  readonly element: HTMLElement;
+  private readonly message: ScreenMessage;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    this.element = document.createElement('div');
-    this.element.className = 'orbital-toast';
-    this.element.setAttribute('role', 'status');
-    this.element.setAttribute('aria-live', 'polite');
-    this.element.hidden = true;
+    this.message = new ScreenMessage({
+      kind: 'pill',
+      className: 'orbital-toast',
+      onClose: () => this.hide(),
+    });
+    this.element = this.message.element;
   }
 
   /** Zeigen — die neueste ersetzt die vorige, der Zeitgeber fängt neu an. */
   show(text: string, spot: ToastSpot): void {
-    this.element.textContent = text;
+    this.message.setText(text);
     this.move(spot);
-    this.element.hidden = false;
+    this.message.show();
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.hide(), toastSeconds(text) * 1000);
   }
@@ -126,11 +132,11 @@ export class ShipToast {
   hide(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    this.element.hidden = true;
+    this.message.hide();
   }
 
   dispose(): void {
     this.hide();
-    this.element.remove();
+    this.message.dispose();
   }
 }
