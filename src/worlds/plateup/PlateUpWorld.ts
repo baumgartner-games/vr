@@ -237,7 +237,9 @@ export class PlateUpWorld extends GridWorld {
     super.buildEnvironment();
     this.root.add(createSky(0x7fb6e8, 0xe9f1f7));
     this.buildFloors();
-    this.decor ??= new StaticDecor(this.root);
+    // Ein Feld von 64 m für den ganzen Laden: Er misst 14 m, und mit 16-m-Feldern
+    // lag die Nordwand (z = −0,125) in einem anderen Feld als der Rest.
+    this.decor ??= new StaticDecor(this.root, 64);
     if (canLoadModels()) void this.furnish(round);
   }
 

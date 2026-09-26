@@ -17,8 +17,9 @@
  * Je Welt: laden, einschwingen, das Vorbereitende tun (den Laden öffnen, die
  * Besucher einlassen …), ein paar Sekunden Spielzeit laufen lassen, und dann
  * **acht Blickrichtungen** je 45° zählen. Der Schattendurchgang wird getrennt
- * gezählt (die Dreiecke nur im Hauptbild), weil die Brille ihn einmal zeichnet und den Hauptdurchgang zweimal
- * (`docs/agents/grafik.md`, „Zwei Zahlen, die man einmal kennen sollte").
+ * gezählt (die Dreiecke nur im Hauptbild), weil die Brille ihn einmal
+ * zeichnet und den Hauptdurchgang zweimal (`docs/agents/grafik.md`, „Zwei
+ * Zahlen, die man einmal kennen sollte").
  *
  * **Zählwerte sind ehrlich, Zeiten nicht.** Aufrufe, Dreiecke, Netze gelten auf
  * jeder Grafikkarte; die Millisekunden von `world.update` gelten nur für diesen
@@ -27,11 +28,12 @@
  *
  * Optionen: `--url=…`, `--only=kitchen,hub,…`, `--frames=2`, `--shots`
  * (Bildschirmfotos je Welt nach `--output`), `--ab` (danach dieselbe Szene
- * noch einmal ohne die Bündel aus `shared/staticDecor.ts` — Zahlen und Foto
- * zum Vergleich), `--depth=3` (wie tief die Rangliste je Objekt schaut), `--profile`
- * (CPU-Profil: wer in `world.update` die Zeit braucht),
- * `--output=…`, `--no-software`, `--headed`. `SMOKE_EXECUTABLE` zeigt auf
- * einen vorinstallierten Browser.
+ * noch einmal im Zustand vor der Optimierung — ohne die Bündel aus
+ * `shared/staticDecor.ts`, in Haunting ohne den Raum-Culler — Zahlen und
+ * Foto zum Vergleich), `--yaw=…` (Blickrichtung des Fotos), `--depth=3` (wie
+ * tief die Rangliste je Objekt schaut), `--profile` (CPU-Profil: wer in
+ * `world.update` die Zeit braucht), `--output=…`, `--no-software`,
+ * `--headed`. `SMOKE_EXECUTABLE` zeigt auf einen vorinstallierten Browser.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -50,6 +52,8 @@ const frames = Math.max(1, Math.min(10, Number(args.get('frames') ?? 2)));
 const software = !args.has('no-software');
 const shots = args.has('shots');
 const ab = args.has('ab');
+/** Die Blickrichtung des Fotos, statt der des Szenarios (`--yaw=300`). */
+const yawOverride = args.has('yaw') ? Number(args.get('yaw')) : null;
 /** Wie tief die Rangliste in den Szenengraphen schaut (`--depth=3`). */
 const depth = Math.max(1, Number(args.get('depth') ?? 3));
 /** Ein CPU-Profil über `world.update` (`--profile`): wer darin die Zeit braucht. */
@@ -124,7 +128,43 @@ const SCENARIOS = [
     sim: 20,
     yaw: 180,
   },
-  { id: 'haunting', title: 'Haunting, Übungsrunde', hash: 'haunting', sim: 2 },
+  {
+    id: 'haunting',
+    title: 'Haunting, Übungsrunde',
+    hash: 'haunting',
+    sim: 2,
+    // Man steht in der Einsatzzentrale und schaut durch die Glaswand.
+    yaw: 180,
+    // Zum Vergleich ohne den Raum-Culler (`HauntingWorld.cullRoomArt`): Was
+    // bringt er aus der Einsatzzentrale? (Nichts — sie ist für ihn „kein
+    // Raum", siehe `docs/agents/grafik.md`.)
+    undo: () => {
+      const world = globalThis.bgvr.world;
+      world.cullRoomArt = () => {};
+      for (const group of world.roomArt.values()) group.visible = true;
+      world.experience?.setVisibleRooms(null);
+      return 'ohne Raum-Culler';
+    },
+  },
+  {
+    id: 'haunting-room',
+    title: 'Haunting, Übungsrunde, im Eingangsraum',
+    hash: 'haunting',
+    // Mitten in den Raum hinter der Glaswand — dort, wo man die Station
+    // betritt und durch vier Türen in die Gänge sieht.
+    setup: () => {
+      const app = globalThis.bgvr;
+      const world = app.world;
+      const entry = world.spec.rooms.find((room) => room.id === world.spec.entryRoom);
+      const at = app.rig.position
+        .clone()
+        .set(entry.rect.x + entry.rect.w / 2, 0, entry.rect.z + entry.rect.d / 2);
+      world.movePlayerTo(app.context, at, 0);
+      return `im Raum ${entry.name}`;
+    },
+    sim: 2,
+    yaw: 90,
+  },
 ];
 
 const only = args.get('only')?.split(',');
@@ -283,6 +323,16 @@ const face = (page, deg) =>
     app.flat?.syncFromRig?.();
   }, deg);
 
+/** Das Vorher der Deko: alle Bündel aus `shared/staticDecor.ts` abschalten. */
+function undoDecor() {
+  const found = [];
+  globalThis.bgvr.scene.traverse((node) => {
+    if (node.userData?.staticDecor) found.push(node.userData.staticDecor);
+  });
+  for (const decor of found) decor.dispose();
+  return found.length ? 'ohne Bündel (vorher)' : null;
+}
+
 /** Was in der Szene steht: Knoten, Netze, sichtbare Netze, Materialien, Geometrien. */
 function sceneStats() {
   const app = globalThis.bgvr;
@@ -359,7 +409,7 @@ async function measure(page, scenario, title, shotName) {
     };
   });
   if (shots) {
-    await face(page, scenario.yaw ?? 0);
+    await face(page, yawOverride ?? scenario.yaw ?? 0);
     await drive(page, 2);
     await page.screenshot({ path: path.join(output, `${shotName}.png`), timeout: 180000 });
   }
@@ -372,8 +422,7 @@ async function measure(page, scenario, title, shotName) {
       main: +(e.main / perFrame).toFixed(1),
       shadow: +(e.shadow / perFrame).toFixed(1),
     }))
-    .sort((a, b) => b.main + b.shadow - (a.main + a.shadow))
-    .slice(0, 15);
+    .sort((a, b) => b.main + b.shadow - (a.main + a.shadow));
   const row = {
     id: shotName,
     title,
@@ -394,7 +443,7 @@ async function measure(page, scenario, title, shotName) {
       ` → Brille ≈ ${row.quest} · Dreiecke ${row.triangles} · Netze ${stats.meshes} (sichtbar ${stats.visible}),` +
       ` Materialien ${stats.materials} · world.update ${row.updateMs} ms`,
   );
-  for (const t of top.slice(0, 8)) console.log(`  ${t.main} + ${t.shadow}  ${t.key}`);
+  for (const t of top.slice(0, 10)) console.log(`  ${t.main} + ${t.shadow}  ${t.key}`);
   return row;
 }
 
@@ -548,28 +597,17 @@ for (const scenario of chosen) {
     results.push(row);
     if (profile) row.profile = await profileWorld(page);
     if (ab) {
-      // **Dieselbe Szene ohne Bündel** — die Stücke von `shared/staticDecor.ts`
-      // stehen wieder einzeln, alles andere bleibt, wie es war. Das ist der
+      // **Dieselbe Szene wie vor der Optimierung** — die Stücke von
+      // `shared/staticDecor.ts` stehen wieder einzeln (oder, was das Szenario
+      // in `undo` sagt), alles andere bleibt, wie es war. Das ist der
       // ehrlichste Vergleich: dieselben Gäste an denselben Tischen.
-      const off = await page.evaluate(() => {
-        const found = [];
-        globalThis.bgvr.scene.traverse((node) => {
-          if (node.userData?.staticDecor) found.push(node.userData.staticDecor);
-        });
-        for (const decor of found) decor.dispose();
-        return found.length;
-      });
+      const off = await page.evaluate(scenario.undo ?? undoDecor);
       if (off) {
         await drive(page, 2);
         results.push(
-          await measure(
-            page,
-            scenario,
-            `${scenario.title} — ohne Bündel`,
-            `${scenario.id}-einzeln`,
-          ),
+          await measure(page, scenario, `${scenario.title} — ${off}`, `${scenario.id}-vorher`),
         );
-      } else console.log('(keine Bündel aus staticDecor in dieser Welt)');
+      } else console.log('(nichts zum Abschalten in dieser Welt)');
     }
   } catch (error) {
     console.error(`${scenario.id}: ${error.message}`);

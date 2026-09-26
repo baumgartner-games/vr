@@ -65,7 +65,7 @@ import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandS
 import { LampShadowTurns, lampShadowDue, stationLighting } from './stationLighting';
 import { ENTITY_PROFILES } from './threat';
 import { acousticField, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
-import { topDownRooms, visibleStationRooms } from './stationVisibility';
+import { FULL_VIEW, portalRooms, topDownRooms, type ViewRect } from './stationVisibility';
 import { FlatKernel } from './flatKernel';
 import { KernelLocomotion } from './kernelLocomotion';
 import { loadTuning, saveTuning, clampTuning, type BotTuning } from './botTuning';
@@ -3257,7 +3257,7 @@ export class HauntingWorld extends GridWorld {
       ? null
       : topDown
         ? topDownRooms(this.spec, _head, this.state.shut)
-        : visibleStationRooms(this.spec, _head, this.state.shut, (door) => {
+        : portalRooms(this.spec, _head, this.state.shut, (door) => {
             const edge = doorEdge(door);
             const half = doorWidth(door) / 2;
             this.doorwayBounds.min.set(
@@ -3272,7 +3272,8 @@ export class HauntingWorld extends GridWorld {
             );
             // A generous margin prevents edge popping while turning in a headset.
             this.doorwayBounds.expandByScalar(0.7);
-            return this.roomFrustum.intersectsBox(this.doorwayBounds);
+            if (!this.roomFrustum.intersectsBox(this.doorwayBounds)) return null;
+            return doorwayRect(this.doorwayBounds, this.roomProjection);
           });
     for (const [id, group] of this.roomArt) group.visible = !visible || visible.has(id);
     this.experience?.setVisibleRooms(visible);
@@ -4847,3 +4848,36 @@ const COMMAND_MONITOR = 'furniture-bits/monitor.glb';
 const COMMAND_MONITOR_SIZE = { width: 0.5, height: 0.4, depth: 0.2 };
 /** Die Höhe der Tischplatte — der Tisch wird darauf eingepasst, die Monitore stehen darauf. */
 const COMMAND_DESK_TOP = 0.9;
+
+const _corner = new THREE.Vector4();
+
+/**
+ * **Das Rechteck, das eine Türöffnung im Bild einnimmt** (`portalRooms`) —
+ * die acht Ecken ihres Kastens durch die Projektion, und das Rechteck um sie.
+ * Liegt eine Ecke hinter der Kamera, steht man in der Tür: Dann ist es das
+ * ganze Bild, denn ein Rechteck aus Ecken hinter dem Kopf wäre gespiegelt.
+ */
+function doorwayRect(box: THREE.Box3, viewProjection: THREE.Matrix4): ViewRect {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < 8; i++) {
+    _corner
+      .set(
+        i & 1 ? box.max.x : box.min.x,
+        i & 2 ? box.max.y : box.min.y,
+        i & 4 ? box.max.z : box.min.z,
+        1,
+      )
+      .applyMatrix4(viewProjection);
+    if (_corner.w <= 0.05) return FULL_VIEW;
+    const x = _corner.x / _corner.w;
+    const y = _corner.y / _corner.w;
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x);
+    y1 = Math.max(y1, y);
+  }
+  return { x0, y0, x1, y1 };
+}

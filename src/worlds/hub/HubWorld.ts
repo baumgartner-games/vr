@@ -161,7 +161,8 @@ export class HubWorld extends GridWorld {
     this.root.add(buildHallRing(middle));
     for (const corridor of hub.corridors) this.root.add(buildCorridorLights(corridor, middle));
     this.root.add(this.buildSigns(middle, hub.corridors));
-    this.decor ??= new StaticDecor(this.root);
+    // Ein Feld für die ganze Halle — sie misst elf Meter.
+    this.decor ??= new StaticDecor(this.root, 64);
     void this.furnish(middle, hub.corridors, ++this.decorRound);
   }
 
