@@ -403,9 +403,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     theoretisch ist die Tür immer offen) … ist eine Tür verschlossen, sind die
     Bodenplatten rot und man kann nicht durch."_ Genau so: Durchlassen tut
     weiter die Automatik (`automaticDoors.ts`, ihr Auslöser reicht über beide
-    Knöpfe), die Blätter fahren aber erst auf, wenn jemand auf einem der beiden
-    Knöpfe steht (`buttonPressed`, `pressButtons`, `doorOpen` in
-    `mountExperience`); die Kappe sinkt dabei ein. Vier `InstancedMesh` für
+    Knöpfe), die Blätter fahren aber erst auf, wenn jemand höchstens **zwei
+    Felder** vor der Tür steht (`DOOR_OPEN_DEPTH` = 1,5 m von der Kante bis
+    zur Mitte der Figur; gewünscht: _„die Türen müssen sich nicht ein Feld
+    davor öffnen, sondern 2 Felder"_ — vorher war es die Kachel des Knopfs,
+    also ein Feld Luft; `buttonPressed`, `pressButtons`, `doorOpen` in
+    `mountExperience`); die Kappe sinkt erst ein, wenn jemand auf ihr steht. Vier `InstancedMesh` für
     alle Knöpfe. Die Aufzugstür (`test-bay`) hat ihre Knöpfe an der Kante, die
     der Plan setzt (`COMMAND_LIFT`, nach Westen).
   - **Draußen** ist weiter der Weltraum (`world3d/spaceBackdrop.ts`); wer im
@@ -443,8 +446,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Durchgang, die am Gelenk aufschwingen (`ShipExperience.doorLeaves`,
     `DOOR_SWING`); Statusgehäuse und Schiebesegmente sind weg, die Farbe der
     Tür zeigen die Knöpfe. Offen sieht eine Tür aus, wenn `applyDoors` sie
-    geöffnet hat **und** jemand auf einem Knopf steht (`openDoors`,
-    `pressedDoors`; am Schirm zählt die eigene Figur mit).
+    geöffnet hat **und** jemand zwei Felder davor steht (`openDoors`,
+    `approachedDoors`; am Schirm zählt die eigene Figur mit).
   - **Die Einrichtung kommt aus dem Regal** (`world3d/stationProps.ts`):
     Gewünscht: _„Bitte nutze keine eigenen Elemente/Möbel in Haunting außer die
     aus dem KayKit-Katalog. Z. B. für den Spind kannst du Locker nutzen."_ Jedes

@@ -56,7 +56,12 @@ import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './a
 import { buildShip, buildCorridorBeacons, roomAccent, type StationBeacon } from './shipArt';
 import { StationWalls, wallRun, type StationFeature, type WallRun } from './world3d/stationWalls';
 import { dressProp } from './world3d/stationProps';
-import { buttonPressed, DoorButtons, type ButtonDoor } from './world3d/doorButtons';
+import {
+  buttonPressed,
+  DOOR_OPEN_DEPTH,
+  DoorButtons,
+  type ButtonDoor,
+} from './world3d/doorButtons';
 import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
@@ -797,6 +802,8 @@ export class HauntingWorld extends GridWorld {
   private buttonDoors: ButtonDoor[] = [];
   /** Auf welchen Türknöpfen gerade jemand steht — je Bild neu (`pressButtons`). */
   private readonly pressedDoors = new Set<string>();
+  /** Vor welchen Türen jemand höchstens zwei Felder entfernt steht (`DOOR_OPEN_DEPTH`). */
+  private readonly approachedDoors = new Set<string>();
   /** Welche Türen `applyDoors` in diesem Bild offen hat — für das Bild der Blätter. */
   private readonly openDoors = new Set<string>();
 
@@ -984,7 +991,7 @@ export class HauntingWorld extends GridWorld {
   /** Der Grundriss steht neu — also auch Wände, Durchgänge und Fenster aus dem Regal. */
   protected override gridRebuilt(): void {
     this.stationWalls?.dispose();
-    const runs = [...this.wallRuns].map(([solid, run]) => ({ solid, run }));
+    const runs = [...this.wallRuns].map(([solid, run]) => ({ solids: [solid], run }));
     this.wallRuns = new Map();
     const features = this.stationFeatures();
     this.openingSolids = new Map();
@@ -1452,8 +1459,12 @@ export class HauntingWorld extends GridWorld {
     // steht nicht unbedingt in `doorOccupants`.
     if (ctx.role === 'vr') occupants.push({ x: ctx.rig.position.x, z: ctx.rig.position.z });
     this.pressedDoors.clear();
-    for (const door of this.buttonDoors)
+    this.approachedDoors.clear();
+    for (const door of this.buttonDoors) {
       if (buttonPressed(door, occupants)) this.pressedDoors.add(door.id);
+      // Auf geht das Blatt schon zwei Felder vor der Tür (`DOOR_OPEN_DEPTH`).
+      if (buttonPressed(door, occupants, DOOR_OPEN_DEPTH)) this.approachedDoors.add(door.id);
+    }
     this.doorButtons?.update((id) => ({
       locked: this.doorLocked(id),
       pressed: this.pressedDoors.has(id),
@@ -1513,13 +1524,14 @@ export class HauntingWorld extends GridWorld {
       unusable: (object) => this.removeUsable(object),
       handFree: (hand) => this.handUsesFreely(hand),
       round: () => this.rules.status(this.state),
-      // **Die Blätter fahren erst auf, wenn jemand auf dem Knopf steht**
-      // (`pressButtons`) — rein fürs Auge: Durchlassen tut die Automatik.
+      // **Die Blätter fahren erst auf, wenn jemand zwei Felder davor steht**
+      // (`pressButtons`, `DOOR_OPEN_DEPTH`) — rein fürs Auge: Durchlassen tut
+      // die Automatik.
       // Offen ist, was `applyDoors` entschieden hat — beim Gastgeber mit Kern
       // fährt die Runde die Türen, und die Automatik rechnet dann gar nicht.
       doorOpen: (id) =>
         (id === 'test-bay' ? this.state.crew.options.test : this.openDoors.has(id)) &&
-        this.pressedDoors.has(id),
+        this.approachedDoors.has(id),
       doorLocked: (id) => this.doorLocked(id),
       travel: (at, yaw) => this.movePlayerTo(ctx, at, yaw),
       equip: (id, hand) => {

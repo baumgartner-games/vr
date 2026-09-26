@@ -191,7 +191,7 @@ const MARK_MODEL = 'dungeon/post.glb';
  * man ihm ansehen, bevor man hineinläuft. Dieselbe Datei gibt es in Blau,
  * Grün und Gelb; hier gewinnt die Warnfarbe.
  */
-const SPIKES_MODEL = 'platformer/red/floor_spikes_trap_2x2x1_red.glb';
+export const SPIKES_MODEL = 'platformer/red/floor_spikes_trap_2x2x1_red.glb';
 
 /**
  * **Wie die Stacheln in der Datei heißen** — der Knoten, der über die Platte
@@ -204,7 +204,7 @@ const SPIKES_MODEL = 'platformer/red/floor_spikes_trap_2x2x1_red.glb';
  * sich der Name nicht, bleibt die gebaute Zierde stehen — ein normaler
  * Ausgang und kein Fehler.
  */
-const SPIKES_MODEL_TIPS = 'floor_spikes_trap_spikes_2x2x1_red';
+export const SPIKES_MODEL_TIPS = 'floor_spikes_trap_spikes_2x2x1_red';
 
 /**
  * **Wie weit die Platte über dem Boden bleibt** — fünf Millimeter, und die
@@ -222,7 +222,7 @@ const SPIKES_MODEL_TIPS = 'floor_spikes_trap_spikes_2x2x1_red';
  * aus demselben Grund zwei Millimeter Abstand; fünf sind aus jedem Blickwinkel
  * genug und von oben nicht als Absatz zu erkennen.
  */
-const SPIKES_LIFT = 0.005;
+export const SPIKES_LIFT = 0.005;
 
 /**
  * **Der Knopf, die Kiste, der Zielmast und der NPC.**
@@ -580,7 +580,7 @@ export class NavigationZone implements TestZone {
  * Gesamthöhe abgelesen stünde das Feld einen Viertelmeter zu tief. Danach
  * hängen sie wieder, wo sie waren.
  */
-function plateTop(model: THREE.Object3D, tips: string): number | null {
+export function plateTop(model: THREE.Object3D, tips: string): number | null {
   const spikes = model.getObjectByName(tips);
   if (!spikes) return null;
   const parent = spikes.parent;
@@ -598,7 +598,7 @@ function plateTop(model: THREE.Object3D, tips: string): number | null {
  * einer Gitterwelt und einer Testzone, als sie wert ist — dieselbe Abwägung
  * wie zwischen den drei Modell-Ladern (`core/kaykitModel.ts`).
  */
-function skinsOf(root: THREE.Object3D): THREE.Material[] {
+export function skinsOf(root: THREE.Object3D): THREE.Material[] {
   const out = new Set<THREE.Material>();
   root.traverse((object) => {
     const mesh = object as THREE.Mesh;

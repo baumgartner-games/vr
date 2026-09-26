@@ -461,7 +461,19 @@ stünde. Die Tore im Hub bleiben eines je Welt.
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
 Ordner _Test_) sind fünf Kammern aus Fensterwänden (`navTestPlan.ts`), vor
 jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
-Zielplatte** (immer sichtbar, ohne Tiefenprüfung).
+Zielplatte**.
+
+**Der Boden ist nur aus dem Regal** (gewünscht: _„der Boden soll bitte nur aus
+kaykit floor prototype Sachen bestehen außer die Lava, aber dafür gibt es ja
+die Spikes. Und als Start und Ziel gibt es die farbigen kitchen floor Grid
+Teile."_): überall `prototype-bits/Floor_Prototype` wie in der Sandbox, auf
+Start und Ziel `restaurant-bits/floor_kitchen_small_green` bzw. `…_blue`
+(`navTestPlan.navTestPlate`, über `GridWorld.floorPlate`), und die Lava ist
+die rote Stachelfalle der Sandbox (`platformer/red/floor_spikes_trap_2x2x1_red`,
+eine je Kachel, `NavTestWorld.fillSpikes`). Weil die Lava oben auf dem Podest
+liegt und dessen Boden nur `PLAN_FLOOR_T` dick ist, wird die Falle so weit
+gestaucht, dass sie nicht unten aus der Decke hängt; bis sie da ist, steht die
+gemalte Lava.
 
 **Die Wände sind nur aus dem Regal** (gewünscht: _„keine eigenen Wände
 nutzen, sondern nur die kaykit Wall Elemente"_): Die Kammern und die

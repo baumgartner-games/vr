@@ -661,6 +661,11 @@ let worldPending: Promise<void> | null = null;
  * und was darunter steht.
  */
 let worldPhase: WorldPhase = 'ruht';
+/**
+ * **Ob in dieser Sitzung schon eine Welt stand** — dann wird _Beitreten_ beim
+ * Wechsel der Welt nicht noch einmal stumpf (`warmStart.startButton`, `once`).
+ */
+let worldStoodOnce = false;
 
 /**
  * **Der Deckel: zwanzig Sekunden.**
@@ -717,6 +722,7 @@ async function loadWorld(): Promise<void> {
   const settled = await ready.assetsSettled(ASSET_CAP_MS);
   if (worldPending === null || target !== startWorld) return;
   worldPhase = settled ? 'steht' : 'dauert';
+  worldStoodOnce = true;
   paintStart();
   // Der Deckel hat den Knopf freigegeben, die Ladung läuft weiter — und wenn
   // sie dann doch ankommt, verschwindet auch die Zeile darüber. Ohne dieses
@@ -906,7 +912,7 @@ function paintStart(): void {
   // Kein 3D auf diesem Gerät: Was dann dasteht, hat `startApp` geschrieben,
   // und es ist endgültig (`noGraphics`).
   if (noGraphics) return;
-  const state = startButton(warmSignals(), worldPhase);
+  const state = startButton(warmSignals(), worldPhase, worldStoodOnce);
   // **Und der Download hält ihn genauso auf** (`core/fullAuto.fullBlocks`):
   // Solange geprüft oder geladen wird, sagt der Knopf das selbst, und der
   // Balken darunter zeigt, wie weit. Die Zeile der Welt schweigt dann — zwei

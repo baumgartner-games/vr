@@ -1,3 +1,4 @@
+import { joinRuns, StationWalls, wallRun, type WallRun } from '../haunting/world3d/stationWalls';
 import * as THREE from 'three';
 import { fadeInfoMaterial, fadeInfoTree, syncInfoView } from '../../core/infoViewScene';
 import { infoView } from '../../core/infoViews';
@@ -287,6 +288,10 @@ export abstract class GridWorld extends PortalWorld {
   private ghostBatchView = true;
   /** Ob zuletzt von oben geschaut wurde — ein Umbau muss die Ansicht wiederherstellen. */
   private topDownView = false;
+  /** Das Regalbild der Planwände (`shelfPlanWalls`) — und woraus es gebaut wird. */
+  private shelfView: StationWalls | null = null;
+  private shelfMaterial: THREE.Material | null = null;
+  private shelfRuns: { key: THREE.Mesh; run: WallRun }[] = [];
   /** Ob die Quader gerade auch Körper in der Physik haben. */
   private solid = true;
   /** Was beim Bauen eingefroren wurde — und deshalb hinterher aufzutauen ist. */
@@ -626,6 +631,7 @@ export abstract class GridWorld extends PortalWorld {
     // unter ihnen wartet, geht jetzt aus dem Bild, samt seinem Bündel.
     this.plateArrived(OWN_FLOOR);
     this.buildGridLines();
+    this.buildShelfView(group);
     this.gridRebuilt();
   }
 
@@ -673,6 +679,58 @@ export abstract class GridWorld extends PortalWorld {
 
   /** **Ein Quader aus dem Grundriss ist gebaut** — mit seinem Netz. */
   protected gridSolidBuilt(_mesh: THREE.Mesh, _solid: PlanSolid): void {}
+
+  /**
+   * **Die Wände des Grundrisses aus dem Regal zeichnen** — voreingestellt nein.
+   *
+   * Gewünscht für den Bauplatz: _„In der Bauplatz Welt sollen nur Wände von
+   * kaykit genutzt werden. Diese einfachen grauen Wände sind doch von uns?
+   * Direkt löschen alle überall."_ Eine Welt, die hier `true` sagt, behält
+   * ihre Planwände als **Körper** — sie sind das, was gespeichert, gemalt und
+   * geplant wird —, aber zu sehen ist an ihrer Stelle die Prototypwand aus dem
+   * Regal (`haunting/world3d/stationWalls.ts`, dieselbe wie in der Station).
+   * Die Quader werden unsichtbar, sobald die Stücke stehen; kommt die Datei
+   * nicht (kein WebGL, ein Checkout ohne die gekauften Pakete), bleiben sie.
+   * Türen und Fenster (Pfosten, Sturz, Brüstung) sind keine Läufe und bleiben
+   * gebaut.
+   */
+  protected shelfPlanWalls(): boolean {
+    return false;
+  }
+
+  /** Das Material der Wandquader unter dem Regalbild (`shelfPlanWalls`). */
+  private shelfSkin(solid: PlanSolid): THREE.Material | null {
+    if (!this.shelfPlanWalls() || !wallRun(solid)) return null;
+    this.shelfMaterial ??= this.materialFor(solid.kind).clone();
+    return this.shelfMaterial;
+  }
+
+  /** Ein gebauter Wandquader wird zu einem Lauf für das Regalbild. */
+  private noteShelfRun(mesh: THREE.Mesh, solid: PlanSolid): void {
+    if (!this.shelfPlanWalls()) return;
+    const run = wallRun(solid);
+    if (run) this.shelfRuns.push({ key: mesh, run });
+  }
+
+  /**
+   * **Das Regalbild neu** — nach jedem Umbau, aus den Läufen, die er gebaut
+   * hat. Es hängt in der Gruppe des Grundrisses und geht damit beim
+   * Bearbeiten mit ihr aus dem Bild (`setSolid`).
+   */
+  private buildShelfView(group: THREE.Group): void {
+    this.shelfView?.dispose();
+    this.shelfView = null;
+    if (!this.shelfPlanWalls()) return;
+    const runs = joinRuns(this.shelfRuns).map(({ keys, run }) => ({ solids: keys, run }));
+    this.shelfRuns = [];
+    const material = this.shelfMaterial;
+    if (material) material.visible = true;
+    const view = new StationWalls(group, runs, [], () => {
+      if (material && this.shelfView === view) material.visible = false;
+    });
+    view.setTopDown(this.topDownView);
+    this.shelfView = view;
+  }
 
   /**
    * **Aus vielen gleichen Kästen werden wenige Zeichenaufrufe.**
@@ -2080,7 +2138,7 @@ export abstract class GridWorld extends PortalWorld {
     const portal = solid.portal ?? solid.kind === 'panel';
     const mesh = this.slab(
       parent,
-      this.solidMaterial(solid),
+      this.shelfSkin(solid) ?? this.solidMaterial(solid),
       [solid.w, solid.h, solid.d],
       [solid.x, solid.y, solid.z],
       portal,
@@ -2109,6 +2167,7 @@ export abstract class GridWorld extends PortalWorld {
     this.slabs.push(mesh);
     this.rememberGhost(mesh, solid);
     this.gridSolidBuilt(mesh, solid);
+    this.noteShelfRun(mesh, solid);
     // **Und ob an seiner Stelle einmal ein Modell steht** (`blocks.blockModel`).
     // Die Frage fällt hier und nicht erst bei der Ankunft der Datei: Gebündelt
     // wird gleich, unsichtbar wird der Quader frühestens ein paar hundert
@@ -2526,6 +2585,7 @@ export abstract class GridWorld extends PortalWorld {
    */
   private stepWallGhosts(ctx: WorldContext): void {
     this.topDownView = ctx.topDown;
+    this.shelfView?.setTopDown(ctx.topDown);
     // **Vor allem anderen und auch ohne einen einzigen Ghost-Kandidaten:** Die
     // Wände stehen von oben einzeln da und aus den Augen als Bündel, und diese
     // eine Frage entscheidet beides (`showGhostBatches`).
@@ -2620,6 +2680,7 @@ export abstract class GridWorld extends PortalWorld {
     // durchsichtig sein soll.
     one.mesh.material = on && one.base.visible ? this.ghostFor(one.kind) : one.base;
     this.wallGhosted(one.mesh, on);
+    this.shelfView?.ghost(one.mesh, on);
   }
 
   /**
@@ -3050,6 +3111,10 @@ export abstract class GridWorld extends PortalWorld {
     this.leaveConstruct();
     this.construct?.dispose();
     this.construct = null;
+    this.shelfView?.dispose();
+    this.shelfView = null;
+    this.shelfMaterial?.dispose();
+    this.shelfMaterial = null;
     this.rack?.dispose();
     this.rack = null;
     for (const burst of this.bursts) burst.dispose();

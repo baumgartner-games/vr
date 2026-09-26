@@ -17,9 +17,14 @@ import {
   GATE_MODEL,
   gateDir,
   gateTile,
+  GOAL_FLOOR,
+  lavaSpots,
+  navTestPlate,
+  START_FLOOR,
   tileCentre,
   type NavTest,
 } from './navTestPlan';
+import { PLATE_PROTOTYPE } from '../test/floorPlate';
 
 const plan = navTestPlan();
 const graph = plan.graph;
@@ -278,5 +283,35 @@ describe('Test Navigation — Wände nur aus dem Regal', () => {
     expect(wallLevel(graph, 0)).toBe(0);
     expect(wallLevel(graph, STOREY)).toBe(1);
     expect(wallLevel(graph, 0.3)).toBe(0);
+  });
+});
+
+describe('Test Navigation — der Boden nur aus dem Regal', () => {
+  it('legt überall den Prototyp-Boden, auch oben auf dem Podest', () => {
+    expect(navTestPlate({ col: SPAWN.x, row: SPAWN.z, level: 0 })).toBe(PLATE_PROTOTYPE);
+    expect(navTestPlate({ col: LAVA.x - 1, row: LAVA.z, level: 1 })).toBe(PLATE_PROTOTYPE);
+    // Unter der Lava, eine Etage tiefer, ist es wieder der Prototyp-Boden.
+    expect(navTestPlate({ col: LAVA.x, row: LAVA.z, level: 0 })).toBe(PLATE_PROTOTYPE);
+  });
+
+  it('legt auf Start und Ziel die grüne und die blaue Küchenfliese', () => {
+    for (const one of NAV_TESTS) {
+      expect(navTestPlate({ col: one.start.x, row: one.start.z, level: one.start.level })).toBe(
+        START_FLOOR,
+      );
+      expect(navTestPlate({ col: one.goal.x, row: one.goal.z, level: one.goal.level })).toBe(
+        GOAL_FLOOR,
+      );
+    }
+    expect(START_FLOOR).toMatch(/floor_kitchen_small_green/);
+    expect(GOAL_FLOOR).toMatch(/floor_kitchen_small_blue/);
+  });
+
+  it('lässt die Lava frei — dort liegen die Stacheln, eine Falle je Kachel', () => {
+    for (let dz = 0; dz < LAVA.d; dz++)
+      for (let dx = 0; dx < LAVA.w; dx++)
+        expect(navTestPlate({ col: LAVA.x + dx, row: LAVA.z + dz, level: LAVA.level })).toBeNull();
+    expect(lavaSpots()).toHaveLength(LAVA.w * LAVA.d);
+    expect(lavaSpots()[0]).toEqual({ x: tileCentre(LAVA.x), z: tileCentre(LAVA.z) });
   });
 });

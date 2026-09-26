@@ -127,6 +127,16 @@ export class HubWorld extends GridWorld {
   /** Im Hub steht nichts herum, was umfallen könnte. */
   protected override buildProps(): void {}
 
+  /**
+   * **Die Wände der Halle kommen aus dem Regal** (`GridWorld.shelfPlanWalls`)
+   * — dieselbe Prototypwand wie im Bauplatz und in der Station. Gewünscht
+   * war, die einfachen, selbst gebauten Wände _„direkt löschen alle
+   * überall"_; der Grundriss behält sie als Körper.
+   */
+  protected override shelfPlanWalls(): boolean {
+    return true;
+  }
+
   /** Die Töne von früher: blaue Halle, dunkle Wände, helle Kanten. */
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
     return {
