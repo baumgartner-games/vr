@@ -8,6 +8,8 @@ import { canLoadModels } from '../../../core/chefFit';
 import type { WorldContext } from '../../../core/types';
 import { NAVIGATION, centre } from '../layout';
 import type { TestZone, ZoneHost } from './zone';
+import { SeatingCorner } from './seating';
+import type { Npc } from '../../npc/Npc';
 
 /**
  * **Die Navigation** — Westen, und das Wenigste vom alten Navigationslabor.
@@ -250,10 +252,15 @@ export class NavigationZone implements TestZone {
    * ansieht — samt neun Sätzen Materialien, die nie wieder jemand freigibt.
    */
   private gone = false;
+  /** Der zuletzt losgeschickte Läufer — der nächste Druck räumt nur ihn weg. */
+  private runner: Npc | null = null;
+  /** Die Sitzecke am Südrand — Besucher, die Plätze aufsuchen (`seating.ts`). */
+  readonly seating = new SeatingCorner();
 
   build(ctx: WorldContext, world: ZoneHost): void {
     this.host = world;
     this.ctx = ctx;
+    this.seating.build(ctx, world);
 
     this.buildCrate(world);
     this.buildSpikes(world);
@@ -263,15 +270,19 @@ export class NavigationZone implements TestZone {
 
   update(dt: number): void {
     this.button?.update(dt);
+    this.seating.update(dt);
   }
 
   /** `B`/`Y` räumt die Zone leer: Wer noch unterwegs ist, ist es nicht mehr. */
   reset(): void {
+    this.runner = null;
+    this.seating.reset();
     this.host?.clearNpcs();
   }
 
   dispose(): void {
     this.gone = true;
+    this.seating.dispose();
     this.builtSpikes.length = 0;
     if (this.ctx && this.pointerObject) this.ctx.pointer.remove(this.pointerObject);
     if (this.button) this.host?.removeUsable(this.button.dome);
@@ -518,10 +529,13 @@ export class NavigationZone implements TestZone {
     const world = this.host;
     if (!world) return false;
     this.button?.press();
-    world.clearNpcs();
+    // Nur der letzte Läufer geht — die Besucher der Sitzecke bleiben sitzen.
+    if (this.runner) world.npcRoutineHost()?.remove(this.runner);
+    this.runner = null;
     const from = new THREE.Vector3(centre(POINT_A.x), 0, centre(POINT_A.z));
     const to = new THREE.Vector3(centre(POINT_B.x), 0, centre(POINT_B.z));
-    if (!world.sendNpc(from, to)) return false;
+    this.runner = world.sendNpc(from, to);
+    if (!this.runner) return false;
     world.notify('Unterwegs zum Ziel');
     return true;
   }

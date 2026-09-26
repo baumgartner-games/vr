@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NpcBody, type BarMode, type PuppetPose } from './NpcBody';
+import { NpcBody, type NpcPose, type BarMode, type PuppetPose } from './NpcBody';
 import { newBrainState, stepBrain, wrapAngle, type BrainState, type Point } from './npcBrain';
 import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
 import { hitZone, type HitBody, type HitZone } from './npcHit';
@@ -141,6 +141,15 @@ export class Npc {
    * mehr, jemanden zu bemerken — das steht in seinem Hirn und nicht hier.
    */
   private errand: THREE.Vector3 | null = null;
+  /** Wie nah er ans Ziel will, bevor er anhält — sonst die des Hirns. */
+  private errandReach: number | undefined;
+  /**
+   * **Eine Haltung am Platz** (`hold`) — sitzen, hantieren. Solange eine
+   * gilt, rechnet das Hirn nicht; er rückt sanft auf die Stelle, dreht sich in
+   * die Richtung des Platzes und bleibt dort.
+   */
+  private posture: { pose: NpcPose; yaw: number; at: { x: number; z: number } | null } | null =
+    null;
   private navigator: NpcNavigator | null = null;
   private navigatorTuning: BrainTuning | null = null;
   private externallyNavigated = false;
@@ -229,7 +238,8 @@ export class Npc {
    * den Weg zum Ziel plant und ihn trotzdem nur läuft, solange er jemanden
    * sieht — die beiden gehören zusammen.
    */
-  sendTo(point: THREE.Vector3 | null): void {
+  sendTo(point: THREE.Vector3 | null, reach?: number): void {
+    this.errandReach = reach;
     if (!point) {
       this.errand = null;
       this.agent?.clear();
@@ -237,6 +247,29 @@ export class Npc {
     }
     this.errand ??= new THREE.Vector3();
     this.errand.copy(point);
+  }
+
+  /**
+   * **Am Platz bleiben** — mit einer Haltung, in eine Richtung, auf eine
+   * Stelle (`npcBehavior.ts`, `BehaviorOrder.settle`) — oder wieder loslassen
+   * (`null`). Wer sitzt, hat keinen Auftrag mehr: Das Ziel wird aufgehoben,
+   * damit der Läufer nicht weiter plant.
+   */
+  hold(pose: NpcPose | null, yaw = this.yaw, at: { x: number; z: number } | null = null): void {
+    if (!pose) {
+      if (!this.posture) return;
+      this.posture = null;
+      this.model.setPose(null);
+      return;
+    }
+    if (!this.posture) this.sendTo(null);
+    this.posture = { pose, yaw, at: at ? { ...at } : null };
+    this.model.setPose(pose);
+  }
+
+  /** Die Haltung, die er gerade hat, oder `null`. */
+  get pose(): NpcPose | null {
+    return this.posture?.pose ?? null;
   }
 
   /** Wohin er geschickt wurde, oder `null`. */
@@ -372,6 +405,10 @@ export class Npc {
     }
 
     if (this.land()) return false;
+    if (this.posture) {
+      this.keepPosture(dt);
+      return false;
+    }
 
     const grid = nav?.cells ?? null;
     const level = grid ? this.cellLevel(nav!.graph) : null;
@@ -387,7 +424,17 @@ export class Npc {
     const step = stepBrain(
       this.brain,
       this.state,
-      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, goal, dt, random, range },
+      {
+        at: { x: t.x, z: t.z },
+        yaw: this.yaw,
+        player,
+        waypoint,
+        goal,
+        dt,
+        random,
+        range,
+        reach: this.errandReach,
+      },
       this.externallyNavigated ? this.navigatorTuning! : this.tuning,
     );
 
@@ -442,6 +489,36 @@ export class Npc {
     if (step.attack) this.model.swing();
     this.model.setAlert(step.sees);
     return step.attack;
+  }
+
+  /**
+   * **Ein Bild am Platz**: auf die Stelle rücken (sanft, über die
+   * Geschwindigkeit und nicht per Versetzen — die Physik soll es mitbekommen),
+   * zur Richtung des Platzes drehen, Haltung zeigen.
+   */
+  private keepPosture(dt: number): void {
+    const posture = this.posture!;
+    const t = this.entry.body.translation();
+    const velocity = this.entry.body.linvel();
+    let vx = 0;
+    let vz = 0;
+    if (posture.at && dt > 0) {
+      const dx = posture.at.x - t.x;
+      const dz = posture.at.z - t.z;
+      // Ein Viertel der Strecke je Zehntelsekunde, höchstens ein Meter je
+      // Sekunde: Er rückt heran und springt nicht.
+      const gain = Math.min(1, dt * 2.5) / dt;
+      vx = THREE.MathUtils.clamp(dx * gain, -1, 1);
+      vz = THREE.MathUtils.clamp(dz * gain, -1, 1);
+    }
+    this.entry.body.setLinvel({ x: vx, y: velocity.y, z: vz }, true);
+    const turn = wrapYaw(posture.yaw - this.yaw);
+    this.yaw = wrapYaw(this.yaw + turn * Math.min(1, dt * 6));
+    this.model.rotation.y = this.yaw;
+    this.speed = 0;
+    this.striking = false;
+    this.model.update(dt, 0, false);
+    this.model.setAlert(false);
   }
 
   /** Die Etage, auf der seine Füße stehen — `null` außerhalb des Grundrisses. */
@@ -1014,4 +1091,9 @@ function blockGap(
   const p = cellCentre(snapCell(a.x, a.z, sizeA), sizeA),
     q = cellCentre(snapCell(b.x, b.z, sizeB), sizeB);
   return Math.hypot(p.x - q.x, p.z - q.z);
+}
+
+/** Ein Winkel auf (−π, π] — der kürzere Bogen. */
+function wrapYaw(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
 }

@@ -23,7 +23,7 @@
  *   irgendeine Ansicht sie liest. Angewandt wird in `infoViewScene.ts`, das
  *   Menü baut `ui/infoViewMenu.ts`.
  * - **Ein eigener Schlüssel im Browser** (`bgvr.infoViews`) und nicht ein Feld
- *   mehr in der Grafik: Das sind zehn mal fünf Werte, und die Grafik ist die
+ *   mehr in der Grafik: Das sind acht mal fünf Werte, und die Grafik ist die
  *   Seite, die gerade am meisten umgebaut wird. Was hier steht, lässt sich an
  *   jede neue Menüstruktur hängen, ohne dass die alte etwas davon merkt.
  */

@@ -413,6 +413,66 @@ einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
 Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
 einer Hand richtig liegt, entscheidet kein Jest-Test.
 
+## Info-Ansichten: ein Optionsfeld für alle
+
+Karte in der Hand, Navigationsgitter, Gitterlinien, belegte Felder, Hitboxen
+in 2D und 3D, Ghosting, Griffe — das sind acht Ansichten, die nichts bauen,
+sondern etwas **zeigen**, und jede war ein Häkchen und sonst nichts. Gewünscht
+war, sie einzustellen: „nur 2D-Pfad", „Wände anzeigen/ausblenden", „Räume",
+„NPCs/Ziele", etwas Transparenz — und zwar **überall mit denselben
+Bedienelementen**. Unter _Menü → Grafik → **Info-Ansichten**_ steht deshalb
+jede davon als Seite mit demselben Feld (`ui/infoViewMenu.ts`), und die
+Navigation hat es zusätzlich dort, wo man gerade schaut
+(_NPC → Navigation zeigen → Darstellung_).
+
+**Fünf Optionen, dieselben für jede Ansicht** (`core/infoViews.ts`, mit Test):
+
+| Option             | heißt                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| **Nur 2D-Pfad**    | Wege und Umrisse flach auf dem Boden, als Linien — keine Flächen, keine Bögen der Verbindungen, keine Sichtfächer |
+| **Wände**          | Wände, Türen, Fenster, geschlossene Kanten                                                                        |
+| **Räume**          | Böden, Kacheln, Zellen — die Fläche, auf der man steht                                                            |
+| **NPCs und Ziele** | NPCs, ihre Wege, Ziele und Sichtbereiche                                                                          |
+| **Deckkraft**      | 100 → 70 → 40 %, im Kreis                                                                                         |
+
+Eine Ansicht sagt nur, **welche** davon sie kennt (`InfoViewSpec.supports`);
+was sie nicht kennt, steht in ihrem Feld gar nicht erst da — ein Schalter
+„Wände" an den Griffen wäre einer, der nichts tut. Die Bestandsaufnahme ist
+die Liste `INFO_VIEWS`, und wer eine neue Info-Ansicht baut, trägt sie dort
+ein und bekommt das Feld im Menü umsonst:
+
+| Ansicht              | kennt                             | wie                                                                                            |
+| -------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Karte in der Hand    | 2D, Wände, Räume, NPCs, Deckkraft | 2D: Kacheln als Raster statt Fläche; NPCs als Punkt mit Weg und Zielring (`NpcControl.sketch`) |
+| Navigationsgitter    | 2D, Wände, Räume, NPCs, Deckkraft | Fächer je Ebene (`navScene.NAV_LAYER_PARTS`); 2D legt die Wege auf den Boden                   |
+| Gitterlinien         | Deckkraft                         | an den zwei geteilten Materialien                                                              |
+| Belegte Felder       | Räume, NPCs, Deckkraft            | NPCs sind die 2 × 2 unter den Figuren, Räume das Zellgitter                                    |
+| Hitboxen (2D-Gitter) | Wände, Räume, Deckkraft           | rote Kanten sind Wände, Zellen und Pfeile Räume                                                |
+| Hitboxen (3D)        | Deckkraft                         |                                                                                                |
+| Ghosting             | Wände, Deckkraft                  | ohne Wände bleibt nur die weiße Spalte                                                         |
+| Griffe               | Deckkraft                         |                                                                                                |
+
+**Angewandt wird an einer Stelle** (`core/infoViewScene.ts`): Was eine
+Ansicht zeichnet, trägt ein **Fach** (`markInfoPart` — Wände, Räume, NPCs und
+_Festes_, das „Nur 2D-Pfad" weglässt; mehrere Fächer heißen „nur, wenn jedes
+davon an ist"), und `applyInfoOptions` blendet Fächer aus und dämpft die
+Deckkraft — relativ zu der, die das Material beim ersten Mal hatte
+(`userData.infoBaseOpacity`), damit 70 % nicht 70 % von 70 % werden.
+Umgeschaltet wird die Sichtbarkeit und nicht die Geometrie, dieselbe Regel wie
+bei den Ebenen der Navigation. Wer eigene Schalter hat (die Navigation ihre
+sieben Ebenen), reicht sie als `keep` hinein: Die Ebene sagt, was gezeigt werden
+**darf**, die Option, was davon gezeichnet wird. `syncInfoView` wendet nur nach
+einer Änderung an (eine Fassungsnummer am Speicher), sonst liefe jedes Bild
+eine Baumwanderung für nichts.
+
+**Gespeichert unter einem eigenen Schlüssel** (`bgvr.infoViews`) und nicht als
+weiteres Feld der Grafik — acht mal fünf Werte in einer Seite, die gerade am
+meisten umgebaut wird. Im Konfig-Code stehen sie (noch) nicht: Der trägt die
+Ausrüstung, und eine Ansicht ist keine. Das Feld selbst ist ein gewöhnlicher
+`MenuEntry` mit Kindern (`infoViewOptionsEntry(id)`, `infoViewsMenu()`) und
+kennt weder die Grafik- noch die NPC-Seite, in denen es heute hängt — ein
+neues Hauptmenü hängt es mit einer Zeile woanders ein.
+
 ## Squishy: die Figur federt beim Laufen und atmet im Stehen
 
 Unter den Häkchen steht eine eigene Seite: _Menü → Grafik → **Animationen**_

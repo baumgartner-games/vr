@@ -724,6 +724,15 @@ beantworten zusammen „wo kann er hin, und wo will er gerade hin"; der Rest
 beantwortet „warum nicht dorthin" und wird erst gebraucht, wenn etwas nicht
 stimmt.
 
+Darüber liegt das **Optionsfeld der Info-Ansichten** (_Navigation zeigen →
+Darstellung_, dasselbe wie unter _Grafik → Info-Ansichten_, siehe
+[Wie schön es aussieht](grafik.md#info-ansichten-ein-optionsfeld-für-alle)):
+**Nur 2D-Pfad** lässt Fläche, Verbindungsbögen und Sichtfächer weg und legt
+die Wege flach auf den Boden; Wände, Räume (Kacheln, Fläche, Sperren) und NPCs
+(Wege, Sicht) lassen sich als Ganzes ausblenden, und die Deckkraft geht
+100 → 70 → 40 %. Die Ebenen bleiben, was sie sind: Sie sagen, was gezeigt
+werden **darf**, die Optionen, was davon gezeichnet wird.
+
 Die beiden neuen sind es wert, einzeln erklärt zu werden, weil beide aus
 derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wand":
 
@@ -1034,3 +1043,74 @@ springt, und jede Rampe muss deshalb aus Stufen bestehen, die groß genug zum
 Springen sind. Die Karte kann längst mehr, als der Körper einlöst — sie weiß,
 dass eine Rampe aus 12-cm-Stufen begehbar ist (`CostProfile.stepUp`), und in
 der Brille steht er davor.
+
+## Verhalten: Plätze aufsuchen, warten, ausweichen
+
+Das Hirn beantwortet eine Frage je Bild — _wie komme ich dorthin_. Ein Spiel
+braucht die Frage darüber: _wohin will ich überhaupt, und was tue ich, wenn
+ich da bin?_ Ein Gast sucht sich einen Stuhl, sitzt eine Weile und geht; ein
+Kunde stellt sich an und verliert die Geduld. Dafür gibt es seit September
+2026 einen eigenen Baustein, und er hat drei reine Teile und eine dünne
+Schicht an der Welt:
+
+- **Plätze** (`npc/npcPlaces.ts`, mit Test). Ein Platz ist eine Stelle mit
+  Blickrichtung und einer Sorte (`seat`, `queue`, `spot`); die **Tafel**
+  (`PlaceBoard`) sagt, wer welchen hat. **Reserviert wird, wenn einer sich
+  entscheidet, und nicht, wenn er ankommt** — die Bank ist besetzt, sobald
+  einer losgeht, und der Zweite sucht sich sofort eine andere. Ohne das stehen
+  zwei, die im selben Bild dieselbe freie Bank sehen, am Ende aufeinander. Ein
+  NPC hat höchstens einen Platz; wer einen neuen reserviert, gibt den alten ab.
+  Eine **Warteschlange** ist eine Reihe von Plätzen mit Nummer (`line`,
+  `order`): anstellen nimmt den vordersten freien, `advance` lässt alle
+  dahinter aufrücken, ohne dass einer einen anderen überholt.
+- **Verhalten** (`npc/npcBehavior.ts`, mit Test) — eine kleine
+  Zustandsmaschine mit fünf Zuständen: **Idle** (überlegen), **Gehe zu**
+  (mit einer Frist — wer nicht ankommt, gibt den Platz frei und überlegt neu,
+  statt für immer gegen eine Kiste zu laufen), **Warten** (in der Schlange,
+  mit einer **Geduld**, die abläuft), **Interagieren** (eine Haltung am Platz,
+  in seine Richtung gedreht) und **Verlassen** (zum Ausgang, dann `gone`).
+  Heraus kommt je Bild ein **Auftrag** (`BehaviorOrder`): ein Ziel für den
+  Läufer, eine Haltung für den Körper, ein Blick und die Stelle, auf die er
+  rücken soll. Es ist bewusst **ein Ablauf und kein Baum**: Idle entscheidet,
+  alles andere läuft ab und kehrt dorthin zurück. Wer mehr will — ein Kunde,
+  der bestellt, isst und zahlt —, schreibt nur eine eigene
+  Entscheidung (`VisitorConfig.decide`) und behält den Rest.
+- **Ausweichen** (`npc/npcAvoid.ts`, mit Test). Die Wegsuche kennt keine
+  anderen NPCs; zwei, die sich im Gang begegnen, rempelten sich minutenlang an.
+  Bis zum echten RVO gilt eine alte Verkehrsregel: **rechts ausweichen, und wer
+  steht, hat Vorrang** (`sidestep`) — sonst tanzen zwei, die sich
+  gegenüberstehen, im Gleichtakt nach links und rechts. `separation` schiebt
+  Stehende auseinander.
+- **Die Schicht an der Welt** (`npc/NpcRoutine.ts`, `VisitorRoutine`): Ein
+  Auftrag mit Ziel wird ein `Npc.sendTo(ziel, reach)`, einer mit Haltung ein
+  `Npc.hold(pose, yaw, stelle)`, und wer gegangen ist, wird beim Regisseur
+  abgemeldet (`NpcDirector.remove`). Die Welt reicht zwei Handgriffe herein
+  (`RoutineHost`: setzen, wegräumen) — dieselbe Bauart wie `NpcWorld`.
+
+**Zwei Zahlen daran sind nicht Geschmack.** Die **Ankunftsweite** ist 0,8 m
+(`VISITOR_DEFAULTS.reach`) und nicht 30 cm: Wer mit 1,5 m/s auf einen Punkt
+zuläuft und sich nur so schnell drehen kann, wie sein Hirn es erlaubt,
+umkreist ihn bei 30 cm für immer. Die letzten Zentimeter rückt der Körper
+selbst (`Npc.hold` → `keepPosture`, über die Geschwindigkeit und nicht per
+Versetzen, damit die Physik es mitbekommt). Dafür hat ein Auftrag jetzt eine
+eigene Weite (`BrainSense.reach`), voreingestellt bleibt `ERRAND_REACH`.
+
+**Sitzen ist eine Spur und kein Kunststück**: `Sit_Chair_Idle` aus der
+Simulations-Bibliothek des Regals, die dafür in `core/kaykitClips.ts`
+dazugekommen ist (320 kB beim mittleren Skelett); Hantieren ist `Interact`
+(`NpcBody.POSE_CLIPS`). Der Körper aus Klötzen knickt nur die Beine ein.
+Solange eine Haltung gilt, rechnet das Hirn nicht.
+
+**Zu sehen in der Testwelt**, Navigationszone, Südrand
+(`test/zones/seating.ts`): drei Stühle aus `furniture-bits`, eine Bank aus
+`dungeon`, eine Schlange mit drei Plätzen daneben und ein roter Knopf
+_Besucher einlassen_. Beim Betreten kommen sechs Abenteurer herein (fünf
+Sitzplätze — der sechste stellt sich an), jeder setzt sich zweimal, dann gehen
+sie zum Ausgang in der Südostecke. Die Möbel haben **keinen Körper**: Ein
+Stuhl, den das Gitter sperrt, ist einer, auf den sich niemand setzen kann.
+Der rote Knopf _NPC losschicken_ daneben räumt seitdem nur noch **seinen**
+Läufer weg (`ZoneHost.sendNpc` gibt ihn zurück) und nicht die Besucher.
+
+**Was noch fehlt**: Plätze im Netz (jeder sieht seine eigenen Besucher, wie
+jeden NPC), eine Haltung für den übernommenen NPC, und Plätze, die die Welt
+aus ihren Möbeln ableitet statt aus einer Liste in der Zone.

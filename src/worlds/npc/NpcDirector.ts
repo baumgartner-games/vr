@@ -625,6 +625,17 @@ export class NpcDirector implements NpcControl {
    * Nur die, die auch einen haben: Wer stehen bleibt, hat keinen, und ein
    * leeres Feld zeichnet sich schlecht.
    */
+  /**
+   * **Einen bestimmten wegräumen** — für ein Verhalten, dessen Besucher
+   * gegangen ist (`NpcRoutine.ts`). `false`, wenn er nicht (mehr) hier ist.
+   */
+  remove(npc: Npc): boolean {
+    const index = this.npcs.indexOf(npc);
+    if (index < 0) return false;
+    this.retire(index);
+    return true;
+  }
+
   sketch(): NpcSketch[] {
     const out: NpcSketch[] = [];
     for (const npc of this.npcs) {
