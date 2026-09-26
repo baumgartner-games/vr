@@ -15,6 +15,11 @@ import {
   EAT_SECONDS,
   MENU,
   bill,
+  clearDish,
+  decorPatience,
+  dirtyAt,
+  tableWants,
+  type Guest,
   boardLine,
   clockText,
   dayRules,
@@ -32,6 +37,8 @@ import {
   type Shift,
 } from './plateUpGame';
 import {
+  PLATES,
+  burnShare,
   freshStations,
   stationDeed,
   tickStation,
@@ -280,6 +287,8 @@ describe('Burgerladen: der Tag', () => {
     const base = {
       id: 1,
       table: 0,
+      seat: 0,
+      group: 1,
       order: 'hamburger',
       phase: 'waiting' as const,
       patienceMax: 60,
@@ -328,10 +337,10 @@ describe('Burgerladen: Stationen', () => {
     expect(held).toEqual(dish('patty'));
     use('grill-1');
     expect(held).toBeNull();
-    // Die Grillplatte brät auch allein — und verbrennt nichts.
+    // Die Grillplatte brät auch allein — und das Gebratene hält eine Weile.
     expect(run('grill-1', 6, false)).toBe(true);
     expect(stations[find(stations, 'grill-1')]!.on).toEqual(dish('patty-cooked'));
-    run('grill-1', 20, false);
+    run('grill-1', 5, false);
     expect(stations[find(stations, 'grill-1')]!.on).toEqual(dish('patty-cooked'));
 
     use('lettuce');
@@ -367,6 +376,146 @@ describe('Burgerladen: Stationen', () => {
     const back = useStation(null, put.station);
     expect(back.held).toEqual(dish('plate', ['bun', 'patty-cooked']));
     expect(back.station.on).toBeNull();
+  });
+});
+
+describe('Burgerladen: Verbrennen, Geschirr, Spüle', () => {
+  const at = (states: StationState[], id: string): StationState =>
+    states.find((s) => s.spot.id === id)!;
+
+  test('ein gebratenes Patty wird nach `burn` Sekunden schwarz — und nur noch Müll', () => {
+    const grill = at(freshStations(STATIONS), 'grill-1');
+    let state = useStation(dish('patty'), grill).station;
+    let burnt = false;
+    for (let t = 0; t < 60; t++) {
+      const r = tickStation(state, 0.1, false, false, 3);
+      state = r.station;
+    }
+    expect(state.on).toEqual(dish('patty-cooked'));
+    expect(burnShare(state, 3)).toBeGreaterThan(0);
+    for (let t = 0; t < 40 && !burnt; t++) {
+      const r = tickStation(state, 0.1, false, false, 3);
+      state = r.station;
+      burnt = r.burnt;
+    }
+    expect(burnt).toBe(true);
+    expect(state.on).toEqual(dish('patty-burnt'));
+    expect(burnShare(state, 3)).toBe(0);
+    // Auf einen Teller geht es nicht mehr.
+    expect(useStation(dish('plate', ['bun']), state).held).toEqual(dish('plate', ['bun']));
+    // Rechtzeitig genommen, ist die Uhr wieder bei null.
+    const fresh = useStation(dish('patty'), grill).station;
+    let s2 = fresh;
+    for (let t = 0; t < 70; t++) s2 = tickStation(s2, 0.1, false, false, 3).station;
+    const took = useStation(dish('plate', ['bun']), s2);
+    expect(took.held).toEqual(dish('plate', ['bun', 'patty-cooked']));
+    expect(took.station.heat).toBe(0);
+  });
+
+  test('die Schwierigkeit: Tag 1 allein und nachsichtig, danach Paare und heißere Platten', () => {
+    expect(dayRules(1).pairs).toBe(0);
+    expect(dayRules(2).pairs).toBeGreaterThan(0);
+    for (let d = 1; d < 10; d++) {
+      expect(dayRules(d + 1).burn).toBeLessThanOrEqual(dayRules(d).burn);
+      expect(dayRules(d + 1).pairs).toBeGreaterThanOrEqual(dayRules(d).pairs);
+      // Nie schneller verbrannt als gebraten plus ein Weg zum Teller.
+      expect(dayRules(d).burn).toBeGreaterThanOrEqual(6);
+    }
+    expect(decorPatience(0)).toBe(1);
+    expect(decorPatience(2)).toBeCloseTo(1.12);
+    expect(decorPatience(99)).toBeCloseTo(1.3);
+  });
+
+  test('der Tellerstapel zählt: sechs Teller, dann ist Schluss', () => {
+    let stack = at(freshStations(STATIONS), 'plates');
+    expect(stack.stock).toBe(PLATES);
+    let taken = 0;
+    for (let i = 0; i < PLATES + 2; i++) {
+      const r = useStation(null, stack);
+      if (r.held) taken++;
+      stack = r.station;
+    }
+    expect(taken).toBe(PLATES);
+    expect(stack.stock).toBe(0);
+    const empty = stationDeed(null, stack);
+    expect(empty.do).toBe('refuse');
+    // Ein Brötchen an den Stapel: der Teller springt darunter.
+    const back = useStation(dish('plate'), stack).station;
+    expect(back.stock).toBe(1);
+    const bun = useStation(dish('bun'), back);
+    expect(bun.held).toEqual(dish('plate', ['bun']));
+    expect(bun.station.stock).toBe(0);
+    // Schmutziges kommt nicht auf den Stapel.
+    expect(stationDeed(dish('plate-dirty'), back).do).toBe('refuse');
+  });
+
+  test('schmutziges Geschirr: bleibt am Tisch, sperrt ihn, geht durch die Spüle zurück', () => {
+    let shift = openDay(newShift(3));
+    shift = stepShift(shift, 3.1, 4).shift;
+    const guest = shift.guests[0]!;
+    shift = seatGuest(shift, guest.id);
+    const r = serveTable(shift, guest.table, dish('plate', ['bun', 'patty-cooked']));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    shift = stepShift(r.shift, EAT_SECONDS + 0.1, 4).shift;
+    expect(dirtyAt(shift, guest.table)).toBe(1);
+    shift = guestGone(shift, guest.id);
+    expect(freeTables(shift, 4)).not.toContain(guest.table);
+    const cleared = clearDish(shift, guest.table);
+    expect(cleared).not.toBeNull();
+    expect(clearDish(cleared!, guest.table)).toBeNull();
+    expect(freeTables(cleared!, 4)).toContain(guest.table);
+
+    // In der Spüle: nur mit jemandem davor, und der saubere Teller geht in die Hand.
+    const sink = at(freshStations(STATIONS), 'sink');
+    const put = useStation(dish('plate-dirty'), sink);
+    expect(put.held).toBeNull();
+    let s = put.station;
+    let away = false;
+    for (let t = 0; t < 50; t++) away ||= tickStation(s, 0.1, false, true).done;
+    expect(away).toBe(false);
+    let hand: Dish | null = null;
+    for (let t = 0; t < 40 && !hand; t++) {
+      const tick = tickStation(s, 0.1, true, true);
+      s = tick.station;
+      hand = tick.toHand;
+    }
+    expect(hand).toEqual(dish('plate'));
+    expect(s.on).toBeNull();
+    // Und über Nacht ist alles abgeräumt.
+    expect(openDay({ ...shift, phase: 'closed' }).dirty).toEqual([]);
+  });
+
+  test('Gruppen: zwei an einem Tisch, jeder bekommt sein Essen, und sie gehen zusammen', () => {
+    let shift = openDay({ ...newShift(1), phase: 'closed', day: 5 });
+    let pair: Guest[] = [];
+    for (let t = 0; t < 400 && !pair.length; t++) {
+      const tick = stepShift(shift, 0.5, 4);
+      shift = tick.shift;
+      for (const e of tick.events) if (e.kind === 'arrive') shift = seatGuest(shift, e.guest.id);
+      const groups = new Map<number, Guest[]>();
+      for (const g of shift.guests) groups.set(g.group, [...(groups.get(g.group) ?? []), g]);
+      pair = [...groups.values()].find((list) => list.length === 2) ?? [];
+    }
+    expect(pair.length).toBe(2);
+    const [a, b] = pair as [Guest, Guest];
+    expect(a.table).toBe(b.table);
+    expect(new Set([a.seat, b.seat])).toEqual(new Set([0, 1]));
+    expect(tableWants(shift, a.table).length).toBe(2);
+    // Serviert wird dem, der es bestellt hat.
+    const r = serveTable(shift, a.table, burgerFor(b.order));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.guest.order).toBe(b.order);
+    // Reißt einem die Geduld, geht, wer noch wartet — und es kostet ein Leben.
+    let s = r.shift;
+    const lostBefore = s.lost;
+    const waiting = s.guests.filter((g) => g.group === a.group && g.phase === 'waiting');
+    const tick = stepShift(s, waiting[0]!.patience + 0.1, 4);
+    s = tick.shift;
+    expect(s.lost - lostBefore).toBeGreaterThanOrEqual(1);
+    const angry = tick.events.filter((e) => e.kind === 'angry' && e.guest.group === a.group);
+    expect(angry.length).toBe(waiting.length);
   });
 });
 

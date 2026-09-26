@@ -6,7 +6,7 @@ import type { KaykitFigure } from '../../core/kaykitFigure';
 import { CHEF_CARRY, canLoadModels } from '../../core/chefFit';
 import { kitchenEyeScale } from '../../core/posture';
 import { playPick, playTone } from '../../core/Audio';
-import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
+import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import type { MenuEntry } from '../../ui/menu';
 import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
@@ -26,7 +26,8 @@ import {
   type KitchenDeed,
 } from '../test/zones/kitchenCarry';
 import { dish, dishLabel, type Dish } from '../test/zones/kitchenRecipes';
-import { DECOR, type DecorPiece } from './plateUpDecor';
+import { DECOR, tableSet, type DecorPiece } from './plateUpDecor';
+import { PlaceGhost } from '../portal/placeGhost';
 import {
   DINING_AREA,
   DOOR_INSIDE,
@@ -37,19 +38,21 @@ import {
   SPAWN_TILE,
   STATIONS,
   STREET_ENDS,
-  TABLES,
   guestRoute,
   inKitchen,
   plateUpGrid,
   routePlan,
   type FloorPoint,
   type StationSpot,
+  type TableSpot,
 } from './plateUpPlan';
 import {
   EAT_SECONDS,
   boardLine,
+  clearDish,
   clockText,
-  guestAt,
+  dayRules,
+  dirtyAt,
   guestGone,
   menuItem,
   newShift,
@@ -60,12 +63,14 @@ import {
   serveTable,
   signText,
   stepShift,
+  tableWants,
   timeLeft,
   type Guest,
   type Shift,
   type ShiftEvent,
 } from './plateUpGame';
 import {
+  burnShare,
   freshStations,
   stationDeed,
   stationProgress,
@@ -73,6 +78,20 @@ import {
   useStation,
   type StationState,
 } from './plateUpStations';
+import {
+  aimTile,
+  allTables,
+  buy,
+  dayOffers,
+  decorCount,
+  placeCheck,
+  placedTiles,
+  shopItem,
+  OFFER_SPOTS,
+  type Placed,
+  type ShopItem,
+} from './plateUpShop';
+import { tutorialFinished, tutorialHint, type TutorialHint } from './plateUpTutorial';
 
 /**
  * **Der Burgerladen** — eine kleine Küchenwelt mit Gastraum und einem Spiel
@@ -127,7 +146,39 @@ export class PlateUpWorld extends GridWorld {
    */
   private card: HTMLDivElement | null = null;
   private signKey = '';
-  private readonly route = routePlan();
+  private route = routePlan();
+  /** Was zwischen den Tagen gekauft und hingestellt wurde (`plateUpShop`). */
+  private placed: Placed[] = [];
+  /** Alle Tische — die festen und die gekauften. */
+  private tables: TableSpot[] = allTables([]);
+  /** Die Modelle des Gekauften — beim Neuanfang weg damit. */
+  private readonly shopRoot = new THREE.Group();
+  /** Die Körper des Gekauften — sie gehen beim Neuanfang wieder weg. */
+  private readonly shopBlocks: { mesh: THREE.Mesh; body: PhysicsBody }[] = [];
+  /** Die Baupläne des Abends, die im Gastraum liegen. */
+  private readonly offerViews: OfferView[] = [];
+  private offerKey = '';
+  /** Der Bauplan in der Hand — dann trägt man kein Essen, sondern ein Möbel. */
+  private blueprint: ShopItem | null = null;
+  private readonly shopGhost = new PlaceGhost();
+  private ghostModel: THREE.Object3D | null = null;
+  private ghostModelFor = '';
+  /** Wohin der Bauplan zeigt — die Kachel und ob sie passt. */
+  private aim: { x: number; z: number; ok: boolean; why: string } | null = null;
+  private readonly aimAnchor = new THREE.Group();
+  /** Die Einsteigerhilfe: an, solange sie nicht fertig oder abgeschaltet ist. */
+  private tutorialOn = readTutorialOn();
+  private hint: TutorialHint | null = null;
+  private hintArrow: THREE.Group | null = null;
+  private hintPlane: TextPlane | null = null;
+  /** Die Leiste unten am Schirm: Hinweis und was man in der Hand hat. */
+  private handBar: HTMLDivElement | null = null;
+  /** Die Bestellzettel oben am Schirm. */
+  private tickets: HTMLDivElement | null = null;
+  private ticketKey = '';
+  private readonly smokes = new Map<string, Smoke>();
+  private stackKey = -1;
+  private readonly stackPlates: THREE.Object3D[] = [];
   private readonly floors: THREE.Mesh[] = [];
   /** Die Südwand wird von oben durchsichtig — eigenes Material, eigenes Aufräumen. */
   private southGlass: THREE.MeshStandardMaterial | null = null;
@@ -230,6 +281,14 @@ export class PlateUpWorld extends GridWorld {
     this.buildTables();
     this.buildBell();
     this.buildBoards();
+    this.shopRoot.name = 'plateup-shop';
+    this.root.add(this.shopRoot);
+    this.root.add(this.shopGhost.root);
+    this.aimAnchor.name = 'plateup-aim';
+    this.root.add(this.aimAnchor);
+    this.buildHint();
+    // Nach einem Neuaufbau (Editor, Neuladen) steht das Gekaufte wieder da.
+    for (const p of this.placed) this.buildPlaced(p);
     if (canLoadModels()) void this.loadGuestsKit();
   }
 
@@ -245,10 +304,13 @@ export class PlateUpWorld extends GridWorld {
     this.stepShift(step);
     this.stepGuests(step, ctx);
     this.stepEffects(step);
+    this.stepShop(ctx);
     this.refreshUsables();
     this.carryInHands(ctx);
-    this.refreshBoards();
+    this.refreshBoards(ctx);
     this.refreshStrip(ctx);
+    this.refreshHint(ctx);
+    this.refreshHud(ctx);
     this.gauges?.update(dt);
     // **Im Hochformat schrumpfen die Tafeln.** Ein Schild von 3,4 m ragt auf
     // einem Telefon links und rechts aus dem Bild — und was man dort lesen
@@ -272,6 +334,27 @@ export class PlateUpWorld extends GridWorld {
   override menu(): MenuEntry[] {
     const phase = this.shift.phase;
     const open = phase === 'open' || phase === 'closing';
+    const extra: MenuEntry[] = [];
+    if (this.blueprint) {
+      extra.push({
+        id: 'plateup:drop',
+        label: 'Bauplan zurücklegen',
+        sub: `${this.blueprint.label} — nichts gekauft`,
+        icon: 'back',
+        accent: 0x5aa0e0,
+        run: () => this.dropBlueprint(),
+      });
+    }
+    extra.push({
+      id: 'plateup:tutorial',
+      label: this.tutorialOn ? 'Einsteigerhilfe aus' : 'Einsteigerhilfe an',
+      sub: this.tutorialOn
+        ? 'Keine Hinweise und Pfeile mehr'
+        : 'Hinweise, was als Nächstes zu tun ist — ab jetzt wieder',
+      icon: 'sign',
+      accent: 0x5ee0a0,
+      run: () => this.setTutorial(!this.tutorialOn),
+    });
     return [
       {
         id: 'plateup:open',
@@ -285,6 +368,7 @@ export class PlateUpWorld extends GridWorld {
         accent: 0xf2a33a,
         run: () => this.ringBell(),
       },
+      ...extra,
       ...super.menu(),
     ];
   }
@@ -303,6 +387,22 @@ export class PlateUpWorld extends GridWorld {
     this.gauges = null;
     this.strip?.remove();
     this.strip = null;
+    this.handBar?.remove();
+    this.handBar = null;
+    this.tickets?.remove();
+    this.tickets = null;
+    this.ticketKey = '';
+    this.hintPlane?.dispose();
+    this.hintPlane = null;
+    this.hintArrow = null;
+    this.hint = null;
+    for (const smoke of this.smokes.values()) smoke.dispose();
+    this.smokes.clear();
+    this.shopGhost.dispose();
+    this.clearOffers();
+    this.blueprint = null;
+    this.stackKey = -1;
+    this.stackPlates.length = 0;
     this.card?.remove();
     this.card = null;
     this.board?.dispose();
@@ -371,6 +471,8 @@ export class PlateUpWorld extends GridWorld {
     await this.kit.warm();
     if (round !== this.building) return;
     for (const view of this.stationViews) view.shown = '';
+    this.stackKey = -1;
+    for (const view of this.tableViews) view.dirtyShown = -1;
   }
 
   private async placeDecor(
@@ -403,7 +505,7 @@ export class PlateUpWorld extends GridWorld {
   }
 
   /** Ein unsichtbarer Körper auf einer Grundfläche — dagegen läuft man. */
-  private addBlock(x: number, z: number, size: readonly [number, number]): void {
+  private addBlock(x: number, z: number, size: readonly [number, number], shop = false): void {
     const physics = this.physics;
     if (!physics) return;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], BLOCK_HEIGHT, size[1]), this.hidden);
@@ -412,7 +514,8 @@ export class PlateUpWorld extends GridWorld {
     this.root.add(mesh);
     mesh.updateMatrixWorld(true);
     this.solids.push(mesh);
-    physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+    const body = physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+    if (shop) this.shopBlocks.push({ mesh, body });
   }
 
   // --- Stationen ------------------------------------------------------------
@@ -476,10 +579,34 @@ export class PlateUpWorld extends GridWorld {
 
   private async addPlateStack(view: StationView, round: number): Promise<void> {
     const { dinerModel } = await import('../../core/dinerModel');
-    const stack = await dinerModel('dishrack_plates');
-    if (!stack || round !== this.building) return;
-    stack.position.y = view.top;
-    view.anchor.add(stack);
+    const rack = await dinerModel('dishrack');
+    if (!rack || round !== this.building) return;
+    rack.position.y = view.top;
+    view.anchor.add(rack);
+    this.stackKey = -1;
+  }
+
+  /**
+   * **Der Tellerstapel zeigt, wie viele noch da sind** — ein Teller je
+   * sauberem Teller, übereinander. Ist er leer, sieht man es, bevor man
+   * hingeht.
+   */
+  private refreshPlateStack(): void {
+    const index = this.stations.findIndex((s) => s.spot.kind === 'drain');
+    const state = this.stations[index];
+    const view = this.stationViews[index];
+    if (!state || !view || state.stock === this.stackKey) return;
+    this.stackKey = state.stock;
+    for (const plate of this.stackPlates) plate.removeFromParent();
+    this.stackPlates.length = 0;
+    for (let i = 0; i < state.stock; i++) {
+      const plate = this.kit.view(dish('plate'));
+      if (!plate) break;
+      plate.position.set(0, view.top + 0.02 + i * 0.035, 0);
+      plate.rotation.y = i * 0.35;
+      view.anchor.add(plate);
+      this.stackPlates.push(plate);
+    }
   }
 
   private useStationAt(index: number, by: UseSource): boolean {
@@ -501,16 +628,32 @@ export class PlateUpWorld extends GridWorld {
 
   private stepStations(dt: number, feet: THREE.Vector3): void {
     let changed = false;
+    const burn = dayRules(Math.max(1, this.shift.day)).burn;
+    let toHand: Dish | null = null;
     const next = this.stations.map((state, i) => {
       const view = this.stationViews[i];
       const near =
         !!view &&
         Math.hypot(feet.x - view.anchor.position.x, feet.z - view.anchor.position.z) < NEAR_STATION;
-      const tick = tickStation(state, dt, near);
+      const tick = tickStation(state, dt, near, !this.carried && !this.blueprint && !toHand, burn);
       if (tick.station !== state) changed = true;
+      if (tick.toHand) toHand = tick.toHand;
+      if (tick.burnt) {
+        this.announce('Ein Patty ist verbrannt — ab in den Mülleimer!');
+        playTone({ type: 'sawtooth', from: 220, to: 110, duration: 0.5, gain: 0.05 });
+      } else if (tick.done && state.spot.kind === 'griddle') {
+        // Fertig gebraten: ein kurzes Brutzeln nach oben — hol es ab!
+        chime([784, 1175], 0.06);
+      }
       return tick.station;
     });
     if (changed) this.stations = next;
+    if (toHand) {
+      this.setHeld(toHand, this.carriedHand);
+      playPick(true);
+      this.announce('Sauberer Teller — ab auf den Stapel oder gleich belegen');
+    }
+    this.refreshPlateStack();
     for (const view of this.stationViews) {
       const state = this.stations[view.index]!;
       const key = state.on ? dishKey(state.on) : '';
@@ -529,12 +672,22 @@ export class PlateUpWorld extends GridWorld {
       }
       const part = stationProgress(state);
       const at = view.anchor.position;
+      const heat = burnShare(state, burn);
       if (part > 0) {
         this.gauges?.bar(
           `station:${view.spot.id}`,
           _v.set(at.x, view.top + 0.35, at.z),
           part,
-          view.spot.kind === 'board' ? 'chop' : 'cook',
+          view.spot.kind === 'griddle' ? 'cook' : 'chop',
+        );
+      } else if (heat > 0) {
+        // **Fertig, und die Uhr läuft weiter**: Der Balken wird rot und
+        // füllt sich bis zum Verbrennen, ab der Hälfte mit Warnzeichen.
+        this.gauges?.bar(
+          `station:${view.spot.id}`,
+          _v.set(at.x, view.top + 0.35, at.z),
+          heat,
+          'burn',
         );
       } else this.gauges?.clear(`station:${view.spot.id}`);
       if (view.spot.kind === 'griddle') {
@@ -542,6 +695,18 @@ export class PlateUpWorld extends GridWorld {
           `flame:${view.spot.id}`,
           state.work.working ? _v.set(at.x, view.top, at.z) : null,
         );
+        this.gauges?.warn(`warn:${view.spot.id}`, heat > 0.5 ? _v.set(at.x, view.top, at.z) : null);
+        const smoky = heat > 0.5 || state.on?.item === 'patty-burnt';
+        let smoke = this.smokes.get(view.spot.id);
+        if (smoky && !smoke) {
+          smoke = new Smoke(this.root, at.x, view.top + 0.08, at.z);
+          this.smokes.set(view.spot.id, smoke);
+        } else if (!smoky && smoke) {
+          smoke.dispose();
+          this.smokes.delete(view.spot.id);
+          smoke = undefined;
+        }
+        smoke?.step(dt, state.on?.item === 'patty-burnt' ? 1 : heat);
       }
     }
   }
@@ -550,20 +715,57 @@ export class PlateUpWorld extends GridWorld {
 
   private buildTables(): void {
     this.tableViews.length = 0;
-    for (const t of TABLES) {
-      const anchor = new THREE.Group();
-      anchor.name = `plateup-table:${t.index}`;
-      anchor.position.set(t.x + 1, 0, t.z + 1);
-      this.root.add(anchor);
-      this.tableViews.push({ table: t.index, anchor, plate: null, deedKey: '' });
-    }
+    for (const t of this.tables) this.addTableView(t);
   }
 
+  private addTableView(t: TableSpot): void {
+    const anchor = new THREE.Group();
+    anchor.name = `plateup-table:${t.index}`;
+    anchor.position.set(t.x + 1, 0, t.z + 1);
+    this.root.add(anchor);
+    this.tableViews.push({
+      table: t.index,
+      anchor,
+      plates: new Map(),
+      dirty: [],
+      dirtyShown: -1,
+      deedKey: '',
+    });
+  }
+
+  /**
+   * **Was `A` an einem Tisch meint** — abräumen, servieren oder hören, was
+   * bestellt ist. Abräumen geht vor: Wer mit leeren Händen an einen Tisch mit
+   * schmutzigem Geschirr kommt, will es mitnehmen.
+   */
   private tableDeed(index: number): KitchenDeed {
-    const guest = guestAt(this.shift, index);
-    if (!guest || guest.phase !== 'waiting') return { do: 'nothing' };
-    if (!this.carried) return { do: 'refuse', why: `Bestellt: ${menuItem(guest.order).label}` };
+    const wants = tableWants(this.shift, index);
+    const dirty = dirtyAt(this.shift, index);
+    if (!this.carried && !this.blueprint && dirty > 0) {
+      return { do: 'take', dish: dish('plate-dirty') };
+    }
+    if (!wants.length) {
+      if (dirty > 0 && this.carried) {
+        return { do: 'refuse', why: 'Hände frei machen, dann das Geschirr abräumen' };
+      }
+      return { do: 'nothing' };
+    }
+    if (this.blueprint) return { do: 'nothing' };
+    if (!this.carried) return { do: 'refuse', why: `Bestellt: ${wants.join(' und ')}` };
     return { do: 'place', dish: this.carried };
+  }
+
+  private useTable(index: number, by: UseSource): boolean {
+    const deed = this.tableDeed(index);
+    if (deed.do === 'take') {
+      const next = clearDish(this.shift, index);
+      if (!next) return false;
+      this.shift = next;
+      this.setHeld(dish('plate-dirty'), by.hand ?? null);
+      playPick(true);
+      return true;
+    }
+    return this.serveAt(index);
   }
 
   private serveAt(index: number): boolean {
@@ -579,15 +781,42 @@ export class PlateUpWorld extends GridWorld {
     if (view && served) {
       const plate = this.kit.view(served);
       if (plate) {
-        const t = TABLES[index]!;
-        plate.position.set(t.seat.x - (t.x + 1), TABLE_TOP, t.seat.z - (t.z + 1) + 0.55);
+        const t = this.tables[index]!;
+        const at = platePlace(t, result.guest.seat);
+        plate.position.set(at.x - (t.x + 1), TABLE_TOP, at.z - (t.z + 1));
         view.anchor.add(plate);
-        view.plate = plate;
+        view.plates.set(result.guest.id, plate);
       }
     }
     this.announce(`${menuItem(result.guest.order).label} serviert — guten Appetit!`);
     chime([660, 880], 0.12);
     return true;
+  }
+
+  /** Das schmutzige Geschirr auf den Tischen — so viele Teller, wie `dirty` sagt. */
+  private refreshDirty(): void {
+    for (const view of this.tableViews) {
+      const count = dirtyAt(this.shift, view.table);
+      if (count === view.dirtyShown) continue;
+      view.dirtyShown = count;
+      for (const plate of view.dirty) plate.removeFromParent();
+      view.dirty.length = 0;
+      const t = this.tables[view.table];
+      if (!t) continue;
+      for (let i = 0; i < count; i++) {
+        const plate = this.kit.view(dish('plate-dirty'));
+        if (!plate) break;
+        const at = platePlace(t, i % 2);
+        plate.position.set(
+          at.x - (t.x + 1),
+          TABLE_TOP + Math.floor(i / 2) * 0.04,
+          at.z - (t.z + 1),
+        );
+        plate.rotation.y = i * 0.7;
+        view.anchor.add(plate);
+        view.dirty.push(plate);
+      }
+    }
   }
 
   private buildBell(): void {
@@ -731,7 +960,11 @@ export class PlateUpWorld extends GridWorld {
     }
   }
 
-  private refreshBoards(): void {
+  private refreshBoards(ctx: WorldContext): void {
+    // **Die Tafel ist für die Brille.** Am Schirm stehen Uhr und Bestellungen
+    // in der Zeile und auf den Zetteln oben (`refreshHud`) — die Tafel im Raum
+    // lag dort genau dahinter und sagte dasselbe noch einmal, kleiner.
+    if (this.board) this.board.visible = ctx.renderer.xr.isPresenting;
     const line = boardLine(this.shift);
     const orders = [...this.shift.guests]
       .filter((g) => g.phase === 'waiting')
@@ -767,8 +1000,18 @@ export class PlateUpWorld extends GridWorld {
       this.announce(boardLine(this.shift));
       return false;
     }
-    if (phase === 'over') this.clearGuests();
-    this.shift = openDay(this.shift);
+    if (phase === 'over') {
+      this.clearGuests();
+      this.clearPlaced();
+    }
+    // **Über Nacht wird aufgeräumt**: Stationen leer, Teller gespült, Hände
+    // frei, und wer noch einen Bauplan trug, hat ihn zurückgelegt.
+    this.blueprint = null;
+    this.clearOffers();
+    this.stations = freshStations(STATIONS);
+    this.setHeld(null, null);
+    this.shift = { ...openDay(this.shift), decor: decorCount(this.placed) };
+    this.refreshDirty();
     this.announce(`Tag ${this.shift.day}: Der Laden ist offen!`);
     // Die Glocke: ein heller Schlag mit einem Oberton, der nachklingt.
     playTone({ type: 'sine', from: 1318, duration: 0.9, gain: 0.08 });
@@ -801,7 +1044,7 @@ export class PlateUpWorld extends GridWorld {
     }
     for (const view of this.tableViews) {
       const deed = this.tableDeed(view.table);
-      const key = `${deed.do}:${this.carried ? dishKey(this.carried) : ''}`;
+      const key = `${deed.do}:${this.carried ? dishKey(this.carried) : ''}:${dirtyAt(this.shift, view.table)}`;
       if (key === view.deedKey) continue;
       view.deedKey = key;
       if (deed.do === 'nothing') {
@@ -810,9 +1053,10 @@ export class PlateUpWorld extends GridWorld {
       }
       const index = view.table;
       const usable: Usable = {
-        use: () => this.serveAt(index),
+        use: (by) => this.useTable(index, by),
         usePrompt: () => {
           const d = this.tableDeed(index);
+          if (d.do === 'take') return 'Geschirr abräumen';
           return d.do === 'refuse'
             ? d.why
             : `${this.carried ? dishLabel(this.carried) : 'Teller'} servieren`;
@@ -901,9 +1145,10 @@ export class PlateUpWorld extends GridWorld {
   // --- Der Tag --------------------------------------------------------------
 
   private stepShift(dt: number): void {
-    const tick = stepShift(this.shift, dt, TABLES.length);
+    const tick = stepShift(this.shift, dt, this.tables.length);
     this.shift = tick.shift;
     for (const event of tick.events) this.onEvent(event);
+    this.refreshDirty();
   }
 
   private onEvent(event: ShiftEvent): void {
@@ -920,7 +1165,7 @@ export class PlateUpWorld extends GridWorld {
         this.announce(`Tisch ${event.guest.table + 1} zahlt ${event.coins} Münzen`);
         chime([1568, 2093, 2637], 0.07);
         this.leave(event.guest);
-        const t = TABLES[event.guest.table]!;
+        const t = this.tables[event.guest.table]!;
         this.effects.push(new CoinPop(this.root, t.x + 1, t.z + 1, event.coins));
         break;
       }
@@ -928,7 +1173,9 @@ export class PlateUpWorld extends GridWorld {
         this.announce('Ladenschluss — die letzten Gäste noch bedienen!');
         break;
       case 'dayOver':
-        this.announce(`Tag ${this.shift.day} geschafft: ${this.shift.coins} Münzen verdient`);
+        this.announce(
+          `Tag ${this.shift.day} geschafft: ${this.shift.coins} Münzen — jetzt einrichten!`,
+        );
         break;
       case 'gameOver':
         this.announce('Zu viele hungrige Gäste — der Laden macht zu.');
@@ -943,14 +1190,17 @@ export class PlateUpWorld extends GridWorld {
     this.shift = newShift(Date.now() % 100000);
     this.stations = freshStations(STATIONS);
     this.setHeld(null, null);
+    this.blueprint = null;
+    this.clearPlaced();
   }
 
   private clearGuests(): void {
     for (const view of this.guests.values()) this.removeGuestView(view);
     this.guests.clear();
     for (const t of this.tableViews) {
-      t.plate?.removeFromParent();
-      t.plate = null;
+      for (const plate of t.plates.values()) plate.removeFromParent();
+      t.plates.clear();
+      t.dirtyShown = -1;
     }
   }
 
@@ -963,19 +1213,21 @@ export class PlateUpWorld extends GridWorld {
   }
 
   private spawnGuest(guest: Guest): void {
-    const t = TABLES[guest.table]!;
-    const street = STREET_ENDS[guest.id % STREET_ENDS.length]!;
+    const t = this.tables[guest.table]!;
+    const street = STREET_ENDS[guest.group % STREET_ENDS.length]!;
+    const seat = seatOf(t, guest.seat);
     const path = [
       ...guestRoute(this.route, street, DOOR_OUTSIDE),
       ...guestRoute(this.route, DOOR_OUTSIDE, DOOR_INSIDE),
-      ...guestRoute(this.route, DOOR_INSIDE, t.approach),
-      { x: t.seat.x, z: t.seat.z },
+      ...guestRoute(this.route, DOOR_INSIDE, seat.approach),
+      { x: seat.x, z: seat.z },
     ];
     const root = new THREE.Group();
     root.name = `plateup-guest:${guest.id}`;
-    root.position.set(street.x, 0, street.z);
+    // Der Zweite einer Gruppe geht einen halben Meter hinter dem Ersten.
+    root.position.set(street.x + (street.x < 0 ? -0.8 : 0.8) * guest.seat, 0, street.z);
     this.root.add(root);
-    const bubble = new OrderBubble(guest.order);
+    const bubble = new OrderBubble(guest.order, guest.table + 1);
     bubble.sprite.position.y = GUEST_HEIGHT + 0.62;
     bubble.sprite.visible = false;
     root.add(bubble.sprite);
@@ -1015,23 +1267,28 @@ export class PlateUpWorld extends GridWorld {
   private leave(guest: Guest): void {
     const view = this.guests.get(guest.id);
     if (!view) return;
-    const t = TABLES[guest.table]!;
-    const street = STREET_ENDS[(guest.id + 1) % STREET_ENDS.length]!;
+    const t = this.tables[guest.table]!;
+    const seat = seatOf(t, guest.seat);
+    const street = STREET_ENDS[(guest.group + 1) % STREET_ENDS.length]!;
+    const walking = view.mode === 'in';
     view.angry = guest.happy === false;
     view.mode = 'out';
     view.bubble.sprite.visible = view.angry;
     if (view.angry) view.bubble.drawAngry();
     this.gauges?.clear(`guest:${guest.id}`);
+    // Wer noch auf dem Weg war, dreht um, wo er ist — und läuft nicht erst
+    // zu seinem Stuhl.
+    const from = walking ? { x: view.root.position.x, z: view.root.position.z } : seat.approach;
     view.path = [
-      { x: t.approach.x, z: t.approach.z },
-      ...guestRoute(this.route, t.approach, DOOR_INSIDE),
+      ...(walking ? [] : [{ x: seat.approach.x, z: seat.approach.z }]),
+      ...guestRoute(this.route, from, DOOR_INSIDE),
       ...guestRoute(this.route, DOOR_INSIDE, DOOR_OUTSIDE),
       ...guestRoute(this.route, DOOR_OUTSIDE, street),
     ];
-    if (view.figure) this.standUp(view);
+    if (view.figure && !walking) this.standUp(view);
     const table = this.tableViews[guest.table];
-    table?.plate?.removeFromParent();
-    if (table) table.plate = null;
+    table?.plates.get(guest.id)?.removeFromParent();
+    table?.plates.delete(guest.id);
     if (!view.figure) {
       this.shift = guestGone(this.shift, guest.id);
       this.removeGuestView(view);
@@ -1046,9 +1303,9 @@ export class PlateUpWorld extends GridWorld {
       if (view.mode === 'in' || view.mode === 'out') {
         const arrived = walk(view, dt);
         if (arrived && view.mode === 'in') {
-          const t = TABLES[guest?.table ?? 0]!;
-          view.root.position.set(t.seat.x, 0, t.seat.z);
-          view.root.rotation.y = t.seatYaw;
+          const seat = seatOf(this.tables[guest?.table ?? 0]!, guest?.seat ?? 0);
+          view.root.position.set(seat.x, 0, seat.z);
+          view.root.rotation.y = seat.yaw;
           view.mode = 'sit';
           this.sitDown(view);
           this.shift = seatGuest(this.shift, view.id);
@@ -1062,7 +1319,7 @@ export class PlateUpWorld extends GridWorld {
       if (guest && guest.phase === 'eating') {
         // **Der Burger wird kleiner**, während gegessen wird — bis auf ein
         // Drittel; der Teller bleibt, wie er ist.
-        const food = this.tableViews[guest.table]?.plate?.children[1];
+        const food = this.tableViews[guest.table]?.plates.get(guest.id)?.children[1];
         food?.scale.setScalar(0.35 + (0.65 * guest.eat) / EAT_SECONDS);
       }
       if (guest && view.mode === 'sit') {
@@ -1113,6 +1370,465 @@ export class PlateUpWorld extends GridWorld {
     }
   }
 
+  // --- Einrichten zwischen den Tagen ----------------------------------------
+
+  /**
+   * **Die Baupläne des Abends** — sie liegen nur da, solange der Laden zu ist
+   * (Bilanz), und verschwinden, sobald einer gekauft oder die Glocke geläutet
+   * ist.
+   */
+  private stepShop(ctx: WorldContext): void {
+    const closed = this.shift.phase === 'closed';
+    const offers = closed ? dayOffers(this.shift.day, this.shift.seed, this.tables.length) : [];
+    const key = closed ? `${this.shift.day}:${this.tables.length}:${this.placed.length}` : '';
+    if (key !== this.offerKey) {
+      // Erst wegräumen (das setzt den Schlüssel zurück), dann den neuen merken.
+      this.clearOffers();
+      this.offerKey = key;
+      offers.forEach((item, i) => this.buildOffer(item, i));
+    }
+    for (const offer of this.offerViews) {
+      const afford = this.shift.total >= offer.item.cost;
+      if (offer.anchor.userData.afford !== afford) {
+        offer.anchor.userData.afford = afford;
+        offer.label.setText(
+          offer.item.label,
+          `${offer.item.cost} Münzen${afford ? '' : ' — zu teuer'}`,
+          afford ? 0x5aa0e0 : 0x8a8f99,
+        );
+      }
+      offer.anchor.visible = this.blueprint?.id !== offer.item.id;
+    }
+    this.aimBlueprint(ctx);
+  }
+
+  private buildOffer(item: ShopItem, index: number): void {
+    const spot = OFFER_SPOTS[index];
+    if (!spot) return;
+    const anchor = new THREE.Group();
+    anchor.name = `plateup-offer:${item.id}`;
+    anchor.position.set(spot.x, 0, spot.z);
+    // Das Blatt: ein blaues Papier auf dem Boden, wie ein Bauplan.
+    const sheet = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.8, 0.8),
+      new THREE.MeshStandardMaterial({ color: 0x2f6fb5, roughness: 0.8 }),
+    );
+    sheet.rotation.x = -Math.PI / 2;
+    sheet.position.y = 0.015;
+    anchor.add(sheet);
+    const label = new TextPlane({
+      width: 1.3,
+      height: 0.48,
+      title: item.label,
+      body: `${item.cost} Münzen`,
+      align: 'center',
+      accent: 0x5aa0e0,
+      face: true,
+    });
+    label.position.y = 1.15;
+    anchor.add(label);
+    this.root.add(anchor);
+    const view: OfferView = { item, anchor, label };
+    this.offerViews.push(view);
+    void this.loadShopModel(item).then((model) => {
+      if (!model || !this.offerViews.includes(view)) return;
+      // Ein kleines Modell auf dem Blatt — man sieht, was man kauft.
+      const box = new THREE.Box3().setFromObject(model);
+      const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 0.01);
+      model.scale.multiplyScalar(Math.min(1, 0.6 / size));
+      model.position.y = 0.02;
+      anchor.add(model);
+    });
+    this.addUsable(
+      anchor,
+      {
+        use: () => this.takeBlueprint(item),
+        usePrompt: () =>
+          this.shift.total >= item.cost
+            ? `Bauplan nehmen: ${item.label} (${item.cost} Münzen)`
+            : `${item.label}: ${item.cost} Münzen — in der Kasse sind ${this.shift.total}`,
+      },
+      { radius: 0.55, half: 0.6 },
+    );
+  }
+
+  private clearOffers(): void {
+    for (const offer of this.offerViews) {
+      this.removeUsable(offer.anchor);
+      offer.anchor.removeFromParent();
+      offer.label.dispose();
+      offer.anchor.traverse((node) => {
+        const mesh = node as THREE.Mesh;
+        if (mesh.isMesh && mesh !== offer.label && mesh.geometry.type === 'PlaneGeometry') {
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+        }
+      });
+    }
+    this.offerViews.length = 0;
+    this.offerKey = '';
+  }
+
+  private takeBlueprint(item: ShopItem): boolean {
+    if (this.shift.phase !== 'closed') return false;
+    if (this.carried) {
+      this.announce('Erst die Hände frei machen');
+      return false;
+    }
+    if (this.shift.total < item.cost) {
+      this.announce(
+        `${item.label} kostet ${item.cost} Münzen — in der Kasse sind ${this.shift.total}`,
+      );
+      return false;
+    }
+    this.blueprint = item;
+    playPick(true);
+    this.announce(`${item.label}: dorthin tragen, wo es stehen soll, und abstellen`);
+    return true;
+  }
+
+  private dropBlueprint(): void {
+    if (!this.blueprint) return;
+    this.announce(`${this.blueprint.label} zurückgelegt`);
+    this.blueprint = null;
+  }
+
+  /**
+   * **Der Geist vor der Figur** — wo das Stück landen würde, grün oder rot
+   * (`portal/placeGhost.ts`). Angemeldet ist er als Station: `A` davor stellt
+   * es hin.
+   */
+  private aimBlueprint(ctx: WorldContext): void {
+    const item = this.blueprint;
+    if (!item || this.shift.phase !== 'closed') {
+      if (this.blueprint && this.shift.phase !== 'closed') this.blueprint = null;
+      this.shopGhost.hide();
+      if (this.aim) this.removeUsable(this.aimAnchor);
+      this.aim = null;
+      return;
+    }
+    const feet = ctx.rig.position;
+    // Von oben zählt, wohin die Figur schaut (ihr Gesicht zeigt bei
+    // `bodyYaw` 0 nach +Z), aus den Augen und in der Brille der Blick.
+    const forward = ctx.topDown
+      ? _v.set(Math.sin(ctx.avatar.bodyYaw), 0, Math.cos(ctx.avatar.bodyYaw))
+      : ctx.camera.getWorldDirection(_v);
+    const tile = aimTile(item.id, feet.x, feet.z, forward.x, forward.z);
+    const check = placeCheck(item.id, tile.x, tile.z, this.placed);
+    const fresh = !this.aim;
+    this.aim = { ...tile, ok: check.ok, why: check.ok ? '' : check.why };
+    const table = item.kind === 'table';
+    const cx = table ? tile.x + 1 : tile.x + 0.5;
+    const cz = table ? tile.z + 1 : tile.z + 0.5;
+    this.aimAnchor.position.set(cx, 0, cz);
+    if (this.ghostModel && this.ghostModelFor === item.id) {
+      this.shopGhost.show(this.ghostModel, cx, 0, cz, 0, check.ok);
+    } else if (this.ghostModelFor !== item.id) {
+      this.ghostModelFor = item.id;
+      this.ghostModel = null;
+      void this.loadShopModel(item).then((model) => {
+        if (this.ghostModelFor === item.id) this.ghostModel = model;
+      });
+    }
+    if (fresh) {
+      this.addUsable(
+        this.aimAnchor,
+        {
+          use: () => this.placeBlueprint(),
+          usePrompt: () =>
+            this.aim?.ok ? `${this.blueprint?.label ?? ''} hier hinstellen` : (this.aim?.why ?? ''),
+        },
+        { radius: table ? 1.1 : 0.6, half: 0.8 },
+      );
+    }
+  }
+
+  private placeBlueprint(): boolean {
+    const item = this.blueprint;
+    const aim = this.aim;
+    if (!item || !aim) return false;
+    if (!aim.ok) {
+      this.announce(aim.why);
+      return false;
+    }
+    const done = buy(this.shift.total, this.placed, item.id, aim.x, aim.z);
+    if (!done) {
+      this.announce('Das geht hier nicht');
+      return false;
+    }
+    this.placed = done.placed;
+    this.shift = { ...this.shift, total: done.total, decor: decorCount(done.placed) };
+    const placed = done.placed[done.placed.length - 1]!;
+    this.blueprint = null;
+    this.shopGhost.hide();
+    this.buildPlaced(placed);
+    this.announce(
+      item.kind === 'table'
+        ? `Neuer Tisch ${this.tables.length} — ab morgen kommen mehr Gäste`
+        : `${item.label} steht — die Gäste warten jetzt etwas geduldiger`,
+    );
+    chime([523, 659, 784], 0.08);
+    this.effects.push(new Ring(this.root, this.aimAnchor.position, 0x5aa0e0));
+    return true;
+  }
+
+  /** Ein gekauftes Stück in die Welt stellen: Modell, Körper, bei Tischen die Anmeldung. */
+  private buildPlaced(p: Placed): void {
+    const item = shopItem(p.item);
+    if (!item) return;
+    this.route = routePlan(placedTiles(this.placed));
+    const round = this.building;
+    if (item.kind === 'table') {
+      this.tables = allTables(this.placed);
+      const t = this.tables.find((spot) => spot.x === p.x && spot.z === p.z);
+      if (!t) return;
+      if (!this.tableViews.some((v) => v.table === t.index)) this.addTableView(t);
+      for (const piece of tableSet(t)) {
+        if (piece.solid) this.addBlock(piece.x, piece.z, piece.solid, true);
+        if (!canLoadModels()) continue;
+        void import('../../core/dinerModel').then(async ({ dinerModel }) => {
+          const model = await dinerModel(piece.name);
+          if (!model || round !== this.building) return;
+          model.position.set(piece.x, piece.y ?? 0, piece.z);
+          model.rotation.y = piece.yaw ?? 0;
+          this.shopRoot.add(model);
+        });
+      }
+      return;
+    }
+    this.addBlock(p.x + 0.5, p.z + 0.5, [0.8, 0.8], true);
+    void this.loadShopModel(item).then((model) => {
+      if (!model || round !== this.building) return;
+      model.position.set(p.x + 0.5, 0, p.z + 0.5);
+      model.traverse((node) => {
+        if ((node as THREE.Mesh).isMesh) node.castShadow = true;
+      });
+      this.shopRoot.add(model);
+    });
+  }
+
+  /** Alles Gekaufte weg — beim Neuanfang nach dem Ende einer Runde. */
+  private clearPlaced(): void {
+    if (!this.placed.length) return;
+    this.placed = [];
+    this.tables = allTables([]);
+    this.route = routePlan();
+    for (const child of [...this.shopRoot.children]) child.removeFromParent();
+    for (const view of this.tableViews.splice(this.tables.length)) {
+      this.removeUsable(view.anchor);
+      view.anchor.removeFromParent();
+    }
+    for (const { mesh, body } of this.shopBlocks) {
+      this.physics?.remove(body);
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      const i = this.solids.indexOf(mesh);
+      if (i >= 0) this.solids.splice(i, 1);
+    }
+    this.shopBlocks.length = 0;
+  }
+
+  private async loadShopModel(item: ShopItem): Promise<THREE.Object3D | null> {
+    if (!canLoadModels()) return null;
+    if (item.source === 'diner') {
+      const { dinerModel } = await import('../../core/dinerModel');
+      return dinerModel(item.model);
+    }
+    const { kaykitModel } = await import('../../core/kaykitModel');
+    const model = await kaykitModel(item.model);
+    if (model && item.height !== undefined) fitHeight(model, item.height);
+    return model;
+  }
+
+  // --- Einsteigerhilfe und Anzeige am Schirm ---------------------------------
+
+  private setTutorial(on: boolean): void {
+    this.tutorialOn = on;
+    writeTutorial(on ? 'on' : 'off');
+    this.announce(on ? 'Einsteigerhilfe an' : 'Einsteigerhilfe aus');
+  }
+
+  /** Der Pfeil über dem Ziel und (in der Brille) die Tafel mit dem Satz. */
+  private buildHint(): void {
+    const arrow = new THREE.Group();
+    arrow.name = 'plateup-hint';
+    const material = new THREE.MeshBasicMaterial({ color: 0x5ee0a0, depthTest: false });
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.34, 20), material);
+    cone.rotation.x = Math.PI;
+    cone.renderOrder = 11;
+    arrow.add(cone);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.34, 0.42, 36),
+      new THREE.MeshBasicMaterial({
+        color: 0x5ee0a0,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+      }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.name = 'plateup-hint-ring';
+    arrow.add(ring);
+    arrow.visible = false;
+    this.root.add(arrow);
+    this.hintArrow = arrow;
+    if (!canLoadModels()) return;
+    const plane = new TextPlane({
+      width: 2.4,
+      height: 0.5,
+      title: 'Tipp',
+      body: '',
+      align: 'center',
+      accent: 0x5ee0a0,
+      face: true,
+      front: true,
+    });
+    plane.visible = false;
+    this.root.add(plane);
+    this.hintPlane = plane;
+  }
+
+  private refreshHint(ctx: WorldContext): void {
+    if (this.tutorialOn && tutorialFinished(this.shift)) {
+      // **Einmal und nicht wieder**: Wer so weit ist, braucht die Hilfe nicht
+      // mehr — das merkt sich der Browser.
+      this.tutorialOn = false;
+      writeTutorial('done');
+      this.announce('Einsteigerhilfe fertig — ab jetzt allein. (Menü: wieder einschalten)');
+    }
+    const hint = this.tutorialOn
+      ? tutorialHint(this.shift, this.stations, this.carried, this.tables.length)
+      : null;
+    this.hint = this.blueprint ? null : hint;
+    const arrow = this.hintArrow;
+    if (!arrow) return;
+    const at = this.hint ? this.hintSpot(this.hint) : null;
+    arrow.visible = !!at;
+    if (this.hintPlane) this.hintPlane.visible = !!this.hint && ctx.renderer.xr.isPresenting;
+    if (!at) return;
+    const bob = Math.sin(ctx.elapsed * 4) * 0.08;
+    arrow.position.set(at.x, 0, at.z);
+    const cone = arrow.children[0]!;
+    cone.position.y = at.y + 0.45 + bob;
+    const ring = arrow.children[1]!;
+    ring.position.y = 0.03;
+    ring.scale.setScalar(at.wide ? 2.2 : 1);
+    if (this.hintPlane && this.hint) {
+      this.hintPlane.position.set(at.x, at.y + 1.1, at.z);
+      if (this.hintPlane.userData.text !== this.hint.text) {
+        this.hintPlane.userData.text = this.hint.text;
+        this.hintPlane.setText('Tipp', this.hint.text);
+      }
+    }
+  }
+
+  /** Wo der Pfeil hinzeigt — über der Station, dem Tisch oder der Glocke. */
+  private hintSpot(hint: TutorialHint): { x: number; y: number; z: number; wide: boolean } | null {
+    const target = hint.target;
+    if (!target) return null;
+    if ('bell' in target) {
+      const b = this.bell?.position;
+      return b ? { x: b.x, y: 0.9, z: b.z, wide: false } : null;
+    }
+    if ('table' in target) {
+      const t = this.tables[target.table];
+      return t ? { x: t.x + 1, y: 0.8, z: t.z + 1, wide: true } : null;
+    }
+    const view = this.stationViews.find((v) => v.spot.id === target.station);
+    if (!view) return null;
+    const p = view.anchor.position;
+    return { x: p.x, y: view.top + 0.25, z: p.z, wide: false };
+  }
+
+  /**
+   * **Unten am Schirm**: was man in der Hand hat — und darüber, solange die
+   * Einsteigerhilfe läuft, was als Nächstes zu tun ist. **Oben**: die offenen
+   * Bestellungen als Zettel, mit Tischnummer und Geduld. Beides nur am
+   * Schirm; in der Brille stehen Blase, Tafel und Pfeil im Raum.
+   */
+  private refreshHud(ctx: WorldContext): void {
+    if (typeof document === 'undefined') return;
+    const flat = !ctx.renderer.xr.isPresenting;
+    if (!this.handBar) {
+      const bar = document.createElement('div');
+      bar.className = 'plateup-hand';
+      bar.style.cssText = [
+        'position:fixed',
+        'left:50%',
+        'bottom:calc(env(safe-area-inset-bottom, 0px) + 64px)',
+        'transform:translateX(-50%)',
+        'display:flex',
+        'flex-direction:column',
+        'align-items:center',
+        'gap:6px',
+        'max-width:calc(100vw - 24px)',
+        'pointer-events:none',
+        'z-index:4',
+        'font:600 14px/1.3 system-ui,sans-serif',
+      ].join(';');
+      document.body.appendChild(bar);
+      this.handBar = bar;
+    }
+    const tip = flat && this.hint ? this.hint.text : '';
+    const hand = this.blueprint
+      ? `Bauplan: ${this.blueprint.label}${this.aim ? (this.aim.ok ? ' — hier passt es (A)' : ` — ${this.aim.why}`) : ''}`
+      : this.carried
+        ? `In der Hand: ${dishLabel(this.carried)}`
+        : '';
+    const key = `${tip}|${hand}`;
+    // `display` und nicht `hidden`: Das `display:flex` der Leiste schlüge das
+    // Attribut.
+    this.handBar.style.display = !flat || (!tip && !hand) ? 'none' : 'flex';
+    if (this.handBar.dataset.key !== key) {
+      this.handBar.dataset.key = key;
+      this.handBar.textContent = '';
+      if (tip) this.handBar.append(pill(`Tipp: ${tip}`, '#5ee0a0', 'rgba(16,40,30,0.9)'));
+      if (hand) this.handBar.append(pill(hand, '#f2a33a', 'rgba(20,24,32,0.85)'));
+    }
+
+    if (!this.tickets) {
+      const row = document.createElement('div');
+      row.className = 'plateup-tickets';
+      row.style.cssText = [
+        'position:fixed',
+        'left:50%',
+        'top:calc(env(safe-area-inset-top, 0px) + 100px)',
+        'transform:translateX(-50%)',
+        'display:flex',
+        'flex-wrap:wrap',
+        'justify-content:center',
+        'gap:6px',
+        'max-width:calc(100vw - 24px)',
+        'pointer-events:none',
+        'z-index:4',
+      ].join(';');
+      document.body.appendChild(row);
+      this.tickets = row;
+    }
+    const waiting = this.shift.guests
+      .filter((g) => g.phase === 'waiting')
+      .sort((a, b) => a.patience - b.patience);
+    const dirty = this.tables.filter((t) => dirtyAt(this.shift, t.index) > 0);
+    const open = this.shift.phase === 'open' || this.shift.phase === 'closing';
+    const hideTickets = !flat || !open || (!waiting.length && !dirty.length);
+    this.tickets.style.display = hideTickets ? 'none' : 'flex';
+    const tkey =
+      waiting.map((g) => `${g.id}:${Math.round(patienceShare(g) * 20)}`).join(',') +
+      '|' +
+      dirty.map((t) => t.index).join(',');
+    if (tkey === this.ticketKey || hideTickets) return;
+    this.ticketKey = tkey;
+    this.tickets.textContent = '';
+    for (const g of waiting) this.tickets.append(ticket(g));
+    for (const t of dirty) {
+      const el = document.createElement('div');
+      el.style.cssText =
+        'padding:4px 10px;border-radius:10px;background:rgba(60,48,36,0.88);color:#f3e2c8;font:600 12px/1.3 system-ui,sans-serif;border:2px dashed #b48c5a';
+      el.textContent = `Tisch ${t.index + 1}: abräumen`;
+      this.tickets.append(el);
+    }
+  }
+
   // --- zum Prüfen aus der Konsole (Bild-Schleife) ---------------------------
 
   /** Der Stand des Tages — für Tests im Browser und die Bild-Schleife. */
@@ -1155,6 +1871,44 @@ export class PlateUpWorld extends GridWorld {
   /** An einem Tisch servieren, als stünde man davor. */
   debugServe(table: number): boolean {
     return this.serveAt(table);
+  }
+
+  /** Die Kasse füllen und den Tag beenden — für die Einrichten-Phase (nur zum Prüfen). */
+  debugEvening(total: number): void {
+    this.clearGuests();
+    this.shift = {
+      ...this.shift,
+      phase: 'closed',
+      day: Math.max(1, this.shift.day),
+      total,
+      guests: [],
+    };
+  }
+
+  /** Einen Bauplan aufnehmen und direkt hinstellen (nur zum Prüfen). */
+  debugPlace(item: string, x: number, z: number): boolean {
+    const it = shopItem(item);
+    if (!it) return false;
+    this.blueprint = it;
+    const check = placeCheck(item, x, z, this.placed);
+    this.aim = { x, z, ok: check.ok, why: check.ok ? '' : check.why };
+    return this.placeBlueprint();
+  }
+
+  /** Einen Bauplan in die Hand nehmen (nur zum Prüfen). */
+  debugBlueprint(item: string): void {
+    const it = shopItem(item);
+    if (it) this.takeBlueprint(it);
+  }
+
+  /** An einen Tisch treten und `A` drücken — servieren oder abräumen (nur zum Prüfen). */
+  debugTable(table: number): boolean {
+    return this.useTable(table, { kind: 'player', at: _v, forward: _v });
+  }
+
+  /** Die Einsteigerhilfe schalten (nur zum Prüfen). */
+  debugTutorial(on: boolean): void {
+    this.tutorialOn = on;
   }
 
   /** Eine Station benutzen, als stünde man davor. */
@@ -1210,8 +1964,39 @@ interface StationView {
 interface TableView {
   readonly table: number;
   readonly anchor: THREE.Group;
-  plate: THREE.Object3D | null;
+  /** Das Essen je Gast (Id), solange er isst. */
+  readonly plates: Map<number, THREE.Object3D>;
+  /** Die schmutzigen Teller, die gerade zu sehen sind. */
+  readonly dirty: THREE.Object3D[];
+  dirtyShown: number;
   deedKey: string;
+}
+
+/** Ein Bauplan, der im Gastraum liegt. */
+interface OfferView {
+  readonly item: ShopItem;
+  readonly anchor: THREE.Group;
+  readonly label: TextPlane;
+}
+
+/** Wo der Gast auf diesem Stuhl sitzt, wohin er schaut und von wo er sich setzt. */
+function seatOf(
+  t: TableSpot,
+  seat: number,
+): { x: number; z: number; yaw: number; approach: FloorPoint } {
+  if (seat === 1) {
+    return { x: t.other.x, z: t.other.z, yaw: t.other.yaw, approach: t.otherApproach };
+  }
+  return { x: t.seat.x, z: t.seat.z, yaw: t.seatYaw, approach: t.approach };
+}
+
+/** Wo der Teller eines Gastes auf dem Tisch steht — vor seinem Stuhl. */
+function platePlace(t: TableSpot, seat: number): { x: number; z: number } {
+  const cx = t.x + 1;
+  const cz = t.z + 1;
+  const s = seatOf(t, seat);
+  // Vom Stuhl ein Stück zur Tischmitte hin.
+  return { x: s.x + (cx - s.x) * 0.55, z: s.z + (cz - s.z) * 0.55 };
 }
 
 interface GuestView {
@@ -1320,7 +2105,10 @@ class OrderBubble {
   /** Die Geduld, wie sie gerade gezeichnet ist — in Vierzigsteln. */
   private patience = 40;
 
-  constructor(private readonly order: string) {
+  constructor(
+    private readonly order: string,
+    private readonly table: number,
+  ) {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 256;
     this.canvas.height = 224;
@@ -1420,6 +2208,15 @@ class OrderBubble {
     g.font = 'bold 26px sans-serif';
     g.textAlign = 'center';
     g.fillText(menuItem(this.order).label, 128, 150);
+    // **Die Tischnummer** oben links in der Ecke — dieselbe wie auf den
+    // Zetteln am Schirm und der Tafel.
+    g.fillStyle = '#3a3f4b';
+    g.beginPath();
+    g.arc(40, 40, 22, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#fffaf0';
+    g.font = 'bold 26px sans-serif';
+    g.fillText(String(this.table), 40, 49);
     // Der Geduldsbalken: grün, dann gelb, zuletzt rot.
     const part = this.patience / 40;
     g.fillStyle = '#d9d4c7';
@@ -1479,8 +2276,12 @@ class CoinPop implements Effect {
     void import('../../core/kaykitModel').then(async ({ kaykitModel }) => {
       const coin = await kaykitModel('board-game-bits/coin_gold.glb');
       if (!coin || this.time > 1.5) return;
-      fitHeight(coin, 0.08);
-      coin.scale.multiplyScalar(2.5);
+      // Auf den **Durchmesser** eingepasst, nicht auf die Höhe: Die Münze
+      // liegt flach im Regal, und ihre Höhe ist ihre Dicke — auf 8 cm Dicke
+      // gebracht, war sie so groß wie der Tisch.
+      const box = new THREE.Box3().setFromObject(coin);
+      const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 1e-3);
+      coin.scale.multiplyScalar(0.22 / size);
       coin.rotation.x = Math.PI / 2;
       this.group.add(coin);
     });
@@ -1526,5 +2327,120 @@ class Ring implements Effect {
     this.mesh.removeFromParent();
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
+  }
+}
+
+/** Wo die Einsteigerhilfe sich merkt, ob sie fertig ist: `done`, `off` oder `on`. */
+const TUTORIAL_KEY = 'bgvr.plateup.tutorial';
+
+function readTutorialOn(): boolean {
+  try {
+    const raw = globalThis.localStorage?.getItem(TUTORIAL_KEY);
+    return raw !== 'done' && raw !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function writeTutorial(value: 'done' | 'off' | 'on'): void {
+  try {
+    globalThis.localStorage?.setItem(TUTORIAL_KEY, value);
+  } catch {
+    // Kein Speicher (privater Modus): Dann gilt es für diese Sitzung.
+  }
+}
+
+/** Eine Pille am Schirm — ein Satz mit Rand in einer Farbe. */
+function pill(text: string, edge: string, background: string): HTMLDivElement {
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'padding:6px 14px',
+    'border-radius:999px',
+    `background:${background}`,
+    `border:2px solid ${edge}`,
+    'color:#fff',
+    'max-width:100%',
+    'text-align:center',
+  ].join(';');
+  el.textContent = text;
+  return el;
+}
+
+/** Ein Bestellzettel: Tischnummer, Burger, Geduld als Balken. */
+function ticket(g: Guest): HTMLDivElement {
+  const share = patienceShare(g);
+  const color = share > 0.6 ? '#4fbf5a' : share > 0.35 ? '#f2b43a' : '#e0584f';
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'min-width:92px',
+    'padding:4px 8px 6px',
+    'border-radius:10px',
+    'background:#fffaf0',
+    `border:2px solid ${share < 0.35 ? '#e0584f' : '#3a3f4b'}`,
+    'color:#2b2f38',
+    'font:600 12px/1.25 system-ui,sans-serif',
+    'box-shadow:0 2px 6px rgba(0,0,0,0.35)',
+  ].join(';');
+  const head = document.createElement('div');
+  head.textContent = `Tisch ${g.table + 1}`;
+  head.style.cssText = 'font-size:11px;color:#6b6f78';
+  const name = document.createElement('div');
+  name.textContent = menuItem(g.order).label;
+  const bar = document.createElement('div');
+  bar.style.cssText =
+    'height:5px;border-radius:3px;background:#d9d4c7;margin-top:3px;overflow:hidden';
+  const fill = document.createElement('div');
+  fill.style.cssText = `height:100%;width:${Math.round(share * 100)}%;background:${color}`;
+  bar.append(fill);
+  el.append(head, name, bar);
+  return el;
+}
+
+/**
+ * **Rauch über der Grillplatte** — graue Bällchen, die aufsteigen und
+ * verblassen. Je näher am Verbrennen, desto dichter und dunkler; ist es
+ * verbrannt, steigt er schwarz.
+ */
+class Smoke {
+  private readonly group = new THREE.Group();
+  private readonly puffs: THREE.Mesh[] = [];
+  private readonly material = new THREE.MeshBasicMaterial({
+    color: 0x9a9a9a,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+  });
+  private readonly geometry = new THREE.SphereGeometry(0.07, 10, 8);
+  private time = 0;
+
+  constructor(parent: THREE.Object3D, x: number, y: number, z: number) {
+    this.group.position.set(x, y, z);
+    this.group.name = 'plateup-smoke';
+    for (let i = 0; i < 6; i++) {
+      const puff = new THREE.Mesh(this.geometry, this.material);
+      puff.userData.phase = i / 6;
+      this.group.add(puff);
+      this.puffs.push(puff);
+    }
+    parent.add(this.group);
+  }
+
+  step(dt: number, strength: number): void {
+    this.time += dt;
+    const dark = Math.min(1, Math.max(0, (strength - 0.5) * 2));
+    this.material.color.setRGB(0.62 - dark * 0.45, 0.62 - dark * 0.45, 0.62 - dark * 0.45);
+    this.material.opacity = 0.35 + dark * 0.35;
+    for (const puff of this.puffs) {
+      const t = (this.time * 0.6 + (puff.userData.phase as number)) % 1;
+      const phase = puff.userData.phase as number;
+      puff.position.set(Math.sin(phase * 9 + t * 3) * 0.08, t * 0.9, Math.cos(phase * 7) * 0.06);
+      puff.scale.setScalar(0.6 + t * 1.6);
+    }
+  }
+
+  dispose(): void {
+    this.group.removeFromParent();
+    this.geometry.dispose();
+    this.material.dispose();
   }
 }
