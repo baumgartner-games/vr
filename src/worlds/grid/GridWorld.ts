@@ -50,6 +50,7 @@ import {
 import { ModelGhosts } from './modelGhost';
 import { GhostBoxView, type GhostBoxLine } from './ghostView';
 import { turnedHalf, yawOf } from '../portal/gridSnap';
+import { boxAround, type Box as DecorBox } from '../portal/decorPlace';
 import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { fixtureTile, type BlockPlacement, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
@@ -2158,6 +2159,30 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected override floorTopAt(tiles: readonly CoverTile[], below: number): number | null {
     return floorTopUnder(this.floorTops, tiles, below);
+  }
+
+  /** Die Quader des Grundrisses als Kästen, gemerkt je Fassung des Plans (`decorSolids`). */
+  private decorCache: { version: number; boxes: DecorBox[] } | null = null;
+
+  /**
+   * **Wände und Bausteine des Grundrisses für das Dekorieren**
+   * (`PortalWorld.decorTarget`): An eine gebaute Wand hängt man ein Bild, auf
+   * einen gebauten Tisch stellt man eine Tasse. Böden fehlen — auf ihnen
+   * steht ohnehin alles —, schräge Wände auch: An sie hängt man nichts, und
+   * als Kasten um ihre Mitte stünden sie einer ganzen Kachel im Weg.
+   */
+  protected override decorSolids(out: DecorBox[]): void {
+    const plan = this.grid;
+    if (!plan) return;
+    if (this.decorCache?.version !== plan.version) {
+      const boxes: DecorBox[] = [];
+      for (const solid of plan.solids()) {
+        if (solid.kind === 'floor' || solid.yaw) continue;
+        boxes.push(boxAround(solid.x, solid.y, solid.z, solid.w, solid.h, solid.d));
+      }
+      this.decorCache = { version: plan.version, boxes };
+    }
+    for (const box of this.decorCache.boxes) out.push(box);
   }
 
   /**

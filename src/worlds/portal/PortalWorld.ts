@@ -164,6 +164,25 @@ import {
   type AreaTile,
 } from './areaPaint';
 import { AreaPad, type AreaEvent } from './areaPad';
+import { BuildBar, HIDDEN_BUILD_BAR, type BuildEvent, type BuildTool } from './buildBar';
+import {
+  BuildHistory,
+  type BuildPose,
+  type BuildStep,
+  describeStep,
+  nearestAt,
+} from './buildHistory';
+import {
+  type Box as DecorBox,
+  boxAround,
+  mountBlocked,
+  mountPose,
+  mountSize,
+  mountsOnWall,
+  restOn,
+  wallFaces,
+} from './decorPlace';
+import { PlaceGhost } from './placeGhost';
 import {
   KAYKIT_ACCENT,
   SHELF_COLS,
@@ -373,7 +392,13 @@ import {
   type UsePick,
   type Usable,
 } from '../../core/usable';
-import { CRANE_TOUCH, buildCraneMark, craneCarryY, disposeCrane } from '../../core/crane';
+import {
+  CRANE_TOUCH,
+  buildCraneMark,
+  craneCarryY,
+  craneTurn,
+  disposeCrane,
+} from '../../core/crane';
 import {
   BOMB_GHOST_COLOR,
   BOMB_GHOST_OPACITY,
@@ -1421,6 +1446,23 @@ export class PortalWorld implements World {
    * hat, und weggeräumt mit der Welt.
    */
   private areaPad: AreaPad | null = null;
+  /**
+   * **Die Werkzeugleiste des Baukastens** (`buildBar.ts`), der Stapel für
+   * Rückgängig/Wiederholen (`buildHistory.ts`) und der Geist am Landepunkt
+   * (`placeGhost.ts`) — siehe `updateBuild`.
+   */
+  private buildBar: BuildBar | null = null;
+  private readonly buildHistory = new BuildHistory();
+  private placeGhost: PlaceGhost | null = null;
+  /** Solange ein Schritt nachgespielt wird, kommt nichts auf den Stapel. */
+  private replaying = false;
+  /** Wo ein schon stehendes Stück stand, als es aufgehoben wurde — für _Verschieben_ rückgängig. */
+  private readonly pickedFrom = new WeakMap<PhysicsBody, BuildPose>();
+  /** Der letzte Pinsel aus dem Regal — _Setzen_ mit leerem Haken nimmt ihn wieder. */
+  private lastBrush: { path: string; yaw: number } | null = null;
+  /** Die Kästen, gegen die gestapelt und an die gehängt wird — je Bild neu gefüllt. */
+  private readonly decorScratch: DecorBox[] = [];
+  private readonly decorModels: PhysicsBody[] = [];
   /** Ob _Fläche_ gerade an ist. */
   private areaOn = false;
   /**
@@ -1433,6 +1475,8 @@ export class PortalWorld implements World {
     last: THREE.Vector3;
     done: Set<string>;
     count: number;
+    /** Ob in diesem Strich schon „kein Platz" gesagt wurde — einmal reicht. */
+    refused?: boolean;
   } | null = null;
   /** Die Ecken der Fläche, zwischen Drücken, Ziehen und Nachfrage. */
   private readonly areaSelect = new AreaSelect();
@@ -1733,6 +1777,9 @@ export class PortalWorld implements World {
     // **Und die gezogene Fläche darüber** — ist _Fläche_ an, zeigt das Gitter
     // die Fläche und nicht das eine Stück in der Hand.
     this.updateAreaPaint(ctx);
+    // **Und die Werkzeugleiste samt Geist** — nach der Fläche, damit ein
+    // Druck auf _Drehen_ schon im nächsten Bild im Gitter steht.
+    this.updateBuild(ctx);
     // **Erst jetzt der Saum**: Er hängt in der Brille an dem, worauf die Hand
     // zeigt, und das steht erst nach `updateGrabs` fest (`showUse`).
     this.showUse(dt, ctx);
@@ -3256,7 +3303,7 @@ export class PortalWorld implements World {
       label: 'Weltänderungen',
       icon: 'tape',
       accent,
-      children: [track, copy, paste, clear],
+      children: [track, copy, paste, clear, ...this.buildEntries(accent)],
     };
     const paint = (): void => {
       const on = trackingChanges();
@@ -3391,6 +3438,8 @@ export class PortalWorld implements World {
     at: THREE.Vector3,
     yaw: number,
     note = true,
+    /** Fest an genau dieser Stelle, ohne Schwerkraft (`hang`) — was auf etwas steht. */
+    fixed = false,
   ): Promise<PhysicsBody | null> {
     const physics = this.physics;
     if (!this.context || !physics) return null;
@@ -3407,19 +3456,29 @@ export class PortalWorld implements World {
     const spin = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
-    // **Eine Wand unter 45° kommt gekürzt** (`fitWall`) — aus einer Liste und
-    // vom Pinsel genauso wie aus der Hand.
-    const base = this.wallBase(entry);
-    const pose = gridPose(at.x, at.z, spin, base.half, base.long);
-    this.replaceWalls(entry, pose);
-    this.fitWall(entry, pose);
-    // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
-    // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
-    // seine halbe Dicke wieder heraus.
-    this.sinkFloor(entry);
+    if (mountsOnWall(path)) {
+      // **Ein Wandstück hängt, wo es gesetzt wird** (`hang`) — ein Bild ist
+      // keine Wand und ersetzt keine, auch wenn es so dünn ist wie eine.
+      this.hang(entry);
+    } else {
+      // **Eine Wand unter 45° kommt gekürzt** (`fitWall`) — aus einer Liste und
+      // vom Pinsel genauso wie aus der Hand.
+      const base = this.wallBase(entry);
+      const pose = gridPose(at.x, at.z, spin, base.half, base.long);
+      this.replaceWalls(entry, pose);
+      this.fitWall(entry, pose);
+      // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
+      // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
+      // seine halbe Dicke wieder heraus. Und was auf einem Tisch steht, steht
+      // dort fest: Ein Körper, der auf einer fremden Platte erst zur Ruhe
+      // kommen muss, stößt beim nächsten Stück daneben die Tasse herunter.
+      if (!this.sinkFloor(entry) && fixed) this.hang(entry);
+    }
     if (note) {
       this.sync?.spawned(id, kind, poseOf(entry));
       this.noteModel(entry, path);
+      if (!this.replaying)
+        this.buildHistory.push({ kind: 'add', item: { path, pose: this.buildPoseOf(entry) } });
     } else this.ownByWorld(entry);
     return entry;
   }
@@ -5009,6 +5068,11 @@ export class PortalWorld implements World {
     this.placeGrid = null;
     this.areaPad?.dispose();
     this.areaPad = null;
+    this.buildBar?.dispose();
+    this.buildBar = null;
+    this.placeGhost?.dispose();
+    this.placeGhost = null;
+    this.buildHistory.clear();
     this.areaOn = false;
     this.areaSelect.reset();
     this.areaHover = null;
@@ -8922,6 +8986,10 @@ export class PortalWorld implements World {
     // der *jeder* Weg endet — die Hand, der Ferngriff, der Schwerkrafthandschuh
     // —, also steht die Sperre auch hier und nicht nur beim Zielen.
     if (this.holdsStill(entry)) return;
+    // Wo ein schon stehendes Stück aus dem Regal stand, bevor es aufgehoben
+    // wurde — damit _Rückgängig_ es dorthin zurückstellen kann.
+    if (!this.shelfFresh.has(entry) && !entry.carried && this.modelPath(entry) !== null)
+      this.pickedFrom.set(entry, this.buildPoseOf(entry));
     const loose = this.loose.get(entry);
     if (loose) {
       this.lastActHand = hand;
@@ -9108,6 +9176,14 @@ export class PortalWorld implements World {
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     if (path === null) return;
     this.noteModel(entry, path);
+    const from = this.pickedFrom.get(entry);
+    this.pickedFrom.delete(entry);
+    if (!this.replaying) {
+      const to = this.buildPoseOf(entry);
+      this.buildHistory.push(
+        from ? { kind: 'move', path, from, to } : { kind: 'add', item: { path, pose: to } },
+      );
+    }
     if (!this.shelfFresh.has(entry)) return;
     this.shelfFresh.delete(entry);
     if (!refillsCatalogue(gameMode())) return;
@@ -9150,6 +9226,9 @@ export class PortalWorld implements World {
     if (path === null) return false;
     entry.object.getWorldPosition(_point);
     this.paint = { entry, path, last: _point.clone(), done: new Set(), count: 0 };
+    // Ein Strich ist **ein** Schritt für _Rückgängig_, wie viele Kacheln er
+    // auch überstreicht (`BuildHistory.begin`).
+    this.buildHistory.begin();
     this.paintAt(ctx, this.paint, _point.x, _point.z);
     return true;
   }
@@ -9164,6 +9243,7 @@ export class PortalWorld implements World {
     if (!paint) return;
     if (paint.entry !== entry || !ctx.rig.paintHeld) {
       this.paint = null;
+      this.buildHistory.end();
       if (paint.count > 1)
         ctx.notify(`${paint.count}× ${propLabel(modelKind(paint.path))} gesetzt`);
       return;
@@ -9202,9 +9282,32 @@ export class PortalWorld implements World {
       const at = body.object.position;
       if (Math.hypot(at.x - pose.x, at.z - pose.z) < 0.05) return;
     }
-    const y = ctx.rig.getFloorY() + entry.halfExtents.y + AREA_LIFT;
+    // **Auf den Tisch oder an die Wand, und nicht in etwas hinein**
+    // (`decorTarget`): Gesetzt wird auf der Höhe, auf der es steht, und wo
+    // kein Platz ist, gar nicht.
+    const decor = this.decorTarget(ctx, entry, x, z);
+    if (decor && !decor.valid) {
+      if (!paint.refused) ctx.notify('Kein Platz — da steht schon etwas');
+      paint.refused = true;
+      return;
+    }
+    if (decor?.mounted) {
+      const spot = `m:${decor.x.toFixed(2)}/${decor.y.toFixed(2)}/${decor.z.toFixed(2)}`;
+      if (paint.done.has(spot)) return;
+      paint.done.add(spot);
+    }
+    const y = decor ? decor.y : ctx.rig.getFloorY() + entry.halfExtents.y + AREA_LIFT;
     paint.count += 1;
-    void this.placeModelAt(paint.path, new THREE.Vector3(pose.x, y, pose.z), pose.yaw);
+    void this.placeModelAt(
+      paint.path,
+      new THREE.Vector3(decor?.mounted ? decor.x : pose.x, y, decor?.mounted ? decor.z : pose.z),
+      decor?.mounted ? decor.yaw : pose.yaw,
+      true,
+      // Im Baukasten steht, was gesetzt ist, **fest** — genau auf der Höhe,
+      // die der Geist gezeigt hat. Sonst schiebt das nächste Stück am Haken
+      // beim Vorbeifliegen die Stehlampe durch den Raum.
+      true,
+    );
   }
 
   /**
@@ -9389,10 +9492,20 @@ export class PortalWorld implements World {
     entry.object.getWorldQuaternion(_quaternion);
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
-    this.replaceWalls(entry, pose);
-    this.fitWall(entry, pose);
-    _point.set(pose.x, _point.y, pose.z);
-    _quaternion.setFromAxisAngle(UP, pose.yaw);
+    // **An die Wand oder auf den Tisch** (`decorTarget`): Ein Bild hängt sich
+    // an die nächste Wandfläche, eine Tasse landet auf der Platte statt einen
+    // Meter darüber loszufallen.
+    const decor = this.context ? this.decorTarget(this.context, entry, _point.x, _point.z) : null;
+    if (decor?.mounted) {
+      _point.set(decor.x, decor.y, decor.z);
+      _quaternion.setFromAxisAngle(UP, decor.yaw);
+    } else {
+      this.replaceWalls(entry, pose);
+      this.fitWall(entry, pose);
+      // Auf der Höhe, auf der es steht, und nicht auf der des Hakens.
+      _point.set(pose.x, decor && !this.floorPieces.has(entry) ? decor.y : _point.y, pose.z);
+      _quaternion.setFromAxisAngle(UP, pose.yaw);
+    }
 
     entry.object.position.copy(_point);
     entry.object.quaternion.copy(_quaternion);
@@ -9406,7 +9519,10 @@ export class PortalWorld implements World {
     // Ohne diese Zeile dreht sich das Möbel nach dem Einrasten weiter aus der
     // Drehung heraus, die die Hand ihm mitgegeben hat.
     entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    this.sinkFloor(entry);
+    // Fest steht, was an der Wand hängt, was auf etwas steht — und im
+    // Baukasten alles: Dort wird eingerichtet und nicht gekegelt (`paintAt`).
+    if (this.sinkFloor(entry)) return true;
+    if (decor?.mounted || decor?.stacked || refillsCatalogue(gameMode())) this.hang(entry);
     return true;
   }
 
@@ -9565,6 +9681,408 @@ export class PortalWorld implements World {
       if (modelPathOf(kind) !== null) return grab.entry;
     }
     return null;
+  }
+
+  // --- Baukasten: Werkzeugleiste, Geist, Rückgängig ---------------------------
+
+  /** Die Adresse im Regal, wenn das ein Modell aus dem Regal ist — sonst `null`. */
+  private modelPath(entry: PhysicsBody): string | null {
+    return modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
+  }
+
+  /** Wo ein Stück gerade steht, als Lage für den Stapel (`buildHistory.ts`). */
+  private buildPoseOf(entry: PhysicsBody): BuildPose {
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const fixed = this.physics?.rapier.RigidBodyType.Fixed;
+    return {
+      x: _point.x,
+      y: _point.y,
+      z: _point.z,
+      yaw: yawOf(_quaternion),
+      fixed: fixed !== undefined && !entry.removed && entry.body.bodyType() === fixed,
+    };
+  }
+
+  /** Ein hingestelltes Modell weg — für alle, und ohne Zeile in der Liste der Weltänderungen. */
+  private dropModel(entry: PhysicsBody): void {
+    const key = this.changeKeys.get(entry);
+    if (key) {
+      forgetChange(key);
+      this.changeKeys.delete(entry);
+    }
+    this.removeProp(entry, true);
+  }
+
+  /**
+   * **Ein Wandstück hängt** — als fester Körper, genau dort, wo es ist: Ein
+   * Bild, das nach dem Aufhängen der Schwerkraft folgte, läge eine Sekunde
+   * später am Fuß der Wand.
+   */
+  private hang(entry: PhysicsBody): void {
+    const physics = this.physics;
+    if (!physics || entry.removed) return;
+    entry.body.setBodyType(physics.rapier.RigidBodyType.Fixed, true);
+    entry.body.setLinvel(_zeroVelocity, true);
+    entry.body.setAngvel(_zeroVelocity, true);
+  }
+
+  /**
+   * **Die Wände und Möbel, die die Welt selbst gebaut hat**, als Kästen — für
+   * das Stapeln und das Anheften (`decorTarget`). Diese Welt hat keine; die
+   * Gitterwelt reicht ihren Grundriss herein (`GridWorld`).
+   */
+  protected decorSolids(_out: DecorBox[]): void {}
+
+  /** Was um ein getragenes Stück herum steht: die Welt und jedes andere hingestellte Modell. */
+  private decorScene(except: PhysicsBody): { boxes: DecorBox[]; models: number } {
+    const boxes = this.decorScratch;
+    boxes.length = 0;
+    for (const other of this.placedModels(this.decorModels)) {
+      if (other === except) continue;
+      other.object.getWorldPosition(_point);
+      other.object.getWorldQuaternion(_quaternion);
+      const { halfX, halfZ } = turnedHalf(other.halfExtents, quarterYaw(yawOf(_quaternion)));
+      boxes.push(
+        boxAround(_point.x, _point.y, _point.z, 2 * halfX, 2 * other.halfExtents.y, 2 * halfZ),
+      );
+    }
+    const models = boxes.length;
+    this.decorSolids(boxes);
+    return { boxes, models };
+  }
+
+  /**
+   * **Wo das getragene Stück landen würde, wenn der Kran bei (`x`, `z`) steht**
+   * — und ob dort Platz ist (`decorPlace.ts`).
+   *
+   * - **Wandstücke** (`mountsOnWall`) hängen an der nächsten Wandfläche vor
+   *   dem Kran, flach und mit der Vorderseite in den Raum.
+   * - **Alles andere** rastet wie bisher auf dem Gitter ein (`gridPose`) und
+   *   steht auf dem, was unter seiner Mitte liegt — dem Boden, einem Tisch,
+   *   einem Regalbrett (`restOn`).
+   * - **Wände und Bodenstücke** bleiben bei ihren eigenen Regeln: Eine Wand
+   *   ersetzt, was auf ihrer Fuge steht (`wallsUnder`), ein Bodenstück liegt
+   *   im Boden (`sinkFloor`). Für sie gibt es hier nur die Lage.
+   *
+   * `y` ist die **Mitte** des Stücks — dort, wo auch sein Ursprung liegt.
+   * `null` für alles, was nicht aus dem Regal kommt.
+   */
+  private decorTarget(
+    ctx: WorldContext,
+    entry: PhysicsBody,
+    x: number,
+    z: number,
+  ): {
+    x: number;
+    y: number;
+    z: number;
+    yaw: number;
+    mounted: boolean;
+    stacked: boolean;
+    valid: boolean;
+    on: PhysicsBody | null;
+  } | null {
+    const path = this.modelPath(entry);
+    if (path === null) return null;
+    const floorY = ctx.rig.getFloorY();
+    const half = entry.halfExtents;
+    const { boxes, models } = this.decorScene(entry);
+    if (mountsOnWall(path)) {
+      const size = mountSize(half.x, half.y, half.z);
+      const mount = mountPose(x, z, wallFaces(boxes), size, floorY, half.x >= half.z);
+      if (mount) {
+        const blocked = mountBlocked(mount, size, boxes.slice(0, models));
+        return { ...mount, mounted: true, stacked: false, valid: !blocked, on: null };
+      }
+    }
+    entry.object.getWorldQuaternion(_quaternion);
+    const base = this.wallBase(entry);
+    const pose = gridPose(x, z, _quaternion, base.half, base.long);
+    const turned = turnedHalf(half, pose.yaw);
+    const plain = { x: pose.x, z: pose.z, yaw: pose.yaw, mounted: false, on: null };
+    if (pose.wall !== null || pose.diagonal || this.floorPieces.has(entry))
+      return { ...plain, y: floorY + half.y, stacked: false, valid: true };
+    const rest = restOn(
+      { x: pose.x, z: pose.z, halfX: turned.halfX, halfZ: turned.halfZ },
+      2 * half.y,
+      floorY,
+      boxes,
+    );
+    const on =
+      rest.support >= 0 && rest.support < models ? (this.decorModels[rest.support] ?? null) : null;
+    return {
+      ...plain,
+      y: rest.y + half.y + 0.005,
+      stacked: rest.support >= 0,
+      valid: !rest.blocked,
+      on: on && on !== entry ? on : null,
+    };
+  }
+
+  /**
+   * **Die Werkzeugleiste, der Geist und Rückgängig** — je Bild einmal.
+   *
+   * Der **Geist** (`placeGhost.ts`) steht unter jedem getragenen Stück aus
+   * dem Regal, in jedem Modus und auch in der Brille: Er ist die Antwort auf
+   * „wo landet das?", und die Frage stellt sich überall. Die **Leiste**
+   * (`buildBar.ts`) gibt es nur am Schirm und auf dem Telefon, als Kran im
+   * _Baukasten_ — sie ist DOM, und in der Brille gibt es keinen Zeiger über
+   * einem Bild. Dort liegen _Rückgängig_ und _Wiederholen_ im Menü
+   * _Weltänderungen_.
+   */
+  private updateBuild(ctx: WorldContext): void {
+    const carried = this.carriedModel();
+    const target = carried ? this.decorTarget(ctx, carried, ...this.carriedSpot(carried)) : null;
+    if (carried && target && !this.areaOn) {
+      const ghost = (this.placeGhost ??= new PlaceGhost());
+      if (ghost.root.parent !== ctx.scene) ctx.scene.add(ghost.root);
+      ghost.show(carried.object, target.x, target.y, target.z, target.yaw, target.valid);
+    } else this.placeGhost?.hide();
+
+    const presenting = ctx.renderer.xr.isPresenting;
+    const visible = !presenting && Boolean(ctx.crane) && refillsCatalogue(gameMode());
+    if (!visible) {
+      if (this.buildBar) {
+        this.buildBar.take();
+        this.buildBar.show(HIDDEN_BUILD_BAR);
+      }
+      return;
+    }
+    if (carried && this.shelfFresh.has(carried)) {
+      const path = this.modelPath(carried);
+      carried.object.getWorldQuaternion(_quaternion);
+      if (path !== null) this.lastBrush = { path, yaw: eighthYaw(yawOf(_quaternion)) };
+    }
+    const bar = (this.buildBar ??= new BuildBar());
+    for (const event of bar.take()) this.onBuildEvent(ctx, event);
+
+    const tool: BuildTool = this.bomb
+      ? 'erase'
+      : carried && this.shelfFresh.has(carried)
+        ? 'place'
+        : 'move';
+    const path = carried ? this.modelPath(carried) : null;
+    let status = '';
+    if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
+    else if (carried && path && target) {
+      const name = propLabel(modelKind(path));
+      const where = target.mounted
+        ? 'an der Wand'
+        : target.on
+          ? `auf ${propLabel(modelKind(this.modelPath(target.on) ?? ''))}`
+          : target.stacked
+            ? 'aufgestellt'
+            : 'auf dem Boden';
+      status = target.valid ? `${name} · ${where}` : `${name} · kein Platz`;
+    } else if (!carried) status = 'Verschieben: Stück anklicken, um es aufzuheben';
+    const wall = carried ? this.isWallPiece(carried) : false;
+    bar.show({
+      visible: true,
+      tool,
+      canUndo: this.buildHistory.canUndo,
+      canRedo: this.buildHistory.canRedo,
+      turnStep: wall ? '45°' : '90°',
+      canTurn: carried !== null,
+      status,
+      valid: carried && target && !this.bomb ? target.valid : null,
+    });
+  }
+
+  /** Ob ein Stück eine Wand aus dem Regal ist — die dreht in Achteln, alles andere in Vierteln. */
+  private isWallPiece(entry: PhysicsBody): boolean {
+    const path = this.modelPath(entry);
+    if (path === null || mountsOnWall(path)) return false;
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const base = this.wallBase(entry);
+    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
+    return pose.wall !== null || Boolean(pose.diagonal);
+  }
+
+  /** Wo das Getragene gerade über dem Boden hängt — dieselbe Stelle, die das Gitter nimmt. */
+  private carriedSpot(entry: PhysicsBody): [number, number] {
+    entry.object.getWorldPosition(_point);
+    return [_point.x, _point.z];
+  }
+
+  /** Ein Druck auf die Leiste (`buildBar.ts`). */
+  private onBuildEvent(ctx: WorldContext, event: BuildEvent): void {
+    switch (event.kind) {
+      case 'undo':
+      case 'redo': {
+        const step = event.kind === 'undo' ? this.buildHistory.undo() : this.buildHistory.redo();
+        if (!step) {
+          ctx.notify(
+            event.kind === 'undo' ? 'Nichts rückgängig zu machen' : 'Nichts zu wiederholen',
+          );
+          return;
+        }
+        const words = describeStep(step, (one) => propLabel(modelKind(one)));
+        ctx.notify(`${event.kind === 'undo' ? 'Rückgängig' : 'Wiederholt'}: ${words}`);
+        void this.replayStep(step);
+        return;
+      }
+      case 'turn': {
+        const carried = this.carriedModel();
+        if (!carried) return;
+        // Ein Achtel je Druck für Wände (die stehen auch schräg), sonst ein
+        // Viertel — alles andere rastet ohnehin auf ein Viertel.
+        const wall = this.isWallPiece(carried);
+        let yaw = _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ').y;
+        for (let i = wall ? 1 : 2; i > 0; i--) yaw = craneTurn(yaw, event.clockwise);
+        ctx.rig.rotation.set(0, yaw, 0);
+        ctx.rig.updateMatrixWorld(true);
+        return;
+      }
+      case 'copy':
+        this.copyUnderCrane(ctx);
+        return;
+      case 'tool':
+        this.pickTool(ctx, event.tool);
+        return;
+    }
+  }
+
+  /** Das Werkzeug wechseln — der Haken wird dafür geleert oder gefüllt. */
+  private pickTool(ctx: WorldContext, tool: BuildTool): void {
+    const side = this.screenCarrySide();
+    const grab = side ? this.grabs.get(side) : undefined;
+    // Den Pinsel weglegen: Ein frisches Stück war nie hingestellt (`letGo`).
+    const empty = (): void => {
+      if (side && grab && this.shelfFresh.has(grab.entry)) this.letGo(ctx, side, grab);
+    };
+    if (tool === 'erase') {
+      if (this.bomb) return;
+      empty();
+      if (this.screenCarrySide() !== null) {
+        ctx.notify('Erst das Getragene abstellen');
+        return;
+      }
+      this.fetchBomb(ctx);
+      return;
+    }
+    if (this.bomb) this.putBombAway();
+    if (tool === 'move') {
+      empty();
+      return;
+    }
+    if (grab) return;
+    const brush = this.lastBrush;
+    if (brush) this.takeModel(ctx, brush.path, side ?? null, brush.yaw);
+    else {
+      // Noch nichts gesetzt: Das Regal aufschlagen, dort wird ausgesucht.
+      ctx.menu.toggle(true);
+      ctx.menu.openSubmenu('assets');
+    }
+  }
+
+  /**
+   * **Kopieren: das Stück unter dem Kran wird zum Pinsel** — dieselbe Datei,
+   * dieselbe Drehung. Wer ein Bild schon an der Wand hat und ein zweites
+   * daneben will, muss es nicht im Regal suchen.
+   */
+  private copyUnderCrane(ctx: WorldContext): void {
+    const side = this.screenCarrySide();
+    const grab = side ? this.grabs.get(side) : undefined;
+    let source: PhysicsBody | null = grab?.entry ?? null;
+    if (!source) {
+      ctx.rig.getHeadPosition(_point);
+      const floor = ctx.rig.getFloorY();
+      for (const height of [0.5, 1.2, 1.6]) {
+        _point.y = floor + height;
+        source = this.findProp(_point);
+        if (source && this.modelPath(source) !== null) break;
+        source = null;
+      }
+    }
+    const path = source ? this.modelPath(source) : null;
+    if (!source || path === null) {
+      ctx.notify('Unter dem Kran steht nichts aus dem Regal');
+      return;
+    }
+    if (this.bomb) this.putBombAway();
+    source.object.getWorldQuaternion(_quaternion);
+    const yaw = eighthYaw(yawOf(_quaternion));
+    if (grab && this.shelfFresh.has(grab.entry)) return;
+    this.takeModel(ctx, path, side ?? null, yaw);
+    ctx.notify(`Kopiert: ${propLabel(modelKind(path))}`);
+  }
+
+  /**
+   * **Einen Schritt nachspielen** — für _Rückgängig_ (schon umgedreht) und
+   * _Wiederholen_. Gesucht wird ein Stück an seiner Lage (`nearestAt`), nicht
+   * an einem gemerkten Körper: Nach einem Wiederholen ist es ein neues.
+   */
+  private async replayStep(step: BuildStep): Promise<void> {
+    this.replaying = true;
+    try {
+      await this.applyBuildStep(step);
+    } finally {
+      this.replaying = false;
+    }
+  }
+
+  private async applyBuildStep(step: BuildStep): Promise<void> {
+    switch (step.kind) {
+      case 'group':
+        for (const one of step.steps) await this.applyBuildStep(one);
+        return;
+      case 'add': {
+        // Fest, wenn es fest stand (auf einem Tisch, an der Wand) — sonst
+        // fällt es das letzte Stück wie beim ersten Mal.
+        const { path, pose } = step.item;
+        const at = new THREE.Vector3(pose.x, pose.y, pose.z);
+        await this.placeModelAt(path, at, pose.yaw, true, Boolean(pose.fixed));
+        return;
+      }
+      case 'remove': {
+        const found = this.modelAt(step.item.path, step.item.pose);
+        if (found) this.dropModel(found);
+        return;
+      }
+      case 'move': {
+        const found = this.modelAt(step.path, step.from);
+        if (found) this.dropModel(found);
+        const to = step.to;
+        const at = new THREE.Vector3(to.x, to.y, to.z);
+        await this.placeModelAt(step.path, at, to.yaw, true, Boolean(to.fixed));
+        return;
+      }
+    }
+  }
+
+  /** Das hingestellte Modell `path`, das `pose` am nächsten steht — oder `null`. */
+  private modelAt(path: string, pose: BuildPose): PhysicsBody | null {
+    const list = this.placedModels(this.decorModels).filter((one) => this.modelPath(one) === path);
+    const spots = list.map((one) => {
+      one.object.getWorldPosition(_point);
+      return { x: _point.x, y: _point.y, z: _point.z };
+    });
+    const index = nearestAt(spots, pose);
+    return index >= 0 ? list[index]! : null;
+  }
+
+  /** Für die Brille und das Menü: _Rückgängig_ und _Wiederholen_ ohne Leiste. */
+  private buildEntries(accent: number): MenuEntry[] {
+    return [
+      {
+        id: 'changes:undo',
+        label: 'Rückgängig',
+        sub: 'Den letzten Bauschritt zurücknehmen · am Schirm Strg+Z',
+        icon: 'reset',
+        accent,
+        run: () => this.context && this.onBuildEvent(this.context, { kind: 'undo' }),
+      },
+      {
+        id: 'changes:redo',
+        label: 'Wiederholen',
+        sub: 'Den zurückgenommenen Schritt noch einmal · Strg+Y',
+        icon: 'reset',
+        accent,
+        run: () => this.context && this.onBuildEvent(this.context, { kind: 'redo' }),
+      },
+    ];
   }
 
   /**
@@ -9731,11 +10249,16 @@ export class PortalWorld implements World {
     const y = floor + entry.halfExtents.y + AREA_LIFT;
     const label = propLabel(modelKind(path));
     let placed = 0;
+    // Eine Fläche ist ein Schritt für _Rückgängig_ — was schon geladen ist,
+    // entsteht noch in dieser Zeile (`placeModelAt`), also schließt die Gruppe
+    // gleich dahinter.
+    this.buildHistory.begin();
     const done = plan.slots.map(async (slot) => {
       if (await this.placeModelAt(path, new THREE.Vector3(slot.x, y, slot.z), slot.yaw)) {
         placed += 1;
       }
     });
+    this.buildHistory.end();
     void Promise.all(done).then(() => {
       const skipped = plan.slots.length - placed;
       this.context?.notify(
@@ -10851,12 +11374,10 @@ export class PortalWorld implements World {
     // Die eigenen Materialien zurück, bevor `removeProp` alles freigibt: Der
     // Geist gehört allen Zielen und darf dabei nicht mit weg.
     this.markBombTarget(null);
-    const key = this.changeKeys.get(entry);
-    if (key) {
-      forgetChange(key);
-      this.changeKeys.delete(entry);
-    }
-    this.removeProp(entry, true);
+    const path = this.modelPath(entry);
+    if (path !== null && !this.replaying)
+      this.buildHistory.push({ kind: 'remove', item: { path, pose: this.buildPoseOf(entry) } });
+    this.dropModel(entry);
     playTone({ type: 'sawtooth', from: 180, to: 40, duration: 0.35, gain: 0.08 });
   }
 
