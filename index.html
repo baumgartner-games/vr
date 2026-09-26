@@ -35,15 +35,15 @@
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
-    <script type="module" crossorigin src="/vr/assets/main-BGMTBIxa.js"></script>
+    <script type="module" crossorigin src="/vr/assets/main-Cwa-w2Xa.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-CUd6UpOX.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-vYLi5LnF.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/posture-BiXtEZiL.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/inputStore-BfwAqLZX.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-CMKnc4jh.js">
-    <link rel="stylesheet" crossorigin href="/vr/assets/main-CIEzoJ6f.css">
-    <meta name="bgvr-build" content="560fdb6f5a59">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-8vmWVL1T.css">
+    <meta name="bgvr-build" content="655eaf521fb0">
   </head>
   <body>
     <canvas id="scene"></canvas>
@@ -80,13 +80,25 @@
         -->
         <h1 id="landing-title">VR Spielwiese</h1>
         <p class="lead only-generic">
-          Eine WebXR-Basis für Experimente: Hub-Welt mit Händen, Weltenauswahl am linken
-          Handgelenk und ein experimenteller Portal-Prototyp.
+          Welten zum Anfassen — mit Brille, am Bildschirm oder auf dem Handy.
         </p>
         <p class="lead only-haunting">
           Eine Runde, ein Raum: Brille, Bildschirm und die Handys der Einsatzzentrale
           tragen denselben Raum-Code ein. Verbinden — und dann den eigenen Weg hinein wählen.
         </p>
+
+        <!--
+          **Wohin es geht: die Weltauswahl mit Bildern.** Die Karten legt
+          `main.ts` aus der Liste der Welten (`ui/landingWorlds.ts`) — Spiele
+          zuerst, Baustellen (`WIP`) und Prüfstände (`TEST`) dahinter, dieselbe
+          Reihenfolge wie im Menü. Eine Karte wählt, und der große Knopf darunter
+          sagt, wohin er jetzt führt. Haunting hat eine eigene Startseite mit
+          Lobby; seine Karte schlägt sie auf.
+        -->
+        <section id="world-pick" class="worlds only-generic" aria-labelledby="world-pick-title">
+          <h2 id="world-pick-title" class="landing__label">Welt wählen</h2>
+          <div id="world-cards" class="worlds__cards" role="radiogroup" aria-labelledby="world-pick-title"></div>
+        </section>
 
         <!--
           **Eine Frage, und zwar die, die dieses Gerät nicht schon beantwortet**
@@ -99,7 +111,7 @@
           darunter. Ein Sitzender ist sonst einfach ein sehr kleiner Stehender,
           und jede Theke, jeder Kartsitz und jeder Horizont ist plötzlich für
           jemand Größeren gebaut. Später umzustellen geht unter
-          Menü → Bewegung → Haltung.
+          Menü → Einstellungen → Bewegung → Haltung.
         -->
         <fieldset id="posture-field" class="posture" hidden>
           <legend>Spielst du im Sitzen oder im Stehen?</legend>
@@ -124,7 +136,7 @@
           sagt es vorher.
         -->
         <fieldset id="screen-view-field" class="posture screen-view" hidden>
-          <legend>Am Bildschirm: von oben oder aus den Augen?</legend>
+          <legend>Ansicht am Bildschirm</legend>
           <div id="screen-view" class="seg seg--two">
             <button type="button" data-view="2d">Von oben</button>
             <button type="button" data-view="3d">Aus den Augen</button>
@@ -201,7 +213,12 @@
           mit Absicht nichts vorgewärmt, es gibt also auch nichts, worauf ein
           Knopf warten könnte.
         -->
-        <button type="button" id="enter" class="btn btn--primary only-generic" disabled>Beitreten</button>
+        <!--
+          Zwei Zeilen im Knopf: groß, was er tut (_Spielen_, bzw. „Lädt … 17 %"
+          während des Downloads), klein darunter, wohin — die gewählte Welt und
+          die Ansicht (`main.ts`, `paintEnterLabel`).
+        -->
+        <button type="button" id="enter" class="btn btn--primary btn--play only-generic" disabled><span id="enter-label" class="btn__label">Spielen</span><span id="enter-sub" class="btn__sub"></span></button>
 
         <!--
           **Alles herunterladen — ohne eigenen Knopf.** Gespielt wird mit
@@ -250,21 +267,7 @@
           <p id="start-note" class="boot__note" role="status">Die Spielwiese wird geladen …</p>
         </div>
 
-        <!--
-          Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
-          gibt — Werkzeuge, Welten, den Beutel — und wie ein Werkzeug in der
-          Hand liegt. Deshalb steht sie hier neben dem Knopf und nicht in einem
-          Menü, das man erst öffnen muss.
-        -->
-        <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
-
-        <!--
-          Und die Eingabeseite. Sie steht hier und nicht in einem Menü, weil
-          man sie genau dann braucht, wenn man noch nicht drin ist: Ein Pad,
-          dessen Knöpfe im Spiel nichts tun, ist am Konsolenbrowser sonst
-          nicht zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
-        -->
-        <p class="landing__more only-generic"><a href="./inputs.html">Controller und Tasten prüfen →</a></p>
+        <p id="xr-status" class="status only-generic"></p>
 
         <!--
           **Als App ablegen.** Der Knopf steht nur da, wo der Browser das
@@ -279,7 +282,6 @@
           <p id="install-hint" class="field__hint"></p>
         </div>
 
-        <p id="xr-status" class="status only-generic"></p>
 
         <details id="net-setup" class="net only-generic">
           <summary class="net__summary">
@@ -311,15 +313,28 @@
           </div>
           <p id="net-status-landing" class="status"></p>
           <!--
-            Haunting steht hier nicht mehr: Wer `#haunting` öffnet, bekommt die
-            Startseite der Runde oben — mit Raum-Code, weil eine zweite Gruppe
-            einen eigenen Raum braucht.
+            Haunting steht hier nicht mehr: Seine Karte in der Weltauswahl
+            schlägt die Startseite der Runde auf — mit Raum-Code, weil eine
+            zweite Gruppe einen eigenen Raum braucht.
           -->
-          <p class="net__lead">
-            Für <strong>Haunting / Orbital</strong> gibt es eine eigene Startseite:
-            <a href="#haunting">#haunting</a>.
-          </p>
         </details>
+
+        <!--
+          **Was es neben dem Spiel gibt — dezent, in einer Zeile.** Die
+          Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es gibt
+          und wie ein Werkzeug in der Hand liegt. Die Eingabeseite braucht man
+          genau dann, wenn man noch nicht drin ist: Ein Pad, dessen Knöpfe im
+          Spiel nichts tun, ist am Konsolenbrowser sonst nicht zu untersuchen.
+          Beide stehen auch im Menü unter _Steuerung &amp; Hilfe_.
+        -->
+        <nav class="landing__links only-generic" aria-label="Weitere Seiten">
+          <a href="./inputs.html">Controller prüfen</a>
+          <a href="./tools.html">Werkzeuge &amp; Beutel</a>
+        </nav>
+        <!-- Und aus der Lobby einer Runde zurück zur Weltauswahl — ohne Adresse ist es die Spielwiese. -->
+        <nav class="landing__links only-haunting" aria-label="Weitere Seiten">
+          <a href="./">← Andere Welt wählen</a>
+        </nav>
 
         <!--
           **Die Version, ganz unten und ganz klein.** `0.<Build>.<Patch>` aus
@@ -445,7 +460,7 @@
       <button type="button" id="net-center" class="btn--mini btn--grow">Ansicht zentrieren</button>
       <p class="panel__hint">Ziehen dreht die Kamera · Mausrad ändert den Abstand</p>
       <p class="panel__hint">
-        Im Headset stehen dieselben Optionen unter <strong>Menü → Verbindung → Zuschauen</strong>.
+        Im Headset stehen dieselben Optionen unter <strong>Menü → Zusammen → Zuschauen</strong>.
         Dort wird nur die Position des anderen Spielers übernommen, die Blickrichtung bleibt deine.
       </p>
     </section>
@@ -461,7 +476,7 @@
     <!--
       **Die Steuerung auf dem Glas.** Ob sie überhaupt dasteht, entscheidet
       eine einzige Rechnung (`src/core/screenPads.ts`, angewandt in
-      `src/main.ts`): die Einstellung unter **Menü → Grafik →
+      `src/main.ts`): die Einstellung unter **Menü → Einstellungen → Grafik →
       Bildschirm-Steuerung** (an / aus / automatisch), und in der Automatik das
       Gerät — nur am Handy, und dort nur, solange kein Gamepad angesteckt ist.
       In der Brille und in Welten mit eigener Steuerung nie.
