@@ -28,6 +28,15 @@
    ab 16 px): Mittig lag die Karte 26 px über ihrer rechten Kante. Wo Platz
    ist (ab 820 Punkten, also auch am Telefon quer), rückt sie daneben. */
 @media (min-width: 820px) { body.orbital-on .welcome { left: 452px; right: auto; margin-inline: 0; width: min(460px, calc(100vw - 468px)); } }
+/* **Telefon quer** (flach und breit): Rechts neben der Tafel stehen dort die
+   Knöpfe fürs Glas — Werkzeug, Zielen, `A` —, und die Karte lag 16 px über dem
+   Werkzeug-Knopf und ganz über `A`. Also unten in die Mitte, zwischen die
+   beiden Stöcke (je 12 + 128 px vom Rand), wo nichts zu tippen ist. */
+@media (min-width: 700px) and (max-height: 520px) {
+  body.orbital-on .welcome { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); left: 0; right: 0; margin-inline: auto; width: min(460px, calc(100vw - 360px)); padding: 10px 12px 10px 14px; font-size: 13px; }
+  body.orbital-on .welcome__title { font-size: 16px; }
+  body.orbital-on .welcome__keys { margin-top: 6px; }
+}
 .welcome__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding-right: 88px; }
 .welcome__kicker { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--welcome-accent, var(--hud-accent)); }
 .welcome__title { margin: 0; font-size: 18px; line-height: 1.2; }

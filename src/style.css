@@ -1066,7 +1066,11 @@ input[type="range"] {
   .landing:not([data-landing="haunting"]) .landing__inner { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
   .landing:not([data-landing="haunting"]) .landing__inner > * { grid-column: 2; }
   .landing:not([data-landing="haunting"]) .worlds { grid-column: 1; grid-row: 1 / span 30; margin: 0; }
-  .landing:not([data-landing="haunting"]) h1 { font-size: 30px; margin-bottom: 4px; }
+  /* Die Karten beginnen unter dem ☰ (oben links, 10 + 44 px) — vorher lag
+     die erste Karte ein paar Pixel darunter. */
+  .landing:not([data-landing="haunting"]) .worlds__cards { margin-top: 22px; }
+  /* Titel und „Ansicht am Bildschirm" standen Zeile an Zeile. */
+  .landing:not([data-landing="haunting"]) h1 { font-size: 30px; line-height: 1.15; margin-bottom: 12px; }
   .landing:not([data-landing="haunting"]) .eyebrow { margin-bottom: 2px; }
   .landing .lead.only-generic { display: none; }
   .landing .worlds__cards { gap: 8px; }
