@@ -1022,14 +1022,12 @@ export class PlateUpWorld extends GridWorld {
     view.bubble.sprite.visible = view.angry;
     if (view.angry) view.bubble.drawAngry();
     this.gauges?.clear(`guest:${guest.id}`);
-    const from = { x: view.root.position.x, z: view.root.position.z };
     view.path = [
       { x: t.approach.x, z: t.approach.z },
       ...guestRoute(this.route, t.approach, DOOR_INSIDE),
       ...guestRoute(this.route, DOOR_INSIDE, DOOR_OUTSIDE),
       ...guestRoute(this.route, DOOR_OUTSIDE, street),
     ];
-    void from;
     if (view.figure) this.standUp(view);
     const table = this.tableViews[guest.table];
     table?.plate?.removeFromParent();

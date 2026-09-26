@@ -44,6 +44,7 @@ import { testPlan } from '../test/testPlan';
 import { BURGER_GATE, BURGER_GATE_TILE } from '../test/zones/kitchenPlan';
 import { findWorld } from '../index';
 import { RETURN_GATE } from './plateUpPlan';
+import { DECOR } from './plateUpDecor';
 
 describe('Burgerladen: Grundriss', () => {
   test('jede Station und jeder Tisch liegt im Laden, keine zwei auf derselben Kachel', () => {
@@ -101,6 +102,33 @@ describe('Burgerladen: Grundriss', () => {
     const back = plateUpGrid().fixture(RETURN_GATE);
     expect(back?.props.world).toBe('test');
     expect(findWorld('plateup')?.title).toBe('Burgerladen');
+  });
+
+  test('kein festes Deko-Stück steht einem Gast im Weg oder auf einer Station', () => {
+    const plan = routePlan();
+    const walked = new Set<string>();
+    for (const end of STREET_ENDS) {
+      for (const t of TABLES) {
+        for (const p of [
+          ...guestRoute(plan, end, DOOR_OUTSIDE),
+          ...guestRoute(plan, DOOR_OUTSIDE, DOOR_INSIDE),
+          ...guestRoute(plan, DOOR_INSIDE, t.approach),
+        ]) {
+          walked.add(`${Math.floor(p.x)},${Math.floor(p.z)}`);
+        }
+      }
+    }
+    const stations = new Set(STATIONS.map((s) => `${s.x},${s.z}`));
+    for (const piece of DECOR) {
+      if (!piece.solid || piece.name.startsWith('table_round')) continue;
+      const key = `${Math.floor(piece.x)},${Math.floor(piece.z)}`;
+      expect({ name: piece.name, key, walked: walked.has(key) }).toEqual({
+        name: piece.name,
+        key,
+        walked: false,
+      });
+      expect(stations.has(key)).toBe(false);
+    }
   });
 
   test('der Stuhl des Gastes steht neben seinem Tisch und nicht darin', () => {
