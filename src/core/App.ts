@@ -10,6 +10,8 @@ import { WristMenus } from '../ui/WristMenus';
 import { MenuNav } from '../ui/menuNav';
 import { catalogRecall } from '../ui/menuRecall';
 import { PageMenu } from '../ui/PageMenu';
+import { padNav } from '../ui/padNav';
+import { ControlHints, hintsOn, setHintsOn } from '../ui/ControlHints';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
@@ -200,6 +202,14 @@ export class App {
    * großen: Es gehört zum Knopf unten rechts und nicht in die Einstellungen.
    */
   readonly toolMenu: PageMenu;
+  /** Die Tastenhilfe unten im Bild — `null` ohne DOM (Tests). */
+  private readonly hints: ControlHints | null =
+    typeof document === 'undefined' ? null : new ControlHints();
+  /** Die Startseite — solange sie steht, schweigt die Tastenhilfe. */
+  private readonly landingEl: HTMLElement | null =
+    typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('#landing');
+  /** Die Anmeldungen beim Fahrer der Menüs am Pad — abgemeldet in `dispose`. */
+  private padScopes: Array<() => void> = [];
   /**
    * **Die Umkleide** — die Seite vor dem Kleiderschrank (`ui/WardrobeMenu.ts`).
    *
@@ -381,7 +391,7 @@ export class App {
 
     this.wristMenu = new WristMenus(this.pointer, {
       title: 'Menü',
-      footer: 'Andere Hand: zielen + Trigger/A',
+      footer: 'Andere Hand: zielen + Trigger/A · B zurück',
       // Der Weg durchs Menü merkt sich den **Katalog** über das Neuladen
       // hinaus (`ui/menuRecall.ts`) — alles andere fängt nach einem Neustart
       // wieder oben an.
@@ -409,6 +419,44 @@ export class App {
     // `Tab` und `Y` am Pad machen dieselbe Liste auf — abgehört wird beides an
     // der einen Stelle, an der Eingabe zusammenläuft (`FlatControls`).
     this.flat.onTools = () => this.toggleToolMenu();
+    // **Das einheitliche Schema** (`docs/agents/steuerung.md`): `M` ist das
+    // Menü, `V` und ⊟ die Ansicht — und solange ein Menü offen ist, gehören
+    // Stock und Knöpfe ihm (`ui/padNav.ts`) und nicht den Beinen.
+    this.flat.onMenu = () => {
+      if (this.toolMenu.isOpen) this.toolMenu.toggle(false);
+      else this.toggleMenu();
+    };
+    this.flat.onView = () => this.toggleScreenView();
+    // **Und die Menüs am Pad** (`ui/padNav.ts`): Fokus, `A`, `B`, ☰ — das
+    // Menü über allem, die Werkzeugliste darunter, die Umkleide dazwischen.
+    this.padScopes = [
+      padNav.addScope({
+        priority: 30,
+        active: () => this.pageMenu.isOpen,
+        root: () => this.pageMenu.sheetElement,
+        back: () => this.pageMenu.goBack(),
+        close: () => this.pageMenu.toggle(false),
+        initial: () => this.pageMenu.padStart(),
+      }),
+      padNav.addScope({
+        priority: 20,
+        active: () => this.wardrobe.isOpen,
+        root: () => this.wardrobe.element,
+        close: () => this.wardrobe.toggle(false),
+      }),
+      padNav.addScope({
+        priority: 10,
+        active: () => this.toolMenu.isOpen,
+        root: () => this.toolMenu.sheetElement,
+        back: () => this.toolMenu.goBack(),
+        close: () => this.toolMenu.toggle(false),
+        initial: () => this.toolMenu.padStart(),
+        closeOnTools: true,
+      }),
+    ];
+    padNav.paused = () => this.flat.capturing;
+    this.flat.blocker = () =>
+      this.pageMenu.isOpen ? 'menu' : this.toolMenu.isOpen ? 'tools' : null;
     this.view = screenView(this.role);
     // **Der Spielmodus schaltet die Ansicht mit** (`core/crane.ts`): Wer
     // einrichtet, ist der Kran und sieht am Schirm von oben; mit _Spielen_
@@ -820,6 +868,43 @@ export class App {
     return this.view;
   }
 
+  /**
+   * **Die Tastenhilfe** (`ui/ControlHints.ts`) — was gerade welcher Knopf tut,
+   * für das Gerät, mit dem zuletzt bedient wurde. Nicht in der Brille (dort
+   * gibt es kein DOM im Bild), nicht auf der Startseite und nicht, solange
+   * die Umkleide oder die Zuschauerkamera den Schirm hat.
+   */
+  private updateHints(presenting: boolean): void {
+    const landing = this.landingEl;
+    const hidden =
+      presenting ||
+      !this.world ||
+      this.spectating ||
+      this.wardrobe.isOpen ||
+      (landing !== null && !landing.hidden);
+    if (hidden) {
+      this.hints?.update(null);
+      return;
+    }
+    const menu = this.flat.blocker();
+    this.hints?.update({
+      device: padNav.device,
+      view: this.flat.topDown ? (this.flat.crane ? 'crane' : 'topDown') : 'firstPerson',
+      menu,
+      tools: this.toolShown !== undefined,
+      useCandidate: this.rig.useCandidate,
+      carrying: this.rig.carrying,
+      armed: this.rig.armed,
+      padKind: padNav.kind,
+      config: inputConfig(),
+    });
+  }
+
+  /** Die andere der beiden Ansichten — `V` und ⊟ am Pad (`FlatControls.onView`). */
+  toggleScreenView(): void {
+    this.setScreenView(this.view === '2d' ? '3d' : '2d');
+  }
+
   setScreenView(view: ScreenView): void {
     if (this.view === view) return;
     this.view = view;
@@ -943,6 +1028,9 @@ export class App {
     this.topDownCamera.dispose();
     this.avatar.dispose();
     this.wristMenu.dispose();
+    this.hints?.dispose();
+    for (const off of this.padScopes) off();
+    this.padScopes = [];
     this.pageMenu.dispose();
     this.toolMenu.dispose();
     this.wardrobe.dispose();
@@ -1261,6 +1349,21 @@ export class App {
       accent,
       children: [
         this.liveInput,
+        {
+          // **Die Tastenhilfe** unten im Bild (`ui/ControlHints.ts`) — ab Werk
+          // an, und hier aus: Wer die Knöpfe kennt, braucht die Zeile nicht.
+          id: 'input:hints',
+          label: 'Tastenhilfe',
+          sub: 'Unten im Bild: welcher Knopf gerade was tut',
+          icon: 'controller',
+          accent,
+          checked: hintsOn(),
+          run: () => {
+            setHintsOn(!hintsOn());
+            this.notify(`Tastenhilfe ${hintsOn() ? 'an' : 'aus'}`);
+            this.menuDirty = true;
+          },
+        },
         {
           id: 'input:bindings',
           label: 'Belegung am Pad',
@@ -2573,6 +2676,7 @@ export class App {
     // hört aber am Fenster mit (`FlatControls`).
     this.flat.enabled = !presenting && !this.spectating && !this.wardrobe.isOpen;
     if (!presenting) this.flat.update(dt);
+    this.updateHints(presenting);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.wristMenu.scrollHand;

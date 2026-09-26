@@ -240,6 +240,8 @@ export class PageMenu {
    * genug Kacheln da sind, um wirklich dorthin zu kommen (`fill`).
    */
   private want: number | null = null;
+  /** Die Seite, aus der man zuletzt zurückkam (`goBack`, `padStart`). */
+  private left = '';
 
   constructor(options: PageMenuOptions = {}) {
     this.rootTitle = options.title ?? 'Menü';
@@ -354,6 +356,7 @@ export class PageMenu {
     close.addEventListener('click', () => this.toggle(false));
     this.backButton.addEventListener('click', () => {
       this.keepScroll();
+      this.left = this.page.id;
       this.nav.pop();
     });
     this.homeButton.addEventListener('click', () => this.goHome());
@@ -490,6 +493,41 @@ export class PageMenu {
       this.renderedPage = '';
     }
     this.onToggle?.(next);
+  }
+
+  /**
+   * **Eine Seite zurück** — `B` am Pad und die Rücktaste (`ui/padNav.ts`),
+   * derselbe Weg wie der Pfeil im Kopf. `false`, wenn man schon ganz oben
+   * steht: Dann macht der Aufrufer zu, statt dass nichts passiert.
+   */
+  goBack(): boolean {
+    if (!this.open || this.stack.length <= 1) return false;
+    this.keepScroll();
+    this.left = this.page.id;
+    this.nav.pop();
+    return true;
+  }
+
+  /**
+   * **Wo der Fokus am Pad anfängt** — auf der Zeile, aus der man gerade
+   * zurückkam, sonst auf der gewählten, sonst auf der ersten. Nicht im Kopf:
+   * _Schließen_ ist der erste Knopf im DOM, aber niemand öffnet ein Menü, um
+   * es zu schließen.
+   */
+  padStart(): HTMLElement | null {
+    const rows = [...this.list.querySelectorAll<HTMLElement>('[data-index]')];
+    const back = this.left ? rows.find((node) => node.dataset['id'] === this.left) : undefined;
+    return (
+      back ??
+      rows.find((node) => node.classList.contains('is-selected')) ??
+      rows[0] ??
+      (this.detailEl.hidden ? null : this.optsEl.querySelector<HTMLElement>('button'))
+    );
+  }
+
+  /** Das Blatt, in dem die Knöpfe stehen — für den Fokus am Pad. */
+  get sheetElement(): HTMLElement {
+    return this.sheet;
   }
 
   /** Die offene Seite neu zeichnen — eine Zeile, deren Text sich änderte. */
