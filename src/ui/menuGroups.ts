@@ -180,6 +180,9 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'build-tools', group: 'bauen' },
   { match: 'npc', group: 'bauen' },
   { match: 'plan-store', group: 'bauen' },
+  // Die Weltänderungen tragen Rückgängig und Wiederholen des Baukastens —
+  // in der Brille und am Pad der einzige Weg dorthin (`docs/agents/bauen.md`).
+  { match: 'changes', group: 'bauen' },
 
   { match: 'net', group: 'zusammen' },
 
@@ -203,13 +206,20 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'gfx:grid-hitboxes', group: 'werkstatt' },
   { match: 'gfx:ghost-boxes', group: 'werkstatt' },
   { match: 'gfx:handles', group: 'werkstatt' },
+  // Wie diese Anzeigen zeichnen (nur 2D-Pfad, Wände, Räume …) — gleich daneben.
+  { match: 'info:views', group: 'werkstatt' },
   { match: 'npc:hits', group: 'werkstatt' },
   { match: 'npc:nav-debug', group: 'werkstatt' },
   { match: 'npc:nav-switches', group: 'werkstatt' },
   { match: 'setting:physics', group: 'werkstatt' },
-  { match: 'changes', group: 'werkstatt' },
   { match: 'setting:config', group: 'werkstatt' },
   { match: 'setting:poses', group: 'werkstatt' },
+  // Haunting: was zum Ausprobieren abseits der Runde da ist — Testdeck,
+  // Testbesuch in einem Raum, die Bot-Runde des Testdecks
+  // (`worlds/haunting/rules/menuPages.ts`).
+  { match: 'orbital:labs', group: 'werkstatt' },
+  { match: 'orbital:visits', group: 'werkstatt' },
+  { match: 'orbital:simulation', group: 'werkstatt' },
 ];
 
 /** Wohin ein Eintrag der Wurzel kommt, den die Tabelle nicht kennt. */

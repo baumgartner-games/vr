@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { nearestLevel, onSheet, plotMap, toSheet, type MapWindow } from './mapPlot';
 import type { ControllerState } from '../../../core/XRInput';
+import { infoView } from '../../../core/infoViews';
+import type { InfoViewOptions } from '../../../core/infoViews';
 
 /**
  * **Die Karte** — ein Werkzeug, das nichts tut, außer zu sagen, wo man ist.
@@ -92,7 +94,7 @@ export class MapTool extends Tool {
 
     this.sheet = new THREE.Mesh(
       new THREE.PlaneGeometry(SHEET_W, SHEET_H),
-      new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false, transparent: true }),
     );
     this.sheet.position.z = 0.0045;
     board.add(this.sheet);
@@ -140,6 +142,12 @@ export class MapTool extends Tool {
     if (!ctx) return;
     const size = CANVAS;
     const px = (value: number): number => value * size;
+    // **Die Darstellungsoptionen** (`core/infoViews.ts`) — dasselbe
+    // Optionsfeld wie an jeder anderen Info-Ansicht. „Nur 2D-Pfad" lässt die
+    // gefüllten Böden weg und zeichnet Umrisse und Wege; die Deckkraft ist die
+    // des Blatts.
+    const look = infoView('map');
+    this.sheet.material.opacity = look.opacity;
 
     ctx.fillStyle = '#efe4cc';
     ctx.fillRect(0, 0, size, size);
@@ -155,14 +163,21 @@ export class MapTool extends Tool {
       // Gesperrte Kacheln (`NavGraph.isBlocked`) rot — das ist die eine
       // Auskunft, die eine Karte geben kann und ein Blick nicht.
       const step = px(plot.tiles[0]?.size ?? 0);
-      for (const tile of plot.tiles) {
+      for (const tile of look.rooms ? plot.tiles : []) {
+        if (look.flat) {
+          // Flach: nur der Umriss jeder Kachel, dünn — der Boden als Raster.
+          ctx.strokeStyle = tile.blocked ? 'rgba(196, 84, 63, 0.6)' : 'rgba(44, 42, 38, 0.12)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px(tile.at.u) - step / 2, px(tile.at.v) - step / 2, step, step);
+          continue;
+        }
         ctx.fillStyle = tile.blocked ? 'rgba(196, 84, 63, 0.35)' : '#f8f2e2';
         ctx.fillRect(px(tile.at.u) - step / 2, px(tile.at.v) - step / 2, step + 1, step + 1);
       }
 
       // Und die Wände darüber. Türen dünner und in einer anderen Farbe: Wer
       // vor einer Karte steht, sucht als Erstes den Ausgang.
-      for (const wall of plot.walls) {
+      for (const wall of look.walls ? plot.walls : []) {
         if (wall.kind === 'door' && wall.open) {
           ctx.strokeStyle = '#4f8f5f';
           ctx.lineWidth = 3;
@@ -180,6 +195,7 @@ export class MapTool extends Tool {
           ctx.lineWidth = 6;
           ctx.setLineDash([]);
         }
+        if (look.flat) ctx.lineWidth = Math.min(ctx.lineWidth, 3);
         ctx.beginPath();
         ctx.moveTo(px(wall.from.u), px(wall.from.v));
         ctx.lineTo(px(wall.to.u), px(wall.to.v));
@@ -193,6 +209,7 @@ export class MapTool extends Tool {
     // Die anderen im Raum: ein Punkt je Mitspieler, damit die Karte in einer
     // Sitzung sagt, wo die anderen gerade sind.
     if (host) this.drawPeers(ctx, host, window, px);
+    if (host && look.actors) this.drawNpcs(ctx, host, window, px, look);
 
     // Man selbst, in der Mitte: ein Pfeil, der zeigt, wohin man schaut.
     this.drawArrow(ctx, size / 2, size / 2, size * 0.032);
@@ -214,6 +231,58 @@ export class MapTool extends Tool {
       ctx.beginPath();
       ctx.arc(px(at.u), px(at.v), 8, 0, Math.PI * 2);
       ctx.fillStyle = '#3f6fb5';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#efe4cc';
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * **Die NPCs, ihre Wege und Ziele** — das Fach „NPCs und Ziele" der
+   * Darstellungsoptionen. Ein Weg ist eine Linie durch seine Wegpunkte, das
+   * Ziel ein Ring; der NPC selbst ein grüner Punkt. Wer auf einer anderen
+   * Etage steht, fehlt, wie die Wände dieser Etage auch.
+   */
+  private drawNpcs(
+    ctx: CanvasRenderingContext2D,
+    host: ToolHost,
+    window: MapWindow,
+    px: (value: number) => number,
+    look: InfoViewOptions,
+  ): void {
+    const crowd = host.npcs()?.sketch?.() ?? [];
+    const graph = host.navMap();
+    for (const npc of crowd) {
+      if (graph && nearestLevel(graph.levels, npc.y + 1.6) !== window.level) continue;
+      if (npc.path.length > 1) {
+        ctx.strokeStyle = '#2f9e6a';
+        ctx.lineWidth = look.flat ? 3 : 4;
+        ctx.setLineDash(look.flat ? [] : [10, 6]);
+        ctx.beginPath();
+        npc.path.forEach((point, index) => {
+          const at = toSheet(window, point.x, point.z);
+          if (index === 0) ctx.moveTo(px(at.u), px(at.v));
+          else ctx.lineTo(px(at.u), px(at.v));
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (npc.goal) {
+        const goal = toSheet(window, npc.goal.x, npc.goal.z);
+        if (onSheet(goal)) {
+          ctx.strokeStyle = '#2f9e6a';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(px(goal.u), px(goal.v), 9, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      const at = toSheet(window, npc.x, npc.z);
+      if (!onSheet(at)) continue;
+      ctx.beginPath();
+      ctx.arc(px(at.u), px(at.v), 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#2f9e6a';
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#efe4cc';

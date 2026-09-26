@@ -11,6 +11,9 @@ import { handHoldTilt } from './handHold';
 
 export type Handedness = 'left' | 'right';
 
+/** Wo die Quest-Profile den Menü-Knopf ☰ melden (`ControllerState.menu`). */
+export const MENU_BUTTON = 7;
+
 /** Edge-detected button. Events can arrive between frames, so we count them. */
 export class ButtonState {
   pressed = false;
@@ -97,6 +100,17 @@ export class ControllerState {
   readonly select = new ButtonState();
   readonly primary = new ButtonState(); // A / X
   readonly secondary = new ButtonState(); // B / Y
+  /**
+   * **☰ am linken Controller** — der Menü-Knopf unter dem Stick.
+   *
+   * Im Standard-Mapping (`xr-standard`) gibt es ihn nicht; die Quest-Profile
+   * ab der Quest 2 melden ihn aber als `buttons[7]`
+   * (`public/controllers/…/profile.json`, Bauteil `menu`). Die Quest 1
+   * (`oculus-touch-v2`) und die rechte Hand (dort sitzt der Meta-Knopf, der
+   * dem System gehört) melden keine siebte Nummer — dann bleibt er einfach
+   * still, und das Menü geht wie immer über den Knopf am Handgelenk auf.
+   */
+  readonly menu = new ButtonState();
   /** The stick pressed in like a button — sprint on the left, crouch on the right. */
   readonly stick = new ButtonState();
   readonly thumbstick = new THREE.Vector2();
@@ -180,6 +194,7 @@ export class ControllerState {
     this.primary.reset();
     this.secondary.reset();
     this.stick.reset();
+    this.menu.reset();
     this.thumbstick.set(0, 0);
     this.fingertip = null;
     this.fold = null;
@@ -261,6 +276,7 @@ export class XRInput {
       state.primary.beginFrame();
       state.secondary.beginFrame();
       state.stick.beginFrame();
+      state.menu.beginFrame();
 
       const gamepad = state.inputSource?.gamepad;
       if (!gamepad) {
@@ -274,6 +290,7 @@ export class XRInput {
       syncFromGamepad(state.primary, gamepad.buttons[4]);
       syncFromGamepad(state.secondary, gamepad.buttons[5]);
       syncFromGamepad(state.stick, gamepad.buttons[3]);
+      syncFromGamepad(state.menu, gamepad.buttons[MENU_BUTTON]);
 
       const axes = gamepad.axes;
       const x = axes.length >= 4 ? axes[2] : (axes[0] ?? 0);

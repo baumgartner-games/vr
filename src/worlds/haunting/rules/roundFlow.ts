@@ -145,3 +145,46 @@ export function pauseActions(mode: RoundMode): Array<'real' | 'stop' | 'again' |
   if (mode === 'over') return ['again', 'back'];
   return ['stop'];
 }
+
+/**
+ * **Was die Lobby der Startseite über den Ablauf sagt** (`#haunting`,
+ * `main.ts` → `#haunt-flow`): Wer dort steht, soll vor dem Beitreten wissen,
+ * dass er in der Übungsrunde landet und wie aus ihr eine echte Runde wird —
+ * mit denselben Worten wie die Knöpfe im Spiel (`FLOW`, `MODE_TEXT`).
+ */
+export interface LobbyModeCard {
+  mode: 'practice' | 'real';
+  /** Das Schild wie über der Karte: „ÜBUNGSRUNDE", „ECHTE RUNDE". */
+  badge: string;
+  tone: ModeText['tone'];
+  /** Wann man darin ist — oder welcher Knopf dorthin führt. */
+  when: string;
+  /** Was darin gilt — derselbe Satz wie unter dem Knopf. */
+  hint: string;
+}
+
+export const LOBBY_FLOW: {
+  title: string;
+  steps: readonly string[];
+  cards: readonly [LobbyModeCard, LobbyModeCard];
+} = {
+  title: 'So läuft eine Runde',
+  /** Die Schritte nach dem Beitreten, dieselben wie über der Tafel. */
+  steps: FLOW_STEPS,
+  cards: [
+    {
+      mode: 'practice',
+      badge: MODE_TEXT.practice.badge,
+      tone: MODE_TEXT.practice.tone,
+      when: `Hier landest du nach dem Beitreten. „${FLOW.practice}" im Aufbau führt jederzeit zurück.`,
+      hint: FLOW.practiceHint,
+    },
+    {
+      mode: 'real',
+      badge: MODE_TEXT.real.badge,
+      tone: MODE_TEXT.real.tone,
+      when: `„${FLOW.real}" im Aufbau oder im Pausemenü — sobald alle ihren Platz haben.`,
+      hint: FLOW.realHint,
+    },
+  ],
+};

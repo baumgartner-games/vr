@@ -1120,9 +1120,12 @@ in der Reihenfolge, in der sie wehtaten:
   ersetzt.
 
 **Die Leiste** (`worlds/portal/buildBar.ts`, DOM) steht im _Baukasten_ als
-Kran am Schirm unten in der Mitte (über der Tastenhilfe, `ui/ControlHints.ts`),
-auf dem Telefon oben unter der Kopfzeile und der Tastenhilfe, dort in zwei
-Reihen und nur mit Symbolen (unten liegen Stöcke und _▦ Fläche_). Dreizehn
+Kran am Schirm unten in der Mitte (die Tastenhilfe, `ui/ControlHints.ts`,
+rückt im Baukasten darüber), auf dem Telefon oben unter der Kopfzeile, dort in
+zwei Reihen und nur mit Symbolen (unten liegen Stöcke und _▦ Fläche_; die
+Tastenhilfe rückt unter die Leiste, `ui/controlHints.css`). Am Pad schaltet
+das Steuerkreuz ▲/▼ durch Setzen → Verschieben → Löschen → Kopieren → Boden
+→ Wand (`buildBar.nextBuildTool`, `World.toolStep`). Dreizehn
 Knöpfe in vier Gruppen: **Setzen**, **Verschieben**, **Löschen** — **Drehen**
 links und rechts, **Schräg** (45° auch für Möbel), **Kopieren** — **Boden**,
 **Wand** — **Zurück**, **Vor**. Darüber eine Zeile, was am Haken hängt und

@@ -163,6 +163,7 @@ import {
   type WorldMenuState,
 } from './rules/worldMenu';
 import { FLOW, MODE_TEXT, roundMode, type RoundMode } from './rules/roundFlow';
+import { pageHauntMenu } from './rules/menuPages';
 import type { MapGoal } from './map/mapView';
 import { VentFlapArt } from './vents/ventArt';
 import { VentNet } from './vents/ventGraph';
@@ -207,6 +208,7 @@ import { BlueprintArt } from './world3d/blueprintArt';
 import { TopDownFog } from './world3d/topDownFog';
 import { loadBlueprintShown, saveBlueprintShown } from './world3d/blueprint';
 import type { ToolChoice, WorldContext } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
 import type { PlateTile } from '../shared/plateField';
 import type { Handedness } from '../../core/XRInput';
@@ -3782,18 +3784,15 @@ export class HauntingWorld extends GridWorld {
     // wie in der Testwelt (`PortalWorld.menu`). Gewünscht: _„ich will in
     // haunting auch die möglichkeit haben, die welt umzubauen im baukasten
     // modus"_. Die Station ist fest (`STATION_SEED`); was umgebaut wird, geht
-    // als Weltänderungen heraus und wird in den Code übernommen.
-    const build: MenuEntry = {
-      id: 'haunt:build',
-      label: 'Baukasten',
-      sub: 'Station umbauen · Regal, Spielmodus, Weltänderungen',
-      icon: 'tools',
-      accent: 0x9d7bff,
-      children: super.menu(),
-    };
+    // als Weltänderungen heraus und wird in den Code übernommen. Die Zeilen
+    // stehen flach in der Liste: Die Tabelle der Bereiche
+    // (`ui/menuGroups.MENU_PLACEMENT`) stellt Werkzeuge, Beutel und Regal nach
+    // _Bauen & Gestalten_ und die Weltänderungen in die Werkstatt — ein
+    // eigener Eintrag „Baukasten" blieb dabei leer zurück.
+    const build = super.menu();
     if (this.context?.role !== 'vr')
       return [
-        build,
+        ...build,
         entry(
           'haunt:technician',
           'Als Techniker spielen',
@@ -3817,7 +3816,7 @@ export class HauntingWorld extends GridWorld {
       () => this.context?.notify(MODE_TEXT[mode].line),
     );
     const running = mode === 'real' || mode === 'demo';
-    return [
+    const rows: MenuEntry[] = [
       status,
       // **Was? — dieselben drei Kacheln wie im Van** (`rules/lobby.ts`,
       // gerechnet in `rules/worldMenu.ts`):
@@ -3851,119 +3850,117 @@ export class HauntingWorld extends GridWorld {
             ),
           ]
         : []),
-      {
-        id: 'haunt:settings',
-        label: 'Einstellungen der Runde',
-        sub: 'Übungslicht, Station, Plätze der Tafel, Fähigkeiten, Gegner',
-        icon: 'cube',
-        accent: 0x65dce5,
-        children: [
-          entry(
-            'haunt:light',
-            `Übungslicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
-            // Der Schalter gehört zum Test und tat in einer Mission nichts, ohne
-            // ein Wort dazu — dieselbe Falle wie bei den Starts.
-            this.state.crew.options.test
-              ? 'Die Übungsrunde auch einmal im Dunkeln'
-              : 'Nur in der Übungsrunde · in der echten Runde bleibt es dunkel',
-            () => {
-              if (!this.state.crew.options.test) {
-                this.context?.notify(
-                  'Das Übungslicht gehört zur Übungsrunde — erst „Übungsrunde" wählen.',
-                );
+      // Die Einstellungen stehen hier flach; auf ihre Unterseiten verteilt
+      // sie `rules/menuPages.pageHauntMenu` (unten).
+      entry(
+        'haunt:light',
+        `Übungslicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
+        // Der Schalter gehört zum Test und tat in einer Mission nichts, ohne
+        // ein Wort dazu — dieselbe Falle wie bei den Starts.
+        this.state.crew.options.test
+          ? 'Die Übungsrunde auch einmal im Dunkeln'
+          : 'Nur in der Übungsrunde · in der echten Runde bleibt es dunkel',
+        () => {
+          if (!this.state.crew.options.test) {
+            this.context?.notify(
+              'Das Übungslicht gehört zur Übungsrunde — erst „Übungsrunde" wählen.',
+            );
+            return;
+          }
+          this.state.crew.options.bright = !this.state.crew.options.bright;
+        },
+      ),
+      entry(
+        'haunt:rooms',
+        `Station: ${this.state.crew.options.rooms} Räume`,
+        'Feste Skeld-Karte · neue Aufgaben',
+        () =>
+          this.configureStation({
+            ...this.state.crew.options,
+            rooms:
+              ROOM_COUNTS[
+                (ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 14) + 1) % ROOM_COUNTS.length
+              ]!,
+          }),
+      ),
+      // **Die Tafel in der Brille: fünf Plätze, je ein Eintrag** — und die
+      // Fähigkeiten dahinter in einem Untermenü. Vorher standen hier
+      // Techniker, Monster und drei Fähigkeiten als Zykler; jetzt sind es die
+      // Plätze der Tafel (`rules/roundSetup.SEATS`), und wer mit der Brille
+      // spielt, stellt hier dasselbe ein wie am Telefon: ob ein Monster
+      // mitspielt und ob Bots das Archiv und die anderen Posten halten.
+      ...SEATS.map((seat) =>
+        entry(
+          `haunt:seat-${seat}`,
+          `${SEAT_LABELS[seat]}: ${seat === 'technician' ? technicianLabel(setup, this.roomHasVr()) : WHO_LABELS[setup.seats[seat].who]}`,
+          seat === 'technician'
+            ? 'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen'
+            : seat === 'monster'
+              ? 'Aus Zahlen, am Stock (2D oder Telefon) oder aus — der sichere Test'
+              : `${describeSeat(setup, seat)} · Mensch am Telefon, Bot rechnet, Aus: leer`,
+          () => {
+            if (seat === 'technician') {
+              // **Mit Brille im Raum gehört der Techniker der Brille** — der
+              // Eintrag sagt es und tut sonst nichts (`roundSetup.technicianLabel`).
+              if (this.roomHasVr()) {
+                this.context?.notify(VR_KEEPS_TECHNICIAN);
                 return;
               }
-              this.state.crew.options.bright = !this.state.crew.options.bright;
-            },
-          ),
-          entry(
-            'haunt:rooms',
-            `Station: ${this.state.crew.options.rooms} Räume`,
-            'Feste Skeld-Karte · neue Aufgaben',
-            () =>
-              this.configureStation({
-                ...this.state.crew.options,
-                rooms:
-                  ROOM_COUNTS[
-                    (ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 14) + 1) %
-                      ROOM_COUNTS.length
-                  ]!,
-              }),
-          ),
-          // **Die Tafel in der Brille: fünf Plätze, je ein Eintrag** — und die
-          // Fähigkeiten dahinter in einem Untermenü. Vorher standen hier
-          // Techniker, Monster und drei Fähigkeiten als Zykler; jetzt sind es die
-          // Plätze der Tafel (`rules/roundSetup.SEATS`), und wer mit der Brille
-          // spielt, stellt hier dasselbe ein wie am Telefon: ob ein Monster
-          // mitspielt und ob Bots das Archiv und die anderen Posten halten.
-          ...SEATS.map((seat) =>
-            entry(
-              `haunt:seat-${seat}`,
-              `${SEAT_LABELS[seat]}: ${seat === 'technician' ? technicianLabel(setup, this.roomHasVr()) : WHO_LABELS[setup.seats[seat].who]}`,
-              seat === 'technician'
-                ? 'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen'
-                : seat === 'monster'
-                  ? 'Aus Zahlen, am Stock (2D oder Telefon) oder aus — der sichere Test'
-                  : `${describeSeat(setup, seat)} · Mensch am Telefon, Bot rechnet, Aus: leer`,
-              () => {
-                if (seat === 'technician') {
-                  // **Mit Brille im Raum gehört der Techniker der Brille** — der
-                  // Eintrag sagt es und tut sonst nichts (`roundSetup.technicianLabel`).
-                  if (this.roomHasVr()) {
-                    this.context?.notify(VR_KEEPS_TECHNICIAN);
-                    return;
-                  }
-                  this.applySetup(
-                    withWho(setup, seat, cycleTechnician(setup.seats.technician.who)),
-                  );
-                  return;
-                }
-                this.applySetup(withWho(setup, seat, cycleWho(setup.seats[seat].who)));
-              },
-            ),
-          ),
-          {
-            id: 'haunt:powers',
-            label: 'Fähigkeiten der Plätze',
-            sub: 'Späher, Schalttafel, Archiv — je Platz an oder aus',
-            children: SEATS.filter((seat) => seat !== 'monster').flatMap((seat) =>
-              ABILITIES.map((ability) =>
-                entry(
-                  `haunt:power-${seat}-${ability}`,
-                  `${SEAT_LABELS[seat]} · ${ABILITY_LABELS[ability]}: ${setup.seats[seat].powers[ability] ? 'an' : 'aus'}`,
-                  seat === 'technician' && ability === 'panel'
-                    ? 'Nur damit schaltet der Techniker Lampen und Türen per Tipp'
-                    : seat === 'technician' && ability === 'archive'
-                      ? 'Nur damit sieht der Techniker Ziele auf Karte und Kompass'
-                      : 'Antippen schaltet um',
-                  () =>
-                    this.applySetup(
-                      withPower(setup, seat, ability, !setup.seats[seat].powers[ability]),
-                    ),
-                ),
-              ),
-            ),
+              this.applySetup(withWho(setup, seat, cycleTechnician(setup.seats.technician.who)));
+              return;
+            }
+            this.applySetup(withWho(setup, seat, cycleWho(setup.seats[seat].who)));
           },
-          entry(
-            'haunt:monster-kind',
-            `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
-            'Drei Erscheinungen mit anderem Tempo und Schachtverhalten',
-            () =>
-              this.configureStation({
-                ...this.state.crew.options,
-                monster:
-                  MONSTERS[
-                    (MONSTERS.findIndex((m) => m.id === this.state.crew.options.monster) + 1) %
-                      MONSTERS.length
-                  ]!.id,
-              }),
+        ),
+      ),
+      {
+        id: 'haunt:powers',
+        label: 'Fähigkeiten der Plätze',
+        sub: 'Späher, Schalttafel, Archiv — je Platz an oder aus',
+        children: SEATS.filter((seat) => seat !== 'monster').flatMap((seat) =>
+          ABILITIES.map((ability) =>
+            entry(
+              `haunt:power-${seat}-${ability}`,
+              `${SEAT_LABELS[seat]} · ${ABILITY_LABELS[ability]}: ${setup.seats[seat].powers[ability] ? 'an' : 'aus'}`,
+              seat === 'technician' && ability === 'panel'
+                ? 'Nur damit schaltet der Techniker Lampen und Türen per Tipp'
+                : seat === 'technician' && ability === 'archive'
+                  ? 'Nur damit sieht der Techniker Ziele auf Karte und Kompass'
+                  : 'Antippen schaltet um',
+              () =>
+                this.applySetup(
+                  withPower(setup, seat, ability, !setup.seats[seat].powers[ability]),
+                ),
+            ),
           ),
-        ],
+        ),
       },
+      entry(
+        'haunt:monster-kind',
+        `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
+        'Drei Erscheinungen mit anderem Tempo und Schachtverhalten',
+        () =>
+          this.configureStation({
+            ...this.state.crew.options,
+            monster:
+              MONSTERS[
+                (MONSTERS.findIndex((m) => m.id === this.state.crew.options.monster) + 1) %
+                  MONSTERS.length
+              ]!.id,
+          }),
+      ),
       rescue,
-      build,
+      ...build,
       ...(this.experience?.menu() ?? []),
     ];
+    // **Wenige Unterseiten statt einer langen Liste** (`rules/menuPages.ts`):
+    // oben die Runde, dann Plätze, Einstellungen, Ausrüstung, Ansicht, Ton.
+    return pageHauntMenu(rows, (page, children) => ({
+      ...page,
+      icon: 'cube',
+      accent: 0x65dce5,
+      children,
+    }));
   }
 
   /**
@@ -4157,6 +4154,18 @@ export class HauntingWorld extends GridWorld {
    * die Antwort selbst ist — die Brille trägt den Anzug, und wer an der
    * Station „Monster" sitzt, ist das Monster.
    */
+  /**
+   * **Die Tastenhilfe auf der Station** (`core/controlHints.ts`) — je nach
+   * Rolle: Der Techniker läuft und benutzt, das Monster jagt, wer einen
+   * Farbplatz hält, bedient seine Karte, und wer zuschaut, wählt einen Platz.
+   */
+  override hintZone(): HintZone | null {
+    const me = this.myPlace();
+    if (me === 'technician' || me === 'monster') return { kind: 'haunting', role: me };
+    if (me.startsWith('watch:')) return { kind: 'haunting', role: 'watch' };
+    return { kind: 'haunting', role: 'map' };
+  }
+
   private myPlace(): MyRole {
     const ctx = this.context;
     // Die Brille trägt den Anzug — immer; ein Desktop, der sich an den Stock

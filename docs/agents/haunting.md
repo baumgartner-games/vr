@@ -61,12 +61,31 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
       Türen weg ist (gedeckelt bei 3 m, danach zählt die Nähe zur Mitte).
       Zwei Türen in denselben Gang bekommt ein Raum nur, wenn er groß ist
       (`SMALL_ROOM_TILES`) und beide die Regel halten.
+      **Nachgeprüft (zweite Runde):** Die Regel zählt je Raum und je Gang;
+      zwei Türen, die sich keinen Raum teilen — zwei Raumtüren beiderseits
+      der Fuge zwischen zwei Gangstücken —, fragt sie nicht. Ein Test misst
+      deshalb die ganze Station gegeneinander (`stationRules.test`,
+      „Raum–Gang–Raum", jeder sechste Same): nirgends zwei Türmitten unter
+      sechs Feldern. Die kürzesten Gänge zwischen zwei Räumen
+      (Cafeteria-Ostgang, Admin-Ostgang) sind drei Kacheln lang — Tür, drei
+      Meter, Tür: genau die Grenze. Die Fugen zwischen Gangstücken sind
+      echte Schotten (Doppeltür, Schild „Transit").
+    - **Vier Felder sind breit genug** — für den 2 × 2-Block, auf dem
+      Techniker der Runde, Bots und Monster gehen (`AGENT_CELLS`):
+      `stationNavigation.test` („reaches every room through the four-field
+      corridors") schickt ihn von der Zentrale in jeden der 14 Räume (drei
+      Samen) und geht den Weg Zelle für Zelle ab. Im Bild (Ego-Sicht am
+      Bildschirm, Draufsicht) ist der Gang zwei Meter breit, davon gehen die
+      gelben Stoßleisten ab; man sieht bis zur Tür am Ende, die Türknöpfe am
+      Boden liegen im Weg, aber flach. In der Brille selbst ist das noch
+      nicht nachgeprüft.
     - Die Gänge sind in `STATION_MAP` neu gemalt; die Räume nicht, bis auf
       **Shields, eine Kachel breiter** (die Westtür liegt jetzt tiefer, und
       die Einrichtung fand bei 11 von 300 Samen keinen Platz mehr; die
       Klappe `vent-shields` wandert mit an die neue Ostwand). Die
-      Grundriss-Vorlage am Boden zeigt die Gänge daher breiter, als sie
-      gebaut sind.
+      Grundriss-Vorlage am Boden wird seither aus dem gebauten Grundriss
+      gerechnet (siehe _Die Vorlage am Boden_) und zeigt die Gänge so
+      schmal, wie sie sind.
     `stationRooms` legt die `:`-Kacheln zu Rechtecken zusammen.
   - **Kein Raum berührt einen anderen** (`roomGraph.test`: keine Wandnachbarn
     ohne Tür); wo die Zeichnung zwei Schrägen dichter zusammenlegt, ist eine
@@ -88,10 +107,19 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   (`localStorage` `haunting:blueprint`). Eichung: **20 Pixel = 1 m**, die
   beste Deckung aller Wandlinien mit den Kachelkanten — Pixelspalte 52 ist
   `x = −34`, Pixelzeile 36,2 ist `z = −52`. Das Bild
-  `public/haunting/station-outline.png` ist aus der Vorlage gerechnet
-  (Wände gelb, Räume blau, Gänge grün getönt, der Rest durchsichtig);
-  `blueprint.test` prüft, dass jede Raummitte höchstens 1,5 m neben ihrer
-  Zeichnung liegt.
+  `public/haunting/station-outline.png` war zuerst aus der Zeichnung
+  gepaust; seit die Gänge vier Felder breit sind, passte es nicht mehr
+  (breite grüne Gänge unter schmalen Wänden). **Jetzt wird es aus dem
+  gebauten Grundriss gerechnet** (`world3d/blueprintDrawing.ts`:
+  `roomOutline` je Raum und Gang, Wände aus `map/geometry.wallSegments`
+  samt Türlücken, Fenster hellblau) und mit
+  `SMOKE_EXECUTABLE=/opt/pw-browsers/chromium node tools/station-outline.mjs`
+  im Chromium gerastert — **wer `stationMap.ts` ändert, lässt das noch einmal
+  laufen**. Dasselbe Werkzeug schreibt das Vorschaubild der Startseite
+  (`public/worlds/haunting.webp`, 480 × 270, die Zeichnung vor einem
+  Sternenfeld aus festem Samen). `blueprint.test` prüft, dass jede
+  Raummitte höchstens 1,5 m neben der Zeichnung des Besitzers liegt,
+  `blueprintDrawing.test` Fläche je Raum und Gang, Wände und Bildgrenzen.
 - **Die schrägen Wände** (45°-Wände der Vorlage). Die Schrägkacheln stehen in
   der Karte (`STATION_MAP`, kleine Buchstaben); außerhalb der Station gibt es
   noch Ecken als `HouseRoom.cuts` (Ecke und Länge, `'sw2 se2'`).
@@ -1826,8 +1854,15 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
 
   **Jetzt gilt ein Ablauf mit festen Worten** (`FLOW`, `MODE_TEXT`), auf
   Telefon, Bildschirm und in der Brille gleich:
-  1. **Lobby** (Startseite, `#haunting`: Name, Raum, Verbinden, Beitreten —
-     unverändert).
+  1. **Lobby** (Startseite, `#haunting`: Name, Raum, Verbinden, Beitreten).
+     Seit der zweiten Runde steht in der Lobby über _Beitreten_ **„So läuft
+     eine Runde"** (`#haunt-flow`, gefüllt von `ui/hauntFlow.ts` aus
+     `roundFlow.LOBBY_FLOW`): die zwei Schritte aus `FLOW_STEPS` und zwei
+     Schilder nebeneinander (Telefon: untereinander) — **ÜBUNGSRUNDE** blau
+     („Hier landest du nach dem Beitreten …" + `FLOW.practiceHint`) und
+     **ECHTE RUNDE** rot („„Echte Runde starten" im Aufbau oder im
+     Pausemenü …" + `FLOW.realHint`), Farben wie `.haunt__mode`. Ein Test in
+     `roundFlow.test` hält die Worte an `FLOW`/`MODE_TEXT`.
   2. **Rollen** — im Aufbau unter der Überschrift „1 · Rollen verteilen".
   3. **Modus** — „2 · Übungsrunde oder echte Runde": zwei Knöpfe
      nebeneinander (Telefon: untereinander), **„Übungsrunde"** blau
@@ -1872,6 +1907,44 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   unten noch „Rollen testen", „Mission starten/stoppen", „Test starten",
   „Spielen/Trainieren" oder „Testlicht" steht, ist das die Geschichte dieser
   Knöpfe** — sie heißen jetzt wie hier.
+- **Die Seite „Haunting / Orbital" im Menü — wenige Unterseiten**
+  (zweite Runde, `rules/menuPages.ts`, `menuPages.test.ts`). Im Bereich
+  _Diese Welt_ (`ui/menuGroups.ts`) standen gut zwanzig Zeilen gleichen
+  Gewichts — dazu ein leerer _Baukasten_, dessen Zeilen die Tabelle längst
+  nach _Bauen & Gestalten_ geholt hatte. `HauntingWorld.menu` baut die Zeilen
+  jetzt flach (der Baukasten als `...super.menu()`, ohne eigenen Eintrag), und
+  `pageHauntMenu` verteilt sie nach der Tabelle `HAUNT_PAGE_OF`:
+  - **oben**, ohne Umweg: „Jetzt: …", die drei Starts (in der echten Runde
+    statt „Übungsrunde" der Abbruch), nach dem Ende „Nochmal: echte Runde"
+    (`orbital:restart`, vorher „Runde neu starten"), „Rollen & Aufbau"
+    (nicht in der Brille) und „Zur Einsatzzentrale";
+  - **fünf Unterseiten** (`HAUNT_PAGES`): _Plätze & Fähigkeiten_
+    (`haunt:seats`: fünf Plätze, Fähigkeiten), _Einstellungen der Runde_
+    (`haunt:settings`: Übungslicht, Station, Gegner), _Anzug & Ausrüstung_
+    (`haunt:gear`: Linke Hand, Medkit, Schutzschrank), _Ansicht & Komfort_
+    (`haunt:display`: Grundriss-Vorlage und die drei Zeilen des VR-Komforts
+    ohne eigene Stufe) und _Ton_ (`haunt:sound`: Ton, Ambiente);
+  - **unten** die Rettung „Feststecken?" (und das _Zurücksetzen_ der
+    Tabelle).
+  - **In die Werkstatt** (`MENU_PLACEMENT`): Testdeck (`orbital:labs`),
+    Testbesuch (`orbital:visits`) und die Bot-Runde des Testdecks
+    (`orbital:simulation`) — alle drei gibt es nur in der Übungsrunde.
+  Was `HAUNT_PAGE_OF` nicht kennt, bleibt oben stehen und geht nicht
+  verloren. Das ⚙-Menü des Technikers am Bildschirm
+  (`ShipExperience.shipOptions`) ist davon unberührt.
+- **Die Konsole der Zentrale rechnet mit Namen, nicht mit Nummern**
+  (`rules/commandConsole.ts`, mit Test). Der Bildschirm an der Wand hat
+  sechs Zeilen — Modus, „ECHTE RUNDE STARTEN", „ÜBUNGSRUNDE · OHNE MONSTER",
+  Station, Gegner, Übungslicht. Vorher war ein Tipp
+  `Math.floor((1 − uv.y) · 6)` und `commandAction(3)` hieß „Station
+  weiterschalten"; dieselben Zahlen standen in den Knöpfen der Tafel
+  (`rooms` → 3, `monster` → 4, `light` → 5). Jetzt baut `commandRows` die
+  Zeilen samt `CommandAction` (`status` · `real` · `practice` · `rooms` ·
+  `monster` · `light`), `commandActionAt` findet die getroffene aus der Höhe,
+  und `ShipExperience.commandAction` schaltet nach Namen. Die Modus-Zeile
+  sagt beim Antippen den Satz des Modus; das Übungslicht außerhalb der
+  Übungsrunde sagt, warum es nichts tut (vorher still), und heißt dort
+  „ÜBUNGSLICHT: NUR IN DER ÜBUNGSRUNDE" statt „TESTLABOR: …".
 - **Eine Runde in der Brille starten** (`HauntingWorld.menu()`,
   `rules/worldMenu.ts`): Handgelenk-Knopf drücken, im Panel unter den fünf
   Einträgen der Engine (Welten, Verbindung, Bewegung, Aussehen, Grafik) stehen

@@ -15,6 +15,7 @@ import {
 import { TILE } from '../nav/navTile';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import type { FurnitureChange } from '../../core/worldChanges';
@@ -32,6 +33,8 @@ import { InteractZone } from './zones/interact';
 import { KartZone } from './zones/kart';
 import { KitchenZone } from './zones/kitchen';
 import { NavigationZone } from './zones/navigation';
+import type { RoutineHost } from '../npc/NpcRoutine';
+import type { Npc } from '../npc/Npc';
 import { RangeZone } from './zones/range';
 import type { TestZone, ZoneHost } from './zones/zone';
 
@@ -104,6 +107,11 @@ export class TestWorld extends GridWorld {
   private plates: PlateFloor | null = null;
   /** Um welche Kachel die Schürze gerade liegt — `null`, bis sie das erste Mal liegt. */
   private platesAround: PlateSpot | null = null;
+
+  /** Am Steuer eines Karts sagt die Tastenhilfe, wie man fährt (`core/controlHints.ts`). */
+  override hintZone(): HintZone | null {
+    return this.kart.seated ? { kind: 'kart' } : super.hintZone();
+  }
 
   protected override worldId(): string {
     return 'test';
@@ -564,7 +572,29 @@ export class TestWorld extends GridWorld {
       onGround: () => this.host?.onGround() ?? false,
       sendNpc: (from, to) => this.sendNpc(from, to),
       clearNpcs: () => this.director?.clear() ?? 0,
+      npcRoutineHost: () => this.routineHost(),
     });
+  }
+
+  /**
+   * **Setzen und wegräumen für ein Verhalten** (`npc/NpcRoutine.ts`) — mit
+   * dem Hirn `errand`, denn wohin einer geht, sagt das Verhalten. Das Tempo
+   * kommt wie bei `sendNpc` aus der Haut.
+   */
+  private routineHost(): RoutineHost | null {
+    return {
+      spawn: (kind, at, yaw) =>
+        this.director?.spawn({
+          kind,
+          brain: 'errand',
+          at: at.clone(),
+          yaw,
+          speed: npcSkin(kind).speed,
+        }) ?? null,
+      remove: (npc) => {
+        this.director?.remove(npc);
+      },
+    };
   }
 
   private hostForZones: ZoneHost | null = null;
@@ -577,19 +607,17 @@ export class TestWorld extends GridWorld {
    * `errand`, das genau das kann. Das Tempo kommt aus der **Haut** — ohne diese
    * Zeile liefen alle NPCs gleich schnell, egal wie sie aussehen.
    */
-  private sendNpc(from: THREE.Vector3, to: THREE.Vector3): boolean {
+  private sendNpc(from: THREE.Vector3, to: THREE.Vector3): Npc | null {
     const director = this.director;
-    if (!director) return false;
-    return (
-      director.spawn({
-        kind: 'dummy',
-        brain: 'errand',
-        at: from.clone(),
-        errand: to.clone(),
-        yaw: Math.atan2(-(to.x - from.x), -(to.z - from.z)),
-        speed: npcSkin('dummy').speed,
-      }) !== null
-    );
+    if (!director) return null;
+    return director.spawn({
+      kind: 'dummy',
+      brain: 'errand',
+      at: from.clone(),
+      errand: to.clone(),
+      yaw: Math.atan2(-(to.x - from.x), -(to.z - from.z)),
+      speed: npcSkin('dummy').speed,
+    });
   }
 }
 

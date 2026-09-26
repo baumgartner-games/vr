@@ -229,7 +229,7 @@ Alles Weitere baut darauf.
    Portalsichten laufen weiter, sie zeichnen ja jetzt in ein Bild, das man
    sieht). Der Phaser-Zweig (`world2d.show`, `followHero`, Clear) wird
    ausgehängt — Code bleibt bis P8 liegen, wird nur nicht mehr erreicht.
-   `Menü → Ansicht` zeigt _Von oben_ statt _2D — Kachelwelt_; Raster, Ebenen,
+   `Menü → Spielen → Ansicht` zeigt _Von oben_ statt _2D — Kachelwelt_; Raster, Ebenen,
    Editor und _Plan zurücksetzen_ verschwinden aus dem Menü (der Editor der
    Gitterwelten ist ein anderer und bleibt, wo er ist). `screenView.ts`
    behält seine Kennungen `'2d' | '3d'` (Speicher, Startseite), nur der
@@ -246,7 +246,7 @@ Alles Weitere baut darauf.
    er dem Rig-Yaw (`PlayerAvatar` bekommt dafür einen Schalter, kleinste
    Änderung). Prüfen, dass Hände und Werkzeug in der Hand sichtbar sind —
    die Pistole soll man von oben sehen.
-5. Umschalten mitten im Spiel (`Menü → Ansicht`) und von der Startseite
+5. Umschalten mitten im Spiel (`Menü → Spielen → Ansicht`) und von der Startseite
    (_2D_ → _Beitreten_) landen beide hier; die Brille bleibt davon unberührt
    (`topDown` ist falsch, solange `xr.isPresenting`).
 
@@ -254,7 +254,7 @@ Alles Weitere baut darauf.
 es an, Zoomstufen rasten). Manuell: Startseite _2D_ → _Beitreten_: der Hub
 (noch der alte 3D-Hub) von oben, die eigene Figur läuft mit WASD nach
 Norden/Süden/Osten/Westen, das Bild folgt weich, Rad zoomt in Stufen, im
-Dunkelhaus und in Dust sieht man Räume von oben. `Menü → Ansicht` wechselt
+Dunkelhaus und in Dust sieht man Räume von oben. `Menü → Spielen → Ansicht` wechselt
 hin und zurück, und in 3D steht man, wo die Figur zuletzt stand. AGENTS.md:
 der Abschnitt _Jede Welt von oben_ wird **ersetzt** durch _Von oben:
 dieselbe Welt, eine Kamera_ (kurz; die Vorgeschichte in zwei Sätzen, warum
@@ -641,7 +641,7 @@ für die Ausblendliste (rein: welche Ebenen bei Rig-Ebene n unsichtbar sind).
 Manuell von oben: Treppe hinauf, das Podest wird sichtbar, oben den Hebel,
 unten geht das Licht; die zweite Ebene verdeckt nichts, solange man unten
 ist. Knöpfe: Wolke, Feuer, Funken, Wasser; Tür-Staub. Bildrate mit allen
-vier Emittern bleibt bei 60 (`Menü → Grafik → Bildrate im Bild`). AGENTS.md:
+vier Emittern bleibt bei 60 (`Menü → Werkstatt → Bildrate im Bild`). AGENTS.md:
 _Eine Treppe ist drei Sachen_ bekommt den vierten Satz (von oben: die
 Ebene darüber verschwindet).
 
@@ -726,6 +726,6 @@ Figur samt Pistole, B trifft den roten Knopf, die Schiebetür fährt auf, die
 Lampe darüber wird grün. Eine Kiste auf die Platte schieben, die dritte Tür
 bleibt offen. Die Treppe hinauf — das Podest erscheint, das vorher nicht im
 Weg stand —, oben den Hebel, unten geht das Licht aus. In der Ecke Rauch und
-Feuer per Knopf. Zurück durch das Tor `→ Hub`. `Menü → Ansicht → Aus den
+Feuer per Knopf. Zurück durch das Tor `→ Hub`. `Menü → Spielen → Ansicht → Aus den
 Augen`: Man steht in derselben Straßenküche, dort, wo die Figur gerade
 stand, und ein Freund in der Brille stand die ganze Zeit daneben.

@@ -36,6 +36,35 @@ describe('Die Regeln des Grundrisses', () => {
       }).toEqual({ gang: passage.name, felder: 4 });
   });
 
+  /**
+   * **Auch über eine Fuge hinweg nicht** — Raum, kurzer Gang, Raum: Die Regel
+   * zählt je Raum und je Gang; zwei Türen, die sich keinen Raum teilen (zwei
+   * Raumtüren beiderseits einer Fuge zwischen zwei Gangstücken), fragt sie
+   * nicht. Hier wird die ganze Station gegeneinander gemessen: Nirgends
+   * liegen zwei Türmitten näher als sechs Felder.
+   */
+  it('legt nirgends in der Station zwei Türen näher als sechs Felder — auch Raum–Gang–Raum', () => {
+    const least = (DOOR_GAP_CELLS * CELL) / TILE;
+    for (const seed of SEEDS.filter((_, i) => i % 6 === 0)) {
+      const doors = generateHouse(seed, 14).doors;
+      for (let i = 0; i < doors.length; i++)
+        for (let j = i + 1; j < doors.length; j++) {
+          const p = doors[i]!,
+            q = doors[j]!;
+          // Zwei Türen in dieselben zwei Räume stehen nebeneinander (Regel 3).
+          if (new Set([p.a, p.b, q.a, q.b]).size === 2) continue;
+          const a = doorMiddle(p),
+            b = doorMiddle(q);
+          expect({
+            seed,
+            p: p.id,
+            q: q.id,
+            far: Math.hypot(a.x - b.x, a.z - b.z) >= least - 1e-9,
+          }).toEqual({ seed, p: p.id, q: q.id, far: true });
+        }
+    }
+  });
+
   it('lässt jedem Raum mindestens eine Tür', () => {
     const spec = generateHouse(11, 14);
     for (const room of spec.rooms)

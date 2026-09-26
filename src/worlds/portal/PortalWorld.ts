@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { World, WorldContext, WorldPreview } from '../../core/types';
+import type { HintZone } from '../../core/controlHints';
 import { stripOutlines } from '../../core/outlineShell';
 import type { MenuEntry, MenuIcon } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
@@ -167,7 +168,13 @@ import {
   type AreaTile,
 } from './areaPaint';
 import { AreaPad, type AreaEvent } from './areaPad';
-import { BuildBar, HIDDEN_BUILD_BAR, type BuildEvent, type BuildTool } from './buildBar';
+import {
+  BuildBar,
+  HIDDEN_BUILD_BAR,
+  nextBuildTool,
+  type BuildEvent,
+  type BuildTool,
+} from './buildBar';
 import {
   BuildHistory,
   type BuildPose,
@@ -315,7 +322,10 @@ import {
   saveKeyboardMode,
 } from '../../core/systemKeyboard';
 import { bakeNav, type BakeReport } from '../nav/navBake';
-import { applyNavLayers, boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
+import { boxesFrom, levelCensus, navDebugView, navPathView } from '../nav/navScene';
+import { applyInfoOptions, fadeInfoTree } from '../../core/infoViewScene';
+import { infoView, infoViewsVersion } from '../../core/infoViews';
+import { infoViewOptionsEntry } from '../../ui/infoViewMenu';
 import {
   NAV_LAYERS,
   anyLayer,
@@ -1489,6 +1499,12 @@ export class PortalWorld implements World {
    * (`placeGhost.ts`) — siehe `updateBuild`.
    */
   private buildBar: BuildBar | null = null;
+  /**
+   * **Welches Werkzeug die Leiste zuletzt zeigte** — oder `null`, solange sie
+   * nicht zu sehen ist. Gelesen vom Steuerkreuz (`toolStep`) und von der
+   * Tastenhilfe (`hintZone`).
+   */
+  private buildShown: BuildTool | null = null;
   private readonly buildHistory = new BuildHistory();
   private placeGhost: PlaceGhost | null = null;
   /** Solange ein Schritt nachgespielt wird, kommt nichts auf den Stapel. */
@@ -1631,6 +1647,8 @@ export class PortalWorld implements World {
   /** Die Wege, die gerade gelaufen werden — eigene Ebene, weil sie sich ändern. */
   private navTracks: THREE.Group | null = null;
   private navTrackTimer = 0;
+  /** Die Fassung der Darstellungsoptionen, nach der die Ansicht zuletzt stand. */
+  private navLook = 0;
   /** Welche Ebenen der Debug-Ansicht gerade an sind (`nav/navLayers.ts`). */
   private navLayers: NavLayerState = noLayers();
   /**
@@ -2119,6 +2137,17 @@ export class PortalWorld implements World {
             this.context?.notify(layerSummary(this.navLayers));
           },
         },
+        // Das Optionsfeld der Info-Ansichten (`ui/infoViewMenu.ts`) — dasselbe
+        // wie unter Grafik → Info-Ansichten, hier dort, wo man gerade schaut.
+        infoViewOptionsEntry(
+          'nav',
+          (message) => {
+            this.applyNav();
+            this.refreshMenuLabels();
+            this.context?.notify(message);
+          },
+          'Darstellung',
+        ),
         ...rows,
       ],
     };
@@ -2305,7 +2334,15 @@ export class PortalWorld implements World {
     // an ihre Modelle gebaut und dreht sich mit ihnen (`NpcBody.setSight`).
     // Deshalb wird er hier zuerst und getrennt geschaltet — sonst wäre er weg,
     // sobald jemand die Kacheln ausmacht.
-    this.director?.setSight(this.navLayers.sight, layerSpec('sight').color);
+    // **Und die Darstellungsoptionen** (`core/infoViews.ts`): Sicht ist ein
+    // NPC-Teil und etwas Festes — ohne NPCs oder in „Nur 2D-Pfad" bleibt sie
+    // aus, auch wenn ihre Ebene an ist.
+    const look = infoView('nav');
+    this.navLook = infoViewsVersion();
+    this.director?.setSight(
+      this.navLayers.sight && look.actors && !look.flat,
+      layerSpec('sight').color,
+    );
 
     const wanted = anyLayer(this.navLayers);
     if (!wanted) {
@@ -2323,8 +2360,15 @@ export class PortalWorld implements World {
       this.root.add(this.navDebug);
       this.navTrackTimer = 0;
     }
-    applyNavLayers(this.navDebug, this.navLayers);
-    if (!this.navLayers.paths) this.clearNavTracks();
+    // Die Ebenen sagen, was gezeigt werden **darf**, die Optionen, was davon
+    // gezeichnet wird — beide zusammen, damit keiner den anderen überschreibt.
+    applyInfoOptions(
+      this.navDebug,
+      look,
+      (child) => this.navLayers[child.name as NavLayer] ?? true,
+    );
+    if (!this.navLayers.paths || !look.actors) this.clearNavTracks();
+    this.navTrackTimer = 0;
   }
 
   /**
@@ -2335,7 +2379,11 @@ export class PortalWorld implements World {
    * Liniengeometrie zu bauen wäre die teuerste Art, dasselbe zu zeigen.
    */
   private updateNavTracks(dt: number): void {
-    if (!this.navLayers.paths || !this.nav || !this.director) return;
+    // Hat jemand an den Darstellungsoptionen gedreht, gilt das sofort — am
+    // Handgelenk wie auf der Werkzeugseite.
+    if (this.navLook !== infoViewsVersion() && anyLayer(this.navLayers)) this.applyNav();
+    const look = infoView('nav');
+    if (!this.navLayers.paths || !look.actors || !this.nav || !this.director) return;
 
     this.navTrackTimer -= dt;
     if (this.navTrackTimer > 0) return;
@@ -2352,8 +2400,9 @@ export class PortalWorld implements World {
     if (paths.length === 0 && mine.length === 0) return;
     const group = new THREE.Group();
     group.name = 'nav-tracks';
-    for (const path of paths) group.add(navPathView(this.nav, path));
-    if (mine.length > 0) group.add(navPathView(this.nav, mine, GHOST_PATH_COLOR));
+    for (const path of paths) group.add(navPathView(this.nav, path, undefined, look.flat));
+    if (mine.length > 0) group.add(navPathView(this.nav, mine, GHOST_PATH_COLOR, look.flat));
+    fadeInfoTree(group, look.opacity);
     this.root.add(group);
     this.navTracks = group;
   }
@@ -9990,6 +10039,7 @@ export class PortalWorld implements World {
     const visible = !presenting && Boolean(ctx.crane) && refillsCatalogue(gameMode());
     if (!visible) {
       this.surfaceTool = null;
+      this.buildShown = null;
       if (this.buildBar) {
         this.buildBar.take();
         this.buildBar.show(HIDDEN_BUILD_BAR);
@@ -10013,6 +10063,7 @@ export class PortalWorld implements World {
           : carried && this.shelfFresh.has(carried)
             ? 'place'
             : 'move';
+    this.buildShown = tool;
     const path = carried ? this.modelPath(carried) : null;
     let status = '';
     const surface = this.surfaceTool ? this.surfacePreview(ctx) : null;
@@ -10103,6 +10154,27 @@ export class PortalWorld implements World {
   private carriedSpot(entry: PhysicsBody): [number, number] {
     entry.object.getWorldPosition(_point);
     return [_point.x, _point.z];
+  }
+
+  /**
+   * **Steuerkreuz ↑/↓ am Pad: das Werkzeug daneben** (`World.toolStep`).
+   * Nur, solange die Leiste zu sehen ist — sonst gehört das Kreuz niemandem.
+   * Der Druck geht in dieselbe Liste wie ein Klick auf die Leiste.
+   */
+  toolStep(step: 1 | -1): boolean {
+    if (!this.buildBar || this.buildShown === null) return false;
+    this.buildBar.press(nextBuildTool(this.buildShown, step));
+    return true;
+  }
+
+  /**
+   * **Was die Tastenhilfe sagt** (`World.hintZone`): Als Kran im
+   * _Baukasten_ die Werkzeugleiste. Welten mit eigener Zone (Burgerladen,
+   * Haunting, die Kartzone der Testwelt) sagen es selbst und fragen hier nur
+   * nach, wenn sie nichts zu sagen haben.
+   */
+  hintZone(): HintZone | null {
+    return this.buildShown === null ? null : { kind: 'build', tool: this.buildShown };
   }
 
   /** Ein Druck auf die Leiste (`buildBar.ts`). */
@@ -11073,6 +11145,7 @@ export class PortalWorld implements World {
     }
     this.hitboxes.visible = on;
     this.hitboxes.update(physics);
+    if (on) fadeInfoTree(this.hitboxes.object, infoView('hitBoxes').opacity);
   }
 
   private updateHighlights(reachable: Set<PhysicsBody>): void {

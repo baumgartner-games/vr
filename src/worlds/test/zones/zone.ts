@@ -3,6 +3,8 @@ import type { WorldContext } from '../../../core/types';
 import type { Usable } from '../../../core/usable';
 import type { ConstructOptions } from '../../shared/construct';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
+import type { RoutineHost } from '../../npc/NpcRoutine';
+import type { Npc } from '../../npc/Npc';
 
 /**
  * **Was eine Zone von der Welt bekommt — und mehr nicht.**
@@ -147,11 +149,18 @@ export interface ZoneHost {
    * bekommt, entscheidet die Welt — eine Zone, die sich ihren NPC selbst
    * zusammenstellte, hätte einen, der anders läuft als jeder andere im Spiel.
    *
-   * @returns ob wirklich einer losgelaufen ist
+   * @returns der, der losgelaufen ist — oder `null`
    */
-  sendNpc(from: THREE.Vector3, to: THREE.Vector3): boolean;
+  sendNpc(from: THREE.Vector3, to: THREE.Vector3): Npc | null;
   /** Und alle wieder wegräumen. Gibt zurück, wie viele das waren. */
   clearNpcs(): number;
+  /**
+   * **Die zwei Handgriffe für ein Verhalten mit eigenen NPCs**
+   * (`npc/NpcRoutine.ts`): setzen und wegräumen — oder `null`, wenn die Welt
+   * keinen Regisseur hat. Die Sitzecke lässt damit ihre Besucher herein
+   * (`zones/seating.ts`).
+   */
+  npcRoutineHost(): RoutineHost | null;
 }
 
 /**

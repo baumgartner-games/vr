@@ -1,11 +1,24 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../core/chefFit';
-import { FIGURE_FADE, gaitFor, type FigureGait } from '../../core/kaykitFigureFit';
+import { FIGURE_FADE, gaitFor, pickClip, type FigureGait } from '../../core/kaykitFigureFit';
 import { disposeTree } from '../shared/environment';
 import { figureGaitClip, figureStrikeClip } from './npcFigure';
 import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
 import { bodyShape, hitParts } from './npcHit';
 import type { KaykitFigure } from '../../core/kaykitFigure';
+
+/** Was ein NPC am Platz tut — dieselben zwei wie `npcBehavior.BehaviorPose`. */
+export type NpcPose = 'sit' | 'interact';
+
+/**
+ * **Welche Spur eine Haltung ist**, der Reihe nach gefragt. Sitzen gibt es in
+ * der Simulations-Bibliothek zweimal — auf dem Stuhl und auf dem Boden —, und
+ * ohne beide bleibt die Figur wenigstens ruhig stehen.
+ */
+export const POSE_CLIPS: Readonly<Record<NpcPose, readonly string[]>> = {
+  sit: ['Sit_Chair_Idle', 'Sit_Floor_Idle', 'Idle_B', 'Idle_A'],
+  interact: ['Interact', 'Use_Item', 'Idle_B', 'Idle_A'],
+};
 
 /**
  * **Das Modell eines NPC** — die Haut aus `npcKinds.ts`, gebaut.
@@ -181,6 +194,13 @@ export class NpcBody extends THREE.Group {
   private swung = false;
   /** Ob die Figur ihren Tod schon gespielt hat — einmal und nicht je Bild. */
   private figureDead = false;
+  /**
+   * **Eine Haltung statt eines Gangs** — sitzen, hantieren
+   * (`npcBehavior.ts`, `BehaviorPose`). Solange eine gilt, wechselt der Gang
+   * nicht; die Klötzchen knicken dafür nur die Beine ein.
+   */
+  private posed: NpcPose | null = null;
+  private posedPlaying = false;
 
   constructor(kind: NpcKind) {
     super();
@@ -583,6 +603,14 @@ export class NpcBody extends THREE.Group {
     if (this.puppet) this.pull(this.puppet);
     this.faceBar();
 
+    // **Eine Haltung** knickt die Klötzchen-Beine nach vorn — ein Stuhl, auf
+    // dem ein Kasten mit geraden Beinen „sitzt", steht in ihm.
+    if (this.posed === 'sit') {
+      this.legLeft.rotation.x = -1.35;
+      this.legRight.rotation.x = -1.35;
+      this.chest.position.y = this.skin.height * 0.47 - this.skin.height * 0.2;
+    }
+
     // **Und dasselbe Bild für die Figur, wenn sie da ist.** Sie bekommt
     // dieselben zwei Zahlen wie die Klötze — Tempo und „holt gerade aus" —,
     // macht aber etwas anderes daraus: einen Gang und einen Schlag statt
@@ -592,6 +620,26 @@ export class NpcBody extends THREE.Group {
       this.driveFigure(dt, speed);
     }
     this.swung = striking;
+  }
+
+  /**
+   * **Eine Haltung einnehmen — oder wieder gehen** (`null`).
+   *
+   * Die Spur kommt aus `POSE_CLIPS`: Sitzen ist `Sit_Chair_Idle` aus der
+   * Simulations-Bibliothek (`core/kaykitClips.ts`), Hantieren `Interact`.
+   * Fehlt sie dem Skelett, bleibt die Figur im Stand — ein normaler Ausgang
+   * und kein Fehler.
+   */
+  setPose(pose: NpcPose | null): void {
+    if (pose === this.posed) return;
+    this.posed = pose;
+    this.posedPlaying = false;
+    // Zurück in den Gang: Der nächste `driveFigure` wählt ihn neu.
+    this.figureGait = null;
+  }
+
+  get pose(): NpcPose | null {
+    return this.posed;
   }
 
   /**
@@ -634,6 +682,15 @@ export class NpcBody extends THREE.Group {
     const figure = this.figure!;
     if (this.figureStriking > 0) {
       this.figureStriking = Math.max(0, this.figureStriking - dt);
+      figure.update(dt);
+      return;
+    }
+    if (this.posed && !this.figureDead) {
+      if (!this.posedPlaying) {
+        const name = pickClip(clipNames(figure), POSE_CLIPS[this.posed]);
+        if (name) figure.play(name, { fade: FIGURE_FADE * 2 });
+        this.posedPlaying = true;
+      }
       figure.update(dt);
       return;
     }

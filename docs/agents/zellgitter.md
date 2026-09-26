@@ -148,7 +148,7 @@ den großen Kacheln bleibt.
   - Bei gerader Größe liegt die Stellung auf einer Zellecke, bei ungerader
     in einer Zellmitte.
   - Jede Kachelkante im Inneren des Blocks wird geprüft.
-- **Anzeige:** _Menü → Grafik → Belegte Felder_ oder _Hitboxen (2D-Gitter)_
+- **Anzeige:** _Menü → Werkstatt → Belegte Felder_ oder _Hitboxen (2D-Gitter)_
   zeigt das Gitter **auf dem Boden** (`grid/cellHitboxView.ts`, seit Oktober
   2026). Gewünscht: _„alle Gitter-Felder sehen, ob diese mit Wand belegt sind
   oder frei … bei der Treppe … mit einem Pfeil … immer auf dem Boden"_.
@@ -161,7 +161,7 @@ den großen Kacheln bleibt.
     Hälfte, die hält.
   - Die Felder liegen auf dem Boden, auf der Treppe schräg auf ihrem Lauf, und
     werden verdeckt wie der Boden; nur die Pfeile liegen immer obenauf.
-- **Anzeige:** _Menü → Grafik → Belegte Felder_
+- **Anzeige:** _Menü → Werkstatt → Belegte Felder_
   (`graphicsSettings.cellFootprints`, `grid/footprintView.ts`).
   - Unter Spieler, Mitspielern und NPCs liegt ihr 2 × 2-Block, grün frei,
     rot gesperrt.

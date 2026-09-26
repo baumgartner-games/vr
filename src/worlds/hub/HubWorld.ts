@@ -11,6 +11,16 @@ import type { Handedness } from '../../core/XRInput';
 import { TILE, dirX, dirZ, tileCentreX, tileCentreZ, tileKey } from '../nav/navTile';
 import { gatesIn, spinGate } from './gate';
 import { CORRIDOR_WIDTH, HALL_HALF, hubGrid, type HubCorridor } from './hubGrid';
+import {
+  ARCH_HEIGHT,
+  HALL_WALL,
+  hubDecor,
+  wallPoint,
+  yawToCentre,
+  type HubPiece,
+} from './hubDecor';
+import { kaykitAtHeight, kaykitSkins } from '../../core/kaykitHeight';
+import { sortWorlds } from '../../ui/menuGroups';
 
 /**
  * **Der Hub: hell, ruhig, und jede andere Welt ist ein Tor weit weg.**
@@ -44,8 +54,15 @@ import { CORRIDOR_WIDTH, HALL_HALF, hubGrid, type HubCorridor } from './hubGrid'
 export class HubWorld extends GridWorld {
   /** Die Welten hinter den Toren — dieselbe Liste, aus der `layout()` baut. */
   private readonly targets: WorldDefinition[] = hubTargets();
-  /** Die beiden Tafeln in der Halle: eigene Textur, also eigenes Aufräumen. */
+  /** Die Tafeln in der Halle: eigene Textur, also eigenes Aufräumen. */
   private readonly panels: TextPlane[] = [];
+  /**
+   * Die Ausstattung aus dem Regal (`hubDecor.ts`) — kommt nach dem Bau,
+   * Stück für Stück. Die Marke hält ein Stück ab, das erst ankommt, wenn der
+   * Hub schon wieder abgeräumt ist.
+   */
+  private decorRound = 0;
+  private readonly decorSkins: THREE.Material[] = [];
 
   protected override worldId(): string {
     return 'hub';
@@ -87,7 +104,7 @@ export class HubWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Wähle eine Welt — auf ein Tor im Gang stellen, oder der Button an deiner Hand';
+    return 'Die Lobby — durch ein Tor gehen startet das Spiel dahinter';
   }
 
   /**
@@ -140,7 +157,42 @@ export class HubWorld extends GridWorld {
     const middle = hallCentre();
     this.root.add(buildHallRing(middle));
     for (const corridor of hub.corridors) this.root.add(buildCorridorLights(corridor, middle));
-    this.root.add(this.buildSigns(middle));
+    this.root.add(this.buildSigns(middle, hub.corridors));
+    void this.furnish(middle, hub.corridors, ++this.decorRound);
+  }
+
+  /**
+   * **Die Lobby einrichten** — Bögen, Lampen, Bänke, Büsche aus dem Regal
+   * (`hubDecor.ts`). Nichts davon wird abgewartet: Die Halle steht, die Tore
+   * leuchten, und was aus dem Regal kommt, kommt dazu. Kommt nichts (kein
+   * Netz, Jest, ein Checkout ohne Pakete), steht der Hub wie vorher da.
+   */
+  private async furnish(
+    middle: THREE.Vector3,
+    corridors: readonly HubCorridor[],
+    round: number,
+  ): Promise<void> {
+    const pieces = hubDecor(
+      corridors,
+      this.targets.map((world) => world.accent),
+    );
+    await Promise.all(pieces.map((piece) => this.place(piece, middle, round)));
+  }
+
+  private async place(piece: HubPiece, middle: THREE.Vector3, round: number): Promise<void> {
+    const model = await kaykitAtHeight(piece.path, piece.height).catch(() => null);
+    if (!model || round !== this.decorRound) return;
+    model.position.set(middle.x + piece.x, 0, middle.z + piece.z);
+    model.rotation.y = piece.yaw;
+    model.name = `hub-decor:${piece.path}`;
+    model.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
+    this.decorSkins.push(...kaykitSkins(model));
+    this.root.add(model);
   }
 
   override async init(ctx: WorldContext): Promise<void> {
@@ -158,6 +210,9 @@ export class HubWorld extends GridWorld {
     ctx.scene.fog = null;
     for (const panel of this.panels) panel.dispose();
     this.panels.length = 0;
+    this.decorRound++;
+    for (const skin of this.decorSkins) skin.dispose();
+    this.decorSkins.length = 0;
     super.dispose(ctx);
   }
 
@@ -190,49 +245,55 @@ export class HubWorld extends GridWorld {
     };
   }
 
-  /** Die Überschrift über dem ersten Gang und der Hinweis an der Wand. */
-  private buildSigns(middle: THREE.Vector3): THREE.Group {
+  /**
+   * **Die Schilder der Lobby**: über jedem Bogen der Name der Welt dahinter,
+   * und an der Südwand der Hinweis, wie man hinkommt.
+   *
+   * Über dem Bogen hing früher _Baumgartner VR_ — eine Überschrift über dem
+   * einen Gang, in dem alle Tore standen. In der Lobby hat jeder Gang sein
+   * eigenes Ziel, und das Schild darüber sagt, welches: groß genug, um es aus
+   * der Hallenmitte zu lesen, und in der Farbe der Welt.
+   */
+  private buildSigns(middle: THREE.Vector3, corridors: readonly HubCorridor[]): THREE.Group {
     const group = new THREE.Group();
     group.name = 'hub-signs';
 
-    const title = new TextPlane({
-      // Drei Meter breit und nicht mehr 4,4: Der Gang darunter ist drei
-      // Kacheln breit, und ein Schild, das über seine Mündung hinausragt,
-      // hängt vor der Wand daneben.
-      width: 3,
-      height: 0.9,
-      title: 'Baumgartner VR',
-      body: 'Wähle eine Welt – auf ein Tor im Gang stellen oder über den Button an deiner Hand.',
-      align: 'center',
-      accent: 0x4aa8ff,
-      // **Kein `face`, und das ist Absicht** (`ui/billboard.ts`). Es ist die
-      // Aufschrift über der Mündung des Gangs, nicht ein Schild darin — wie
-      // ein Schriftzug über einem Tor. Zur Kamera geneigt wäre es das
-      // größte Ding im Bild und läge von oben quer über dem ersten Tor: Man
-      // liest die Halle und sieht das Tor nicht, auf das man sich stellen
-      // soll. Was man von oben wirklich braucht, steht auf den Schildern der
-      // Tore, und die drehen sich.
+    corridors.forEach((corridor, index) => {
+      const world = this.targets[index];
+      if (!world) return;
+      const sign = new TextPlane({
+        // Etwas breiter als der Bogen (2,1 m), damit der Name über ihm sitzt
+        // wie ein Schriftzug über einem Tor.
+        width: 2.3,
+        height: 0.62,
+        title: world.title,
+        body: world.tagline,
+        align: 'center',
+        accent: world.accent,
+        // **Kein `face`, und das ist Absicht** (`ui/billboard.ts`): Es ist die
+        // Aufschrift über der Mündung und kein Schild darin. Zur Kamera
+        // geneigt, läge es von oben quer über dem Tor, auf das man sich
+        // stellen soll; das Schild am Tor selbst dreht sich ohnehin.
+      });
+      const at = wallPoint(corridor.dir, HALL_WALL + 0.05, 0);
+      sign.position.set(middle.x + at.x, ARCH_HEIGHT + 0.5, middle.z + at.z);
+      sign.rotation.y = yawToCentre(corridor.dir);
+      group.add(sign);
+      this.panels.push(sign);
     });
-    // Über der Mündung des ersten Gangs: knapp über der Wandkrone (2,8 m), also
-    // hoch genug, um über den Toren zu stehen, und tief genug, um beim Blick
-    // geradeaus im Bild zu sein.
-    title.position.set(middle.x, 3.2, middle.z - (HALL_HALF + 0.5) * TILE + 0.1);
-    group.add(title);
 
     const hint = new TextPlane({
       width: 1.8,
       height: 0.58,
-      title: 'Steuerung',
-      body: 'Beide Hände: Menü-Button. Zielen + Trigger wählt. Stick: gehen, rechts: drehen.',
+      title: 'Lobby',
+      body: 'Durch ein Tor gehen startet das Spiel dahinter. Menü: Knopf an der Hand, ☰ oder M.',
       accent: 0x9d7bff,
-      // Dieselbe Regel wie oben — die schräge Drehung von Hand, die hier
-      // stand, war der Versuch, es beiden Ansichten recht zu machen.
+      // Zur Kamera gedreht — ein Hinweis an der Wand wird von überall gelesen.
       face: true,
     });
     hint.position.set(middle.x - (HALL_HALF - 2) * TILE, 1.6, middle.z + HALL_HALF * TILE);
     group.add(hint);
-
-    this.panels.push(title, hint);
+    this.panels.push(hint);
     return group;
   }
 }
@@ -263,7 +324,10 @@ const LAMP_RANGE = 8;
 
 /** Jede Welt außer dem Hub selbst, in der Reihenfolge der Registry. */
 export function hubTargets(): WorldDefinition[] {
-  return WORLDS.filter((world) => world.id !== 'hub');
+  // In der Reihenfolge des Menüs und der Startseite: Spiele zuerst, dann
+  // Baustellen, dann Prüfstände (`menuGroups.sortWorlds`). Das erste Tor steht
+  // im Norden — genau dort, wohin man beim Ankommen schaut.
+  return sortWorlds(WORLDS.filter((world) => world.id !== 'hub'));
 }
 
 /**

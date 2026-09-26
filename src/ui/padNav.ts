@@ -60,6 +60,13 @@ export interface PadScope {
   priority: number;
   /** Womit der Fokus anfängt, wenn noch keiner drin steht. */
   initial?(root: HTMLElement): HTMLElement | null;
+  /**
+   * **Welche Seite gerade aufgeschlagen ist** — eine beliebige Kennung. Hat
+   * sie sich geändert und der Fokus ist mit der alten Seite verschwunden,
+   * fängt er bei `initial` an (die Zeile, aus der man zurückkam) und nicht
+   * bei einem Knopf der neuen Seite, der zufällig wie der alte heißt.
+   */
+  page?(): string;
 }
 
 /** Womit zuletzt bedient wurde — für die Tastenhilfe (`ui/ControlHints.ts`). */
@@ -104,6 +111,8 @@ export class PadNav {
   private frame = 0;
   /** Welcher Knopf zuletzt den Fokus hatte — wiedergefunden nach einem Neuzeichnen. */
   private lastKey = '';
+  /** Auf welcher Seite (`PadScope.page`) der Fokus zuletzt stand. */
+  private lastPage = '';
   private readonly disposers: Array<() => void> = [];
 
   constructor(
@@ -280,6 +289,12 @@ export class PadNav {
   private showFocus(root: HTMLElement, scope: PadScope): HTMLElement | null {
     document.documentElement.classList.add('nav-focus');
     const now = this.focused(root);
+    const page = scope.page?.() ?? '';
+    if (page !== this.lastPage) {
+      this.lastPage = page;
+      // Eine andere Seite: Was dort den Fokus hatte, gilt hier nicht mehr.
+      if (!now) this.lastKey = '';
+    }
     if (now) {
       this.lastKey = keyOf(now);
       return now;
