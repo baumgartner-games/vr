@@ -145,6 +145,23 @@ html, body {
 .plateup-strip { top: calc(env(safe-area-inset-top, 0px) + 64px); max-width: calc(100vw - 24px); padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); font: 600 14px/1.2 var(--hud-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plateup-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); width: min(92vw, 420px); padding: 12px 16px; border-radius: var(--hud-radius); font: 14px/1.35 var(--hud-font); white-space: pre-line; }
 .plateup-strip[hidden], .plateup-card[hidden] { display: none; }
+/*
+  Die Leiste unten (Tipp der Einsteigerhilfe, was man in der Hand hat) und die
+  Bestellzettel oben. `bottom` der Leiste setzt der Code (über der
+  Tastenleiste, `aboveHints`), ebenso die Breite des Geduldsbalkens.
+*/
+.plateup-hand, .plateup-tickets { position: fixed; left: 12px; right: 12px; z-index: 4; display: flex; gap: 6px; pointer-events: none; font-family: var(--hud-font); }
+.plateup-hand { bottom: 64px; flex-direction: column; align-items: center; font-weight: 600; font-size: 14px; line-height: 1.3; }
+.plateup-tickets { top: calc(env(safe-area-inset-top, 0px) + 100px); flex-wrap: wrap; justify-content: center; }
+.plateup-hand[hidden], .plateup-tickets[hidden] { display: none; }
+.plateup-pill { --hud-accent: #f2a33a; max-width: 100%; box-sizing: border-box; padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); background: var(--hud-bg); color: var(--hud-ink); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); text-align: center; }
+.plateup-pill--tip { --hud-accent: #5ee0a0; background: var(--hud-good-bg); }
+.plateup-ticket { min-width: 92px; padding: 4px 8px 6px; border-radius: var(--hud-radius-sm); background: #fffaf0; border: 2px solid #3a3f4b; color: #2b2f38; font: 600 12px/1.25 var(--hud-font); box-shadow: var(--hud-shadow); }
+.plateup-ticket--urgent { border-color: #e0584f; }
+.plateup-ticket__table { font-size: 11px; color: #6b6f78; }
+.plateup-ticket__bar { height: 5px; margin-top: 3px; border-radius: 3px; background: #d9d4c7; overflow: hidden; }
+.plateup-ticket__fill { height: 100%; }
+.plateup-ticket--dirty { padding: 4px 10px; background: rgba(60, 48, 36, 0.88); color: #f3e2c8; border: 2px dashed #b48c5a; }
 
 /* ---------- Landing ---------- */
 

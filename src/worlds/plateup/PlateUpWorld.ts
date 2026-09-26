@@ -1778,20 +1778,8 @@ export class PlateUpWorld extends GridWorld {
     const flat = !ctx.renderer.xr.isPresenting;
     if (!this.handBar) {
       const bar = document.createElement('div');
+      // Aussehen in `style.css` (`.plateup-hand`), wie Zeile und Karte.
       bar.className = 'plateup-hand';
-      bar.style.cssText = [
-        'position:fixed',
-        'left:12px',
-        'right:12px',
-        'bottom:64px',
-        'display:flex',
-        'flex-direction:column',
-        'align-items:center',
-        'gap:6px',
-        'pointer-events:none',
-        'z-index:4',
-        'font:600 14px/1.3 system-ui,sans-serif',
-      ].join(';');
       document.body.appendChild(bar);
       this.handBar = bar;
     }
@@ -1815,25 +1803,13 @@ export class PlateUpWorld extends GridWorld {
     if (this.handBar.dataset.key !== key) {
       this.handBar.dataset.key = key;
       this.handBar.textContent = '';
-      if (tip) this.handBar.append(pill(`Tipp: ${tip}`, '#5ee0a0', 'rgba(16,40,30,0.9)'));
-      if (hand) this.handBar.append(pill(hand, '#f2a33a', 'rgba(20,24,32,0.85)'));
+      if (tip) this.handBar.append(pill(`Tipp: ${tip}`, true));
+      if (hand) this.handBar.append(pill(hand, false));
     }
 
     if (!this.tickets) {
       const row = document.createElement('div');
       row.className = 'plateup-tickets';
-      row.style.cssText = [
-        'position:fixed',
-        'left:12px',
-        'right:12px',
-        'top:calc(env(safe-area-inset-top, 0px) + 100px)',
-        'display:flex',
-        'flex-wrap:wrap',
-        'justify-content:center',
-        'gap:6px',
-        'pointer-events:none',
-        'z-index:4',
-      ].join(';');
       document.body.appendChild(row);
       this.tickets = row;
     }
@@ -1854,8 +1830,7 @@ export class PlateUpWorld extends GridWorld {
     for (const g of waiting) this.tickets.append(ticket(g));
     for (const t of dirty) {
       const el = document.createElement('div');
-      el.style.cssText =
-        'padding:4px 10px;border-radius:10px;background:rgba(60,48,36,0.88);color:#f3e2c8;font:600 12px/1.3 system-ui,sans-serif;border:2px dashed #b48c5a';
+      el.className = 'plateup-ticket plateup-ticket--dirty';
       el.textContent = `Tisch ${t.index + 1}: abräumen`;
       this.tickets.append(el);
     }
@@ -2383,17 +2358,9 @@ function writeTutorial(value: 'done' | 'off' | 'on'): void {
 }
 
 /** Eine Pille am Schirm — ein Satz mit Rand in einer Farbe. */
-function pill(text: string, edge: string, background: string): HTMLDivElement {
+function pill(text: string, tip: boolean): HTMLDivElement {
   const el = document.createElement('div');
-  el.style.cssText = [
-    'padding:6px 14px',
-    'border-radius:999px',
-    `background:${background}`,
-    `border:2px solid ${edge}`,
-    'color:#fff',
-    'max-width:100%',
-    'text-align:center',
-  ].join(';');
+  el.className = tip ? 'plateup-pill plateup-pill--tip' : 'plateup-pill';
   el.textContent = text;
   return el;
 }
@@ -2403,26 +2370,18 @@ function ticket(g: Guest): HTMLDivElement {
   const share = patienceShare(g);
   const color = share > 0.6 ? '#4fbf5a' : share > 0.35 ? '#f2b43a' : '#e0584f';
   const el = document.createElement('div');
-  el.style.cssText = [
-    'min-width:92px',
-    'padding:4px 8px 6px',
-    'border-radius:10px',
-    'background:#fffaf0',
-    `border:2px solid ${share < 0.35 ? '#e0584f' : '#3a3f4b'}`,
-    'color:#2b2f38',
-    'font:600 12px/1.25 system-ui,sans-serif',
-    'box-shadow:0 2px 6px rgba(0,0,0,0.35)',
-  ].join(';');
+  el.className = share < 0.35 ? 'plateup-ticket plateup-ticket--urgent' : 'plateup-ticket';
   const head = document.createElement('div');
+  head.className = 'plateup-ticket__table';
   head.textContent = `Tisch ${g.table + 1}`;
-  head.style.cssText = 'font-size:11px;color:#6b6f78';
   const name = document.createElement('div');
   name.textContent = menuItem(g.order).label;
   const bar = document.createElement('div');
-  bar.style.cssText =
-    'height:5px;border-radius:3px;background:#d9d4c7;margin-top:3px;overflow:hidden';
+  bar.className = 'plateup-ticket__bar';
   const fill = document.createElement('div');
-  fill.style.cssText = `height:100%;width:${Math.round(share * 100)}%;background:${color}`;
+  fill.className = 'plateup-ticket__fill';
+  fill.style.width = `${Math.round(share * 100)}%`;
+  fill.style.background = color;
   bar.append(fill);
   el.append(head, name, bar);
   return el;
