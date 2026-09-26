@@ -291,7 +291,8 @@ const _q = new THREE.Quaternion();
 
 /**
  * **Ein Hörnchen mit seinem Turm** — die Kugeln folgen ihm nicht starr,
- * sondern verzögert, nach oben hin immer träger (`plateUpWobble.ts`),
+ * sondern verzögert, nach oben hin immer weiter zurück und beim Anhalten
+ * einmal hinüber und zurück (`plateUpWobble.ts`),
  * gerechnet **in der Welt** und
  * erst danach in den Raum des Hörnchens zurückgelegt. Nur so kann ein Turm
  * hinter einer Hand zurückbleiben, die ihn trägt.
