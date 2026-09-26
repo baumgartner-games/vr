@@ -125,8 +125,10 @@ darauf und Name und Preis darüber. Einer ist ein **Tisch mit zwei Stühlen**
 (40 Münzen, bis `MAX_TABLES` = 6), einer eine **Station** (unten), der Rest
 Deko aus dem Regal (Kaktus, Stehlampe, Busch, Sessel, Kaugummiautomat, 8–14
 Münzen; aus dem Würfel des Tages, `dayOffers`). `A` am Blatt nimmt den Bauplan, und vor der Figur steht
-dann der **Platzierungsgeist** aus dem Baukasten (`portal/placeGhost.ts`):
-grün, wo es passt, rot, wo nicht — die Leiste unten sagt, warum
+dann der **Platzierungsgeist** aus dem Baukasten (`portal/placeGhost.ts`) —
+beim Tisch **samt beiden Stühlen** (`loadTableGhost`, je Seite des Raums ein
+Geist, denn der zweite Stuhl steht zur Wand hin, `tableAisle`): grün, wo es
+passt, rot, wo nicht — die Leiste unten sagt, warum
 (`placeCheck`: nur im Gastraum, nicht auf anderem, Stühle, Tür und die
 Baupläne bleiben frei, und **jeder Tisch** muss danach von der Tür und aus
 der Küche noch erreichbar sein — geprüft mit derselben Wegsuche wie die
@@ -134,7 +136,9 @@ Gäste). `A` vor dem grünen Geist kauft und stellt hin (angemeldet ist das
 eine halbe Armlänge vor der Figur, nicht auf der Zielkachel — die läge für
 `A` zu weit weg); _Menü → Bauplan zurücklegen_ lässt es. Solange man einen
 Bauplan trägt, treten Schild und (am Telefon) Karte zur Seite, und an den
-Stationen wird nicht gekocht. Jeder Bauplan liegt je Abend einmal aus. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
+Stationen wird nicht gekocht. In der Brille hängt der Bauplan als kleines
+blaues Blatt mit dem Modell an der Hand, die ihn genommen hat
+(`carryBlueprint`). Jeder Bauplan liegt je Abend einmal aus. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
 mehr (`allTables`, mehr Gäste gleichzeitig), jedes Deko-Stück gibt den Gästen
 6 % mehr Geduld, höchstens 30 % (`decorPatience`). Das Gekaufte bleibt, bis
 die Runde endet oder `B`/`Y` alles zurücksetzt.
@@ -195,8 +199,12 @@ aus/an_ schaltet sie von Hand.
   die Starttafel (am Handy die Karte) kommt nur, wenn die Hilfe aus ist. In
   der Brille steht die Tafel wie immer. Im
   Hochformat wäre es zu klein zum Lesen, dort steht derselbe Text als
-  **Karte** unten am Schirm; die Tafeln im Raum schrumpfen dann auf die
-  Bildbreite.
+  **Karte** unten am Schirm — von oben **und aus den Augen**; die Tafeln im
+  Raum schrumpfen dann auf die Bildbreite. **Aus den Augen am Schirm** hängt
+  das Schild nicht 2,2 m vor dem Startplatz (dort füllte es das ganze Bild,
+  und wer durch die Tür kam, lief hinein), sondern kleiner (0,72), mitten im
+  Gastraum und mit der Unterkante über Kopfhöhe (`EGO_SIGN`: 7 | 2,6 | 7);
+  von oben und in der Brille bleibt es an seinem Platz (`SIGN_SPOT`).
 
 Die Eingaben bleiben dabei die der Welt: Die Zeile und die Karte fangen keine
 Berührung ab (`pointer-events: none`).
@@ -249,9 +257,9 @@ Einrichten-Phase), `debugBlueprint(id)`, `debugPlace(id, x, z)`,
   zusätzliche Grillplatte und ein Brett.
 - **Gruppen nur zu zweit**: Die Tische haben zwei Stühle; größere Gruppen
   bräuchten zusammengestellte Tische.
-- **Der Bauplan in der Brille** hängt an keiner Hand — man sieht nur den
-  Geist vor sich; hingestellt wird mit derselben Anmeldung wie an einer
-  Station.
+- **Der Bauplan in der Brille** hängt an der Hand, hingestellt wird aber
+  weiter mit derselben Anmeldung wie an einer Station (vor dem Blick, nicht
+  vor der Hand) — in der Bild-Schleife ohne Brille nicht nachgeprüft.
 - **Ton nur gerechnet**: Glocke, Aufnehmen/Ablegen, Servieren, Kasse und der
   hungrige Gast sind Töne aus `core/Audio.playTone` — keine Aufnahmen wie in
   der Testküche (`kitchenSound.ts`).

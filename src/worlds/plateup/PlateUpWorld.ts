@@ -43,6 +43,7 @@ import {
   inKitchen,
   plateUpGrid,
   routePlan,
+  tableSpot,
   type FloorPoint,
   type StationSpot,
   type TableSpot,
@@ -89,6 +90,7 @@ import {
   placeCheck,
   placedTiles,
   shopItem,
+  tableAisle,
   OFFER_SPOTS,
   type Placed,
   type ShopItem,
@@ -172,8 +174,12 @@ export class PlateUpWorld extends GridWorld {
   /** Der Bauplan in der Hand — dann trägt man kein Essen, sondern ein Möbel. */
   private blueprint: ShopItem | null = null;
   private readonly shopGhost = new PlaceGhost();
-  private ghostModel: THREE.Object3D | null = null;
-  private ghostModelFor = '';
+  /** Die Hand, die den Bauplan genommen hat (in der Brille) — `null`: am Schirm. */
+  private blueprintHand: Handedness | null = null;
+  /** Das kleine Blatt mit Modell, das in der Brille an dieser Hand hängt. */
+  private blueprintView: THREE.Group | null = null;
+  /** Die Modelle der Geister je Bauplan (bei Tischen je Seite) — `null`: lädt noch. */
+  private readonly ghostModels = new Map<string, THREE.Object3D | null>();
   /** Wohin der Bauplan zeigt — die Kachel und ob sie passt. */
   private aim: { x: number; z: number; ok: boolean; why: string } | null = null;
   private readonly aimAnchor = new THREE.Group();
@@ -361,6 +367,7 @@ export class PlateUpWorld extends GridWorld {
     this.stepShop(ctx);
     this.refreshUsables();
     this.carryInHands(ctx);
+    this.carryBlueprint(ctx);
     this.refreshBoards(ctx);
     this.refreshStrip(ctx);
     this.refreshHint(ctx);
@@ -371,7 +378,17 @@ export class PlateUpWorld extends GridWorld {
     // soll, steht genau am Rand.
     const aspect = (ctx.viewCamera ?? ctx.camera).aspect;
     const fit = ctx.topDown && aspect < 1 ? Math.max(0.45, aspect * 0.95) : 1;
-    this.sign?.scale.setScalar(fit);
+    // **Aus den Augen am Schirm** stand das Schild 2,2 m vor dem Startplatz
+    // und füllte das ganze Bild (am Handy hochkant abgeschnitten), und wer
+    // durch die Tür kam, lief hinein. Dort hängt es deshalb kleiner, weiter
+    // weg und über Kopfhöhe mitten im Gastraum (`EGO_SIGN`).
+    const ego = !ctx.topDown && !ctx.renderer.xr.isPresenting;
+    if (this.sign) {
+      const at = ego ? EGO_SIGN : SIGN_SPOT;
+      this.sign.position.set(at.x, at.y, at.z);
+      const small = aspect < 1 ? Math.min(EGO_SIGN.scale, aspect * 0.9) : EGO_SIGN.scale;
+      this.sign.scale.setScalar(ego ? small : fit);
+    }
     this.board?.scale.setScalar(fit);
     if (this.southGlass) {
       const see = ctx.topDown;
@@ -432,6 +449,8 @@ export class PlateUpWorld extends GridWorld {
     ctx.rig.eyeScale = 1;
     ctx.rig.jumpLock = false;
     ctx.avatar.carry = null;
+    this.dropBlueprintView();
+    this.ghostModels.clear();
     for (const view of this.guests.values()) view.figure?.dispose();
     this.guests.clear();
     this.dropHeldView();
@@ -934,7 +953,7 @@ export class PlateUpWorld extends GridWorld {
     // Gleich südlich der Durchreiche, vor der Figur am Startplatz: Das Schild
     // ist beim Ankommen das Erste, was man liest, und steht nur da, solange
     // der Laden zu ist.
-    sign.position.set(7, 1.35, 4.7);
+    sign.position.set(SIGN_SPOT.x, SIGN_SPOT.y, SIGN_SPOT.z);
     this.root.add(sign);
     this.sign = sign;
 
@@ -972,8 +991,9 @@ export class PlateUpWorld extends GridWorld {
       if (this.strip.textContent !== text) this.strip.textContent = text;
     }
     // Mit einem Bauplan in der Hand weicht die Karte: Sie läge über dem Geist.
-    const cardOn =
-      !open && flat && narrow && ctx.topDown && !this.blueprint && !this.quietStart(ctx);
+    // Im Hochformat gilt sie auch aus den Augen — das Schild im Raum wäre dort
+    // so klein, dass man nur noch den Titel liest.
+    const cardOn = !open && flat && narrow && !this.blueprint && !this.quietStart(ctx);
     if (this.sign) this.sign.visible = this.sign.visible && !cardOn;
     if (!cardOn) {
       if (this.card) this.card.hidden = true;
@@ -1189,6 +1209,65 @@ export class PlateUpWorld extends GridWorld {
     thing.rotation.set(0, 0, 0);
     thing.scale.setScalar(1);
     ctx.avatar.carry = this.carryPoint.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
+  }
+
+  /**
+   * **Der Bauplan in der Brille hängt an der Hand, die ihn genommen hat** —
+   * ein kleines blaues Blatt mit dem Modell darauf, wie es am Boden lag.
+   * Vorher sah man nur den Geist vor sich und wusste nicht, womit man
+   * gerade unterwegs ist. Am Schirm bleibt es beim Geist und der Leiste.
+   */
+  private carryBlueprint(ctx: WorldContext): void {
+    const item = this.blueprint;
+    const xr = ctx.renderer.xr.isPresenting;
+    let view = this.blueprintView;
+    if (view && (!item || !xr || view.userData.item !== item.id)) {
+      this.dropBlueprintView();
+      view = null;
+    }
+    if (!item || !xr) return;
+    if (!view) {
+      view = new THREE.Group();
+      view.name = 'plateup-blueprint-hand';
+      view.userData.item = item.id;
+      const sheet = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.2, 0.2),
+        new THREE.MeshStandardMaterial({ color: 0x2f6fb5, roughness: 0.8, side: THREE.DoubleSide }),
+      );
+      sheet.rotation.x = -Math.PI / 2;
+      view.add(sheet);
+      this.blueprintView = view;
+      const shown = view;
+      void this.loadShopModel(item).then((model) => {
+        if (!model || this.blueprintView !== shown) return;
+        const box = new THREE.Box3().setFromObject(model);
+        const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 0.01);
+        model.scale.multiplyScalar(0.15 / size);
+        model.position.y = 0.005;
+        shown.add(model);
+      });
+    }
+    const controller = ctx.input.get(this.blueprintHand ?? this.lastHand ?? 'right');
+    if (controller?.tracked) {
+      if (view.parent !== controller.hold) controller.hold.add(view);
+      // Auf der Handfläche, leicht zum Gesicht gekippt.
+      view.position.set(0, 0.02, -0.1);
+      view.rotation.set(0.5, 0, 0);
+    } else {
+      if (view.parent !== ctx.rig) ctx.rig.add(view);
+      view.position.set(0, ctx.rig.camera.position.y - 0.55, -0.4);
+      view.rotation.set(0.6, 0, 0);
+    }
+  }
+
+  private dropBlueprintView(): void {
+    const view = this.blueprintView;
+    if (!view) return;
+    this.blueprintView = null;
+    view.removeFromParent();
+    const sheet = view.children[0] as THREE.Mesh | undefined;
+    sheet?.geometry.dispose();
+    (sheet?.material as THREE.Material | undefined)?.dispose();
   }
 
   // --- Der Tag --------------------------------------------------------------
@@ -1511,7 +1590,7 @@ export class PlateUpWorld extends GridWorld {
     this.addUsable(
       anchor,
       {
-        use: () => this.takeBlueprint(item),
+        use: (by) => this.takeBlueprint(item, by.hand ?? null),
         usePrompt: () =>
           this.shift.total >= item.cost
             ? `Bauplan nehmen: ${item.label} (${item.cost} Münzen)`
@@ -1538,7 +1617,7 @@ export class PlateUpWorld extends GridWorld {
     this.offerKey = '';
   }
 
-  private takeBlueprint(item: ShopItem): boolean {
+  private takeBlueprint(item: ShopItem, hand: Handedness | null = null): boolean {
     if (this.shift.phase !== 'closed') return false;
     if (this.carried) {
       this.announce('Erst die Hände frei machen');
@@ -1551,6 +1630,7 @@ export class PlateUpWorld extends GridWorld {
       return false;
     }
     this.blueprint = item;
+    this.blueprintHand = hand;
     playPick(true);
     this.announce(`${item.label}: dorthin tragen, wo es stehen soll, und abstellen`);
     return true;
@@ -1599,16 +1679,24 @@ export class PlateUpWorld extends GridWorld {
       feet.z + (forward.z / len) * 0.6,
     );
     this.aimSpot.set(cx, 0, cz);
-    if (this.ghostModel && this.ghostModelFor === item.id) {
+    // Ein Tisch zeigt seine Stühle mit — und die stehen je nach Seite des
+    // Raums anders (`tableAisle`), also ein Geist je Seite.
+    const aisle = table ? tableAisle(tile.x) : null;
+    const key = aisle === null ? item.id : `${item.id}:${aisle}`;
+    const ghost = this.ghostModels.get(key);
+    if (ghost) {
       // Eine Station zeigt ihre Vorderseite nach Norden, zur Küche (wie die Durchreiche).
       const yaw = item.kind === 'station' ? Math.PI : 0;
-      this.shopGhost.show(this.ghostModel, cx, 0, cz, yaw, check.ok);
-    } else if (this.ghostModelFor !== item.id) {
-      this.ghostModelFor = item.id;
-      this.ghostModel = null;
-      void this.loadShopModel(item).then((model) => {
-        if (this.ghostModelFor === item.id) this.ghostModel = model;
-      });
+      this.shopGhost.show(ghost, cx, 0, cz, yaw, check.ok);
+    } else if (ghost === undefined) {
+      this.ghostModels.set(key, null);
+      const round = this.building;
+      void (aisle === null ? this.loadShopModel(item) : this.loadTableGhost(aisle)).then(
+        (model) => {
+          if (round === this.building && model) this.ghostModels.set(key, model);
+          else this.ghostModels.delete(key);
+        },
+      );
     }
     if (fresh) {
       this.addUsable(
@@ -1732,6 +1820,32 @@ export class PlateUpWorld extends GridWorld {
       this.smokes.delete(view.spot.id);
     }
     this.stations = this.stations.slice(0, STATIONS.length);
+  }
+
+  /**
+   * **Der Geist eines Tisches samt Stühlen** — dieselben Stücke wie beim
+   * Hinstellen (`plateUpDecor.tableSet`), nur Tisch und Stühle, um die Mitte
+   * des Tisches gruppiert. Man sieht vorher, wo die Stühle hinkommen — und
+   * warum `placeCheck` an der Wand nein sagt.
+   */
+  private async loadTableGhost(
+    aisle: ReturnType<typeof tableAisle>,
+  ): Promise<THREE.Object3D | null> {
+    if (!canLoadModels()) return null;
+    const { dinerModel } = await import('../../core/dinerModel');
+    const spot = tableSpot(0, 0, 0, aisle);
+    const pieces = tableSet(spot).filter((p) => !p.y);
+    const group = new THREE.Group();
+    group.name = 'plateup-table-ghost';
+    const models = await Promise.all(pieces.map((p) => dinerModel(p.name)));
+    models.forEach((model, i) => {
+      const piece = pieces[i]!;
+      if (!model) return;
+      model.position.set(piece.x - 1, 0, piece.z - 1);
+      model.rotation.y = piece.yaw ?? 0;
+      group.add(model);
+    });
+    return group.children.length ? group : null;
   }
 
   private async loadShopModel(item: ShopItem): Promise<THREE.Object3D | null> {
@@ -2014,6 +2128,16 @@ const BLOCK_HEIGHT = 1.4;
 const TABLE_TOP = 0.5;
 /** Ab wie nah man „vor" einer Station steht — fürs Schneiden. */
 const NEAR_STATION = 1.3;
+/** Das Schild von oben und in der Brille: gleich südlich der Durchreiche. */
+const SIGN_SPOT = { x: 7, y: 1.35, z: 4.7 } as const;
+/**
+ * Das Schild aus den Augen am Schirm: mitten im Gastraum, 4,5 m vor dem
+ * Startplatz, auf knapp drei Viertel geschrumpft (am Handy hochkant nach
+ * der Bildbreite) und mit der Unterkante über Kopfhöhe (2,6 − 1,0 · 0,72 ≈
+ * 1,9 m) — lesbar und nicht im Weg. Im Hochformat steht statt des Schilds
+ * ohnehin die Karte am Schirm (`refreshStrip`).
+ */
+const EGO_SIGN = { x: 7, y: 2.6, z: 7, scale: 0.72 } as const;
 /** Wie groß die Gäste sind: so groß wie die Kochfigur, nicht wie ein Mensch. */
 const GUEST_HEIGHT = 1.15;
 const GUEST_SPEED = 1.4;

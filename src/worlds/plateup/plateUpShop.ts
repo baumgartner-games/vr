@@ -203,7 +203,7 @@ export function allTables(placed: readonly Placed[]): TableSpot[] {
   const out = [...TABLES];
   for (const p of placed) {
     if (shopItem(p.item)?.kind !== 'table') continue;
-    out.push(tableSpot(out.length, p.x, p.z, aisleOf(p.x)));
+    out.push(tableSpot(out.length, p.x, p.z, tableAisle(p.x)));
   }
   return out;
 }
@@ -241,7 +241,7 @@ export function extraStations(placed: readonly Placed[]): StationSpot[] {
 export const STATION_ROW = { z: 2, x0: 0, x1: 10 } as const;
 
 /** Auf welcher Seite der Gang eines gekauften Tisches liegt — zur Mitte des Raums hin. */
-function aisleOf(x: number): typeof DIR_E | typeof DIR_W {
+export function tableAisle(x: number): typeof DIR_E | typeof DIR_W {
   return x + 1 < ROOM.x + ROOM.w / 2 ? DIR_E : DIR_W;
 }
 
