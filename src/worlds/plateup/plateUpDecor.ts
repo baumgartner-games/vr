@@ -116,7 +116,6 @@ export const DECOR: readonly DecorPiece[] = [
     yaw: 0,
     solid: [1, 1],
   },
-  { source: 'diner', name: 'shelf_papertowel', x: 8.5, z: 0.35, y: 0.55, yaw: 0 },
   { source: 'diner', name: 'shelf_papertowel_decorated', x: 5.5, z: 0.5, yaw: 0 },
   { source: 'diner', name: 'kitchencabinet', x: 11.5, z: 0.5, yaw: 0 },
   { source: 'diner', name: 'kitchencabinet', x: 12.5, z: 0.5, yaw: 0 },

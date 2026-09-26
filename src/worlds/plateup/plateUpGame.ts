@@ -485,11 +485,11 @@ export function signText(shift: Shift): { title: string; body: string } {
       return {
         title: 'Burgerladen',
         body: [
-          'Gäste kommen herein, setzen sich und bestellen.',
-          'Brötchen + gebratenes Patty (+ Salat/Tomate vom Brett) auf einen Teller legen und an den Tisch bringen.',
-          'Wer zu lange wartet, geht. Drei verloren, und der Laden macht zu.',
-          '',
-          'Die Glocke links an der Durchreiche öffnet den Laden (oder Menü → Laden öffnen).',
+          'Gäste kommen, setzen sich und bestellen.',
+          'Brötchen + Patty vom Grill (+ Salat oder Tomate vom Brett)',
+          'auf einen Teller legen und an den Tisch bringen.',
+          'Drei hungrige Gäste, und der Laden macht zu.',
+          'Start: die Glocke links an der Durchreiche.',
         ].join('\n'),
       };
     case 'closed':

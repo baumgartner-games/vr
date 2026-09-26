@@ -106,6 +106,8 @@ export class PlateUpWorld extends GridWorld {
   private board: TextPlane | null = null;
   private sign: TextPlane | null = null;
   private bell: THREE.Group | null = null;
+  /** Das Schildchen über der Glocke — nur, solange der Laden zu ist. */
+  private bellTag: TextPlane | null = null;
   private boardText = '';
   private signKey = '';
   private readonly route = routePlan();
@@ -276,6 +278,8 @@ export class PlateUpWorld extends GridWorld {
     this.gauges = null;
     this.board?.dispose();
     this.sign?.dispose();
+    this.bellTag?.dispose();
+    this.bellTag = null;
     this.board = null;
     this.sign = null;
     for (const floor of this.floors) {
@@ -589,8 +593,8 @@ export class PlateUpWorld extends GridWorld {
     this.board = board;
 
     const sign = new TextPlane({
-      width: 3.2,
-      height: 1.7,
+      width: 3.4,
+      height: 2.0,
       title: 'Burgerladen',
       body: '',
       accent: 0xf2a33a,
@@ -599,9 +603,21 @@ export class PlateUpWorld extends GridWorld {
     // Gleich südlich der Durchreiche, vor der Figur am Startplatz: Das Schild
     // ist beim Ankommen das Erste, was man liest, und steht nur da, solange
     // der Laden zu ist.
-    sign.position.set(7, 1.25, 4.7);
+    sign.position.set(7, 1.35, 4.7);
     this.root.add(sign);
     this.sign = sign;
+
+    const tag = new TextPlane({
+      width: 1.1,
+      height: 0.34,
+      title: 'Laden öffnen',
+      align: 'center',
+      accent: 0xf2a33a,
+      face: true,
+    });
+    tag.position.set(PASS_END.x + 0.5, 1.2, PASS_END.z + 0.5);
+    this.root.add(tag);
+    this.bellTag = tag;
     this.boardText = '';
     this.signKey = '';
   }
@@ -621,6 +637,7 @@ export class PlateUpWorld extends GridWorld {
     }
     const phase = this.shift.phase;
     const showSign = phase === 'ready' || phase === 'closed' || phase === 'over';
+    if (this.bellTag) this.bellTag.visible = showSign;
     if (this.sign) {
       this.sign.visible = showSign;
       const key = `${phase}:${this.shift.day}:${this.shift.total}`;
@@ -628,6 +645,9 @@ export class PlateUpWorld extends GridWorld {
         this.signKey = key;
         const sign = signText(this.shift);
         this.sign.setText(sign.title, sign.body, phase === 'over' ? 0xe0584f : 0xf2a33a);
+        this.bellTag?.setText(
+          phase === 'closed' ? 'Nächster Tag' : phase === 'over' ? 'Neu anfangen' : 'Laden öffnen',
+        );
       }
     }
   }

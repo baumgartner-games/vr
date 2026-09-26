@@ -212,6 +212,7 @@ export function blockedTiles(): Set<string> {
   for (const station of STATIONS) put(station.x, station.z);
   put(FRIDGE.x, FRIDGE.z);
   put(PASS_END.x, PASS_END.z);
+  put(RETURN_GATE_TILE.x, RETURN_GATE_TILE.z);
   for (const t of TABLES) {
     for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) put(t.x + dx, t.z + dz);
   }
@@ -232,8 +233,28 @@ export function plateUpGrid(): GridPlan {
   plan.floor(ROOM);
   plan.floor(STREET);
   wallRing(plan);
+  // **Das Tor zurück in die Testwelt** — an der Ecke des Gehwegs, mit dem
+  // Blick zum Laden. Die Testwelt macht in ihrer Küche auf, und von dort
+  // steht ein Tor hierher (`test/zones/kitchenPlan.BURGER_GATE`).
+  plan.putFixture({
+    id: RETURN_GATE,
+    kind: 'gate',
+    x: RETURN_GATE_TILE.x,
+    z: RETURN_GATE_TILE.z,
+    dir: DIR_N,
+    props: {
+      world: 'test',
+      label: '→ Testwelt',
+      accent: 0x5ee0a0,
+      note: 'Zurück zur Prüfküche',
+    },
+  });
   return plan;
 }
+
+/** Das Tor in die Testwelt: Kennung und Kachel (Südwestecke des Gehwegs). */
+export const RETURN_GATE = 'tor-testwelt';
+export const RETURN_GATE_TILE = { x: STREET.x, z: STREET.z + STREET.d - 1 } as const;
 
 /** Die Wand ringsum, mit der Tür als Lücke in der Südwand. */
 function wallRing(plan: GridPlan): void {
