@@ -229,8 +229,8 @@ am Schirm mit 0,42 unten im Bild. Die Testküche macht dasselbe, siehe
   (`style.css`, `body:has(.hints[data-device="touch"])`). Darunter die **Bestellzettel**
   (`ticket`): je wartendem Gast Tischnummer, Burger und Geduldsbalken, der
   Ungeduldigste zuerst, dazu „Tisch n: abräumen" für schmutziges Geschirr;
-- die **Leiste unten** über der Tastenleiste: was man in der Hand hat
-  („In der Hand: Teller (Brötchen)") bzw. welcher Bauplan und ob er passt,
+- die **Leiste unten** über der Tastenleiste: welcher Bauplan und ob er
+  passt (was man in der Hand hat, steht dort bewusst nicht — man sieht es),
   und darüber der Tipp der Einsteigerhilfe. Wie hoch, rechnet
   `plateUpHints.clearanceAbove` aus: über der Tastenhilfe, am Glas (wo die
   oben steht) über Stöcken, Knöpfen und dem Werkzeug-Knopf;

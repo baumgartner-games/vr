@@ -107,9 +107,7 @@ import { tutorialFinished, tutorialHint, type TutorialHint } from './plateUpTuto
 import { clearanceAbove, stationAction, tableAction } from './plateUpHints';
 import {
   EMPTY_ICE,
-  FLAVOR_LABELS,
   coneKey,
-  coneLabel,
   counterDeed,
   coneUnder,
   dropBall,
@@ -1151,16 +1149,6 @@ export class PlateUpWorld extends GridWorld {
     const state = station ? this.stations[station.index] : undefined;
     const deed = state ? this.iceDeedAt(state, null) : null;
     return deed ? iceVerb(deed) : undefined;
-  }
-
-  /** Was vom Eis in der Hand ist — für die Leiste unten. */
-  private iceHandText(): string {
-    const parts: string[] = [];
-    if (this.ice.cone) parts.push(coneLabel(this.ice.cone));
-    const ball = this.ice.scoop?.ball;
-    if (ball) parts.push(`Portionierer (${FLAVOR_LABELS[ball]})`);
-    else if (this.ice.scoop || this.ice.cone) parts.push('Portionierer');
-    return parts.join(' und ');
   }
 
   /** Ein Satz vom Eis — derselbe nicht öfter als alle zweieinhalb Sekunden. */
@@ -2405,8 +2393,8 @@ export class PlateUpWorld extends GridWorld {
   }
 
   /**
-   * **Unten am Schirm**: was man in der Hand hat — und darüber, solange die
-   * Einsteigerhilfe läuft, was als Nächstes zu tun ist. **Oben**: die offenen
+   * **Unten am Schirm**: welcher Bauplan und ob er passt — und darüber,
+   * solange die Einsteigerhilfe läuft, was als Nächstes zu tun ist. **Oben**: die offenen
    * Bestellungen als Zettel, mit Tischnummer und Geduld. Beides nur am
    * Schirm; in der Brille stehen Blase, Tafel und Pfeil im Raum.
    */
@@ -2424,13 +2412,10 @@ export class PlateUpWorld extends GridWorld {
     // schon auf der Karte — die Leiste läge sonst genau darüber.
     const cardShown = !!this.card?.open;
     const tip = flat && this.hint && !cardShown ? this.hint.text : '';
+    // Was man in der Hand hat, steht hier nicht mehr — man sieht es ja.
     const hand = this.blueprint
       ? `Bauplan: ${this.blueprint.label}${this.aim ? (this.aim.ok ? ' — hier passt es (A)' : ` — ${this.aim.why}`) : ''}`
-      : this.carried
-        ? `In der Hand: ${dishLabel(this.carried)}`
-        : this.ice.cone || this.ice.scoop
-          ? `In der Hand: ${this.iceHandText()}`
-          : '';
+      : '';
     const key = `${tip}|${hand}`;
     // `display` und nicht `hidden`: Das `display:flex` der Leiste schlüge das
     // Attribut.
