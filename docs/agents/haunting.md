@@ -431,6 +431,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     _Voll_; bei _Aus_ leuchtet sie ohne (`docs/agents/grafik.md`,
     „Schattenmodus"). Figuren (Techniker, Monster) tragen im Modus _Einfach_
     ihren Schatten-Kreis (`actorArt`, `markBlobShadow`).
+
+    **Wo das Licht der Taschenlampe sitzt:** an der Linse der Lampe in der
+    Hand, nicht am Auge (`FlashlightTool.beam`, ein Kind der Lampe). Am
+    Bildschirm hängt die Lampe an der Kamera, 0,24 m rechts und 0,24 m unter
+    dem Auge (`ShipExperience.buildTorch`), in der Brille am Controller. Nur
+    deshalb sieht man Schatten überhaupt: Säße das Licht im Auge, fiele jeder
+    Schatten genau hinter das Ding, das ihn wirft. Die eigene Hand und das
+    Gehäuse werfen keinen — sie liegen hinter der Linse, und was näher als
+    0,12 m an ihr ist, zählt nicht (`stopAtWalls(…, near)`). Geprüft mit
+    abgeschaltetem Raumlicht und einem Brett im Kegel: in _Einfach_ fällt sein
+    Schatten groß nach links oben an die Wand, in _Aus_ nicht. Vorsicht beim
+    Nachprüfen mit einer einseitigen Fläche: three.js zeichnet in die
+    Schattenkarte die **Rückseite** (`shadowSide`), ein zur Lampe gedrehtes
+    Brett wirft deshalb nichts — ein Kasten oder `shadowSide = DoubleSide`.
 - **Dritte Runde (September 2026): Knöpfe je Kachel, Wandhebel, noch mehr
   aus dem Regal.**
   - **Ein Knopf steht auf einer Kachel, nicht auf der Fuge**
