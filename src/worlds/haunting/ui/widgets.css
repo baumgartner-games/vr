@@ -159,19 +159,10 @@
 .ui-fact.is-warn > b {
   color: #ffe8bd;
 }
-/* Die Meldung, die von selbst wieder geht: eine Pille, leer unsichtbar. */
+/* Die Meldung, die von selbst wieder geht: Form und ✕ sind die aller
+   Meldungen (`ui/screenMessage.css`), hier nur die Größe. */
 .ui-toast {
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(12, 18, 32, 0.9);
-  border: 1px solid rgba(140, 170, 230, 0.3);
-  color: #e8ecf7;
-  font-size: 13px;
-  pointer-events: none;
   max-width: 86vw;
+  font-size: 13px;
   text-align: center;
-  transition: opacity 0.2s;
-}
-.ui-toast:empty {
-  opacity: 0;
 }

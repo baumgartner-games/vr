@@ -7,6 +7,7 @@ import {
   worldIntro,
   type IntroGate,
 } from '../core/worldIntro';
+import { ScreenMessage } from './ScreenMessage';
 import './worldTransit.css';
 
 /**
@@ -14,10 +15,11 @@ import './worldTransit.css';
  * Mitte: Name, was man hier tut, der erste Schritt und die Knöpfe dazu
  * (`core/worldIntro.ts` rechnet, was darin steht).
  *
- * Sie geht **von selbst** nach `SHOW_MS` wieder, mit dem Knopf _Verstanden_
- * sofort — und in beiden Fällen ist die Welt danach begrüßt und kommt nicht
- * wieder (gemerkt im Browser, `bgvr.welcomed`). Wer gar keine will, schaltet
- * sie unter _Menü → Steuerung & Hilfe → Eingaben → Willkommen je Welt_ aus.
+ * Sie geht **von selbst** nach `SHOW_MS` wieder, mit dem ✕ (_Verstanden_,
+ * dasselbe ✕ wie an jeder Meldung, `ui/ScreenMessage.ts`) oder `Esc` sofort —
+ * und in beiden Fällen ist die Welt danach begrüßt und kommt nicht wieder
+ * (gemerkt im Browser, `bgvr.welcomed`). Wer gar keine will, schaltet sie
+ * unter _Menü → Steuerung & Hilfe → Eingaben → Willkommen je Welt_ aus.
  *
  * Gefragt wird **jedes Bild** (`App.updateHints`), ob sie jetzt dran ist:
  * Die erste Welt lädt, während noch die Startseite davorsteht, und die Karte
@@ -25,43 +27,28 @@ import './worldTransit.css';
  */
 export class WorldWelcome {
   readonly element: HTMLElement;
-  private readonly title: HTMLElement;
-  private readonly goal: HTMLElement;
+  private readonly message: ScreenMessage;
   private readonly first: HTMLElement;
   private readonly keys: HTMLElement;
   private current = '';
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(host: HTMLElement = document.body) {
-    this.element = document.createElement('section');
-    this.element.className = 'welcome';
-    this.element.hidden = true;
-    this.element.setAttribute('role', 'status');
-    this.element.setAttribute('aria-live', 'polite');
-
-    const head = document.createElement('div');
-    head.className = 'welcome__head';
-    const kicker = document.createElement('p');
-    kicker.className = 'welcome__kicker';
-    kicker.textContent = 'Willkommen';
-    this.title = document.createElement('h2');
-    this.title.className = 'welcome__title';
-    head.append(kicker, this.title);
-
-    this.goal = document.createElement('p');
-    this.goal.className = 'welcome__goal';
+    // Die Form ist die aller Meldungen (`ui/ScreenMessage.ts`): Kopfzeile,
+    // Name, Text — und rechts das ✕, das _Verstanden_ heißt. `Esc` genauso.
+    this.message = new ScreenMessage({
+      tag: 'section',
+      className: 'welcome',
+      kicker: 'Willkommen',
+      closeHint: 'Verstanden',
+      onClose: () => this.hide(),
+    });
+    this.element = this.message.element;
     this.first = document.createElement('p');
     this.first.className = 'welcome__first';
     this.keys = document.createElement('div');
     this.keys.className = 'welcome__keys';
-
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'welcome__ok';
-    close.textContent = 'Verstanden';
-    close.addEventListener('click', () => this.dismiss());
-
-    this.element.append(head, this.goal, this.first, this.keys, close);
+    this.message.body.append(this.first, this.keys);
     host.append(this.element);
   }
 
@@ -93,11 +80,11 @@ export class WorldWelcome {
     const intro = worldIntro(id)!;
     this.current = id;
     this.element.style.setProperty(
-      '--welcome-accent',
+      '--msg-accent',
       `#${world.accent.toString(16).padStart(6, '0')}`,
     );
-    this.title.textContent = world.title;
-    this.goal.textContent = intro.goal;
+    this.message.setTitle(world.title);
+    this.message.setText(intro.goal);
     this.first.textContent = intro.first ?? '';
     this.first.hidden = !intro.first;
     this.keys.replaceChildren(...keys(intro.tips).map(chip));
@@ -105,13 +92,13 @@ export class WorldWelcome {
     // dann eine Zeile tiefer, statt sie zu verdecken.
     this.element.dataset['device'] = device;
     this.keys.hidden = this.keys.childElementCount === 0;
-    this.element.hidden = false;
+    this.message.show();
     requestAnimationFrame(() => this.element.classList.add('is-open'));
     markWelcomed(id);
     this.timer = setTimeout(() => this.dismiss(), SHOW_MS);
   }
 
-  /** Weg damit — _Verstanden_, `Esc`, oder die Zeit ist um. */
+  /** Die Zeit ist um: sanft ausblenden. (✕ und `Esc` nehmen sie sofort weg.) */
   dismiss(): void {
     if (!this.open) return;
     this.element.classList.remove('is-open');
@@ -122,14 +109,14 @@ export class WorldWelcome {
   private hide(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
-    this.element.hidden = true;
+    this.message.hide();
     this.element.classList.remove('is-open');
     this.current = '';
   }
 
   dispose(): void {
     this.hide();
-    this.element.remove();
+    this.message.dispose();
   }
 }
 

@@ -182,7 +182,7 @@ Stichpunkten).
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
 - **[Der KayKit-Editor](docs/agents/kaykit-editor.md)** — `kaykit-editor.html`: ein Element von oben auf dem Zellgitter, Größe und Lage per Regler, belegte Zellen in Rot, Änderungen als JSON.
-- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, das Menü und seine Bereiche, die Startseite mit Weltauswahl, der Weg ins Spiel (Ladebildschirm, Willkommen, ein Stil für Leisten), Vollbild, der Start — und die Seite als App.
+- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, das Menü und seine Bereiche, die Startseite mit Weltauswahl, der Weg ins Spiel (Ladebildschirm, Willkommen, eine Meldung mit ✕, ein Stil für Leisten), Vollbild, der Start — und die Seite als App.
   Darin: Die Eingabeseite · Das Menü: acht Bereiche und eine Tabelle (Brotkrumen, Esc, alte und neue Wege) · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Startseite: eine Welt wählen, einmal drücken · Vom ersten Öffnen bis ins Spiel: der Weg eines neuen Spielers (Ladebildschirm, Willkommens-Karte, in der Brille Blende und Tafeln, `--hud-*`) · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft und geladen wird von selbst, und solange hält es _Beitreten_ auf.
 
 ### Betrieb

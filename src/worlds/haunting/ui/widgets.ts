@@ -1,3 +1,4 @@
+import { ScreenMessage } from '../../../ui/ScreenMessage';
 import { el, setData } from './dom';
 
 /**
@@ -137,25 +138,32 @@ export function head(title: string, aside = '', className = ''): HTMLElement {
 export const TOAST_SECONDS = 3.2;
 
 /**
- * **Eine Meldung, die von selbst wieder geht** (`ui-toast`). Der Ton kommt
- * als `is-<ton>` an die Pille — die 2D-Welt färbt gut, schlecht und Warnung;
- * wer keinen braucht, lässt ihn weg. Leer ist sie unsichtbar, und die Stelle,
- * die sie einhängt, sagt mit ihrer Klasse, wo sie liegt.
+ * **Eine Meldung, die von selbst wieder geht** (`ui-toast`) — die Pille aller
+ * Meldungen am Schirm (`ui/ScreenMessage.ts`), mit demselben ✕, das sie vor
+ * der Zeit wegnimmt. Der Ton kommt als `is-<ton>` an die Pille — die 2D-Welt
+ * färbt gut, schlecht und Warnung; wer keinen braucht, lässt ihn weg. Die
+ * Stelle, die sie einhängt, sagt mit ihrer Klasse, wo sie liegt.
  */
 export class Toast {
   readonly element: HTMLElement;
-  private readonly base: string;
+  private readonly message: ScreenMessage;
+  private tone = '';
   private left = 0;
 
   constructor(className = '') {
-    this.base = className ? `ui-toast ${className}` : 'ui-toast';
-    this.element = el('div', this.base);
+    this.message = new ScreenMessage({
+      kind: 'pill',
+      className: className ? `ui-toast ${className}` : 'ui-toast',
+      onClose: () => this.clear(),
+    });
+    this.element = this.message.element;
   }
 
   say(text: string, tone = ''): void {
     if (!text) return;
-    this.element.textContent = text;
-    this.element.className = tone ? `${this.base} is-${tone}` : this.base;
+    this.message.setText(text);
+    this.setTone(tone);
+    this.message.show();
     this.left = TOAST_SECONDS;
   }
 
@@ -167,9 +175,19 @@ export class Toast {
   step(dt: number): void {
     if (this.left <= 0) return;
     this.left = Math.max(0, this.left - dt);
-    if (this.left <= 0) {
-      this.element.textContent = '';
-      this.element.className = this.base;
-    }
+    if (this.left <= 0) this.clear();
+  }
+
+  private clear(): void {
+    this.left = 0;
+    this.message.hide();
+    this.message.setText('');
+    this.setTone('');
+  }
+
+  private setTone(tone: string): void {
+    if (this.tone) this.element.classList.remove(`is-${this.tone}`);
+    this.tone = tone;
+    if (tone) this.element.classList.add(`is-${tone}`);
   }
 }

@@ -1,17 +1,19 @@
 import { COPY_FALLBACK, copyText } from './clipboard';
+import { ScreenMessage } from './ScreenMessage';
 
 /**
  * **Die Box nach einem Sturz aus der Welt** — oben im Bild wie die Position
  * (`core/positionHud.ts`), mit dem Weg dorthin zum Kopieren
  * (`worlds/shared/fallTrail.fallReportText`).
  *
- * Sie bleibt stehen, bis man sie schließt oder den nächsten Sturz hat: Wer
+ * Eine Meldung wie alle am Schirm (`ui/ScreenMessage.ts`): Karte mit ✕ (oder
+ * `Esc`). Sie bleibt stehen, bis man sie schließt oder den nächsten Sturz hat: Wer
  * gerade wieder am Startpunkt steht, will erst schauen, wo er ist, und dann
  * kopieren. In der Brille ist sie DOM und unsichtbar — die Spur liegt dann in
  * der Konsole (`console.info`), damit sie nicht verloren ist.
  */
 export class FallReport {
-  private element: HTMLDivElement | null = null;
+  private message: ScreenMessage | null = null;
   private text: HTMLPreElement | null = null;
   private copy: HTMLButtonElement | null = null;
   private shown = '';
@@ -24,27 +26,26 @@ export class FallReport {
     this.build();
     this.text!.textContent = report;
     this.copy!.textContent = 'Kopieren';
-    this.element!.hidden = false;
+    this.message!.show();
   }
 
   hide(): void {
-    if (this.element) this.element.hidden = true;
+    this.message?.hide();
   }
 
   dispose(): void {
     window.clearTimeout(this.copiedTimer);
-    this.element?.remove();
-    this.element = null;
+    this.message?.dispose();
+    this.message = null;
   }
 
   private build(): void {
-    if (this.element) return;
-    const box = document.createElement('div');
-    box.className = 'fall-report';
-    box.setAttribute('role', 'status');
-    box.setAttribute('aria-label', 'Sturz aus der Welt');
-    const title = document.createElement('strong');
-    title.textContent = 'Durch die Welt gefallen — zurück am Start. Weg dorthin:';
+    if (this.message) return;
+    const message = new ScreenMessage({
+      className: 'fall-report',
+      title: 'Durch die Welt gefallen — zurück am Start. Weg dorthin:',
+    });
+    message.element.setAttribute('aria-label', 'Sturz aus der Welt');
     const text = document.createElement('pre');
     text.className = 'fall-report__text';
     const copy = document.createElement('button');
@@ -55,20 +56,12 @@ export class FallReport {
       event.stopPropagation();
       void this.copyReport();
     });
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'fall-report__button';
-    close.textContent = 'Schließen';
-    close.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.hide();
-    });
     const row = document.createElement('div');
     row.className = 'fall-report__row';
-    row.append(copy, close);
-    box.append(title, text, row);
-    document.body.append(box);
-    this.element = box;
+    row.append(copy);
+    message.body.append(text, row);
+    document.body.append(message.element);
+    this.message = message;
     this.text = text;
     this.copy = copy;
   }

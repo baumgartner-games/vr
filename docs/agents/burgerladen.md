@@ -195,7 +195,9 @@ neben** der Tafel (nicht auf ihr, damit es kein Wort zudeckt), mit einer
 unsichtbaren Trefferfläche von 56 cm um ein Zeichen von 32 cm
 (`ui/CloseButton.ts`): Strahl darauf und Trigger oder `A`, oder mit dem
 Finger antippen; liegt der Strahl darauf, wird das Zeichen größer. Am Schirm
-steht dasselbe ✕ als Knopf im grünen Tipp unten. **Was es tut**
+ist der grüne Tipp unten eine Meldung wie alle (`ui/ScreenMessage.ts`, siehe
+[Die Seite selbst](./seite.md)) mit demselben ✕ wie überall (44 × 44 px
+Trefferfläche). **Was es tut**
 (`closeTutorial`): Es schaltet die Einsteigerhilfe **aus**, genau wie das
 Menü, und merkt sich das (`bgvr.plateup.tutorial` = `off`). Nur den einen
 Satz wegzunehmen wäre sinnlos gewesen — der nächste stünde ein paar Sekunden
@@ -239,7 +241,10 @@ am Schirm mit 0,42 unten im Bild. Die Testküche macht dasselbe, siehe
   die Starttafel (am Handy die Karte) kommt nur, wenn die Hilfe aus ist. In
   der Brille steht die Tafel wie immer. Im
   Hochformat wäre es zu klein zum Lesen, dort steht derselbe Text als
-  **Karte** unten am Schirm — von oben **und aus den Augen**; die Tafeln im
+  **Karte** unten am Schirm — von oben **und aus den Augen**. Die Karte hat
+  ein ✕ (`ScreenMessage`, `Esc` geht auch): Weggeklickt bleibt sie weg, bis
+  das Schild etwas anderes sagt (`cardClosed` — nächster Tag, Ende), und die
+  Tafel im Raum kommt dafür nicht zurück; die Tafeln im
   Raum schrumpfen dann auf die Bildbreite. **Aus den Augen am Schirm** hängt
   das Schild nicht 2,2 m vor dem Startplatz (dort füllte es das ganze Bild,
   und wer durch die Tür kam, lief hinein), sondern kleiner (0,72), mitten im
@@ -247,7 +252,7 @@ am Schirm mit 0,42 unten im Bild. Die Testküche macht dasselbe, siehe
   von oben und in der Brille bleibt es an seinem Platz (`SIGN_SPOT`).
 
 Die Eingaben bleiben dabei die der Welt: Die Zeile und die Karte fangen keine
-Berührung ab (`pointer-events: none`).
+Berührung ab (`pointer-events: none`) — außer dem ✕ an Karte und Tipp.
 
 `B`/`Y` (`worldReset`) räumt alles ab: Stationen leer, Hand leer, Gäste weg,
 zurück vor Tag 1.

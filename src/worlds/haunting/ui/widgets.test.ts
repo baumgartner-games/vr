@@ -158,17 +158,20 @@ describe('Kachel, Zeile und Überschrift', () => {
 describe('Die Meldung', () => {
   it('steht mit Ton da und geht von selbst wieder', () => {
     const toast = new Toast('flat__toast');
-    expect(toast.element.className).toBe('ui-toast flat__toast');
+    expect([...toast.element.classList]).toEqual(['msg', 'msg--pill', 'ui-toast', 'flat__toast']);
     expect(toast.shown).toBe(false);
+    expect(toast.element.hidden).toBe(true);
     toast.say('Tür gesperrt', 'good');
     expect(toast.element.textContent).toBe('Tür gesperrt');
-    expect(toast.element.className).toBe('ui-toast flat__toast is-good');
+    expect(toast.element.classList.contains('is-good')).toBe(true);
     expect(toast.shown).toBe(true);
+    expect(toast.element.hidden).toBe(false);
     toast.step(TOAST_SECONDS - 0.1);
     expect(toast.element.textContent).toBe('Tür gesperrt');
     toast.step(0.2);
     expect(toast.element.textContent).toBe('');
-    expect(toast.element.className).toBe('ui-toast flat__toast');
+    expect(toast.element.classList.contains('is-good')).toBe(false);
+    expect(toast.element.hidden).toBe(true);
     expect(toast.shown).toBe(false);
   });
 
@@ -178,7 +181,17 @@ describe('Die Meldung', () => {
     expect(toast.shown).toBe(false);
     toast.say('eins', 'bad');
     toast.say('zwei');
-    expect(toast.element.className).toBe('ui-toast');
+    expect(toast.element.classList.contains('is-bad')).toBe(false);
     expect(toast.element.textContent).toBe('zwei');
+  });
+
+  it('geht mit dem ✕ vor der Zeit', () => {
+    const toast = new Toast();
+    toast.say('Tür gesperrt', 'good');
+    const close = toast.element.querySelector<HTMLButtonElement>('.msg__close')!;
+    expect(close.getAttribute('aria-label')).toBe('Schließen');
+    close.click();
+    expect(toast.shown).toBe(false);
+    expect(toast.element.hidden).toBe(true);
   });
 });
