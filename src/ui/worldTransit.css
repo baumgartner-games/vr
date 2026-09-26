@@ -24,6 +24,10 @@
 .welcome[hidden] { display: none; }
 .welcome[data-device="touch"] { top: calc(env(safe-area-inset-top, 0px) + 100px); }
 .welcome.is-open { opacity: 1; transform: none; }
+/* Im Schiff steht oben links die Tafel des Technikers (`.orbital-player`, 420 px
+   ab 16 px): Mittig lag die Karte 26 px über ihrer rechten Kante. Wo Platz
+   ist, rückt sie daneben. */
+@media (min-width: 900px) { body.orbital-on .welcome { left: 452px; right: auto; margin-inline: 0; width: min(460px, calc(100vw - 468px)); } }
 .welcome__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding-right: 88px; }
 .welcome__kicker { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--welcome-accent, var(--hud-accent)); }
 .welcome__title { margin: 0; font-size: 18px; line-height: 1.2; }

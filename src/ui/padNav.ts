@@ -100,7 +100,7 @@ export class PadNav {
 
   private readonly scopes = new Set<PadScope>();
   private readonly deviceListeners = new Set<(device: InputDevice) => void>();
-  private lastDevice: InputDevice = 'keyboard';
+  private lastDevice: InputDevice = startDevice();
   private lastKind: PadKind = 'generic';
   private plan: PadPlan | null = null;
   private planFor = '';
@@ -150,7 +150,10 @@ export class PadNav {
     );
     const onKey = (event: KeyboardEvent): void => this.onKey(event);
     const onPointer = (event: PointerEvent): void => {
-      this.setDevice(event.pointerType === 'touch' ? 'touch' : 'keyboard');
+      // Ein Stift ist am Glas dasselbe wie ein Finger.
+      this.setDevice(
+        event.pointerType === 'touch' || event.pointerType === 'pen' ? 'touch' : 'keyboard',
+      );
       document.documentElement.classList.remove('nav-focus');
     };
     window.addEventListener('keydown', onKey);
@@ -431,6 +434,17 @@ const ARROWS: Record<string, NavDir> = {
   ArrowLeft: 'left',
   ArrowRight: 'right',
 };
+
+/**
+ * **Womit angefangen wird, bevor irgendetwas gedrückt ist.** Hier stand
+ * immer „Tastatur" — auf einem Telefon, das die Welt ohne Tipp aufmacht (eine
+ * Adresse mit Welt dahinter, ein Neuladen), sprach die erste Tastenhilfe damit
+ * von Leertaste und Tab. Ein Gerät ohne feinen Zeiger fängt beim Glas an.
+ */
+function startDevice(): InputDevice {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'keyboard';
+  return window.matchMedia('(any-pointer: fine)').matches ? 'keyboard' : 'touch';
+}
 
 function defaultPads(): readonly (GamepadLike | null)[] | null {
   return typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'

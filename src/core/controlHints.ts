@@ -36,6 +36,22 @@ import {
 
 export type HintDevice = 'keyboard' | 'pad' | 'touch';
 
+/**
+ * **Welches Gerät die Zeile anspricht** — das zuletzt benutzte, außer es
+ * stehen die Stöcke auf dem Glas (`#touch`, `core/screenPads.ts`).
+ *
+ * Dann ist es ein Telefon oder Tablet, und die Zeile für Tastatur und Maus
+ * (Leertaste, Klick, Tab, Rad, Q, V, M) lief dort über drei Zeilen quer über
+ * die Stöcke — unten, wo sie am Schreibtisch hingehört. Das Gerät stand auf
+ * „Tastatur", sobald irgendetwas eine Maus meldete oder bevor überhaupt
+ * getippt war (`padNav` fängt so an). Solange die Stöcke dastehen, gilt die
+ * kurze Zeile fürs Glas, oben unter der Kopfzeile; ein Pad bleibt ein Pad
+ * (mit Pad blenden sich die Stöcke ohnehin aus).
+ */
+export function hintDevice(device: HintDevice, screenPads: boolean): HintDevice {
+  return screenPads && device === 'keyboard' ? 'touch' : device;
+}
+
 export type HintView = 'firstPerson' | 'topDown' | 'crane';
 
 /**

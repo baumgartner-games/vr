@@ -171,6 +171,15 @@ export class FlatControls {
   private aQueued = false;
   /** `Tab` — die Werkzeugliste (`App`, `#hud-tool`). */
   private toolsQueued = false;
+  /**
+   * **Was im letzten Bild davorlag** (`blocker`). `Y` macht die offene
+   * Werkzeugliste zu — das tut `ui/padNav.ts` in seinem eigenen Bild, und
+   * läuft das vor diesem hier, ist die Liste schon zu, wenn hier dieselbe
+   * Flanke ankommt: Sie machte sie gleich wieder auf. Am Pad ging die Liste
+   * mit `Y` deshalb nie zu. Ein `Y`, dessen Bild mit offener Liste anfing,
+   * öffnet sie nicht.
+   */
+  private blockedBefore: 'menu' | 'tools' | null = null;
   private yaw = 0;
   private pitch = 0;
   private pointerLocked = false;
@@ -227,6 +236,11 @@ export class FlatControls {
    */
   private craneTwist: { since: number; shift: boolean } | null = null;
   private readonly pads: TouchPads;
+  /** Ob die Stöcke auf dem Glas gerade dastehen (`#touch`, `main.ts` `showPads`). */
+  get screenPadsShown(): boolean {
+    const box = this.pads.stick?.closest<HTMLElement>('.touch');
+    return box !== null && box !== undefined && !box.hidden;
+  }
   /** Die Flanken des Gamepads — Knöpfe eines Pads kommen als Zustand, nicht als Ereignis. */
   private readonly padUse = new ButtonState();
   private readonly padZoomIn = new ButtonState();
@@ -415,7 +429,10 @@ export class FlatControls {
     }
 
     const pad = this.readPad();
+    const toolsWereOpen = this.blockedBefore === 'tools';
+    this.blockedBefore = this.blocker();
     this.lastPad = this.blocker() ? emptyFrame() : pad;
+    if (toolsWereOpen) this.padTools.justPressed = false;
 
     // **Liegt ein Menü davor, spielt das Pad nicht** — gelesen wurde es
     // trotzdem, damit die Flanken stimmen: Wer das Menü mit `A` schließt,

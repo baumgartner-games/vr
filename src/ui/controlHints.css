@@ -12,6 +12,15 @@
 /* Am Glas liegen unten die Stöcke und Knöpfe — die Zeile rückt nach oben, unter die Kopfzeile. */
 .hints[data-device="touch"] { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 58px); }
 /*
+ * Im Schiff ist die Kopfzeile weg (`body.orbital-on #hud`), und an ihrer Stelle
+ * steht oben links die Tafel des Technikers, oben mittig der Kompass. Mittig
+ * unter dem Rand lag die Zeile auf _Zuklappen_ und _Optionen_. Sie rückt nach
+ * rechts unter den Kompass — und schmaler als 481 Punkte, wo die Tafel die
+ * ganze Breite nimmt und ihre Tasten selbst nennt, bleibt sie weg.
+ */
+body.orbital-on .hints[data-device="touch"] { left: auto; right: 12px; margin-inline: 0; top: calc(max(12px, env(safe-area-inset-top, 0px)) + 44px); }
+@media (max-width: 480px) { body.orbital-on .hints[data-device="touch"] { display: none; } }
+/*
  * Im Baukasten steht unten die Werkzeugleiste (`style.css`, `.build-bar`) —
  * die Zeile rückt darüber. Schmaler als 600 Punkte steht die Leiste oben,
  * dann rückt die Zeile am Glas unter sie.

@@ -154,6 +154,24 @@ Im Baukasten rückt die Zeile über die Werkzeugleiste (`controlHints.css`,
 (RT, LT, linker Stock — `WorldContext.pad`, `KartZone.updateDriving`); bis
 dahin kannte es nur die Tastatur.
 
+**Am Glas nie über den Stöcken.** Welches Gerät die Zeile anspricht, rechnet
+`controlHints.hintDevice`: das zuletzt benutzte — außer die Stöcke stehen auf
+dem Glas (`FlatControls.screenPadsShown`), dann gilt die kurze Zeile fürs Glas
+oben unter der Kopfzeile, auch wenn zuletzt eine „Maus" oder Taste kam. Vorher
+stand am Telefon nach einem Mausereignis (oder bevor überhaupt getippt war)
+die dreizeilige Zeile für die Tastatur quer über den Stöcken. Dazu fängt
+`padNav` auf einem Gerät ohne feinen Zeiger (`(any-pointer: fine)` falsch)
+beim Glas an und nicht bei der Tastatur, und ein Stift zählt wie ein Finger.
+Dieselbe Rechnung gilt für die Tasten auf der Willkommens-Karte. **Im Schiff**
+(`body.orbital-on`) rückt die Zeile am Glas nach rechts unter den Kompass —
+mittig lag sie auf _Zuklappen_/_Optionen_ der Tafel —, und schmaler als 481
+Punkte bleibt sie dort weg; die Tafel nennt ihre Tasten selbst.
+
+**`Y` macht die Werkzeugliste am Pad wirklich zu.** `padNav` schließt sie in
+seinem eigenen Bild; lief das vor `FlatControls`, kam dieselbe Flanke dort bei
+schon geschlossener Liste an und öffnete sie gleich wieder. Ein `Y`, dessen
+Bild mit offener Liste anfing, öffnet sie jetzt nicht (`blockedBefore`).
+
 ### Das Bild von oben drehen — `TopDownCamera.turn`
 
 Von oben war Norden immer oben. Jetzt dreht **◀/▶ am Steuerkreuz** oder
