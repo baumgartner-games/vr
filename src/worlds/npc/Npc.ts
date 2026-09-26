@@ -20,7 +20,7 @@ import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, keyLevel, type TileKey } from '../nav/navTile';
 import { FOOTPRINT, cellCentre, snapCell, type CellGrid } from '../nav/cellGrid';
-import { PLAYER_PLANE_RADIUS, slideOnCells } from '../nav/planeMove';
+import { PLAYER_PLANE_RADIUS, slideOnCells, type PlaneFigure } from '../nav/planeMove';
 import { yawThrough } from '../portal/portalCrossing';
 
 /**
@@ -405,6 +405,9 @@ export class Npc {
     }
 
     const grid = nav?.cells ?? null;
+    // **Auf dem Gitter stößt sein Körper an keine Figur** — an wem er nicht
+    // vorbeikommt, sagt die Ebene (`figures`, `planeMove.figureWalls`).
+    this.physics.setGridFigure(this.entry, grid !== null);
     const level = grid ? this.cellLevel(nav!.graph) : null;
     if (grid && level !== null) this.holdOnCells(grid, level);
     const t = this.entry.body.translation();
@@ -471,6 +474,8 @@ export class Npc {
           step.vz * dt,
           level,
           this.planeRadius,
+          this.figuresAround(nav!.figures),
+          this.skin.radius,
         );
         step.vx = (to.x - t.x) / dt;
         step.vz = (to.z - t.z) / dt;
@@ -562,6 +567,16 @@ export class Npc {
     this.feet(_feet);
     const key = graph.at(_feet.x, _feet.z, _feet.y);
     return key === NO_TILE ? null : keyLevel(key);
+  }
+
+  /**
+   * **Die anderen Figuren auf seiner Etage** — der Spieler und die übrigen
+   * NPCs, an denen er in der Ebene nicht vorbeikommt. Er selbst nicht.
+   */
+  private figuresAround(figures: readonly NavFigure[] | undefined): PlaneFigure[] {
+    if (!figures?.length) return [];
+    const y = this.feet(_feet).y;
+    return figures.filter((figure) => figure.who !== this && Math.abs(figure.y - y) < FIGURE_FLOOR);
   }
 
   /**
@@ -1082,9 +1097,27 @@ export interface NavRun {
   stairs?: (x: number, z: number, footY: number) => number | null;
   /** Wo der Spieler steht, mit Höhe — die Etage hängt daran. */
   at: Spot3 | null;
+  /**
+   * **Wer sonst in der Ebene steht** — der Spieler und alle NPCs, einmal je
+   * Bild gesammelt (`NpcDirector.update`). Auf dem Gitter gehen sie einander
+   * in 2D aus dem Weg und nicht mit ihren Körpern in der Physik.
+   */
+  figures?: readonly NavFigure[];
   /** Weltzeit in Sekunden. */
   now: number;
 }
+
+/** Eine Figur in der Ebene, mit der Höhe ihrer Füße und wer sie ist (`null`: der Spieler). */
+export interface NavFigure extends PlaneFigure {
+  y: number;
+  who: Npc | null;
+}
+
+/**
+ * Wie weit die Füße einer anderen Figur über oder unter den eigenen sein
+ * dürfen, damit sie im Weg steht, in Metern — darüber ist es eine andere Etage.
+ */
+export const FIGURE_FLOOR = 1;
 
 export interface NpcNavigationInput {
   readonly at: Spot3;
