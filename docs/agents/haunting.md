@@ -1802,6 +1802,72 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   liegt klebt am Rand. `compassMarks` ist reine Rechnung mit Test; in der
   Brille gibt es ihn noch nicht (DOM ist dort unsichtbar) — ein Streifen an
   der Kamera wie `ShipExperience.status` wäre der nächste Schritt.
+- **Der Ablauf einer Runde — Übungsrunde oder echte Runde** (September 2026,
+  `rules/roundFlow.ts`, `roundFlow.test.ts`). Der Befund des Besitzers: das
+  Menüsystem sei _„absolut wirr (wie, wann mit Test, wann echt)"_. Die
+  **Bestandsaufnahme** davor:
+  - „Test" hieß vier Dinge: der helle Stand nach **„Rollen testen"**
+    (`phase: 'briefing'`), der Start **„Test starten"** / **„Trainieren"**
+    (`testMission`: läuft, ohne Monster, `options.test`), das **„Testlicht"**
+    und das Häkchen `options.test` selbst.
+  - Die echte Runde hieß **„Spielen"** (Brille, Tafel am Bildschirm),
+    **„Mission starten"** (Aufbau, Zahnrad), **„Runde neu starten"** (Ende am
+    Bildschirm) und **„Neue Runde starten"** (Ende am Telefon); zurück ging es
+    über **„Mission stoppen"** oder **„Zurück in den Test"**.
+  - Wege zum selben Ziel: im ⚙-Menü des Schiffs „Zentrale" **und** „Zurück zu
+    den Rollen" (beide `host.stations()`); in der Brille während der Runde
+    „Trainieren" **und** (nur am Telefon) „Mission stoppen" — beides endet in
+    der Übung.
+  - Nirgends stand dauerhaft, **in welcher Runde man gerade ist**; am Telefon
+    nur „Test · keine Runde" statt der Uhr, am Bildschirm
+    „TEST / SICHERE BOT-RUNDE / MONSTER" in der Titelzeile.
+  - Die Einstellungen der Brille (Testlicht, Station, fünf Plätze,
+    Fähigkeiten, Gegner) standen zwischen den Starts.
+
+  **Jetzt gilt ein Ablauf mit festen Worten** (`FLOW`, `MODE_TEXT`), auf
+  Telefon, Bildschirm und in der Brille gleich:
+  1. **Lobby** (Startseite, `#haunting`: Name, Raum, Verbinden, Beitreten —
+     unverändert).
+  2. **Rollen** — im Aufbau unter der Überschrift „1 · Rollen verteilen".
+  3. **Modus** — „2 · Übungsrunde oder echte Runde": zwei Knöpfe
+     nebeneinander (Telefon: untereinander), **„Übungsrunde"** blau
+     (`[data-test-roles]`, auf die Karte, hell, keine Uhr, keine Treffer) und
+     **„Echte Runde starten"** rot (`[data-start-setup]`). Der Startknopf
+     startet **immer** die Absicht `play` (`HauntingWorld` → `startSetup`:
+     `startRound('play')`); ein Monster auf „Aus" holt er zurück, denn die
+     Übung ist der Knopf daneben und kein zweiter Start. Hält ein Bot den
+     Anzug und niemand das Monster, heißt er ehrlich „Bots spielen lassen"
+     (`startLabel(applyIntent(…, 'play', me))`).
+  4. **Im Spiel ein Pausemenü** — das Zahnrad am Telefon (`writeMenu`), ⚙
+     Optionen am Bildschirm (`ShipExperience.shipOptions`): oben
+     **„Pause · Übungsrunde"** und der Satz „Du bist in einer Übungsrunde …",
+     zuerst **„Weiterspielen"** (grün), dann **genau ein** Rundenknopf
+     (`pauseActions`): in der Übung „Echte Runde starten", in der echten
+     Runde „Echte Runde abbrechen" (→ `stopRound`, zurück in die Übung; am
+     Bildschirm über den neuen `ShipHost.stop`), nach dem Ende „Nochmal:
+     echte Runde" und „Zurück in die Übungsrunde"; in der Vorführung ist es
+     der Schalter „Zuschauen". Unten **„Rollen & Aufbau"** — der Eintrag
+     „Zentrale" daneben ist weg.
+  5. **Sichtbarer Zustand**: vorn in der Leiste über der Karte ein Schild
+     `.haunt__mode` (**ÜBUNGSRUNDE** blau, **ECHTE RUNDE** rot,
+     **VORFÜHRUNG**, **RUNDE VORBEI**), im Aufbau „Jetzt: …" über der Tafel,
+     am Bildschirm in der Titelzeile („ORBITAL · ECHTE RUNDE · ANZUG …"), in
+     der Brille als erster Eintrag **„Jetzt: Übungsrunde"** (`haunt:status`).
+     Das Menü wird neu gebaut, sobald der Modus wechselt (`shownMode` in
+     `tick`) — vorher stand nach dem Start noch der alte Stand darin.
+
+  `roundMode` legt den Stand vor dem Start (`briefing`) und den sicheren Test
+  (`options.test`) zusammen: für den Spieler beides **Übungsrunde**. Die
+  Absichten heißen jetzt `INTENT_LABELS` = „Echte Runde starten" · „Bots
+  spielen lassen" · „Übungsrunde" (Kennungen `haunt:play`/`watch`/`train`
+  unverändert). In der Brille steht während einer echten Runde statt
+  „Übungsrunde" deren Abbruch (`haunt:stop`), und die Einstellungen liegen im
+  Untermenü **„Einstellungen der Runde"** (`haunt:settings`: Übungslicht —
+  vorher Testlicht —, Station, Plätze, Fähigkeiten, Gegner).
+  „Als Techniker am Desktop testen" heißt „Als Techniker spielen". **Wo weiter
+  unten noch „Rollen testen", „Mission starten/stoppen", „Test starten",
+  „Spielen/Trainieren" oder „Testlicht" steht, ist das die Geschichte dieser
+  Knöpfe** — sie heißen jetzt wie hier.
 - **Eine Runde in der Brille starten** (`HauntingWorld.menu()`,
   `rules/worldMenu.ts`): Handgelenk-Knopf drücken, im Panel unter den fünf
   Einträgen der Engine (Welten, Verbindung, Bewegung, Aussehen, Grafik) stehen

@@ -38,7 +38,16 @@ import { seating, shoved, type Claim, type StationId } from './stations';
 import type { HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
-import { startLabel, type LobbyChoice } from './rules/lobby';
+import { applyIntent, startLabel, type LobbyChoice } from './rules/lobby';
+import {
+  FLOW,
+  FLOW_STEPS,
+  MODE_TEXT,
+  pauseActions,
+  pauseTitle,
+  roundMode,
+  type RoundMode,
+} from './rules/roundFlow';
 import { SHIP_OCCUPIED } from './rules/worldMenu';
 import type { MonsterPort } from './monster/monsterDriver';
 
@@ -55,7 +64,8 @@ import type { MonsterPort } from './monster/monsterDriver';
  *
  * **Der Ablauf, den der Besitzer wollte:** Man tritt der Lobby bei, stellt
  * im **Aufbau** die Rollen ein — wer Mensch, Bot oder aus ist, wer welche
- * Fähigkeit hält — und drückt unten **„Rollen testen"**. Dann kommt die
+ * Fähigkeit hält — und wählt unten **„Übungsrunde"** oder **„Echte Runde
+ * starten"** (`rules/roundFlow.ts`). Dann kommt die
  * **Karte**, und darüber genau **ein Kopf**: die Rollen als Reiter zum
  * Wechseln, das Zahnrad, und darunter die Leiste mit Uhr, Aufträgen und
  * Anzug-Leben — dieselbe Zeile wie beim Techniker im Schiff
@@ -204,7 +214,7 @@ function stationFor(me: MyRole): StationId | null {
 }
 
 /** Was in der Leiste steht, wenn keine Uhr läuft. */
-const IDLE_LABEL = 'Test · keine Runde';
+const IDLE_LABEL = 'keine Uhr';
 const OVER_LABEL = 'Runde vorbei';
 
 export class StationUi {
@@ -600,7 +610,19 @@ export class StationUi {
     for (let i = 0; i < suitMax; i++)
       lives.append(el('i', `haunt__pip haunt__pip--suit${i < suit ? ' is-alive' : ''}`));
     const hud = round && live ? roundHud(round) : null;
+    // **Das Schild vorn sagt, in welcher Runde man ist** — Übung, echt,
+    // Vorführung, vorbei (`rules/roundFlow.ts`): Der Befund des Besitzers war
+    // „wann mit Test, wann echt", und die Antwort steht jetzt immer da.
+    const mode = this.mode(phase);
+    const badge = el(
+      'span',
+      `haunt__mode haunt__mode--${MODE_TEXT[mode].tone}`,
+      MODE_TEXT[mode].badge,
+    );
+    badge.dataset['mode'] = mode;
+    badge.title = MODE_TEXT[mode].line;
     const parts: HTMLElement[] = [
+      badge,
       el('span', 'haunt__quest-label', 'SYSTEME'),
       strip,
       el('span', 'haunt__quest-label', 'ANZUG'),
@@ -621,7 +643,7 @@ export class StationUi {
     this.quest.classList.toggle('is-low', !!hud?.low);
     this.quest.setAttribute(
       'aria-label',
-      `${state.done.length} von 3 Systemen repariert; ` +
+      `${MODE_TEXT[mode].name}; ${state.done.length} von 3 Systemen repariert; ` +
         (hud ? hud.label : `Anzug ${suit} von ${suitMax}`) +
         (live ? '' : `; ${phase === 'briefing' ? IDLE_LABEL : OVER_LABEL}`),
     );
@@ -643,36 +665,67 @@ export class StationUi {
       sub: string,
       more: { tone?: 'go' | 'leave'; disabled?: boolean } = {},
     ): HTMLElement => optionKey({ label, sub, data: { [id]: '' }, ...more });
+    // **Ein Pausemenü**: oben, in welcher Runde man ist; zuerst der Weg
+    // zurück ins Spiel; dann genau ein Weg, die Runde zu ändern
+    // (`roundFlow.pauseActions`); zuletzt der Weg zu den Rollen und die
+    // Knöpfe der Seite.
+    const mode = this.mode(this.host.round?.()?.phase ?? state.phase);
+    items.push(head(pauseTitle(mode)));
+    const line = el(
+      'p',
+      `haunt__menu-mode haunt__mode--${MODE_TEXT[mode].tone}`,
+      MODE_TEXT[mode].line,
+    );
+    line.dataset['modeLine'] = mode;
+    items.push(line);
+    items.push(option('closeOptions', FLOW.resume, '', { tone: 'go' }));
     items.push(head('Runde'));
-    if (state.phase === 'running') {
-      items.push(
-        option(
-          'stopRound',
-          'Mission stoppen',
-          'Zurück in den Test: hell, ohne Uhr, ohne Treffer — dieselbe Station',
-          { tone: 'leave' },
-        ),
-      );
-    } else if (setup && this.host.startSetup) {
-      const busy = this.shipBusy();
-      items.push(
-        option(
-          'startSetup',
-          startLabel(setup),
-          busy ? 'Ein Techniker spielt bereits im Schiff.' : describeSetup(setup),
-          { tone: 'go', disabled: busy },
-        ),
-      );
+    for (const action of pauseActions(mode)) {
+      if (action === 'stop' && this.host.stopRound)
+        items.push(
+          option('stopRound', mode === 'demo' ? 'Vorführung beenden' : FLOW.stop, FLOW.stopHint, {
+            tone: 'leave',
+          }),
+        );
+      else if (action === 'real' && setup && this.host.startSetup) {
+        const busy = this.shipBusy();
+        items.push(
+          option(
+            'startSetup',
+            this.realLabel(setup),
+            busy ? 'Ein Techniker spielt bereits im Schiff.' : FLOW.realHint,
+            { disabled: busy },
+          ),
+        );
+      } else if (action === 'again' && this.host.restart)
+        items.push(option('restart', FLOW.again, FLOW.realHint));
+      else if (action === 'back' && this.host.stopRound)
+        items.push(option('stopRound', FLOW.back, FLOW.practiceHint));
     }
     items.push(head('Aufmachen'));
     items.push(
-      option('setup', 'Zurück zu den Rollen', 'Aufbau: Tafel, Häkchen, Hilfe'),
+      option('setup', FLOW.setup, FLOW.setupHint),
       option('gameMenu', 'Menü', 'Das Spielmenü der Seite: Welten, Bewegung, Grafik'),
       option('pageNet', 'Verbindung', 'Raum-Code, Mitspieler, Sprache und Chat'),
       option('pageVr', 'VR', 'VR starten oder beenden'),
     );
-    items.push(option('closeOptions', 'Weiterspielen', ''));
     this.menu.replaceChildren(...items);
+  }
+
+  /** In welcher Runde man ist (`rules/roundFlow.ts`) — aus dem Stand, den die Welt ansagt. */
+  private mode(phase: HauntState['phase']): RoundMode {
+    const crew = this.host.state().crew;
+    return roundMode({ phase, test: !!crew.options.test, simulation: !!crew.simulation });
+  }
+
+  /**
+   * **Was „Echte Runde starten" wirklich startet**: dieselbe Rechnung wie der
+   * Start selbst (`applyIntent(…, 'play')`) — hält ein Bot den Anzug und
+   * niemand das Monster, ist es eine Vorführung, und dann steht das auf dem
+   * Knopf.
+   */
+  private realLabel(setup: RoundSetup): string {
+    return startLabel(applyIntent(setup, 'play', this.me));
   }
 
   /**
@@ -832,6 +885,16 @@ export class StationUi {
       `${link.peers} Gerät(e) · Raum ${link.room || 'verbindet …'}${link.vr ? ' · Techniker im Schiff' : ''}`,
     );
     const out: HTMLElement[] = [chip];
+    // **Auch hier oben steht, in welcher Runde man ist** — wer mitten in einer
+    // echten Runde auf die Tafel schaut, soll nicht glauben, er übe.
+    const mode = this.mode(this.host.state().phase);
+    const now = el(
+      'p',
+      `lobby__mode haunt__mode--${MODE_TEXT[mode].tone}`,
+      `Jetzt: ${MODE_TEXT[mode].name} — ${MODE_TEXT[mode].line.replace(/^Du bist in einer [^:]+: /, '')}`,
+    );
+    now.dataset['setupMode'] = mode;
+    out.push(now);
 
     if (setup && choice && this.host.setSetup && this.host.setLobby) {
       this.setupPanel ??= new SetupPanel({
@@ -843,22 +906,24 @@ export class StationUi {
         technician: () => this.host.link().technician ?? null,
       });
       this.setupPanel.render();
-      out.push(this.setupPanel.element);
+      // **Zwei Schritte, zwei Überschriften** (`roundFlow.FLOW_STEPS`): erst
+      // die Plätze, dann der Modus — Übungsrunde oder echte Runde, nebeneinander
+      // und deutlich verschieden.
+      out.push(head(FLOW_STEPS[0]!), this.setupPanel.element, head(FLOW_STEPS[1]!));
 
-      // **Rollen testen** — der Weg auf die Karte, ohne dass eine Runde
+      // **Übungsrunde** — der Weg auf die Karte, ohne dass eine Runde
       // losgeht. Die Rolle nimmt man dort über die Reiter; bis dahin gilt die
       // gemerkte (`LobbyChoice.me`), und die steht als Zeile unter dem Knopf.
-      // **Läuft im Raum schon eine Mission**, ist derselbe Knopf der Einstieg
-      // in sie: Wer die Seite mitten in der Runde neu geladen hat, steht hier
-      // wieder im Aufbau — und fand bisher nur einen Start, den der Gastgeber
-      // mit „läuft schon" abwies, und ein „Testen", das nicht stimmte.
+      // **Läuft im Raum schon eine Runde**, ist derselbe Knopf der Einstieg
+      // in sie — und der Start fehlt, denn es gibt nur eine Runde je Raum.
       const running = this.host.state().phase === 'running';
-      out.push(
+      const modes = el('div', 'lobby__modes');
+      modes.append(
         key('lobby__start lobby__start--test', {
-          label: running ? 'Zur laufenden Runde' : 'Rollen testen',
+          label: running ? FLOW.join : FLOW.practice,
           sub: running
-            ? `Die Mission läuft schon — auf die Karte als ${MY_ROLE_LABELS[this.me]}; die Rolle wechselst du dort über die Reiter.`
-            : `Auf die Karte — hell, ohne Uhr, ohne Treffer. Rolle über die Reiter wählen · zuletzt: ${MY_ROLE_LABELS[this.me]}`,
+            ? `Die Runde läuft schon — auf die Karte als ${MY_ROLE_LABELS[this.me]}; die Rolle wechselst du dort über die Reiter.`
+            : `${FLOW.practiceHint} · zuletzt: ${MY_ROLE_LABELS[this.me]}`,
           data: running ? { testRoles: '', join: '' } : { testRoles: '' },
         }),
       );
@@ -869,25 +934,25 @@ export class StationUi {
         // der Tipp als Wunsch an ihn (`HauntingWorld.startRound`). Gesperrt
         // ist der Knopf nur, während seine Runde wirklich läuft.
         const busy = this.shipBusy();
-        out.push(
-          key('lobby__start', {
-            label: startLabel(setup),
+        const real = applyIntent(setup, 'play', this.me);
+        modes.append(
+          key('lobby__start lobby__start--real', {
+            label: this.realLabel(setup),
             sub: busy
               ? 'Ein Techniker spielt bereits im Schiff.'
               : link.vr
-                ? `Startet beim Techniker im Schiff · ${describeSetup(setup)}`
-                : `Uhr, Dunkelheit, Monster — sofort · ${describeSetup(setup)}`,
+                ? `Startet beim Techniker im Schiff · ${describeSetup(real)}`
+                : `${FLOW.realHint} · ${describeSetup(real)}`,
             data: { startSetup: '' },
             disabled: busy,
           }),
         );
       }
+      out.push(modes);
     } else if (!link.vr) {
       // Eine Welt ohne Aufbau-Anschluss (ältere Hosts, Tests): wenigstens der
       // Weg an den Stock bleibt erreichbar.
-      out.push(
-        key('haunt__tile', { text: 'Als Techniker am Desktop testen', data: { technician: '' } }),
-      );
+      out.push(key('haunt__tile', { text: 'Als Techniker spielen', data: { technician: '' } }));
     }
 
     if (shoved(claims, me)) {
@@ -910,9 +975,9 @@ export class StationUi {
       ),
       note(
         'calm',
-        'Test und Mission',
-        'Nach „Rollen testen" ist die Station hell, keine Uhr läuft und niemand wird getroffen — jeder darf jede Rolle. ' +
-          'Erst „Mission starten" (Zahnrad oder hier) macht das Licht aus und die Uhr an; „Mission stoppen" führt zurück in den Test.',
+        'Übungsrunde und echte Runde',
+        'In der „Übungsrunde" ist die Station hell, keine Uhr läuft und niemand wird getroffen — jeder darf jede Rolle. ' +
+          '„Echte Runde starten" (hier oder im Zahnrad) macht das Licht aus und die Uhr an; „Echte Runde abbrechen" im Zahnrad führt zurück in die Übungsrunde.',
       ),
       ...listRoles().map((role) => note('calm', role.label, `Sieht: ${role.sees}`)),
     );
@@ -1041,9 +1106,9 @@ export class StationUi {
       ),
     );
     if (this.host.restart)
-      box.append(key('haunt__chart-key', { text: 'Neue Runde starten', data: { restart: '' } }));
+      box.append(key('haunt__chart-key', { text: FLOW.again, data: { restart: '' } }));
     if (this.host.stopRound)
-      box.append(key('haunt__chart-key', { text: 'Zurück in den Test', data: { stopRound: '' } }));
+      box.append(key('haunt__chart-key', { text: FLOW.back, data: { stopRound: '' } }));
     return [box];
   }
 

@@ -121,7 +121,7 @@ export function mayCompute(state: Pick<WorldMenuState, 'hostId' | 'me'>): boolea
  * einmal als Meldung, wenn jemand den Eintrag trotzdem drückt.
  */
 export const NOT_TECHNICIAN =
-  'Nur der Techniker startet eine Runde: Brille aufsetzen oder „Als Techniker am Desktop testen" wählen.';
+  'Nur der Techniker startet eine Runde: Brille aufsetzen oder „Als Techniker spielen" wählen.';
 export const HOST_BUSY =
   'Ein anderer Techniker rechnet diese Runde gerade — eine zweite lässt sich hier nicht starten.';
 export const ROOM_BUSY =
@@ -204,7 +204,7 @@ export const FLAT_NEEDS_TECHNICIAN =
 export const STOP_SENT = 'Stopp geht an den Techniker — die Runde endet bei ihm.';
 /** Und was die Welt nach dem Stopp sagt: der Test-Zustand. */
 export const ROUND_STOPPED =
-  'Runde gestoppt · Test: Die Station ist hell, keine Uhr läuft, niemand wird getroffen.';
+  'Echte Runde abgebrochen · Übungsrunde: Die Station ist hell, keine Uhr läuft, niemand wird getroffen.';
 
 /**
  * **Die drei Start-Einträge des Brillenmenüs** — dieselben drei Absichten, in

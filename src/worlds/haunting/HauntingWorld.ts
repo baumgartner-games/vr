@@ -162,6 +162,7 @@ import {
   type RoundKind,
   type WorldMenuState,
 } from './rules/worldMenu';
+import { FLOW, MODE_TEXT, roundMode, type RoundMode } from './rules/roundFlow';
 import type { MapGoal } from './map/mapView';
 import { VentFlapArt } from './vents/ventArt';
 import { VentNet } from './vents/ventGraph';
@@ -1265,7 +1266,9 @@ export class HauntingWorld extends GridWorld {
         setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
         setSetup: (setup) => this.applySetup(setup),
-        startSetup: () => this.startRound(intentOf(this.setup), ctx),
+        // **„Echte Runde starten" ist immer die echte Runde** (`rules/roundFlow.ts`):
+        // Die Übung ist der Stand vor dem Start, kein zweiter Start daneben.
+        startSetup: () => this.startRound('play', ctx),
         snapshot: () => this.mapSnapshot(),
         monsterPort: () => this.netPort,
         notify: (text) => ctx.notify(text),
@@ -1494,6 +1497,7 @@ export class HauntingWorld extends GridWorld {
       configure: (options) => this.configureStation(options),
       start: () => this.startMission(),
       test: () => this.testMission(),
+      stop: () => this.stopRound(ctx),
       stations: () => {
         this.flatTechnician = false;
         this.pendingBotRound = false;
@@ -2063,6 +2067,15 @@ export class HauntingWorld extends GridWorld {
       this.context = ctx;
       this.setupRole(ctx);
       this.mountExperience(ctx);
+      ctx.refreshWorldMenu();
+    }
+    // **Das Menü nennt die Runde, in der man ist** (`haunt:status`) — also wird
+    // es neu gebaut, sobald sie sich ändert: Start, Abbruch, Ende, oder ein
+    // Stand vom Gastgeber. Vorher stand nach „Echte Runde starten" noch
+    // „Jetzt: Übungsrunde" darin, bis irgendetwas anderes das Menü auffrischte.
+    const mode = this.roundMode();
+    if (mode !== this.shownMode) {
+      this.shownMode = mode;
       ctx.refreshWorldMenu();
     }
     super.update(dt, ctx);
@@ -3738,6 +3751,9 @@ export class HauntingWorld extends GridWorld {
 
   // --- das Menü in der Brille ------------------------------------------------
 
+  /** Welcher Modus zuletzt im Menü stand (`roundMode`) — ändert er sich, wird es neu gebaut. */
+  private shownMode: RoundMode | null = null;
+
   override menu(): MenuEntry[] {
     // Ein nachgebautes Weltobjekt (Replay-Tests) hat die Tafel nicht; dann gilt der Anfang.
     const setup = (this.setup ??= loadSetup());
@@ -3780,15 +3796,29 @@ export class HauntingWorld extends GridWorld {
         build,
         entry(
           'haunt:technician',
-          'Als Techniker am Desktop testen',
-          'Übernimmt die VR-Rolle ohne Headset · WASD und Maus',
+          'Als Techniker spielen',
+          'Den Anzug am Bildschirm tragen, ohne Brille · WASD und Maus',
           () => {
             this.flatTechnician = true;
           },
         ),
         rescue,
       ];
+    // **Oben steht, in welcher Runde man ist** (`rules/roundFlow.ts`) — der
+    // Befund des Besitzers war „wie, wann mit Test, wann echt". Darunter die
+    // Starts; läuft eine echte Runde, steht statt „Übungsrunde" ihr Abbruch
+    // da, denn beides führte in die Übung — zwei Wege zum selben Ziel. Die
+    // Einstellungen liegen in einem Untermenü, nicht mehr zwischen den Starts.
+    const mode = this.roundMode();
+    const status = entry(
+      'haunt:status',
+      `Jetzt: ${MODE_TEXT[mode].name}`,
+      MODE_TEXT[mode].line,
+      () => this.context?.notify(MODE_TEXT[mode].line),
+    );
+    const running = mode === 'real' || mode === 'demo';
     return [
+      status,
       // **Was? — dieselben drei Kacheln wie im Van** (`rules/lobby.ts`,
       // gerechnet in `rules/worldMenu.ts`):
       // Spielen · Zuschauen · Trainieren, in derselben Reihenfolge und mit
@@ -3797,17 +3827,21 @@ export class HauntingWorld extends GridWorld {
       // sonst die Erklärung steht — vorher stand dort ein Eintrag, der nichts
       // tat und nichts sagte.
       ...startEntries(this.startState()).map((row) =>
-        entry(row.id, `${row.active ? '● ' : ''}${row.label}`, row.sub, () => {
-          if (row.starts && this.context) this.startRound(row.starts, this.context);
-          else if (row.blocked) this.context?.notify(row.blocked);
-        }),
+        running && row.id === 'haunt:train'
+          ? entry('haunt:stop', FLOW.stop, FLOW.stopHint, () => {
+              if (this.context) this.stopRound(this.context);
+            })
+          : entry(row.id, `${row.active ? '● ' : ''}${row.label}`, row.sub, () => {
+              if (row.starts && this.context) this.startRound(row.starts, this.context);
+              else if (row.blocked) this.context?.notify(row.blocked);
+            }),
       ),
       ...(!immersive
         ? [
             entry(
               'haunt:roles',
-              'Zur Zentrale / Rolle wechseln',
-              'Archiv, Schalttafel, Späher, Zuschauer oder Monster',
+              FLOW.setup,
+              'Zur Zentrale: Archiv, Schalttafel, Späher, Zuschauer oder Monster',
               () => {
                 this.flatTechnician = false;
                 this.pendingBotRound = false;
@@ -3817,101 +3851,115 @@ export class HauntingWorld extends GridWorld {
             ),
           ]
         : []),
-      entry(
-        'haunt:light',
-        `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
-        // Der Schalter gehört zum Test und tat in einer Mission nichts, ohne
-        // ein Wort dazu — dieselbe Falle wie bei den Starts.
-        this.state.crew.options.test
-          ? 'Auch im Dunkeln ohne Monster testen'
-          : 'Nur im Test · in der Mission bleibt es dunkel',
-        () => {
-          if (!this.state.crew.options.test) {
-            this.context?.notify('Das Testlicht gehört zum Test — erst „TEST / ohne Monster".');
-            return;
-          }
-          this.state.crew.options.bright = !this.state.crew.options.bright;
-        },
-      ),
-      entry(
-        'haunt:rooms',
-        `Station: ${this.state.crew.options.rooms} Räume`,
-        'Feste Skeld-Karte · neue Aufgaben',
-        () =>
-          this.configureStation({
-            ...this.state.crew.options,
-            rooms:
-              ROOM_COUNTS[
-                (ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 14) + 1) % ROOM_COUNTS.length
-              ]!,
-          }),
-      ),
-      // **Die Tafel in der Brille: fünf Plätze, je ein Eintrag** — und die
-      // Fähigkeiten dahinter in einem Untermenü. Vorher standen hier
-      // Techniker, Monster und drei Fähigkeiten als Zykler; jetzt sind es die
-      // Plätze der Tafel (`rules/roundSetup.SEATS`), und wer mit der Brille
-      // spielt, stellt hier dasselbe ein wie am Telefon: ob ein Monster
-      // mitspielt und ob Bots das Archiv und die anderen Posten halten.
-      ...SEATS.map((seat) =>
-        entry(
-          `haunt:seat-${seat}`,
-          `${SEAT_LABELS[seat]}: ${seat === 'technician' ? technicianLabel(setup, this.roomHasVr()) : WHO_LABELS[setup.seats[seat].who]}`,
-          seat === 'technician'
-            ? 'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen'
-            : seat === 'monster'
-              ? 'Aus Zahlen, am Stock (2D oder Telefon) oder aus — der sichere Test'
-              : `${describeSeat(setup, seat)} · Mensch am Telefon, Bot rechnet, Aus: leer`,
-          () => {
-            if (seat === 'technician') {
-              // **Mit Brille im Raum gehört der Techniker der Brille** — der
-              // Eintrag sagt es und tut sonst nichts (`roundSetup.technicianLabel`).
-              if (this.roomHasVr()) {
-                this.context?.notify(VR_KEEPS_TECHNICIAN);
+      {
+        id: 'haunt:settings',
+        label: 'Einstellungen der Runde',
+        sub: 'Übungslicht, Station, Plätze der Tafel, Fähigkeiten, Gegner',
+        icon: 'cube',
+        accent: 0x65dce5,
+        children: [
+          entry(
+            'haunt:light',
+            `Übungslicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
+            // Der Schalter gehört zum Test und tat in einer Mission nichts, ohne
+            // ein Wort dazu — dieselbe Falle wie bei den Starts.
+            this.state.crew.options.test
+              ? 'Die Übungsrunde auch einmal im Dunkeln'
+              : 'Nur in der Übungsrunde · in der echten Runde bleibt es dunkel',
+            () => {
+              if (!this.state.crew.options.test) {
+                this.context?.notify(
+                  'Das Übungslicht gehört zur Übungsrunde — erst „Übungsrunde" wählen.',
+                );
                 return;
               }
-              this.applySetup(withWho(setup, seat, cycleTechnician(setup.seats.technician.who)));
-              return;
-            }
-            this.applySetup(withWho(setup, seat, cycleWho(setup.seats[seat].who)));
-          },
-        ),
-      ),
-      {
-        id: 'haunt:powers',
-        label: 'Fähigkeiten der Plätze',
-        sub: 'Späher, Schalttafel, Archiv — je Platz an oder aus',
-        children: SEATS.filter((seat) => seat !== 'monster').flatMap((seat) =>
-          ABILITIES.map((ability) =>
+              this.state.crew.options.bright = !this.state.crew.options.bright;
+            },
+          ),
+          entry(
+            'haunt:rooms',
+            `Station: ${this.state.crew.options.rooms} Räume`,
+            'Feste Skeld-Karte · neue Aufgaben',
+            () =>
+              this.configureStation({
+                ...this.state.crew.options,
+                rooms:
+                  ROOM_COUNTS[
+                    (ROOM_COUNTS.indexOf(this.state.crew.options.rooms as 14) + 1) %
+                      ROOM_COUNTS.length
+                  ]!,
+              }),
+          ),
+          // **Die Tafel in der Brille: fünf Plätze, je ein Eintrag** — und die
+          // Fähigkeiten dahinter in einem Untermenü. Vorher standen hier
+          // Techniker, Monster und drei Fähigkeiten als Zykler; jetzt sind es die
+          // Plätze der Tafel (`rules/roundSetup.SEATS`), und wer mit der Brille
+          // spielt, stellt hier dasselbe ein wie am Telefon: ob ein Monster
+          // mitspielt und ob Bots das Archiv und die anderen Posten halten.
+          ...SEATS.map((seat) =>
             entry(
-              `haunt:power-${seat}-${ability}`,
-              `${SEAT_LABELS[seat]} · ${ABILITY_LABELS[ability]}: ${setup.seats[seat].powers[ability] ? 'an' : 'aus'}`,
-              seat === 'technician' && ability === 'panel'
-                ? 'Nur damit schaltet der Techniker Lampen und Türen per Tipp'
-                : seat === 'technician' && ability === 'archive'
-                  ? 'Nur damit sieht der Techniker Ziele auf Karte und Kompass'
-                  : 'Antippen schaltet um',
-              () =>
-                this.applySetup(
-                  withPower(setup, seat, ability, !setup.seats[seat].powers[ability]),
-                ),
+              `haunt:seat-${seat}`,
+              `${SEAT_LABELS[seat]}: ${seat === 'technician' ? technicianLabel(setup, this.roomHasVr()) : WHO_LABELS[setup.seats[seat].who]}`,
+              seat === 'technician'
+                ? 'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen'
+                : seat === 'monster'
+                  ? 'Aus Zahlen, am Stock (2D oder Telefon) oder aus — der sichere Test'
+                  : `${describeSeat(setup, seat)} · Mensch am Telefon, Bot rechnet, Aus: leer`,
+              () => {
+                if (seat === 'technician') {
+                  // **Mit Brille im Raum gehört der Techniker der Brille** — der
+                  // Eintrag sagt es und tut sonst nichts (`roundSetup.technicianLabel`).
+                  if (this.roomHasVr()) {
+                    this.context?.notify(VR_KEEPS_TECHNICIAN);
+                    return;
+                  }
+                  this.applySetup(
+                    withWho(setup, seat, cycleTechnician(setup.seats.technician.who)),
+                  );
+                  return;
+                }
+                this.applySetup(withWho(setup, seat, cycleWho(setup.seats[seat].who)));
+              },
             ),
           ),
-        ),
+          {
+            id: 'haunt:powers',
+            label: 'Fähigkeiten der Plätze',
+            sub: 'Späher, Schalttafel, Archiv — je Platz an oder aus',
+            children: SEATS.filter((seat) => seat !== 'monster').flatMap((seat) =>
+              ABILITIES.map((ability) =>
+                entry(
+                  `haunt:power-${seat}-${ability}`,
+                  `${SEAT_LABELS[seat]} · ${ABILITY_LABELS[ability]}: ${setup.seats[seat].powers[ability] ? 'an' : 'aus'}`,
+                  seat === 'technician' && ability === 'panel'
+                    ? 'Nur damit schaltet der Techniker Lampen und Türen per Tipp'
+                    : seat === 'technician' && ability === 'archive'
+                      ? 'Nur damit sieht der Techniker Ziele auf Karte und Kompass'
+                      : 'Antippen schaltet um',
+                  () =>
+                    this.applySetup(
+                      withPower(setup, seat, ability, !setup.seats[seat].powers[ability]),
+                    ),
+                ),
+              ),
+            ),
+          },
+          entry(
+            'haunt:monster-kind',
+            `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
+            'Drei Erscheinungen mit anderem Tempo und Schachtverhalten',
+            () =>
+              this.configureStation({
+                ...this.state.crew.options,
+                monster:
+                  MONSTERS[
+                    (MONSTERS.findIndex((m) => m.id === this.state.crew.options.monster) + 1) %
+                      MONSTERS.length
+                  ]!.id,
+              }),
+          ),
+        ],
       },
-      entry(
-        'haunt:monster-kind',
-        `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
-        'Drei Erscheinungen mit anderem Tempo und Schachtverhalten',
-        () =>
-          this.configureStation({
-            ...this.state.crew.options,
-            monster:
-              MONSTERS[
-                (MONSTERS.findIndex((m) => m.id === this.state.crew.options.monster) + 1) %
-                  MONSTERS.length
-              ]!.id,
-          }),
-      ),
       rescue,
       build,
       ...(this.experience?.menu() ?? []),
@@ -3945,6 +3993,15 @@ export class HauntingWorld extends GridWorld {
     ctx.notify(
       here ? `Zurück auf den Boden · ${here.name}` : 'Zurück auf den Boden · Einsatzzentrale',
     );
+  }
+
+  /** In welcher Runde man gerade ist — Übung, echt, Vorführung, vorbei (`rules/roundFlow.ts`). */
+  private roundMode(): RoundMode {
+    return roundMode({
+      phase: this.state.phase,
+      test: this.state.crew.options.test,
+      simulation: this.state.crew.simulation,
+    });
   }
 
   /**
@@ -4547,7 +4604,7 @@ export class HauntingWorld extends GridWorld {
     // höchstens zwei Räume gleichzeitig, und nicht für immer (`rules/lamps.ts`).
     this.state.lit = [];
     this.announce(
-      'Mission läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Schalttafel. Archiv: Fracht, Ziele und Codes. Nach drei Reparaturen zurück zur Zentrale.',
+      'Echte Runde läuft. Die Station ist dunkel: Taschenlampe an, Licht macht die Schalttafel. Archiv: Fracht, Ziele und Codes. Nach drei Reparaturen zurück zur Zentrale.',
     );
     return true;
   }
@@ -4564,7 +4621,7 @@ export class HauntingWorld extends GridWorld {
     this.state.phase = start.phase;
     this.state.crew.opened = ['test-supply'];
     this.announce(
-      'TEST AKTIV · Kein Monster, kein Schaden. Testschrank rechts ist bestückt; Labor geöffnet. Testlicht lässt sich abschalten.',
+      'ÜBUNGSRUNDE · Kein Monster, kein Schaden. Testschrank rechts ist bestückt; Labor geöffnet. Übungslicht lässt sich abschalten.',
     );
     return true;
   }
