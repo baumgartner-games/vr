@@ -129,8 +129,8 @@ html, body {
 .build-bar__status[data-valid="true"] { background: var(--hud-good-bg); color: var(--hud-good); }
 .build-bar__status[data-valid="false"] { background: var(--hud-bad-bg); color: var(--hud-bad); }
 @media (max-width: 600px) {
-  .build-bar { bottom: auto; top: max(64px, calc(env(safe-area-inset-top) + 56px)); padding: 4px; gap: 4px; }
-  .build-bar__row { gap: 3px; }
+  .build-bar { bottom: auto; top: max(64px, calc(env(safe-area-inset-top) + 56px)); padding: 4px; gap: 4px; left: 0; right: 0; margin: 0 auto; transform: none; width: fit-content; }
+  .build-bar__row { gap: 3px; flex-wrap: wrap; justify-content: center; }
   .build-bar__gap { margin: 4px 1px; }
   .build-bar__btn { min-width: 38px; min-height: 44px; padding: 2px; }
   .build-bar__label { display: none; }

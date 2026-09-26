@@ -201,12 +201,13 @@ export function surfaceSpot(
  * (`modelStance.ts`): Bilderrahmen (nicht die stehenden), Banner und Wappen,
  * Wandfackeln, Zielscheiben für die Wand, Tafeln, Wandschmuck und die
  * Wandbretter aus `furniture-bits` (`shelf_A_*` — ein Brett mit Konsolen, das
- * auf dem Boden lag wie ein Stück Holz).
+ * auf dem Boden lag wie ein Stück Holz) und die Wandfliesen des Restaurants
+ * (`wall_tiles_*`, eine Platte, die sonst als Wand galt und eine ersetzte).
  */
 export function mountsOnWall(path: string): boolean {
   const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
   if (name.startsWith('pictureframe_')) return !name.includes('standing');
-  return /^(banner_|torch_mounted|plaque_|target_wall_|wall_decoration_|shelf_a_|sign_(left|right|both))/.test(
+  return /^(banner_|torch_mounted|plaque_|target_wall_|wall_decoration_|wall_tiles_|shelf_a_|sign_(left|right|both))/.test(
     name,
   );
 }
@@ -426,6 +427,172 @@ export function mountBlocked(pose: MountPose, size: MountSize, hung: readonly Bo
     const dy = overlap(foot.minY, foot.maxY, box.minY, box.maxY);
     const dz = overlap(foot.minZ, foot.maxZ, box.minZ, box.maxZ);
     if (dx > 0.02 && dy > 0.02 && dz > 0.005) return true;
+  }
+  return false;
+}
+
+// --- eine ganze Fläche --------------------------------------------------------
+
+/** Wo ein Stück einer Fläche landet — dieselbe Antwort wie für ein einzelnes (`decorTarget`). */
+export interface DecorSpot {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly mounted: boolean;
+  readonly valid: boolean;
+}
+
+/**
+ * **Eine Fläche Stück für Stück hinstellen — mit Stapeln und Wand** wie beim
+ * Einzelsetzen. Bis dahin legte die Fläche jede Kopie auf den Boden, auch
+ * die Tasse über dem Tisch und das Bild vor der Wand.
+ *
+ * Gefragt wird **nacheinander** (`target` je Stelle, dann `place`): Was eben
+ * hingestellt wurde, steht beim nächsten schon im Weg — zwei Bilder, die die
+ * Fläche an dieselbe Stelle der Wand hängen würde, werden eines, und das
+ * zweite ist rot (`mountBlocked`). Was keinen Platz hat, wird übersprungen
+ * und gezählt; zwei Stellen, die an **dieselbe** Stelle der Wand führen,
+ * zählen als eine.
+ *
+ * @param target wo das Stück an dieser Stelle landete, oder `null` für „wie
+ *   bisher, auf den Boden"
+ * @param place hinstellen — mit der Stelle, oder `null` für die Stelle selbst
+ */
+export function decorArea<S extends { readonly x: number; readonly z: number }>(
+  slots: readonly S[],
+  target: (slot: S) => DecorSpot | null,
+  place: (slot: S, spot: DecorSpot | null) => void,
+): { placed: number; refused: number } {
+  const hung = new Set<string>();
+  let placed = 0;
+  let refused = 0;
+  for (const slot of slots) {
+    const spot = target(slot);
+    if (spot?.mounted) {
+      const key = `${spot.x.toFixed(2)}/${spot.y.toFixed(2)}/${spot.z.toFixed(2)}`;
+      if (hung.has(key)) continue;
+      hung.add(key);
+    }
+    if (spot && !spot.valid) {
+      refused += 1;
+      continue;
+    }
+    place(slot, spot);
+    placed += 1;
+  }
+  return { placed, refused };
+}
+
+// --- an eine schräge Wand -----------------------------------------------------
+
+/**
+ * **Eine Wand unter 45°** — die Mitte ihrer Grundlinie, die Richtung, in der
+ * sie läuft (Einheitsvektor), die halbe Länge und die halbe Dicke. Die
+ * Kastenrechnung oben kann sie nicht: Ein achsparalleler Kasten um eine
+ * schräge Wand ist ein Quadrat, und an ein Quadrat hängt man nichts.
+ */
+export interface SlantWall {
+  readonly x: number;
+  readonly z: number;
+  readonly dirX: number;
+  readonly dirZ: number;
+  readonly half: number;
+  readonly thick: number;
+  readonly bottom: number;
+  readonly top: number;
+}
+
+/** Wo ein Wandstück an einer schrägen Wand hängt. */
+export interface SlantMount {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  /** Wie weit der Punkt vor der Fläche lag. */
+  readonly distance: number;
+}
+
+/** Wie fein ein Wandstück entlang einer schrägen Wand einrastet, in Metern. */
+export const SLANT_STEP = 0.25;
+
+/**
+ * **Wo ein Wandstück an der nächsten schrägen Wand hängt** — dieselben Regeln
+ * wie `mountPose`, nur mit einer Normalen unter 45°: bis `MOUNT_REACH` vor der
+ * Fläche, ganz auf ihr, auf Augenhöhe, die Vorderseite in den Raum.
+ */
+export function slantMountPose(
+  x: number,
+  z: number,
+  walls: readonly SlantWall[],
+  size: MountSize,
+  floorY: number,
+  alongX = true,
+): SlantMount | null {
+  let best: SlantMount | null = null;
+  for (const wall of walls) {
+    if (wall.half < size.halfWidth - 1e-6) continue;
+    if (wall.bottom > floorY + 0.5 || wall.top < floorY + 1) continue;
+    const rx = x - wall.x;
+    const rz = z - wall.z;
+    const along = rx * wall.dirX + rz * wall.dirZ;
+    if (Math.abs(along) > wall.half + 0.25) continue;
+    // Die Normale ist die Richtung, eine Vierteldrehung weiter — auf der
+    // Seite, auf der der Punkt liegt.
+    let nx = -wall.dirZ;
+    let nz = wall.dirX;
+    let across = rx * nx + rz * nz;
+    if (across < 0) {
+      nx = -nx;
+      nz = -nz;
+      across = -across;
+    }
+    const distance = across - wall.thick;
+    if (distance < -0.3 || distance > MOUNT_REACH) continue;
+    if (best && Math.abs(distance) >= Math.abs(best.distance)) continue;
+    const room = wall.half - size.halfWidth;
+    const slide = Math.max(-room, Math.min(room, Math.round(along / SLANT_STEP) * SLANT_STEP));
+    const off = wall.thick + size.halfDepth + MOUNT_GAP;
+    const yaw = Math.atan2(nx, nz);
+    const face: WallFace = {
+      axis: 'x',
+      at: 0,
+      normal: 1,
+      from: -wall.half,
+      to: wall.half,
+      bottom: wall.bottom,
+      top: wall.top,
+    };
+    best = {
+      x: wall.x + wall.dirX * slide + nx * off,
+      z: wall.z + wall.dirZ * slide + nz * off,
+      y: mountHeight(floorY, size.height, face),
+      yaw: alongX ? yaw : yaw - Math.PI / 2,
+      distance,
+    };
+  }
+  return best;
+}
+
+/**
+ * **Ob ein Stück an einer schrägen Wand ein schon hängendes überdeckt** — die
+ * Mitten beider in der Ebene und in der Höhe verglichen. Die Kästen der
+ * anderen sind achsparallel; unter 45° reicht der Abstand der Mitten.
+ */
+export function slantBlocked(
+  pose: { readonly x: number; readonly y: number; readonly z: number },
+  size: MountSize,
+  hung: readonly Box[],
+): boolean {
+  for (const box of hung) {
+    const reach = Math.max(box.maxX - box.minX, box.maxZ - box.minZ) / 2;
+    const tall = box.maxY - box.minY;
+    // Ein Kasten, der viel größer ist als ein Bild, ist die Wand selbst.
+    if (reach > 1.2 || tall > 2) continue;
+    const flat = Math.hypot((box.minX + box.maxX) / 2 - pose.x, (box.minZ + box.maxZ) / 2 - pose.z);
+    const high = Math.abs((box.minY + box.maxY) / 2 - pose.y);
+    if (flat < size.halfWidth + reach * 0.7 - 0.02 && high < (size.height + tall) / 2 - 0.02)
+      return true;
   }
   return false;
 }

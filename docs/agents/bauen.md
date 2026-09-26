@@ -1120,16 +1120,23 @@ in der Reihenfolge, in der sie wehtaten:
   ersetzt.
 
 **Die Leiste** (`worlds/portal/buildBar.ts`, DOM) steht im _Baukasten_ als
-Kran am Schirm unten in der Mitte, auf dem Telefon oben unter der Kopfzeile
-(unten liegen dort Stöcke und _▦ Fläche_) und nur mit Symbolen. Acht Knöpfe in
-drei Gruppen: **Setzen**, **Verschieben**, **Löschen** — **Drehen** links und
-rechts, **Kopieren** — **Zurück**, **Vor**. Darüber eine Zeile, was am Haken
-hängt und wohin es käme (_Mug A · auf Table Medium_, _Pictureframe · an der
-Wand_, _Couch · kein Platz_), grün oder rot.
+Kran am Schirm unten in der Mitte (die Tastenhilfe, `ui/ControlHints.ts`,
+rückt im Baukasten darüber), auf dem Telefon oben unter der Kopfzeile, dort in
+zwei Reihen und nur mit Symbolen (unten liegen Stöcke und _▦ Fläche_; die
+Tastenhilfe rückt unter die Leiste, `ui/controlHints.css`). Am Pad schaltet
+das Steuerkreuz ▲/▼ durch Setzen → Verschieben → Löschen → Kopieren → Boden
+→ Wand (`buildBar.nextBuildTool`, `World.toolStep`). Dreizehn
+Knöpfe in vier Gruppen: **Setzen**, **Verschieben**, **Löschen** — **Drehen**
+links und rechts, **Schräg** (45° auch für Möbel), **Kopieren** — **Boden**,
+**Wand** — **Zurück**, **Vor**. Darüber eine Zeile, was am Haken hängt und
+wohin es käme (_Mug A · auf Table Medium_, _Pictureframe · an der Wand_,
+_Couch · kein Platz_, _Boden: Dielen hell · 64 Kacheln · klicken_), grün oder
+rot.
 
 - **Welches Werkzeug gilt, liest die Leiste an der Welt ab** und merkt es sich
-  nicht selbst: Stück frisch aus dem Regal am Haken — _Setzen_; Bombe am Haken
-  — _Löschen_; _Kopieren_ scharf — _Kopieren_; sonst _Verschieben_. Eine Leiste
+  nicht selbst: _Boden_ oder _Wand_ gewählt — dieses (`surfaceTool`, unten);
+  Stück frisch aus dem Regal am Haken — _Setzen_; Bombe am Haken —
+  _Löschen_; _Kopieren_ scharf — _Kopieren_; sonst _Verschieben_. Eine Leiste
   mit eigenem Zustand wäre beim ersten Rechtsklick an ihr vorbei die falsche
   Auskunft.
 - **Setzen** mit leerem Haken nimmt den letzten Pinsel wieder (`lastBrush`,
@@ -1146,8 +1153,14 @@ Wand_, _Couch · kein Platz_), grün oder rot.
   `bombAllowed` bekam als „trägt etwas" die Frage, ob es eine Bildschirmhand
   **gibt** — und die behält ihre Seite, auch leer. Jetzt: ob sie etwas trägt.
 - **Drehen** dreht den Kran wie `R`: ein Viertel je Druck, bei einer Wand aus
-  dem Regal ein Achtel (die steht auch schräg). Die Beschriftung sagt, welches
-  (`90°`/`45°`); alles andere rastet ohnehin auf ein Viertel.
+  dem Regal ein Achtel (die steht auch schräg). **Schräg** schaltet das
+  Achtel auch für Möbel ein (`PortalWorld.fineTurn`, `gridSnap.gridPose` mit
+  `fine`): Ein schräges Möbel steht auf der Mitte seiner Kachel, seine Hülle
+  ist unter 45° ein Quadrat (`turnedHalf`), und so steht es auch im Weg
+  (`decorScene` rechnet in Achteln). Die Beschriftung der Drehknöpfe sagt,
+  welches gilt (`90°`/`45°`). Aus einer Liste der Weltänderungen kommt ein
+  schräges Möbel so schräg zurück, wie es stand — `placeModelAt` dreht die
+  Lage nicht nach.
 - **Kopieren** ist ein Werkzeug und kein Sofort-Knopf: erst der Knopf, dann das
   Stück anklicken, und es ist der Pinsel — gleiche Datei, gleiche Drehung.
   Zuerst war es ein Knopf, der „das unter dem Kran" kopierte; aber wer mit der
@@ -1172,8 +1185,14 @@ der Tisch). Ein Umstellen an den alten Platz kommt gar nicht erst auf den
 Stapel. Höchstens hundert Schritte; wer nach einem Zurück etwas Neues baut,
 verliert das _Vor_. Nachgespielt wird über dieselben Wege wie von Hand
 (`placeModelAt`, `dropModel`), also landet alles auch in der Liste der
-Weltänderungen und im Netz. Nicht zurück kommt eine Wand, die eine neue Wand
-beim Hinstellen **ersetzt** hat (`replaceWalls`) — das ist die eine Lücke.
+Weltänderungen und im Netz. **Auch eine ersetzte Wand kommt zurück**:
+`replaceWalls` legt jede Wand, die eine neue beim Hinstellen verdrängt, als
+_Abreißen_ in `replacedSteps` ab, und der Schritt der neuen Wand
+(`pushBuild`) nimmt sie mit — erst das Abreißen, dann das Hinstellen, als
+**eine** Gruppe. Ein _Zurück_ nimmt die neue weg und stellt die alte an ihre
+Lage. Was von einem vorigen Ersetzen noch wartet, verfällt beim nächsten,
+damit es sich an keinen fremden Schritt hängt; Stücke der Welt
+(`placeModel`, `note = false`) legen gar nichts ab.
 
 **Der Geist** (`worlds/portal/placeGhost.ts`) ist eine durchscheinende Kopie
 des Getragenen genau dort, wo es landet: grün, wenn Platz ist, rot, wenn
@@ -1250,20 +1269,39 @@ ein Kaktus steht auf der Küchenzeile des Bauplatzes.
 
 **Wo es gilt**: beim Malen mit der Maus (`paintAt` — was keinen Platz hat,
 wird übersprungen und einmal je Strich gemeldet), beim Hinstellen aus der Hand
-in jedem Modus (`snapPlaced`, auch in der Brille) und für den Geist. Die
-**Fläche** (`commitArea`) bleibt beim Boden: Sie ist für Böden und Reihen
-gedacht.
+in jedem Modus (`snapPlaced`, auch in der Brille), für den Geist und — seit
+der zweiten Runde — auch für die **Fläche** (`commitArea` über
+`decorPlace.decorArea`): Eine Fläche Tassen über der Küchenzeile steht auf der
+Zeile, eine Reihe Bilder vor der Wand hängt an ihr. Gefragt wird Stelle für
+Stelle **nacheinander**, und weil ein geladenes Stück noch in derselben Zeile
+entsteht, steht jede Kopie der nächsten schon im Weg; zwei Stellen, die an
+dieselbe Stelle der Wand führen, werden ein Bild. Was keinen Platz hat, wird
+übersprungen und in der Rückmeldung gezählt (_3× Mug A gesetzt · 1 ohne
+Platz_). Wände und Bodenstücke bleiben bei ihrem Gitter: Eine Wand kommt um
+die Fläche herum, ein Boden liegt im Boden.
+
+**Auch an Wände unter 45°** (`slantMountPose`, `slantBlocked`): Eine Wand aus
+dem Regal, die schräg steht (`fitWall`, `userData.diagonalWall`), ist für die
+Kastenrechnung ein Quadrat, an das man nichts hängt. Also bekommt sie eine
+eigene: Mitte, Richtung (`╱` nach Nordost, `╲` nach Südost), halbe Länge und
+halbe Dicke (`PortalWorld.slantWalls`). Ein Wandstück sucht die Seite, auf
+der der Kran steht, rückt bis auf einen Zentimeter an sie, rastet entlang der
+Wand auf Viertelmeter ein und dreht sich mit der Vorderseite unter 45° in den
+Raum. Liegt der Kran näher an einer schrägen als an einer geraden Wand,
+gewinnt die schräge. Ob ein Bild dort ein anderes überdeckt, sagt der Abstand
+der Mitten (die Kästen der anderen sind achsparallel); ein Kasten, der
+größer ist als ein Bild, ist die Wand selbst und stört nicht.
 
 **Gespeichert wird wie jede Weltänderung**: Ein gehängtes Bild steht mit
 seinem Punkt und seiner Drehung in der Liste (`recordModel`), und beim
 Einfügen hängt `placeModelAt` jedes Wandstück wieder fest an diese Stelle
 (`mountsOnWall`) statt es fallen zu lassen.
 
-**Boden- und Wandfarbe**: Ein Gerüst dafür gibt es nicht — welchen Ton eine
-Wand hat, entscheidet die Welt (`GridWorld.tint`), und das Weltformat speichert
-bewusst keine Farben (_Das Weltformat_). Einen anderen **Boden** legt man mit
-den Bodenstücken aus dem Regal (_Flächen setzen im Baukasten_), Teppiche aus
-`furniture-bits` liegen als gewöhnliche Stücke darauf.
+**Boden- und Wandfarbe**: Welchen Ton eine gebaute Wand hat, entscheidet
+weiter die Welt (`GridWorld.tint`), und das Weltformat speichert bewusst
+keine Farben (_Das Weltformat_). Gestaltet wird mit Stücken aus dem Regal —
+seit der zweiten Runde mit zwei eigenen Werkzeugen, _Boden_ und _Wand_
+(unten, _Boden und Wände gestalten_).
 
 **Geprüft** wird die Rechnung ohne Szene (`decorPlace.test.ts`: Tasse auf
 Tisch, Stuhl am und im Tisch, Sofa auf Tasse und auf Beistelltisch, Buch auf
@@ -1280,7 +1318,121 @@ Hub-Tors plötzlich im Hub — der Kran hat keinen Körper, aber das Tor fragte
 nur, ob jemand auf seiner Kachel steht. Als Kran wird eingerichtet, nicht
 gereist.
 
-**Offen**: Am Pad gibt es die Leiste nicht (sie ist DOM); _Zurück_ und
-_Vor_ liegen dort im Menü. Ein Bild lässt sich nur an achsparallele Wände
-hängen, und der Geist zeigt in der Brille nur das, was die Hand hält — eine
-Leiste dort wäre ein eigenes Panel am Handgelenk.
+**Offen** nach der ersten Runde war: die Leiste am Pad (macht die Pad-Belegung
+der Werkzeugleiste), Bilder an schrägen Wänden und eine Leiste in der Brille —
+die beiden letzten stehen im nächsten Kapitel.
+
+## Boden und Wände gestalten
+
+**Zwei Werkzeuge an der Leiste, _Boden_ ▤ und _Wand_ ▥**
+(`worlds/portal/surfaceDecor.ts` rechnet, `PortalWorld.applySurface` setzt).
+Gewünscht war, nicht nur Möbel in einen Raum zu stellen, sondern **den Raum
+selbst** zu gestalten — mit einem gewählten KayKit-Boden- oder Wandstück, in
+der Liste der Weltänderungen und rückgängig zu machen. Neue Farben gibt es
+dabei nicht: Gesetzt wird, was das Regal hergibt, und wo ein Paket zwei
+Farbvarianten desselben Stücks hat (Restaurant-Fliesen hell und dunkel,
+Küchenboden grau und blau, Dielen hell und dunkel), sind das die Muster.
+
+- **Ein Druck wählt das Werkzeug, der nächste das nächste Muster**
+  (`nextStyle`, im Kreis). Die Zeile über der Leiste sagt, welches gilt und
+  was ein Klick täte. Der Haken wird dafür leer, die Bombe geht weg; solange
+  _Boden_ oder _Wand_ gilt, meint jeder Klick „hier belegen" und nichts sonst
+  (`updateUsables`, wie bei der Bombe).
+- **Boden** (`FLOOR_STYLES`: Dielen hell, Dielen dunkel, Küchenfliesen,
+  Küchenfliesen blau, Steinplatten — alle eine Kachel groß) füllt den
+  **Raum** unter dem Kran: alle Kacheln, die von dort aus ohne Wand
+  dazwischen zu erreichen sind (`floodRoom`). Welche Fugen zu sind, sagen
+  dieselben Kästen wie beim Dekorieren (`blockedEdges` über `decorScene`):
+  was dünn ist, auf einer Fuge steht und über Hüfthöhe reicht, auch der Sturz
+  über einer Tür. Mehr als 400 Kacheln (`ROOM_MAX`) sind kein Raum, sondern
+  draußen — dann kommt eine Zeile statt eines Bodens bis zum Horizont (für
+  draußen gibt es _▦ Fläche_). Die Vorschau leuchtet den ganzen Raum im
+  Gitter. Bodenstücke eines **anderen** Musters im Raum gehen dabei weg (als
+  Schritt), dasselbe Muster bleibt liegen.
+- **Sechs Millimeter über dem Boden** (`FLOOR_LIFT` in `sinkFloor`): Bündig
+  lag die Lauffläche jedes Bodenstücks in derselben Ebene wie die Oberkante
+  des gebauten Bodens, und der Bauplatz blendet seine Böden (Quader, keine
+  Platten) darunter nicht aus — beide stritten um jeden Bildpunkt, dunkle
+  zackige Streifen quer über die Dielen (Z-Fighting). Geprüft von oben, aus
+  den Augen und flach über dem Boden für Dielen, Küchenfliesen und
+  Steinplatten.
+- **Wand** belegt **eine Seite** der Wand vor dem Kran (`nearestFace`, bis
+  1,2 m davor). Zwei Arten Muster (`WALL_STYLES`):
+  - **Fliesen** (`restaurant-bits/wall_tiles_A/B`, eine Platte 1 m × 70 cm ×
+    8 cm) liegen Reihe über Reihe nur auf **dieser** Seite, so viele
+    nebeneinander, wie ganz passen, mittig, vom Boden bis 2,8 m
+    (`panelSpots`); alte Fliesen derselben Seite gehen, die der anderen
+    bleiben (`onFace`). Die Fliesen zählen dafür jetzt zu den Wandstücken
+    (`mountsOnWall`, `wall_tiles_`): Vorher galt so eine Platte dem
+    Einrasten als Wand und hätte eine echte auf ihrer Fuge ersetzt.
+  - **Ganze Wände** (Putzwand `restaurant-bits/wall`, Prototypwand
+    `prototype-bits/Wall`, am Ende je ein halbes Stück) stehen auf der Fuge
+    hinter der Seite (`wallSpots`) — dann für beide Seiten. Eine Regalwand
+    dort ersetzen sie (`replaceWalls`, und _Zurück_ bringt sie wieder), eine
+    gebaute decken sie zu: Die Putzwand ist 26 cm dick, die gebaute 20.
+- **Ein Klick ist ein Schritt**: Die Stücke werden vorher geladen, damit
+  alles in einem Zug entsteht und die Gruppe sich gleich schließt; darin
+  steht auch, was ersetzt wurde. _Zurück_ nimmt den Boden weg und legt den
+  alten wieder hin.
+
+**In der Brille: eine Seite im Menü**, _Bauen & Gestalten →
+Baukasten-Werkzeuge_ (`PortalWorld.buildToolsMenu`, `build-tools` in
+`ui/menuGroups.MENU_PLACEMENT`), als Raster mit drei Knöpfen je Reihe — oben,
+was man dauernd braucht: **Setzen**, **Verschieben**, **Löschen**, **Links**
+und **Rechts drehen**, **Rückgängig**, dann **Boden**, **Wand**,
+**Wiederholen**, **Bodenmuster**, **Wandmuster**, **Möbel in 45°** und im
+Bauplatz der **Beispielraum**. Dieselbe Seite gibt es am Schirm; dort tut sie,
+was die Leiste tut. In der Brille gilt die Hand statt des Krans:
+
+- **Setzen** legt den letzten Pinsel (`lastBrush`) in die Hand, die den
+  Knopf gedrückt hat; gab es noch keinen, geht das Regal auf.
+- **Verschieben** ist Greifen, wie immer — der Knopf schaltet nur Löschen ab.
+- **Löschen** ist ein Schalter (`vrErase`): Solange er an ist, reißt der
+  nächste Griff an ein hingestelltes Stück es ab (`attach` → `detonate`),
+  statt es aufzuheben. Setzen, Verschieben, Boden und Wand schalten ihn ab.
+- **Drehen** dreht das Stück **in der Hand** um seine Mitte und die
+  Hochachse (`turnHeld`: der Griffversatz wird um die Drehung erweitert), ein
+  Viertel oder — bei Wänden und mit _Möbel in 45°_ — ein Achtel.
+- **Boden** belegt den Raum, in dem man steht; **Wand** die Wand einen halben
+  Meter in Blickrichtung (`surfaceHere`).
+
+Die Pad-Belegung der Leiste (Schultertasten o. Ä.) ist nicht Teil davon.
+
+**Der Beispielraum** (`worlds/portal/sampleRoom.ts`) ist ein fertig
+eingerichtetes Startzimmer des Bauplatzes, das zeigt, was geht: helle Dielen
+im ganzen Raum, Fliesen hinter der Küchenzeile, eine Putzwand im Osten, Topf
+und Kaktus auf der Zeile, Teller auf dem Tisch, zwei Stühle (einer schräg),
+eine Wohnecke mit Teppich, Sofa, Couchtisch samt Tasse, Stehlampe, einem
+Sessel in 45° und zwei Bildern, eine Schlafecke mit Bett, Nachttisch und
+Lampe, Bild und Wandbrett mit Buch. Die Liste sagt nur, **wo ungefähr** etwas
+hinkommt; Höhe, Wand und Unterlage findet dieselbe Rechnung wie beim Setzen
+aus der Hand (`placeModelAt` mit `snap` → `snapPlaced`) — die Tasse steht auf
+dem Tisch, weil dort ein Tisch ist. Die Reihenfolge zählt (erst der Tisch,
+dann die Tasse). Geladen wird er über das Menü, in den Raum um
+`sampleRoomOrigin` (der Bauplatz sagt: sein Startzimmer, `EditorWorld`;
+andere Welten bieten ihn nicht an), und alles zusammen ist **ein** Schritt:
+_Zurück_ räumt ihn wieder ab. Wer den Grundriss umgebaut hat, bekommt die
+Stücke trotzdem an dieselben Stellen — Bilder ohne Wand stehen dann eben.
+
+**Geprüft** ohne Szene: `surfaceDecor.test.ts` (Muster, Raum mit 64
+Kacheln, offene Tür heißt draußen, Sturz schließt, niedrige und dicke Kästen
+sind keine Wand, Innenwand teilt; gemeinte Seite innen und außen; Fliesen
+acht mal vier, schmale Fläche mittig, gedreht nach Westen; ganze Wände zwei
+Meter und am Ende einer; Fliese gehört zu ihrer Seite), `decorPlace.test.ts`
+(`decorArea`: Lage, Überspringen, ein Bild statt zwei, nacheinander;
+`slantMountPose`: Seite, Abstand, Höhe, Gegenseite, Reichweite, zu schmal,
+`slantBlocked`), `gridSnap.test.ts` (`fine`: schräg auf der Kachelmitte,
+ohne `fine` ein Viertel, eine Wand bleibt Wand, Hülle unter 45°). Die
+Bild-Schleife lief im Bauplatz bei 1280×800 und 390×844: Boden-Vorschau und
+dunkle Dielen, Fliesen an der Nordwand, Putzwand im Osten und nach _Zurück_
+wieder die gebaute, der Geist eines Sessels in 45°, ein Bild und eine
+Wandfackel an einer schrägen Wand, die ersetzte Regalwand nach _Zurück_, eine
+Fläche Tassen auf der Küchenzeile, der Beispielraum von oben und aus vier
+Richtungen, die Werkzeugseite am Schirm und als Panel der Brille.
+
+**Offen**: Farbvarianten über den Atlas (wie `tools/prototype-variants.mjs`
+es für Türen tut) gäbe es für mehr Muster, gebaut wurde das nicht. Eine
+gebaute Wand wird von einer ganzen Regalwand nur zugedeckt, nicht ersetzt.
+_Boden_ läuft durch eine Tür ohne Sturz hinaus und meldet dann „kein
+geschlossener Raum". Der Geist zeigt in der Brille weiter nur, was die Hand
+hält; Boden und Wand haben dort keine Vorschau, nur die Zeile.

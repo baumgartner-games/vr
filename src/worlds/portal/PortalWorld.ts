@@ -126,14 +126,17 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
+import { SAMPLE_ITEMS, SAMPLE_SURFACES } from './sampleRoom';
 import {
   eighthYaw,
   gridPose,
+  isDiagonal,
   placesOnGrid,
   quarterYaw,
   tilesCovered,
   turnedHalf,
   type DiagonalWall,
+  type GridEdge,
   type GridTile,
   type PlacePose,
   wallCells,
@@ -182,14 +185,31 @@ import {
 import {
   type Box as DecorBox,
   boxAround,
+  decorArea,
   mountBlocked,
   mountPose,
   mountSize,
   mountsOnWall,
   restOn,
+  slantBlocked,
+  slantMountPose,
   surfaceSpot,
   wallFaces,
+  type SlantWall,
 } from './decorPlace';
+import {
+  FLOOR_STYLES,
+  WALL_STYLES,
+  blockedEdges,
+  floodRoom,
+  isWallPanel,
+  nearestFace,
+  nextStyle,
+  onFace,
+  panelSpots,
+  wallSpots,
+  type RoomTile,
+} from './surfaceDecor';
 import { PlaceGhost } from './placeGhost';
 import {
   KAYKIT_ACCENT,
@@ -511,6 +531,22 @@ const UP = new THREE.Vector3(0, 1, 0);
 const AREA_PREVIEW = 1600;
 /** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
 const AREA_LIFT = 0.01;
+/**
+ * Wie weit ein Bodenstück aus dem Regal über dem Boden darunter liegt, in
+ * Metern (`sinkFloor`) — genug gegen Z-Fighting auch von oben aus zwanzig
+ * Metern, zu wenig, um darüber zu stolpern oder eine Kante zu sehen.
+ */
+const FLOOR_LIFT = 0.006;
+/** Wohin man sieht — für _Wand_ in der Brille (`surfaceHere`). */
+const _surfaceLook = new THREE.Vector3();
+/**
+ * Die Maße einer Wandfliese, wie sie an der Wand hängt (`restaurant-bits/
+ * wall_tiles_*`: ein Meter breit, 70 cm hoch, 8 cm tief) — fest, damit die
+ * Seite in einem Zug gefliest wird, ohne erst ein Stück zu messen.
+ */
+const PANEL_SIZE = { halfWidth: 0.5, halfDepth: 0.04, height: 0.7 };
+/** Wie hoch eine ganze Wand aus dem Regal ist (`grid/shelfWalls.SHELF_WALL_Y` × 2). */
+const SURFACE_WALL_HEIGHT = 2.8;
 /** Wie weit der Strahl einer Fläche höchstens reicht, in Metern. */
 const AREA_REACH = 120;
 const _areaNdc = new THREE.Vector2();
@@ -1477,6 +1513,18 @@ export class PortalWorld implements World {
   private readonly pickedFrom = new WeakMap<PhysicsBody, BuildPose>();
   /** Der letzte Pinsel aus dem Regal — _Setzen_ mit leerem Haken nimmt ihn wieder. */
   private lastBrush: { path: string; yaw: number } | null = null;
+  /** Ob im Baukasten auch Möbel in Achteln drehen (`45°` an der Leiste, `gridPose` mit `fine`). */
+  private fineTurn = false;
+  /** In der Brille: Greifen reißt ab (`buildToolsMenu`, `attach`). */
+  private vrErase = false;
+  private readonly slantScratch: PhysicsBody[] = [];
+  /** _Boden_ oder _Wand_ an der Leiste (`surfaceDecor.ts`) — sonst `null`. */
+  private surfaceTool: 'floor' | 'wall' | null = null;
+  /** Welches Muster aus `FLOOR_STYLES` und `WALL_STYLES` gerade gilt. */
+  private floorStyle = 0;
+  private wallStyle = 0;
+  /** Ersetzte Wände, die auf den Schritt der neuen warten (`replaceWalls`, `pushBuild`). */
+  private readonly replacedSteps: BuildStep[] = [];
   /** _Kopieren_ ist scharf: Der nächste Druck auf ein Stück macht es zum Pinsel (`armCopy`). */
   private pipette = false;
   /** Die Kästen, gegen die gestapelt und an die gehängt wird — je Bild neu gefüllt. */
@@ -1895,6 +1943,7 @@ export class PortalWorld implements World {
         })),
       },
       this.assetMenu(ctx),
+      this.buildToolsMenu(),
       this.npcMenu(),
       {
         id: 'settings',
@@ -3492,6 +3541,12 @@ export class PortalWorld implements World {
     note = true,
     /** Fest an genau dieser Stelle, ohne Schwerkraft (`hang`) — was auf etwas steht. */
     fixed = false,
+    /**
+     * **Einrasten wie aus der Hand** (`snapPlaced`): an die Wand, auf den
+     * Tisch, aufs Gitter — für den Beispielraum, dessen Liste nur sagt, **wo
+     * ungefähr** etwas hinkommt, und nicht, wie hoch der Tisch darunter ist.
+     */
+    snap = false,
   ): Promise<PhysicsBody | null> {
     const physics = this.physics;
     if (!this.context || !physics) return null;
@@ -3508,7 +3563,10 @@ export class PortalWorld implements World {
     const spin = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
-    if (mountsOnWall(path)) {
+    if (snap) {
+      this.snapPlaced(entry, true, 0);
+      if (!this.floorPieces.has(entry)) this.hang(entry);
+    } else if (mountsOnWall(path)) {
       // **Ein Wandstück hängt, wo es gesetzt wird** (`hang`) — ein Bild ist
       // keine Wand und ersetzt keine, auch wenn es so dünn ist wie eine.
       this.hang(entry);
@@ -3517,7 +3575,7 @@ export class PortalWorld implements World {
       // vom Pinsel genauso wie aus der Hand.
       const base = this.wallBase(entry);
       const pose = gridPose(at.x, at.z, spin, base.half, base.long);
-      this.replaceWalls(entry, pose);
+      this.replaceWalls(entry, pose, note);
       this.fitWall(entry, pose);
       // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
       // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
@@ -3530,7 +3588,7 @@ export class PortalWorld implements World {
       this.sync?.spawned(id, kind, poseOf(entry));
       this.noteModel(entry, path);
       if (!this.replaying)
-        this.buildHistory.push({ kind: 'add', item: { path, pose: this.buildPoseOf(entry) } });
+        this.pushBuild({ kind: 'add', item: { path, pose: this.buildPoseOf(entry) } });
     } else this.ownByWorld(entry);
     return entry;
   }
@@ -9038,6 +9096,17 @@ export class PortalWorld implements World {
     // der *jeder* Weg endet — die Hand, der Ferngriff, der Schwerkrafthandschuh
     // —, also steht die Sperre auch hier und nicht nur beim Zielen.
     if (this.holdsStill(entry)) return;
+    // **Löschen in der Brille** (`buildToolsMenu`): Wer mit scharfem Löschen
+    // ein hingestelltes Stück greift, reißt es ab, statt es aufzuheben.
+    if (
+      this.vrErase &&
+      this.context?.renderer.xr.isPresenting &&
+      !this.shelfFresh.has(entry) &&
+      this.modelPath(entry) !== null
+    ) {
+      this.detonate(entry);
+      return;
+    }
     // Wo ein schon stehendes Stück aus dem Regal stand, bevor es aufgehoben
     // wurde — damit _Rückgängig_ es dorthin zurückstellen kann.
     if (
@@ -9237,7 +9306,7 @@ export class PortalWorld implements World {
     this.pickedFrom.delete(entry);
     if (!this.replaying) {
       const to = this.buildPoseOf(entry);
-      this.buildHistory.push(
+      this.pushBuild(
         from ? { kind: 'move', path, from, to } : { kind: 'add', item: { path, pose: to } },
       );
     }
@@ -9328,7 +9397,7 @@ export class PortalWorld implements World {
     const entry = paint.entry;
     entry.object.getWorldQuaternion(_quaternion);
     const base = this.wallBase(entry);
-    const pose = gridPose(x, z, _quaternion, base.half, base.long);
+    const pose = gridPose(x, z, _quaternion, base.half, base.long, this.fineTurn);
     const key = `${pose.x.toFixed(3)}/${pose.z.toFixed(3)}`;
     if (paint.done.has(key)) return;
     paint.done.add(key);
@@ -9424,12 +9493,25 @@ export class PortalWorld implements World {
     return out;
   }
 
-  /** Die Wände unter einer neuen wegnehmen (`wallsUnder`) — ohne Spur in den Weltänderungen. */
-  private replaceWalls(entry: PhysicsBody, pose: PlacePose): void {
+  /**
+   * Die Wände unter einer neuen wegnehmen (`wallsUnder`) — ohne Spur in den
+   * Weltänderungen, aber **mit** Spur für _Rückgängig_: Jede ersetzte Wand
+   * wartet als _Abreißen_ in `replacedSteps`, bis der Schritt der neuen
+   * kommt (`pushBuild`), und beide sind dann **ein** Schritt. Ein Zurück
+   * nimmt die neue weg und stellt die alten wieder hin.
+   *
+   * @param record ob das ein Bauschritt ist — nicht für Stücke der Welt
+   */
+  private replaceWalls(entry: PhysicsBody, pose: PlacePose, record = true): void {
+    // Was vom letzten Mal noch wartet, gehörte zu keinem Schritt.
+    this.replacedSteps.length = 0;
     const gone = this.wallsUnder(entry, pose);
     if (!gone.length) return;
     this.markReplaced([]);
     for (const old of gone) {
+      const path = this.modelPath(old);
+      if (record && !this.replaying && path !== null)
+        this.replacedSteps.push({ kind: 'remove', item: { path, pose: this.buildPoseOf(old) } });
       const key = this.changeKeys.get(old);
       if (key) {
         forgetChange(key);
@@ -9548,7 +9630,7 @@ export class PortalWorld implements World {
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
     const base = this.wallBase(entry);
-    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
+    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long, this.fineTurn);
     // **An die Wand oder auf den Tisch** (`decorTarget`): Ein Bild hängt sich
     // an die nächste Wandfläche, eine Tasse landet auf der Platte statt einen
     // Meter darüber loszufallen.
@@ -9619,7 +9701,12 @@ export class PortalWorld implements World {
     );
     const top = this.floorTopAt(tiles, _point.y);
     if (top === null) return false;
-    _point.y = top - tread;
+    // **Ein paar Millimeter über dem Boden** (`FLOOR_LIFT`): Genau bündig
+    // lag die Lauffläche in derselben Ebene wie die Oberkante des gebauten
+    // Bodens, und wo die Welt ihn nicht ausblendet (der Bauplatz zeichnet
+    // seine Böden als Quader, nicht als Platten), stritten beide Flächen um
+    // jeden Bildpunkt — dunkle, zackige Streifen quer über die Dielen.
+    _point.y = top - tread + FLOOR_LIFT;
     entry.object.position.copy(_point);
     entry.object.updateWorldMatrix(true, false);
     entry.previousPosition.copy(_point);
@@ -9678,7 +9765,7 @@ export class PortalWorld implements World {
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
     const base = this.wallBase(entry);
-    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
+    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long, this.fineTurn);
     const floorY = ctx.rig.getFloorY();
     // **Was hier schon steht, wird ersetzt** — und leuchtet rot, solange man
     // darüber hält (`wallsUnder`).
@@ -9748,6 +9835,15 @@ export class PortalWorld implements World {
     return modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
   }
 
+  /**
+   * **Einen Bauschritt ablegen** — samt der Wände, die er ersetzt hat
+   * (`replaceWalls`): dann als Gruppe, erst das Abreißen, dann der Schritt.
+   */
+  private pushBuild(step: BuildStep): void {
+    const before = this.replacedSteps.splice(0);
+    this.buildHistory.push(before.length ? { kind: 'group', steps: [...before, step] } : step);
+  }
+
   /** Wo ein Stück gerade steht, als Lage für den Stapel (`buildHistory.ts`). */
   private buildPoseOf(entry: PhysicsBody): BuildPose {
     entry.object.getWorldPosition(_point);
@@ -9793,14 +9889,16 @@ export class PortalWorld implements World {
   protected decorSolids(_out: DecorBox[]): void {}
 
   /** Was um ein getragenes Stück herum steht: die Welt und jedes andere hingestellte Modell. */
-  private decorScene(except: PhysicsBody): { boxes: DecorBox[]; models: number } {
+  private decorScene(except: PhysicsBody | null): { boxes: DecorBox[]; models: number } {
     const boxes = this.decorScratch;
     boxes.length = 0;
     for (const other of this.placedModels(this.decorModels)) {
       if (other === except) continue;
       other.object.getWorldPosition(_point);
       other.object.getWorldQuaternion(_quaternion);
-      const { halfX, halfZ } = turnedHalf(other.halfExtents, quarterYaw(yawOf(_quaternion)));
+      // In Achteln: Ein schräges Möbel (`fineTurn`) braucht die Hülle unter
+      // 45° und nicht die einer Vierteldrehung.
+      const { halfX, halfZ } = turnedHalf(other.halfExtents, eighthYaw(yawOf(_quaternion)));
       boxes.push(
         boxAround(_point.x, _point.y, _point.z, 2 * halfX, 2 * other.halfExtents.y, 2 * halfZ),
       );
@@ -9808,6 +9906,31 @@ export class PortalWorld implements World {
     const models = boxes.length;
     this.decorSolids(boxes);
     return { boxes, models };
+  }
+
+  /** Die Wände aus dem Regal, die unter 45° stehen (`fitWall`) — für `slantMountPose`. */
+  private slantWalls(except: PhysicsBody | null): SlantWall[] {
+    const out: SlantWall[] = [];
+    for (const other of this.placedModels(this.slantScratch)) {
+      if (other === except) continue;
+      const diagonal = (other.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
+      if (!diagonal) continue;
+      other.object.getWorldPosition(_point);
+      const base = this.wallBase(other);
+      // „╱" läuft von Südwest nach Nordost (+x, −z), „╲" von Nordwest nach Südost.
+      const dirZ = diagonal.slope === 'slash' ? -Math.SQRT1_2 : Math.SQRT1_2;
+      out.push({
+        x: _point.x,
+        z: _point.z,
+        dirX: Math.SQRT1_2,
+        dirZ,
+        half: diagonal.length / 2,
+        thick: Math.min(base.half.x, base.half.z),
+        bottom: _point.y - other.halfExtents.y,
+        top: _point.y + other.halfExtents.y,
+      });
+    }
+    return out;
   }
 
   /**
@@ -9849,6 +9972,16 @@ export class PortalWorld implements World {
     if (mountsOnWall(path)) {
       const size = mountSize(half.x, half.y, half.z);
       const mount = mountPose(x, z, wallFaces(boxes), size, floorY, half.x >= half.z);
+      // **Auch an eine Wand unter 45°** (`slantMountPose`) — gewinnt, wenn der
+      // Kran näher an ihr steht als an einer geraden.
+      const slant = slantMountPose(x, z, this.slantWalls(entry), size, floorY, half.x >= half.z);
+      const straightGap = mount
+        ? Math.abs((mount.face.axis === 'x' ? x : z) - mount.face.at)
+        : Infinity;
+      if (slant && Math.abs(slant.distance) < straightGap) {
+        const blocked = slantBlocked(slant, size, boxes.slice(0, models));
+        return { ...slant, mounted: true, stacked: false, valid: !blocked, on: null };
+      }
       if (mount) {
         const blocked = mountBlocked(mount, size, boxes.slice(0, models));
         return { ...mount, mounted: true, stacked: false, valid: !blocked, on: null };
@@ -9856,7 +9989,7 @@ export class PortalWorld implements World {
     }
     entry.object.getWorldQuaternion(_quaternion);
     const base = this.wallBase(entry);
-    const pose = gridPose(x, z, _quaternion, base.half, base.long);
+    const pose = gridPose(x, z, _quaternion, base.half, base.long, this.fineTurn);
     const turned = turnedHalf(half, pose.yaw);
     // Kleinkram auf einer Fläche rastet auf Viertelkacheln der Fläche ein und
     // nicht auf der Kachelmitte (`surfaceSpot`) — sonst stünde das Buch neben
@@ -9905,6 +10038,7 @@ export class PortalWorld implements World {
     const presenting = ctx.renderer.xr.isPresenting;
     const visible = !presenting && Boolean(ctx.crane) && refillsCatalogue(gameMode());
     if (!visible) {
+      this.surfaceTool = null;
       this.buildShown = null;
       if (this.buildBar) {
         this.buildBar.take();
@@ -9920,17 +10054,21 @@ export class PortalWorld implements World {
     const bar = (this.buildBar ??= new BuildBar());
     for (const event of bar.take()) this.onBuildEvent(ctx, event);
 
-    const tool: BuildTool = this.pipette
-      ? 'copy'
-      : this.bomb
-        ? 'erase'
-        : carried && this.shelfFresh.has(carried)
-          ? 'place'
-          : 'move';
+    const tool: BuildTool = this.surfaceTool
+      ? this.surfaceTool
+      : this.pipette
+        ? 'copy'
+        : this.bomb
+          ? 'erase'
+          : carried && this.shelfFresh.has(carried)
+            ? 'place'
+            : 'move';
     this.buildShown = tool;
     const path = carried ? this.modelPath(carried) : null;
     let status = '';
-    if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
+    const surface = this.surfaceTool ? this.surfacePreview(ctx) : null;
+    if (surface) status = surface.status;
+    else if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
     else if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
     else if (carried && path && target) {
       const name = propLabel(modelKind(path));
@@ -9949,10 +10087,11 @@ export class PortalWorld implements World {
       tool,
       canUndo: this.buildHistory.canUndo,
       canRedo: this.buildHistory.canRedo,
-      turnStep: wall ? '45°' : '90°',
+      turnStep: wall || this.fineTurn ? '45°' : '90°',
       canTurn: carried !== null,
+      fine: this.fineTurn,
       status,
-      valid: carried && target && !this.bomb ? target.valid : null,
+      valid: surface ? surface.valid : carried && target && !this.bomb ? target.valid : null,
     });
   }
 
@@ -10000,7 +10139,7 @@ export class PortalWorld implements World {
     return null;
   }
 
-  /** Ob ein Stück eine Wand aus dem Regal ist — die dreht in Achteln, alles andere in Vierteln. */
+  /** Ob ein Stück in Achteln dreht: Wände aus dem Regal immer, alles andere mit `fineTurn`. */
   private isWallPiece(entry: PhysicsBody): boolean {
     const path = this.modelPath(entry);
     if (path === null || mountsOnWall(path)) return false;
@@ -10060,7 +10199,7 @@ export class PortalWorld implements World {
         if (!carried) return;
         // Ein Achtel je Druck für Wände (die stehen auch schräg), sonst ein
         // Viertel — alles andere rastet ohnehin auf ein Viertel.
-        const wall = this.isWallPiece(carried);
+        const wall = this.isWallPiece(carried) || this.fineTurn;
         let yaw = _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ').y;
         for (let i = wall ? 1 : 2; i > 0; i--) yaw = craneTurn(yaw, event.clockwise);
         ctx.rig.rotation.set(0, yaw, 0);
@@ -10069,6 +10208,12 @@ export class PortalWorld implements World {
       }
       case 'copy':
         this.armCopy(ctx);
+        return;
+      case 'fine':
+        this.fineTurn = !this.fineTurn;
+        ctx.notify(
+          this.fineTurn ? 'Drehen: auch Möbel in 45°-Schritten' : 'Drehen: Möbel in 90°-Schritten',
+        );
         return;
       case 'tool':
         this.pickTool(ctx, event.tool);
@@ -10079,6 +10224,11 @@ export class PortalWorld implements World {
   /** Das Werkzeug wechseln — der Haken wird dafür geleert oder gefüllt. */
   private pickTool(ctx: WorldContext, tool: BuildTool): void {
     this.pipette = false;
+    if (tool === 'floor' || tool === 'wall') {
+      this.pickSurface(ctx, tool);
+      return;
+    }
+    this.surfaceTool = null;
     const side = this.screenCarrySide();
     const grab = side ? this.grabs.get(side) : undefined;
     // Den Pinsel weglegen: Ein frisches Stück war nie hingestellt (`letGo`).
@@ -10127,6 +10277,7 @@ export class PortalWorld implements World {
     const grab = side ? this.grabs.get(side) : undefined;
     if (side && grab && this.shelfFresh.has(grab.entry)) this.letGo(ctx, side, grab);
     if (this.bomb) this.putBombAway();
+    this.surfaceTool = null;
     this.pipette = true;
   }
 
@@ -10139,6 +10290,223 @@ export class PortalWorld implements World {
     const side = this.screenCarrySide();
     this.takeModel(ctx, path, side ?? null, eighthYaw(yawOf(_quaternion)));
     ctx.notify(`Kopiert: ${propLabel(modelKind(path))}`);
+  }
+
+  // --- Baukasten: Boden und Wand (`surfaceDecor.ts`) --------------------------
+
+  /**
+   * **_Boden_ oder _Wand_ in die Hand nehmen** — der Haken wird dafür leer,
+   * die Bombe geht weg. Wer den Knopf drückt, während das Werkzeug schon gilt,
+   * bekommt das nächste Muster: Eine Leiste mit einem Knopf je Muster wäre
+   * doppelt so lang, und ausprobieren ist hier ohnehin der Weg.
+   */
+  private pickSurface(ctx: WorldContext, tool: 'floor' | 'wall'): void {
+    if (this.surfaceTool === tool) {
+      if (tool === 'floor') this.floorStyle = nextStyle(FLOOR_STYLES, this.floorStyle);
+      else this.wallStyle = nextStyle(WALL_STYLES, this.wallStyle);
+    }
+    this.surfaceTool = tool;
+    const side = this.screenCarrySide();
+    const grab = side ? this.grabs.get(side) : undefined;
+    if (side && grab && this.shelfFresh.has(grab.entry)) this.letGo(ctx, side, grab);
+    if (this.bomb) this.putBombAway();
+    const style = this.surfaceStyle(tool);
+    ctx.notify(
+      tool === 'floor'
+        ? `Boden: ${style.label} · Raum anklicken · noch einmal ▤ für ein anderes Muster`
+        : `Wand: ${style.label} · Wandseite anklicken · noch einmal ▥ für ein anderes Muster`,
+    );
+    // Die Stücke schon laden — der Klick soll sie in einem Zug setzen.
+    void kaykitModel(style.path);
+    if (style.half) void kaykitModel(style.half);
+  }
+
+  private surfaceStyle(tool: 'floor' | 'wall'): (typeof FLOOR_STYLES)[number] {
+    return tool === 'floor'
+      ? FLOOR_STYLES[this.floorStyle % FLOOR_STYLES.length]!
+      : WALL_STYLES[this.wallStyle % WALL_STYLES.length]!;
+  }
+
+  /** Der Raum um diesen Punkt (`floodRoom`) — `null`, wenn es keiner ist. */
+  private roomAt(x: number, z: number, floorY: number): RoomTile[] | null {
+    const { boxes } = this.decorScene(null);
+    const room = floodRoom({ col: Math.floor(x), row: Math.floor(z) }, blockedEdges(boxes, floorY));
+    return room.closed ? room.tiles : null;
+  }
+
+  /**
+   * **Was _Boden_ oder _Wand_ gerade belegen würde** — leuchtend im Gitter
+   * und als Zeile über der Leiste. Je Bild neu gerechnet: Ein Raum hat
+   * höchstens `ROOM_MAX` Kacheln, das ist billiger als eine Merkliste, die
+   * bei jeder neuen Wand veralten könnte.
+   */
+  private surfacePreview(ctx: WorldContext): { status: string; valid: boolean } | null {
+    const tool = this.surfaceTool;
+    if (!tool) return null;
+    const style = this.surfaceStyle(tool);
+    const floorY = ctx.rig.getFloorY();
+    ctx.rig.getHeadPosition(_point);
+    const grid = this.placeGrid;
+    if (tool === 'floor') {
+      const tiles = this.roomAt(_point.x, _point.z, floorY);
+      if (!tiles) {
+        grid?.hide();
+        return { status: `Boden: ${style.label} · hier ist kein geschlossener Raum`, valid: false };
+      }
+      grid?.show(
+        tiles.map((tile) => ({ x: tile.col + 0.5, z: tile.row + 0.5 })),
+        floorY,
+        AREA_PREVIEW,
+      );
+      return { status: `Boden: ${style.label} · ${tiles.length} Kacheln · klicken`, valid: true };
+    }
+    const face = nearestFace(_point.x, _point.z, wallFaces(this.decorScene(null).boxes), floorY);
+    if (!face) {
+      grid?.hide();
+      return { status: `Wand: ${style.label} · näher an eine Wand`, valid: false };
+    }
+    const line = face.at - face.normal * 0.02;
+    const edges: GridEdge[] = [];
+    for (let at = Math.round(face.from); at < Math.round(face.to); at++)
+      edges.push(
+        face.axis === 'z'
+          ? { x: at + 0.5, z: line, alongX: true }
+          : { x: line, z: at + 0.5, alongX: false },
+      );
+    grid?.showEdges(edges, floorY, AREA_PREVIEW);
+    const side = style.kind === 'panel' ? 'diese Seite' : 'ganze Wand';
+    return { status: `Wand: ${style.label} · ${side} · klicken`, valid: true };
+  }
+
+  /**
+   * **Boden oder Wand belegen** — am Kran (`updateUsables`) oder in der
+   * Brille an der Stelle, an der man steht (`buildToolEntries`).
+   *
+   * Ein **Schritt** für _Rückgängig_, samt dem, was dabei ersetzt wurde:
+   * andere Bodenstücke im Raum, alte Fliesen auf derselben Seite, Regalwände
+   * auf der Fuge (`replaceWalls`). Die Stücke werden vorher geladen, damit
+   * alles in einem Zug entsteht und die Gruppe sich gleich schließt.
+   */
+  private async applySurface(
+    ctx: WorldContext,
+    tool: 'floor' | 'wall',
+    x: number,
+    z: number,
+  ): Promise<void> {
+    const style = this.surfaceStyle(tool);
+    this.vrErase = false;
+    const physics = this.physics;
+    const models = await Promise.all([
+      kaykitModel(style.path),
+      style.half ? kaykitModel(style.half) : null,
+    ]);
+    // An der Physik und nicht am Kontext — der ist jedes Bild ein neuer.
+    if (!physics || this.physics !== physics || !models[0]) return;
+    const floorY = ctx.rig.getFloorY();
+    if (tool === 'floor') this.applyFloor(ctx, style.path, style.label, x, z, floorY);
+    else this.applyWall(ctx, style, x, z, floorY);
+  }
+
+  private applyFloor(
+    ctx: WorldContext,
+    path: string,
+    label: string,
+    x: number,
+    z: number,
+    floorY: number,
+  ): void {
+    const tiles = this.roomAt(x, z, floorY);
+    if (!tiles) {
+      ctx.notify('Hier ist kein geschlossener Raum — für draußen gibt es ▦ Fläche');
+      return;
+    }
+    const keys = new Set(tiles.map((tile) => `${tile.col},${tile.row}`));
+    const done = new Set<string>();
+    this.buildHistory.begin();
+    // Was schon als Boden im Raum liegt: dasselbe Muster bleibt, ein anderes
+    // geht (als Schritt, damit _Rückgängig_ es zurückbringt).
+    for (const entry of [...this.placedModels(this.decorModels)]) {
+      if (!this.floorPieces.has(entry)) continue;
+      entry.object.getWorldPosition(_point);
+      const key = `${Math.floor(_point.x)},${Math.floor(_point.z)}`;
+      if (!keys.has(key)) continue;
+      const own = this.modelPath(entry);
+      if (own === path) {
+        done.add(key);
+        continue;
+      }
+      if (own !== null)
+        this.buildHistory.push({
+          kind: 'remove',
+          item: { path: own, pose: this.buildPoseOf(entry) },
+        });
+      this.dropModel(entry);
+    }
+    let placed = 0;
+    for (const tile of tiles) {
+      if (done.has(`${tile.col},${tile.row}`)) continue;
+      placed += 1;
+      const at = new THREE.Vector3(tile.col + 0.5, floorY + 0.2, tile.row + 0.5);
+      void this.placeModelAt(path, at, 0);
+    }
+    this.buildHistory.end();
+    ctx.notify(placed ? `Boden: ${placed}× ${label}` : `Boden: der Raum hat schon ${label}`);
+  }
+
+  private applyWall(
+    ctx: WorldContext,
+    style: (typeof WALL_STYLES)[number],
+    x: number,
+    z: number,
+    floorY: number,
+  ): void {
+    const face = nearestFace(x, z, wallFaces(this.decorScene(null).boxes), floorY);
+    if (!face) {
+      ctx.notify('Keine Wand in der Nähe — mit dem Kran näher an eine Wand');
+      return;
+    }
+    this.buildHistory.begin();
+    let placed = 0;
+    if (style.kind === 'panel') {
+      // Alte Fliesen **dieser** Seite gehen; die der anderen bleiben.
+      for (const entry of [...this.placedModels(this.decorModels)]) {
+        const own = this.modelPath(entry);
+        if (own === null || !isWallPanel(own)) continue;
+        entry.object.getWorldPosition(_point);
+        if (!onFace(face, _point.x, _point.z)) continue;
+        this.buildHistory.push({
+          kind: 'remove',
+          item: { path: own, pose: this.buildPoseOf(entry) },
+        });
+        this.dropModel(entry);
+      }
+      for (const spot of panelSpots(face, PANEL_SIZE, floorY)) {
+        placed += 1;
+        void this.placeModelAt(
+          style.path,
+          new THREE.Vector3(spot.x, spot.y, spot.z),
+          spot.yaw,
+          true,
+          true,
+        );
+      }
+    } else {
+      // Eine ganze Wand auf die Fuge: Was dort aus dem Regal steht, ersetzt
+      // sie (`replaceWalls`), eine gebaute deckt sie zu.
+      for (const spot of wallSpots(face, floorY, SURFACE_WALL_HEIGHT)) {
+        placed += 1;
+        const path = spot.long || !style.half ? style.path : style.half;
+        void this.placeModelAt(
+          path,
+          new THREE.Vector3(spot.x, spot.y, spot.z),
+          spot.yaw,
+          true,
+          true,
+        );
+      }
+    }
+    this.buildHistory.end();
+    ctx.notify(`Wand: ${placed}× ${style.label}`);
   }
 
   /**
@@ -10193,6 +10561,270 @@ export class PortalWorld implements World {
     });
     const index = nearestAt(spots, pose);
     return index >= 0 ? list[index]! : null;
+  }
+
+  /**
+   * **Die Werkzeuge des Baukastens als Seite im Menü** — für die Brille, wo
+   * es die Leiste nicht gibt (sie ist DOM), und für jeden, der lieber im Menü
+   * sucht. Unter _Bauen & Gestalten_ (`ui/menuGroups.ts`), als Raster: In der
+   * Brille ist ein Knopf mit Bild schneller getroffen als eine Zeile.
+   *
+   * In der Brille gilt die Hand statt des Krans: **Setzen** legt den letzten
+   * Pinsel in die Hand, die den Knopf gedrückt hat; **Verschieben** ist
+   * Greifen, wie immer; **Löschen** macht aus dem nächsten Griff an ein
+   * hingestelltes Stück ein Abreißen (`vrErase`, `attach`); **Drehen** dreht
+   * das Stück in der Hand um die Hochachse; **Boden** und **Wand** belegen den
+   * Raum, in dem man steht, und die Wand, vor der man steht.
+   */
+  private buildToolsMenu(): MenuEntry {
+    const accent = 0xffa94d;
+    const run = (fn: (ctx: WorldContext, hand: Handedness | null) => void) => {
+      return (hand: Handedness | null) => {
+        const ctx = this.context;
+        if (!ctx) return;
+        fn(ctx, hand);
+        this.refreshMenuLabels();
+      };
+    };
+    const erase: MenuEntry = {
+      id: 'build:erase',
+      label: 'Löschen',
+      icon: 'eraser',
+      accent,
+      run: run((ctx) => {
+        if (ctx.renderer.xr.isPresenting) {
+          this.vrErase = !this.vrErase;
+          ctx.notify(
+            this.vrErase
+              ? 'Löschen: ein Stück greifen reißt es ab'
+              : 'Löschen aus — Greifen hebt wieder auf',
+          );
+        } else this.pickTool(ctx, 'erase');
+      }),
+    };
+    const fine: MenuEntry = {
+      id: 'build:fine',
+      label: 'Möbel in 45°',
+      icon: 'gizmo',
+      accent,
+      run: run((ctx) => this.onBuildEvent(ctx, { kind: 'fine' })),
+    };
+    const floor: MenuEntry = {
+      id: 'build:floor',
+      label: 'Boden',
+      icon: 'palette',
+      accent,
+      run: run((ctx) => this.surfaceHere(ctx, 'floor')),
+    };
+    const floorStyle: MenuEntry = {
+      id: 'build:floor-style',
+      label: 'Bodenmuster',
+      icon: 'palette',
+      accent,
+      run: run((ctx) => {
+        this.floorStyle = nextStyle(FLOOR_STYLES, this.floorStyle);
+        ctx.notify(`Bodenmuster: ${this.surfaceStyle('floor').label}`);
+      }),
+    };
+    const wall: MenuEntry = {
+      id: 'build:wall',
+      label: 'Wand',
+      icon: 'brush',
+      accent,
+      run: run((ctx) => this.surfaceHere(ctx, 'wall')),
+    };
+    const wallStyle: MenuEntry = {
+      id: 'build:wall-style',
+      label: 'Wandmuster',
+      icon: 'brush',
+      accent,
+      run: run((ctx) => {
+        this.wallStyle = nextStyle(WALL_STYLES, this.wallStyle);
+        ctx.notify(`Wandmuster: ${this.surfaceStyle('wall').label}`);
+      }),
+    };
+    const paint = (): void => {
+      erase.checked = this.vrErase;
+      erase.sub = 'Brille: der nächste Griff reißt ab';
+      fine.checked = this.fineTurn;
+      fine.sub = this.fineTurn ? 'An: Möbel drehen in Achteln' : 'Aus: Möbel in Vierteln';
+      floor.sub = `${this.surfaceStyle('floor').label} · der Raum, in dem du stehst`;
+      floorStyle.sub = `Jetzt: ${this.surfaceStyle('floor').label}`;
+      wall.sub = `${this.surfaceStyle('wall').label} · die Wand vor dir`;
+      wallStyle.sub = `Jetzt: ${this.surfaceStyle('wall').label}`;
+    };
+    paint();
+    this.menuLabels.push(paint);
+    // Drei Knöpfe je Reihe: erst, was man dauernd braucht (Setzen,
+    // Verschieben, Löschen, Drehen, Zurück), dann Boden und Wand, zuletzt die
+    // Schalter — in der Brille liegt das Häufige oben, ohne zu blättern.
+    const [undo, redo] = this.buildEntries(accent).map((entry) => ({
+      ...entry,
+      id: `build:${entry.id}`,
+    })) as [MenuEntry, MenuEntry];
+    const children: MenuEntry[] = [
+      {
+        id: 'build:place',
+        label: 'Setzen',
+        sub: 'Den letzten Pinsel in die Hand, sonst das Regal',
+        icon: 'cube',
+        accent,
+        run: run((ctx, hand) => {
+          this.vrErase = false;
+          if (!ctx.renderer.xr.isPresenting) {
+            this.pickTool(ctx, 'place');
+            return;
+          }
+          const brush = this.lastBrush;
+          if (brush) this.takeModel(ctx, brush.path, hand, brush.yaw);
+          else ctx.menu.openSubmenu('assets');
+        }),
+      },
+      {
+        id: 'build:move',
+        label: 'Verschieben',
+        sub: 'Brille: greifen und woanders loslassen',
+        icon: 'hand',
+        accent,
+        run: run((ctx) => {
+          this.vrErase = false;
+          if (!ctx.renderer.xr.isPresenting) this.pickTool(ctx, 'move');
+          else ctx.notify('Verschieben: ein Stück greifen und loslassen');
+        }),
+      },
+      erase,
+      {
+        id: 'build:turn-left',
+        label: 'Links drehen',
+        sub: 'Das Getragene um die Hochachse',
+        icon: 'reset',
+        accent,
+        run: run((ctx) => this.turnHeld(ctx, false)),
+      },
+      {
+        id: 'build:turn-right',
+        label: 'Rechts drehen',
+        sub: 'Das Getragene um die Hochachse',
+        icon: 'reset',
+        accent,
+        run: run((ctx) => this.turnHeld(ctx, true)),
+      },
+      undo,
+      floor,
+      wall,
+      redo,
+      floorStyle,
+      wallStyle,
+      fine,
+    ];
+    if (this.sampleRoomOrigin())
+      children.push({
+        id: 'build:sample',
+        label: 'Beispielraum',
+        sub: 'Ein fertig eingerichtetes Zimmer laden, Zurück nimmt es wieder weg',
+        icon: 'hammer',
+        accent,
+        run: run((ctx) => void this.loadSampleRoom(ctx)),
+      });
+    return {
+      id: 'build-tools',
+      label: 'Baukasten-Werkzeuge',
+      sub: 'Setzen, Löschen, Drehen, Boden, Wand, Rückgängig, auch in der Brille',
+      icon: 'hammer',
+      accent,
+      grid: true,
+      children,
+    };
+  }
+
+  /**
+   * **Drehen ohne Kran** — in der Brille dreht nicht der Kran, sondern die
+   * Hand; also dreht sich das Stück in ihr, um seine eigene Mitte und die
+   * Hochachse. Am Schirm bleibt es beim Kran (`onBuildEvent`).
+   */
+  private turnHeld(ctx: WorldContext, clockwise: boolean): void {
+    if (!ctx.renderer.xr.isPresenting) {
+      this.onBuildEvent(ctx, { kind: 'turn', clockwise });
+      return;
+    }
+    for (const grab of this.grabs.values()) {
+      if (this.modelPath(grab.entry) === null || grab.near) continue;
+      const eighth = this.isWallPiece(grab.entry) || this.fineTurn;
+      const angle = (clockwise ? -1 : 1) * (eighth ? Math.PI / 4 : Math.PI / 2);
+      const object = grab.entry.object;
+      object.updateWorldMatrix(true, false);
+      object.getWorldPosition(_point);
+      // Neuer Versatz = Versatz · W^-1 · T(p) · R · T(-p) · W: dieselbe Hand,
+      // das Stück um seine Mitte gedreht.
+      const world = object.matrixWorld;
+      const turn = new THREE.Matrix4()
+        .makeTranslation(_point.x, _point.y, _point.z)
+        .multiply(new THREE.Matrix4().makeRotationY(angle))
+        .multiply(new THREE.Matrix4().makeTranslation(-_point.x, -_point.y, -_point.z));
+      const inverse = world.clone().invert();
+      grab.offset.multiply(inverse.multiply(turn).multiply(world));
+      return;
+    }
+    ctx.notify('Nichts in der Hand zum Drehen');
+  }
+
+  /** _Boden_ oder _Wand_ dort, wo man steht — für die Brille und das Menü. */
+  private surfaceHere(ctx: WorldContext, tool: 'floor' | 'wall'): void {
+    ctx.rig.getHeadPosition(_point);
+    if (tool === 'wall' && !ctx.crane) {
+      // Ein halber Meter in Blickrichtung: gemeint ist die Wand vor einem.
+      ctx.camera.getWorldDirection(_surfaceLook);
+      _surfaceLook.y = 0;
+      if (_surfaceLook.lengthSq() > 1e-6) _point.addScaledVector(_surfaceLook.normalize(), 0.5);
+    }
+    void this.applySurface(ctx, tool, _point.x, _point.z);
+  }
+
+  /**
+   * **Wo der Beispielraum steht** — die Mitte des Zimmers, in das er gehört,
+   * oder `null` in einer Welt ohne. Der Bauplatz sagt: sein Startzimmer
+   * (`EditorWorld`).
+   */
+  protected sampleRoomOrigin(): { x: number; z: number } | null {
+    return null;
+  }
+
+  /**
+   * **Den Beispielraum laden** (`sampleRoom.ts`): Boden, Fliesen, eine Wand,
+   * dann Stück für Stück die Einrichtung — jedes eingerastet wie aus der
+   * Hand (`placeModelAt` mit `snap`), also auf dem Tisch, an der Wand, in
+   * 45°, wo es dort steht. Alles zusammen ist **ein** Schritt: _Zurück_ nimmt
+   * den ganzen Raum wieder weg.
+   */
+  private async loadSampleRoom(ctx: WorldContext): Promise<void> {
+    const origin = this.sampleRoomOrigin();
+    if (!origin) return;
+    ctx.notify('Beispielraum wird eingerichtet …');
+    const floorY = ctx.rig.getFloorY();
+    const fine = this.fineTurn;
+    const styles = [this.floorStyle, this.wallStyle] as const;
+    const physics = this.physics;
+    this.buildHistory.begin();
+    try {
+      for (const surface of SAMPLE_SURFACES) {
+        if (surface.tool === 'floor') this.floorStyle = surface.style;
+        else this.wallStyle = surface.style;
+        await this.applySurface(ctx, surface.tool, origin.x + surface.x, origin.z + surface.z);
+        if (this.physics !== physics) return;
+      }
+      for (const item of SAMPLE_ITEMS) {
+        this.fineTurn = isDiagonal(item.yaw);
+        const at = new THREE.Vector3(origin.x + item.x, floorY + 1.2, origin.z + item.z);
+        await this.placeModelAt(item.path, at, item.yaw, true, false, true);
+        if (this.physics !== physics) return;
+      }
+    } finally {
+      this.fineTurn = fine;
+      this.floorStyle = styles[0];
+      this.wallStyle = styles[1];
+      this.buildHistory.end();
+    }
+    ctx.notify(`Beispielraum: ${SAMPLE_ITEMS.length} Stücke, Boden und Wände`);
   }
 
   /** Für die Brille und das Menü: _Rückgängig_ und _Wiederholen_ ohne Leiste. */
@@ -10381,20 +11013,40 @@ export class PortalWorld implements World {
     const y = floor + entry.halfExtents.y + AREA_LIFT;
     const label = propLabel(modelKind(path));
     let placed = 0;
+    const done: Promise<void>[] = [];
+    // **Stapeln und Wand wie beim Einzelsetzen** (`decorArea`): Eine Fläche
+    // Tassen über dem Tisch steht auf dem Tisch, eine Reihe Bilder vor der
+    // Wand hängt an ihr. Wände und Bodenstücke bleiben bei ihrem Gitter —
+    // eine Wand kommt um die Fläche herum, ein Boden liegt im Boden.
+    const plain = plan.edges.length > 0 || this.floorPieces.has(entry);
     // Eine Fläche ist ein Schritt für _Rückgängig_ — was schon geladen ist,
     // entsteht noch in dieser Zeile (`placeModelAt`), also schließt die Gruppe
-    // gleich dahinter.
+    // gleich dahinter. Und weil es noch in dieser Zeile entsteht, steht jede
+    // Kopie der nächsten schon im Weg.
     this.buildHistory.begin();
-    const done = plan.slots.map(async (slot) => {
-      if (await this.placeModelAt(path, new THREE.Vector3(slot.x, y, slot.z), slot.yaw)) {
-        placed += 1;
-      }
-    });
+    const { refused } = decorArea(
+      plan.slots,
+      (slot) => (plain ? null : this.decorTarget(ctx, entry, slot.x, slot.z)),
+      (slot, spot) => {
+        const at = spot
+          ? new THREE.Vector3(spot.x, spot.y, spot.z)
+          : new THREE.Vector3(slot.x, y, slot.z);
+        done.push(
+          this.placeModelAt(path, at, spot ? spot.yaw : slot.yaw, true, spot !== null).then(
+            (one) => {
+              if (one) placed += 1;
+            },
+          ),
+        );
+      },
+    );
     this.buildHistory.end();
     void Promise.all(done).then(() => {
-      const skipped = plan.slots.length - placed;
+      const skipped = done.length - placed;
       this.context?.notify(
-        `${placed}× ${label} gesetzt` + (skipped ? ` · ${skipped} standen schon` : ''),
+        `${placed}× ${label} gesetzt` +
+          (skipped ? ` · ${skipped} standen schon` : '') +
+          (refused ? ` · ${refused} ohne Platz` : ''),
       );
     });
   }
@@ -11546,6 +12198,17 @@ export class PortalWorld implements World {
     // nichts (`updateBomb`). Saum und Benutzen ruhen so lange.
     if (this.updateBomb(ctx)) {
       this.bodyPick = null;
+      return;
+    }
+    // **Mit _Boden_ oder _Wand_ meint jeder Druck: hier belegen** — wie bei
+    // der Bombe ruhen Saum und Benutzen so lange (`surfaceDecor.ts`).
+    if (this.surfaceTool && ctx.crane && !ctx.renderer.xr.isPresenting) {
+      this.bodyPick = null;
+      ctx.rig.useCandidate = true;
+      if (ctx.rig.takeUse()) {
+        ctx.rig.getHeadPosition(_point);
+        void this.applySurface(ctx, this.surfaceTool, _point.x, _point.z);
+      }
       return;
     }
     if (ctx.rig.takeUse() && !this.liftUnderCrane(ctx)) this.useForward(ctx);
