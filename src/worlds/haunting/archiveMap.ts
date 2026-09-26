@@ -1,4 +1,12 @@
-import { APRON, MARKS, insideSpace, roomOutline, type HouseSpec, type Rect } from './house';
+import {
+  APRON,
+  MARKS,
+  insideSpace,
+  leafDoors,
+  roomOutline,
+  type HouseSpec,
+  type Rect,
+} from './house';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { stationLayout } from './stationLayout';
 import { fitView, type ArchiveView } from './archiveView';
@@ -167,7 +175,7 @@ export function paintArchiveMap(
       c.fillText(`R${String(index + 1).padStart(2, '0')}`, x + 8, y + 13);
     }
   });
-  for (const door of spec.doors) {
+  for (const door of leafDoors(spec)) {
     const x = px(door.x + 0.5 + dirX(door.dir) * 0.5);
     const z = pz(door.z + 0.5 + dirZ(door.dir) * 0.5);
     const dx = dirZ(door.dir) * p.scale * 0.27;

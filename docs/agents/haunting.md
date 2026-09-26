@@ -68,8 +68,28 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
       „Raum–Gang–Raum", jeder sechste Same): nirgends zwei Türmitten unter
       sechs Feldern. Die kürzesten Gänge zwischen zwei Räumen
       (Cafeteria-Ostgang, Admin-Ostgang) sind drei Kacheln lang — Tür, drei
-      Meter, Tür: genau die Grenze. Die Fugen zwischen Gangstücken sind
-      echte Schotten (Doppeltür, Schild „Transit").
+      Meter, Tür: genau die Grenze.
+    - **Türen gibt es nur zwischen Raum und Gang** (zweite Runde,
+      Nacharbeit). Bis dahin stand an jeder Fuge zwischen zwei Gangstücken
+      ein Schott, und im Gang sah man Tür hinter Tür. Jetzt ist die Fuge ein
+      **offener Durchgang** (`HouseDoor.passage`, `connectStation`): Der Gang
+      läuft durch — keine Wand im Plan (`housePlan` räumt die Kanten mit
+      `clearWall` statt `plan.door`), kein Blatt, kein Rahmen, kein Hebel,
+      kein Knopf, kein Schalter der Tafel (`buildPanel` bekommt
+      `leafDoors`), keine Tür auf Karte, Archiv und Papierkarte, und
+      schließen kann ihn nichts (Riegel, Schlag des Monsters, Störung,
+      Siegel hinter dem Techniker fragen alle `leafDoors`). **Als Eintrag in
+      `spec.doors` bleibt er** — immer offen —, weil Raumgraph, Hören,
+      Sicht, Lärm und Wege ihn als Verbindung brauchen; im Schnappschuss
+      trägt er `MapDoor.passage` (offen, nie gesperrt). Das Schild über der
+      Kreuzung (`signposts`) bleibt. `stationRules.passageDoorViolations`
+      prüft: jede Verbindung zweier Gänge ist ein Durchgang, kein Durchgang
+      liegt an einem Raum; `doorChainViolations` zählt nur noch Türen mit
+      Blatt. In der Station mit 14 Räumen sind es drei Fugen, alle
+      Einmündungen (O2-Ostgang ↔ Navigation-/Admin-Gang, Security-Westgang
+      ↔ Reactor-Ostgang). Was im Gang weiterhin wie „Tür neben Tür"
+      aussieht, sind die zwei Türen großer Räume in **denselben** Gang
+      (MedBay: 3 m auseinander, Regel 3 lässt sie zu).
     - **Vier Felder sind breit genug** — für den 2 × 2-Block, auf dem
       Techniker der Runde, Bots und Monster gehen (`AGENT_CELLS`):
       `stationNavigation.test` („reaches every room through the four-field

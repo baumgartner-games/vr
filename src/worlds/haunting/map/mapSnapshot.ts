@@ -89,6 +89,11 @@ export interface MapDoor {
   width: number;
   /** Ob das Blatt gerade offen steht (`ShipExperience.doorOpen`). */
   open: boolean;
+  /**
+   * Ein offener Durchgang ohne Blatt zwischen zwei Gangstücken
+   * (`HouseDoor.passage`): immer offen, nie gesperrt, nicht gezeichnet.
+   */
+  passage?: boolean;
   /** Ob sie gesperrt ist (`HauntState.shut`) — offen und gesperrt schließt sich gerade. */
   locked: boolean;
   /**

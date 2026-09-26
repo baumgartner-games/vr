@@ -403,7 +403,9 @@ class ArchiveView implements ArchiveRoleView {
     }
     const jobs = this.jobs();
     const items = snapshot.items.filter((item) => item.roomId === room.id);
-    const doors = snapshot.doors.filter((door) => door.a === room.id || door.b === room.id);
+    const doors = snapshot.doors.filter(
+      (door) => !door.passage && (door.a === room.id || door.b === room.id),
+    );
     const locked = doors.filter((door) => door.locked).length;
     // Neu geschrieben wird nur, wenn sich wirklich etwas geändert hat: Ein
     // Blatt, das je Bild neu entsteht, verliert bei jedem Bild den Scrollstand.

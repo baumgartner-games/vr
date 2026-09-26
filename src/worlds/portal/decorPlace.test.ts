@@ -10,14 +10,19 @@ import {
   STACK_MAX,
   boxAround,
   coverShare,
+  decorArea,
   faceYaw,
   mountBlocked,
   mountPose,
   mountSize,
   mountsOnWall,
   restOn,
+  slantBlocked,
+  slantMountPose,
   surfaceSpot,
   wallFaces,
+  type DecorSpot,
+  type SlantWall,
 } from './decorPlace';
 
 /** Ein Tisch, zwei mal eine Kachel, 80 cm hoch, mit der Mitte bei (0, 0). */
@@ -261,5 +266,107 @@ describe('mountPose — an die Wand', () => {
     expect(mountBlocked(at, picture, [hung])).toBe(true);
     const beside = boxAround(at.x + 1.2, at.y, at.z, 1, 0.7, 0.06);
     expect(mountBlocked(at, picture, [beside])).toBe(false);
+  });
+});
+
+describe('eine Fläche mit Stapeln und Wand (decorArea)', () => {
+  const spot = (x: number, over: Partial<DecorSpot> = {}): DecorSpot => ({
+    x,
+    y: 0.5,
+    z: 0,
+    yaw: 0,
+    mounted: false,
+    valid: true,
+    ...over,
+  });
+
+  it('setzt jede Stelle mit ihrer Lage, überspringt, was keinen Platz hat', () => {
+    const placed: Array<[number, DecorSpot | null]> = [];
+    const result = decorArea(
+      [
+        { x: 0, z: 0 },
+        { x: 1, z: 0 },
+        { x: 2, z: 0 },
+      ],
+      (slot) => (slot.x === 1 ? spot(1, { valid: false }) : slot.x === 2 ? null : spot(0)),
+      (slot, at) => placed.push([slot.x, at]),
+    );
+    expect(result).toEqual({ placed: 2, refused: 1 });
+    expect(placed[0]![1]!.y).toBe(0.5);
+    expect(placed[1]![1]).toBeNull();
+  });
+
+  it('zwei Stellen an dieselbe Stelle der Wand werden ein Bild', () => {
+    const placed: number[] = [];
+    const result = decorArea(
+      [
+        { x: 0, z: 0 },
+        { x: 0.2, z: 0 },
+      ],
+      () => spot(0, { mounted: true }),
+      (slot) => placed.push(slot.x),
+    );
+    expect(placed).toEqual([0]);
+    expect(result.placed).toBe(1);
+  });
+
+  it('fragt nacheinander — was eben stand, steht beim nächsten im Weg', () => {
+    const stood: number[] = [];
+    decorArea(
+      [
+        { x: 0, z: 0 },
+        { x: 0, z: 1 },
+      ],
+      () => spot(0, { valid: stood.length === 0 }),
+      () => stood.push(1),
+    );
+    expect(stood).toHaveLength(1);
+  });
+});
+
+describe('an eine schräge Wand (slantMountPose)', () => {
+  // „╱" durch die Kachel um (0,5 | 0,5): von Südwest nach Nordost.
+  const wall: SlantWall = {
+    x: 0.5,
+    z: 0.5,
+    dirX: Math.SQRT1_2,
+    dirZ: -Math.SQRT1_2,
+    half: Math.SQRT2 / 2,
+    thick: 0.13,
+    bottom: 0,
+    top: 2.8,
+  };
+  const picture = mountSize(0.3, 0.25, 0.03);
+
+  it('hängt auf der Seite, auf der der Kran steht, flach davor und auf Augenhöhe', () => {
+    const pose = slantMountPose(1.0, 1.0, [wall], picture, 0)!;
+    expect(pose).not.toBeNull();
+    // Die Normale zeigt nach Südosten (+x, +z) …
+    expect(pose.x).toBeGreaterThan(0.5);
+    expect(pose.z).toBeGreaterThan(0.5);
+    expect(pose.yaw).toBeCloseTo(Math.PI / 4);
+    // … und das Bild liegt eine halbe Wand, eine halbe Bildtiefe und einen
+    // Zentimeter vor der Mitte.
+    const off = (pose.x - 0.5) * Math.SQRT1_2 + (pose.z - 0.5) * Math.SQRT1_2;
+    expect(off).toBeCloseTo(0.13 + 0.03 + MOUNT_GAP);
+    expect(pose.y).toBeCloseTo(MOUNT_HEIGHT);
+  });
+
+  it('von der anderen Seite zeigt es nach Nordwesten', () => {
+    const pose = slantMountPose(0.0, 0.0, [wall], picture, 0)!;
+    expect(pose.yaw).toBeCloseTo((-3 * Math.PI) / 4);
+  });
+
+  it('zu weit weg oder zu schmal: nichts', () => {
+    expect(slantMountPose(2.5, 2.5, [wall], picture, 0)).toBeNull();
+    expect(slantMountPose(1, 1, [wall], mountSize(1, 0.25, 0.03), 0)).toBeNull();
+  });
+
+  it('ein Bild über dem anderen ist rot, die Wand selbst stört nicht', () => {
+    const pose = slantMountPose(1.0, 1.0, [wall], picture, 0)!;
+    const self = boxAround(0.5, 1.4, 0.5, 1.1, 2.8, 1.1);
+    expect(slantBlocked(pose, picture, [self])).toBe(false);
+    const other = boxAround(pose.x, pose.y, pose.z, 0.4, 0.5, 0.4);
+    expect(slantBlocked(pose, picture, [self, other])).toBe(true);
   });
 });

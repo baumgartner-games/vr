@@ -65,7 +65,7 @@ export type HintZone =
   | {
       readonly kind: 'build';
       /** Welches Werkzeug der Leiste gilt (`portal/buildBar.BuildTool`). */
-      readonly tool: 'place' | 'move' | 'erase' | 'copy';
+      readonly tool: 'place' | 'move' | 'erase' | 'copy' | 'floor' | 'wall';
     }
   | {
       readonly kind: 'haunting';
@@ -90,6 +90,8 @@ const BUILD_USE: Readonly<Record<BuildToolName, string>> = {
   move: 'Nehmen/Stellen',
   erase: 'Löschen',
   copy: 'Kopieren',
+  floor: 'Boden belegen',
+  wall: 'Wand belegen',
 };
 
 /** Wie die Rollen der Station auf dem Schildchen heißen. */
@@ -106,6 +108,8 @@ const TOOL_LABELS: Readonly<Record<BuildToolName, string>> = {
   move: 'Verschieben',
   erase: 'Löschen',
   copy: 'Kopieren',
+  floor: 'Boden',
+  wall: 'Wand',
 };
 
 export interface HintContext {
