@@ -5,6 +5,7 @@ import { bringBack, cutAway, type ViewLevel } from './cutaway';
 import type { PlayerRig } from './PlayerRig';
 import { viewLayers } from './viewLayers';
 import { wheelPixels, wheelStep, wheelTakenByUi } from './wheelZoom';
+import { TOP_DOWN_CAMERA_NAME } from '../ui/billboard';
 import {
   TOP_DOWN_FOCUS,
   TOP_DOWN_FOV,
@@ -78,6 +79,8 @@ export class TopDownCamera {
    * dem Pinch war.
    */
   private target = topDownDistance(TOP_DOWN_ZOOM);
+  /** Der Zoom vor dem Start-Zoom einer Welt (`startZoom`) — `null`: keiner gesetzt. */
+  private zoomBefore: number | null = null;
   /** Der Abstand, der gerade wirklich gilt — er zieht zum Ziel hin. */
   private distance = topDownDistance(TOP_DOWN_ZOOM);
   private readonly focus = new SmoothPose();
@@ -115,7 +118,9 @@ export class TopDownCamera {
   private headingNow = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
-    this.camera.name = 'top-down-camera';
+    // Daran erkennen Schilder, die der Drehung folgen, die Draufsicht
+    // (`ui/billboard.turnWithView`).
+    this.camera.name = TOP_DOWN_CAMERA_NAME;
     // Erst gieren, dann nicken — sonst kippte eine gedrehte Kamera zur Seite.
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.set(topDownPitch(), 0, 0);
@@ -324,6 +329,26 @@ export class TopDownCamera {
    */
   zoomScale(factor: number): void {
     this.target = zoomScaled(this.target, factor);
+    this.distance = this.target;
+  }
+
+  /**
+   * **Der Start-Zoom einer Welt** (`WorldDefinition.topDownSpan`) — oder
+   * `null` für eine Welt ohne.
+   *
+   * Gezoomt wird nur **hinaus**: Wer schon weiter weg stand, bleibt dort. Und
+   * der Zoom davor wird gemerkt: Die nächste Welt ohne eigenen Start-Zoom
+   * bekommt ihn zurück, statt die Lobby-Übersicht in die Küche mitzunehmen.
+   */
+  startZoom(distance: number | null): void {
+    if (distance === null) {
+      if (this.zoomBefore === null) return;
+      this.target = this.zoomBefore;
+      this.zoomBefore = null;
+    } else {
+      this.zoomBefore ??= this.target;
+      this.target = Math.max(this.zoomBefore, distance);
+    }
     this.distance = this.target;
   }
 

@@ -12,6 +12,8 @@ export const WORLDS: WorldDefinition[] = [
     description: 'Ruhige Halle mit Händen, Handgelenk-Menü und Übersicht.',
     accent: 0x4aa8ff,
     preview: 'worlds/hub.webp',
+    // Die ganze Lobby von oben, Wand bis Wand (11 m) und eine Handbreit dazu.
+    topDownSpan: 11.5,
     roles: ['vr', 'desktop', 'handheld'],
     load: async () => new (await import('./hub/HubWorld')).HubWorld(),
   },

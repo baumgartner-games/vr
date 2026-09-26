@@ -518,6 +518,9 @@ einen Ladebildschirm über: das Vorschaubild der Zielwelt
 (`WorldDefinition.preview`, dieselben Bilder wie die Karten der Startseite,
 dazu unscharf als Hintergrund), darunter „Nächste Welt", Name und Zeile,
 ein Balken in der Akzentfarbe und eine Zeile, die sagt, was gerade passiert.
+Beim **Zurücksetzen** (`App.reloadWorld` → `goTo(id, again)`) ist es dieselbe
+Welt noch einmal; dann steht dort „Wird neu aufgebaut"
+(`loadProgress.transitKicker`, mit Test).
 
 **Der Balken** (`core/loadProgress.ts`, mit Test) kennt drei Abschnitte, und
 nur der letzte ist zählbar:

@@ -124,6 +124,8 @@ const pads = {
   use: document.querySelector<HTMLElement>('#touch-a'),
   fire: document.querySelector<HTMLElement>('#touch-b'),
   right: document.querySelector<HTMLElement>('#touch-right'),
+  turnLeft: document.querySelector<HTMLElement>('#touch-turn-left'),
+  turnRight: document.querySelector<HTMLElement>('#touch-turn-right'),
   tool: document.querySelector<HTMLElement>('#hud-tool'),
   menu: document.querySelector<HTMLElement>('#hud-menu'),
 };

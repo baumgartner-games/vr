@@ -65,6 +65,14 @@ export function creep(shown: number, state: LoadState, dt: number, rate = 1.6): 
   return Math.min(target, start + step);
 }
 
+/**
+ * **Die Zeile über dem Namen**: _Nächste Welt_ beim Wechsel — und beim
+ * _Zurücksetzen_, wo es dieselbe Welt noch einmal ist, _Wird neu aufgebaut_.
+ */
+export function transitKicker(again: boolean): string {
+  return again ? 'Wird neu aufgebaut' : 'Nächste Welt';
+}
+
 /** Die Zeile unter dem Balken. */
 export function loadLine(state: LoadState): string {
   switch (state.phase) {
