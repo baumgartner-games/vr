@@ -512,8 +512,8 @@ export class Npc {
       vz = THREE.MathUtils.clamp(dz * gain, -1, 1);
     }
     this.entry.body.setLinvel({ x: vx, y: velocity.y, z: vz }, true);
-    const turn = wrapYaw(posture.yaw - this.yaw);
-    this.yaw = wrapYaw(this.yaw + turn * Math.min(1, dt * 6));
+    const turn = wrapAngle(posture.yaw - this.yaw);
+    this.yaw = wrapAngle(this.yaw + turn * Math.min(1, dt * 6));
     this.model.rotation.y = this.yaw;
     this.speed = 0;
     this.striking = false;
@@ -1091,9 +1091,4 @@ function blockGap(
   const p = cellCentre(snapCell(a.x, a.z, sizeA), sizeA),
     q = cellCentre(snapCell(b.x, b.z, sizeB), sizeB);
   return Math.hypot(p.x - q.x, p.z - q.z);
-}
-
-/** Ein Winkel auf (−π, π] — der kürzere Bogen. */
-function wrapYaw(angle: number): number {
-  return Math.atan2(Math.sin(angle), Math.cos(angle));
 }

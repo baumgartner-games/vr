@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../core/chefFit';
-import { FIGURE_FADE, gaitFor, type FigureGait } from '../../core/kaykitFigureFit';
+import { FIGURE_FADE, gaitFor, pickClip, type FigureGait } from '../../core/kaykitFigureFit';
 import { disposeTree } from '../shared/environment';
 import { figureGaitClip, figureStrikeClip } from './npcFigure';
-import { pickClip } from '../../core/kaykitFigureFit';
+import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
+import { bodyShape, hitParts } from './npcHit';
+import type { KaykitFigure } from '../../core/kaykitFigure';
 
 /** Was ein NPC am Platz tut — dieselben zwei wie `npcBehavior.BehaviorPose`. */
 export type NpcPose = 'sit' | 'interact';
@@ -17,9 +19,6 @@ export const POSE_CLIPS: Readonly<Record<NpcPose, readonly string[]>> = {
   sit: ['Sit_Chair_Idle', 'Sit_Floor_Idle', 'Idle_B', 'Idle_A'],
   interact: ['Interact', 'Use_Item', 'Idle_B', 'Idle_A'],
 };
-import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
-import { bodyShape, hitParts } from './npcHit';
-import type { KaykitFigure } from '../../core/kaykitFigure';
 
 /**
  * **Das Modell eines NPC** — die Haut aus `npcKinds.ts`, gebaut.
@@ -604,10 +603,6 @@ export class NpcBody extends THREE.Group {
     if (this.puppet) this.pull(this.puppet);
     this.faceBar();
 
-    // **Und dasselbe Bild für die Figur, wenn sie da ist.** Sie bekommt
-    // dieselben zwei Zahlen wie die Klötze — Tempo und „holt gerade aus" —,
-    // macht aber etwas anderes daraus: einen Gang und einen Schlag statt
-    // Gelenkwinkeln.
     // **Eine Haltung** knickt die Klötzchen-Beine nach vorn — ein Stuhl, auf
     // dem ein Kasten mit geraden Beinen „sitzt", steht in ihm.
     if (this.posed === 'sit') {
@@ -615,6 +610,11 @@ export class NpcBody extends THREE.Group {
       this.legRight.rotation.x = -1.35;
       this.chest.position.y = this.skin.height * 0.47 - this.skin.height * 0.2;
     }
+
+    // **Und dasselbe Bild für die Figur, wenn sie da ist.** Sie bekommt
+    // dieselben zwei Zahlen wie die Klötze — Tempo und „holt gerade aus" —,
+    // macht aber etwas anderes daraus: einen Gang und einen Schlag statt
+    // Gelenkwinkeln.
     if (this.figure) {
       if (striking && !this.swung) this.swing();
       this.driveFigure(dt, speed);
