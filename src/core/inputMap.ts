@@ -56,6 +56,10 @@ export const PAD_ACTIONS = [
   'view',
   'zoomIn',
   'zoomOut',
+  'turnLeft',
+  'turnRight',
+  'toolPrev',
+  'toolNext',
 ] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
 
@@ -71,6 +75,7 @@ export const KEY_ACTIONS = [
   'tools',
   'menu',
   'view',
+  'turn',
 ] as const;
 export type KeyAction = (typeof KEY_ACTIONS)[number];
 
@@ -86,10 +91,15 @@ export const ACTION_LABELS: Record<PadAction | KeyAction, { label: string; sub: 
   tools: { label: 'Werkzeugliste', sub: 'Das Regal auf- und zuklappen' },
   zoomIn: { label: 'Zoom heran', sub: 'Von oben: eine Stufe näher' },
   zoomOut: { label: 'Zoom zurück', sub: 'Von oben: eine Stufe weiter weg' },
-  forward: { label: 'Vorwärts', sub: 'Nach Norden — auch wenn die Figur anders schaut' },
-  back: { label: 'Rückwärts', sub: 'Nach Süden' },
-  left: { label: 'Links', sub: 'Nach Westen' },
-  right: { label: 'Rechts', sub: 'Nach Osten' },
+  turnLeft: { label: 'Bild links drehen', sub: 'Von oben: eine Vierteldrehung nach links' },
+  turnRight: { label: 'Bild rechts drehen', sub: 'Von oben: eine Vierteldrehung nach rechts' },
+  toolPrev: { label: 'Werkzeug davor', sub: 'Baukasten: das Werkzeug links in der Leiste' },
+  toolNext: { label: 'Werkzeug danach', sub: 'Baukasten: das Werkzeug rechts in der Leiste' },
+  turn: { label: 'Bild drehen', sub: 'Von oben: eine Vierteldrehung, mit Umschalt andersherum' },
+  forward: { label: 'Vorwärts', sub: 'Im Bild nach oben — auch wenn die Figur anders schaut' },
+  back: { label: 'Rückwärts', sub: 'Im Bild nach unten' },
+  left: { label: 'Links', sub: 'Im Bild nach links' },
+  right: { label: 'Rechts', sub: 'Im Bild nach rechts' },
   jump: { label: 'Springen', sub: 'Immer, auch mit etwas in Reichweite' },
 };
 
@@ -118,6 +128,14 @@ export const DEFAULT_PAD: Record<PadAction, readonly PadSlot[]> = {
   view: ['select'],
   zoomIn: ['shoulder-left'],
   zoomOut: ['shoulder-right'],
+  // Das Steuerkreuz gehört im offenen Menü dem Fokus (`ui/padNav.ts`) —
+  // davor liegt dann aber auch nichts, was spielt (`FlatControls.blocker`).
+  // Im Spiel dreht es von oben das Bild (←/→) und schaltet im Baukasten
+  // durch die Werkzeugleiste (↑/↓).
+  turnLeft: ['dpad-left'],
+  turnRight: ['dpad-right'],
+  toolPrev: ['dpad-up'],
+  toolNext: ['dpad-down'],
 };
 
 /** **Und an der Tastatur** — `M` ist das Menü, `V` die Ansicht (das Schema oben). */
@@ -132,6 +150,9 @@ export const DEFAULT_KEYS: Record<KeyAction, readonly string[]> = {
   tools: ['Tab'],
   menu: ['KeyM'],
   view: ['KeyV'],
+  // `Q` war frei; `E` ist _Benutzen_, deshalb kein Paar `Q`/`E`, sondern
+  // `Q` und `Umschalt`+`Q` — wie `R` und `Umschalt`+`R` am Kran.
+  turn: ['KeyQ'],
 };
 
 /**

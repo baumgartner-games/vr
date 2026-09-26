@@ -1,0 +1,46 @@
+/*
+ * Ladebildschirm (`ui/WorldLoader.ts`) und Willkommens-Karte
+ * (`ui/WorldWelcome.ts`). Beide lesen die gemeinsamen Farben der Leisten
+ * (`--hud-*` in `style.css`); die Akzentfarbe ist die der Zielwelt.
+ */
+.transit { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: #05070d; color: var(--hud-ink); font-family: var(--hud-font); opacity: 0; transition: opacity 180ms ease-out; }
+.transit::before { content: ""; position: absolute; inset: -40px; background: var(--transit-image, none) center / cover no-repeat; filter: blur(28px) saturate(1.2); opacity: 0.35; }
+.transit::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(5, 7, 13, 0.2), rgba(5, 7, 13, 0.85) 70%); }
+.transit[hidden] { display: none; }
+.transit.is-open { opacity: 1; }
+.transit.is-leaving { opacity: 0; transition-duration: 300ms; }
+.transit__card { position: relative; z-index: 1; width: min(440px, 100%); padding: 14px 14px 16px; border: 1px solid var(--hud-line); border-top: 3px solid var(--transit-accent, var(--hud-accent)); border-radius: var(--hud-radius); background: var(--hud-bg); box-shadow: var(--hud-shadow); text-align: center; transform: translateY(6px) scale(0.985); transition: transform 260ms ease-out; }
+.transit.is-open .transit__card { transform: none; }
+.transit__image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--hud-radius-sm); background: color-mix(in srgb, var(--transit-accent, var(--hud-accent)) 30%, #0b1020); }
+.transit__image[hidden] { display: block; visibility: hidden; }
+.transit__kicker { margin: 14px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--hud-dim); }
+.transit__title { margin: 0; font-size: 24px; line-height: 1.15; }
+.transit__tagline { margin: 4px 0 14px; font-size: 14px; color: var(--hud-dim); }
+.transit__track { height: 6px; border-radius: var(--hud-radius-pill); background: var(--hud-raise); overflow: hidden; }
+.transit__bar { height: 100%; transform-origin: left center; transform: scaleX(0); border-radius: inherit; background: var(--transit-accent, var(--hud-accent)); box-shadow: 0 0 12px var(--transit-accent, var(--hud-accent)); }
+.transit__line { margin: 8px 0 0; font-size: 12.5px; color: var(--hud-dim); font-variant-numeric: tabular-nums; }
+
+.welcome { position: fixed; left: 12px; right: 12px; margin-inline: auto; top: calc(env(safe-area-inset-top, 0px) + 68px); z-index: 65; width: min(460px, calc(100vw - 24px)); padding: 12px 14px 12px 16px; border: 1px solid var(--hud-line); border-left: 4px solid var(--welcome-accent, var(--hud-accent)); border-radius: var(--hud-radius); background: var(--hud-bg); color: var(--hud-ink); font: 14px/1.4 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); opacity: 0; transform: translateY(-8px); transition: opacity 240ms ease-out, transform 240ms ease-out; }
+.welcome[hidden] { display: none; }
+.welcome[data-device="touch"] { top: calc(env(safe-area-inset-top, 0px) + 100px); }
+.welcome.is-open { opacity: 1; transform: none; }
+.welcome__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding-right: 88px; }
+.welcome__kicker { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--welcome-accent, var(--hud-accent)); }
+.welcome__title { margin: 0; font-size: 18px; line-height: 1.2; }
+.welcome__goal { margin: 6px 0 0; }
+.welcome__first { margin: 4px 0 0; color: var(--hud-dim); }
+.welcome__first[hidden], .welcome__keys[hidden] { display: none; }
+.welcome__keys { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 12.5px; }
+.welcome__ok { position: absolute; top: 10px; right: 10px; min-height: 32px; padding: 4px 12px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-pill); background: var(--hud-raise); color: var(--hud-ink); font: 600 12.5px/1 var(--hud-font); cursor: pointer; }
+.welcome__ok:hover { background: var(--hud-raise-hi); }
+.welcome__ok:focus-visible { outline: 2px solid var(--welcome-accent, var(--hud-accent)); outline-offset: 2px; }
+@media (max-width: 520px) {
+  .welcome { top: calc(env(safe-area-inset-top, 0px) + 60px); font-size: 13.5px; }
+  /* Schmal ist oben rechts kein Platz neben dem Namen: Der Knopf rückt nach unten. */
+  .welcome__head { padding-right: 0; }
+  .welcome__ok { position: static; display: block; margin: 10px 0 0 auto; }
+  .transit__title { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transit, .transit__card, .welcome { transition: none; }
+}

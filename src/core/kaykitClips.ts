@@ -71,6 +71,12 @@ export function kaykitRigOf(height: number): KaykitRig {
  * gratis mit, und das ist kein Schaden: „was diese eben noch so anbieten" war
  * genau die Frage.
  *
+ * **Und seit NPCs Plätze aufsuchen, steht `Simulation` dabei** — die einzige
+ * Bibliothek mit einem **Sitzen** (`Sit_Chair_Idle`, `npc/NpcBody.POSE_CLIPS`,
+ * `npc/npcBehavior.ts`). Ein Besucher, der vor der Bank steht, statt darauf zu
+ * sitzen, ist keiner. 320 kB für das mittlere Skelett, 135 kB für das große,
+ * einmal je Sitzung wie die übrigen.
+ *
  * Wer mehr will, trägt hier eine Datei nach; der Test daneben prüft, dass
  * jede davon wirklich im Regal liegt.
  */
@@ -79,11 +85,13 @@ export const KAYKIT_CLIP_FILES: Readonly<Record<KaykitRig, readonly string[]>> =
     'character-animations/animations/rig-medium/Rig_Medium_General.glb',
     'character-animations/animations/rig-medium/Rig_Medium_MovementBasic.glb',
     'character-animations/animations/rig-medium/Rig_Medium_CombatMelee.glb',
+    'character-animations/animations/rig-medium/Rig_Medium_Simulation.glb',
   ],
   large: [
     'character-animations/animations/rig-large/Rig_Large_General.glb',
     'character-animations/animations/rig-large/Rig_Large_MovementBasic.glb',
     'character-animations/animations/rig-large/Rig_Large_CombatMelee.glb',
+    'character-animations/animations/rig-large/Rig_Large_Simulation.glb',
   ],
 };
 

@@ -104,6 +104,22 @@ export const GATE_STEP = 2;
 /** Was hinter dem letzten Tor noch Gang ist, damit er nicht abrupt endet. */
 export const CORRIDOR_TAIL = 2;
 
+/**
+ * **Bis zu so vielen Welten ist der Hub eine Lobby**: ein Tor je Gang, mitten
+ * in einer kurzen Nische, und jede Nische bekommt ihren Bogen und ihr Schild
+ * (`hubDecor.ts`). Vier — so viele Richtungen hat das Gitter.
+ *
+ * Gewünscht war ein Hub, von dem aus man **alle Spiele sieht**. In der alten
+ * Auslegung standen vier Welten hintereinander in einem Gang, und von der
+ * Hallenmitte aus sah man zwei Ringe und die Kanten zweier weiterer. Jetzt
+ * steht man in der Mitte und hat in jeder Richtung genau ein Ziel. Erst ab
+ * der fünften Welt werden die Gänge wieder zu Fluren mit Toren an den Wänden.
+ */
+export const LOBBY_GATES = 4;
+
+/** Wie tief eine Nische der Lobby ist, hinter ihrem Tor, in Kacheln. */
+export const LOBBY_TAIL = 1;
+
 /** Die vier Gänge, in der Reihenfolge, in der sie belegt werden. */
 export const CORRIDORS: readonly Dir[] = [DIR_N, DIR_E, DIR_S, DIR_W];
 
@@ -149,7 +165,13 @@ export interface HubGrid {
  * es stört.
  */
 export function gatesPerCorridor(count: number): number {
+  if (isLobby(count)) return 1;
   return Math.max(GATES_PER_CORRIDOR, Math.ceil(count / CORRIDORS.length));
+}
+
+/** Ob `count` Welten als Lobby ausgelegt werden — ein Tor je Gang. */
+export function isLobby(count: number): boolean {
+  return count > 0 && count <= LOBBY_GATES;
 }
 
 /** Wie viele Gänge `count` Welten brauchen — höchstens vier. */
@@ -177,12 +199,16 @@ export function hubGates(count: number): HubGate[] {
     const dir = CORRIDORS[corridor]!;
     // Wie weit den Gang hinunter, von der Mitte der Halle aus gezählt.
     const along = HALL_HALF + FIRST_GATE + rank * GATE_STEP;
-    // Abwechselnd rechts und links: zwei je Seite, gegeneinander versetzt.
+    // Abwechselnd rechts und links: zwei je Seite, gegeneinander versetzt —
+    // in der Lobby aber mitten in der Nische, genau gegenüber der Mitte.
     const side = rank % 2 === 0 ? right(dir) : left(dir);
+    const offset = isLobby(count) ? 0 : 1;
     gates.push({
       index,
-      x: dirX(dir) * along + dirX(side),
-      z: dirZ(dir) * along + dirZ(side),
+      // `+ 0` macht aus einer −0 (0 · −1) eine 0 — eine Kachelzahl mit
+      // Vorzeichen, das keines ist, wäre ein Schlüssel, der nicht trifft.
+      x: dirX(dir) * along + dirX(side) * offset + 0,
+      z: dirZ(dir) * along + dirZ(side) * offset + 0,
       // Zurück zum Eingang — siehe oben.
       dir: opposite(dir),
       corridor,
@@ -214,7 +240,11 @@ export function hubGrid(count: number, props: (index: number) => Props = () => (
     corridors.push({
       dir: CORRIDORS[index]!,
       from: HALL_HALF + 1,
-      to: HALL_HALF + FIRST_GATE + (inThis - 1) * GATE_STEP + CORRIDOR_TAIL,
+      to:
+        HALL_HALF +
+        FIRST_GATE +
+        (inThis - 1) * GATE_STEP +
+        (isLobby(count) ? LOBBY_TAIL : CORRIDOR_TAIL),
       gates: inThis,
     });
   }

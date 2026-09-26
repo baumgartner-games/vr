@@ -18,13 +18,13 @@
  * Belegung der Spielsteuerung.
  */
 
-export type BuildTool = 'place' | 'move' | 'erase' | 'copy';
+export type BuildTool = 'place' | 'move' | 'erase' | 'copy' | 'floor' | 'wall';
 
 /** Was die Leiste meldet. */
 export type BuildEvent =
   | { readonly kind: 'tool'; readonly tool: BuildTool }
   | { readonly kind: 'turn'; readonly clockwise: boolean }
-  | { readonly kind: 'copy' | 'undo' | 'redo' };
+  | { readonly kind: 'copy' | 'undo' | 'redo' | 'fine' };
 
 /** Was die Leiste zeigt. */
 export interface BuildBarState {
@@ -36,10 +36,42 @@ export interface BuildBarState {
   readonly turnStep: string;
   /** Ob gerade etwas zu drehen ist. */
   readonly canTurn: boolean;
+  /** Ob auch Möbel in Achteln drehen (`45°` an der Leiste). */
+  readonly fine: boolean;
   /** Eine Zeile über dem, was gerade am Haken hängt, und wohin es käme. */
   readonly status: string;
   /** Ob die Stelle gültig ist — färbt die Zeile grün oder rot; `null` ohne Farbe. */
   readonly valid: boolean | null;
+}
+
+/**
+ * **Die Werkzeuge der Leiste in ihrer Reihenfolge** — so, wie sie von links
+ * nach rechts dastehen, und so, wie das Steuerkreuz ↑/↓ am Pad durch sie
+ * schaltet (`nextBuildTool`). Drehen, Rückgängig und Wiederholen sind keine
+ * Werkzeuge, sondern Taten: Sie liegen auf `R`/rechtem Stock und `Strg`+`Z`.
+ * _Boden_ und _Wand_ gehören dazu (`surfaceDecor.ts`); ihr Muster wechselt
+ * ein zweiter Druck auf denselben Knopf, nicht das Steuerkreuz.
+ */
+export const BUILD_TOOLS: readonly BuildTool[] = [
+  'place',
+  'move',
+  'erase',
+  'copy',
+  'floor',
+  'wall',
+];
+
+/**
+ * **Das Werkzeug neben `tool`** — `+1` rechts daneben, `-1` links, am Ende
+ * geht es vorn weiter. Heraus kommt das, was die Leiste bei einem Klick auf
+ * dieses Werkzeug meldete: Kopieren ist dort ein eigener Knopf (`copy`),
+ * die anderen drei sind `tool`.
+ */
+export function nextBuildTool(tool: BuildTool, step: 1 | -1): BuildEvent {
+  const at = BUILD_TOOLS.indexOf(tool);
+  const count = BUILD_TOOLS.length;
+  const next = BUILD_TOOLS[((((at < 0 ? 0 : at) + step) % count) + count) % count]!;
+  return next === 'copy' ? { kind: 'copy' } : { kind: 'tool', tool: next };
 }
 
 export const HIDDEN_BUILD_BAR: BuildBarState = {
@@ -49,6 +81,7 @@ export const HIDDEN_BUILD_BAR: BuildBarState = {
   canRedo: false,
   turnStep: '90°',
   canTurn: false,
+  fine: false,
   status: '',
   valid: null,
 };
@@ -94,6 +127,21 @@ export class BuildBar {
     kind: 'turn',
     clockwise: true,
   });
+  private readonly fine = this.button('∠', 'Schräg', 'Auch Möbel in 45° drehen (an/aus)', {
+    kind: 'fine',
+  });
+  private readonly floor = this.button(
+    '▤',
+    'Boden',
+    'Den Raum unter dem Kran mit Boden belegen · noch einmal: anderes Muster',
+    { kind: 'tool', tool: 'floor' },
+  );
+  private readonly wall = this.button(
+    '▥',
+    'Wand',
+    'Die Wandseite am Kran belegen · noch einmal: anderes Muster',
+    { kind: 'tool', tool: 'wall' },
+  );
   private readonly copy = this.button(
     '⧉',
     'Kopieren',
@@ -124,7 +172,11 @@ export class BuildBar {
       gap(),
       this.left.element,
       this.right.element,
+      this.fine.element,
       this.copy.element,
+      gap(),
+      this.floor.element,
+      this.wall.element,
       gap(),
       this.undo.element,
       this.redo.element,
@@ -132,6 +184,15 @@ export class BuildBar {
     this.bar.append(this.status, this.row);
     document.body.append(this.bar);
     window.addEventListener('keydown', this.onKey, true);
+  }
+
+  /**
+   * **Ein Druck, der nicht von der Leiste kam** — das Steuerkreuz am Pad
+   * (`PortalWorld.toolStep`). Er geht in dieselbe Liste wie ein Klick und
+   * wird im selben Bild abgeholt.
+   */
+  press(event: BuildEvent): void {
+    this.queue.push(event);
   }
 
   /** Alles, was seit dem letzten Bild gedrückt wurde — die Liste leert sich dabei. */
@@ -151,12 +212,16 @@ export class BuildBar {
       ['move', this.move],
       ['erase', this.erase],
       ['copy', this.copy],
+      ['floor', this.floor],
+      ['wall', this.wall],
     ] as const) {
       button.element.setAttribute('aria-pressed', String(state.tool === tool));
       button.element.classList.toggle('build-bar__btn--on', state.tool === tool);
     }
     this.left.label.textContent = state.turnStep;
     this.right.label.textContent = state.turnStep;
+    this.fine.element.setAttribute('aria-pressed', String(state.fine));
+    this.fine.element.classList.toggle('build-bar__btn--on', state.fine);
     this.left.element.disabled = !state.canTurn;
     this.right.element.disabled = !state.canTurn;
     this.undo.element.disabled = !state.canUndo;

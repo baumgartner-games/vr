@@ -103,6 +103,35 @@ describe('PadNav', () => {
     expect(open).toBe(false);
   });
 
+  it('fängt auf einer neuen Seite bei `initial` an — nicht beim gleichnamigen Knopf', () => {
+    let page = 'oben';
+    nav.addScope({
+      priority: 1,
+      active: () => true,
+      root: () => root,
+      page: () => page,
+      // Die Zeile, aus der man kam — hier „Drei".
+      initial: (at) => at.children[2] as HTMLElement,
+    });
+    tap(13);
+    expect(document.activeElement?.textContent).toBe('Drei');
+    tap(12);
+    expect(document.activeElement?.textContent).toBe('Zwei');
+    // Die Seite wechselt, und das Menü baut seine Knöpfe neu — einer davon
+    // heißt wie der, der eben den Fokus hatte.
+    page = 'unten';
+    const fresh = [...root.children].map((node) => {
+      const copy = node.cloneNode(true) as HTMLButtonElement;
+      const rect = (node as HTMLElement).getBoundingClientRect();
+      copy.getBoundingClientRect = () => rect;
+      copy.scrollIntoView = () => {};
+      return copy;
+    });
+    root.replaceChildren(...fresh);
+    frame();
+    expect(document.activeElement?.textContent).toBe('Drei');
+  });
+
   it('hört weg, solange das Menü Eingaben auf einen Druck wartet', () => {
     let closed = false;
     nav.addScope({

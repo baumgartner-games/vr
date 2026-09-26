@@ -1,6 +1,14 @@
 import { INTENT_LABELS, INTENTS, startLabel, applyIntent } from './lobby';
 import { defaultSetup, withWho } from './roundSetup';
-import { FLOW, FLOW_STEPS, MODE_TEXT, pauseActions, pauseTitle, roundMode } from './roundFlow';
+import {
+  FLOW,
+  FLOW_STEPS,
+  LOBBY_FLOW,
+  MODE_TEXT,
+  pauseActions,
+  pauseTitle,
+  roundMode,
+} from './roundFlow';
 
 describe('Der Ablauf einer Runde', () => {
   /**
@@ -59,5 +67,21 @@ describe('Der Ablauf einer Runde', () => {
 
   it('führt in zwei Schritten zum Start: Rollen, dann Übung oder echt', () => {
     expect(FLOW_STEPS).toEqual(['1 · Rollen verteilen', '2 · Übungsrunde oder echte Runde']);
+  });
+
+  /**
+   * **Die Lobby der Startseite** sagt vor dem Beitreten, wo man landet und wie
+   * es echt wird — mit den Worten der Knöpfe, nicht mit eigenen.
+   */
+  it('nennt in der Lobby Übungsrunde und echte Runde wie die Knöpfe im Spiel', () => {
+    const [practice, real] = LOBBY_FLOW.cards;
+    expect(practice.badge).toBe(MODE_TEXT.practice.badge);
+    expect(practice.when).toContain(`„${FLOW.practice}"`);
+    expect(practice.hint).toBe(FLOW.practiceHint);
+    expect(real.badge).toBe(MODE_TEXT.real.badge);
+    expect(real.when).toContain(`„${FLOW.real}"`);
+    expect(real.hint).toBe(FLOW.realHint);
+    expect(LOBBY_FLOW.steps).toBe(FLOW_STEPS);
+    for (const card of LOBBY_FLOW.cards) expect(card.when + card.hint).not.toMatch(/Test/);
   });
 });

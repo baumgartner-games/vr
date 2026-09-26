@@ -265,6 +265,37 @@ describe('Das Menü als Seite', () => {
     menu.dispose();
   });
 
+  it('setzt den Fokus nach jedem Rückweg auf die Zeile, aus der man kam', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot([{ id: 'bauen', label: 'Bauen', children: tree(log) }]);
+    menu.toggle(true);
+    const start = (): string | undefined => menu.padStart()?.dataset['id'];
+    // Ganz oben ohne Rückweg: die erste Zeile.
+    expect(start()).toBe('bauen');
+    click(menu, 'bauen');
+    click(menu, 'worlds');
+    // Hineingehen fängt oben (bzw. bei der gewählten Zeile) an.
+    expect(start()).toBe('world:hub');
+    // `B` am Pad …
+    expect(menu.goBack()).toBe(true);
+    expect(start()).toBe('worlds');
+    // … `Esc` …
+    click(menu, 'tools');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(start()).toBe('tools');
+    // … und die Brotkrume, zwei Ebenen auf einmal: Es zählt die Zeile auf
+    // der Seite, auf der man landet.
+    click(menu, 'worlds');
+    menu.element.querySelector<HTMLElement>('.pmenu__crumb[data-depth="0"]')!.click();
+    expect(title(menu)).toBe('Menü');
+    expect(start()).toBe('bauen');
+    // Die Seite heißt dem Fahrer am Pad nach ihrem Weg.
+    expect(menu.pageId).toBe('');
+    click(menu, 'bauen');
+    expect(menu.pageId).toBe('bauen');
+    menu.dispose();
+  });
+
   it('findet ein Untermenü auch unter einem Hauptbereich', () => {
     const menu = new PageMenu({ host });
     menu.setRoot([{ id: 'bauen', label: 'Bauen', children: tree(log) }]);
@@ -816,6 +847,22 @@ describe('Der Katalog auf der Seite', () => {
       'kaykit:tile_139.glb',
     ]);
     expect(menu.element.querySelector('.pmenu__foot')!.textContent).toContain('11 Treffer');
+    menu.dispose();
+  });
+
+  it('räumt mit `B` am Pad erst den Suchbegriff — wie `Esc`', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    const search = menu.element.querySelector<HTMLInputElement>('.pmenu__search')!;
+    search.value = 'tile 77';
+    search.dispatchEvent(new Event('input'));
+    const page = menu.pageId;
+    expect(menu.goBack()).toBe(true);
+    expect(search.value).toBe('');
+    expect(menu.pageId).toBe(page);
+    expect(menu.goBack()).toBe(true);
+    expect(menu.pageId).not.toBe(page);
     menu.dispose();
   });
 

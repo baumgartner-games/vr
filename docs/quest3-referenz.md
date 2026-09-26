@@ -36,7 +36,7 @@ Gemessen wird mit `tools/fps-bench.mjs` (`npm run fps`). Die Messung lief am
 
 ## Die empfohlene Einstellung für die Quest 3
 
-Zeile für Zeile, so wie sie unter _Menü → Grafik_ steht
+Zeile für Zeile, so wie sie unter _Menü → Einstellungen → Grafik_ steht
 (`src/core/graphicsSettings.ts`):
 
 | Zeile | Empfehlung | Was sie kostet, was sie bringt |

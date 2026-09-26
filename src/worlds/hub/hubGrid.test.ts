@@ -5,9 +5,12 @@ import { DIRS, TILE, dirX, dirZ, neighbour, opposite, tileKey } from '../nav/nav
 import {
   CORRIDORS,
   CORRIDOR_WIDTH,
+  FIRST_GATE,
   GATES_PER_CORRIDOR,
   HALL_HALF,
+  LOBBY_GATES,
   corridorCount,
+  isLobby,
   gatesPerCorridor,
   hubGates,
   hubGrid,
@@ -35,10 +38,35 @@ describe('Die Hub-Auslegung auf dem Gitter', () => {
   });
 
   it('macht einen neuen Gang auf, wenn der alte voll ist', () => {
-    expect(corridorCount(1)).toBe(1);
-    expect(corridorCount(GATES_PER_CORRIDOR)).toBe(1);
-    expect(corridorCount(GATES_PER_CORRIDOR + 1)).toBe(2);
+    // Über der Lobby: vier Tore je Gang, dann der nächste.
+    expect(corridorCount(LOBBY_GATES + 1)).toBe(2);
+    expect(corridorCount(GATES_PER_CORRIDOR * 2)).toBe(2);
+    expect(corridorCount(GATES_PER_CORRIDOR * 2 + 1)).toBe(3);
     expect(corridorCount(GATES_PER_CORRIDOR * 4)).toBe(4);
+  });
+
+  /**
+   * **Die Lobby**: Bis vier Welten hat jede ihren eigenen Gang, und ihr Tor
+   * steht mitten in der Nische, genau gegenüber der Hallenmitte. Wer in der
+   * Mitte steht, hat in jeder Richtung ein Ziel.
+   */
+  it('stellt bis vier Welten je ein Tor mitten in eine eigene Nische', () => {
+    for (let count = 1; count <= LOBBY_GATES; count++) {
+      expect(isLobby(count)).toBe(true);
+      expect(corridorCount(count)).toBe(count);
+      const gates = hubGates(count);
+      expect(new Set(gates.map((gate) => gate.corridor)).size).toBe(count);
+      for (const gate of gates) {
+        const dir = CORRIDORS[gate.corridor]!;
+        const across = gate.x * dirX(right(dir)) + gate.z * dirZ(right(dir));
+        expect(Math.abs(across)).toBe(0);
+      }
+      // Die Nische ist kurz: eine Kachel hinter dem Tor, dann Wand.
+      const hub = hubGrid(count);
+      for (const corridor of hub.corridors) expect(corridor.to).toBe(HALL_HALF + FIRST_GATE + 1);
+    }
+    expect(isLobby(0)).toBe(false);
+    expect(isLobby(LOBBY_GATES + 1)).toBe(false);
   });
 
   /**
@@ -61,7 +89,7 @@ describe('Die Hub-Auslegung auf dem Gitter', () => {
   it('stellt zwei Tore je Seite auf, gegeneinander versetzt', () => {
     // Ein voller Gang: zwei rechts, zwei links, und keine zwei auf gleicher
     // Höhe — sonst steht man zwischen zwei Schildern und liest keines.
-    const gates = hubGates(GATES_PER_CORRIDOR);
+    const gates = hubGates(GATES_PER_CORRIDOR * 2).filter((gate) => gate.corridor === 0);
     const dir = CORRIDORS[0]!;
     const along = gates.map((gate) => gate.x * dirX(dir) + gate.z * dirZ(dir));
     const across = gates.map((gate) => gate.x * dirX(right(dir)) + gate.z * dirZ(right(dir)));

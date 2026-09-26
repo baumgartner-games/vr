@@ -10,10 +10,13 @@ import {
   TOP_DOWN_FOV,
   TOP_DOWN_ZOOM,
   groundDirection,
+  quarterTurn,
+  screenToGround,
   topDownDistance,
   topDownPitch,
   topDownPosition,
   stepFromDistance,
+  turnToward,
   zoomScaled,
   type Vec2,
 } from './topDownPose';
@@ -100,9 +103,21 @@ export class TopDownCamera {
   private free: { x: number; z: number } | null = null;
   /** Ob `free` beim nächsten Bild wieder über das Rig gehört (`reset`). */
   private refocus = false;
+  /**
+   * **Wohin „oben" im Bild zeigt** — gedreht in Vierteln (`turn`), Bogenmaß,
+   * links herum positiv. `0` ist Norden oben, wie es immer war.
+   *
+   * Zwei Zahlen wie beim Zoom: das Ziel (`headingGoal`, immer ein ganzes
+   * Viertel) und die Drehung, die gerade gilt und weich hinterherzieht —
+   * ein Bild, das hart um 90° springt, verliert man.
+   */
+  private headingGoal = 0;
+  private headingNow = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.camera.name = 'top-down-camera';
+    // Erst gieren, dann nicken — sonst kippte eine gedrehte Kamera zur Seite.
+    this.camera.rotation.order = 'YXZ';
     this.camera.rotation.set(topDownPitch(), 0, 0);
     this.camera.layers.mask = viewLayers(this.camera.layers.mask);
     this.setAspect(window.innerWidth / Math.max(1, window.innerHeight));
@@ -145,7 +160,15 @@ export class TopDownCamera {
     // Der Zoom rastet in Stufen, fährt aber nicht hart: Ein Sprung von 16 auf
     // 22 m ist derselbe Ruck, gegen den die Glättung oben steht.
     this.distance += (this.target - this.distance) * weight(dt, ZOOM_TAU);
-    topDownPosition(this.focus.position, this.distance, this.camera.position);
+    this.headingNow = turnToward(this.headingNow, this.headingGoal, weight(dt, TURN_TAU));
+    topDownPosition(
+      this.focus.position,
+      this.distance,
+      this.camera.position,
+      undefined,
+      this.headingNow,
+    );
+    this.camera.rotation.set(topDownPitch(), this.headingNow, 0);
     this.camera.updateMatrixWorld(true);
   }
 
@@ -182,7 +205,42 @@ export class TopDownCamera {
   reset(): void {
     this.focus.reset();
     this.distance = this.target;
+    this.headingNow = this.headingGoal;
     this.refocus = true;
+  }
+
+  /**
+   * **Das Bild eine Vierteldrehung weiter** — `+1` links herum, `-1` rechts
+   * herum (Steuerkreuz ←/→ am Pad, `Q` / `Umschalt`+`Q`, `FlatControls`).
+   * Gelaufen wird danach weiter **im Bild**: oben bleibt oben
+   * (`screenToGround`).
+   */
+  turn(direction: number): void {
+    this.headingGoal = quarterTurn(this.headingGoal, direction);
+  }
+
+  /** Wohin „oben" im Bild gerade zeigt — die weich nachgezogene Drehung. */
+  get heading(): number {
+    return this.headingNow;
+  }
+
+  /** Wohin „oben" zeigen wird, wenn die Drehung angekommen ist — ein ganzes Viertel. */
+  get headingTarget(): number {
+    return this.headingGoal;
+  }
+
+  /** Norden wieder oben, sofort — für eine neue Welt. */
+  resetHeading(): void {
+    this.headingGoal = 0;
+    this.headingNow = 0;
+  }
+
+  /**
+   * **Ein Weg im Bild als Weg am Boden** — ohne Stauchung, nur gedreht:
+   * für das Laufen und das Fahren des Krans (`FlatControls`).
+   */
+  screenToGround(x: number, z: number, out?: Vec2): Vec2 {
+    return screenToGround(x, z, this.headingNow, out);
   }
 
   /**
@@ -300,7 +358,7 @@ export class TopDownCamera {
    * damit P1 nur ein Ding kennen muss.
    */
   groundDirection(screenX: number, screenY: number, out?: Vec2): Vec2 {
-    return groundDirection(screenX, screenY, out);
+    return groundDirection(screenX, screenY, out, undefined, this.headingNow);
   }
 
   dispose(): void {
@@ -339,6 +397,8 @@ export class TopDownCamera {
 const FOLLOW_TAU = 0.12;
 /** Dasselbe für den Zoom — etwas träger, weil er seltener und größer springt. */
 const ZOOM_TAU = 0.18;
+/** Und für die Vierteldrehung des Bildes (`turn`): schnell, aber sichtbar. */
+const TURN_TAU = 0.09;
 /**
  * **Der geltende `overflow-y` eines Elements** — für die Frage, ob ein Kasten
  * der Oberfläche die Drehung nimmt.

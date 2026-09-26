@@ -90,7 +90,7 @@ hereinkommt, wird vorher **geputzt**: Steuerzeichen raus, Umbrüche zu
 Leerzeichen, bei 2000 Zeichen abgeschnitten. Was über das Netz kommt, hat sich
 niemand ausgesucht.
 
-In der Brille steht derselbe Verlauf unter _Menü → Verbindung → Chat_, die
+In der Brille steht derselbe Verlauf unter _Menü → Zusammen → Chat_, die
 letzten acht Zeilen, neueste oben, und _Schreiben_ macht die Tastatur auf. Was
 dort **nicht** steht, ist ein Kopieren-Knopf: 24 Zeichen aus einem Alphabet
 ohne Bedeutung sind in einer Brille nicht zu lesen und nirgends hinzulegen.
@@ -126,7 +126,7 @@ einen Medienstrom an dieselben Peers, die schon die Posen bekommen.
   dir redet, klingt von hinten, und wer am anderen Ende der Halle steht, ist
   leise. In VR ist das kein Schmuck, sondern der Unterschied zwischen „jemand
   sagt etwas" und „der da drüben sagt etwas".
-- **Aus, bis jemand es einschaltet** — _Menü → Verbindung → Mikrofon_, am PC im
+- **Aus, bis jemand es einschaltet** — _Menü → Zusammen → Mikrofon_, am PC im
   Panel unter _Sprache_. Ein Mikrofon, das mitläuft, weil man einem Raum
   beigetreten ist, ist ein Fehler und keine Bequemlichkeit; der Browser fragt
   ohnehin um Erlaubnis, und diese Frage soll auf einen Knopfdruck folgen.
@@ -188,7 +188,7 @@ anderen Seite weitergezeichnet wie deine eigene.
 
 ## Zuschauen: First und Third Person
 
-Unter _Zuschauen_ — am PC im Panel, in VR unter **Menü → Verbindung** — wählst
+Unter _Zuschauen_ — am PC im Panel, in VR unter **Menü → Zusammen** — wählst
 du erst einen Spieler und dann die Ansicht:
 
 - **Frei** — die normale Steuerung, eigene Kamera.

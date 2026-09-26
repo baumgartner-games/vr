@@ -11,12 +11,13 @@ import type { Rect } from '../house';
  * Vorher war sie nur ungefähr abgepaust (24 Pixel = 1 m), und Boden und Wände
  * passten nicht zum Bild. Die Eichung ist die beste Deckung aller Wandlinien
  * mit den Kachelkanten: Pixelspalte 52 ist `x = −34`, Pixelzeile 36,2 ist
- * `z = −52`. Aus der Vorlage ist `public/haunting/station-outline.png`
- * gerechnet — Wände als helle Linien, Räume und Gänge leicht getönt, alles
- * andere durchsichtig —, und wer es einschaltet (_Optionen →
- * Grundriss-Vorlage_), sieht, wo das Raster von der Zeichnung abweicht: um
- * höchstens eine halbe Kachel, wo eine Linie auf die nächste Kante gerundet
- * ist.
+ * `z = −52`. Das Bild `public/haunting/station-outline.png` war zuerst aus
+ * der Zeichnung gepaust; seit die Gänge vier Felder breit sind
+ * (`stationRules.ts`), wird es **aus dem gebauten Grundriss gerechnet**
+ * (`blueprintDrawing.ts`, `node tools/station-outline.mjs`) — Wände gelb mit
+ * Türlücken, Räume blau und Gänge grün getönt, alles andere durchsichtig —,
+ * in derselben Eichung. Wer es einschaltet (_Optionen → Grundriss-Vorlage_),
+ * sieht also genau die Wände, die gebaut sind.
  *
  * Hier stehen nur Zahlen, kein three.js und kein `import.meta`: Die Eichung
  * prüft ein Test (`blueprint.test.ts`) gegen die Räume des Grundrisses.

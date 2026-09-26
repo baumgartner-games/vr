@@ -7,6 +7,31 @@
   --accent-2: #ff9d3d;
   --panel: rgba(12, 18, 32, 0.72);
   --border: rgba(140, 170, 230, 0.22);
+  /*
+    **Der eine Stil der Leisten und Schilder im Spiel** — Tastenhilfe,
+    Baukasten-Leiste, Burgerladen-Zeile, Haunting-Schild, Ladebildschirm und
+    Willkommens-Karte lesen dieselben Farben, Radien und dieselbe Schrift. Die
+    Akzentfarbe bleibt die der Welt (`--hud-accent` setzt, wer eine hat).
+  */
+  --hud-bg: rgba(12, 18, 32, 0.86);
+  --hud-bg-soft: rgba(12, 18, 32, 0.6);
+  --hud-raise: rgba(140, 170, 230, 0.12);
+  --hud-raise-hi: rgba(140, 170, 230, 0.22);
+  --hud-line: rgba(140, 170, 230, 0.26);
+  --hud-ink: #e8ecf7;
+  --hud-dim: #9aa6c2;
+  --hud-accent: #4aa8ff;
+  --hud-on: #ffc34d;
+  --hud-good: #b8f5d3;
+  --hud-good-bg: rgba(19, 64, 43, 0.9);
+  --hud-bad: #ffc9c9;
+  --hud-bad-bg: rgba(74, 22, 22, 0.9);
+  --hud-radius: 14px;
+  --hud-radius-sm: 8px;
+  --hud-radius-pill: 999px;
+  --hud-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --hud-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --hud-blur: blur(12px);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -89,27 +114,37 @@ html, body {
 
 /* Die Werkzeugleiste des Baukastens (`worlds/portal/buildBar.ts`): am Schirm unten in
    der Mitte, auf dem Telefon oben unter der Kopfzeile — unten liegen dort Stöcke und Fläche. */
-.build-bar { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid #65808e; border-radius: 10px; background: #061016e6; color: #e8f1ff; font: 12px/1.2 system-ui, sans-serif; }
+.build-bar { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg); color: var(--hud-ink); font: 12px/1.2 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
 .build-bar[hidden] { display: none; }
 .build-bar__row { display: flex; align-items: stretch; gap: 4px; }
-.build-bar__gap { width: 1px; margin: 4px 3px; background: #65808e; }
-.build-bar__btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 58px; min-height: 48px; padding: 4px 6px; border: 1px solid #65808e; border-radius: 7px; background: #0f2530; color: inherit; font: inherit; cursor: pointer; }
-.build-bar__btn:hover:not(:disabled) { background: #17384a; }
+.build-bar__gap { width: 1px; margin: 4px 3px; background: var(--hud-line); }
+.build-bar__btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 58px; min-height: 48px; padding: 4px 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-sm); background: var(--hud-raise); color: inherit; font: inherit; cursor: pointer; }
+.build-bar__btn:hover:not(:disabled) { background: var(--hud-raise-hi); }
 .build-bar__btn:disabled { opacity: 0.4; cursor: default; }
-.build-bar__btn--on { border-color: #ffc34d; background: #3d3010; box-shadow: inset 0 0 0 1px #ffc34d; }
+.build-bar__btn--on { border-color: var(--hud-on); background: rgba(255, 195, 77, 0.18); box-shadow: inset 0 0 0 1px var(--hud-on); }
 .build-bar__icon { font-size: 18px; line-height: 1; }
 .build-bar__label { font-weight: 600; white-space: nowrap; }
-.build-bar__status { padding: 2px 10px; border-radius: 5px; font-weight: 600; text-align: center; }
+.build-bar__status { padding: 2px 10px; border-radius: var(--hud-radius-pill); font-weight: 600; text-align: center; }
 .build-bar__status[hidden] { display: none; }
-.build-bar__status[data-valid="true"] { background: #13402b; color: #b8f5d3; }
-.build-bar__status[data-valid="false"] { background: #4a1616; color: #ffc9c9; }
+.build-bar__status[data-valid="true"] { background: var(--hud-good-bg); color: var(--hud-good); }
+.build-bar__status[data-valid="false"] { background: var(--hud-bad-bg); color: var(--hud-bad); }
 @media (max-width: 600px) {
-  .build-bar { bottom: auto; top: max(64px, calc(env(safe-area-inset-top) + 56px)); padding: 4px; gap: 4px; }
-  .build-bar__row { gap: 3px; }
+  .build-bar { bottom: auto; top: max(64px, calc(env(safe-area-inset-top) + 56px)); padding: 4px; gap: 4px; left: 0; right: 0; margin: 0 auto; transform: none; width: fit-content; }
+  .build-bar__row { gap: 3px; flex-wrap: wrap; justify-content: center; }
   .build-bar__gap { margin: 4px 1px; }
   .build-bar__btn { min-width: 38px; min-height: 44px; padding: 2px; }
   .build-bar__label { display: none; }
 }
+
+/*
+  **Die Zeile und die Karte des Burgerladens** (`plateup/PlateUpWorld.ts`) —
+  derselbe Stil wie die übrigen Leisten, mit dem Orange der Welt als Rand.
+  Stand vorher als `style.cssText` im Code, mit eigenen Farben.
+*/
+.plateup-strip, .plateup-card { --hud-accent: #f2a33a; position: fixed; left: 50%; transform: translateX(-50%); z-index: 4; box-sizing: border-box; border: 1px solid var(--hud-line); border-top: 2px solid var(--hud-accent); background: var(--hud-bg); color: var(--hud-ink); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); pointer-events: none; }
+.plateup-strip { top: calc(env(safe-area-inset-top, 0px) + 64px); max-width: calc(100vw - 24px); padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); font: 600 14px/1.2 var(--hud-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plateup-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); width: min(92vw, 420px); padding: 12px 16px; border-radius: var(--hud-radius); font: 14px/1.35 var(--hud-font); white-space: pre-line; }
+.plateup-strip[hidden], .plateup-card[hidden] { display: none; }
 
 /* ---------- Landing ---------- */
 
@@ -320,8 +355,8 @@ h1 {
   padding: 5px 5px 5px 14px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  backdrop-filter: blur(12px);
+  border-radius: var(--hud-radius-pill);
+  backdrop-filter: var(--hud-blur);
 }
 
 .hud__world { font-size: 13px; color: var(--muted); }
@@ -558,6 +593,20 @@ h1 {
 .haunt-peers__me { margin-left: auto; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .haunt-start code { font-size: 12px; color: var(--fg); }
 .haunt-start__hint { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
+/* Was nach dem Beitreten kommt (`ui/hauntFlow.ts`): zwei Schritte, zwei Schilder in den Farben von `.haunt__mode`. */
+.haunt-flow { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.haunt-flow__title { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.haunt-flow__steps { margin: 0 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.haunt-flow__modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 480px) { .haunt-flow__modes { grid-template-columns: 1fr; } }
+.haunt-flow__mode { padding: 10px 12px; border-radius: 12px; border: 1px solid; }
+.haunt-flow__mode--calm { border-color: rgba(74, 168, 255, 0.55); background: rgba(16, 36, 64, 0.6); }
+.haunt-flow__mode--live { border-color: rgba(255, 94, 104, 0.6); background: rgba(64, 18, 24, 0.6); }
+.haunt-flow__badge { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.haunt-flow__mode--calm .haunt-flow__badge { color: #8cc8ff; }
+.haunt-flow__mode--live .haunt-flow__badge { color: #ff7a82; }
+.haunt-flow__when { margin: 8px 0 4px; font-size: 13px; line-height: 1.45; }
+.haunt-flow__hint { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .status.is-online { color: #7fe0a8; }
 
 .net__lead {

@@ -118,6 +118,14 @@ export class EditorWorld extends GridWorld {
   }
 
   /**
+   * **Der Beispielraum gehört ins Startzimmer** (`portal/sampleRoom.ts`) —
+   * acht mal acht Kacheln um den Nullpunkt (`starterGrid`).
+   */
+  protected override sampleRoomOrigin(): { x: number; z: number } | null {
+    return { x: 0, z: 0 };
+  }
+
+  /**
    * **Der Bauplatz sieht aus wie ein Bauplan** und nicht wie ein Zimmer.
    *
    * Kühle Töne für Boden, Wand und Tür — man baut hier an einem Plan. Alles,

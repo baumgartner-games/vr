@@ -210,6 +210,12 @@ export class WristMenus extends THREE.Group {
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {
+    // **☰ am Controller macht das Menü auf und zu** — derselbe Knopf wie ☰
+    // am Pad und `M` an der Tastatur (`XRInput.menu`). Auf geht es am
+    // Handgelenk, das zuletzt benutzt wurde; ein zweiter Druck macht zu.
+    if (this.immersive && input.controllers.some((one) => one.tracked && one.menu.justPressed)) {
+      this.toggle();
+    }
     for (const menu of this.menus) menu.update(dt, input, headWorld);
   }
 

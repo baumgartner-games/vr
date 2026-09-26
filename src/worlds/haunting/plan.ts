@@ -1,6 +1,6 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
-import { DIR_E, DIR_N, DIR_S, DIR_W, dirX, dirZ, type Dir } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, dirX, dirZ, tileKey, type Dir } from '../nav/navTile';
 import {
   APRON,
   APRON_OUTER,
@@ -14,6 +14,7 @@ import {
   STATION_DOOR_W,
   STATION_DOOR_SPAN,
   doorEdges,
+  isPassage,
   tilesOf,
   type HouseRoom,
   type HouseSpec,
@@ -233,7 +234,12 @@ export function housePlan(
   // Eine Tür über zwei Kacheln sind zwei Türen im Plan, die zusammen auf- und
   // zugehen (`house.doorEdges`).
   for (const door of spec.doors)
-    for (const edge of doorEdges(door)) plan.door(edge.x, edge.z, edge.dir, 0, !shut.has(door.id));
+    for (const edge of doorEdges(door)) {
+      // **Ein offener Durchgang ist keine Tür** (`HouseDoor.passage`): Dort
+      // steht gar nichts — keine Wand, kein Blatt, der Gang läuft durch.
+      if (isPassage(door)) plan.graph.clearWall(tileKey(edge.x, edge.z, 0), edge.dir);
+      else plan.door(edge.x, edge.z, edge.dir, 0, !shut.has(door.id));
+    }
 
   // **Die Fenster kommen nach den Wänden.** Sie ersetzen eine Kante, die schon
   // steht — wer sie vorher setzte, bekäme sie von `plan.room(…, { walls: true })`
