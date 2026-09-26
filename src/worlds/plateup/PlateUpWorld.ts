@@ -937,7 +937,8 @@ export class PlateUpWorld extends GridWorld {
       if (this.strip.textContent !== text) this.strip.textContent = text;
     }
     // Mit einem Bauplan in der Hand weicht die Karte: Sie läge über dem Geist.
-    const cardOn = !open && flat && narrow && ctx.topDown && !this.blueprint;
+    const cardOn =
+      !open && flat && narrow && ctx.topDown && !this.blueprint && !this.quietStart(ctx);
     if (this.sign) this.sign.visible = this.sign.visible && !cardOn;
     if (!cardOn) {
       if (this.card) this.card.hidden = true;
@@ -990,7 +991,10 @@ export class PlateUpWorld extends GridWorld {
     if (this.sign) {
       // Beim Hinstellen eines Bauplans tritt das Schild zur Seite — es
       // steht mitten im Gastraum, genau da, wo man etwas hinstellen will.
-      this.sign.visible = showSign && !this.blueprint;
+      // Und am Schirm vor dem ersten Tag nur **eine** Erklärung auf einmal:
+      // Solange die Willkommens-Karte oder der Tipp der Einsteigerhilfe das
+      // Nötige sagt, bleibt die große Starttafel weg (`quietStart`).
+      this.sign.visible = showSign && !this.blueprint && !this.quietStart(ctx);
       const key = `${phase}:${this.shift.day}:${this.shift.total}`;
       if (showSign && key !== this.signKey) {
         this.signKey = key;
@@ -1381,6 +1385,17 @@ export class PlateUpWorld extends GridWorld {
     }
   }
 
+  /**
+   * **Vor dem ersten Tag, am Schirm, erklärt schon etwas anderes** — die
+   * Willkommens-Karte (`ui/WorldWelcome.ts`) oder der Tipp der
+   * Einsteigerhilfe. Dann bleiben Starttafel und Handykarte weg. In der
+   * Brille gibt es beides nicht, dort steht die Tafel wie immer.
+   */
+  private quietStart(ctx: WorldContext): boolean {
+    if (this.shift.phase !== 'ready' || ctx.renderer.xr.isPresenting) return false;
+    return welcomeOpen() || (this.tutorialOn && !this.blueprint);
+  }
+
   // --- Einrichten zwischen den Tagen ----------------------------------------
 
   /**
@@ -1725,7 +1740,10 @@ export class PlateUpWorld extends GridWorld {
     const hint = this.tutorialOn
       ? tutorialHint(this.shift, this.stations, this.carried, this.tables.length)
       : null;
-    this.hint = this.blueprint ? null : hint;
+    // Der Tipp wartet, bis die Willkommens-Karte weg ist — sie sagt schon,
+    // dass die Glocke den Tag startet.
+    const welcome = !ctx.renderer.xr.isPresenting && welcomeOpen();
+    this.hint = this.blueprint || welcome ? null : hint;
     const arrow = this.hintArrow;
     if (!arrow) return;
     const at = this.hint ? this.hintSpot(this.hint) : null;
@@ -2448,4 +2466,11 @@ function aboveHints(min: number): number {
   const top = hints.getBoundingClientRect().top;
   if (top <= 0) return min;
   return Math.round(Math.max(min, window.innerHeight - top + 8));
+}
+
+/** Ob die Willkommens-Karte der Welt gerade am Schirm steht (`ui/WorldWelcome.ts`). */
+function welcomeOpen(): boolean {
+  if (typeof document === 'undefined') return false;
+  const card = document.querySelector('.welcome');
+  return card instanceof HTMLElement && !card.hidden;
 }

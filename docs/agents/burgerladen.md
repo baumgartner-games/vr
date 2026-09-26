@@ -172,7 +172,12 @@ aus/an_ schaltet sie von Hand.
 - die **Leiste unten** über der Tastenleiste: was man in der Hand hat
   („In der Hand: Teller (Brötchen)") bzw. welcher Bauplan und ob er passt,
   und darüber der Tipp der Einsteigerhilfe;
-- das **Schild** vor der Durchreiche (Start, Tagesbilanz, Ende). Im
+- das **Schild** vor der Durchreiche (Start, Tagesbilanz, Ende). **Am Schirm
+  erklärt vor dem ersten Tag immer nur eines** (`quietStart`): Solange die
+  Willkommens-Karte (`ui/WorldWelcome.ts`) steht, schweigen Tipp und
+  Starttafel; danach sagt der Tipp der Einsteigerhilfe, was zu tun ist, und
+  die Starttafel (am Handy die Karte) kommt nur, wenn die Hilfe aus ist. In
+  der Brille steht die Tafel wie immer. Im
   Hochformat wäre es zu klein zum Lesen, dort steht derselbe Text als
   **Karte** unten am Schirm; die Tafeln im Raum schrumpfen dann auf die
   Bildbreite.
