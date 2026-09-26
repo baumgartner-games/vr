@@ -55,55 +55,6 @@ export interface PlaneWall {
   bx: number;
   bz: number;
   outside?: { x: number; z: number };
-  /**
-   * **Wie nah die Mitte herankommt**, wenn nicht der Radius des Kreises gilt —
-   * bei einer anderen Figur (`figureWalls`): beide Körper zusammen.
-   */
-  reach?: number;
-}
-
-/**
- * **Eine andere Figur in der Ebene** — ein Spieler oder ein NPC, als Kreis um
- * seine Füße. `radius` ist sein Körper, nicht der Kreis, mit dem er an Wänden
- * gleitet: Zwei Figuren kommen sich so nah wie früher ihre Körper in der
- * Physik, und keine steigt auf die andere.
- */
-export interface PlaneFigure {
-  x: number;
-  z: number;
-  radius: number;
-}
-
-/**
- * **Die anderen Figuren als Wände** — je ein Punkt, dem die Mitte nicht näher
- * kommt als beide Körper zusammen (`PlaneWall.reach`). Nur die, die der
- * Schritt überhaupt erreichen kann.
- *
- * Gewünscht (September 2026): _„Ich will, dass die Physik, ob man wo lang
- * gehen kann oder nicht, wirklich nur auf der 2D-Ebene ist … die 3D soll nur
- * optisch sein."_ Vorher stießen Spieler und NPC mit ihren Körpern in der
- * Physik aneinander, und der Formwurf nach unten fand den Kopf des anderen als
- * Boden — gemeldet mit dem Koch oben auf der Übungspuppe, die im engen Gang
- * neben ihm herlief.
- */
-export function figureWalls(
-  figures: readonly PlaneFigure[],
-  x: number,
-  z: number,
-  dx: number,
-  dz: number,
-  radius: number,
-): PlaneWall[] {
-  const out: PlaneWall[] = [];
-  const cx = x + dx / 2,
-    cz = z + dz / 2;
-  const half = Math.hypot(dx, dz) / 2;
-  for (const figure of figures) {
-    const reach = radius + figure.radius;
-    if (Math.hypot(figure.x - cx, figure.z - cz) > half + reach) continue;
-    out.push({ ax: figure.x, az: figure.z, bx: figure.x, bz: figure.z, reach });
-  }
-  return out;
 }
 
 /** In welchen Stücken ein Schritt gemacht wird: ein Viertel des Radius. */
@@ -189,7 +140,7 @@ function deepestWall(
     // und wer gerade erst von der Treppe heruntergeht, steckt noch halb
     // darin. Ihn hält sie nur dort, wo er schon ist: Er kommt nicht zurück
     // hinein, wird aber auch nicht mit einem Ruck hinausgeworfen.
-    let reach = wall.reach ?? radius;
+    let reach = radius;
     if (wall.outside) {
       if (sideOf(wall, fromX, fromZ) <= 0) continue;
       reach = Math.min(radius, gapTo(wall, fromX, fromZ));
@@ -245,16 +196,11 @@ function pushOut(
     nx /= gap;
     nz /= gap;
   } else {
-    // Genau auf der Linie: senkrecht zu ihr, zur Seite, von der man kam. Ein
-    // Punkt (eine Figur) hat keine Richtung — dort zählt nur die Seite.
+    // Genau auf der Linie: senkrecht zu ihr, zur Seite, von der man kam.
     const len = Math.sqrt(length2) || 1;
     nx = -ez / len;
     nz = ex / len;
-    if (length2 === 0) {
-      const back = Math.hypot(fromX - qx, fromZ - qz);
-      nx = back > 1e-9 ? (fromX - qx) / back : 1;
-      nz = back > 1e-9 ? (fromZ - qz) / back : 0;
-    } else if ((fromX - qx) * nx + (fromZ - qz) * nz < 0) {
+    if ((fromX - qx) * nx + (fromZ - qz) * nz < 0) {
       nx = -nx;
       nz = -nz;
     }
@@ -386,8 +332,7 @@ function flightSides(
 /**
  * **Ein Schritt des Spielers auf dem Zellgitter, in der Ebene** — die Wände
  * um Start und Ziel einsammeln (`cellPlaneWalls`) und darin gleiten
- * (`slideCircle`). `figures` sind die anderen Figuren, `body` der eigene
- * Körper, mit dem sie gemessen werden (`figureWalls`).
+ * (`slideCircle`).
  */
 export function slideOnCells(
   grid: CellGrid,
@@ -397,15 +342,11 @@ export function slideOnCells(
   dz: number,
   level = 0,
   radius = PLAYER_PLANE_RADIUS,
-  figures: readonly PlaneFigure[] = [],
-  body = radius,
 ): { x: number; z: number } {
   const reach = radius + 0.5;
   const tx0 = Math.floor((Math.min(x, x + dx) - reach) / TILE),
     tx1 = Math.floor((Math.max(x, x + dx) + reach) / TILE),
     tz0 = Math.floor((Math.min(z, z + dz) - reach) / TILE),
     tz1 = Math.floor((Math.max(z, z + dz) + reach) / TILE);
-  const walls = cellPlaneWalls(grid, tx0, tz0, tx1, tz1, level);
-  if (figures.length > 0) walls.push(...figureWalls(figures, x, z, dx, dz, body));
-  return slideCircle(walls, x, z, dx, dz, radius);
+  return slideCircle(cellPlaneWalls(grid, tx0, tz0, tx1, tz1, level), x, z, dx, dz, radius);
 }

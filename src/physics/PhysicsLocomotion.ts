@@ -24,8 +24,14 @@ import {
  * Zellgitter sperrt** (`GROUP_CELL`): Über Wände und Möbel der Gitterwelten
  * entscheidet `cellGate`, nicht Rapier. Böden, Treppen und Kisten bleiben
  * Physik.
+ *
+ * **Und nicht an NPCs** (`GROUP_NPC`, September 2026): Figuren gehen
+ * durcheinander hindurch. Gewünscht: _„Charaktere so eingestellt, dass diese
+ * durch einander gehen dürfen und können und sich nicht gegenseitig
+ * blockieren"_. Vorher nahm der Formwurf nach unten den Kopf eines NPC als
+ * Boden, und der Spieler stand im engen Gang oben auf der Übungspuppe.
  */
-const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER & ~GROUP_CELL;
+const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER & ~GROUP_CELL & ~GROUP_NPC;
 
 const RADIUS = PLAYER_CAPSULE_RADIUS;
 const TERMINAL_VELOCITY = 32;
@@ -580,10 +586,7 @@ export class PhysicsLocomotion implements Locomotion {
    * oder hinunter inbegriffen), keiner heißt fallen.
    */
   private walkPlane(): void {
-    // **Keine Figur**: An NPCs stößt der Spieler in der Ebene an
-    // (`PlayerPlane.slide`), und als Boden taugt kein Kopf — sonst stand er
-    // oben auf der Übungspuppe, die neben ihm durch den Gang lief.
-    const groups = interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~GROUP_NPC & ~this.phaseMask);
+    const groups = interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~this.phaseMask);
     const t = this.body.translation();
     const top = t.y + PLANE_STEP;
     this.body.setTranslation({ x: t.x, y: top, z: t.z }, false);

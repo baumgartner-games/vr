@@ -153,27 +153,25 @@ den großen Kacheln bleibt.
     so breit wie der des Spielers (`Npc.planeRadius`: `PLAYER_PLANE_RADIUS`
     je 2 × 2 Zellen, größere im Verhältnis). Siehe _Alle Figuren gehen auf dem
     Gitter_ weiter unten.
-  - **Figuren stoßen sich in der Ebene, nicht in der Physik** (September
-    2026, gemeldet: _„Ich will, dass die Physik, ob man wo lang gehen kann
-    oder nicht, wirklich nur auf der 2D-Ebene ist … und nun ist das Problem
-    wieder, aber wenn zwei Charaktere zusammen laufen … Die 3D soll nur
-    optisch sein"_ — auf dem Bild stand der Koch im engen Gang der
-    Test-Navigation oben auf der Übungspuppe). Der Zylinder des NPC war für
-    die Kapsel noch Physik, und der Formwurf nach unten nahm seinen Kopf als
-    Boden. Jetzt:
-    - `walkPlane` fragt ohne `GROUP_NPC` — kein Kopf ist Boden.
-    - Ein NPC auf dem Gitter stößt mit seinem Körper weder an den Spieler noch
-      an andere NPCs (`PhysicsBody.gridFigure`, gesetzt in `Npc.update`).
-    - Wer wem im Weg steht, sagt die Ebene: Jede andere Figur ist ein Punkt,
-      dem die Mitte nicht näher kommt als beide Körper zusammen
-      (`planeMove.figureWalls`, `PlaneWall.reach`) — so nah wie vorher die
-      Körper in der Physik (Spieler 0,24 m + Puppe 0,28 m). Der Spieler
-      bekommt die NPCs in `GridWorld.playerPlane`, jeder NPC den Spieler und
-      die übrigen über `NavRun.figures` (`NpcDirector.figures`), nur auf der
-      eigenen Etage (`FIGURE_FLOOR`, 1 m). Mitspieler bleiben wie bisher
+  - **Figuren gehen durcheinander hindurch** — Spieler durch NPCs, NPCs
+    durch den Spieler und durcheinander, in jeder Welt (September 2026).
+    - Anlass: _„Ich will, dass die Physik, ob man wo lang gehen kann oder
+      nicht, wirklich nur auf der 2D-Ebene ist … Die 3D soll nur optisch
+      sein"_ — auf dem Bild stand der Koch im engen Gang der
+      Test-Navigation oben auf der Übungspuppe: Der Formwurf nach unten nahm
+      den Kopf ihres Zylinders als Boden.
+    - Ein Zwischenstand ließ die Figuren sich als Kreise in der Ebene
+      blockieren (PR #268). Danach gewünscht: _„Charaktere so eingestellt,
+      dass diese durch einander gehen dürfen und können und sich nicht
+      gegenseitig blockieren"_. Also blockiert sie gar nichts mehr.
+    - Umgesetzt allein über die Gruppen: Die Kapsel des Spielers sieht kein
+      `GROUP_NPC` (`PhysicsLocomotion.PLAYER_FILTER`), der Körper eines NPC
+      weder `GROUP_PLAYER` noch `GROUP_NPC` (`Npc`, `filter`). Kisten, Böden,
+      Kugeln und Schläge bleiben, wie sie waren. Mitspieler waren schon immer
       füreinander durchlässig.
     - Getestet mit echtem Rapier (`physics/figurePlane.test.ts`: frontal,
-      versetzt, entgegenkommend — vorher stand die Kapsel auf 1,70 m).
+      versetzt, entgegenkommend, mit und ohne Ebene, zwei NPCs gegeneinander —
+      vorher stand die Kapsel auf 1,70 m).
   - Getestet mit echtem Rapier an Treppe und Podest und an einem Boden aus
     einzelnen Kacheln (`physics/playerPlane.test.ts`), dazu an den Schrägen
     der Station (`haunting/map/stationSlide.test.ts`).

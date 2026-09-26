@@ -15,9 +15,7 @@ import {
 import type { NavGraph } from '../nav/navGraph';
 import { readNav, writeNav } from '../nav/navSerial';
 import { CellGrid, cellKey, navCellSource, type Slope } from '../nav/cellGrid';
-import { PLAYER_PLANE_RADIUS, slideOnCells } from '../nav/planeMove';
-import { FIGURE_FLOOR } from '../npc/Npc';
-import { PLAYER_CAPSULE_RADIUS } from '../../physics/playerClearance';
+import { slideOnCells } from '../nav/planeMove';
 import { wallCells, type DiagonalWall } from '../portal/gridSnap';
 import { MODEL_ARCHES, modelPathOf, type PropKind } from '../portal/props';
 import { markRole } from './fixtures/mark';
@@ -1215,23 +1213,7 @@ export abstract class GridWorld extends PortalWorld {
         const grid = this.cellGrid();
         if (!grid) return { x: x + dx, z: z + dz };
         const level = this.cellLevel(x, z, footY) ?? this.cellLevel(x + dx, z + dz, footY) ?? 0;
-        // **Auch an den NPCs stößt er in der Ebene an** und nicht mit der
-        // Kapsel (`PhysicsLocomotion.walkPlane`): Gemeldet war der Koch oben
-        // auf der Übungspuppe, die im engen Gang neben ihm herlief.
-        const figures = (this.director?.figures(null) ?? []).filter(
-          (figure) => Math.abs(figure.y - footY) < FIGURE_FLOOR,
-        );
-        return slideOnCells(
-          grid,
-          x,
-          z,
-          dx,
-          dz,
-          level,
-          PLAYER_PLANE_RADIUS,
-          figures,
-          PLAYER_CAPSULE_RADIUS,
-        );
+        return slideOnCells(grid, x, z, dx, dz, level);
       },
       flightFloor: (x, z, footY) => this.grid?.flightFloor(x, z, footY) ?? null,
     };
