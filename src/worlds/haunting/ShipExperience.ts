@@ -85,6 +85,12 @@ import {
   roundMode,
   type RoundMode,
 } from './rules/roundFlow';
+import {
+  commandActionAt,
+  commandRows,
+  type CommandAction,
+  type CommandRow,
+} from './rules/commandConsole';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
   APRON,
@@ -587,8 +593,9 @@ export class ShipExperience {
       this.command.mesh,
       (uv) => {
         if (!uv) return;
-        const index = Math.floor((1 - uv.y) * 6);
-        this.commandAction(index);
+        // Welche Zeile getroffen ist, sagt ihr Name (`rules/commandConsole.ts`).
+        const action = commandActionAt(this.commandRows(), 1 - uv.y);
+        if (action) this.commandAction(action);
       },
       false,
       true,
@@ -597,7 +604,7 @@ export class ShipExperience {
         // Tafel auf, dort stehen dieselben Knöpfe.
         use: () => {
           this.unfold();
-          this.host.say('Terminal: Mission, Test oder Bot-Runde in der Tafel wählen.');
+          this.host.say(`Konsole: „${FLOW.real}" oder „${FLOW.practice}" — in der Tafel wählen.`);
         },
       },
     );
@@ -1183,7 +1190,7 @@ export class ShipExperience {
       if (stopped.id === id) return;
     }
     if ((id === 'test-supply' || id.startsWith('training')) && !this.crew.options.test) {
-      this.host.say('Testschrank: zuerst TEST / OHNE MONSTER drücken.');
+      this.host.say(`Testschrank: zuerst „${FLOW.practice}" wählen.`);
       return;
     }
     const box = this.cabinets.find((c) => c.id === id);
@@ -2115,29 +2122,61 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.ctx.avatar.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
   }
 
-  private commandAction(index: number): void {
+  /** Die Zeilen der Konsole im jetzigen Stand (`rules/commandConsole.ts`). */
+  private commandRows(): CommandRow[] {
+    const options = this.crew.options;
+    return commandRows({
+      mode: this.roundMode(),
+      rooms: options.rooms,
+      monster: MONSTERS.find((m) => m.id === options.monster)!.name,
+      test: options.test,
+      bright: options.bright,
+    });
+  }
+
+  /**
+   * **Eine Zeile der Konsole ausführen — nach Namen** (`CommandAction`),
+   * nicht mehr nach ihrer Nummer: Dieselben Aktionen rufen die Knöpfe der
+   * Tafel (`rooms`, `monster`, `light`).
+   */
+  private commandAction(action: CommandAction): void {
     if (!this.player) return;
     const options = { ...this.crew.options };
-    if (index === 1) this.host.start();
-    if (index === 2) this.host.test();
-    if (index === 3) {
-      options.rooms =
-        ROOM_COUNTS[(ROOM_COUNTS.indexOf(options.rooms as 14) + 1) % ROOM_COUNTS.length]!;
-      this.host.configure(options);
-    }
-    if (index === 4) {
-      options.monster =
-        MONSTERS[(MONSTERS.findIndex((m) => m.id === options.monster) + 1) % MONSTERS.length]!.id;
-      this.host.configure(options);
-    }
-    if (index === 5 && options.test) {
-      options.bright = !options.bright;
-      this.crew.options = options;
-      this.host.say(
-        options.bright
-          ? 'Übungslicht an.'
-          : 'Übungsrunde im Dunkeln. Es gibt weiterhin kein Monster.',
-      );
+    switch (action) {
+      case 'status':
+        this.host.say(MODE_TEXT[this.roundMode()].line);
+        return;
+      case 'real':
+        this.host.start();
+        return;
+      case 'practice':
+        this.host.test();
+        return;
+      case 'rooms':
+        options.rooms =
+          ROOM_COUNTS[(ROOM_COUNTS.indexOf(options.rooms as 14) + 1) % ROOM_COUNTS.length]!;
+        this.host.configure(options);
+        return;
+      case 'monster':
+        options.monster =
+          MONSTERS[(MONSTERS.findIndex((m) => m.id === options.monster) + 1) % MONSTERS.length]!.id;
+        this.host.configure(options);
+        return;
+      case 'light':
+        // Das Übungslicht gehört zur Übungsrunde — und sagt es, statt still
+        // nichts zu tun (dieselbe Regel wie im Brillenmenü, `haunt:light`).
+        if (!options.test) {
+          this.host.say(`Das Übungslicht gehört zur Übungsrunde — erst „${FLOW.practice}" wählen.`);
+          return;
+        }
+        options.bright = !options.bright;
+        this.crew.options = options;
+        this.host.say(
+          options.bright
+            ? 'Übungslicht an.'
+            : 'Übungsrunde im Dunkeln. Es gibt weiterhin kein Monster.',
+        );
+        return;
     }
   }
 
@@ -2500,19 +2539,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
 
   private paint(): void {
     if (this.disposed) return;
-    const crew = this.crew;
-    this.rows(this.command, [
-      // Die Konsole der Zentrale nennt die Runde wie jede andere Stelle
-      // (`rules/roundFlow.ts`): oben der Modus, dann die zwei Starts.
-      `ORBITAL · JETZT: ${MODE_TEXT[this.roundMode()].badge}`,
-      FLOW.real.toUpperCase(),
-      'ÜBUNGSRUNDE · OHNE MONSTER',
-      `SKELD · FESTE KARTE · ${crew.options.rooms} RÄUME`,
-      `GEGNER: ${MONSTERS.find((m) => m.id === crew.options.monster)!.name}`,
-      crew.options.test
-        ? `ÜBUNGSLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
-        : 'TESTLABOR: IN DER ÜBUNGSRUNDE OFFEN',
-    ]);
+    // Die Konsole der Zentrale nennt die Runde wie jede andere Stelle
+    // (`rules/roundFlow.ts`): oben der Modus, dann die zwei Starts — jede
+    // Zeile mit ihrer Aktion (`rules/commandConsole.ts`).
+    this.rows(
+      this.command,
+      this.commandRows().map((row) => row.text),
+    );
     // Die Türen zeigen ihren Stand an den Hebeln (`DoorLever`, im Bildtakt).
     for (const screen of this.screens)
       if (screen.mesh.userData.locker) {
@@ -3366,7 +3399,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         key(
           { blueprint: '' },
           'Grundriss-Vorlage',
-          'Die gezeichneten Umrisse der Station als Bild auf dem Boden',
+          'Der Grundriss der Station als Bild auf dem Boden — Wände, Türen, Gänge',
           { pressed: !!this.host.blueprint?.() },
         ),
       );
@@ -3482,9 +3515,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (kind === 'options') this.showOptions(!this.optionsOpen);
     else if (kind === 'follow-bot') this.setFollowBot(!this.followBot);
     else if (kind === 'crouch') this.crouchToggle = !this.crouchToggle;
-    else if (kind === 'rooms') this.commandAction(3);
-    else if (kind === 'monster') this.commandAction(4);
-    else if (kind === 'light') this.commandAction(5);
+    else if (kind === 'rooms' || kind === 'monster' || kind === 'light') this.commandAction(kind);
     else if (kind === 'heal') this.heal();
     else if (kind === 'drop') this.dropPart();
     else if (kind === 'leave') this.leaveLocker();
@@ -3542,7 +3573,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       row(
         'blueprint',
         `Grundriss-Vorlage: ${this.host.blueprint?.() ? 'an' : 'aus'}`,
-        'Die gezeichneten Umrisse der Station als Bild auf dem Boden',
+        'Der Grundriss der Station als Bild auf dem Boden — Wände, Türen, Gänge',
         () => this.host.setBlueprint?.(!this.host.blueprint?.()),
       ),
       row(
@@ -3555,11 +3586,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ),
     ];
     if (['won', 'lost'].includes(this.host.state().phase))
-      rows.unshift(
-        row('restart', 'Runde neu starten', 'Neue Mission mit denselben Einstellungen', () =>
-          this.host.start(),
-        ),
-      );
+      rows.unshift(row('restart', FLOW.again, FLOW.realHint, () => this.host.start()));
     if (this.crew.options.test) {
       rows.push({
         id: 'orbital:labs',
@@ -3595,7 +3622,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       });
     }
     rows.push(
-      row('home', 'Zur Einsatzzentrale', 'Im Test oder nach Rundenende', () => {
+      row('home', 'Zur Einsatzzentrale', 'In der Übungsrunde oder nach Rundenende', () => {
         if (this.crew.options.test || this.host.state().phase !== 'running') this.home();
         else this.host.say('Während der Mission zu Fuß zur Zentrale zurückkehren.');
       }),

@@ -558,6 +558,20 @@ h1 {
 .haunt-peers__me { margin-left: auto; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .haunt-start code { font-size: 12px; color: var(--fg); }
 .haunt-start__hint { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
+/* Was nach dem Beitreten kommt (`ui/hauntFlow.ts`): zwei Schritte, zwei Schilder in den Farben von `.haunt__mode`. */
+.haunt-flow { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.haunt-flow__title { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.haunt-flow__steps { margin: 0 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.haunt-flow__modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 480px) { .haunt-flow__modes { grid-template-columns: 1fr; } }
+.haunt-flow__mode { padding: 10px 12px; border-radius: 12px; border: 1px solid; }
+.haunt-flow__mode--calm { border-color: rgba(74, 168, 255, 0.55); background: rgba(16, 36, 64, 0.6); }
+.haunt-flow__mode--live { border-color: rgba(255, 94, 104, 0.6); background: rgba(64, 18, 24, 0.6); }
+.haunt-flow__badge { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.haunt-flow__mode--calm .haunt-flow__badge { color: #8cc8ff; }
+.haunt-flow__mode--live .haunt-flow__badge { color: #ff7a82; }
+.haunt-flow__when { margin: 8px 0 4px; font-size: 13px; line-height: 1.45; }
+.haunt-flow__hint { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .status.is-online { color: #7fe0a8; }
 
 .net__lead {

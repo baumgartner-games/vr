@@ -67,6 +67,7 @@ import {
 import type { KaykitIndex } from './core/kaykitIndex';
 import { trackViewport } from './ui/safeArea';
 import { padNav } from './ui/padNav';
+import { renderHauntFlow } from './ui/hauntFlow';
 
 /**
  * **Wie groß der Schirm wirklich ist**, als Erstes und vor allem anderen: Die
@@ -167,6 +168,8 @@ const hauntLanding = startWorld === 'haunting';
 if (hauntLanding) {
   landing.dataset['landing'] = 'haunting';
   landingTitle.textContent = 'Haunting / Orbital';
+  // Übungsrunde oder echte Runde — was nach dem Beitreten kommt (`ui/hauntFlow.ts`).
+  renderHauntFlow();
 }
 /** Ob gerade von dieser Seite aus verbunden wird — dann wartet jeder Knopf. */
 let hauntBusy = false;

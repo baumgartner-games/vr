@@ -1,6 +1,7 @@
 /**
  * **Die Station, Kachel für Kachel** — abgepaust von der Vorlage des Besitzers
- * (`public/haunting/station-outline.png`, `docs/orbital/station-vorlage.webp`)
+ * (`docs/orbital/station-vorlage.webp`; die Vorlage am Boden, `public/haunting/station-outline.png`,
+ * wird inzwischen umgekehrt aus dieser Karte gerechnet)
  * im Maßstab **20 Pixel = 1 Meter** (`world3d/blueprint.ts`).
  *
  * Gewünscht: _„Kannst du map haunting neu aufbauen, die Boden und
