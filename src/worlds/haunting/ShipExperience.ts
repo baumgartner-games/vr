@@ -476,6 +476,8 @@ export class ShipExperience {
    * ist dort unsichtbar. Wo es liegt, sagt `haunting.css` (`.flat__panel`).
    */
   private readonly optionsRoot = el('div', 'flat orbital-options');
+  /** Welcher Modus zuletzt auf der Konsole stand (`update` → `paint`). */
+  private paintedMode: RoundMode | null = null;
   private readonly optionsPanel = el('div', 'ui-panel flat__panel');
   private optionsOpen = false;
   /**
@@ -2328,6 +2330,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const ctx = this.host.ctx;
     const state = this.host.state();
     const crew = this.crew;
+    // **Wechselt die Runde, schreibt die Konsole der Zentrale neu** — sie nennt
+    // oben den Modus (`paint`), und sonst zeichnet sie nur auf einen Handgriff.
+    const mode = this.roundMode();
+    if (mode !== this.paintedMode) {
+      this.paintedMode = mode;
+      this.paint();
+    }
     this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
@@ -2493,14 +2502,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (this.disposed) return;
     const crew = this.crew;
     this.rows(this.command, [
-      'HAUNTING / ORBITAL · 1 VR + 2 HANDYS',
-      'MISSION STARTEN',
-      'TEST / OHNE MONSTER',
+      // Die Konsole der Zentrale nennt die Runde wie jede andere Stelle
+      // (`rules/roundFlow.ts`): oben der Modus, dann die zwei Starts.
+      `ORBITAL · JETZT: ${MODE_TEXT[this.roundMode()].badge}`,
+      FLOW.real.toUpperCase(),
+      'ÜBUNGSRUNDE · OHNE MONSTER',
       `SKELD · FESTE KARTE · ${crew.options.rooms} RÄUME`,
       `GEGNER: ${MONSTERS.find((m) => m.id === crew.options.monster)!.name}`,
       crew.options.test
-        ? `TESTLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
-        : 'TESTLABOR: MIT TEST ÖFFNEN',
+        ? `ÜBUNGSLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
+        : 'TESTLABOR: IN DER ÜBUNGSRUNDE OFFEN',
     ]);
     // Die Türen zeigen ihren Stand an den Hebeln (`DoorLever`, im Bildtakt).
     for (const screen of this.screens)
@@ -2671,7 +2682,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    * das einmal je Sekunde.
    */
   private paintHud(round: MapRound): void {
-    const hud = roundHud(round);
+    // **Am Kopf steht, in welcher Runde man ist** (`rules/roundFlow.ts`): In
+    // der Übung läuft keine Uhr, die man lesen müsste — dort steht an ihrer
+    // Stelle „ÜBUNGSRUNDE", in der Brille wie am Bildschirm. Die echte Runde
+    // und die Vorführung zeigen den Sauerstoff wie bisher.
+    const mode = this.roundMode();
+    const clock = roundHud(round);
+    const hud =
+      mode === 'practice' || mode === 'over'
+        ? { ...clock, oxygen: MODE_TEXT[mode].badge, low: false, color: '#8cc8ff' }
+        : clock;
     // **Die zweite Zeile gibt es nur, wenn er allein spielt**
     // (`hudTasksVisible`): Sitzt am Archiv ein Mensch, ist das Wissen dessen
     // Platz, und der Techniker holt es sich am Funk. Die erste Zeile — Uhr
