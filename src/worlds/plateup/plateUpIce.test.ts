@@ -41,6 +41,7 @@ import {
   WOBBLE,
   followBall,
   followTime,
+  leanLimit,
   restTower,
   softLean,
   stepWobble,
@@ -390,6 +391,8 @@ describe('Restaurant: die Eisecke im Grundriss', () => {
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 };
 const SPACING = 0.058;
+/** Wie groß eine Kugel ist (ihr Durchmesser) — daran misst sich der Überhang. */
+const SIZE = 0.08;
 
 /** Einen Turm eine Zeit lang laufen lassen, mit einer Bahn für das Hörnchen. */
 function run(
@@ -404,7 +407,7 @@ function run(
   const steps = Math.round(seconds * fps);
   for (let i = 1; i <= steps; i++) {
     const { base, axis } = path(i * dt);
-    state = stepWobble(state, base, axis, count, SPACING, dt);
+    state = stepWobble(state, base, axis, count, SPACING, dt, SIZE);
   }
   return state;
 }
@@ -417,6 +420,24 @@ const walk =
     base: { x: speed * (Math.min(until, Math.max(from, t)) - from), y: 1, z: 0 },
     axis: UP,
   });
+
+/** Wie weit jede Kugel waagerecht über der darunter hängt (beim Gehen nach +x). */
+function links(state: WobbleState): number[] {
+  return state.balls.slice(1).map((b, i) => state.balls[i]!.x - b.x);
+}
+
+/** Wie weit jede Kugel von ihrem Platz auf der gezeigten Kugel darunter weg ist. */
+function overhangs(state: WobbleState): number[] {
+  const dir = state.dir!;
+  return state.balls.slice(1).map((b, i) => {
+    const below = state.balls[i]!;
+    return Math.hypot(
+      b.x - below.x - dir.x * SPACING,
+      b.y - below.y - dir.y * SPACING,
+      b.z - below.z - dir.z * SPACING,
+    );
+  });
+}
 
 /** Wie weit jede Kugel waagerecht hinter ihrem Platz im starren Turm hängt. */
 function behind(state: WobbleState, base: Vec3): number[] {
@@ -460,40 +481,63 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
       expect(lag[i]! - lag[i - 1]!).toBeGreaterThan(1.3 * (lag[i - 1]! - lag[i - 2]!));
     }
     // Wie gerechnet: Glied i hängt um v · τᵢ über, weich begrenzt.
-    const limit = WOBBLE.lean * SPACING;
     let sum = 0;
     for (let i = 1; i < lag.length; i++) {
-      const over = 0.3 * followTime(i);
-      sum += (limit * over) / (limit + over);
+      sum += softLean({ x: 0.3 * followTime(i), y: 0, z: 0 }, leanLimit(i, 6) * SIZE).x;
       expect(lag[i]!).toBeCloseTo(sum, 5);
     }
-    expect(lag[5]!).toBeGreaterThan(0.02);
+    expect(lag[5]!).toBeGreaterThan(0.015);
   });
 
-  test('auch im vollen Gehtempo bleibt er bis oben gebogen — und unter der Grenze', () => {
-    // 2,6 m/s, so schnell wie die Figur geht.
-    const moving = run(6, 3, 60, walk(2.6), run(6, 1, 60, still));
-    const lag = behind(moving, walk(2.6)(3).base);
-    const links = lag.slice(1).map((l, i) => l - lag[i]!);
-    // Jedes Glied hängt merklich weiter über als das darunter …
-    for (let i = 1; i < links.length; i++) {
-      expect(links[i]!).toBeGreaterThan(links[i - 1]! + 0.001);
+  test('die Grenze wächst nach oben wie 1/x: die oberste 0,9 Kugelgrößen, darunter weniger', () => {
+    // Fünf Kugeln, oberste Stelle 4: 0,9/4, 0,9/3, 0,9/2, 0,9/1.
+    expect([0, 1, 2, 3, 4].map((k) => leanLimit(k, 5))).toEqual([0, 0.225, 0.3, 0.45, 0.9]);
+    // Die unterste sitzt fest, die oberste darf immer 0,9 — egal wie hoch.
+    for (const count of [1, 2, 3, 10, 60]) {
+      expect(leanLimit(0, count)).toBe(0);
+      if (count > 1) expect(leanLimit(count - 1, count)).toBeCloseTo(WOBBLE.lean, 12);
+      for (let k = 2; k < count; k++) {
+        expect(leanLimit(k, count)).toBeGreaterThan(leanLimit(k - 1, count));
+      }
     }
-    // … und keines erreicht die Grenze.
-    for (const link of links) expect(link).toBeLessThan(WOBBLE.lean * SPACING);
-    expect(lag[5]!).toBeGreaterThan(0.06);
+    expect(WOBBLE.lean).toBe(0.9);
+  });
+
+  test('im vollen Gehtempo: oben fast 0,9 Kugelgrößen, darunter immer weniger — nie über der Grenze', () => {
+    for (const count of [5, 20]) {
+      // 2,6 m/s, so schnell wie die Figur geht.
+      const moving = run(count, 3, 60, walk(2.6), run(count, 1, 60, still));
+      const over = links(moving);
+      // Jedes Glied hängt weiter über als das darunter, und keines erreicht
+      // seine Grenze …
+      over.forEach((o, i) => {
+        expect(o).toBeLessThan(leanLimit(i + 1, count) * SIZE);
+        if (i > 0) expect(o).toBeGreaterThan(over[i - 1]!);
+      });
+      // … die oberste kommt ihr aber nahe.
+      expect(over[over.length - 1]!).toBeGreaterThan(0.45 * SIZE);
+      if (count === 20) expect(over[over.length - 1]!).toBeGreaterThan(0.75 * SIZE);
+      // Nicht linear, sondern wie das obere Ende einer S-Kurve: Nach oben
+      // wird jeder Schritt größer als der davor.
+      const top = over.slice(-4);
+      for (let i = 2; i < top.length; i++) {
+        expect(top[i]! - top[i - 1]!).toBeGreaterThan(top[i - 1]! - top[i - 2]!);
+      }
+    }
   });
 
   test('der weiche Überhang wächst streng und bleibt unter der Grenze', () => {
     let last = 0;
-    for (const r of [1e-4, 0.001, 0.01, 0.05, 0.2, 1, 10, 1000]) {
-      const soft = softLean({ x: r, y: 0, z: 0 }, 0.026).x;
+    for (const r of [1e-4, 0.001, 0.01, 0.05, 0.1, 0.2]) {
+      const soft = softLean({ x: r, y: 0, z: 0 }, 0.072).x;
       expect(soft).toBeGreaterThan(last);
-      expect(soft).toBeLessThan(0.026);
+      expect(soft).toBeLessThan(0.072);
       expect(soft).toBeLessThanOrEqual(r);
       last = soft;
     }
-    expect(softLean({ x: 0, y: 0, z: 0 }, 0.026)).toEqual({ x: 0, y: 0, z: 0 });
+    expect(softLean({ x: 1000, y: 0, z: 0 }, 0.072).x).toBeLessThanOrEqual(0.072);
+    expect(softLean({ x: 0, y: 0, z: 0 }, 0.072)).toEqual({ x: 0, y: 0, z: 0 });
+    expect(softLean({ x: 0.01, y: 0, z: 0 }, 0)).toEqual({ x: 0, y: 0, z: 0 });
   });
 
   test('nach dem Anhalten: kein Nachschwingen, keine Kugel über ihren Platz hinaus', () => {
@@ -503,7 +547,7 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
       const base = walk(speed)(1).base;
       let last = behind(state, base).map(Math.abs);
       for (let k = 0; k < 240; k++) {
-        state = stepWobble(state, base, UP, 6, SPACING, 1 / 60);
+        state = stepWobble(state, base, UP, 6, SPACING, 1 / 60, SIZE);
         const now = behind(state, base);
         now.forEach((d, i) => {
           // Die Kugel bleibt auf ihrer Seite …
@@ -517,39 +561,46 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     }
   });
 
+  test('flink: nach dem Anhalten aus vollem Gehtempo stehen zehn Kugeln in einer halben Sekunde', () => {
+    let state = run(10, 3, 60, walk(2.6), run(10, 1, 60, still));
+    const base = walk(2.6)(3).base;
+    expect(Math.max(...wobbleLag(state, base, UP, SPACING))).toBeGreaterThan(0.1);
+    state = run(10, 0.5, 120, () => ({ base, axis: UP }), state);
+    for (const lag of wobbleLag(state, base, UP, SPACING)) expect(lag).toBeLessThan(0.001);
+  });
+
   test('Anhalten aus dem Gehen: erst stehen die unteren, dann holen die oberen auf', () => {
     let state = run(6, 3, 60, walk(2.6), run(6, 1, 60, still));
     const base = walk(2.6)(3).base;
-    const links = (s: WobbleState): number[] => s.balls.slice(1).map((b, i) => s.balls[i]!.x - b.x);
     // Wann zieht sich jedes Glied am schnellsten zusammen?
     const fastest = Array<number>(5).fill(0);
     const when = Array<number>(5).fill(0);
-    for (let k = 1; k <= 120; k++) {
+    for (let k = 1; k <= 480; k++) {
       const before = links(state);
-      state = stepWobble(state, base, UP, 6, SPACING, 1 / 120);
+      state = stepWobble(state, base, UP, 6, SPACING, 1 / 480, SIZE);
       links(state).forEach((l, i) => {
-        const speed = (before[i]! - l) * 120;
+        const speed = (before[i]! - l) * 480;
         expect(speed).toBeGreaterThanOrEqual(-1e-9);
         if (speed > fastest[i]!) {
           fastest[i] = speed;
-          when[i] = k / 120;
+          when[i] = k / 480;
         }
       });
     }
     // Je höher das Glied, desto später holt es am schnellsten auf — die oberen
     // warten, bis die unteren fast stehen.
     for (let i = 1; i < 5; i++) expect(when[i]!).toBeGreaterThan(when[i - 1]!);
-    expect(when[4]!).toBeGreaterThan(0.1);
+    expect(when[4]!).toBeGreaterThan(0.02);
   });
 
-  test('schräg gehalten neigt er sich langsam in dieselbe Richtung — und fällt nicht', () => {
+  test('schräg gehalten neigt er sich in dieselbe Richtung — und fällt nicht', () => {
     let state = run(6, 1, 60, still);
     const tilt = { x: Math.sin(1), y: Math.cos(1), z: 0 }; // gut 57° nach +x
     const top = (s: WobbleState): Vec3 => s.balls[s.balls.length - 1]!;
     let soon = 0;
     let lastX = top(state).x;
     for (let k = 1; k <= 120; k++) {
-      state = stepWobble(state, { x: 0, y: 1, z: 0 }, tilt, 6, SPACING, 1 / 60);
+      state = stepWobble(state, { x: 0, y: 1, z: 0 }, tilt, 6, SPACING, 1 / 60, SIZE);
       // Die Spitze wandert nur in eine Richtung — kein Zurückpendeln.
       expect(top(state).x).toBeGreaterThanOrEqual(lastX - 1e-12);
       lastX = top(state).x;
@@ -560,16 +611,10 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     // … später lehnt sie in Richtung der Neigung, sogar etwas darüber hinaus.
     expect(lastX).toBeGreaterThan(5 * SPACING * Math.sin(1));
     // Und jede Kugel sitzt weiter auf der unter ihr.
-    for (let i = 1; i < state.balls.length; i++) {
-      const a = state.balls[i - 1]!;
-      const b = state.balls[i]!;
-      expect(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z)).toBeLessThan(
-        SPACING * (1 + WOBBLE.lean) + 1e-9,
-      );
-    }
+    overhangs(state).forEach((o, i) => expect(o).toBeLessThan(leanLimit(i + 1, 6) * SIZE));
   });
 
-  test('fällt nie herunter, auch nicht beim wilden Schütteln', () => {
+  test('fällt nie herunter, auch nicht beim wilden Schütteln — jede Kugel unter ihrer Grenze', () => {
     let seed = 7;
     const random = (): number => {
       seed = (seed * 16807) % 2147483647;
@@ -582,17 +627,51 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
       base = { x: base.x + random() * 0.6, y: base.y + random() * 0.6, z: base.z + random() * 0.6 };
       const axis = { x: random(), y: random(), z: random() };
       const dt = i % 50 === 0 ? 0.5 : 1 / 72;
-      state = stepWobble(state, base, axis, 12, SPACING, dt);
+      state = stepWobble(state, base, axis, 12, SPACING, dt, SIZE);
       expect(state.balls.length).toBe(12);
       expect(state.balls[0]).toEqual(base);
-      state.balls.forEach((b, j) => {
-        expect(Number.isFinite(b.x + b.y + b.z)).toBe(true);
-        if (j === 0) return;
-        const below = state.balls[j - 1]!;
-        const d = Math.hypot(b.x - below.x, b.y - below.y, b.z - below.z);
-        expect(d).toBeLessThan(SPACING * (1 + WOBBLE.lean));
+      state.balls.forEach((b) => expect(Number.isFinite(b.x + b.y + b.z)).toBe(true));
+      overhangs(state).forEach((o, j) => {
+        expect(o).toBeLessThan(leanLimit(j + 1, 12) * SIZE);
       });
     }
+  });
+
+  test('eine neue Kugel oben lässt den Turm darunter nicht springen', () => {
+    // Im vollen Gehtempo, alle Kugeln weit übergehängt — dann kommt eine dazu.
+    let state = run(6, 2, 60, walk(2.6), run(6, 1, 60, still));
+    const shape = (s: WobbleState): Vec3[] =>
+      s.balls.map((b) => ({
+        x: b.x - s.balls[0]!.x,
+        y: b.y - s.balls[0]!.y,
+        z: b.z - s.balls[0]!.z,
+      }));
+    let t = 2;
+    let last = shape(state);
+    let steady = 0;
+    let biggest = 0;
+    for (let k = 1; k <= 60; k++) {
+      t += 1 / 60;
+      const count = k <= 10 ? 6 : 7;
+      state = stepWobble(state, walk(2.6)(t).base, UP, count, SPACING, 1 / 60, SIZE);
+      const now = shape(state);
+      // Wie weit sich jede alte Kugel (gegen das Hörnchen) in diesem Bild bewegt.
+      const moved = Math.max(
+        ...last.map((p, i) => Math.hypot(now[i]!.x - p.x, now[i]!.y - p.y, now[i]!.z - p.z)),
+      );
+      if (k <= 10) steady = Math.max(steady, moved);
+      else biggest = Math.max(biggest, moved);
+      last = now.slice(0, 6);
+      // Und auch während des Übergangs keine über der größeren der beiden Grenzen.
+      overhangs(state).forEach((o, i) => {
+        expect(o).toBeLessThan(Math.max(leanLimit(i + 1, 6), leanLimit(i + 1, 7)) * SIZE);
+      });
+    }
+    // Vorher steht die Form still; nach der neuen Kugel zieht sie nach, aber
+    // in kleinen Schritten — keine Kugel springt mehr als 1 cm in einem Bild.
+    expect(steady).toBeLessThan(1e-6);
+    expect(biggest).toBeGreaterThan(0);
+    expect(biggest).toBeLessThan(0.01);
   });
 
   test('30 oder 144 Bilder je Sekunde ergeben denselben Turm', () => {
@@ -614,10 +693,12 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     for (const lag of wobbleLag(state, { x: 0, y: 1, z: 0 }, UP, SPACING)) {
       expect(lag).toBeLessThan(1e-4);
     }
-    // Auch nach einem Gang durch den Raum steht er am Ende wieder gerade.
-    const moved = run(50, 1, 60, walk(1), state);
-    const base = walk(1)(1).base;
-    const after = run(50, 30, 60, () => ({ base, axis: UP }), moved);
+    // Im Gehen bleibt jede unter ihrer Grenze …
+    const moved = run(50, 1, 60, walk(2.6), state);
+    overhangs(moved).forEach((o, i) => expect(o).toBeLessThan(leanLimit(i + 1, 50) * SIZE));
+    // … und nach dem Anhalten steht er bald wieder gerade.
+    const base = walk(2.6)(1).base;
+    const after = run(50, 5, 60, () => ({ base, axis: UP }), moved);
     for (const lag of wobbleLag(after, base, UP, SPACING)) expect(lag).toBeLessThan(1e-4);
   });
 

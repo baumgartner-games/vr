@@ -358,6 +358,7 @@ export class IceConeView {
       this.balls.length,
       ICE_SIZE.spacing * s,
       dt,
+      2 * ICE_SIZE.ball * s,
     );
     this.wobble.balls.forEach((ball, i) => {
       const mesh = this.balls[i];
