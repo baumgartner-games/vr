@@ -387,18 +387,18 @@ body.orbital-on #hud { display: none; }
    hinter dunklem Glas („das Menü ist aktuell über den ganzen Bildschirm").
    Jetzt wächst er mit dem Inhalt und hört spätestens da auf, wo vorher seine
    Unterkante klebte; `--orbital-gap` ist der Platz, den er unten frei lässt. */
-.orbital-player { position: fixed; top: calc(var(--orbital-top) + var(--orbital-head, 0px)); left: 16px; z-index: 4; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - var(--orbital-top) - var(--orbital-head, 0px) - var(--orbital-gap, 16px)); max-height: calc(100dvh - var(--orbital-top) - var(--orbital-head, 0px) - var(--orbital-gap, 16px)); overflow-y: auto; box-sizing: border-box; border: 1px solid #365565; border-radius: 12px; padding: 14px; background: rgba(7,22,32,.96); color: #e0eff0; font: 12px system-ui, sans-serif; box-shadow: 0 8px 25px #0004; }
+.orbital-player { position: fixed; top: calc(var(--orbital-top) + var(--orbital-head, 0px)); left: 16px; z-index: 4; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - var(--orbital-top) - var(--orbital-head, 0px) - var(--orbital-gap, 16px)); max-height: calc(100dvh - var(--orbital-top) - var(--orbital-head, 0px) - var(--orbital-gap, 16px)); overflow-y: auto; box-sizing: border-box; border: 1px solid var(--hud-line); border-top: 2px solid #96eddb; border-radius: var(--hud-radius); padding: 14px; background: var(--hud-bg); color: var(--hud-ink); font: 12px var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
 /* Die Zeile mit der Verteilung unter den drei Absichten (`describeSetup`). */
 .orbital-player__setup { flex-basis: 100%; margin: 4px 3px 2px; color: #9fc4cc; line-height: 1.45; }
 .orbital-player[hidden] { display: none; }
 .orbital-player strong { display: block; letter-spacing: .045em; padding-bottom: 8px; color: #96eddb; }
-.orbital-player button { min-height: 40px; margin: 3px; padding: 8px 11px; border: 1px solid #3d6070; border-radius: 6px; color: #dfeded; background: #172f3d; font: 12px system-ui; cursor: pointer; touch-action: manipulation; }
-.orbital-player button:hover { background: #294857; }
+.orbital-player button { min-height: 40px; margin: 3px; padding: 8px 11px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-sm); color: var(--hud-ink); background: var(--hud-raise); font: 12px var(--hud-font); cursor: pointer; touch-action: manipulation; }
+.orbital-player button:hover { background: var(--hud-raise-hi); }
 .orbital-player button:focus-visible { outline: 2px solid #96eddb; outline-offset: 2px; }
 .orbital-player__puzzle { border-top: 1px solid #365565; margin-top: 6px; padding-top: 3px; }
 /* Zugeklappt bleibt nur die Titelzeile stehen; der Kasten schrumpft auf sie
    zusammen, weil nichts mehr darin steht (`paintDom`). */
-.orbital-player.is-folded { background: rgba(7,14,16,.82); }
+.orbital-player.is-folded { background: var(--hud-bg-soft); }
 .orbital-player details { padding-top: 8px; }
 .orbital-player summary { cursor: pointer; padding-block: 7px; color: #96eddb; }
 @media (min-width: 760px) { .haunt.is-view .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }

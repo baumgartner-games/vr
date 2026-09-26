@@ -657,25 +657,9 @@ export class PlateUpWorld extends GridWorld {
     if (typeof document === 'undefined') return;
     if (!this.strip) {
       const strip = document.createElement('div');
+      // Aussehen und Platz stehen in `style.css` (`.plateup-strip`), bei den
+      // übrigen Leisten — dieselben Farben, Radien und dieselbe Schrift.
       strip.className = 'plateup-strip';
-      strip.style.cssText = [
-        'position:fixed',
-        'left:50%',
-        'top:calc(env(safe-area-inset-top, 0px) + 64px)',
-        'transform:translateX(-50%)',
-        'padding:6px 14px',
-        'border-radius:999px',
-        'background:rgba(20,24,32,0.82)',
-        'border:2px solid #f2a33a',
-        'color:#fff',
-        'font:600 14px/1.2 system-ui,sans-serif',
-        'white-space:nowrap',
-        'pointer-events:none',
-        'z-index:4',
-        'max-width:calc(100vw - 24px)',
-        'overflow:hidden',
-        'text-overflow:ellipsis',
-      ].join(';');
       document.body.appendChild(strip);
       this.strip = strip;
     }
@@ -696,23 +680,6 @@ export class PlateUpWorld extends GridWorld {
     if (!this.card) {
       const card = document.createElement('div');
       card.className = 'plateup-card';
-      card.style.cssText = [
-        'position:fixed',
-        'left:50%',
-        'bottom:calc(env(safe-area-inset-bottom, 0px) + 18px)',
-        'transform:translateX(-50%)',
-        'width:min(92vw, 420px)',
-        'box-sizing:border-box',
-        'padding:12px 16px',
-        'border-radius:16px',
-        'background:rgba(20,24,32,0.9)',
-        'border:2px solid #f2a33a',
-        'color:#e8e8e8',
-        'font:14px/1.35 system-ui,sans-serif',
-        'white-space:pre-line',
-        'pointer-events:none',
-        'z-index:4',
-      ].join(';');
       document.body.appendChild(card);
       this.card = card;
     }
