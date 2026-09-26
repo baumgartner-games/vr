@@ -9,6 +9,7 @@ import type { WorldContext } from '../../../core/types';
 import { NAVIGATION, centre } from '../layout';
 import type { TestZone, ZoneHost } from './zone';
 import { SeatingCorner } from './seating';
+import { StaticDecor } from '../../shared/staticDecor';
 import type { Npc } from '../../npc/Npc';
 
 /**
@@ -256,6 +257,11 @@ export class NavigationZone implements TestZone {
   private runner: Npc | null = null;
   /** Die Sitzecke am Südrand — Besucher, die Plätze aufsuchen (`seating.ts`). */
   readonly seating = new SeatingCorner();
+  /**
+   * Die neun Fallen als Bündel (`shared/staticDecor.ts`): dieselbe Datei
+   * neunmal, zwei Netze je Falle — 18 Zeichenaufrufe je Durchgang, jetzt 2.
+   */
+  private decor: StaticDecor | null = null;
 
   build(ctx: WorldContext, world: ZoneHost): void {
     this.host = world;
@@ -271,6 +277,7 @@ export class NavigationZone implements TestZone {
   update(dt: number, ctx?: WorldContext): void {
     this.button?.update(dt);
     this.seating.update(dt, ctx);
+    this.decor?.step(dt);
   }
 
   /** `B`/`Y` räumt die Zone leer: Wer noch unterwegs ist, ist es nicht mehr. */
@@ -283,6 +290,8 @@ export class NavigationZone implements TestZone {
   dispose(): void {
     this.gone = true;
     this.seating.dispose();
+    this.decor?.dispose();
+    this.decor = null;
     this.builtSpikes.length = 0;
     if (this.ctx && this.pointerObject) this.ctx.pointer.remove(this.pointerObject);
     if (this.button) this.host?.removeUsable(this.button.dome);
@@ -416,6 +425,8 @@ export class NavigationZone implements TestZone {
         for (const skin of skinsOf(model)) this.owned.push(skin);
       });
       world.root.add(field);
+      this.decor = new StaticDecor(field);
+      for (const model of models) this.decor.add(model);
       // Erst jetzt, und nicht vorher: Ein Fleck, der verschwindet, bevor die
       // Fallen hängen, ist für ein paar Bilder ein Gefahrenfeld aus nichts.
       // Freigegeben wird hier nichts — Quader, Kegel und ihre beiden Farben

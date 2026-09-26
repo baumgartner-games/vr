@@ -3,6 +3,7 @@ import type { WorldContext, WorldDefinition, WorldPreview } from '../../core/typ
 import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
 import { createSky } from '../shared/environment';
+import { StaticDecor } from '../shared/staticDecor';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
@@ -63,6 +64,8 @@ export class HubWorld extends GridWorld {
    */
   private decorRound = 0;
   private readonly decorSkins: THREE.Material[] = [];
+  /** Dieselben Stücke gebündelt gezeichnet (`shared/staticDecor.ts`). */
+  private decor: StaticDecor | null = null;
 
   protected override worldId(): string {
     return 'hub';
@@ -158,6 +161,7 @@ export class HubWorld extends GridWorld {
     this.root.add(buildHallRing(middle));
     for (const corridor of hub.corridors) this.root.add(buildCorridorLights(corridor, middle));
     this.root.add(this.buildSigns(middle, hub.corridors));
+    this.decor ??= new StaticDecor(this.root);
     void this.furnish(middle, hub.corridors, ++this.decorRound);
   }
 
@@ -193,6 +197,7 @@ export class HubWorld extends GridWorld {
     });
     this.decorSkins.push(...kaykitSkins(model));
     this.root.add(model);
+    this.decor?.add(model);
   }
 
   override async init(ctx: WorldContext): Promise<void> {
@@ -206,8 +211,15 @@ export class HubWorld extends GridWorld {
     ctx.scene.fog = new THREE.Fog(0x0a1020, 14, 90);
   }
 
+  override update(dt: number, ctx: WorldContext): void {
+    super.update(dt, ctx);
+    this.decor?.step(dt);
+  }
+
   override dispose(ctx: WorldContext): void {
     ctx.scene.fog = null;
+    this.decor?.dispose();
+    this.decor = null;
     for (const panel of this.panels) panel.dispose();
     this.panels.length = 0;
     this.decorRound++;
