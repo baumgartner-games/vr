@@ -128,7 +128,8 @@ function stepDir(a: TileKey, b: TileKey): Dir {
  * Boden ist, was der Graph für begehbar hält *und* im Schlauch liegt. Eine
  * Tür gilt als offen — ob sie aufgeht, hat die grobe Planung schon gefragt,
  * und vor ihr kümmert sich der Agent darum (`navAgent.doorAhead`). Wand und
- * Fenster halten auf.
+ * Fenster halten auf, und gesperrte Zellen (`NavGraph.cellBlocked`: Möbel,
+ * Pfosten) sperren wie beim Gehen.
  */
 function corridorSource(graph: NavGraph, run: readonly TileKey[]): CellSource {
   const level = keyLevel(run[0]!);
@@ -173,6 +174,7 @@ function corridorSource(graph: NavGraph, run: readonly TileKey[]): CellSource {
       const key = keyOf(tx, tz, l);
       return key === NO_TILE ? null : graph.slopeAt(key);
     },
+    blocked: (ix, iz, l) => graph.cellBlocked(ix, iz, l),
   };
 }
 

@@ -55,6 +55,7 @@ import { turnedHalf, yawOf } from '../portal/gridSnap';
 import { boxAround, type Box as DecorBox } from '../portal/decorPlace';
 import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { fixtureTile, type BlockPlacement, type GridPlan } from './gridPlan';
+import { shelfWallsToNav, type ShelfNavStamp } from './shelfNav';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
 import { signRows } from './fixtures/signRows';
@@ -341,6 +342,11 @@ export abstract class GridWorld extends PortalWorld {
    * (`NavCellOptions.walls`), jedes Bild neu (`refreshWallSlopes`).
    */
   private readonly propEdges = new Set<string>();
+  /**
+   * Was `shelfWallsToNav` zuletzt in den Graphen der NPCs geschrieben hat —
+   * um es beim nächsten Einsammeln wieder herauszunehmen.
+   */
+  private navShelf: ShelfNavStamp | null = null;
   /** Die Zellen, die Pfosten eines Durchgangs aus dem Regal sperren (`gridSnap.wallCells`). */
   private readonly propCells = new Set<string>();
   /** Die Wände aus dem Regal, die gerade auf dem Gitter stehen (`PhysicsBody.gridWall`). */
@@ -989,10 +995,7 @@ export abstract class GridWorld extends PortalWorld {
       this.cells = new CellGrid(
         navCellSource(plan.graph, (key) => plan.slopeAt(key) ?? this.wallSlopes.get(key) ?? null, {
           voidIsFree: true,
-          blocked: (ix, iz, level) =>
-            plan.furnitureCells().has(cellKey(ix, iz, level)) ||
-            this.propCells.has(cellKey(ix, iz, level)) ||
-            this.cellBlocked(ix, iz, level),
+          blocked: (ix, iz, level) => this.cellTaken(plan, ix, iz, level),
           walls: (tx, tz, dir, level) =>
             this.propEdges.size > 0 && this.propEdges.has(edgeAt(tx, tz, dir, level)),
           flight: (tx, tz, level) => plan.flightOn(tileKey(tx, tz, level))?.dir ?? null,
@@ -1002,6 +1005,33 @@ export abstract class GridWorld extends PortalWorld {
       );
     }
     return this.cells;
+  }
+
+  /**
+   * **Ob auf einer Zelle etwas steht** — ein Möbel des Plans, der Pfosten
+   * eines Durchgangs aus dem Regal oder was die Welt selbst hinstellt
+   * (`cellBlocked`). Dieselbe Frage für das Gehen (`cellGrid`) und für den Weg
+   * der NPCs auf Zellen (`NavGraph.cellBlocked`, `navReady`).
+   */
+  private cellTaken(plan: GridPlan, ix: number, iz: number, level: number): boolean {
+    const key = cellKey(ix, iz, level);
+    return (
+      plan.furnitureCells().has(key) || this.propCells.has(key) || this.cellBlocked(ix, iz, level)
+    );
+  }
+
+  /** Die Wände aus dem Regal in den Graphen der NPCs (`shelfNav.ts`). */
+  private syncShelfNav(): void {
+    const graph = this.nav;
+    const was = this.navShelf;
+    this.navShelf = null;
+    if (!graph) return;
+    const edges: Array<[TileKey, Dir]> = [];
+    for (const id of this.propEdges) {
+      const [tx, tz, dir, level] = id.split(',').map(Number) as [number, number, Dir, number];
+      edges.push([tileKey(tx, tz, level), dir]);
+    }
+    this.navShelf = shelfWallsToNav(graph, edges, was);
   }
 
   /** Die Schrägen der hingestellten Wände unter 45° neu einsammeln (`wallSlopes`). */
@@ -1025,6 +1055,7 @@ export abstract class GridWorld extends PortalWorld {
     for (const entry of was)
       if (!entry.removed && !this.gridWalls.has(entry)) this.physics?.setGridWall(entry, false);
     for (const entry of this.gridWalls) this.physics?.setGridWall(entry, true);
+    this.syncShelfNav();
   }
 
   /** Ob seit dem letzten Einsammeln eine Wand dazukam, wegfiel oder woanders steht. */
@@ -3147,6 +3178,10 @@ export abstract class GridWorld extends PortalWorld {
     // Und die Schrägen: Die NPCs laufen auf Zellen (`nav/cellRoute.ts`), und
     // dort sperrt eine Schräge zwei Zellen ihrer Kachel.
     graph.slopeAt = (key) => plan.slopeAt(key) ?? this.wallSlopes.get(key) ?? null;
+    // Und was auf Zellen steht, wie beim Gehen (`cellTaken`).
+    graph.cellBlocked = (ix, iz, level) => this.cellTaken(plan, ix, iz, level);
+    // Die Wände aus dem Regal kennt das Abtasten nicht (`syncShelfNav`).
+    this.syncShelfNav();
   }
 }
 

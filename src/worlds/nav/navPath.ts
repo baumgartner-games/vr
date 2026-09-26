@@ -9,9 +9,13 @@ import {
 } from './navGraph';
 import { hazardCost, linkFactor, powerOf, type CostProfile } from './navProfile';
 import { canWalkLine, traceLine } from './navSight';
+import type { Slope } from './cellGrid';
 import {
   DIRS,
+  DIR_E,
   DIR_N,
+  DIR_S,
+  DIR_W,
   NO_TILE,
   TILE,
   dirX,
@@ -251,46 +255,62 @@ export function findPath(
   if (!believedWalkable(belief, graph, from)) return empty;
   if (from === to) return { tiles: [from], cost: 0, visited: 1, complete: true };
 
+  // **Gesucht wird über Stellungen, nicht über Kacheln**: Eine Kachel mit
+  // einer Schräge (`NavGraph.slopeAt`) hat zwei Hälften, und in welcher man
+  // steht, entscheidet, wohin es weitergeht (`slopeHalf`). Eine Stellung ist
+  // `Kachel · 2 + Hälfte`; ohne Schräge gibt es nur die Hälfte 0.
+  const start = from * 2;
   const open = new NodeHeap();
-  const gScore = new Map<TileKey, number>([[from, 0]]);
-  const cameFrom = new Map<TileKey, TileKey>();
-  const closed = new Set<TileKey>();
+  const gScore = new Map<number, number>([[start, 0]]);
+  const cameFrom = new Map<number, number>();
+  const closed = new Set<number>();
+  // Wo die Hälfte nicht feststeht — der Start, und wer über eine Verbindung
+  // hereinkommt —, gilt die Schräge nicht.
+  const free = new Set<number>([start]);
   const scratch = newWallState();
 
-  let bestNode = from;
+  let bestNode = start;
   let bestHeuristic = tileManhattan(from, to);
   let visited = 0;
 
-  open.push(from, bestHeuristic);
+  open.push(start, bestHeuristic);
 
   while (open.size > 0) {
-    const current = open.pop();
-    if (closed.has(current)) continue;
-    closed.add(current);
+    const state = open.pop();
+    if (closed.has(state)) continue;
+    closed.add(state);
     visited++;
+    const current = Math.floor(state / 2);
 
     if (current === to) {
       return {
-        tiles: unwind(cameFrom, current),
-        cost: gScore.get(current) ?? 0,
+        tiles: unwind(cameFrom, state),
+        cost: gScore.get(state) ?? 0,
         visited,
         complete: true,
       };
     }
     if (visited >= maxNodes) break;
 
-    const g = gScore.get(current) ?? 0;
+    const g = gScore.get(state) ?? 0;
+    const slope = free.has(state) ? null : graph.slopeAt(current);
 
     // Die vier Nachbarn auf derselben Etage.
     for (const dir of DIRS) {
+      // **Über die Schräge kommt niemand**: aus einer Hälfte nur über ihre
+      // beiden Kanten hinaus.
+      if (slope && slopeHalf(slope, dir) !== state % 2) continue;
       const next = neighbour(current, dir);
-      if (next === NO_TILE || closed.has(next)) continue;
+      if (next === NO_TILE) continue;
+      const nextSlope = graph.slopeAt(next);
+      const into = next * 2 + (nextSlope ? slopeHalf(nextSlope, opposite(dir)) : 0);
+      if (closed.has(into)) continue;
       if (!believedWalkable(belief, graph, next)) continue;
       const wall = believedWallState(belief, graph.wall(current, dir), power, scratch);
       if (!wall.walk) continue;
       const step = enterCost(graph, next, profile);
       if (!Number.isFinite(step)) continue;
-      relax(current, next, g + step + wall.cost);
+      relax(state, into, g + step + wall.cost);
     }
 
     // Und alles, was von hier aus gebaut wurde: Rampen, Kanten, Leitern,
@@ -299,48 +319,68 @@ export function findPath(
     // hinauf eine Wand (`navProfile.linkFactor`).
     for (const exit of graph.linksFrom(current)) {
       const { link, to: next } = exit;
-      if (closed.has(next)) continue;
+      const into = next * 2;
+      if (closed.has(into)) continue;
       const factor = linkFactor(profile, link, next);
       if (!Number.isFinite(factor)) continue;
       if (!believedLinkOpen(belief, link)) continue;
       if (!believedWalkable(belief, graph, next)) continue;
       const step = enterCost(graph, next, profile);
       if (!Number.isFinite(step)) continue;
-      relax(current, next, g + link.cost * factor + step);
+      if (relax(state, into, g + link.cost * factor + step)) free.add(into);
     }
   }
 
   // Kein Weg ans Ziel: der beste Teilweg ist besser als gar keiner.
   return {
-    tiles: bestNode === from ? [from] : unwind(cameFrom, bestNode),
+    tiles: bestNode === start ? [from] : unwind(cameFrom, bestNode),
     cost: gScore.get(bestNode) ?? 0,
     visited,
     complete: false,
   };
 
-  function relax(current: TileKey, next: TileKey, cost: number): void {
+  function relax(current: number, next: number, cost: number): boolean {
     const known = gScore.get(next);
-    if (known !== undefined && known <= cost) return;
+    if (known !== undefined && known <= cost) return false;
     gScore.set(next, cost);
     cameFrom.set(next, current);
-    const heuristic = tileManhattan(next, to);
+    const heuristic = tileManhattan(Math.floor(next / 2), to);
     if (heuristic < bestHeuristic) {
       bestHeuristic = heuristic;
       bestNode = next;
     }
     open.push(next, cost + heuristic);
+    return true;
   }
 }
 
-function unwind(cameFrom: Map<TileKey, TileKey>, end: TileKey): TileKey[] {
-  const tiles = [end];
+/**
+ * **Die Hälfte einer Schrägkachel, an der die Kante `dir` liegt** — 0 oder 1.
+ *
+ * „╱" (von Südwest nach Nordost) teilt die Kachel in die Nordwesthälfte mit
+ * Nord- und Westkante (0) und die Südosthälfte mit Süd- und Ostkante (1);
+ * „╲" in die Nordosthälfte mit Nord- und Ostkante (0) und die Südwesthälfte
+ * mit Süd- und Westkante (1). Wer über eine Kante hineinkommt, kommt nur über
+ * die andere Kante derselben Hälfte wieder hinaus — so läuft der grobe Weg
+ * durch einen schrägen Gang, statt quer durch seine Wand.
+ */
+export function slopeHalf(slope: Slope, dir: Dir): 0 | 1 {
+  if (dir === DIR_N) return 0;
+  if (dir === DIR_S) return 1;
+  if (slope === 'slash') return dir === DIR_W ? 0 : 1;
+  return dir === DIR_E ? 0 : 1;
+}
+
+/** Die Kette der Stellungen zurück bis zum Start — als Kacheln. */
+function unwind(cameFrom: Map<number, number>, end: number): TileKey[] {
+  const tiles = [Math.floor(end / 2)];
   let node = end;
   // Die Kette ist nie länger als die Zahl der Einträge — der Zähler ist die
   // Versicherung gegen einen Kreis, den es hier nicht geben darf.
   for (let i = 0; i <= cameFrom.size; i++) {
     const previous = cameFrom.get(node);
     if (previous === undefined) break;
-    tiles.push(previous);
+    tiles.push(Math.floor(previous / 2));
     node = previous;
   }
   tiles.reverse();

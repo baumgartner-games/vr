@@ -130,4 +130,23 @@ describe('Der Weg eines NPC auf Zellen', () => {
     }
     expect(arrived).toBe(true);
   });
+
+  it('meidet die Zellen, auf denen etwas steht (`NavGraph.cellBlocked`)', () => {
+    // Ein Gang von 8 × 2 Kacheln; auf der Nordhälfte der Kacheln 3 und 4 steht
+    // ein Möbel. Der Block geht südlich daran vorbei, statt hineinzuplanen.
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 8, d: 2 });
+    graph.cellBlocked = (ix, iz) => ix >= 6 && ix <= 9 && iz <= 1;
+    const tiles = findPath(graph, tileKey(0, 0), tileKey(7, 0), { profile: HUMAN_PROFILE }).tiles;
+    const route = cellRoute(graph, tiles, { x: 0.5, z: 0.5 }, { x: 7.5, z: 0.5 })!;
+    expect(route).not.toBeNull();
+    const grid = new CellGrid({
+      floor: (tx, tz) => graph.walkable(tileKey(tx, tz)),
+      open: () => true,
+      slope: () => null,
+      blocked: (ix, iz) => graph.cellBlocked(ix, iz, 0),
+    });
+    for (const point of route) expect(grid.footprintFree(snapCell(point.x, point.z))).toBe(true);
+    expect(route.some((point) => point.z > 1)).toBe(true);
+  });
 });

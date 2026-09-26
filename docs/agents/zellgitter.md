@@ -23,10 +23,11 @@ den großen Kacheln bleibt.
   - alle vier Zellen Boden haben,
   - keine davon von einer Schräge gesperrt ist,
   - und keine Wand, kein Fenster und keine geschlossene Tür über eine Fuge
-    *innerhalb* des Blocks läuft.
+    _innerhalb_ des Blocks läuft.
 
   Eine Figur kann also auf der Fuge zweier Kacheln stehen, wo keine Wand ist,
   und mitten in einer Tür.
+
 - **Ein Schritt geht in acht Richtungen, und es zählt nur der Block am Ziel**
   (`CellGrid.canStep`). Die beiden geraden Zwischenstellungen eines
   Schrägschritts müssen nicht frei sein.
@@ -43,6 +44,7 @@ den großen Kacheln bleibt.
 
   An einer 45°-Wand läuft man damit schräg entlang, ohne Zickzack.
   `findPath` ist A\* über genau diese Schritte (gerade 1, schräg √2).
+
 - **Die Schräge** (`Slope`: `slash` „╱" von Südwest nach Nordost, `backslash`
   „╲" von Nordwest nach Südost) steht im **Bauplan** und nicht im Graphen:
   - Setzen: `GridPlan.slope(x, z, slope | null)`, abfragen:
@@ -145,6 +147,12 @@ den großen Kacheln bleibt.
     `moveOnCells`, und an den schrägen Ecken stockte er (gemeldet: _„auf der
     Testwelt klappt das Wandgleiten super, bei Haunting anscheinend nicht"_).
     Das Monster geht weiter auf Blöcken (`moveOnCells`).
+  - **Die NPCs ebenso** (`Npc.update`, September 2026): gewünscht _„die sollen
+    sich ja auch so wie ein Spieler bewegen können z.B. bei der Test Welt
+    zwischen zwei 45° Wänden"_. Sie gleiten mit `slideOnCells` und einem Kreis
+    so breit wie der des Spielers (`Npc.planeRadius`: `PLAYER_PLANE_RADIUS`
+    je 2 × 2 Zellen, größere im Verhältnis). Siehe _Alle Figuren gehen auf dem
+    Gitter_ weiter unten.
   - Getestet mit echtem Rapier an Treppe und Podest und an einem Boden aus
     einzelnen Kacheln (`physics/playerPlane.test.ts`), dazu an den Schrägen
     der Station (`haunting/map/stationSlide.test.ts`).
@@ -245,6 +253,30 @@ den großen Kacheln bleibt.
   - Die Schrägen kommen über `NavGraph.slopeAt` in den Graphen der NPCs:
     `GridPlan` hängt sie in seinen Graphen, `GridWorld.navReady` in den
     abgetasteten.
+  - **Die grobe Wegsuche teilt eine Schrägkachel in zwei Hälften**
+    (`navPath.findPath`, `slopeHalf`, September 2026): „╱" in Nordwest (Nord-
+    und Westkante) und Südost (Süd- und Ostkante), „╲" in Nordost und
+    Südwest. Gesucht wird über Stellungen `Kachel · 2 + Hälfte`; wer über eine
+    Kante hineinkommt, kommt nur über die andere Kante derselben Hälfte
+    hinaus. Vorher war die Kachel nur teuer (`SLOPE_COST`) oder gar nicht
+    bekannt (Schrägen aus dem Regal): Der grobe Weg ging um einen schrägen
+    Gang herum oder quer durch seine Wand, und im Schlauch darum fand der
+    Block keinen Weg. Das Strömungsfeld (`flowField`) kennt die Hälften noch
+    nicht.
+  - **Die geraden Wände aus dem Regal stehen im Graphen der NPCs**
+    (`grid/shelfNav.ts`, `GridWorld.syncShelfNav`): Abgetastet werden nur die
+    Quader des Plans, und die Testwelt hat nur noch Regalwände — die grobe
+    Planung lief quer durch sie, und der NPC blieb vor der Wand stehen. Jetzt
+    trägt die Welt jede eingerastete gerade Regalwand als Wand ein (nicht über
+    eine Tür des Plans) und nimmt sie beim nächsten Einsammeln wieder heraus.
+  - **Gesperrte Zellen kennt der Schlauch auch** (`NavGraph.cellBlocked`,
+    gesetzt in `GridWorld.navReady`, dieselbe Frage wie beim Gehen:
+    `GridWorld.cellTaken`) — Möbel, Pfosten eines Durchgangs, die Einrichtung
+    einer Welt. Vorher plante der Block durch ein Möbel und blieb davor
+    stehen.
+  - Nachgelaufen im Wandparcours (`wallLab.test.ts`, _NPCs im Wandparcours_):
+    grober Weg, Zellen, Gleiten — durch den schrägen Gang in beide
+    Richtungen, um die gerade Wand herum, durch die Lücke.
 
 - **Wo eine Figur stehen darf** (`standable`, seit Oktober 2026):
   - Logisch auf einem freien Block, gezeichnet nur **zwischen** freien
@@ -296,9 +328,10 @@ den großen Kacheln bleibt.
   - **Außerhalb des Grundrisses** fragt die Zellsperre des Spielers auf
     Etage 0 weiter. Vorher schwieg sie dort, und eine Wand auf dem Gelände
     hielt nur von innen.
-- **An einer schrägen Wand entlang gleiten** — für den Spieler in der Ebene
-  (siehe oben); für die NPCs weiter mit `diagonalSlides`: Nach „ganz, nur x,
-  nur z" versucht der Schritt noch seine Anteile längs der beiden Diagonalen.
+- **An einer schrägen Wand entlang gleiten** — für Spieler und NPCs in der
+  Ebene (siehe oben); mit `diagonalSlides` nur noch, wer auf Blöcken geht
+  (`moveOnCells`, das Monster in Haunting): Nach „ganz, nur x, nur z"
+  versucht der Schritt noch seine Anteile längs der beiden Diagonalen.
   Damit das an den Blockmitten nicht hängen bleibt, ist die Zone um eine
   Mitte eine Raute, so breit wie der schräge Streifen, und ein Streifen wird
   auch im Nachbarfeld gefunden (`standable`, `inSquare`).
@@ -340,14 +373,18 @@ den großen Kacheln bleibt.
   schrägen Gang und einen Knick wie an der Station. Ein gespeicherter Stand
   von vorher bekommt ihn dazu (`ensureWallLab` in `TestWorld.planLoaded`). Die Tests laufen mit
   `planeMove.slideOnCells` dagegen (`wallLab.test.ts`).
-- **Alle Figuren gehen auf dem Gitter** (`moveOnCells`, `glides`):
-  - Der Spieler in der Ebene (`PhysicsLocomotion.plane`), die NPCs über
+- **Alle Figuren gehen auf dem Gitter**:
+  - Der Spieler in der Ebene (`PhysicsLocomotion.plane`), die NPCs ebenso über
     `NpcWorld.cells` (`GridWorld.cellsForAgents`): `Npc.update` schneidet die
-    Geschwindigkeit des Hirns mit `moveOnCells` zu, ihr Zylinder geht durch
-    `GROUP_CELL` hindurch.
-  - Schiebt die Physik einen NPC (ein Stoß) auf einen gesperrten Block, holt
-    ihn `Npc.holdOnCells` auf die letzte freie Stelle zurück — außer über
-    Eck.
+    Geschwindigkeit des Hirns mit `slideOnCells` zu, ihr Zylinder geht durch
+    `GROUP_CELL` hindurch. Geplant wird weiter auf 2 × 2-Blöcken
+    (`cellRoute`); ihre Mitten stehen eine halbe Kachel vor jeder Wand, der
+    Kreis braucht 0,35 m.
+  - Schiebt die Physik einen NPC (ein Stoß) so, dass sein Kreis in einer Wand
+    steckt, geht `Npc.holdOnCells` den Stoß von der letzten freien Stelle aus
+    als Schritt in der Ebene nach — er gleitet an der Wand entlang und kommt
+    nicht über ihre Linie. Wer weiter als einen Meter versetzt wurde (Portal,
+    Absetzen), wird nur herausgeschoben.
   - **Über Eck gleiten** (`standable`): Stetig gerundet wechselt eine Figur
     erst in einer Achse. Der Block dazwischen darf gesperrt sein, solange
     sie im Streifen zwischen den beiden freien Blöcken bleibt — sonst käme
