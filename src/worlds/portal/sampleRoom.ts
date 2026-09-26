@@ -1,6 +1,7 @@
 /**
- * **Der Beispielraum** — ein fertig eingerichtetes Zimmer als Vorlage für den
- * Bauplatz (_Bauen & Gestalten → Baukasten-Werkzeuge → Beispielraum_).
+ * **Die Vorlagen** — fertig eingerichtete Zimmer für den Bauplatz
+ * (_Bauen & Gestalten → Baukasten-Werkzeuge → Vorlagen_): das _Wohnzimmer_
+ * (der erste Beispielraum) und das _Kleine Café_ (`SAMPLE_ROOMS`).
  *
  * Gewünscht war ein Raum, **der zeigt, was geht**: Boden und Wände
  * gestaltet (`surfaceDecor.ts`), Kleinkram auf Tischen und Regalbrettern,
@@ -73,4 +74,73 @@ export const SAMPLE_ITEMS: readonly SampleItem[] = [
   { path: 'furniture-bits/book_single.glb', x: 3.75, z: -0.5, yaw: 0 },
   // Ein Kaktus neben der Tür.
   { path: 'furniture-bits/cactus_medium_A.glb', x: 1.5, z: 3.5, yaw: 0 },
+];
+
+/**
+ * **Das kleine Café** — die zweite Vorlage, mit den Restaurantmöbeln von
+ * KayKit: rot-weiße Küchenfliesen, dunkle Fliesen hinter der Theke (der Küchenzeile
+ * des Startzimmers), Hocker davor, Eis und Menükarte auf der Theke, drei
+ * runde Tische mit Stühlen und etwas darauf, Bilder und ein Kaktus.
+ */
+export const CAFE_SURFACES: readonly SampleSurface[] = [
+  // Rot-weiße Küchenfliesen im ganzen Raum, wie in einem Diner.
+  { tool: 'floor', style: 4, x: 1.5, z: 1.5 },
+  // Dunkle Fliesen hinter der Theke, an der Nordwand.
+  { tool: 'wall', style: 1, x: -1.5, z: -3.4 },
+];
+
+export const CAFE_ITEMS: readonly SampleItem[] = [
+  // Die Theke: Menükarte, Eisbecher und ein Glas; drei Hocker davor.
+  { path: 'restaurant-bits/menu.glb', x: -3.5, z: -3.5, yaw: 0 },
+  { path: 'restaurant-bits/icecream_bowl_decorated_A.glb', x: -2.5, z: -3.5, yaw: 0 },
+  { path: 'restaurant-bits/jar_B_medium.glb', x: -1.5, z: -3.5, yaw: 0 },
+  { path: 'restaurant-bits/chair_stool.glb', x: -3.5, z: -2.5, yaw: 0 },
+  { path: 'restaurant-bits/chair_stool.glb', x: -2.5, z: -2.5, yaw: 0 },
+  { path: 'restaurant-bits/chair_stool.glb', x: -1.5, z: -2.5, yaw: 0 },
+  // Ein Tisch mit rotem Tischtuch im Nordosten, zwei Stühle, Burger auf dem Teller.
+  { path: 'restaurant-bits/table_round_B_tablecloth_red.glb', x: 2.5, z: -2.5, yaw: 0 },
+  { path: 'restaurant-bits/chair_A.glb', x: 1.5, z: -2.5, yaw: -HALF / 2 },
+  { path: 'restaurant-bits/chair_A.glb', x: 3.5, z: -2.5, yaw: HALF / 2 },
+  { path: 'restaurant-bits/plate.glb', x: 2.5, z: -2.5, yaw: 0 },
+  { path: 'restaurant-bits/food_burger.glb', x: 2.5, z: -2.5, yaw: 0 },
+  // Zwei kleine runde Tische im Süden, je zwei Stühle, Eisbecher und Eintopf.
+  { path: 'restaurant-bits/table_round_A_small.glb', x: -2.5, z: 2, yaw: 0 },
+  { path: 'restaurant-bits/chair_B.glb', x: -3.5, z: 2, yaw: HALF / 2 },
+  { path: 'restaurant-bits/chair_B.glb', x: -1.5, z: 2, yaw: -HALF / 2 },
+  { path: 'restaurant-bits/icecream_bowl_decorated_B.glb', x: -2.5, z: 2, yaw: 0 },
+  { path: 'restaurant-bits/table_round_A_small.glb', x: 2.5, z: 2.8, yaw: 0 },
+  { path: 'restaurant-bits/chair_B.glb', x: 1.5, z: 2.8, yaw: -HALF / 2 },
+  { path: 'restaurant-bits/chair_B.glb', x: 3.5, z: 2.8, yaw: HALF / 2 },
+  { path: 'restaurant-bits/stew_bowl.glb', x: 2.5, z: 2.8, yaw: 0 },
+  // Bilder an West- und Südwand, ein Kaktus neben der Tür.
+  { path: 'furniture-bits/pictureframe_large_B.glb', x: -3.6, z: 1, yaw: 0 },
+  { path: 'furniture-bits/pictureframe_small_A.glb', x: -2.5, z: 3.7, yaw: 0 },
+  { path: 'furniture-bits/cactus_medium_A.glb', x: 1.5, z: 3.5, yaw: 0 },
+];
+
+/** Eine Vorlage im Untermenü _Vorlagen_: Name, Zeile darunter, Boden/Wände und Stücke. */
+export interface SampleRoom {
+  readonly id: string;
+  readonly label: string;
+  readonly sub: string;
+  readonly surfaces: readonly SampleSurface[];
+  readonly items: readonly SampleItem[];
+}
+
+/** **Die Vorlagen** — in dieser Reihenfolge im Untermenü _Vorlagen_. */
+export const SAMPLE_ROOMS: readonly SampleRoom[] = [
+  {
+    id: 'living',
+    label: 'Wohnzimmer',
+    sub: 'Küche, Wohnecke, Schlafecke · Dielen, Fliesen, Putzwand',
+    surfaces: SAMPLE_SURFACES,
+    items: SAMPLE_ITEMS,
+  },
+  {
+    id: 'cafe',
+    label: 'Kleines Café',
+    sub: 'Theke mit Hockern, runde Tische · rot-weiße Fliesen',
+    surfaces: CAFE_SURFACES,
+    items: CAFE_ITEMS,
+  },
 ];

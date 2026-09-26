@@ -30,6 +30,14 @@ export interface SurfaceStyle {
   readonly path: string;
   readonly label: string;
   /**
+   * **Ein Farbfeld für die Leiste** (`#rrggbb`): der Ton, den das Stück aus
+   * der Nähe hat, abgelesen in der Bild-Schleife. Die Leiste zeigt es neben
+   * dem Namen, damit man das Muster erkennt, bevor man klickt.
+   */
+  readonly swatch: string;
+  /** Der zweite Ton eines Schachbretts (Küchenfliesen) — das Farbfeld wird dann kariert. */
+  readonly swatch2?: string;
+  /**
    * Für Wände: `panel` sind dünne Platten auf **einer** Seite, `wall` ganze
    * Wände auf der Fuge. Ein Boden hat keine Art.
    */
@@ -40,26 +48,71 @@ export interface SurfaceStyle {
 
 /** Die Böden: alle eine Kachel groß, damit jede Kachel eines Raums genau eines bekommt. */
 export const FLOOR_STYLES: readonly SurfaceStyle[] = [
-  { path: 'dungeon/floor_wood_small.glb', label: 'Dielen hell' },
-  { path: 'dungeon/floor_wood_small_dark.glb', label: 'Dielen dunkel' },
-  { path: 'restaurant-bits/floor_kitchen_small.glb', label: 'Küchenfliesen' },
-  { path: 'restaurant-bits/floor_kitchen_small_styleB.glb', label: 'Küchenfliesen blau' },
-  { path: 'dungeon/floor_tile_small.glb', label: 'Steinplatten' },
+  { path: 'dungeon/floor_wood_small.glb', label: 'Dielen hell', swatch: '#b3664a' },
+  { path: 'dungeon/floor_wood_small_dark.glb', label: 'Dielen dunkel', swatch: '#6e3f2e' },
+  {
+    path: 'restaurant-bits/floor_kitchen_small.glb',
+    label: 'Küchenfliesen',
+    swatch: '#e6e8ea',
+    swatch2: '#2a2c30',
+  },
+  {
+    path: 'restaurant-bits/floor_kitchen_small_styleB.glb',
+    label: 'Küchenfliesen beige',
+    swatch: '#d9b48e',
+    swatch2: '#8c5b3e',
+  },
+  // Dieselben Küchenfliesen in anderen Feldern des Farbatlas
+  // (`tools/surface-variants.mjs`): je ein Netz von 5 KB, dieselbe Textur.
+  {
+    path: 'restaurant-bits/floor_kitchen_small_red.glb',
+    label: 'Küchenfliesen rot',
+    swatch: '#e6e8ea',
+    swatch2: '#c8283a',
+  },
+  {
+    path: 'restaurant-bits/floor_kitchen_small_green.glb',
+    label: 'Küchenfliesen grün',
+    swatch: '#e6e8ea',
+    swatch2: '#0a8a55',
+  },
+  {
+    path: 'restaurant-bits/floor_kitchen_small_blue.glb',
+    label: 'Küchenfliesen blau',
+    swatch: '#e6e8ea',
+    swatch2: '#4f86c6',
+  },
+  { path: 'dungeon/floor_tile_small.glb', label: 'Steinplatten', swatch: '#8f8b85' },
+  // Aus einem weiteren Paket, das schon im Regal liegt: kein neues Stück,
+  // kein neuer Download, solange es niemand wählt.
+  { path: 'holiday-bits/floor_gingerbread_small.glb', label: 'Zuckerguss', swatch: '#dfe3ea' },
 ];
 
 /** Die Wände: erst Fliesen für eine Seite, dann ganze Wände. */
 export const WALL_STYLES: readonly SurfaceStyle[] = [
-  { path: 'restaurant-bits/wall_tiles_A.glb', label: 'Fliesen hell', kind: 'panel' },
-  { path: 'restaurant-bits/wall_tiles_B.glb', label: 'Fliesen dunkel', kind: 'panel' },
+  {
+    path: 'restaurant-bits/wall_tiles_A.glb',
+    label: 'Fliesen hell',
+    swatch: '#e6e1d6',
+    kind: 'panel',
+  },
+  {
+    path: 'restaurant-bits/wall_tiles_B.glb',
+    label: 'Fliesen dunkel',
+    swatch: '#5d6a74',
+    kind: 'panel',
+  },
   {
     path: 'restaurant-bits/wall.glb',
     label: 'Putzwand',
+    swatch: '#e8dcc6',
     kind: 'wall',
     half: 'restaurant-bits/wall_half.glb',
   },
   {
     path: 'prototype-bits/Wall.glb',
     label: 'Prototypwand',
+    swatch: '#9aa0a6',
     kind: 'wall',
     half: 'prototype-bits/Wall_Half.glb',
   },
@@ -68,6 +121,31 @@ export const WALL_STYLES: readonly SurfaceStyle[] = [
 /** Ob ein Stück aus dem Regal eine Wandfliese ist — die gehört wie ein Bild an die Wand. */
 export function isWallPanel(path: string): boolean {
   return WALL_STYLES.some((style) => style.kind === 'panel' && style.path === path);
+}
+
+/** Name und Farbfeld eines Musters — das, was die Leiste davon zeigt. */
+export function stylePattern(style: SurfaceStyle): {
+  label: string;
+  swatch: string;
+  swatch2?: string;
+} {
+  return style.swatch2
+    ? { label: style.label, swatch: style.swatch, swatch2: style.swatch2 }
+    : { label: style.label, swatch: style.swatch };
+}
+
+/**
+ * **Was ein Druck auf _Boden_ oder _Wand_ ohne Leiste tut** — in der Brille
+ * und in der Ich-Sicht, wo kein Kran zeigt, was gemeint ist. Der erste Druck
+ * zeigt nur (`preview`: der Raum leuchtet, die Wandseite leuchtet), der
+ * zweite auf **dasselbe** Werkzeug belegt (`apply`) und schaltet die Vorschau
+ * ab. Ein Druck auf das andere Werkzeug wechselt die Vorschau.
+ */
+export function surfacePress(
+  armed: 'floor' | 'wall' | null,
+  tool: 'floor' | 'wall',
+): { readonly action: 'preview' | 'apply'; readonly armed: 'floor' | 'wall' | null } {
+  return armed === tool ? { action: 'apply', armed: null } : { action: 'preview', armed: tool };
 }
 
 /** Das nächste Muster in der Liste — und nach dem letzten wieder das erste. */
@@ -167,6 +245,12 @@ export function floodRoom(
 
 /** Wie weit vor einer Wand der Kran noch an ihr gilt, wenn eine Seite belegt wird, in Metern. */
 export const FACE_REACH = 1.2;
+/**
+ * Um wie viel weiter eine Wand gilt, wenn man sie **ansieht** (`nearestFace`
+ * mit `look`) — in der Brille zeigt der Blick, was gemeint ist, und man muss
+ * nicht an die Wand treten.
+ */
+export const LOOK_REACH = 0.6;
 
 /**
  * **Die Wandseite, die gemeint ist** — die nächste, vor der der Punkt liegt,
@@ -178,15 +262,20 @@ export function nearestFace(
   z: number,
   faces: readonly WallFace[],
   floorY: number,
+  look?: { readonly x: number; readonly z: number },
 ): WallFace | null {
   let best: WallFace | null = null;
   let bestDistance = Infinity;
   for (const face of faces) {
     if (face.bottom > floorY + 0.5 || face.top < floorY + 1) continue;
+    // **Mit Blickrichtung** (Brille, Ich-Sicht) zählt nur eine Seite, die
+    // einem zugewandt ist: Wer mit dem Rücken nah an einer Wand steht und
+    // auf die gegenüber schaut, meint nicht die hinter sich.
+    if (look && (face.axis === 'x' ? look.x : look.z) * face.normal > -0.2) continue;
     const across = face.axis === 'x' ? x : z;
     const along = face.axis === 'x' ? z : x;
     const distance = (across - face.at) * face.normal;
-    if (distance < -0.05 || distance > FACE_REACH) continue;
+    if (distance < -0.05 || distance > FACE_REACH + (look ? LOOK_REACH : 0)) continue;
     if (along < face.from - 0.5 || along > face.to + 0.5) continue;
     if (distance < bestDistance) {
       bestDistance = distance;

@@ -1345,6 +1345,14 @@ auch die grüne Restaurantwand), Türen so hoch wie die Öffnung (`Door_*` 0,75,
 Kastens, `props.MODEL_ARCHES`) — durch einen Durchgang aus dem Regal geht man
 jetzt hindurch, statt an seiner Hülle hängenzubleiben.
 
+**Umgefärbte Küchenfliesen** rechnet nach demselben Muster
+`tools/surface-variants.mjs`: Es verschiebt die UV der dunklen Fliesen von
+`restaurant-bits/floor_kitchen_small` in andere Felder des Farbatlas und
+schreibt `floor_kitchen_small_red`, `_green` und `_blue` (je knapp 5 KB,
+dieselbe Textur) samt Eintrag in `index.json`. Quelle ist das Stück im Regal
+selbst, das dabei unverändert bleibt. Gebraucht werden sie als Bodenmuster im
+Baukasten ([Bauen](bauen.md), _Boden und Wände gestalten_).
+
 ## Das leere Bodenstück: „Empty"
 
 `prototype-bits/Empty.glb` ist das einzige Stück im Regal, das nicht aus der

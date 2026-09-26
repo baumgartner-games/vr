@@ -42,6 +42,31 @@ export interface BuildBarState {
   readonly status: string;
   /** Ob die Stelle gültig ist — färbt die Zeile grün oder rot; `null` ohne Farbe. */
   readonly valid: boolean | null;
+  /**
+   * **Das Muster, das _Boden_ oder _Wand_ gerade setzen** — Name und
+   * Farbfeld vorn in der Zeile, solange eines der beiden Werkzeuge gilt;
+   * sonst `null`.
+   */
+  readonly pattern: BuildPattern | null;
+  /** Das Farbfeld des Bodenmusters, als Punkt auf dem Knopf _Boden_ — immer zu sehen. */
+  readonly floorSwatch: string;
+  /** Dasselbe für _Wand_. */
+  readonly wallSwatch: string;
+}
+
+/** Ein Muster in der Leiste: Name und Farbfeld (`SurfaceStyle.swatch`). */
+export interface BuildPattern {
+  readonly label: string;
+  readonly swatch: string;
+  /** Der zweite Ton eines Schachbretts — das Farbfeld wird kariert. */
+  readonly swatch2?: string;
+}
+
+/** **Der Hintergrund eines Farbfelds** — einfarbig, oder kariert mit zwei Tönen. */
+export function swatchBackground(swatch: string, swatch2?: string): string {
+  return swatch2
+    ? `repeating-conic-gradient(${swatch} 0 25%, ${swatch2} 0 50%) 50% / 8px 8px`
+    : swatch;
 }
 
 /**
@@ -84,16 +109,24 @@ export const HIDDEN_BUILD_BAR: BuildBarState = {
   fine: false,
   status: '',
   valid: null,
+  pattern: null,
+  floorSwatch: '',
+  wallSwatch: '',
 };
 
 interface Button {
   readonly element: HTMLButtonElement;
   readonly label: HTMLSpanElement;
+  readonly dot: HTMLSpanElement;
 }
 
 export class BuildBar {
   private readonly bar = document.createElement('div');
   private readonly status = document.createElement('div');
+  private readonly chip = document.createElement('span');
+  private readonly chipSwatch = document.createElement('span');
+  private readonly chipLabel = document.createElement('span');
+  private readonly statusText = document.createElement('span');
   private readonly row = document.createElement('div');
   private readonly queue: BuildEvent[] = [];
   private shown = '';
@@ -159,6 +192,11 @@ export class BuildBar {
     this.bar.setAttribute('role', 'toolbar');
     this.bar.setAttribute('aria-label', 'Baukasten');
     this.status.className = 'build-bar__status';
+    this.chip.className = 'build-bar__pattern';
+    this.chipSwatch.className = 'build-bar__swatch';
+    this.chipLabel.className = 'build-bar__pattern-name';
+    this.chip.append(this.chipSwatch, this.chipLabel);
+    this.status.append(this.chip, this.statusText);
     this.row.className = 'build-bar__row';
     const gap = (): HTMLSpanElement => {
       const one = document.createElement('span');
@@ -226,8 +264,17 @@ export class BuildBar {
     this.right.element.disabled = !state.canTurn;
     this.undo.element.disabled = !state.canUndo;
     this.redo.element.disabled = !state.canRedo;
-    this.status.textContent = state.status;
-    this.status.hidden = !state.status;
+    this.statusText.textContent = state.status;
+    this.status.hidden = !state.status && !state.pattern;
+    this.chip.hidden = !state.pattern;
+    this.chipLabel.textContent = state.pattern?.label ?? '';
+    this.chipSwatch.style.background = state.pattern
+      ? swatchBackground(state.pattern.swatch, state.pattern.swatch2)
+      : '';
+    this.floor.dot.style.background = state.floorSwatch;
+    this.floor.dot.hidden = !state.floorSwatch;
+    this.wall.dot.style.background = state.wallSwatch;
+    this.wall.dot.hidden = !state.wallSwatch;
     this.status.dataset.valid = state.valid === null ? '' : String(state.valid);
   }
 
@@ -248,7 +295,12 @@ export class BuildBar {
     const label = document.createElement('span');
     label.className = 'build-bar__label';
     label.textContent = text;
-    element.append(glyph, label);
+    // Ein kleiner Farbpunkt in der Ecke — nur _Boden_ und _Wand_ füllen ihn
+    // (das Muster, das ein Klick setzen würde).
+    const dot = document.createElement('span');
+    dot.className = 'build-bar__dot';
+    dot.hidden = true;
+    element.append(glyph, label, dot);
     element.addEventListener('click', (click) => {
       click.stopPropagation();
       this.queue.push(event);
@@ -257,7 +309,7 @@ export class BuildBar {
     // sonst legt der Klick auf _Drehen_ gleichzeitig ab (`FlatControls`).
     element.addEventListener('pointerdown', (down) => down.stopPropagation());
     element.addEventListener('mousedown', (down) => down.stopPropagation());
-    return { element, label };
+    return { element, label, dot };
   }
 
   private readonly onKey = (event: KeyboardEvent): void => {
