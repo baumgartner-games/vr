@@ -1,7 +1,7 @@
 {
   "name": "baumgartner-vr",
   "private": true,
-  "version": "0.1.57",
+  "version": "0.1.58",
   "type": "module",
   "description": "WebXR playground: hub world, world/game selection and experimental VR prototypes.",
   "scripts": {
