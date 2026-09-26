@@ -1081,11 +1081,14 @@ Schicht an der Welt:
   steht, hat Vorrang** (`sidestep`) — sonst tanzen zwei, die sich
   gegenüberstehen, im Gleichtakt nach links und rechts. `separation` schiebt
   Stehende auseinander.
-- **Die Schicht an der Welt** (`npc/NpcRoutine.ts`, `VisitorRoutine`): Ein
-  Auftrag mit Ziel wird ein `Npc.sendTo(ziel, reach)`, einer mit Haltung ein
-  `Npc.hold(pose, yaw, stelle)`, und wer gegangen ist, wird beim Regisseur
+- **Die Schicht an der Welt** (`npc/NpcRoutine.ts`, `VisitorRoutine`, mit
+  Test gegen Attrappen der vier Handgriffe `feet`, `alive`, `sendTo`, `hold`):
+  Ein Auftrag mit Ziel wird ein `Npc.sendTo(ziel, reach)`, einer mit Haltung
+  ein `Npc.hold(pose, yaw, stelle)`, und wer gegangen ist, wird beim Regisseur
   abgemeldet (`NpcDirector.remove`). Die Welt reicht zwei Handgriffe herein
   (`RoutineHost`: setzen, wegräumen) — dieselbe Bauart wie `NpcWorld`.
+  Geschickt wird nur, wenn sich das Ziel wirklich ändert: Ein `sendTo` je
+  Bild hieße ein neuer Plan je Bild.
 
 **Zwei Zahlen daran sind nicht Geschmack.** Die **Ankunftsweite** ist 0,8 m
 (`VISITOR_DEFAULTS.reach`) und nicht 30 cm: Wer mit 1,5 m/s auf einen Punkt
