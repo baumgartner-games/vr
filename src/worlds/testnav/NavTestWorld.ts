@@ -5,8 +5,8 @@ import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { clearPlanWalls } from '../grid/shelfWalls';
-import type { PlanSolidKind } from '../grid/solids';
 import { HAZARD_FIRE } from '../nav/navProfile';
+import type { PlateTile } from '../shared/plateField';
 import type { NavGraph } from '../nav/navGraph';
 import { NO_TILE } from '../nav/navTile';
 import type { Npc } from '../npc/Npc';
@@ -14,8 +14,9 @@ import { npcSkin } from '../npc/npcKinds';
 import { createSky } from '../shared/environment';
 import { BUTTON_DOME_R, buildRedButton, type RedButton } from '../shared/redButton';
 import {
-  LAVA,
+  FLOOR_MODEL,
   NAV_TESTS,
+  floorPieces,
   gateDir,
   gateTile,
   SPAWN,
@@ -26,10 +27,8 @@ import {
   type NavTest,
 } from './navTestPlan';
 
-/** Die Farben der Platten: grün der Start, blau das Ziel — gewünscht so. */
-export const START_COLOUR = 0x22c55e;
-export const GOAL_COLOUR = 0x3b82f6;
-const LAVA_COLOUR = 0xff5a1f;
+/** Die Farbe der Zieltafel — blau wie die Zielplatte. */
+const GOAL_COLOUR = 0x3b82f6;
 
 /** Wie viel Leben die Lava je Sekunde nimmt — die Übungspuppe hat 160. */
 const LAVA_DAMAGE = 400;
@@ -55,14 +54,13 @@ interface Bench {
  * stellt eine Übungspuppe auf die grüne Platte und schickt sie zur blauen.
  * **Der berechnete Weg ist immer zu sehen** — die Ebene _Wege_ der
  * Navigationsansicht ist hier von Anfang an an (`setNavLayer('paths')`), und
- * die Linie folgt dem Weg, den der NPC gerade geplant hat. Die Lava tötet,
+ * die Linie folgt dem Weg, den der NPC gerade geplant hat. Die Lava (im Bild
+ * ein Feld aus Stachelfallen, `navTestPlan.LAVA_MODEL`) tötet,
  * wer auf ihr steht (`burn`); geplant wird um sie herum, weil sie im Graphen
  * steht (`TileFacts.hazard`).
  */
 export class NavTestWorld extends GridWorld {
   private readonly benches: Bench[] = [];
-  private readonly shapes: THREE.BufferGeometry[] = [];
-  private readonly skins: THREE.Material[] = [];
   private readonly panels: TextPlane[] = [];
   private readonly pointed: THREE.Object3D[] = [];
 
@@ -122,8 +120,13 @@ export class NavTestWorld extends GridWorld {
     return [];
   }
 
-  protected override tint(): Partial<Record<PlanSolidKind, number>> {
-    return { floor: 0x8a93a6 };
+  /**
+   * **Jede Bodenkachel ist eine Prototyp-Platte** (`navTestPlan.FLOOR_MODEL`) —
+   * auch auf den Podesten. Wo ein Bodenstück liegt (Stacheln, grüne und blaue
+   * Fliese), deckt es die Platte zu (`GridWorld.coverFloor`).
+   */
+  protected override floorPlate(_tile: PlateTile): string | null {
+    return FLOOR_MODEL;
   }
 
   protected override spawnPoint(): THREE.Vector3 {
@@ -139,7 +142,7 @@ export class NavTestWorld extends GridWorld {
     this.root.add(createSky(0x6ea8e8, 0xdbe7f2));
   }
 
-  /** **Wände, Platten, Lava, Knöpfe** — und die Wege von Anfang an sichtbar. */
+  /** **Wände, Bodenstücke, Knöpfe** — und die Wege von Anfang an sichtbar. */
   protected override buildProps(): void {
     const ctx = this.context;
     const plan = this.grid;
@@ -150,10 +153,14 @@ export class NavTestWorld extends GridWorld {
     // Steht schon ein Stück an seiner Stelle, kommt kein zweites (`placeModel`).
     for (const wall of navTestWalls())
       void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
-    this.paintLava(plan);
+    // **Stacheln statt Lava, Küchenfliesen statt farbiger Platten** — Stücke
+    // aus dem Regal, eingelassen wie aus der Hand (`PortalWorld.sinkFloor`).
+    for (const piece of floorPieces()) {
+      const { x, z, level } = piece.at;
+      const at = new THREE.Vector3(tileCentre(x), plan.graph.levelY(level), tileCentre(z));
+      void this.placeModel(piece.path, at, 0);
+    }
     for (const test of NAV_TESTS) {
-      this.plate(plan, test.start, START_COLOUR);
-      this.plate(plan, test.goal, GOAL_COLOUR);
       this.label(plan, test.goal, 'Ziel', test.title);
       this.benches.push(this.buildButton(ctx, test));
     }
@@ -172,37 +179,10 @@ export class NavTestWorld extends GridWorld {
     for (const object of this.pointed) ctx.pointer.remove(object);
     for (const bench of this.benches) bench.button.dispose();
     for (const panel of this.panels) panel.dispose();
-    for (const shape of this.shapes) shape.dispose();
-    for (const skin of this.skins) skin.dispose();
     this.benches.length = 0;
     this.pointed.length = 0;
     this.panels.length = 0;
-    this.shapes.length = 0;
-    this.skins.length = 0;
     super.dispose(ctx);
-  }
-
-  /**
-   * **Eine farbige Platte auf einer Kachel**, knapp über dem Boden — und
-   * **immer zu sehen**, wie die Linie des Wegs (`navScene.navPathView`): Von
-   * oben verdeckte sonst die Wand der Kammer die Reihe dahinter, und dort
-   * liegt der Start.
-   */
-  private plate(plan: GridPlan, at: NavSpot, colour: number): void {
-    const shape = new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
-    const skin = new THREE.MeshBasicMaterial({
-      color: colour,
-      transparent: true,
-      opacity: 0.85,
-      depthTest: false,
-    });
-    this.shapes.push(shape);
-    this.skins.push(skin);
-    const mesh = new THREE.Mesh(shape, skin);
-    mesh.position.set(tileCentre(at.x), plan.graph.levelY(at.level) + 0.015, tileCentre(at.z));
-    mesh.name = 'nav-test-plate';
-    mesh.renderOrder = 900;
-    this.root.add(mesh);
   }
 
   /** Eine Tafel über dem Ziel, die die Kamera ansieht. */
@@ -218,22 +198,6 @@ export class NavTestWorld extends GridWorld {
     panel.position.set(tileCentre(at.x), plan.graph.levelY(at.level) + 1.9, tileCentre(at.z));
     this.root.add(panel);
     this.panels.push(panel);
-  }
-
-  /** Die Lava: eine glühende Fläche über den Kacheln, die sie im Graphen trägt. */
-  private paintLava(plan: GridPlan): void {
-    const shape = new THREE.PlaneGeometry(LAVA.w, LAVA.d).rotateX(-Math.PI / 2);
-    const skin = new THREE.MeshBasicMaterial({ color: LAVA_COLOUR });
-    this.shapes.push(shape);
-    this.skins.push(skin);
-    const mesh = new THREE.Mesh(shape, skin);
-    mesh.position.set(
-      LAVA.x + LAVA.w / 2,
-      plan.graph.levelY(LAVA.level) + 0.01,
-      LAVA.z + LAVA.d / 2,
-    );
-    mesh.name = 'nav-test-lava';
-    this.root.add(mesh);
   }
 
   /** Der rote Knopf vor einer Kammer. */

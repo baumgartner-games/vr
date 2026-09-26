@@ -8,8 +8,12 @@ import { readNav, writeNav } from '../nav/navSerial';
 import { wallLevel } from '../grid/shelfNav';
 import { clearPlanWalls, SHELF_WALL, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
 import {
+  GOAL_MODEL,
   LAVA,
+  LAVA_MODEL,
   NAV_TESTS,
+  START_MODEL,
+  floorPieces,
   SPAWN,
   STOREY,
   navTestPlan,
@@ -278,5 +282,30 @@ describe('Test Navigation — Wände nur aus dem Regal', () => {
     expect(wallLevel(graph, 0)).toBe(0);
     expect(wallLevel(graph, STOREY)).toBe(1);
     expect(wallLevel(graph, 0.3)).toBe(0);
+  });
+});
+
+describe('Test Navigation — Böden aus dem Regal', () => {
+  const pieces = floorPieces();
+
+  it('legt auf jede Lavakachel eine Stachelfalle', () => {
+    const spikes = pieces.filter((piece) => piece.path === LAVA_MODEL);
+    expect(spikes).toHaveLength(LAVA.w * LAVA.d);
+    for (const { at } of spikes) {
+      const tile = graph.tile(tileKey(at.x, at.z, at.level));
+      expect(tile?.hazard).toBeTruthy();
+    }
+  });
+
+  it('legt grüne Fliesen auf die Starts und blaue auf die Ziele', () => {
+    for (const one of NAV_TESTS) {
+      expect(pieces).toContainEqual({ path: START_MODEL, at: one.start });
+      expect(pieces).toContainEqual({ path: GOAL_MODEL, at: one.goal });
+    }
+  });
+
+  it('legt nie zwei Stücke auf dieselbe Kachel', () => {
+    const tiles = new Set(pieces.map(({ at }) => `${at.x},${at.z},${at.level}`));
+    expect(tiles.size).toBe(pieces.length);
   });
 });

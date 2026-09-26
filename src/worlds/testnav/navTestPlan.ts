@@ -170,6 +170,47 @@ export const NAV_TESTS: readonly NavTest[] = [
   },
 ];
 
+/**
+ * **Die Böden aus dem Regal** — gewünscht: _„der Boden durch prototype floor
+ * ersetzt … Die Lava durch Spike Boden. Der grüne und blaue Boden durch kaykit
+ * kitchen Green und Blue"_.
+ *
+ * Der Boden ist die Platte des Prototyp-Pakets, dieselbe wie draußen in der
+ * Sandbox (`test/floorPlate.PLATE_PROTOTYPE`), eine je Kachel
+ * (`NavTestWorld.floorPlate`). Lava, Start und Ziel sind Bodenstücke, die die
+ * Welt hinstellt (`floorPieces`): eingelassen wie aus der Hand
+ * (`PortalWorld.sinkFloor`), und die Platte darunter geht aus dem Bild.
+ */
+export const FLOOR_MODEL = 'prototype-bits/Floor_Prototype.glb';
+/** Die Stachelfalle, eine Kachel groß — rot, weil rot dasselbe sagt wie Lava. */
+export const LAVA_MODEL = 'platformer/red/floor_spikes_trap_2x2x1_red.glb';
+/** Die grüne Startplatte: Küchenfliese grün, eine Kachel. */
+export const START_MODEL = 'restaurant-bits/floor_kitchen_small_green.glb';
+/** Die blaue Zielplatte: Küchenfliese blau, eine Kachel. */
+export const GOAL_MODEL = 'restaurant-bits/floor_kitchen_small_blue.glb';
+
+/** Ein Bodenstück, das die Welt hinstellt: Datei und Kachel. */
+export interface FloorPiece {
+  readonly path: string;
+  readonly at: NavSpot;
+}
+
+/**
+ * **Die Bodenstücke der Welt** — je Lavakachel eine Stachelfalle, je Test eine
+ * grüne und eine blaue Fliese.
+ */
+export function floorPieces(): FloorPiece[] {
+  const pieces: FloorPiece[] = [];
+  for (let x = LAVA.x; x < LAVA.x + LAVA.w; x++)
+    for (let z = LAVA.z; z < LAVA.z + LAVA.d; z++)
+      pieces.push({ path: LAVA_MODEL, at: { x, z, level: LAVA.level } });
+  for (const test of NAV_TESTS) {
+    pieces.push({ path: START_MODEL, at: test.start });
+    pieces.push({ path: GOAL_MODEL, at: test.goal });
+  }
+  return pieces;
+}
+
 /** Das Tor aus dem Regal: eine Kachel breit, 2,1 m Öffnung (`props.MODEL_ARCHES`). */
 export const GATE_MODEL = 'prototype-bits/Wall_Doorway.glb';
 
