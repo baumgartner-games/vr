@@ -46,11 +46,11 @@ export const WORLDS: WorldDefinition[] = [
     title: 'Test Navigation',
     tagline: 'Einem NPC beim Wegfinden zusehen',
     description:
-      'Vier Kammern mit Fensterwänden, vor jeder ein roter Knopf: ein schräger Gang zwischen zwei 45°-Wänden, eine Treppe aufs Podest, eine Treppe mit Lava oben, um die er links herum muss, und der schräge Gang noch einmal enger. Grün ist der Start, blau das Ziel, und der berechnete Weg steht als Linie im Bild. Durch das Tor jeder Kammer kommt nur der Spieler.',
+      'Fünf Kammern mit Fensterwänden, vor jeder ein roter Knopf: ein schräger Gang zwischen zwei 45°-Wänden, eine Treppe aufs Podest, eine Treppe mit Lava oben, um die er links herum muss, und der schräge Gang noch zweimal enger, zuletzt nur eine Kachelreihe breit. Grün ist der Start, blau das Ziel, und der berechnete Weg steht als Linie im Bild. Durch das Tor jeder Kammer kommt nur der Spieler.',
     accent: 0xb58cff,
     preview: 'worlds/test-navigation.webp',
-    // Alle vier Kammern von oben, Rand bis Rand.
-    topDownSpan: 40,
+    // Alle fünf Kammern von oben, Rand bis Rand.
+    topDownSpan: 52,
     roles: ['vr', 'desktop', 'handheld'],
     test: true,
     folder: 'test',

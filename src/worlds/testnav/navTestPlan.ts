@@ -58,11 +58,12 @@ export interface NavTest {
   /** Die Kachel vor der Kammer, auf der der Knopf steht. */
   readonly button: { readonly x: number; readonly z: number };
   /**
-   * **Das Tor**: die Kachel der Südreihe, durch deren Südkante der Spieler in
-   * die Kammer kommt — ein Durchgang aus dem Regal (`GATE_MODEL`). Für die
-   * NPCs bleibt die Kante eine Wand (`NavTestWorld.navReady`).
+   * **Das Tor**: die Randkachel, durch deren Süd- (oder, mit `dir`, West-)kante
+   * der Spieler in die Kammer kommt — ein Durchgang aus dem Regal
+   * (`GATE_MODEL`). Für die NPCs bleibt die Kante eine Wand
+   * (`NavTestWorld.navReady`).
    */
-  readonly gate: { readonly x: number; readonly z: number };
+  readonly gate: { readonly x: number; readonly z: number; readonly dir?: typeof DIR_W };
 }
 
 /** Wie hoch eine Etage ist — dieselbe Zahl wie in der Sandbox (`test/layout.STOREY`). */
@@ -84,6 +85,14 @@ const SLANT = { x: 0, z: 0, w: 8, d: 8 } as const;
  * einen näher aneinander stehen"_.
  */
 const NARROW = { x: 29, z: 0, w: 8, d: 8 } as const;
+
+/**
+ * **5 · Der engste schräge Gang** — noch eine Kachel näher: Zwischen den
+ * beiden Schrägen bleibt eine einzige Kachelreihe (`x + z = 6`). Gewünscht:
+ * _„noch ein Test mit einem noch engeren Gang"_. Der Gang stößt nicht an die
+ * Südwand, also steht sein Tor in der Westwand.
+ */
+const NARROWEST = { x: 40, z: 0, w: 8, d: 8 } as const;
 
 /**
  * **2 · Die Treppe** — eine Treppe auf ein Podest, oben das Ziel.
@@ -149,16 +158,26 @@ export const NAV_TESTS: readonly NavTest[] = [
     button: { x: NARROW.x + 1, z: NARROW.z + NARROW.d + 1 },
     gate: { x: NARROW.x, z: NARROW.z + NARROW.d - 1 },
   },
+  {
+    id: 'engste',
+    title: '5 · Engster schräger Gang',
+    body: 'Nur eine Kachelreihe zwischen den 45°-Wänden',
+    room: NARROWEST,
+    start: { x: NARROWEST.x, z: NARROWEST.z + 6, level: 0 },
+    goal: { x: NARROWEST.x + 6, z: NARROWEST.z, level: 0 },
+    button: { x: NARROWEST.x + 1, z: NARROWEST.z + NARROWEST.d + 1 },
+    gate: { x: NARROWEST.x, z: NARROWEST.z + 6, dir: DIR_W },
+  },
 ];
 
 /** Das Tor aus dem Regal: eine Kachel breit, 2,1 m Öffnung (`props.MODEL_ARCHES`). */
 export const GATE_MODEL = 'prototype-bits/Wall_Doorway.glb';
 
 /** Der Boden, auf dem man zwischen den Kammern herumläuft. */
-export const GROUND = { x: -4, z: -4, w: 45, d: 22 } as const;
+export const GROUND = { x: -4, z: -4, w: 56, d: 22 } as const;
 
 /** Wo man ankommt: vor der Mitte der Reihe, mit Blick auf alle Kammern. */
-export const SPAWN = { x: 18.5, z: 15.5 } as const;
+export const SPAWN = { x: 23.5, z: 15.5 } as const;
 
 /**
  * **Der Plan der Welt**: Boden, drei Kammern, die Schrägen, zwei Treppen auf
@@ -175,6 +194,9 @@ export function navTestPlan(): GridPlan {
   // 4 · Dieselbe erste, die zweite eine Kachel näher.
   slant(plan, NARROW, 5);
   slant(plan, NARROW, 8);
+  // 5 · Und noch eine näher.
+  slant(plan, NARROWEST, 5);
+  slant(plan, NARROWEST, 7);
 
   // 2 und 3 · Podest und Treppe — der Boden oben liegt, bevor die Treppe ihr
   // Loch schlägt (`GridPlan.stairs`, wie beim Podest der Sandbox).
@@ -220,14 +242,25 @@ function slant(plan: GridPlan, room: { x: number; z: number; w: number }, sum: n
  */
 export function navTestWalls(): ShelfWall[] {
   const plan = navTestPlan();
-  for (const test of NAV_TESTS) plan.graph.clearWall(gateTile(test), DIR_S);
+  for (const test of NAV_TESTS) plan.graph.clearWall(gateTile(test), gateDir(test));
   const walls = planShelfWalls(plan, SHELF_WINDOW_PIECES);
-  for (const { gate } of NAV_TESTS)
-    walls.push({ path: GATE_MODEL, x: gate.x + 0.5, y: SHELF_WALL_Y, z: gate.z + 1, yaw: 0 });
+  for (const test of NAV_TESTS) {
+    const { x, z } = test.gate;
+    walls.push(
+      gateDir(test) === DIR_W
+        ? { path: GATE_MODEL, x, y: SHELF_WALL_Y, z: z + 0.5, yaw: Math.PI / 2 }
+        : { path: GATE_MODEL, x: x + 0.5, y: SHELF_WALL_Y, z: z + 1, yaw: 0 },
+    );
+  }
   return walls;
 }
 
-/** Die Kachel innen am Tor — das Tor ist ihre Südkante. */
+/** An welcher Kante seiner Kachel das Tor steht: Süd, außer es ist anders gesagt. */
+export function gateDir(test: NavTest): Dir {
+  return test.gate.dir ?? DIR_S;
+}
+
+/** Die Kachel innen am Tor — das Tor ist ihre Kante `gateDir`. */
 export function gateTile(test: NavTest): TileKey {
   return tileKey(test.gate.x, test.gate.z, 0);
 }
