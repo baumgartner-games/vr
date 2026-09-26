@@ -3241,7 +3241,14 @@ export class HauntingWorld extends GridWorld {
     const topDown = ctx.topDown && !full;
     this.fog?.setTopDown(topDown);
     ctx.rig.getHeadPosition(_head);
-    const camera = ctx.renderer.xr.isPresenting ? ctx.renderer.xr.getCamera() : ctx.camera;
+    // **Die Kamera des Spielers, auch in der Brille** — nicht `xr.getCamera()`.
+    // Deren Weltmatrix stammt aus dem letzten Bild und kennt eine Drehung des
+    // Körpers (Einrasten um 45° oder 90°) erst ein Bild später; dann stünde für
+    // ein Bild genau das ausgeblendet, was jetzt vor einem liegt. Die Kamera des
+    // Spielers trägt die Kopfhaltung als lokale Matrix unter dem Körper und die
+    // Projektion über beide Augen (`WebXRManager.updateUserCamera`) — mit der
+    // frischen Matrix des Körpers darüber ist sie aktuell.
+    const camera = ctx.camera;
     camera.updateWorldMatrix(true, false);
     camera.getWorldQuaternion(this.cullRotation);
     this.cullTimer -= dt;

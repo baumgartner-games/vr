@@ -1155,11 +1155,29 @@ Blickrichtung tun das auch.
    (`stationWindows` lässt ihn aus). Von oben ändert sich nichts
    (`topDownRooms`).
 
+**Die Bildprüfung des Cullers.** Im Container blieb die Station unsichtbar,
+solange Schatten an waren — dunkle Punktleuchten hatten nie eine
+Schattenkarte, und WebGL verwarf jeden beleuchteten Aufruf (behoben auf einem anderen Zweig in
+`stationLighting.lampShadowDue`). Mit Schatten aus steht sie da, und so ist
+geprüft worden: Übungsrunde, Ego-Sicht, **alle Türblätter offen**, an acht
+Stellen — Raum mit Tür zum Gang, Gang mit Blick durch zwei Türen, zwei
+offene Gangfugen (`passage: true`, sie zählen wie offene Türen), die
+Einsatzzentrale gerade und schräg durch die Glaswand, zufällige Stellen —
+jeweils drei Bilder aus derselben Pose: Culler neu, Culler alt, gar kein
+Culler. **Kein Pixel** des neuen Bildes weicht vom Bild ohne Culler ab. Die
+Gegenprobe (alle Räume aus) weicht um 19 000 bis 97 000 Pixel ab — der
+Vergleich merkt also ein Loch. Beim **Drehen um 90° mit einem Bild Verzug**
+(gerechnet in der alten Richtung, gezeichnet in der neuen) weichen neu und alt
+genau gleich ab (0 Pixel, an einer Stelle 2 460 — bei beiden). Den Verzug gibt es in der Brille seit
+jeher: `cullRoomArt` las die Weltmatrix von `xr.getCamera()`, und die stammt
+aus dem letzten Bild — ein Einrasten des Körpers kam erst ein Bild später an.
+Jetzt nimmt es die Kamera des Spielers (Kopfhaltung lokal unter dem frischen
+Körper, Projektion über beide Augen).
+
 **Was es nicht verändert.** Die Fotos aus `--ab` sind für den Burgerladen,
-den Hub und die Stachelfallen Bild für Bild dieselben. In Haunting zeichnet
-SwiftShader in diesem Blick die Wände der Station gar nicht (vorher wie
-nachher — nur Schilder, Sterne und Leuchten), also taugt das Foto dort nicht
-zum Vergleich; die Rechnung ist aber **konservativ** in dem Sinn, dass sie nur
+den Hub und die Stachelfallen Bild für Bild dieselben. Für Haunting
+steht die Prüfung im Absatz davor; die Rechnung ist außerdem **konservativ**
+in dem Sinn, dass sie nur
 Räume weglässt, zu denen keine Kette offener Türen innerhalb des Blicks führt
 — und die Tests (`stationVisibility.test.ts`) halten fest, dass sie mit jeder
 Tür im ganzen Bild genau die alte Menge ergibt.
