@@ -156,7 +156,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
         `readGamepad` bekommt dafür einen `ButtonPlan`; ohne einen gilt Zeile
         für Zeile das, was immer galt.
     - **Dass es das Glas überhaupt gibt, ist eine Einstellung** — _Menü →
-      Grafik → Bildschirm-Steuerung_ mit drei Rasten
+      Einstellungen → Grafik → Bildschirm-Steuerung_ mit drei Rasten
       (`graphicsSettings.screenPads`, gerechnet in `core/screenPads.ts`, gesetzt
       in `main.ts`). **Automatisch** ist die Voreinstellung und heißt: nur am
       Handy (`device.detectFlatRole`), und auch dort nur, solange **kein
@@ -378,7 +378,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
       einem genau das, worum es hier geht: einen **einzelnen** Quader
       umzuschalten. Wer die Welten wieder zusammenfasst, hat entweder kein
       Ghosting mehr oder eine ganze Halle, die auf einmal durchsichtig wird.
-  - **Umgeschaltet wird unter _Menü → Ansicht_** und auf der Startseite; die
+  - **Umgeschaltet wird unter _Menü → Spielen → Ansicht_** und auf der Startseite; die
     Wörter heißen _Von oben_ und _Aus den Augen_ und stehen an einer Stelle
     (`core/screenView.SCREEN_VIEW_LABELS`). Die **Kennungen** bleiben `2d` und
     `3d`: So stehen sie im Speicher jedes Browsers, der hier schon einmal offen
@@ -390,7 +390,37 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     zurücksetzen_ standen in diesem Menü, solange es eine eigene, gemalte
     Kachelwelt zu bemalen gab; gebaut wird jetzt im Bauplatz
     (`worlds/editor/WorldEditor.ts`).
-- **Hub-Welt**: eine Halle, und von ihr gehen **Gänge** ab, an deren Wänden
+- **Hub-Welt — die Lobby**: eine Halle, und in jeder der vier Richtungen eine
+  kurze **Nische** mit genau einem Tor darin. Gewünscht war ein Hub, der eine
+  Lobby ist: man kommt an, sieht sich um, und jedes Spiel ist ein Tor weit
+  weg. Solange es höchstens vier Welten hinter Toren gibt
+  (`hubGrid.LOBBY_GATES`, `isLobby`), steht jedes Tor mitten in seiner
+  Nische, genau gegenüber der Hallenmitte, eine Kachel Nische dahinter
+  (`LOBBY_TAIL`). Die Reihenfolge ist die des Menüs und der Startseite
+  (`hubTargets` → `menuGroups.sortWorlds`): **Burgerladen im Norden** — dort,
+  wohin man beim Ankommen schaut —, dann Haunting (Osten), Bauplatz (Süden),
+  Testwelt (Westen). Ab der fünften Welt wird aus den Nischen wieder die
+  Anlage von früher (unten).
+
+  **Die Ausstattung** (`hub/hubDecor.ts`, reine Rechnung mit Test) kommt
+  ausschließlich aus dem KayKit-Regal und wird wie im Burgerladen auf eine
+  Höhe eingepasst (`kaykitAtHeight`), nicht abgewartet — die Halle steht,
+  und die Stücke kommen dazu:
+
+  | Stück | Adresse | Wo |
+  | ----- | ------- | -- |
+  | Bogen über jeder Mündung, 2,6 m | `platformer/<farbe>/arch_tall_<farbe>.glb` | Farbe nach der Akzentfarbe der Welt (`archColor`: Orange → Gelb, Türkis/Himmelblau → Blau, Grün → Grün) |
+  | Schild darüber | `TextPlane` mit Name und Zeile der Welt | über dem Bogen, zur Hallenmitte gedreht, **ohne** `face` — ein Schriftzug über einem Tor |
+  | Stehlampen, je zwei | `furniture-bits/lamp_standing.glb` | links und rechts jeder Mündung an der Wand |
+  | Bänke, je Wand eine | `halloween-bits/bench.glb` | an der Wand neben der Mündung, zur Mitte gedreht |
+  | Topfpflanzen | `furniture-bits/cactus_medium_A/B.glb` | in den vier Ecken |
+
+  Die Tafel _Baumgartner VR_ über dem Nordgang ist dafür weg (dort hängt
+  jetzt das Schild des Burgerladens); der Hinweis an der Südwand heißt
+  _Lobby_ und sagt, wie man hinkommt. Der Test hält die Mitte der Halle und
+  jede Gangmündung frei.
+
+  **Die Anlage ab fünf Welten**: eine Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ausgelegt wird das aus nichts als der Länge der Weltenliste
   (`src/worlds/hub/hubGrid.ts`, mit Test): eine neue Welt bleibt damit das,
@@ -403,7 +433,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Raum, weil die Kamera ein Blickwinkel ist und keine zweite Welt. Boden,
   Wände und Navigationskarte kommen aus dem Grundriss; was `HubWorld` selbst
   baut, ist die Ausstattung — Himmel, Nebel, der Leuchtring auf dem
-  Hallenboden, die Lichtbänder in den Gängen und die beiden Tafeln.
+  Hallenboden, die Lichtbänder in den Gängen, die Schilder und die Stücke
+  aus dem Regal (siehe oben).
 
   Drei Sachen sind beim Umzug anders geworden, und alle drei, weil eine Welt
   auf dem Gitter genau vier Richtungen kennt: Es gibt **vier Gänge** (Nord,
@@ -698,7 +729,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     zurückgelegt hat; anders ließe sich nichts um zwei Zentimeter versetzen.
     Beide Hüften bewegen sich dabei, gespiegelt. Loslassen speichert, ein
     zweiter Trigger gibt die Hüfte frei, `A`/`X` setzt zurück (dasselbe steht
-    im Menü unter _Werkzeuge → Gürtel-Justierer → Gürtel_). Während eine Hüfte
+    im Menü unter _Bauen & Gestalten → Werkzeuge → Gürtel-Justierer → Gürtel_). Während eine Hüfte
     gewählt ist, gehört die andere Hand dem Gürtel (`claimsHand`): sie zieht
     dabei kein Werkzeug aus dem Halfter — sie greift ja genau dort zu.
   - **Pinsel** samt Palette auf der anderen Hand. Ausgewählt wird darauf auf
@@ -1333,7 +1364,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Stuhl steht — ein sitzender Spieler ist für jede Welt schlicht ein sehr
   kleiner, und Küchentresen, Kartsitz und Horizont gehören plötzlich jemand
   Größerem. Gefragt wird einmal auf der Startseite, umgestellt wird unter
-  _Menü → Bewegung → Haltung_: „Sitzend" hebt die Sicht auf Stehhöhe an und
+  _Menü → Einstellungen → Bewegung → Haltung_: „Sitzend" hebt die Sicht auf Stehhöhe an und
   lässt die Füße stehen — dieselbe Mechanik wie das Ducken, nur andersherum.
 
   **Und wer versetzt wird, wird mit Anhebung versetzt** (`PlayerRig.placeAt`,
@@ -1352,7 +1383,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Knopf auf Ellbogenhöhe steht dann irgendwo anders, weil der Boden
   unter dem Spieler um die Differenz falsch liegt. Also
   sind es **zwei eigene Zahlen**, stehend und sitzend, in Zentimetern und
-  beide **messbar**: unter _Menü → Bewegung → Augenhöhe_ hinstellen bzw.
+  beide **messbar**: unter _Menü → Einstellungen → Bewegung → Augenhöhe_ hinstellen bzw.
   hinsetzen, _Jetzt messen_ drücken, und die
   Brille schreibt ihre eigene Zahl hinein. Die Anhebung ist danach die
   Differenz der beiden und nicht mehr der Abstand zu einer _gerade gemessenen_
@@ -1369,7 +1400,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   der Tresen liegt auf Kniehöhe, und ein Topf auf dem Herd ist ein Punkt weit
   unten. Also wird in der Küche nicht die Küche größer, sondern der **Spieler
   kleiner** — auf eine dritte, eigene Augenhöhe, ab Werk **115 cm**,
-  einstellbar unter _Menü → Bewegung → Augenhöhe → In der Küche_ (100 bis
+  einstellbar unter _Menü → Einstellungen → Bewegung → Augenhöhe → In der Küche_ (100 bis
   180 cm, +5 pro Druck). Diese Zahl ist dreimal gewandert, und der Weg lohnt
   sich zu lesen: Hergeleitet standen dort **140**, weil es zwischen den beiden
   liegt, die es schon gibt (aus 120 cm schaut man der Arbeitsplatte ins
@@ -1575,7 +1606,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     Kartzone_.
   - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
     zwei Sprungkissen davor. Ausführlich unter _Klettern_.
-  - **Zu jeder Zone springt man auch** (_Menü → Zu einer Zone_,
+  - **Zu jeder Zone springt man auch** (_Menü → Testwelt → Zu einer Zone_,
     `TestWorld.jumpMenu`): zehn Ziele, eines je Zone, und zwar **dieselben
     Kacheln**, an denen der Grundrisstest misst, ob eine Zone überhaupt
     erreichbar ist (`layout.ZONE_TILES`). Das Gelände misst 73 × 105 m; wer nur
@@ -2234,7 +2265,7 @@ im Spiel also zwei Kacheln —, und in eine
   Entwicklerwerkzeuge gibt und ein Knopf, der nichts tut, sonst unerklärlich
   bleibt.
 - **Belegung und Gerätekarte** (`core/inputMap.ts` mit Test, `inputStore.ts`;
-  auf der Seite und im Spiel unter _Menü → Eingaben_): Welcher Knopf und welche
+  auf der Seite und im Spiel unter _Menü → Steuerung & Hilfe → Eingaben_): Welcher Knopf und welche
   Taste was tun — und, davon getrennt, **wo eine Nummer an diesem Gerät
   wirklich sitzt**. Das zweite gibt es, weil manche Treiber die Lage falsch
   melden (ein Backbone am iPhone meldet den unteren Gesichtsknopf als
@@ -2338,5 +2369,5 @@ im Spiel also zwei Kacheln —, und in eine
   wer schießt, wirft oder etwas aus dem Beutel holt, tut das für alle.
 - **Zuschauer-Kamera**: Spieler auswählen und zusehen, aus dessen Augen
   (First Person) oder mit weicher Verfolgung von hinten (Third Person). Am PC
-  im Panel unter _Zuschauen_, in VR unter **Menü → Verbindung → Zuschauen** —
+  im Panel unter _Zuschauen_, in VR unter **Menü → Zusammen → Zuschauen** —
   beide Seiten haben dieselben Möglichkeiten.

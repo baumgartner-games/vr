@@ -3,10 +3,10 @@
  * durchsichtig — sie soll da sein, wenn man hinsieht, und nicht, wenn man
  * spielt. Über dem Menü, damit sie dort sagt, wie man zurückkommt.
  */
-.hints { position: fixed; left: 12px; right: 12px; margin-inline: auto; width: fit-content; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 60; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; max-width: 760px; padding: 6px 12px; border-radius: 14px; background: rgba(10, 14, 24, 0.55); color: rgba(235, 240, 250, 0.9); font: 500 12.5px/1.3 system-ui, sans-serif; pointer-events: none; backdrop-filter: blur(4px); }
+.hints { position: fixed; left: 12px; right: 12px; margin-inline: auto; width: fit-content; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 60; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; max-width: 760px; padding: 6px 12px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg-soft); color: var(--hud-ink); font: 500 12.5px/1.3 var(--hud-font); pointer-events: none; backdrop-filter: var(--hud-blur); }
 .hints[hidden] { display: none; }
 .hints__item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.hints__key { display: inline-block; min-width: 1.6em; padding: 1px 5px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.1); font: 600 11.5px/1.4 system-ui, sans-serif; text-align: center; color: #fff; }
+.hints__key { display: inline-block; min-width: 1.6em; padding: 1px 5px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.35); background: var(--hud-raise); font: 600 11.5px/1.4 var(--hud-font); text-align: center; color: #fff; }
 .hints[data-device="pad"] .hints__key { border-radius: 999px; }
 /* Am Glas liegen unten die Stöcke und Knöpfe — die Zeile rückt nach oben, unter die Kopfzeile. */
 .hints[data-device="touch"] { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 58px); }

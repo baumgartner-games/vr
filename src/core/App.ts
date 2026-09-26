@@ -14,6 +14,10 @@ import { WORLD_BADGES, groupMenu, sortWorlds, worldKind } from '../ui/menuGroups
 import { PageMenu } from '../ui/PageMenu';
 import { padNav } from '../ui/padNav';
 import { ControlHints, hintsOn, setHintsOn } from '../ui/ControlHints';
+import { WorldLoader } from '../ui/WorldLoader';
+import { WorldWelcome, setWelcomeOn, welcomeOn } from '../ui/WorldWelcome';
+import { introKeys } from './worldIntro';
+import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
@@ -207,6 +211,15 @@ export class App {
   /** Die Tastenhilfe unten im Bild — `null` ohne DOM (Tests). */
   private readonly hints: ControlHints | null =
     typeof document === 'undefined' ? null : new ControlHints();
+  /**
+   * **Der Ladebildschirm beim Weltwechsel** (`ui/WorldLoader.ts`) und die
+   * **Willkommens-Karte** beim ersten Betreten (`ui/WorldWelcome.ts`) —
+   * beide nur am Schirm, beide `null` ohne DOM (Tests).
+   */
+  private readonly loader: WorldLoader | null =
+    typeof document === 'undefined' ? null : new WorldLoader();
+  private readonly welcome: WorldWelcome | null =
+    typeof document === 'undefined' ? null : new WorldWelcome();
   /** Die Startseite — solange sie steht, schweigt die Tastenhilfe. */
   private readonly landingEl: HTMLElement | null =
     typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('#landing');
@@ -621,12 +634,20 @@ export class App {
     const token = ++this.loadToken;
     this.loading = definition.id;
     this.notify(`Lade ${definition.title} …`);
+    // **Der Ladebildschirm** — nur im Spiel am Schirm: Auf der Startseite sagt
+    // der Knopf, wie weit es ist, und in der Brille gibt es kein DOM im Bild.
+    const showLoader =
+      this.loader !== null &&
+      !this.renderer.xr.isPresenting &&
+      !(this.landingEl !== null && !this.landingEl.hidden);
+    if (showLoader) this.loader.begin(definition);
 
     try {
       const next = await definition.load();
       // Inzwischen wollte jemand woandershin. Die geladene Welt wird einfach
       // fallen gelassen — `init` lief nie, sie hängt an nichts.
       if (token !== this.loadToken) return;
+      this.loader?.set('aufbau', 0, 0);
       this.unloadWorld();
 
       this.worldId = definition.id;
@@ -648,7 +669,16 @@ export class App {
       // sich dabei neu auf, statt quer über die Karte dorthin zu fliegen
       // (`applyView` → `TopDownCamera.reset`).
       this.applyView();
+      if (showLoader) {
+        // Die Modelle kommen nach `init` (`assetsSettled`); so lange zählt
+        // der Balken sie mit, und dann blendet der Schirm aus.
+        this.loader.set('modelle', this.assets.loaded, this.assets.total);
+        void this.assets.settle({ cap: LOADER_CAP_MS, quiet: 400 }).then(() => {
+          if (token === this.loadToken) this.loader?.finish();
+        });
+      }
     } catch (error) {
+      this.loader?.cancel();
       console.error(`[app] Welt "${id}" konnte nicht geladen werden`, error);
       this.notify(`Fehler beim Laden von ${definition.title}`);
       this.hooks.onWorldFailed?.(definition.id, error);
@@ -884,6 +914,14 @@ export class App {
       this.spectating ||
       this.wardrobe.isOpen ||
       (landing !== null && !landing.hidden);
+    if (this.loader?.open) {
+      if (presenting) this.loader.cancel();
+      else if (this.assets.loading) {
+        this.loader.set('modelle', this.assets.loaded, this.assets.total);
+      }
+      this.loader.tick();
+    }
+    this.updateWelcome(hidden || this.loader?.open === true || this.flat.blocker() !== null);
     if (hidden) {
       this.hints?.update(null);
       return;
@@ -900,6 +938,23 @@ export class App {
       padKind: padNav.kind,
       config: inputConfig(),
     });
+  }
+
+  /**
+   * **Die Willkommens-Karte** (`ui/WorldWelcome.ts`): einmal je Welt, sobald
+   * man sie sieht — nicht hinter der Startseite, nicht unter dem
+   * Ladebildschirm, nicht hinter einem Menü.
+   */
+  private updateWelcome(covered: boolean): void {
+    if (!this.welcome) return;
+    const world = this.worldId ? (findWorld(this.worldId) ?? null) : null;
+    this.welcome.update(
+      world,
+      !covered,
+      (tips) =>
+        introKeys(tips, { device: padNav.device, padKind: padNav.kind, config: inputConfig() }),
+      padNav.device,
+    );
   }
 
   /** Die andere der beiden Ansichten — `V` und ⊟ am Pad (`FlatControls.onView`). */
@@ -1031,6 +1086,8 @@ export class App {
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.hints?.dispose();
+    this.loader?.dispose();
+    this.welcome?.dispose();
     for (const off of this.padScopes) off();
     this.padScopes = [];
     this.pageMenu.dispose();
@@ -1416,6 +1473,21 @@ export class App {
           run: () => {
             setHintsOn(!hintsOn());
             this.notify(`Tastenhilfe ${hintsOn() ? 'an' : 'aus'}`);
+            this.menuDirty = true;
+          },
+        },
+        {
+          // **Die Willkommens-Karte** beim ersten Betreten einer Welt
+          // (`ui/WorldWelcome.ts`). Wieder an heißt: alle Welten grüßen neu.
+          id: 'input:welcome',
+          label: 'Willkommen je Welt',
+          sub: 'Beim ersten Betreten: was man hier tut, und die Knöpfe dazu',
+          icon: 'controller',
+          accent,
+          checked: welcomeOn(),
+          run: () => {
+            setWelcomeOn(!welcomeOn());
+            this.notify(`Willkommen je Welt ${welcomeOn() ? 'an' : 'aus'}`);
             this.menuDirty = true;
           },
         },
