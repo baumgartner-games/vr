@@ -291,7 +291,8 @@ const _q = new THREE.Quaternion();
 
 /**
  * **Ein Hörnchen mit seinem Turm** — die Kugeln folgen ihm nicht starr,
- * sondern mit der Feder aus `plateUpWobble.ts`, gerechnet **in der Welt** und
+ * sondern verzögert, nach oben hin immer träger (`plateUpWobble.ts`),
+ * gerechnet **in der Welt** und
  * erst danach in den Raum des Hörnchens zurückgelegt. Nur so kann ein Turm
  * hinter einer Hand zurückbleiben, die ihn trägt.
  */
@@ -318,7 +319,7 @@ export class IceConeView {
     const same =
       balls.length === this.shown.length && balls.every((flavor, i) => flavor === this.shown[i]);
     if (same) return;
-    // Was unten gleich geblieben ist, bleibt stehen — samt seinem Wackeln.
+    // Was unten gleich geblieben ist, bleibt stehen — samt seiner Verspätung.
     let keep = 0;
     while (keep < balls.length && keep < this.shown.length && balls[keep] === this.shown[keep]) {
       keep++;
@@ -341,7 +342,7 @@ export class IceConeView {
 
   /**
    * **Ein Bild des Turms** — erst die Stelle des Hörnchens in der Welt, dann
-   * die Feder, dann jede Kugel zurück in den Raum des Hörnchens.
+   * die Verzögerung, dann jede Kugel zurück in den Raum des Hörnchens.
    */
   step(dt: number): void {
     if (!this.balls.length) return;
@@ -361,7 +362,7 @@ export class IceConeView {
     this.wobble.balls.forEach((ball, i) => {
       const mesh = this.balls[i];
       if (!mesh) return;
-      mesh.position.copy(this.root.worldToLocal(_p.set(ball.p.x, ball.p.y, ball.p.z)));
+      mesh.position.copy(this.root.worldToLocal(_p.set(ball.x, ball.y, ball.z)));
     });
   }
 
