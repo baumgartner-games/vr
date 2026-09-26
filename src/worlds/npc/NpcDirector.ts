@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Npc, type NavRun } from './Npc';
+import { Npc, type NavFigure, type NavRun } from './Npc';
+import { PLAYER_CAPSULE_RADIUS } from '../../physics/playerClearance';
 import type { BarMode } from './NpcBody';
 import type { NavGraph } from '../nav/navGraph';
 import type { CellGrid } from '../nav/cellGrid';
@@ -539,6 +540,25 @@ export class NpcDirector implements NpcControl {
 
   // --- das Bild -------------------------------------------------------------
 
+  /**
+   * **Wer in der Ebene steht** — der Spieler und jeder Stehende, als Kreis um
+   * seine Füße (`Npc.NavFigure`). Auf dem Gitter gehen die NPCs einander und
+   * dem Spieler darin aus dem Weg; ihre Körper berühren sich nicht mehr
+   * (`PhysicsBody.gridFigure`). Einer an den Fäden fehlt: In ihm steht der
+   * Spieler, und der ist schon dabei.
+   */
+  figures(player: THREE.Vector3 | null): NavFigure[] {
+    const out: NavFigure[] = [];
+    if (player)
+      out.push({ x: player.x, y: player.y, z: player.z, radius: PLAYER_CAPSULE_RADIUS, who: null });
+    for (const npc of this.npcs) {
+      if (!npc.solid || npc.puppeted) continue;
+      const feet = npc.feet(_probe);
+      out.push({ x: feet.x, y: feet.y, z: feet.z, radius: npc.skin.radius, who: npc });
+    }
+    return out;
+  }
+
   update(dt: number): void {
     this.time += dt;
     const player = this.world.playerAt(_feet);
@@ -547,13 +567,15 @@ export class NpcDirector implements NpcControl {
     // Einmal je Bild für alle: Das Gitter ist dasselbe, und die Spielerhöhe
     // auch. Fünfzig NPCs sollen sie nicht fünfzigmal nachschlagen.
     const graph = this.world.nav?.() ?? null;
+    const cells = graph ? (this.world.cells?.() ?? null) : null;
     const run: NavRun | null = graph
       ? {
           graph,
-          cells: this.world.cells?.() ?? null,
+          cells,
           ...(this.world.stairs ? { stairs: this.world.stairs } : {}),
           at: player ? { x: player.x, y: player.y, z: player.z } : null,
           now: this.time,
+          ...(cells ? { figures: this.figures(player) } : {}),
         }
       : null;
 

@@ -153,6 +153,27 @@ den großen Kacheln bleibt.
     so breit wie der des Spielers (`Npc.planeRadius`: `PLAYER_PLANE_RADIUS`
     je 2 × 2 Zellen, größere im Verhältnis). Siehe _Alle Figuren gehen auf dem
     Gitter_ weiter unten.
+  - **Figuren stoßen sich in der Ebene, nicht in der Physik** (September
+    2026, gemeldet: _„Ich will, dass die Physik, ob man wo lang gehen kann
+    oder nicht, wirklich nur auf der 2D-Ebene ist … und nun ist das Problem
+    wieder, aber wenn zwei Charaktere zusammen laufen … Die 3D soll nur
+    optisch sein"_ — auf dem Bild stand der Koch im engen Gang der
+    Test-Navigation oben auf der Übungspuppe). Der Zylinder des NPC war für
+    die Kapsel noch Physik, und der Formwurf nach unten nahm seinen Kopf als
+    Boden. Jetzt:
+    - `walkPlane` fragt ohne `GROUP_NPC` — kein Kopf ist Boden.
+    - Ein NPC auf dem Gitter stößt mit seinem Körper weder an den Spieler noch
+      an andere NPCs (`PhysicsBody.gridFigure`, gesetzt in `Npc.update`).
+    - Wer wem im Weg steht, sagt die Ebene: Jede andere Figur ist ein Punkt,
+      dem die Mitte nicht näher kommt als beide Körper zusammen
+      (`planeMove.figureWalls`, `PlaneWall.reach`) — so nah wie vorher die
+      Körper in der Physik (Spieler 0,24 m + Puppe 0,28 m). Der Spieler
+      bekommt die NPCs in `GridWorld.playerPlane`, jeder NPC den Spieler und
+      die übrigen über `NavRun.figures` (`NpcDirector.figures`), nur auf der
+      eigenen Etage (`FIGURE_FLOOR`, 1 m). Mitspieler bleiben wie bisher
+      füreinander durchlässig.
+    - Getestet mit echtem Rapier (`physics/figurePlane.test.ts`: frontal,
+      versetzt, entgegenkommend — vorher stand die Kapsel auf 1,70 m).
   - Getestet mit echtem Rapier an Treppe und Podest und an einem Boden aus
     einzelnen Kacheln (`physics/playerPlane.test.ts`), dazu an den Schrägen
     der Station (`haunting/map/stationSlide.test.ts`).

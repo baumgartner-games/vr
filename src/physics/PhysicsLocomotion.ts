@@ -580,7 +580,10 @@ export class PhysicsLocomotion implements Locomotion {
    * oder hinunter inbegriffen), keiner heißt fallen.
    */
   private walkPlane(): void {
-    const groups = interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~this.phaseMask);
+    // **Keine Figur**: An NPCs stößt der Spieler in der Ebene an
+    // (`PlayerPlane.slide`), und als Boden taugt kein Kopf — sonst stand er
+    // oben auf der Übungspuppe, die neben ihm durch den Gang lief.
+    const groups = interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~GROUP_NPC & ~this.phaseMask);
     const t = this.body.translation();
     const top = t.y + PLANE_STEP;
     this.body.setTranslation({ x: t.x, y: top, z: t.z }, false);
