@@ -160,13 +160,33 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   - Möbel stehen ganz auf der Innenseite und halten von Schrägen und Nischen
     Abstand (`stationLayout.cutFree` → `boxInShape`).
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
-  topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
-  offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem
-  anderen liegt auf Wandhöhe ein dunkler Deckel; die Einsatzzentrale bleibt
-  aus der Cafeteria sichtbar (Glas). Vorher fragte `cullRoomArt` auch von
-  oben, ob eine Türöffnung im Blickfeld liegt — von oben ist das jede —, und
-  das Telefon des Technikers blendete gar nichts aus, weil `ui` gesetzt war.
-  Ganz sehen darf nur, wer zuschaut (Tafel, Archiv, Bot-Runde).
+  topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und **ganze**
+  Nachbarräume, deren verbindende Tür gerade offen steht (das Blatt der
+  Türautomatik, `HauntingWorld.openDoors`; verriegelt zählt nie). Ein Gang
+  zählt samt allen Stücken, die über offene Durchgänge (`passage`) daran
+  hängen, als ein Raum. Weiter reicht es nicht: Der Raum hinter dem Nachbarn
+  bleibt dunkel. Die Einsatzzentrale bleibt aus der Cafeteria sichtbar (Glas).
+  Wunsch des Besitzers (September 2026, vom Handy): _„Eigener Raum und der
+  andere Raum, wo die Tür geöffnet ist, aber sauber eben."_ Vorher zeigte ein
+  Abstand von 6 m zur Türmitte (`TOP_DOWN_REACH`, entfallen) den Nachbarn
+  angeschnitten.
+  - **Die Deckel sind Blöcke** (`lidPieces`): vom Boden bis knapp über die
+    Wandkrone (`LID_TOP`), Kachel für Kachel genau im Umriss des Raums. Zu
+    einem anderen Raum enden sie auf der Wandmitte, nach draußen reichen sie
+    `LID_OUTSET` = 35 cm über die Wand (samt gelbem Sockel); eine
+    Schrägkachel trägt nur ihre innere Hälfte, schräg nach außen geschoben.
+    Die alten Deckel waren flache Rechtecke auf Wandhöhe, so groß wie
+    `rect` — bei geformten Räumen nur das umschließende Rechteck, also über
+    Nischen des Nachbarn; und weil die Kamera schräg schaut, lag der Deckel
+    im Bild versetzt, und unter seiner Kante schauten Boden und Wände des
+    Nachbarn als Streifen hervor. Durch die Seiten eines Blocks sieht man aus
+    keinem Winkel mehr hinein, auch nicht durch eine offene Tür eines
+    sichtbaren Nachbarn. `topDownFog.test` prüft Umriss, Wandmitte, Überstand
+    und Schrägen, `stationVisibility.test` die Regel.
+  - Vorher fragte `cullRoomArt` auch von oben, ob eine Türöffnung im
+    Blickfeld liegt — von oben ist das jede —, und das Telefon des Technikers
+    blendete gar nichts aus, weil `ui` gesetzt war. Ganz sehen darf nur, wer
+    zuschaut (Tafel, Archiv, Bot-Runde).
 - **Aus den Augen sieht man durch Türen hindurch — und nur durch das Stück
   Bild, das sie freigeben** (`stationVisibility.portalRooms`, September 2026).
   Jeder Raum trägt ein Rechteck im Bild; der Raum hinter einer Tür bekommt

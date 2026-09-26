@@ -3240,7 +3240,8 @@ export class HauntingWorld extends GridWorld {
     camera.updateWorldMatrix(true, false);
     camera.getWorldQuaternion(this.cullRotation);
     this.cullTimer -= dt;
-    const doors = this.state.shut.join(',');
+    // Von oben zählt, welche Blätter gerade offen stehen (`topDownRooms`).
+    const doors = this.state.shut.join(',') + (topDown ? `/${[...this.openDoors].join(',')}` : '');
     if (
       !full &&
       this.cullTimer > 0 &&
@@ -3261,7 +3262,7 @@ export class HauntingWorld extends GridWorld {
     const visible = full
       ? null
       : topDown
-        ? topDownRooms(this.spec, _head, this.state.shut)
+        ? topDownRooms(this.spec, _head, this.state.shut, (door) => this.openDoors.has(door.id))
         : portalRooms(this.spec, _head, this.state.shut, (door) => {
             const edge = doorEdge(door);
             const half = doorWidth(door) / 2;
