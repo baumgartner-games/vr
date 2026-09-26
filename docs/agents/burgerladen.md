@@ -14,14 +14,17 @@ auf den Teller geht als dort.
 
 ## Was wo liegt
 
-| Datei                               | Was darin steht |
-| ----------------------------------- | --------------- |
-| `worlds/plateup/plateUpPlan.ts`     | **Rein**: Grundriss (14 × 12 Kacheln Laden, Gehweg davor), Stationen, Tische und Stühle, die Tore, und der Weg der Gäste (`guestRoute` über `nav/navPath.findPath` + `smoothPath` auf einem eigenen Graphen ohne Möbelkacheln) |
-| `worlds/plateup/plateUpGame.ts`     | **Rein**: der Tag — Kundenstrom, Zustände eines Gastes, Geduld, Bestellung, Bewertung, Kasse, Schwierigkeit, Schildtexte |
-| `worlds/plateup/plateUpStations.ts` | **Rein**: was ein Druck an einer Station tut — `kitchenDeed` fragen und das Ergebnis auf Hand und Station anwenden; die Uhren von Brett und Grillplatte (`kitchenWork`) |
-| `worlds/plateup/plateUpDecor.ts`    | **Rein**: das Inventar — Wände, Fenster, Tische, Stühle, Lampen, Bilder, Kakteen, Straße |
-| `worlds/plateup/PlateUpWorld.ts`    | Die Darstellung: Modelle, Körper, Anmeldungen, Figuren, Sprechblasen, Tafeln |
-| `worlds/plateup/plateUp.test.ts`    | Grundriss, ein ganzer Tag, Wut und Ladenschluss, die ganze Burgerkette an den Stationen, die Tore |
+| Datei                                | Was darin steht                                                                                                                                                                                                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worlds/plateup/plateUpPlan.ts`      | **Rein**: Grundriss (14 × 12 Kacheln Laden, Gehweg davor), Stationen, Tische und Stühle, die Tore, und der Weg der Gäste (`guestRoute` über `nav/navPath.findPath` + `smoothPath` auf einem eigenen Graphen ohne Möbelkacheln)                                         |
+| `worlds/plateup/plateUpGame.ts`      | **Rein**: der Tag — Kundenstrom, Zustände eines Gastes, Geduld, Bestellung, Bewertung, Kasse, Schwierigkeit, Schildtexte                                                                                                                                               |
+| `worlds/plateup/plateUpStations.ts`  | **Rein**: was ein Druck an einer Station tut — `kitchenDeed` fragen und das Ergebnis auf Hand und Station anwenden; die Uhren von Brett, Grillplatte und Spüle (`kitchenWork`), das Verbrennen (`heat`, `burnShare`) und der zählende Tellerstapel (`stock`, `PLATES`) |
+| `worlds/plateup/plateUpShop.ts`      | **Rein**: Einrichten zwischen den Tagen — Katalog (`SHOP_ITEMS`), Baupläne des Abends (`dayOffers`), wo etwas hindarf (`placeCheck`, mit Wegsuche), kaufen (`buy`), alle Tische samt gekauften (`allTables`)                                                           |
+| `worlds/plateup/plateUpTutorial.ts`  | **Rein**: die Einsteigerhilfe — ein Satz und ein Ziel aus dem Stand (`tutorialHint`), und wann sie fertig ist (`tutorialFinished`)                                                                                                                                     |
+| `worlds/plateup/plateUpDecor.ts`     | **Rein**: das Inventar — Wände, Fenster, Tische, Stühle, Lampen, Bilder, Kakteen, Straße                                                                                                                                                                               |
+| `worlds/plateup/PlateUpWorld.ts`     | Die Darstellung: Modelle, Körper, Anmeldungen, Figuren, Sprechblasen, Tafeln                                                                                                                                                                                           |
+| `worlds/plateup/plateUp.test.ts`     | Grundriss, ein ganzer Tag, Wut und Ladenschluss, die ganze Burgerkette an den Stationen, die Tore, Verbrennen, Tellerstapel, Abwasch, Gruppen, Balance                                                                                                                 |
+| `worlds/plateup/plateUpShop.test.ts` | Baupläne, Platzieren samt Begründung, Kaufen, die Einsteigerhilfe durch einen Hamburger                                                                                                                                                                                |
 
 Die Welt erbt von `GridWorld` (siehe [Welten](./welten.md), _Eine neue Welt
 hinzufügen_). Im Grundriss stehen nur **Boden, Wände und Tore**; die Möbel
@@ -40,8 +43,9 @@ Alles aus dem KayKit-Regal, nichts Neues (siehe [Modelle](./modelle.md),
 - **Möbel** aus dem Restaurant-Katalog (`core/dinerModel`, halbe Größe wie in
   der Testküche — Arbeitshöhe 0,5 m, ein runder Gasttisch auf 2 × 2 Kacheln):
   Kisten mit Brötchen, Fleisch, Salat, Tomaten, Arbeitsplatten, Schneidebrett,
-  zwei einflammige Herde als Grillplatten, Tellerstapel, Kühlschrank,
-  Hängeschränke, Durchreiche, Tische mit Tischdecken, Stühle, Senf, Ketchup,
+  zwei einflammige Herde als Grillplatten, Spüle (`kitchencounter_sink`),
+  Tellerstapel (Abtropfgitter mit so vielen Tellern, wie sauber sind),
+  Kühlschrank, Durchreiche, Tische mit Tischdecken, Stühle, Senf, Ketchup,
   Speisekarten; Wände mit Fliesenspiegel, Fenstern mit roten Gardinen und
   einem Durchgang.
 - **Aus dem Regal** (`core/kaykitModel`, auf eine **Höhe** eingepasst statt
@@ -68,47 +72,103 @@ Alles aus dem KayKit-Regal, nichts Neues (siehe [Modelle](./modelle.md),
 2. **Gäste** kommen in Abständen vom Gehweg, laufen über die Wegsuche durch
    die Tür zum **Nordstuhl** eines freien Tisches (sie schauen dann nach
    Süden, also in die Kamera) und setzen sich. Ist kein Tisch frei, wartet der
-   nächste draußen — der Abstand läuft nicht weiter als bis null.
+   nächste draußen — der Abstand läuft nicht weiter als bis null. **Ab Tag 2
+   kommen auch Paare** (`dayRules.pairs`): Der Zweite setzt sich auf den
+   Stuhl an der Wandseite (`TableSpot.other`, Weg über `otherApproach`) und
+   bestellt für sich. Zu zweit wartet man 15 % länger; reißt einem die
+   Geduld, geht, wer noch wartet, mit — und das kostet **ein** Leben, nicht
+   zwei (`stepShift`, `stormed`).
 3. Über dem Gast eine **Sprechblase**: der bestellte Burger als Bild
-   (Schichten von unten nach oben), sein Name und darunter der
-   **Geduldsbalken** (grün → gelb → rot; unter 35 % pulsiert die Blase). Die
-   Geduld läuft erst, wenn er sitzt. Die offenen Bestellungen stehen auch auf
-   der Tafel über der Nordwand.
-4. **Kochen**: Patty aus der Kiste auf die Grillplatte (brät allein in 5 s
-   und verbrennt nicht — `griddle`), Salat/Tomate aufs Brett (schneidet in 3 s,
-   solange man davorsteht; wer weggeht und wiederkommt, fängt von vorn an).
-   Teller vom Stapel, damit an die Brötchenkiste, an die Grillplatte, ans
-   Brett — der Teller nimmt es auf. Ablegen geht auf jeder Arbeitsplatte und
-   auf der Durchreiche; der Mülleimer nimmt den Belag und lässt den Teller in
-   der Hand.
-5. **Servieren**: mit dem Teller an den Tisch. Nur das Bestellte, und nur auf
+   (Schichten von unten nach oben), sein Name, die **Tischnummer** oben links
+   und darunter der **Geduldsbalken** (grün → gelb → rot; unter 35 % pulsiert
+   die Blase). Die Geduld läuft erst, wenn er sitzt.
+4. **Kochen**: Patty aus der Kiste auf die Grillplatte (brät allein in 5 s),
+   Salat/Tomate aufs Brett (schneidet in 3 s, solange man davorsteht; wer
+   weggeht und wiederkommt, fängt von vorn an). Teller vom Stapel, damit an
+   die Brötchenkiste, an die Grillplatte, ans Brett — der Teller nimmt es auf.
+   Ablegen geht auf jeder Arbeitsplatte und auf der Durchreiche; der Mülleimer
+   nimmt den Belag und lässt den Teller in der Hand.
+5. **Verbrennen**: Anders als die sichere Kochstelle der Testküche bleibt das
+   gebratene Patty auf der heißen Platte, und nach `dayRules.burn` Sekunden
+   ist es schwarz (`patty-burnt`, nur noch Müll). Ab dem Braten zeigt der
+   Balken über der Platte rot an, wie nah es daran ist; ab der Hälfte stehen
+   ein Warnzeichen und **Rauch** darüber, verbrannt steigt er fast schwarz
+   (`Smoke`). Wer es rechtzeitig nimmt, setzt die Uhr zurück (`heat`).
+6. **Servieren**: mit dem Teller an den Tisch. Nur das Bestellte, und nur auf
    einem Teller (`plateRecipe` ist streng, anders als die Theke der Testküche);
-   sonst sagt eine Zeile, was fehlt. Der Gast isst 6 s, **zahlt** Preis plus
-   Trinkgeld nach übriger Geduld (bis 5 Münzen), eine Münze steigt über dem
-   Tisch auf, und er geht.
-6. **Zu lange gewartet**: Er steht auf, ein rotes „!" in der Blase, und geht.
+   sonst sagt eine Zeile, was fehlt. An einem Tisch mit Paar bekommt es der,
+   der es bestellt hat. Der Gast isst 6 s, **zahlt** Preis plus Trinkgeld nach
+   übriger Geduld (bis 5 Münzen), eine Münze steigt über dem Tisch auf, und er
+   geht.
+7. **Abwasch**: Sein Teller bleibt **schmutzig** auf dem Tisch
+   (`Shift.dirty`), und an einen Tisch mit Geschirr setzt sich niemand
+   (`freeTables`). `A` mit leeren Händen am Tisch räumt einen Teller ab
+   (`clearDish`); in der **Spüle** (Nordwand, neben dem Stapel) wird er
+   gespült, solange man davorsteht (3 s), und kommt sauber in die Hand
+   zurück — in der Brille in die Hand, die ihn hineingelegt hat. Der
+   **Tellerstapel** zählt (`PLATES` = 6, `StationState.stock`) und zeigt so
+   viele Teller, wie noch da sind; leer sagt er, dass gespült werden muss.
+8. **Zu lange gewartet**: Er steht auf, ein rotes „!" in der Blase, und geht.
    Drei davon an einem Tag, und **der Laden macht zu** — Endschild, die Glocke
-   fängt bei Tag 1 wieder an.
-7. **Ladenschluss**: Nach der Öffnungszeit kommt niemand mehr; wer sitzt, wird
+   fängt bei Tag 1 wieder an (ohne Gekauftes).
+9. **Ladenschluss**: Nach der Öffnungszeit kommt niemand mehr; wer sitzt, wird
    noch bedient. Ist der Letzte draußen, steht die **Tagesbilanz** da
-   (bedient, verloren, verdient, Kasse, was morgen neu ist), und die Glocke
-   öffnet den nächsten Tag.
+   (bedient, verloren, verdient, Kasse, was morgen neu ist), und es beginnt
+   das **Einrichten** (unten). Die Glocke öffnet den nächsten Tag; über Nacht
+   wird aufgeräumt — Stationen leer, alle Teller sauber, Tische frei.
+
+**Einrichten** (`plateUpShop.ts`), wie bei _PlateUp!_: Solange die Bilanz
+dasteht, liegen im Gang rechts neben dem Durchgang aus der Küche drei
+**Baupläne** auf dem Boden (`OFFER_SPOTS`) — ein blaues Blatt mit dem Modell
+darauf und Name und Preis darüber. Einer ist ein **Tisch mit zwei Stühlen**
+(40 Münzen, bis `MAX_TABLES` = 6), die anderen Deko aus dem Regal (Kaktus,
+Stehlampe, Busch, Sessel, Kaugummiautomat, 8–14 Münzen; aus dem Würfel des
+Tages, `dayOffers`). `A` am Blatt nimmt den Bauplan, und vor der Figur steht
+dann der **Platzierungsgeist** aus dem Baukasten (`portal/placeGhost.ts`):
+grün, wo es passt, rot, wo nicht — die Leiste unten sagt, warum
+(`placeCheck`: nur im Gastraum, nicht auf anderem, Stühle, Tür und die
+Baupläne bleiben frei, und **jeder Tisch** muss danach von der Tür und aus
+der Küche noch erreichbar sein — geprüft mit derselben Wegsuche wie die
+Gäste). `A` vor dem grünen Geist kauft und stellt hin; _Menü → Bauplan
+zurücklegen_ lässt es. Ein gekaufter Tisch ist ab dem nächsten Tag ein Tisch
+mehr (`allTables`, mehr Gäste gleichzeitig), jedes Deko-Stück gibt den Gästen
+6 % mehr Geduld, höchstens 30 % (`decorPatience`). Das Gekaufte bleibt, bis
+die Runde endet oder `B`/`Y` alles zurücksetzt.
 
 **Schwierigkeit** (`dayRules`): Öffnungszeit 75 s + 15 s je Tag (bis 150),
 Abstand der Gäste 18 s − 2,5 s je Tag (ab 7 s), Geduld 70 s − 8 s je Tag (ab
 35 s). Die Karte wächst: Tag 1 Hamburger, Tag 2 Salatburger, Tag 3
 Tomatenburger, ab Tag 4 Burger Deluxe — und am Tag, an dem etwas dazukommt,
-bestellt es jeder zweite Gast.
+bestellt es jeder zweite Gast. **Tag 1 ist mit Absicht leicht**: drei bis
+sieben Gäste, alle allein, und ein gebratenes Patty hält 14 s. Danach Paare
+(30 % an Tag 2, je Tag 10 % mehr bis 60 %), und das Patty verbrennt jeden Tag
+2 s früher, bis herunter auf 6 s. Ein Test rechnet beides nach
+(`Burgerladen: Balance`).
+
+**Die Einsteigerhilfe** (`plateUpTutorial.ts`): Am ersten Tag steht unten am
+Schirm ein grüner **Tipp**, was als Nächstes zu tun ist, und ein grüner
+**Pfeil** mit Ring zeigt auf die Station, den Tisch oder die Glocke (in der
+Brille steht der Satz auf einer Tafel über dem Pfeil). Kein Ablauf mit
+Schritten, sondern eine Frage an den Stand — wer anders anfängt, bekommt
+trotzdem den passenden nächsten Satz. Nach drei bedienten Gästen oder dem
+ersten Tag verabschiedet sie sich und merkt sich das
+(`localStorage` `bgvr.plateup.tutorial` = `done`); _Menü → Einsteigerhilfe
+aus/an_ schaltet sie von Hand.
 
 **Wo man den Stand sieht.** Drei Stellen, jede für eine Ansicht:
 
 - die **Tafel über der Nordwand** (im Raum, dreht sich um die Hochachse zur
   Kamera): Tag, Uhr, bedient, verloren, Kasse und die offenen Bestellungen —
-  in der Brille die einzige, und von oben zu sehen, solange die Kamera in der
-  Küche steht;
+  **nur in der Brille**; am Schirm lag sie genau hinter der Zeile und sagte
+  dasselbe kleiner;
 - die **Zeile am Schirm** oben in der Mitte (DOM, nur außerhalb der Brille,
   nur während offen ist) — damit die Uhr auch im Gastraum im Bild ist; im
-  Hochformat kürzer (`✓`/`✗` statt Wörtern);
+  Hochformat kürzer (`✓`/`✗` statt Wörtern). Darunter die **Bestellzettel**
+  (`ticket`): je wartendem Gast Tischnummer, Burger und Geduldsbalken, der
+  Ungeduldigste zuerst, dazu „Tisch n: abräumen" für schmutziges Geschirr;
+- die **Leiste unten** über der Tastenleiste: was man in der Hand hat
+  („In der Hand: Teller (Brötchen)") bzw. welcher Bauplan und ob er passt,
+  und darüber der Tipp der Einsteigerhilfe;
 - das **Schild** vor der Durchreiche (Start, Tagesbilanz, Ende). Im
   Hochformat wäre es zu klein zum Lesen, dort steht derselbe Text als
   **Karte** unten am Schirm; die Tafeln im Raum schrumpfen dann auf die
@@ -141,15 +201,24 @@ Die Welt hat ein paar Handgriffe für die Bild-Schleife, aufrufbar über
 `window.bgvr.world`: `debugOpen()`, `debugSpeed(n)` (die Uhr des Ladens
 n-fach — im Browser ohne Grafikkarte kommen drei Bilder je Sekunde an),
 `debugMove(x, z, yaw)`, `debugHold(rezept)`, `debugServe(tisch)`,
-`debugUse(stationsId)` und `state` (der ganze `Shift`).
+`debugTable(tisch)` (servieren oder abräumen), `debugUse(stationsId)`,
+`debugDay(n)`, `debugEvening(kasse)` (Tag zu, Kasse gefüllt — die
+Einrichten-Phase), `debugBlueprint(id)`, `debugPlace(id, x, z)`,
+`debugTutorial(an)` und `state` (der ganze `Shift`).
 
 ## Offen
 
 - **Nicht geteilt**: Gäste, Stationen und Kasse laufen nur lokal; eine zweite
   Person in derselben Sitzung sieht ihren eigenen Laden.
-- Kein Abwasch (die Teller verschwinden nach dem Essen), kein Feuer, keine
-  Gruppen an einem Tisch, keine Einrichtung zwischen den Tagen wie bei
-  _PlateUp!_.
+- **Kein Feuer**: Ein verbranntes Patty raucht, aber die Platte brennt nicht
+  (die Testküche kann das am Herd, `kitchenClock`). Und eingerichtet werden
+  nur Tische und Deko — keine zusätzliche Station (zweiter Grill, Brett) und
+  kein Verschieben dessen, was schon steht.
+- **Gruppen nur zu zweit**: Die Tische haben zwei Stühle; größere Gruppen
+  bräuchten zusammengestellte Tische.
+- **Der Bauplan in der Brille** hängt an keiner Hand — man sieht nur den
+  Geist vor sich; hingestellt wird mit derselben Anmeldung wie an einer
+  Station.
 - **Ton nur gerechnet**: Glocke, Aufnehmen/Ablegen, Servieren, Kasse und der
   hungrige Gast sind Töne aus `core/Audio.playTone` — keine Aufnahmen wie in
   der Testküche (`kitchenSound.ts`).

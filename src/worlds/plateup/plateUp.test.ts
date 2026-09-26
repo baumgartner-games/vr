@@ -519,6 +519,52 @@ describe('Burgerladen: Verbrennen, Geschirr, Spüle', () => {
   });
 });
 
+describe('Burgerladen: Balance', () => {
+  /** Ein Tag, an dem jeder sofort bedient wird — wie viele Gäste und Gruppen kommen? */
+  const run = (day: number, seed: number): { guests: number; pairs: number } => {
+    let shift = openDay({ ...newShift(seed), phase: 'closed', day: day - 1 });
+    let guests = 0;
+    let pairs = 0;
+    for (let t = 0; t < 2000 && shift.phase !== 'closed'; t++) {
+      const tick = stepShift(shift, 0.5, TABLES.length);
+      shift = tick.shift;
+      for (const e of tick.events) {
+        if (e.kind === 'arrive') {
+          guests++;
+          if (e.guest.seat === 1) pairs++;
+          shift = seatGuest(shift, e.guest.id);
+          const r = serveTable(shift, e.guest.table, burgerFor(e.guest.order));
+          if (r.ok) shift = r.shift;
+        }
+        if (e.kind === 'paid') {
+          shift = guestGone(shift, e.guest.id);
+          shift = clearDish(shift, e.guest.table) ?? shift;
+        }
+      }
+    }
+    return { guests, pairs };
+  };
+
+  test('Tag 1 ist leicht: eine Handvoll Gäste, alle allein', () => {
+    for (const seed of [1, 7, 42, 99]) {
+      const day = run(1, seed);
+      expect(day.guests).toBeGreaterThanOrEqual(3);
+      expect(day.guests).toBeLessThanOrEqual(7);
+      expect(day.pairs).toBe(0);
+    }
+  });
+
+  test('später spürbar mehr: mehr Gäste, und Paare darunter', () => {
+    let pairs = 0;
+    for (const seed of [1, 7, 42, 99]) {
+      const day = run(5, seed);
+      expect(day.guests).toBeGreaterThan(run(1, seed).guests);
+      pairs += day.pairs;
+    }
+    expect(pairs).toBeGreaterThan(0);
+  });
+});
+
 function burgerFor(order: string): Dish {
   const need = MENU.find((m) => m.recipe === order)!;
   switch (need.recipe) {

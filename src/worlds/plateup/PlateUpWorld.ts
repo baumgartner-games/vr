@@ -122,6 +122,12 @@ export class PlateUpWorld extends GridWorld {
   private carriedView: THREE.Object3D | null = null;
   /** Welche Hand es in der Brille genommen hat (`UseSource.hand`). */
   private carriedHand: Handedness | null = null;
+  /**
+   * **Die Hand, die zuletzt etwas an einer Station getan hat** — in der
+   * Brille die, die den schmutzigen Teller in die Spüle gelegt hat. In sie
+   * wandert der saubere, wenn er fertig ist.
+   */
+  private lastHand: Handedness | null = null;
   private shift: Shift = newShift(Date.now() % 100000);
   private readonly guests = new Map<number, GuestView>();
   private readonly kit = new FoodKit();
@@ -620,6 +626,7 @@ export class PlateUpWorld extends GridWorld {
       return false;
     }
     const tookHand = !this.carried && result.held;
+    if (by.hand) this.lastHand = by.hand;
     playPick(!!result.held && deed.do !== 'scrape');
     this.stations = this.stations.map((s, i) => (i === index ? result.station : s));
     this.setHeld(result.held, tookHand ? (by.hand ?? null) : this.carriedHand);
@@ -649,7 +656,7 @@ export class PlateUpWorld extends GridWorld {
     });
     if (changed) this.stations = next;
     if (toHand) {
-      this.setHeld(toHand, this.carriedHand);
+      this.setHeld(toHand, this.lastHand);
       playPick(true);
       this.announce('Sauberer Teller — ab auf den Stapel oder gleich belegen');
     }
@@ -946,6 +953,9 @@ export class PlateUpWorld extends GridWorld {
       this.card = card;
     }
     this.card.hidden = false;
+    // Wie die Leiste in `refreshHud`: über der Tastenleiste, nicht dahinter.
+    const cardBottom = `${aboveHints(18)}px`;
+    if (this.card.style.bottom !== cardBottom) this.card.style.bottom = cardBottom;
     const sign = signText(this.shift);
     const text = `${sign.title}\n${sign.body}`;
     if (this.card.dataset.text !== text) {
@@ -1754,14 +1764,13 @@ export class PlateUpWorld extends GridWorld {
       bar.className = 'plateup-hand';
       bar.style.cssText = [
         'position:fixed',
-        'left:50%',
-        'bottom:calc(env(safe-area-inset-bottom, 0px) + 64px)',
-        'transform:translateX(-50%)',
+        'left:12px',
+        'right:12px',
+        'bottom:64px',
         'display:flex',
         'flex-direction:column',
         'align-items:center',
         'gap:6px',
-        'max-width:calc(100vw - 24px)',
         'pointer-events:none',
         'z-index:4',
         'font:600 14px/1.3 system-ui,sans-serif',
@@ -1769,7 +1778,10 @@ export class PlateUpWorld extends GridWorld {
       document.body.appendChild(bar);
       this.handBar = bar;
     }
-    const tip = flat && this.hint ? this.hint.text : '';
+    // Unter der Karte des Schildes (Hochformat, Laden zu) steht der Hinweis
+    // schon auf der Karte — die Leiste läge sonst genau darüber.
+    const cardShown = !!this.card && this.card.hidden === false;
+    const tip = flat && this.hint && !cardShown ? this.hint.text : '';
     const hand = this.blueprint
       ? `Bauplan: ${this.blueprint.label}${this.aim ? (this.aim.ok ? ' — hier passt es (A)' : ` — ${this.aim.why}`) : ''}`
       : this.carried
@@ -1779,6 +1791,10 @@ export class PlateUpWorld extends GridWorld {
     // `display` und nicht `hidden`: Das `display:flex` der Leiste schlüge das
     // Attribut.
     this.handBar.style.display = !flat || (!tip && !hand) ? 'none' : 'flex';
+    // **Über der Tastenleiste** (`ui/ControlHints`, `.hints`): Am Telefon ist
+    // sie drei Zeilen hoch, und die Leiste stünde dahinter.
+    const bottom = `${aboveHints(64)}px`;
+    if (this.handBar.style.bottom !== bottom) this.handBar.style.bottom = bottom;
     if (this.handBar.dataset.key !== key) {
       this.handBar.dataset.key = key;
       this.handBar.textContent = '';
@@ -1791,14 +1807,13 @@ export class PlateUpWorld extends GridWorld {
       row.className = 'plateup-tickets';
       row.style.cssText = [
         'position:fixed',
-        'left:50%',
+        'left:12px',
+        'right:12px',
         'top:calc(env(safe-area-inset-top, 0px) + 100px)',
-        'transform:translateX(-50%)',
         'display:flex',
         'flex-wrap:wrap',
         'justify-content:center',
         'gap:6px',
-        'max-width:calc(100vw - 24px)',
         'pointer-events:none',
         'z-index:4',
       ].join(';');
@@ -2428,7 +2443,8 @@ class Smoke {
   step(dt: number, strength: number): void {
     this.time += dt;
     const dark = Math.min(1, Math.max(0, (strength - 0.5) * 2));
-    this.material.color.setRGB(0.62 - dark * 0.45, 0.62 - dark * 0.45, 0.62 - dark * 0.45);
+    // Grau, und verbrannt fast schwarz.
+    this.material.color.setScalar(0.35 - dark * 0.32);
     this.material.opacity = 0.35 + dark * 0.35;
     for (const puff of this.puffs) {
       const t = (this.time * 0.6 + (puff.userData.phase as number)) % 1;
@@ -2443,4 +2459,17 @@ class Smoke {
     this.geometry.dispose();
     this.material.dispose();
   }
+}
+
+/**
+ * **Wie weit etwas vom unteren Rand weg muss**, um über der Tastenleiste zu
+ * stehen (`ui/ControlHints`, `.hints`) — am Telefon ist sie drei Zeilen hoch.
+ * Mindestens `min` Pixel.
+ */
+function aboveHints(min: number): number {
+  const hints = document.querySelector('.hints');
+  if (!(hints instanceof HTMLElement) || hints.hidden) return min;
+  const top = hints.getBoundingClientRect().top;
+  if (top <= 0) return min;
+  return Math.round(Math.max(min, window.innerHeight - top + 8));
 }
