@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { WorldContext, WorldDefinition, WorldPreview } from '../../core/types';
 import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
+import { turnWithView } from '../../ui/billboard';
 import { createSky } from '../shared/environment';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
@@ -15,12 +16,14 @@ import {
   ARCH_HEIGHT,
   HALL_WALL,
   hubDecor,
+  solidBox,
   wallPoint,
   yawToCentre,
   type HubPiece,
 } from './hubDecor';
 import { kaykitAtHeight, kaykitSkins } from '../../core/kaykitHeight';
 import { sortWorlds } from '../../ui/menuGroups';
+import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 
 /**
  * **Der Hub: hell, ruhig, und jede andere Welt ist ein Tor weit weg.**
@@ -63,6 +66,8 @@ export class HubWorld extends GridWorld {
    */
   private decorRound = 0;
   private readonly decorSkins: THREE.Material[] = [];
+  /** Unsichtbar: die Stoßkörper unter Bänken, Lampen und Pflanzen. */
+  private readonly hidden = new THREE.MeshBasicMaterial({ visible: false });
 
   protected override worldId(): string {
     return 'hub';
@@ -158,7 +163,43 @@ export class HubWorld extends GridWorld {
     this.root.add(buildHallRing(middle));
     for (const corridor of hub.corridors) this.root.add(buildCorridorLights(corridor, middle));
     this.root.add(this.buildSigns(middle, hub.corridors));
+    this.blockDecor(middle, hub.corridors);
     void this.furnish(middle, hub.corridors, ++this.decorRound);
+  }
+
+  /**
+   * **Die Stoßkörper der Ausstattung** — sofort und nicht erst, wenn das
+   * Modell da ist: Eine Bank, durch die man läuft, solange sie lädt, ist eine,
+   * durch die man läuft. Unsichtbare Quader wie im Burgerladen; sie stehen in
+   * `solids`, also sieht sie auch das Wegnetz der NPCs.
+   */
+  private blockDecor(middle: THREE.Vector3, corridors: readonly HubCorridor[]): void {
+    const physics = this.physics;
+    if (!physics) return;
+    const pieces = hubDecor(
+      corridors,
+      this.targets.map((world) => world.accent),
+    );
+    for (const piece of pieces) {
+      const box = solidBox(piece);
+      if (!box) continue;
+      const width = box.maxX - box.minX;
+      const depth = box.maxZ - box.minZ;
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(width, DECOR_BLOCK_HEIGHT, depth),
+        this.hidden,
+      );
+      mesh.position.set(
+        middle.x + (box.minX + box.maxX) / 2,
+        DECOR_BLOCK_HEIGHT / 2,
+        middle.z + (box.minZ + box.maxZ) / 2,
+      );
+      mesh.name = 'hub-decor-block';
+      this.root.add(mesh);
+      mesh.updateMatrixWorld(true);
+      this.solids.push(mesh);
+      physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+    }
   }
 
   /**
@@ -278,6 +319,10 @@ export class HubWorld extends GridWorld {
       const at = wallPoint(corridor.dir, HALL_WALL + 0.05, 0);
       sign.position.set(middle.x + at.x, ARCH_HEIGHT + 0.5, middle.z + at.z);
       sign.rotation.y = yawToCentre(corridor.dir);
+      // **Nur von oben**: dann steht es aufrecht zur Kamera, auch nach einer
+      // Drehung der Draufsicht (`Q`, ⟲ ⟳) — sonst zeigte es ihr Kante oder
+      // Rücken. Aus den Augen hängt es, wie gebaut, über der Mündung.
+      turnWithView(sign, 'upright');
       group.add(sign);
       this.panels.push(sign);
     });
@@ -321,6 +366,12 @@ function hallCentre(): THREE.Vector3 {
  * 2,5 m maß.
  */
 const LAMP_RANGE = 8;
+
+/**
+ * Wie hoch die Stoßkörper der Ausstattung reichen: über die Hüfte, damit man
+ * nicht auf eine Bank springt und darüber hinweg in die Wand läuft.
+ */
+const DECOR_BLOCK_HEIGHT = 1.2;
 
 /** Jede Welt außer dem Hub selbst, in der Reihenfolge der Registry. */
 export function hubTargets(): WorldDefinition[] {

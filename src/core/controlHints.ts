@@ -287,7 +287,7 @@ function zoneHints(ctx: HintContext, zone: HintZone): HintItem[] {
   const menu = (): void => {
     if (!touch) add(pad ? padKey('menu') : keyKey('menu'), 'Menü');
   };
-  /** Das Bild drehen — nur von oben, und nicht am Glas (dort gibt es keinen Knopf). */
+  /** Das Bild drehen — nur von oben, und nicht am Glas (dort stehen ⟲ ⟳ als Knöpfe da). */
   const turn = (): void => {
     if (touch || ctx.view === 'firstPerson') return;
     add(pad ? pairKey(padKey('turnLeft'), padKey('turnRight')) : keyKey('turn'), 'Bild drehen');

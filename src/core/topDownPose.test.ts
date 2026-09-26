@@ -7,6 +7,7 @@ import {
   pinchFactor,
   stepFromDistance,
   topDownDistance,
+  topDownFit,
   topDownPitch,
   topDownPosition,
   yawFromDirection,
@@ -302,5 +303,33 @@ describe('Die gedrehte Draufsicht', () => {
     expect(Math.abs(half)).toBeGreaterThan(Math.PI * 0.7);
     expect(turnToward(0.1, 0.1, 0.3)).toBe(0.1);
     expect(turnToward(0, QUARTER_TURN, 1)).toBeCloseTo(QUARTER_TURN, 9);
+  });
+});
+
+describe('Der Start-Zoom einer Welt (topDownFit)', () => {
+  it('geht am Telefon im Hochformat weiter weg als am Schreibtisch', () => {
+    const phone = topDownFit(12, 390 / 844);
+    const desk = topDownFit(12, 1280 / 800);
+    expect(phone).toBeGreaterThan(desk * 1.8);
+  });
+
+  it('lässt die Fläche quer wie längs ins Bild passen', () => {
+    const tan = Math.tan((15 * Math.PI) / 180);
+    const tilt = (TOP_DOWN_TILT * Math.PI) / 180;
+    for (const aspect of [390 / 844, 1, 1280 / 800]) {
+      const distance = topDownFit(10, aspect);
+      // Die nahe Kante, 5 m zur Kamera hin: so weit vor der Kamera …
+      const ahead = distance - 5 * Math.cos(tilt);
+      // … steht sie längs noch im Bild …
+      expect((5 * Math.sin(tilt)) / ahead).toBeLessThanOrEqual(tan + 1e-9);
+      // … und quer auch, 5 m nach jeder Seite.
+      expect(5 / ahead).toBeLessThanOrEqual(tan * aspect + 1e-9);
+    }
+  });
+
+  it('bleibt zwischen den Enden, die auch Rad und Pinch haben', () => {
+    expect(topDownFit(1, 1)).toBe(TOP_DOWN_MIN);
+    expect(topDownFit(500, 0.4)).toBe(TOP_DOWN_MAX);
+    expect(topDownFit(12, Number.NaN)).toBeCloseTo(topDownFit(12, 1));
   });
 });

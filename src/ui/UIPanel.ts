@@ -69,6 +69,13 @@ const PAD = 34;
 const HEADER_H = 150;
 const FOOTER_H = 76;
 
+/** So lange steht eine Meldung in der Fußzeile, dann kommt der Hinweis zurück. */
+const STATUS_MS = 10000;
+
+function now(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
+}
+
 const ROW_H = 122;
 const ROW_GAP = 14;
 
@@ -102,6 +109,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private footer: string;
   private hint = '';
   private status = '';
+  /** Wann die Meldung kam (`performance.now()`) — sie geht nach `STATUS_MS`. */
+  private statusAt = 0;
   /** Index of the first entry drawn — a long page is scrolled, not cut off. */
   private scroll = 0;
   /** Which page is on show; a change is what resets the scroll. */
@@ -263,6 +272,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   setStatus(status: string): void {
+    this.statusAt = now();
     if (this.status === status) return;
     this.status = status;
     this.draw();
@@ -305,6 +315,14 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   update(dt: number): void {
     if (this.flash > 0) {
       this.flash = Math.max(0, this.flash - dt);
+      this.draw();
+    }
+    // **Eine Meldung ist eine Meldung und keine Fußzeile.** Sie blieb bisher
+    // stehen, bis die nächste kam — und weil jede Welt beim Betreten eine
+    // schickt, stand an ihrer Stelle praktisch nie, wie man zurückkommt
+    // („B zurück"). Nach `STATUS_MS` gibt sie den Platz wieder frei.
+    if (this.status && now() - this.statusAt > STATUS_MS) {
+      this.status = '';
       this.draw();
     }
   }
@@ -453,7 +471,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
     const footer =
       this.status ||
-      (this.scrollable ? 'Stick oder Trigger halten und wischen blättert' : '') ||
+      // Eine lange Seite unter einer anderen (angeheftetes _Zurück_): Blättern
+      // und Zurück in einer Zeile — `B`/`Y` ist sonst nirgends zu lesen.
+      (this.scrollable
+        ? this.pinned > 0
+          ? 'Stick oder wischen blättert · B/Y zurück'
+          : 'Stick oder Trigger halten und wischen blättert'
+        : '') ||
       this.hint ||
       this.footer;
     if (footer) {

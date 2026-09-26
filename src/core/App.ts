@@ -16,11 +16,13 @@ import { padNav } from '../ui/padNav';
 import { ControlHints, hintsOn, setHintsOn } from '../ui/ControlHints';
 import { WorldLoader } from '../ui/WorldLoader';
 import { WorldWelcome, setWelcomeOn, welcomeOn } from '../ui/WorldWelcome';
+import { XRGuide } from '../ui/XRGuide';
 import { introKeys } from './worldIntro';
 import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
+import { topDownFit } from './topDownPose';
 import { isCrane, screenTopDown } from './crane';
 import { gameMode, onGameMode } from './gameMode';
 import {
@@ -220,6 +222,19 @@ export class App {
     typeof document === 'undefined' ? null : new WorldLoader();
   private readonly welcome: WorldWelcome | null =
     typeof document === 'undefined' ? null : new WorldWelcome();
+  /**
+   * **Dasselbe in der Brille** (`ui/XRGuide.ts`): Abblenden mit Ladetafel beim
+   * Weltwechsel, die Willkommens-Tafel im Raum und die Beschriftung am
+   * Controller.
+   */
+  private readonly xrGuide: XRGuide | null;
+  /**
+   * **Die Brille am Schirm nachstellen** — nur für die Bild-Schleife: Die
+   * Tafeln der Brille (`xrGuide`) stehen dann in der Ansicht aus den Augen,
+   * und Ladebildschirm, Willkommens-Karte und Tastenhilfe am Schirm schweigen,
+   * wie sie es mit Brille täten. Aus der Konsole: `bgvr.xrPreview = true`.
+   */
+  xrPreview = false;
   /** Die Startseite — solange sie steht, schweigt die Tastenhilfe. */
   private readonly landingEl: HTMLElement | null =
     typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('#landing');
@@ -392,6 +407,11 @@ export class App {
 
     this.input = new XRInput(this.renderer, this.rig);
     this.pointer = new Pointer(this.rig, canvas);
+    this.xrGuide = typeof document === 'undefined' ? null : new XRGuide(this.camera, this.input);
+    if (this.xrGuide) {
+      this.rig.add(this.xrGuide);
+      this.pointer.add(this.xrGuide.asPointerTarget());
+    }
     this.topDownCamera = new TopDownCamera(canvas);
     // Die Kamera von oben kennt zwei Dinge, die die Eingabe braucht: wo die
     // Figur auf dem Schirm steht (dahin zielt die Maus) und den Zoom auf den
@@ -406,7 +426,7 @@ export class App {
 
     this.wristMenu = new WristMenus(this.pointer, {
       title: 'Menü',
-      footer: 'Andere Hand: zielen + Trigger/A · B zurück',
+      footer: 'Andere Hand: zielen + Trigger/A · B/Y zurück',
       // Der Weg durchs Menü merkt sich den **Katalog** über das Neuladen
       // hinaus (`ui/menuRecall.ts`) — alles andere fängt nach einem Neustart
       // wieder oben an.
@@ -619,10 +639,11 @@ export class App {
     const id = this.worldId;
     if (!id || this.loading !== null) return;
     this.worldId = '';
-    await this.goTo(id);
+    await this.goTo(id, true);
   }
 
-  async goTo(id: string): Promise<void> {
+  /** `again`: dieselbe Welt neu aufbauen (`reloadWorld`) — sagt der Ladebildschirm dazu. */
+  async goTo(id: string, again = false): Promise<void> {
     const definition = findWorld(id) ?? findWorld(DEFAULT_WORLD)!;
     if (this.loading === definition.id) return;
     if (this.worldId === definition.id) {
@@ -641,18 +662,28 @@ export class App {
     this.notify(`Lade ${definition.title} …`);
     // **Der Ladebildschirm** — nur im Spiel am Schirm: Auf der Startseite sagt
     // der Knopf, wie weit es ist, und in der Brille gibt es kein DOM im Bild.
-    const showLoader =
-      this.loader !== null &&
-      !this.renderer.xr.isPresenting &&
-      !(this.landingEl !== null && !this.landingEl.hidden);
-    if (showLoader) this.loader.begin(definition);
+    const landing = this.landingEl !== null && !this.landingEl.hidden;
+    const xr = this.renderer.xr.isPresenting || this.xrPreview;
+    const showLoader = this.loader !== null && !xr && !landing;
+    if (showLoader) this.loader.begin(definition, again);
+    // **In der Brille blendet es ab** (`ui/XRGuide.ts`) — mit einer Tafel im
+    // Raum statt des Bildschirms; auch vor der ersten Welt nicht, wenn die
+    // Brille schon auf ist (dann steht keine Startseite davor).
+    const showXR = this.xrGuide !== null && xr;
+    if (showXR) this.xrGuide.begin(definition);
 
     try {
       const next = await definition.load();
       // Inzwischen wollte jemand woandershin. Die geladene Welt wird einfach
       // fallen gelassen — `init` lief nie, sie hängt an nichts.
       if (token !== this.loadToken) return;
+      // In der Brille wird erst getauscht, wenn es dunkel ist.
+      if (showXR) {
+        await this.xrGuide.whenDark();
+        if (token !== this.loadToken) return;
+      }
       this.loader?.set('aufbau', 0, 0);
+      this.xrGuide?.set('aufbau', 0, 0);
       this.unloadWorld();
 
       this.worldId = definition.id;
@@ -660,6 +691,12 @@ export class App {
       // Eine neue Welt fängt mit Norden oben an — ihre Karten und Schilder
       // sind so gezeichnet (`TopDownCamera.turn`).
       this.topDownCamera.resetHeading();
+      // Und mit dem Zoom, der die Welt ins Bild bringt — falls sie einen will.
+      this.topDownCamera.startZoom(
+        definition.topDownSpan === undefined
+          ? null
+          : topDownFit(definition.topDownSpan, window.innerWidth / Math.max(1, window.innerHeight)),
+      );
       this.resizeWebBuffer();
       this.world = next;
       await next.init(this.context);
@@ -685,8 +722,15 @@ export class App {
           if (token === this.loadToken) this.loader?.finish();
         });
       }
+      if (showXR) {
+        this.xrGuide.set('modelle', this.assets.loaded, this.assets.total);
+        void this.assets.settle({ cap: LOADER_CAP_MS, quiet: 400 }).then(() => {
+          if (token === this.loadToken) this.xrGuide?.finish();
+        });
+      }
     } catch (error) {
       this.loader?.cancel();
+      this.xrGuide?.cancel();
       console.error(`[app] Welt "${id}" konnte nicht geladen werden`, error);
       this.notify(`Fehler beim Laden von ${definition.title}`);
       this.hooks.onWorldFailed?.(definition.id, error);
@@ -964,6 +1008,33 @@ export class App {
         introKeys(tips, { device: padNav.device, padKind: padNav.kind, config: inputConfig() }),
       padNav.device,
     );
+  }
+
+  /**
+   * **Der Weg ins Spiel in der Brille** (`ui/XRGuide.ts`): Blende und
+   * Ladetafel zählen die Modelle mit wie der Ladebildschirm am Schirm; die
+   * Willkommens-Tafel und die Beschriftung am Controller lesen dieselben
+   * Einstellungen wie ihre Gegenstücke (`welcomeOn`, `hintsOn`).
+   */
+  private updateXRGuide(dt: number, presenting: boolean): void {
+    const guide = this.xrGuide;
+    if (!guide) return;
+    if (guide.transit && this.assets.loading && this.loading === null) {
+      guide.set('modelle', this.assets.loaded, this.assets.total);
+    }
+    guide.update(dt, _headLocal, {
+      presenting,
+      menuOpen: this.wristMenu.isOpen,
+      world: this.world && this.worldId ? (findWorld(this.worldId) ?? null) : null,
+      zone: this.world?.hintZone?.() ?? null,
+      rigFlags: {
+        useCandidate: this.rig.useCandidate,
+        carrying: this.rig.carrying,
+        armed: this.rig.armed,
+      },
+      hintsOn: hintsOn(),
+      welcomeOn: welcomeOn(),
+    });
   }
 
   /** Die andere der beiden Ansichten — `V` und ⊟ am Pad (`FlatControls.onView`). */
@@ -1475,7 +1546,10 @@ export class App {
           // an, und hier aus: Wer die Knöpfe kennt, braucht die Zeile nicht.
           id: 'input:hints',
           label: 'Tastenhilfe',
-          sub: 'Unten im Bild: welcher Knopf gerade was tut',
+          // In der Brille hängt sie am Controller (`ui/XRGuide.ts`).
+          sub: this.renderer.xr.isPresenting
+            ? 'Am Controller: die zwei, drei Knöpfe, die hier zählen'
+            : 'Unten im Bild: welcher Knopf gerade was tut',
           icon: 'controller',
           accent,
           checked: hintsOn(),
@@ -1490,7 +1564,9 @@ export class App {
           // (`ui/WorldWelcome.ts`). Wieder an heißt: alle Welten grüßen neu.
           id: 'input:welcome',
           label: 'Willkommen je Welt',
-          sub: 'Beim ersten Betreten: was man hier tut, und die Knöpfe dazu',
+          sub: this.renderer.xr.isPresenting
+            ? 'Beim ersten Betreten eine Tafel vor dir, mit den Knöpfen'
+            : 'Beim ersten Betreten: was man hier tut, und die Knöpfe dazu',
           icon: 'controller',
           accent,
           checked: welcomeOn(),
@@ -2125,24 +2201,35 @@ export class App {
             );
           },
         },
-        {
-          // **Wann die Stöcke auf dem Glas liegen** (`index.html`, `#touch`).
-          // Die Zeile stellt nur die Frage; die Antwort rechnet
-          // `core/screenPads.ts`, und angewendet wird sie in `main.ts` — auch
-          // sofort, denn `saveGraphics` sagt allen Bescheid, die zuhören.
-          id: 'gfx:screen-pads',
-          label: `Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[settings.screenPads]}`,
-          sub: SCREEN_PADS_SUBS[settings.screenPads],
-          caption: 'Automatisch → An → Aus · in der Brille und in eigenen Welten nie',
-          icon: 'settings',
-          accent,
-          run: () => {
-            const next = saveGraphics({ screenPads: nextScreenPads(graphics().screenPads) });
-            this.menuDirty = true;
-            this.notify(`Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[next.screenPads]}`);
-          },
-        },
-        ...this.fullscreenRow(accent),
+        // **Nur am Schirm**: Stöcke auf dem Glas und Vollbild gibt es in der
+        // Brille nicht — am Handgelenk wären es zwei Zeilen, die nichts tun
+        // (beim Prüfen des Handgelenkmenüs aufgefallen, wie die Links in
+        // einen neuen Tab unter _Steuerung & Hilfe_).
+        ...(this.renderer.xr.isPresenting
+          ? []
+          : [
+              {
+                // **Wann die Stöcke auf dem Glas liegen** (`index.html`,
+                // `#touch`). Die Zeile stellt nur die Frage; die Antwort
+                // rechnet `core/screenPads.ts`, und angewendet wird sie in
+                // `main.ts` — auch sofort, denn `saveGraphics` sagt allen
+                // Bescheid, die zuhören.
+                id: 'gfx:screen-pads',
+                label: `Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[settings.screenPads]}`,
+                sub: SCREEN_PADS_SUBS[settings.screenPads],
+                caption: 'Automatisch → An → Aus · in der Brille und in eigenen Welten nie',
+                icon: 'settings' as const,
+                accent,
+                run: () => {
+                  const next = saveGraphics({
+                    screenPads: nextScreenPads(graphics().screenPads),
+                  });
+                  this.menuDirty = true;
+                  this.notify(`Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[next.screenPads]}`);
+                },
+              },
+              ...this.fullscreenRow(accent),
+            ]),
         {
           id: 'gfx:reset',
           label: 'Zurück auf Einfach',
@@ -2823,7 +2910,7 @@ export class App {
     // hört aber am Fenster mit (`FlatControls`).
     this.flat.enabled = !presenting && !this.spectating && !this.wardrobe.isOpen;
     if (!presenting) this.flat.update(dt);
-    this.updateHints(presenting);
+    this.updateHints(presenting || this.xrPreview);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.wristMenu.scrollHand;
@@ -2871,6 +2958,7 @@ export class App {
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);
     this.avatar.updateFromRig(dt, this.rig, this.input, _headLocal);
     this.wristMenu.update(dt, this.input, _head);
+    this.updateXRGuide(dt, presenting || this.xrPreview);
     this.pointer.update(this.input, presenting);
     this.net.update(dt, this.rig, this.input, this.elapsed);
     this.avatars.update(dt);

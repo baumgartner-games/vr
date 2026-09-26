@@ -462,7 +462,10 @@ führt hin, und das Tor am Startplatz der Testwelt tut es auch
    (`init`, `update`, optional `render`, `preview`, `dispose`).
 2. In `src/worlds/index.ts` einen Eintrag in `WORLDS` ergänzen — Titel,
    Beschreibung, Akzentfarbe, unterstützte Rollen und ein `load()` mit
-   dynamischem Import.
+   dynamischem Import. Wahlweise `topDownSpan`: wie viele Meter um den
+   Startpunkt von oben beim Betreten ganz im Bild stehen sollen — der
+   Start-Zoom, passend zum Seitenverhältnis (`topDownPose.topDownFit`; der Hub
+   nimmt 11,5 m, damit die Lobby auch hochkant am Telefon ganz dasteht).
 
 Soll die neue Welt dieselben Werkzeuge, Portale und dieselbe Physik haben wie
 die Testwelt, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:

@@ -88,7 +88,7 @@ export class WorldWelcome {
       this.hide();
     }
     if (this.open || !world) return;
-    const gate: IntroGate = { world: id, visible, enabled: welcomeOn(), seen: seenWorlds() };
+    const gate: IntroGate = { world: id, visible, enabled: welcomeOn(), seen: welcomedWorlds() };
     if (!shouldShowIntro(gate)) return;
     const intro = worldIntro(id)!;
     this.current = id;
@@ -107,7 +107,7 @@ export class WorldWelcome {
     this.keys.hidden = this.keys.childElementCount === 0;
     this.element.hidden = false;
     requestAnimationFrame(() => this.element.classList.add('is-open'));
-    markSeen(id);
+    markWelcomed(id);
     this.timer = setTimeout(() => this.dismiss(), SHOW_MS);
   }
 
@@ -179,12 +179,17 @@ export function setWelcomeOn(on: boolean): void {
   if (on) write(SEEN_KEY, '');
 }
 
-function seenWorlds(): Set<string> {
+/**
+ * Welche Welten schon begrüßt haben — **eine** Liste für Schirm und Brille
+ * (`ui/XRGuide.ts`): Wer eine Welt am Schirm gesehen hat, wird in der Brille
+ * nicht noch einmal begrüßt, und umgekehrt.
+ */
+export function welcomedWorlds(): Set<string> {
   return parseSeen(read(SEEN_KEY));
 }
 
-function markSeen(id: string): void {
-  const seen = seenWorlds();
+export function markWelcomed(id: string): void {
+  const seen = welcomedWorlds();
   seen.add(id);
   write(SEEN_KEY, formatSeen(seen));
 }

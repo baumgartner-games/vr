@@ -1,4 +1,11 @@
-import { LOAD_BANDS, creep, loadLine, loadTarget, type LoadState } from './loadProgress';
+import {
+  LOAD_BANDS,
+  creep,
+  loadLine,
+  loadTarget,
+  transitKicker,
+  type LoadState,
+} from './loadProgress';
 
 const at = (phase: LoadState['phase'], loaded = 0, total = 0): LoadState => ({
   phase,
@@ -47,5 +54,12 @@ describe('loadProgress — der Balken beim Weltwechsel', () => {
     expect(loadLine(at('aufbau'))).toMatch(/aufgebaut/);
     expect(loadLine(at('modelle', 3, 12))).toBe('Modelle und Töne · 3 von 12');
     expect(loadLine(at('modelle', 14, 12))).toBe('Modelle und Töne · 12 von 12');
+  });
+});
+
+describe('transitKicker', () => {
+  it('sagt beim Wechsel „Nächste Welt" und beim Zurücksetzen „Wird neu aufgebaut"', () => {
+    expect(transitKicker(false)).toBe('Nächste Welt');
+    expect(transitKicker(true)).toBe('Wird neu aufgebaut');
   });
 });
