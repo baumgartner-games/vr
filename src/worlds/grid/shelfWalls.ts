@@ -23,6 +23,25 @@ export const SHELF_WALL_HALF = 'prototype-bits/Wall_Half.glb';
 /** Wie hoch die Mitte einer Regalwand über ihrem Boden steht. */
 export const SHELF_WALL_Y = 1.4;
 
+/**
+ * **Welche zwei Stücke eine gerade Wand legt** — ein ganzes über zwei Kacheln
+ * und ein halbes über eine. Vorgabe ist die graue Prototypwand; die Test
+ * Navigation legt ihre Kammern aus den Fensterwänden desselben Pakets
+ * (`SHELF_WINDOW_PIECES`), damit man hineinsieht.
+ */
+export interface ShelfPieces {
+  readonly full: string;
+  readonly half: string;
+}
+
+export const SHELF_WALL_PIECES: ShelfPieces = { full: SHELF_WALL, half: SHELF_WALL_HALF };
+
+/** Die Fensterwand aus dem Regal: zwei Kacheln und eine, Glas zum Durchsehen. */
+export const SHELF_WINDOW_PIECES: ShelfPieces = {
+  full: 'prototype-bits/Wall_Window_Closed.glb',
+  half: 'prototype-bits/Wall_Window_Closed_Narrow.glb',
+};
+
 /** Ein Stück: Modell, Mitte in Weltmetern, Drehung in Bogenmaß. */
 export interface ShelfWall {
   path: string;
@@ -51,13 +70,14 @@ export function wallRun(
   from: number,
   length: number,
   base = 0,
+  pieces: ShelfPieces = SHELF_WALL_PIECES,
 ): void {
   let at = from;
   for (let left = length; left > 0;) {
     const piece = left >= 2 ? 2 : 1;
     const mid = at + piece / 2;
     out.push({
-      path: piece === 2 ? SHELF_WALL : SHELF_WALL_HALF,
+      path: piece === 2 ? pieces.full : pieces.half,
       x: alongX ? mid : line,
       y: base + SHELF_WALL_Y,
       z: alongX ? line : mid,
@@ -86,8 +106,13 @@ export function wallSlant(out: ShelfWall[], tx: number, tz: number, slope: Slope
  * Die Kanten einer Fuge werden zu Läufen zusammengelegt, soweit sie
  * lückenlos aneinanderstoßen, und jeder Lauf aus ganzen Stücken gelegt, am
  * Ende ein halbes (`wallRun`) — so wie der Wandparcours der Testwelt.
+ * `pieces` sagt, aus welchen Stücken die geraden gelegt werden; die Schrägen
+ * sind immer die ganze Prototypwand.
  */
-export function planShelfWalls(plan: GridPlan): ShelfWall[] {
+export function planShelfWalls(
+  plan: GridPlan,
+  pieces: ShelfPieces = SHELF_WALL_PIECES,
+): ShelfWall[] {
   // Je Etage und Fuge die Stellen, an denen eine Kante zu ist.
   const lines = new Map<string, { alongX: boolean; line: number; level: number; at: number[] }>();
   for (const [key, wall] of plan.graph.wallEntries()) {
@@ -121,7 +146,7 @@ export function planShelfWalls(plan: GridPlan): ShelfWall[] {
         last = next;
         continue;
       }
-      wallRun(out, alongX, line, start, last - start + 1, base);
+      wallRun(out, alongX, line, start, last - start + 1, base, pieces);
       if (next === undefined) break;
       start = last = next;
     }

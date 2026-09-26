@@ -33,6 +33,16 @@ Lösch-Push kommt dann als `HTTP 403` zurück. Dann wird das nicht stillschweige
 liegengelassen, sondern im Ergebnis gesagt: welcher Branch übrig ist und mit
 welchem Befehl er wegkommt.
 
+**Gebaut wird aus vorhandenen Modellen.** Wände, Möbel, Böden und alles
+andere, was man in einer Welt sieht, kommen aus dem Regal
+(`public/models/kaykit/`, siehe [Assetregal](docs/agents/assetregal.md)) —
+keine selbst gerechneten Wände oder Klötze, solange nicht ausdrücklich darum
+gebeten wird. Gewünscht: _„dass ich eigentlich immer nur existierende Modelle
+nutzen will, außer ich sage es explizit"_. Für Wände heißt das
+`grid/shelfWalls.ts` (`planShelfWalls`, `wallRun`, `wallSlant`); ein Plan
+darf Wände für die Rechnung tragen, die Welt räumt sie dann weg
+(`clearPlanWalls`) und stellt die Stücke hin.
+
 **Jeder Pull Request erhöht die Patch-Version.** Auf der Startseite steht
 `0.<Build>.<Patch>` aus `package.json` (siehe
 [Die Seite selbst](docs/agents/seite.md#die-version-auf-der-startseite)), und
