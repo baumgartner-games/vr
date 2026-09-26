@@ -93,8 +93,25 @@ export class LampShadowTurns {
  * @param moved   sie hängt seit dem letzten Bild woanders
  * @param before  ihre Stärke im letzten Bild
  * @param now     ihre Stärke jetzt
+ * @param hasMap  ob sie schon eine Karte hat (`light.shadow.map`)
+ *
+ * **Ohne Karte zeichnet sie einmal, auch dunkel.** Eine Punktleuchte mit
+ * `castShadow` bindet ihre Karte an einen `samplerCubeShadow` in _jedem_
+ * beleuchteten Material; fehlt die Karte, setzt three.js dort eine leere
+ * Farbtextur ein, und WebGL verwirft den ganzen Zeichenaufruf
+ * (`GL_INVALID_OPERATION: Mismatch between texture format and sampler type`).
+ * So stand die Station in der Übungsrunde unsichtbar da — Boden, Wände, Hände,
+ * nur die Schilder nicht —, solange keine Lampe brannte: Die dunklen Leuchten
+ * hatten ihre erste Karte nie gezeichnet.
  */
-export function lampShadowDue(turn: boolean, moved: boolean, before: number, now: number): boolean {
+export function lampShadowDue(
+  turn: boolean,
+  moved: boolean,
+  before: number,
+  now: number,
+  hasMap = true,
+): boolean {
+  if (!hasMap) return true;
   if (now <= 0) return false;
   return turn || moved || before <= 0;
 }

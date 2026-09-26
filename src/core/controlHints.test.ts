@@ -1,4 +1,4 @@
-import { controlHints, hintText, type HintContext } from './controlHints';
+import { controlHints, hintDevice, hintText, type HintContext } from './controlHints';
 import { bindKey, bindPad, defaultInputConfig } from './inputMap';
 
 const base: HintContext = {
@@ -148,5 +148,16 @@ describe('controlHints — die Sonderzonen', () => {
     expect(hintText(controlHints({ ...base, view: 'topDown' }))).toContain('◀/▶ Bild drehen');
     expect(hintText(controlHints({ ...keyboard, view: 'topDown' }))).toContain('Q Bild drehen');
     expect(hintText(controlHints(base))).not.toContain('Bild drehen');
+  });
+});
+
+describe('hintDevice — welches Gerät die Zeile anspricht', () => {
+  it('spricht das Glas an, solange die Stöcke dastehen', () => {
+    expect(hintDevice('keyboard', true)).toBe('touch');
+    expect(hintDevice('touch', true)).toBe('touch');
+    // Ein Pad bleibt ein Pad — und ohne Stöcke gilt das zuletzt benutzte Gerät.
+    expect(hintDevice('pad', true)).toBe('pad');
+    expect(hintDevice('keyboard', false)).toBe('keyboard');
+    expect(hintDevice('touch', false)).toBe('touch');
   });
 });

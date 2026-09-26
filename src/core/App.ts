@@ -18,6 +18,7 @@ import { WorldLoader } from '../ui/WorldLoader';
 import { WorldWelcome, setWelcomeOn, welcomeOn } from '../ui/WorldWelcome';
 import { XRGuide } from '../ui/XRGuide';
 import { introKeys } from './worldIntro';
+import { hintDevice } from './controlHints';
 import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
@@ -980,7 +981,7 @@ export class App {
     }
     const menu = this.flat.blocker();
     this.hints?.update({
-      device: padNav.device,
+      device: hintDevice(padNav.device, this.flat.screenPadsShown),
       view: this.flat.topDown ? (this.flat.crane ? 'crane' : 'topDown') : 'firstPerson',
       menu,
       tools: this.toolShown !== undefined,
@@ -1001,12 +1002,12 @@ export class App {
   private updateWelcome(covered: boolean): void {
     if (!this.welcome) return;
     const world = this.worldId ? (findWorld(this.worldId) ?? null) : null;
+    const device = hintDevice(padNav.device, this.flat.screenPadsShown);
     this.welcome.update(
       world,
       !covered,
-      (tips) =>
-        introKeys(tips, { device: padNav.device, padKind: padNav.kind, config: inputConfig() }),
-      padNav.device,
+      (tips) => introKeys(tips, { device, padKind: padNav.kind, config: inputConfig() }),
+      device,
     );
   }
 
