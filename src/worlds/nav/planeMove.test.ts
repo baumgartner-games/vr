@@ -5,6 +5,7 @@ import { CellGrid, navCellSource, type Slope } from './cellGrid';
 import {
   PLAYER_PLANE_RADIUS,
   cellPlaneWalls,
+  figureWalls,
   slideCircle,
   slideOnCells,
   type PlaneWall,
@@ -229,5 +230,47 @@ describe('Über Eck', () => {
     for (let i = 0; i < 40; i++) p = slideOnCells(grid, p.x, p.z, 0.025, -0.025);
     expect(p.x).toBeGreaterThan(1.2);
     expect(p.z).toBeLessThan(0.3);
+  });
+});
+
+describe('andere Figuren in der Ebene', () => {
+  const other = { x: 0, z: 0, radius: 0.28 };
+  const body = 0.24;
+
+  it('hält vor einer Figur an, so weit weg wie beide Körper zusammen', () => {
+    let p = { x: 0, z: 2 };
+    for (let i = 0; i < 60; i++) {
+      const walls = figureWalls([other], p.x, p.z, 0, -0.05, body);
+      p = slideCircle(walls, p.x, p.z, 0, -0.05, R);
+    }
+    expect(p.z).toBeCloseTo(0.52, 3);
+    expect(p.x).toBeCloseTo(0, 6);
+  });
+
+  it('gleitet an einer Figur vorbei, die er nur streift', () => {
+    let p = { x: 0.3, z: 2 };
+    for (let i = 0; i < 80; i++) {
+      const walls = figureWalls([other], p.x, p.z, 0, -0.05, body);
+      p = slideCircle(walls, p.x, p.z, 0, -0.05, R);
+      expect(Math.hypot(p.x, p.z)).toBeGreaterThan(0.52 - 1e-6);
+    }
+    expect(p.z).toBeLessThan(-1);
+  });
+
+  it('lässt aus einer Figur heraus, in der er schon steckt', () => {
+    const walls = figureWalls([other], 0.1, 0, 0.05, 0, body);
+    const p = slideCircle(walls, 0.1, 0, 0.05, 0, R);
+    expect(p.x).toBeGreaterThan(0.1);
+  });
+
+  it('nimmt nur Figuren, die der Schritt erreichen kann', () => {
+    expect(figureWalls([{ x: 5, z: 5, radius: 0.28 }], 0, 0, 0.1, 0, body)).toEqual([]);
+  });
+
+  it('bekommt Figuren und Wände zusammen auf dem Gitter', () => {
+    const grid = field(4, 4);
+    // Mitten im Feld, eine Figur einen halben Meter voraus.
+    const p = slideOnCells(grid, 2, 2.6, 0, -0.5, 0, R, [{ x: 2, z: 1.8, radius: 0.28 }], body);
+    expect(p.z).toBeCloseTo(1.8 + 0.52, 3);
   });
 });

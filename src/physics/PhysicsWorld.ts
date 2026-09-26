@@ -139,6 +139,13 @@ export interface PhysicsBody {
    */
   gridWall?: boolean;
   /**
+   * **Eine Figur auf dem Gitter** (`Npc.update`): Ihr Körper stößt weder an
+   * den Spieler noch an einen anderen NPC — wer wo steht, klärt die Ebene
+   * (`nav/planeMove.figureWalls`). Sonst stand der eine auf dem Kopf des
+   * anderen. Kisten, Böden und Kugeln bleiben Physik.
+   */
+  gridFigure?: boolean;
+  /**
    * Set while the body is flying to a hand after a remote grab. It touches
    * nothing at all then, so the pull always arrives.
    */
@@ -519,6 +526,14 @@ export class PhysicsWorld {
     this.applyFilter(entry);
   }
 
+  /** Eine Figur auf das Gitter stellen oder zurück (`PhysicsBody.gridFigure`). */
+  setGridFigure(entry: PhysicsBody, on: boolean): void {
+    if (entry.removed || this.freed) return;
+    if (!!entry.gridFigure === on) return;
+    entry.gridFigure = on;
+    this.applyFilter(entry);
+  }
+
   setGhost(entry: PhysicsBody, ghost: boolean): void {
     if (entry.ghost === ghost) return;
     entry.ghost = ghost;
@@ -536,7 +551,7 @@ export class PhysicsWorld {
     // Rumpf **und** Hände: ein Ding in der Faust hat vom Fingerkasten so wenig
     // zu befürchten wie von der Kapsel (`playerClearance.ts`).
     if (entry.carried || entry.clearing) filter &= ~GROUP_PLAYER & ~GROUP_HAND;
-    if (entry.gridWall) filter &= ~GROUP_PLAYER & ~GROUP_NPC;
+    if (entry.gridWall || entry.gridFigure) filter &= ~GROUP_PLAYER & ~GROUP_NPC;
     for (const collider of collidersOf(entry))
       collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
