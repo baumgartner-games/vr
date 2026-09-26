@@ -121,6 +121,33 @@ test('the command return point reaches every randomly positioned entrance with t
   }
 });
 
+/**
+ * **Vier Felder Gang sind breit genug** — für jeden, der auf einem 2×2-Block
+ * geht (Techniker der Runde, Bots, Monster: `AGENT_CELLS`). Seit die Gänge
+ * zwei Kacheln schmal sind (`stationRules.ts`), kommt der Block von der
+ * Zentrale in jeden Raum der Station, samt der Einrichtung, die Zellen sperrt,
+ * und geht den Weg auch Zelle für Zelle ab (`clearPath`).
+ */
+test('the block of bots and monster reaches every room through the four-field corridors', () => {
+  for (const seed of [1, 7, 42]) {
+    const spec = generateHouse(seed, 14);
+    const graph = housePlan(spec).graph;
+    for (const room of spec.rooms) {
+      const route = stationRoute(spec, graph, { ...COMMAND_HOME, yaw: 0 }, goalFor(spec, room.id));
+      expect({ seed, room: room.name, complete: route.complete }).toEqual({
+        seed,
+        room: room.name,
+        complete: true,
+      });
+      expect({
+        seed,
+        room: room.name,
+        clear: clearPath(spec, graph, COMMAND_HOME, route.points!),
+      }).toEqual({ seed, room: room.name, clear: true });
+    }
+  }
+});
+
 test('closing the front door invalidates the cached path; reopening restores it', () => {
   const spec = generateHouse(2, 8);
   const plan = housePlan(spec);

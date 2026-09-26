@@ -61,6 +61,24 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
       Türen weg ist (gedeckelt bei 3 m, danach zählt die Nähe zur Mitte).
       Zwei Türen in denselben Gang bekommt ein Raum nur, wenn er groß ist
       (`SMALL_ROOM_TILES`) und beide die Regel halten.
+      **Nachgeprüft (zweite Runde):** Die Regel zählt je Raum und je Gang;
+      zwei Türen, die sich keinen Raum teilen — zwei Raumtüren beiderseits
+      der Fuge zwischen zwei Gangstücken —, fragt sie nicht. Ein Test misst
+      deshalb die ganze Station gegeneinander (`stationRules.test`,
+      „Raum–Gang–Raum", jeder sechste Same): nirgends zwei Türmitten unter
+      sechs Feldern. Die kürzesten Gänge zwischen zwei Räumen
+      (Cafeteria-Ostgang, Admin-Ostgang) sind drei Kacheln lang — Tür, drei
+      Meter, Tür: genau die Grenze. Die Fugen zwischen Gangstücken sind
+      echte Schotten (Doppeltür, Schild „Transit").
+    - **Vier Felder sind breit genug** — für den 2 × 2-Block, auf dem
+      Techniker der Runde, Bots und Monster gehen (`AGENT_CELLS`):
+      `stationNavigation.test` („reaches every room through the four-field
+      corridors") schickt ihn von der Zentrale in jeden der 14 Räume (drei
+      Samen) und geht den Weg Zelle für Zelle ab. Im Bild (Ego-Sicht am
+      Bildschirm, Draufsicht) ist der Gang zwei Meter breit, davon gehen die
+      gelben Stoßleisten ab; man sieht bis zur Tür am Ende, die Türknöpfe am
+      Boden liegen im Weg, aber flach. In der Brille selbst ist das noch
+      nicht nachgeprüft.
     - Die Gänge sind in `STATION_MAP` neu gemalt; die Räume nicht, bis auf
       **Shields, eine Kachel breiter** (die Westtür liegt jetzt tiefer, und
       die Einrichtung fand bei 11 von 300 Samen keinen Platz mehr; die
