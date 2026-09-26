@@ -196,6 +196,7 @@ import {
   surfaceSpot,
   wallFaces,
   type SlantWall,
+  type WallFace,
 } from './decorPlace';
 import {
   FLOOR_STYLES,
@@ -204,7 +205,10 @@ import {
   floodRoom,
   isWallPanel,
   nearestFace,
+  PANEL_TOP,
   nextStyle,
+  stylePattern,
+  surfacePress,
   onFace,
   panelSpots,
   wallSpots,
@@ -539,6 +543,8 @@ const AREA_LIFT = 0.01;
 const FLOOR_LIFT = 0.006;
 /** Wohin man sieht — für _Wand_ in der Brille (`surfaceHere`). */
 const _surfaceLook = new THREE.Vector3();
+/** Die Blickrichtung auf dem Boden, für _Wand_ ohne Kran (`surfacePoint`). */
+type SurfaceLook = { readonly x: number; readonly z: number };
 /**
  * Die Maße einer Wandfliese, wie sie an der Wand hängt (`restaurant-bits/
  * wall_tiles_*`: ein Meter breit, 70 cm hoch, 8 cm tief) — fest, damit die
@@ -1520,6 +1526,14 @@ export class PortalWorld implements World {
   private readonly slantScratch: PhysicsBody[] = [];
   /** _Boden_ oder _Wand_ an der Leiste (`surfaceDecor.ts`) — sonst `null`. */
   private surfaceTool: 'floor' | 'wall' | null = null;
+  /**
+   * _Boden_ oder _Wand_ **ohne Leiste** — in der Brille und in der Ich-Sicht:
+   * Der erste Druck im Menü zeigt, was belegt würde, der zweite belegt
+   * (`surfaceDecor.surfacePress`, `surfaceMenu`). Sonst `null`.
+   */
+  private vrSurface: 'floor' | 'wall' | null = null;
+  /** Die leuchtende Wandseite der Vorschau (`showFaceMark`). */
+  private faceMark: THREE.Mesh | null = null;
   /** Welches Muster aus `FLOOR_STYLES` und `WALL_STYLES` gerade gilt. */
   private floorStyle = 0;
   private wallStyle = 0;
@@ -5182,6 +5196,16 @@ export class PortalWorld implements World {
     this.buildBar = null;
     this.placeGhost?.dispose();
     this.placeGhost = null;
+    if (this.faceMark) {
+      this.faceMark.removeFromParent();
+      this.faceMark.traverse((part) => {
+        if (!(part instanceof THREE.Mesh || part instanceof THREE.LineSegments)) return;
+        part.geometry.dispose();
+        (part.material as THREE.Material).dispose();
+      });
+      this.faceMark = null;
+    }
+    this.vrSurface = null;
     this.buildHistory.clear();
     this.areaOn = false;
     this.areaSelect.reset();
@@ -10027,6 +10051,7 @@ export class PortalWorld implements World {
    * _Weltänderungen_.
    */
   private updateBuild(ctx: WorldContext): void {
+    if (this.faceMark) this.faceMark.visible = false;
     const carried = this.carriedModel();
     const target = carried ? this.decorTarget(ctx, carried, ...this.carriedSpot(carried)) : null;
     if (carried && target && !this.areaOn) {
@@ -10040,6 +10065,13 @@ export class PortalWorld implements World {
     if (!visible) {
       this.surfaceTool = null;
       this.buildShown = null;
+      // **Die Vorschau ohne Leiste**: Raum oder Wandseite leuchten dort, wo
+      // ein zweiter Druck sie belegen würde — solange die Hand nichts trägt,
+      // sonst zeigt das Gitter das Getragene.
+      if (this.vrSurface && !carried) {
+        const look = this.surfacePoint(ctx, this.vrSurface);
+        this.surfacePreview(ctx, this.vrSurface, _point.x, _point.z, look);
+      }
       if (this.buildBar) {
         this.buildBar.take();
         this.buildBar.show(HIDDEN_BUILD_BAR);
@@ -10066,8 +10098,13 @@ export class PortalWorld implements World {
     this.buildShown = tool;
     const path = carried ? this.modelPath(carried) : null;
     let status = '';
-    const surface = this.surfaceTool ? this.surfacePreview(ctx) : null;
-    if (surface) status = surface.status;
+    let surface: { detail: string; valid: boolean } | null = null;
+    if (this.surfaceTool) {
+      ctx.rig.getHeadPosition(_point);
+      surface = this.surfacePreview(ctx, this.surfaceTool, _point.x, _point.z);
+    }
+    if (surface)
+      status = `${this.surfaceTool === 'floor' ? 'Boden' : 'Wand'} · ${surface.detail}${surface.valid ? ' · klicken' : ''}`;
     else if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
     else if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
     else if (carried && path && target) {
@@ -10092,6 +10129,9 @@ export class PortalWorld implements World {
       fine: this.fineTurn,
       status,
       valid: surface ? surface.valid : carried && target && !this.bomb ? target.valid : null,
+      pattern: this.surfaceTool ? stylePattern(this.surfaceStyle(this.surfaceTool)) : null,
+      floorSwatch: this.surfaceStyle('floor').swatch,
+      wallSwatch: this.surfaceStyle('wall').swatch,
     });
   }
 
@@ -10340,30 +10380,33 @@ export class PortalWorld implements World {
    * höchstens `ROOM_MAX` Kacheln, das ist billiger als eine Merkliste, die
    * bei jeder neuen Wand veralten könnte.
    */
-  private surfacePreview(ctx: WorldContext): { status: string; valid: boolean } | null {
-    const tool = this.surfaceTool;
-    if (!tool) return null;
+  private surfacePreview(
+    ctx: WorldContext,
+    tool: 'floor' | 'wall',
+    x: number,
+    z: number,
+    look?: SurfaceLook,
+  ): { detail: string; valid: boolean } {
     const style = this.surfaceStyle(tool);
     const floorY = ctx.rig.getFloorY();
-    ctx.rig.getHeadPosition(_point);
     const grid = this.placeGrid;
     if (tool === 'floor') {
-      const tiles = this.roomAt(_point.x, _point.z, floorY);
+      const tiles = this.roomAt(x, z, floorY);
       if (!tiles) {
         grid?.hide();
-        return { status: `Boden: ${style.label} · hier ist kein geschlossener Raum`, valid: false };
+        return { detail: 'hier ist kein geschlossener Raum', valid: false };
       }
       grid?.show(
         tiles.map((tile) => ({ x: tile.col + 0.5, z: tile.row + 0.5 })),
         floorY,
         AREA_PREVIEW,
       );
-      return { status: `Boden: ${style.label} · ${tiles.length} Kacheln · klicken`, valid: true };
+      return { detail: `${tiles.length} Kacheln`, valid: true };
     }
-    const face = nearestFace(_point.x, _point.z, wallFaces(this.decorScene(null).boxes), floorY);
+    const face = nearestFace(x, z, wallFaces(this.decorScene(null).boxes), floorY, look);
     if (!face) {
       grid?.hide();
-      return { status: `Wand: ${style.label} · näher an eine Wand`, valid: false };
+      return { detail: 'näher an eine Wand', valid: false };
     }
     const line = face.at - face.normal * 0.02;
     const edges: GridEdge[] = [];
@@ -10374,8 +10417,62 @@ export class PortalWorld implements World {
           : { x: line, z: at + 0.5, alongX: false },
       );
     grid?.showEdges(edges, floorY, AREA_PREVIEW);
+    this.showFaceMark(ctx, face, style, floorY);
     const side = style.kind === 'panel' ? 'diese Seite' : 'ganze Wand';
-    return { status: `Wand: ${style.label} · ${side} · klicken`, valid: true };
+    const metres = Math.round(face.to - face.from);
+    return { detail: `${side} · ${metres} m`, valid: true };
+  }
+
+  /**
+   * **Die gemeinte Wandseite leuchtet** — eine durchscheinende Fläche in der
+   * Farbe des Musters (`SurfaceStyle.swatch`) einen Fingerbreit vor der
+   * Seite, so hoch, wie belegt würde. Die Kante im Gitter liegt am Boden und
+   * ist aus den Augen (Brille, Ich-Sicht) kaum zu sehen, wenn man vor der
+   * Wand steht; die Fläche ist es. `updateBuild` blendet sie jedes Bild
+   * aus, `surfacePreview` wieder ein.
+   */
+  private showFaceMark(
+    ctx: WorldContext,
+    face: WallFace,
+    style: (typeof WALL_STYLES)[number],
+    floorY: number,
+  ): void {
+    let mark = this.faceMark;
+    if (!mark) {
+      mark = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0.4,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      mark.renderOrder = 5;
+      // Ein Rahmen in der Farbe des Gitters, damit die Fläche als Auswahl
+      // liest und nicht als neuer Anstrich.
+      const frame = new THREE.LineSegments(
+        new THREE.EdgesGeometry(mark.geometry),
+        new THREE.LineBasicMaterial({ color: KAYKIT_ACCENT, transparent: true, opacity: 0.9 }),
+      );
+      frame.renderOrder = 6;
+      mark.add(frame);
+      this.faceMark = mark;
+    }
+    if (mark.parent !== ctx.scene) ctx.scene.add(mark);
+    const bottom = Math.max(face.bottom, floorY);
+    const top = style.kind === 'panel' ? Math.min(face.top, floorY + PANEL_TOP) : face.top;
+    const across = face.at + face.normal * 0.03;
+    const along = (face.from + face.to) / 2;
+    mark.scale.set(face.to - face.from, Math.max(0.1, top - bottom), 1);
+    mark.position.set(
+      face.axis === 'x' ? across : along,
+      (bottom + top) / 2,
+      face.axis === 'x' ? along : across,
+    );
+    mark.rotation.set(0, face.axis === 'x' ? Math.PI / 2 : 0, 0);
+    (mark.material as THREE.MeshBasicMaterial).color.set(style.swatch);
+    mark.visible = true;
   }
 
   /**
@@ -10392,6 +10489,7 @@ export class PortalWorld implements World {
     tool: 'floor' | 'wall',
     x: number,
     z: number,
+    look?: SurfaceLook,
   ): Promise<void> {
     const style = this.surfaceStyle(tool);
     this.vrErase = false;
@@ -10404,7 +10502,7 @@ export class PortalWorld implements World {
     if (!physics || this.physics !== physics || !models[0]) return;
     const floorY = ctx.rig.getFloorY();
     if (tool === 'floor') this.applyFloor(ctx, style.path, style.label, x, z, floorY);
-    else this.applyWall(ctx, style, x, z, floorY);
+    else this.applyWall(ctx, style, x, z, floorY, look);
   }
 
   private applyFloor(
@@ -10459,8 +10557,9 @@ export class PortalWorld implements World {
     x: number,
     z: number,
     floorY: number,
+    look?: SurfaceLook,
   ): void {
-    const face = nearestFace(x, z, wallFaces(this.decorScene(null).boxes), floorY);
+    const face = nearestFace(x, z, wallFaces(this.decorScene(null).boxes), floorY, look);
     if (!face) {
       ctx.notify('Keine Wand in der Nähe — mit dem Kran näher an eine Wand');
       return;
@@ -10594,6 +10693,7 @@ export class PortalWorld implements World {
       run: run((ctx) => {
         if (ctx.renderer.xr.isPresenting) {
           this.vrErase = !this.vrErase;
+          this.vrSurface = null;
           ctx.notify(
             this.vrErase
               ? 'Löschen: ein Stück greifen reißt es ab'
@@ -10614,7 +10714,7 @@ export class PortalWorld implements World {
       label: 'Boden',
       icon: 'palette',
       accent,
-      run: run((ctx) => this.surfaceHere(ctx, 'floor')),
+      run: run((ctx) => this.surfaceMenu(ctx, 'floor')),
     };
     const floorStyle: MenuEntry = {
       id: 'build:floor-style',
@@ -10631,7 +10731,7 @@ export class PortalWorld implements World {
       label: 'Wand',
       icon: 'brush',
       accent,
-      run: run((ctx) => this.surfaceHere(ctx, 'wall')),
+      run: run((ctx) => this.surfaceMenu(ctx, 'wall')),
     };
     const wallStyle: MenuEntry = {
       id: 'build:wall-style',
@@ -10648,9 +10748,17 @@ export class PortalWorld implements World {
       erase.sub = 'Brille: der nächste Griff reißt ab';
       fine.checked = this.fineTurn;
       fine.sub = this.fineTurn ? 'An: Möbel drehen in Achteln' : 'Aus: Möbel in Vierteln';
-      floor.sub = `${this.surfaceStyle('floor').label} · der Raum, in dem du stehst`;
+      floor.checked = this.vrSurface === 'floor';
+      floor.sub =
+        this.vrSurface === 'floor'
+          ? `${this.surfaceStyle('floor').label} · leuchtet · noch einmal: belegen`
+          : `${this.surfaceStyle('floor').label} · der Raum, in dem du stehst`;
       floorStyle.sub = `Jetzt: ${this.surfaceStyle('floor').label}`;
-      wall.sub = `${this.surfaceStyle('wall').label} · die Wand vor dir`;
+      wall.checked = this.vrSurface === 'wall';
+      wall.sub =
+        this.vrSurface === 'wall'
+          ? `${this.surfaceStyle('wall').label} · leuchtet · noch einmal: belegen`
+          : `${this.surfaceStyle('wall').label} · die Wand vor dir`;
       wallStyle.sub = `Jetzt: ${this.surfaceStyle('wall').label}`;
     };
     paint();
@@ -10671,6 +10779,7 @@ export class PortalWorld implements World {
         accent,
         run: run((ctx, hand) => {
           this.vrErase = false;
+          this.vrSurface = null;
           if (!ctx.renderer.xr.isPresenting) {
             this.pickTool(ctx, 'place');
             return;
@@ -10688,6 +10797,7 @@ export class PortalWorld implements World {
         accent,
         run: run((ctx) => {
           this.vrErase = false;
+          this.vrSurface = null;
           if (!ctx.renderer.xr.isPresenting) this.pickTool(ctx, 'move');
           else ctx.notify('Verschieben: ein Stück greifen und loslassen');
         }),
@@ -10768,16 +10878,62 @@ export class PortalWorld implements World {
     ctx.notify('Nichts in der Hand zum Drehen');
   }
 
+  /**
+   * Wo _Boden_ oder _Wand_ ohne Leiste gemeint sind — nach `_point`; zurück
+   * kommt für _Wand_ die Blickrichtung (`nearestFace` mit `look`), damit die
+   * Wand im Rücken nicht gewinnt, nur weil sie näher ist.
+   */
+  private surfacePoint(ctx: WorldContext, tool: 'floor' | 'wall'): SurfaceLook | undefined {
+    ctx.rig.getHeadPosition(_point);
+    if (tool !== 'wall' || ctx.crane) return undefined;
+    // Gemeint ist die Wand vor einem: `nearestFace` nimmt mit Blickrichtung
+    // nur zugewandte Seiten und reicht dafür etwas weiter (`LOOK_REACH`).
+    // Früher rückte der Punkt einen halben Meter vor — wer dicht vor der
+    // Wand stand, landete damit hinter ihr, und nichts war gemeint.
+    ctx.camera.getWorldDirection(_surfaceLook);
+    _surfaceLook.y = 0;
+    if (_surfaceLook.lengthSq() < 1e-6) return undefined;
+    _surfaceLook.normalize();
+    return { x: _surfaceLook.x, z: _surfaceLook.z };
+  }
+
   /** _Boden_ oder _Wand_ dort, wo man steht — für die Brille und das Menü. */
   private surfaceHere(ctx: WorldContext, tool: 'floor' | 'wall'): void {
-    ctx.rig.getHeadPosition(_point);
-    if (tool === 'wall' && !ctx.crane) {
-      // Ein halber Meter in Blickrichtung: gemeint ist die Wand vor einem.
-      ctx.camera.getWorldDirection(_surfaceLook);
-      _surfaceLook.y = 0;
-      if (_surfaceLook.lengthSq() > 1e-6) _point.addScaledVector(_surfaceLook.normalize(), 0.5);
+    const look = this.surfacePoint(ctx, tool);
+    void this.applySurface(ctx, tool, _point.x, _point.z, look);
+  }
+
+  /**
+   * **_Boden_ oder _Wand_ aus dem Menü** — mit der Leiste am Kran belegt der
+   * Druck sofort (die Leiste zeigt schon, was gemeint ist). Ohne Leiste — in
+   * der Brille, in der Ich-Sicht — zeigt der erste Druck, welcher Raum oder
+   * welche Wandseite belegt würde, und erst der zweite belegt
+   * (`surfacePress`). Vorher wusste man in der Brille erst hinterher, welche
+   * Wand gemeint war.
+   */
+  private surfaceMenu(ctx: WorldContext, tool: 'floor' | 'wall'): void {
+    this.vrErase = false;
+    if (this.buildShown !== null) {
+      this.vrSurface = null;
+      this.surfaceHere(ctx, tool);
+      return;
     }
-    void this.applySurface(ctx, tool, _point.x, _point.z);
+    const press = surfacePress(this.vrSurface, tool);
+    this.vrSurface = press.armed;
+    if (press.action === 'apply') {
+      this.surfaceHere(ctx, tool);
+      return;
+    }
+    const style = this.surfaceStyle(tool);
+    const look = this.surfacePoint(ctx, tool);
+    const preview = this.surfacePreview(ctx, tool, _point.x, _point.z, look);
+    const name = tool === 'floor' ? 'Boden' : 'Wand';
+    ctx.notify(
+      `${name}: ${style.label} · ${preview.detail} · ` +
+        (preview.valid ? `noch einmal ${name}: belegen` : 'anders hinstellen, dann noch einmal'),
+    );
+    void kaykitModel(style.path);
+    if (style.half) void kaykitModel(style.half);
   }
 
   /**

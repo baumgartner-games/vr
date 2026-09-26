@@ -9,6 +9,8 @@ import {
   nextStyle,
   onFace,
   panelSpots,
+  stylePattern,
+  surfacePress,
   wallSpots,
 } from './surfaceDecor';
 
@@ -36,6 +38,30 @@ describe('Muster', () => {
     expect(nextStyle(FLOOR_STYLES, 0)).toBe(1);
     expect(nextStyle(FLOOR_STYLES, FLOOR_STYLES.length - 1)).toBe(0);
     expect(nextStyle([], 3)).toBe(0);
+  });
+
+  it('jedes Muster hat ein eigenes Farbfeld für die Leiste', () => {
+    for (const list of [FLOOR_STYLES, WALL_STYLES]) {
+      for (const style of list) expect(style.swatch).toMatch(/^#[0-9a-f]{6}$/);
+      expect(new Set(list.map((style) => style.swatch)).size).toBe(list.length);
+      expect(new Set(list.map((style) => style.label)).size).toBe(list.length);
+    }
+    expect(stylePattern(FLOOR_STYLES[0]!)).toEqual({
+      label: FLOOR_STYLES[0]!.label,
+      swatch: FLOOR_STYLES[0]!.swatch,
+    });
+  });
+});
+
+describe('Boden und Wand ohne Leiste (Brille, Ich-Sicht)', () => {
+  it('der erste Druck zeigt nur, der zweite belegt', () => {
+    expect(surfacePress(null, 'floor')).toEqual({ action: 'preview', armed: 'floor' });
+    expect(surfacePress('floor', 'floor')).toEqual({ action: 'apply', armed: null });
+  });
+
+  it('das andere Werkzeug wechselt die Vorschau, statt zu belegen', () => {
+    expect(surfacePress('floor', 'wall')).toEqual({ action: 'preview', armed: 'wall' });
+    expect(surfacePress('wall', 'floor')).toEqual({ action: 'preview', armed: 'floor' });
   });
 });
 
@@ -90,6 +116,21 @@ describe('Wand: die gemeinte Seite', () => {
 
   it('außen die Außenseite', () => {
     expect(nearestFace(0.5, -4.6, faces, 0)).toMatchObject({ normal: -1 });
+  });
+
+  it('mit Blickrichtung nur eine zugewandte Seite, nicht die im Rücken', () => {
+    // Nah an der Nordwand, Blick nach Süden: gemeint ist sie nicht.
+    expect(nearestFace(0.5, -3.4, faces, 0, { x: 0, z: 1 })).toBeNull();
+    // Blick nach Norden: dieselbe Wand.
+    expect(nearestFace(0.5, -3.4, faces, 0, { x: 0, z: -1 })).toMatchObject({ normal: 1 });
+    // Wer sie ansieht, darf etwas weiter weg stehen (`LOOK_REACH`).
+    expect(nearestFace(0.5, -2.4, faces, 0)).toBeNull();
+    expect(nearestFace(0.5, -2.4, faces, 0, { x: 0, z: -1 })).toMatchObject({ normal: 1 });
+    // In der Ecke, Blick nach Westen: die Westwand, nicht die nähere Nordwand.
+    expect(nearestFace(-3.3, -3.5, faces, 0, { x: -1, z: 0 })).toMatchObject({
+      axis: 'x',
+      normal: 1,
+    });
   });
 });
 
