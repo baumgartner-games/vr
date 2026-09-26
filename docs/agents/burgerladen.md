@@ -285,22 +285,44 @@ Dieselbe wie in der Testküche — die Stationen melden sich mit
 
 Neben den Burgern gibt es im Restaurant **Eis im Hörnchen** — ohne Gäste, die
 es bestellen (das kann später kommen), aber mit allem, was man dafür in der
-Hand braucht. Gleich südlich des Kühlschranks, an der Westwand der Küche,
-steht die **Eisecke**: zwei Arbeitsplatten mit der Vorderseite nach Osten
-(`plateUpPlan.ICE_STAND` auf 0 | 1, `ICE_TUBS` auf 0 | 2 — beide in
-`blockedTiles`, also mit Körper und frei von gekauften Stationen).
+Hand braucht. Gleich östlich der Stelle, an der man morgens anfängt, in der
+Stationsreihe vor der Durchreiche, steht die **Eisecke**: zwei
+Arbeitsplatten mit der Vorderseite nach Norden in den Gang
+(`plateUpPlan.ICE_STAND` auf 8 | 2, `ICE_TUBS` auf 9 | 2, `ICE_FACE` Nord —
+beide in `blockedTiles`, also mit Körper und frei von gekauften Stationen).
+Man bedient sie vom Gang `z = 1` aus, mit dem Blick nach Süden.
 
-- Auf der nördlichen Platte ein **Stapel Hörnchen**, der nie leer wird, und
+- Auf der westlichen Platte ein **Stapel Hörnchen**, der nie leer wird, und
   daneben auf einer dunklen Matte der **Portionierer**.
-- Auf der südlichen zwei **Eiswannen**: Vanille (cremegelb) und Erdbeere
+- Auf der östlichen zwei **Eiswannen**: Vanille (cremegelb) und Erdbeere
   (rosa).
 
-| Datei                               | Was darin steht                                                                                                                                                                                                                                                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+**Warum dort und nicht mehr an der Westwand.** Zuerst stand die Eisecke auf
+0 | 1 und 0 | 2, südlich des Kühlschranks — und kam so an: _„ich sehe den
+Eisbereich überhaupt nicht"_. Im Browser nachgesehen hatte es drei Gründe.
+Die Ecke stand am äußersten Rand des Bildes von oben, und auf dem Telefon,
+dessen Bild gut vier Kacheln breit ist, gar nicht, solange man nicht eigens
+hinlief. Die Wannen waren nur das **Eis** aus
+`icecream_container_icecream_<sorte>` — die Datei ist die Füllung ohne
+Kasten, eine flache Platte —, also von oben zwei blasse Zettel. Und alles war
+auf echte Maße gebracht (Stapel 26 cm, Wannen 30 cm), in einem Laden, dessen
+Möbel halb so groß sind wie echte: Krümel. Jetzt steht sie neben der Figur
+im ersten Bild (auch auf dem Telefon), die Wannen sind Kasten
+(`icecream_container`) **plus** Eis, so groß wie im Paket (66 cm lang, zwei
+nebeneinander füllen die Platte), der Stapel ist 50 cm hoch
+(`plateUpIceView.CORNER_SIZE`). Was in der Hand ist, bleibt in den alten
+Maßen (`ICE_SIZE`). Und kommt ein Modell nicht, steht ein schlichter Körper
+in denselben Maßen da (`plateUpIceView.fallback`) — die Ecke wird nie
+unsichtbar. Geprüft in `plateUpIceView.test.ts` (ohne WebGL, also mit
+Ersatz) und in `plateUpIce.test.ts` (neben dem Startplatz, vor jeder Platte
+frei, erreichbar, der Weg in den Gastraum offen).
+
+| Datei                               | Was darin steht                                                                                                                                                                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `worlds/plateup/plateUpIce.ts`      | **Rein**: Sorten, was die Hände vom Eis halten (`IceHands`), was ein Druck an Stand, Wanne und Station tut (`useStand`, `useTub`, `useCounter`), welche Wanne gemeint ist (`pickTub`, `tubUnder`), über welchem Hörnchen der Portionierer ist (`coneUnder`), Verben, Sätze |
-| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der wackelige Turm — Feder je Kugel, geschlossen gelöst, unabhängig von der Bildrate (`stepWobble`)                                                                                                                                                            |
-| `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke, Hörnchen mit Kugeln (`IceConeView`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht                                                                                                                                   |
-| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Neigen, nie herunter, 30 gegen 144 Bilder je Sekunde)                                                                                                               |
+| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der wackelige Turm — Feder je Kugel, geschlossen gelöst, unabhängig von der Bildrate (`stepWobble`)                                                                                                                                                              |
+| `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke (gedreht nach `ICE_FACE`, `ICE_YAW`), Hörnchen mit Kugeln (`IceConeView`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht, Ersatzkörper (`fallback`)                                                                     |
+| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Neigen, nie herunter, 30 gegen 144 Bilder je Sekunde)                                                                                                                  |
 
 **In der Brille sind es zwei Dinge für zwei Hände.** Eine Hand greift am
 Stapel ein Hörnchen (Greif-Taste oder Trigger), die **andere** den
@@ -358,10 +380,12 @@ Platten.
 
 **Modelle** aus _Restaurant Bits_ im Regal (`core/kaykitModel`, auf Maß
 gebracht statt dem Paketmaßstab zu trauen): `icecream_cone` (14 cm),
-`icecream_cone_stacked` (26 cm), `icecream_scoop` (20 cm; die Datei steht
-aufrecht, Schale oben — in der Hand umgelegt, Schale nach vorn) und
-`icecream_container_icecream_vanilla`/`_strawberry` (30 cm lang). Gebaut
-sind nur die Kugeln: eine Kugelgeometrie und ein Material je Sorte für alle.
+`icecream_cone_stacked` (in der Ecke 50 cm), `icecream_scoop` (20 cm in der
+Hand, 30 cm auf der Matte; die Datei steht aufrecht, Schale oben — in der
+Hand umgelegt, Schale nach vorn) und je Wanne `icecream_container` mit
+`icecream_container_icecream_vanilla`/`_strawberry` darin (66 cm lang).
+Gebaut sind nur die Kugeln: eine Kugelgeometrie und ein Material je Sorte
+für alle.
 Ein Turm kostet eine Zeichnung je Kugel. Auf einer Platte steht ein Eis 1,6-
 mal so groß, von oben vor dem Bauch 2,2-mal — sonst sähe man es nicht.
 

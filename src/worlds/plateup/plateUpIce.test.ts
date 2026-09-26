@@ -1,6 +1,19 @@
 import { INTERACTION_DEFAULTS } from '../../core/interaction';
 import { STATION_ROW, placeCheck } from './plateUpShop';
-import { ICE_STAND, ICE_TUBS, STATIONS, blockedTiles } from './plateUpPlan';
+import { findPath } from '../nav/navPath';
+import { HUMAN_PROFILE } from '../nav/navProfile';
+import { dirX, dirZ, tileKey } from '../nav/navTile';
+import {
+  DOOR_INSIDE,
+  ICE_FACE,
+  ICE_STAND,
+  ICE_TUBS,
+  KITCHEN_AREA,
+  SPAWN_TILE,
+  STATIONS,
+  blockedTiles,
+  routePlan,
+} from './plateUpPlan';
 import {
   EMPTY_ICE,
   FLAVOR_COLORS,
@@ -319,7 +332,7 @@ describe('Restaurant: wie das Eis bedient wird', () => {
 });
 
 describe('Restaurant: die Eisecke im Grundriss', () => {
-  test('zwei Platten neben dem Kühlschrank, gesperrt und keine Küchenstation', () => {
+  test('zwei Platten in der Küche, gesperrt und keine Küchenstation', () => {
     const blocked = blockedTiles();
     expect(blocked.has(`${ICE_STAND.x},${ICE_STAND.z}`)).toBe(true);
     expect(blocked.has(`${ICE_TUBS.x},${ICE_TUBS.z}`)).toBe(true);
@@ -328,9 +341,46 @@ describe('Restaurant: die Eisecke im Grundriss', () => {
     expect(stations.has(`${ICE_TUBS.x},${ICE_TUBS.z}`)).toBe(false);
   });
 
-  test('eine gekaufte Station kommt nicht auf die Eiswannen', () => {
-    expect(ICE_TUBS.z).toBe(STATION_ROW.z);
-    expect(placeCheck('grill', ICE_TUBS.x, ICE_TUBS.z, []).ok).toBe(false);
+  test('eine gekaufte Station kommt nicht auf die Eisecke', () => {
+    for (const spot of [ICE_STAND, ICE_TUBS]) {
+      expect(spot.z).toBe(STATION_ROW.z);
+      expect(placeCheck('grill', spot.x, spot.z, []).ok).toBe(false);
+    }
+  });
+
+  // **„Ich sehe den Eisbereich überhaupt nicht"** — so kam die Eisecke an, als
+  // sie an der Westwand stand (0 | 1, 0 | 2): am Rand des Bildes von oben, und
+  // auf dem Telefon, dessen Bild gut vier Kacheln breit ist, außerhalb.
+  test('neben dem Startplatz — schon im ersten Bild, auch auf dem Telefon', () => {
+    for (const spot of [ICE_STAND, ICE_TUBS]) {
+      expect(spot.z).toBe(SPAWN_TILE.z);
+      expect(Math.abs(spot.x - SPAWN_TILE.x)).toBeLessThanOrEqual(2);
+      expect(spot.x).toBeGreaterThanOrEqual(KITCHEN_AREA.x + 1);
+      expect(spot.x).toBeLessThan(KITCHEN_AREA.x + KITCHEN_AREA.w - 1);
+    }
+    // Nebeneinander in einer Reihe, die Vorderseiten zum selben Gang.
+    expect(Math.abs(ICE_STAND.x - ICE_TUBS.x) + Math.abs(ICE_STAND.z - ICE_TUBS.z)).toBe(1);
+  });
+
+  test('vor jeder Platte ist frei, und dorthin kommt man vom Start und in den Gastraum', () => {
+    const plan = routePlan();
+    const blocked = blockedTiles();
+    const start = tileKey(SPAWN_TILE.x, SPAWN_TILE.z);
+    for (const spot of [ICE_STAND, ICE_TUBS]) {
+      const x = spot.x + dirX(ICE_FACE);
+      const z = spot.z + dirZ(ICE_FACE);
+      expect(blocked.has(`${x},${z}`)).toBe(false);
+      const there = findPath(plan.graph, start, tileKey(x, z), { profile: HUMAN_PROFILE });
+      expect(there.complete).toBe(true);
+      // Und die Eisecke stellt den Weg aus der Küche in den Gastraum nicht zu.
+      const out = findPath(
+        plan.graph,
+        tileKey(x, z),
+        tileKey(Math.floor(DOOR_INSIDE.x), Math.floor(DOOR_INSIDE.z)),
+        { profile: HUMAN_PROFILE },
+      );
+      expect(out.complete).toBe(true);
+    }
   });
 });
 
