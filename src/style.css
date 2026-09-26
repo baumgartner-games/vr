@@ -949,3 +949,18 @@ input[type="range"] {
   .landing h1 { margin-bottom: 8px; }
   .wcard__line { font-size: 11px; }
 }
+
+/* **Das Telefon quer** (und jedes andere breite, flache Fenster): Untereinander
+   läge _Spielen_ eine Bildschirmhöhe tiefer. Also zwei Spalten — links die
+   Karten, rechts Titel, Ansicht und Knopf. */
+@media (min-width: 700px) and (max-height: 520px) {
+  .landing:not([data-landing="haunting"]) .landing__inner { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  .landing:not([data-landing="haunting"]) .landing__inner > * { grid-column: 2; }
+  .landing:not([data-landing="haunting"]) .worlds { grid-column: 1; grid-row: 1 / span 30; margin: 0; }
+  .landing:not([data-landing="haunting"]) h1 { font-size: 30px; margin-bottom: 4px; }
+  .landing:not([data-landing="haunting"]) .eyebrow { margin-bottom: 2px; }
+  .landing .lead.only-generic { display: none; }
+  .landing .worlds__cards { gap: 8px; }
+  .landing .wcard__line { display: none; }
+  .landing .btn--play { padding: 12px 18px; }
+}
