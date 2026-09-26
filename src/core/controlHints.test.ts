@@ -9,6 +9,7 @@ const base: HintContext = {
   useCandidate: false,
   carrying: false,
   armed: false,
+  canJump: true,
   padKind: 'xbox',
   config: defaultInputConfig(),
 };
@@ -64,6 +65,19 @@ describe('controlHints — die Tastenhilfe', () => {
   it('bleibt am Glas im Menü still', () => {
     expect(controlHints({ ...base, device: 'touch', menu: 'menu' })).toEqual([]);
     expect(hintText(controlHints({ ...base, device: 'touch' }))).toBe('A Springen');
+  });
+
+  it('verspricht auf dem Zellgitter kein Springen — an keinem Gerät', () => {
+    const grid = { ...base, canJump: false };
+    expect(hintText(controlHints(grid))).toBe('⊟ Ansicht · ☰ Menü');
+    expect(hintText(controlHints({ ...grid, useCandidate: true }))).toContain('A Benutzen');
+    expect(hintText(controlHints({ ...grid, device: 'keyboard', tools: true }))).toBe(
+      'Tab Werkzeug · V Ansicht · M Menü',
+    );
+    expect(controlHints({ ...grid, device: 'touch' })).toEqual([]);
+    expect(hintText(controlHints({ ...grid, device: 'touch', useCandidate: true }))).toBe(
+      'A Benutzen',
+    );
   });
 });
 

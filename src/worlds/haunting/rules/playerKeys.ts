@@ -43,7 +43,8 @@ export interface PlayerKeysInput {
  * Taste tut das: `E` geht immer an die Welt (`FlatControls`, `useQueued` →
  * `useForward` → `ShipExperience.useEmpty`). `A` am Glas und `Ⓐ` am Pad
  * benutzen dagegen nur, wenn etwas vor der Figur steht (`rig.useCandidate`),
- * sonst **springen** sie (`FlatControls.applyUse`) — die Zeile „A ins Leere:
+ * sonst wollen sie **springen** (`FlatControls.applyUse`), was die Station
+ * auf dem Zellgitter überhört — die Zeile „A ins Leere:
  * Licht aus" am Telefon versprach also etwas, das nicht geschah. Dort geht
  * das Licht über die Werkzeugwahl; die Angabe fällt weg.
  */

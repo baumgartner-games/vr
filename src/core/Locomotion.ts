@@ -25,11 +25,20 @@ export interface Locomotion {
    * glove is what asks for it.
    */
   setFlight?(velocity: THREE.Vector3 | null): void;
+  /**
+   * **Tut ein Sprungwunsch hier etwas?** `false` heißt: `jump` wird überhört —
+   * auf dem Zellgitter (`PhysicsLocomotion.plane`) oder ohne Schwerkraft. Die
+   * Tastenhilfe fragt es (`PlayerRig.canJump`), damit sie kein _Springen_
+   * verspricht, das nicht geschieht. Fehlt es, gilt es als `true`.
+   */
+  readonly canJump?: boolean;
   dispose?(): void;
 }
 
 /** Frictionless gliding inside an optional box — no gravity, no collisions. */
 export class FreeLocomotion implements Locomotion {
+  readonly canJump = false;
+
   constructor(public bounds: THREE.Box3 | null = null) {}
 
   apply(rig: PlayerRig, velocity: THREE.Vector3, _jump: boolean, dt: number): void {
