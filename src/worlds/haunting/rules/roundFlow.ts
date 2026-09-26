@@ -160,6 +160,20 @@ export function canHide(mode: RoundMode): boolean {
   return mode === 'practice' || mode === 'real';
 }
 
+/** Die Ansage, wenn in der Übung vor dem Start etwas angefasst wird, das der Runde gehört. */
+export const ROUND_ONLY = `Erst die Runde starten: „${FLOW.real}" im Menü.`;
+
+/**
+ * **Was Kisten, Konsolen und Medkit sagen, wenn sie noch zu sind** — in der
+ * Übung vor dem Start (`briefing`). Vorher schluckten sie den Druck stumm,
+ * und wer am Telefon `A` drückte, wusste nicht, ob er daneben lag oder ob es
+ * nicht ging. In der Vorführung und nach dem Ende bleibt es still: Dort
+ * spielt niemand am Schiff.
+ */
+export function roundOnlyNote(mode: RoundMode): string | null {
+  return mode === 'practice' ? ROUND_ONLY : null;
+}
+
 /**
  * **Was die Lobby der Startseite über den Ablauf sagt** (`#haunting`,
  * `main.ts` → `#haunt-flow`): Wer dort steht, soll vor dem Beitreten wissen,

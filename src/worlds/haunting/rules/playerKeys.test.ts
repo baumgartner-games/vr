@@ -1,4 +1,4 @@
-import { playerKeysText, type PlayerKeysInput } from './playerKeys';
+import { playerKeysText, useTogglesLight, type PlayerKeysInput } from './playerKeys';
 
 const base: PlayerKeysInput = {
   device: 'keyboard',
@@ -30,5 +30,20 @@ describe('playerKeysText', () => {
       expect(text).not.toMatch(/Tab|Strg|WASD|\bE\b/);
       expect(text).toContain('rechts: Lampe');
     }
+  });
+
+  /**
+   * **Am Glas und am Pad springt `A` ins Leere** (`FlatControls.applyUse`),
+   * es schaltet kein Licht. Befund am Telefon: „A ins Leere: Licht aus" stand
+   * da, und der Druck tat es nicht — also steht es dort nicht mehr.
+   */
+  it('verspricht das Licht auf `A` nur dort, wo die Taste es schaltet', () => {
+    expect(useTogglesLight('keyboard')).toBe(true);
+    expect(useTogglesLight('touch')).toBe(false);
+    expect(useTogglesLight('pad')).toBe(false);
+    expect(playerKeysText({ ...base, device: 'touch', useKey: 'A', hintsShown: true })).toBe(
+      'links: Hand frei · rechts: Lampe',
+    );
+    expect(playerKeysText({ ...base, device: 'pad', useKey: 'Ⓐ' })).not.toContain('ins Leere');
   });
 });

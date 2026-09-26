@@ -1019,6 +1019,16 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   noch im Schrank steckt, verliert das Versteck mit dem frischen Stand; der
   Wechsel von `hidden` auf leer taut dann das Gestell auf und nimmt auch den
   Geist des Schranks zurück (`ghostLocker(…, false)` im `hiddenWas`-Zweig).
+  **Kisten, Konsolen und Medkit sagen in der Übung vor dem Start, warum
+  nicht** (`ShipExperience.roundOnly`, `rules/roundFlow.roundOnlyNote`,
+  `ROUND_ONLY`: „Erst die Runde starten …", höchstens alle zwei Sekunden) —
+  über `host.say` → `announce` → `ctx.notify`, statt den Druck stumm zu
+  schlucken. Achtung: Am Bildschirm und am Telefon landet `notify` nur im
+  Status des Handgelenk-Menüs, eine sichtbare Einblendung gibt es dort (noch)
+  nicht. **Die Tastenzeile der Tafel** (`rules/playerKeys.ts`) nennt
+  „… ins Leere: Licht an/aus" nur noch mit Tastatur (`useTogglesLight`): `E`
+  geht immer an die Welt, `A` am Glas und `Ⓐ` am Pad benutzen nur mit einem
+  Ziel vor der Figur und springen sonst (`FlatControls.applyUse`).
 
 **Mission, Werkzeuge und Komfort**
 

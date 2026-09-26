@@ -10,9 +10,9 @@ import type { HintDevice } from '../../../core/controlHints';
  * der Tastenhilfe unten (`core/controlHints.ts`, Zone `haunting`) und der
  * Willkommens-Karte. Jetzt:
  *
- * - **immer** der Stand der Hände (links, rechts) und was _Benutzen_ ins
- *   Leere tut (die Lampe an/aus) — mit dem Knopf des Geräts, das gerade
- *   bedient (`E`, `Ⓐ`, am Glas `A`);
+ * - **immer** der Stand der Hände (links, rechts); mit Tastatur dazu, was _Benutzen_ ins
+ *   Leere tut (die Lampe an/aus, `useTogglesLight`) — am Glas und am Pad
+ *   springt `A` dort, also steht es nicht da;
  * - **die Tasten zum Laufen, Ducken und Werkzeug** nur mit Tastatur und nur,
  *   wenn die Tastenhilfe abgeschaltet ist. Am Pad und am Glas stehen sie auf
  *   den Knöpfen bzw. in der Tastenhilfe.
@@ -38,10 +38,24 @@ export interface PlayerKeysInput {
   readonly right: string;
 }
 
+/**
+ * **Schaltet _Benutzen_ ins Leere auf diesem Gerät das Licht?** Nur die
+ * Taste tut das: `E` geht immer an die Welt (`FlatControls`, `useQueued` →
+ * `useForward` → `ShipExperience.useEmpty`). `A` am Glas und `Ⓐ` am Pad
+ * benutzen dagegen nur, wenn etwas vor der Figur steht (`rig.useCandidate`),
+ * sonst **springen** sie (`FlatControls.applyUse`) — die Zeile „A ins Leere:
+ * Licht aus" am Telefon versprach also etwas, das nicht geschah. Dort geht
+ * das Licht über die Werkzeugwahl; die Angabe fällt weg.
+ */
+export function useTogglesLight(device: HintDevice): boolean {
+  return device === 'keyboard';
+}
+
 export function playerKeysText(input: PlayerKeysInput): string {
-  const light = `${input.useKey} ins Leere: Licht ${input.lightOn ? 'aus' : 'an'}`;
   const hands = `links: ${input.left} · rechts: ${input.right}`;
-  if (input.device === 'keyboard' && !input.hintsShown) {
+  if (!useTogglesLight(input.device)) return hands;
+  const light = `${input.useKey} ins Leere: Licht ${input.lightOn ? 'aus' : 'an'}`;
+  if (!input.hintsShown) {
     return `${input.moveKeys} · Strg ducken · ${light} · Werkzeug: ${input.toolsKey} · ${hands}`;
   }
   return `${light} · ${hands}`;

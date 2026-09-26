@@ -9,6 +9,8 @@ import {
   pauseActions,
   pauseTitle,
   roundMode,
+  roundOnlyNote,
+  ROUND_ONLY,
 } from './roundFlow';
 
 describe('Der Ablauf einer Runde', () => {
@@ -61,6 +63,15 @@ describe('Der Ablauf einer Runde', () => {
     expect(canHide(roundMode({ ...base, phase: 'running', simulation: true }))).toBe(false);
     expect(canHide(roundMode({ ...base, phase: 'won' }))).toBe(false);
     expect(canHide(roundMode({ ...base, phase: 'lost' }))).toBe(false);
+  });
+
+  /** Kisten, Konsolen und Medkit sagen in der Übung vor dem Start, warum nicht. */
+  it('sagt in der Übung, dass Kisten und Konsolen erst mit der Runde gehen', () => {
+    expect(roundOnlyNote('practice')).toBe(ROUND_ONLY);
+    expect(ROUND_ONLY).toContain(FLOW.real);
+    expect(roundOnlyNote('demo')).toBeNull();
+    expect(roundOnlyNote('over')).toBeNull();
+    expect(roundOnlyNote('real')).toBeNull();
   });
 
   /**

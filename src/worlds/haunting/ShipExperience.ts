@@ -92,6 +92,7 @@ import {
   pauseActions,
   pauseTitle,
   roundMode,
+  roundOnlyNote,
   type RoundMode,
 } from './rules/roundFlow';
 import {
@@ -916,6 +917,25 @@ export class ShipExperience {
   private get hideable(): boolean {
     return this.player && !this.crew.simulation && canHide(this.roundMode());
   }
+  /**
+   * **`active` mit Auskunft** — für Kisten, Konsolen und Medkit. In der Übung
+   * vor dem Start sagen sie, dass erst die Runde laufen muss
+   * (`rules/roundFlow.roundOnlyNote`), statt den Druck stumm zu schlucken;
+   * höchstens alle zwei Sekunden, denn eine Konsole bekommt beim Ziehen
+   * viele Eingaben hintereinander.
+   */
+  private roundOnly(): boolean {
+    if (this.active) return true;
+    if (!this.player || this.crew.simulation) return false;
+    const note = roundOnlyNote(this.roundMode());
+    const now = performance.now();
+    if (note && now - this.roundOnlySaid > 2000) {
+      this.roundOnlySaid = now;
+      this.host.say(note);
+    }
+    return false;
+  }
+  private roundOnlySaid = -Infinity;
 
   private screen(width: number, height: number, pixels = 512): Screen {
     const canvas = document.createElement('canvas');
@@ -1199,7 +1219,7 @@ export class ShipExperience {
    * eine zweite Wartezeit vor „Leer." wäre nur eine Strafe fürs Nachsehen.
    */
   private openCabinet(id: string): void {
-    if (!this.active) return;
+    if (!this.roundOnly()) return;
     if (this.chore) {
       // Derselbe Knopf bricht ab — sonst wird man den Balken nur los, indem
       // man wegläuft.
@@ -1410,7 +1430,7 @@ export class ShipExperience {
   private takeDropped(id: string): void {
     const spec = this.host.spec();
     const state = this.host.state();
-    if (!this.active) return;
+    if (!this.roundOnly()) return;
     if (!canCarryPart(spec, state)) {
       this.host.say(fullHandsText(spec, state));
       this.sound('error');
@@ -1774,7 +1794,7 @@ export class ShipExperience {
     this.host.say(`${console.repair.title}: Rätsel in der Tafel.`);
   }
   private repairInput(id: string, x: number, y: number): void {
-    if (!this.active || this.crew.hidden) return;
+    if (!this.roundOnly() || this.crew.hidden) return;
     this.host.ctx.rig.getHeadPosition(_head);
     const console = this.consoles
       .filter((c) => c.repair.id === id && (!c.training || this.crew.options.test))
@@ -2353,7 +2373,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
 
   private heal(): void {
     const index = this.crew.inventory.indexOf('medkit');
-    if (!this.active || index < 0 || this.crew.hp === 3 || this.crew.hp === 0) {
+    if (!this.roundOnly()) return;
+    if (index < 0 || this.crew.hp === 3 || this.crew.hp === 0) {
       this.host.say('Medkit nötig, oder Anzug bereits intakt.');
       return;
     }
