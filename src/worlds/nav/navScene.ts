@@ -3,6 +3,8 @@ import type { NavBox } from './navBake';
 import { doorSpec, type DoorMaterial } from './navDoor';
 import { wallState, type NavGraph } from './navGraph';
 import type { NavLayer, NavLayerState } from './navLayers';
+import { markInfoPart } from '../../core/infoViewScene';
+import type { InfoPart } from '../../core/infoViews';
 import { DEFAULT_RADIUS, cornerBlocked, shrinkFor, type PathPoint } from './navPath';
 import {
   DIR_E,
@@ -61,6 +63,23 @@ export function boxesFrom(objects: Iterable<THREE.Object3D>): NavBox[] {
 
 /** Wie weit über dem Boden die Linien liegen, damit sie nicht darin flimmern. */
 const LIFT = 0.06;
+
+/**
+ * **In welches Fach der Info-Ansichten jede Ebene gehört**
+ * (`core/infoViews.ts`): Kacheln, Fläche und Sperren sind Räume, die Wände
+ * Wände, Wege und Sicht die NPCs. Die Fläche, die Verbindungsbögen und die
+ * Sichtfächer sind außerdem **fest** — sie füllen etwas oder gehen in die
+ * Höhe, und „Nur 2D-Pfad" lässt sie weg.
+ */
+export const NAV_LAYER_PARTS: Readonly<Record<NavLayer, readonly InfoPart[]>> = {
+  tiles: ['rooms'],
+  floor: ['rooms', 'solid'],
+  walls: ['walls'],
+  links: ['solid'],
+  blocked: ['rooms'],
+  paths: ['actors'],
+  sight: ['actors', 'solid'],
+};
 
 export interface NavDebugColors {
   tile: number;
@@ -370,6 +389,7 @@ function addFaces(
     }),
   );
   mesh.name = layer;
+  markInfoPart(mesh, ...NAV_LAYER_PARTS[layer]);
   mesh.renderOrder = 895;
   parent.add(mesh);
 }
@@ -392,6 +412,7 @@ function addLines(
   });
   const lines = new THREE.LineSegments(geometry, material);
   lines.name = layer;
+  markInfoPart(lines, ...NAV_LAYER_PARTS[layer]);
   // Über allem: ein Debug-Gitter, das hinter einer Wand verschwindet, hilft
   // genau dort nicht, wo man es braucht.
   lines.renderOrder = 900;
@@ -416,11 +437,16 @@ export function navPathView(
   graph: NavGraph,
   route: readonly PathPoint[],
   color = 0x5ee0a0,
+  flat = false,
 ): THREE.Line {
+  // **Flach** („Nur 2D-Pfad", `core/infoViews.ts`) liegt der Weg auf dem
+  // Boden wie die Kacheln, sonst eine Handbreit darüber, damit er über der
+  // Fläche zu lesen ist.
+  const lift = flat ? LIFT : LIFT + 0.25;
   const points: number[] = [];
   for (const point of route) {
     const at = graph.worldOf(point.tile);
-    points.push(point.x, at.y + LIFT + 0.25, point.z);
+    points.push(point.x, at.y + lift, point.z);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));

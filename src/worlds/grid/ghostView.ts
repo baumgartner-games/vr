@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { fadeInfoMaterial } from '../../core/infoViewScene';
+import { infoView } from '../../core/infoViews';
 import type { GhostBox } from './wallGhost';
 
 /**
@@ -72,8 +74,11 @@ export class GhostBoxView {
     shoulder: number,
     boxes: Iterable<GhostBoxLine>,
   ): void {
+    // Die Darstellungsoptionen (`core/infoViews.ts`): ohne Wände nur die
+    // Spalte der Figur — die Kästen sind Wände, Massen und Modelle.
+    const look = infoView('ghost');
     const near: GhostBoxLine[] = [];
-    for (const one of boxes) {
+    for (const one of look.walls ? boxes : []) {
       const dx = Math.max(Math.abs(one.box.x - aim.x) - one.box.w / 2, 0);
       const dz = Math.max(Math.abs(one.box.z - aim.z) - one.box.d / 2, 0);
       if (Math.hypot(dx, dz) <= GHOST_VIEW_REACH) near.push(one);
@@ -127,6 +132,7 @@ export class GhostBoxView {
     position.needsUpdate = true;
     color.needsUpdate = true;
     lines.geometry.setDrawRange(0, at);
+    fadeInfoMaterial(lines.material, look.opacity);
     lines.visible = true;
   }
 

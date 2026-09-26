@@ -514,6 +514,14 @@ Gerechnet wird alles in **Blattkoordinaten** (0…1, _v_ nach unten wie auf jede
 Leinwand) und ohne three.js, damit es ohne Brille geprüft werden kann;
 `MapTool.ts` malt nur noch.
 
+**Und was sie zeigt, lässt sich einstellen** — mit demselben Optionsfeld wie
+jede andere Info-Ansicht (_Menü → Grafik → Info-Ansichten → Karte in der
+Hand_, siehe [Wie schön es aussieht](grafik.md#info-ansichten-ein-optionsfeld-für-alle)):
+Böden, Wände, **NPCs mit ihren Wegen und Zielen** (grüne Punkte, gestrichelte
+Wege, ein Ring am Ziel — `NpcControl.sketch`), „Nur 2D-Pfad" (die Kacheln als
+dünnes Raster statt als Fläche, die Wege durchgezogen) und die Deckkraft des
+Blatts.
+
 ## Was aus dem Beutel kommt
 
 > **Und was aus dem Regal kommt**, steht nebenan: Neben dem Beutel hängt im

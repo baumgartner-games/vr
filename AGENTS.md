@@ -151,7 +151,7 @@ Stichpunkten).
 - **[Architektur](docs/agents/architektur.md)** — Der Überblick: welcher Ordner was tut, und warum die Rechnung neben der Darstellung steht.
 - **[Das Zellgitter](docs/agents/zellgitter.md)** — Halbe Kacheln, Figuren auf 2 × 2, Wände unter 45° — und was noch nicht auf Zellen läuft.
 - **[Wie schön es aussieht](docs/agents/grafik.md)** — Licht, Schatten, Regler — und was ein Bild in der Brille kostet.
-  Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Ghosting zeigen · Position zeigen · Griffe zeigen · Squishy: die Figur federt beim Laufen und atmet im Stehen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht.
+  Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Ghosting zeigen · Position zeigen · Griffe zeigen · Info-Ansichten: ein Optionsfeld für alle · Squishy: die Figur federt beim Laufen und atmet im Stehen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht.
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
   Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Das vierte: ein Regal und kein Katalog · Was aus dem Regal die gebaute Geometrie ersetzt — und was nicht · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — der Umbau, während man darin steht, und die drei Spielmodi.
@@ -161,7 +161,7 @@ Stichpunkten).
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.
   Darin: Wie man aussieht · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.
-  Darin: Wer hier herumläuft · Charakter: übernehmen, vormachen, nachspielen · Wie sich NPCs orientieren.
+  Darin: Wer hier herumläuft · Charakter: übernehmen, vormachen, nachspielen · Wie sich NPCs orientieren · Verhalten: Plätze aufsuchen, warten, ausweichen.
 - **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, und wie Portale und Spiegel rechnen.
   Darin: Welten auf dem Kachelgitter · Eine neue Welt hinzufügen · Wie die Portale funktionieren · Wie die Spiegel funktionieren.
 - **[Zusammen spielen](docs/agents/netzwerk.md)** — Peer-to-Peer, Chat, Stimmen, geteilte Objekte, Zuschauen, asymmetrisches Spielen.
