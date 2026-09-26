@@ -46,6 +46,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Eine eingerichtete Spielküche mit Gastraum: Gäste kommen herein, setzen sich und bestellen. Brötchen, Patty von der Grillplatte, Salat vom Brett — auf einen Teller und an den Tisch, bevor die Geduld reißt. Jeden Tag mehr Gäste und eine längere Karte.',
     accent: 0xf2a33a,
+    preview: 'worlds/plateup.webp',
     roles: ['vr', 'desktop', 'handheld'],
     load: async () => new (await import('./plateup/PlateUpWorld')).PlateUpWorld(),
   },
