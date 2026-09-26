@@ -3,6 +3,7 @@ import { SPACE_RANGER } from '../../core/avatarFigures';
 import { denyShadow } from '../../core/graphicsScene';
 import './haunting.css';
 import { clickedKey, el } from './ui/dom';
+import { ShipToast, toastPlace } from './ui/shipToast';
 import { key as uiKey } from './ui/widgets';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
@@ -86,11 +87,13 @@ import {
 import { botArchivist, describeSetup, loadSetup, powersOf } from './rules/roundSetup';
 import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import {
+  canHide,
   FLOW,
   MODE_TEXT,
   pauseActions,
   pauseTitle,
   roundMode,
+  roundOnlyNote,
   type RoundMode,
 } from './rules/roundFlow';
 import {
@@ -483,6 +486,8 @@ export class ShipExperience {
    * Dieselbe Rechnung (`rules/roundHud.ts`), dieselben Zeilen.
    */
   private readonly hudDom = el('div', 'orbital-hud');
+  /** Die Meldungen am Bildschirm (`ui/shipToast.ts`, `flash`). */
+  private readonly toast = new ShipToast();
   private readonly command: Screen;
   private readonly dom = el('section', 'orbital-player');
   /**
@@ -698,7 +703,13 @@ export class ShipExperience {
       document.body.classList.add('orbital-on');
       this.hudDom.hidden = true;
       this.hudDom.setAttribute('role', 'status');
-      document.body.append(this.dom, this.crosshair, this.optionsRoot, this.hudDom);
+      document.body.append(
+        this.dom,
+        this.crosshair,
+        this.optionsRoot,
+        this.hudDom,
+        this.toast.element,
+      );
       // Ducken: `Strg` gehalten — die eine Taste dieser Welt (siehe `crouchHeld`).
       window.addEventListener('keydown', this.keyDown);
       window.addEventListener('keyup', this.keyUp);
@@ -905,6 +916,75 @@ export class ShipExperience {
   private get active(): boolean {
     const phase = this.host.state().phase;
     return this.player && (phase === 'running' || this.crew.options.test) && !this.crew.simulation;
+  }
+  /**
+   * **Ob der Schutzschrank antwortet** — weiter gefasst als `active`: auch in
+   * der Übungsrunde vor dem Start (`rules/roundFlow.ts`, `canHide`). Kisten
+   * und Konsolen bleiben dort zu, sie gehören der Runde; der Schrank ist zum
+   * Ausprobieren da und ändert an ihr nichts.
+   */
+  private get hideable(): boolean {
+    return this.player && !this.crew.simulation && canHide(this.roundMode());
+  }
+  /**
+   * **`active` mit Auskunft** — für Kisten, Konsolen und Medkit. In der Übung
+   * vor dem Start sagen sie, dass erst die Runde laufen muss
+   * (`rules/roundFlow.roundOnlyNote`), statt den Druck stumm zu schlucken;
+   * höchstens alle zwei Sekunden, denn eine Konsole bekommt beim Ziehen
+   * viele Eingaben hintereinander.
+   */
+  private roundOnly(): boolean {
+    if (this.active) return true;
+    if (!this.player || this.crew.simulation) return false;
+    const note = roundOnlyNote(this.roundMode());
+    const now = performance.now();
+    if (note && now - this.roundOnlySaid > 2000) {
+      this.roundOnlySaid = now;
+      this.host.say(note);
+    }
+    return false;
+  }
+  private roundOnlySaid = -Infinity;
+  /**
+   * **Eine Meldung kurz einblenden** — am Bildschirm und am Telefon
+   * (`ui/shipToast.ts`); die Welt reicht jede Ansage hierher
+   * (`HauntingWorld.announce`). In der Brille, ohne Tafel (Zuschauer, Bot-Runde
+   * ohne Spieler) und bei offenem Menü nicht: Dort gibt es das Handgelenk.
+   */
+  flash(text: string): void {
+    const ctx = this.host.ctx;
+    if (!this.player || ctx.renderer.xr.isPresenting || ctx.menu.isOpen || !text) return;
+    if (!this.dom.isConnected || this.dom.hidden) return;
+    this.toast.show(text, this.toastSpot());
+  }
+  /**
+   * Wo die Einblendung gerade hingehört — je Bild neu, solange sie steht: Die
+   * Tafel wächst oft im selben Augenblick (nach dem Einstieg in den Schrank
+   * kommt „Schutzschrank verlassen" dazu), und eine Meldung, die dann unter
+   * ihr läge, wäre keine.
+   */
+  private toastSpot(): ReturnType<typeof toastPlace> {
+    const box = (node: Element | undefined): DOMRect | null => {
+      if (!node || !node.isConnected) return null;
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 ? rect : null;
+    };
+    // Was schon oben im Bild liegt: Kompass, Tastenhilfe, Werkzeugknopf und
+    // die Knöpfe am Glas (am Telefon quer rücken sie nach oben).
+    const others = [
+      this.compass?.element,
+      ...document.querySelectorAll(
+        '.hints, #hud-tool, #touch .touch__btn, #touch .touch__stick, #touch .touch__turn',
+      ),
+    ]
+      .map((node) => box(node))
+      .filter((rect): rect is DOMRect => rect !== null);
+    return toastPlace(
+      { width: window.innerWidth, height: window.innerHeight },
+      12,
+      this.dom.hidden ? null : box(this.dom),
+      others,
+    );
   }
 
   private screen(width: number, height: number, pixels = 512): Screen {
@@ -1189,7 +1269,7 @@ export class ShipExperience {
    * eine zweite Wartezeit vor „Leer." wäre nur eine Strafe fürs Nachsehen.
    */
   private openCabinet(id: string): void {
-    if (!this.active) return;
+    if (!this.roundOnly()) return;
     if (this.chore) {
       // Derselbe Knopf bricht ab — sonst wird man den Balken nur los, indem
       // man wegläuft.
@@ -1400,7 +1480,7 @@ export class ShipExperience {
   private takeDropped(id: string): void {
     const spec = this.host.spec();
     const state = this.host.state();
-    if (!this.active) return;
+    if (!this.roundOnly()) return;
     if (!canCarryPart(spec, state)) {
       this.host.say(fullHandsText(spec, state));
       this.sound('error');
@@ -1480,7 +1560,7 @@ export class ShipExperience {
       ghost: null,
     });
     const press = (): void => {
-      if (!this.active) return;
+      if (!this.hideable) return;
       const locker = this.lockers.find((l) => l.id === id)!;
       if (locker.open) {
         this.enterLocker(locker);
@@ -1523,7 +1603,7 @@ export class ShipExperience {
    * Tastenfeld und das Panel ihn noch schicken; er sagt nichts mehr.
    */
   private lockerDigit(id: string, _digit: number): void {
-    if (!this.active) return;
+    if (!this.hideable) return;
     if (this.crew.hidden) {
       this.leaveLocker();
       return;
@@ -1562,10 +1642,16 @@ export class ShipExperience {
     // (`stepLockerExit` läuft im selben Bild danach).
     this.interactionCooldown = 0.2;
     this.ghostLocker(locker, true);
+    // Hinaus geht es mit dem Knopf des Geräts, das gerade bedient
+    // (`useSpecial`): `E`, `A` am Glas, `Ⓐ` am Pad — oder in der Tafel.
+    const pads = document.getElementById('touch');
+    const device = hintDevice(padNav.device, pads !== null && !pads.hidden);
     this.host.say(
       this.host.ctx.renderer.xr.isPresenting
         ? 'Geschützt. Trigger oder Greifen, um herauszutreten.'
-        : 'Geschützt. AUSGANG vor dir antippen oder E drücken, um herauszutreten.',
+        : device === 'keyboard'
+          ? 'Geschützt. E drücken, um herauszutreten.'
+          : 'Geschützt. A drücken, um herauszutreten.',
     );
     this.sound('door');
   }
@@ -1764,7 +1850,7 @@ export class ShipExperience {
     this.host.say(`${console.repair.title}: Rätsel in der Tafel.`);
   }
   private repairInput(id: string, x: number, y: number): void {
-    if (!this.active || this.crew.hidden) return;
+    if (!this.roundOnly() || this.crew.hidden) return;
     this.host.ctx.rig.getHeadPosition(_head);
     const console = this.consoles
       .filter((c) => c.repair.id === id && (!c.training || this.crew.options.test))
@@ -2343,7 +2429,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
 
   private heal(): void {
     const index = this.crew.inventory.indexOf('medkit');
-    if (!this.active || index < 0 || this.crew.hp === 3 || this.crew.hp === 0) {
+    if (!this.roundOnly()) return;
+    if (index < 0 || this.crew.hp === 3 || this.crew.hp === 0) {
       this.host.say('Medkit nötig, oder Anzug bereits intakt.');
       return;
     }
@@ -2493,6 +2580,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         if (hidden) this.savedRigFrozen = ctx.rig.frozen;
         ctx.rig.frozen = hidden || this.savedRigFrozen;
         this.hiddenWas = hidden;
+        // Wer im Schrank steckte, als die Runde neu anfing (Übung → echte
+        // Runde, Abbrechen), verliert das Versteck mit dem frischen Stand —
+        // dann darf auch der durchsichtige Schrank nicht stehen bleiben.
+        if (!hidden) for (const locker of this.lockers) this.ghostLocker(locker, false);
       }
       // **Das Panel und das Weltmenü teilen sich die linke Bildhälfte** — und
       // lagen deshalb auf 1280×800 übereinander (Befund: y ≈ 460–590). Wer
@@ -2514,6 +2605,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       // derselbe Inhalt, zwei Stellen, weil die Kamera von oben eine andere ist.
       this.hud.mesh.visible = !!round && ctx.renderer.xr.isPresenting;
       this.hudDom.hidden = !round || ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
+      if (ctx.renderer.xr.isPresenting || ctx.menu.isOpen) this.toast.hide();
+      else if (!this.toast.element.hidden) this.toast.move(this.toastSpot());
       this.hudTimer -= dt;
       // **Der Ladebalken läuft schneller als die Uhr.** Ein Balken, der
       // viermal je Sekunde springt, sieht aus wie ein Ruckeln; solange ein
@@ -4004,6 +4097,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     disposeObject(this.hud.mesh);
     this.dom.remove();
     this.hudDom.remove();
+    this.toast.dispose();
     this.dom.removeEventListener('click', this.domClick);
     document.body.classList.remove('orbital-on');
     this.optionsRoot.remove();
