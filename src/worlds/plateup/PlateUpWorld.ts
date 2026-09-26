@@ -45,7 +45,9 @@ import {
   type StationSpot,
 } from './plateUpPlan';
 import {
+  EAT_SECONDS,
   boardLine,
+  clockText,
   guestAt,
   guestGone,
   menuItem,
@@ -57,6 +59,7 @@ import {
   serveTable,
   signText,
   stepShift,
+  timeLeft,
   type Guest,
   type Shift,
   type ShiftEvent,
@@ -109,6 +112,19 @@ export class PlateUpWorld extends GridWorld {
   /** Das Schildchen über der Glocke — nur, solange der Laden zu ist. */
   private bellTag: TextPlane | null = null;
   private boardText = '';
+  /**
+   * **Die Zeile am Schirm** — Tag, Uhr, bedient, verloren, Kasse, oben in der
+   * Mitte über dem Bild. Die Tafel an der Nordwand sagt dasselbe, aber sie ist
+   * nur zu sehen, solange die Kamera in der Küche steht; wer im Gastraum
+   * serviert, will die Uhr trotzdem sehen. In der Brille bleibt sie aus.
+   */
+  private strip: HTMLDivElement | null = null;
+  /**
+   * **Das Schild als Karte am Telefon** — im Hochformat ist die Tafel im Raum
+   * zu klein zum Lesen (sie muss ins Bild passen), also steht derselbe Text
+   * unten als Karte, solange der Laden zu ist.
+   */
+  private card: HTMLDivElement | null = null;
   private signKey = '';
   private readonly route = routePlan();
   private readonly floors: THREE.Mesh[] = [];
@@ -231,7 +247,15 @@ export class PlateUpWorld extends GridWorld {
     this.refreshUsables();
     this.carryInHands(ctx);
     this.refreshBoards();
+    this.refreshStrip(ctx);
     this.gauges?.update(dt);
+    // **Im Hochformat schrumpfen die Tafeln.** Ein Schild von 3,4 m ragt auf
+    // einem Telefon links und rechts aus dem Bild — und was man dort lesen
+    // soll, steht genau am Rand.
+    const aspect = (ctx.viewCamera ?? ctx.camera).aspect;
+    const fit = ctx.topDown && aspect < 1 ? Math.max(0.45, aspect * 0.95) : 1;
+    this.sign?.scale.setScalar(fit);
+    this.board?.scale.setScalar(fit);
     if (this.southGlass) {
       const see = ctx.topDown;
       this.southGlass.opacity = see ? 0.22 : 1;
@@ -276,6 +300,10 @@ export class PlateUpWorld extends GridWorld {
     this.effects.length = 0;
     this.gauges?.dispose();
     this.gauges = null;
+    this.strip?.remove();
+    this.strip = null;
+    this.card?.remove();
+    this.card = null;
     this.board?.dispose();
     this.sign?.dispose();
     this.bellTag?.dispose();
@@ -622,6 +650,84 @@ export class PlateUpWorld extends GridWorld {
     this.signKey = '';
   }
 
+  private refreshStrip(ctx: WorldContext): void {
+    if (typeof document === 'undefined') return;
+    if (!this.strip) {
+      const strip = document.createElement('div');
+      strip.className = 'plateup-strip';
+      strip.style.cssText = [
+        'position:fixed',
+        'left:50%',
+        'top:calc(env(safe-area-inset-top, 0px) + 64px)',
+        'transform:translateX(-50%)',
+        'padding:6px 14px',
+        'border-radius:999px',
+        'background:rgba(20,24,32,0.82)',
+        'border:2px solid #f2a33a',
+        'color:#fff',
+        'font:600 14px/1.2 system-ui,sans-serif',
+        'white-space:nowrap',
+        'pointer-events:none',
+        'z-index:4',
+        'max-width:calc(100vw - 24px)',
+        'overflow:hidden',
+        'text-overflow:ellipsis',
+      ].join(';');
+      document.body.appendChild(strip);
+      this.strip = strip;
+    }
+    const open = this.shift.phase === 'open' || this.shift.phase === 'closing';
+    const flat = !ctx.renderer.xr.isPresenting;
+    const narrow = window.innerWidth < 520 || window.innerWidth < window.innerHeight;
+    this.strip.hidden = !(open && flat);
+    if (open && flat) {
+      const text = narrow ? stripShort(this.shift) : boardLine(this.shift);
+      if (this.strip.textContent !== text) this.strip.textContent = text;
+    }
+    const cardOn = !open && flat && narrow && ctx.topDown;
+    if (this.sign) this.sign.visible = this.sign.visible && !cardOn;
+    if (!cardOn) {
+      if (this.card) this.card.hidden = true;
+      return;
+    }
+    if (!this.card) {
+      const card = document.createElement('div');
+      card.className = 'plateup-card';
+      card.style.cssText = [
+        'position:fixed',
+        'left:50%',
+        'bottom:calc(env(safe-area-inset-bottom, 0px) + 18px)',
+        'transform:translateX(-50%)',
+        'width:min(92vw, 420px)',
+        'box-sizing:border-box',
+        'padding:12px 16px',
+        'border-radius:16px',
+        'background:rgba(20,24,32,0.9)',
+        'border:2px solid #f2a33a',
+        'color:#e8e8e8',
+        'font:14px/1.35 system-ui,sans-serif',
+        'white-space:pre-line',
+        'pointer-events:none',
+        'z-index:4',
+      ].join(';');
+      document.body.appendChild(card);
+      this.card = card;
+    }
+    this.card.hidden = false;
+    const sign = signText(this.shift);
+    const text = `${sign.title}\n${sign.body}`;
+    if (this.card.dataset.text !== text) {
+      this.card.dataset.text = text;
+      this.card.textContent = '';
+      const head = document.createElement('div');
+      head.textContent = sign.title;
+      head.style.cssText = 'font:700 20px/1.2 system-ui,sans-serif;color:#fff;margin-bottom:6px';
+      const body = document.createElement('div');
+      body.textContent = sign.body.replace(/\n(?=[a-zäöüß(])/g, ' ');
+      this.card.append(head, body);
+    }
+  }
+
   private refreshBoards(): void {
     const line = boardLine(this.shift);
     const orders = [...this.shift.guests]
@@ -941,6 +1047,12 @@ export class PlateUpWorld extends GridWorld {
           continue;
         }
       }
+      if (guest && guest.phase === 'eating') {
+        // **Der Burger wird kleiner**, während gegessen wird — bis auf ein
+        // Drittel; der Teller bleibt, wie er ist.
+        const food = this.tableViews[guest.table]?.plate?.children[1];
+        food?.scale.setScalar(0.35 + (0.65 * guest.eat) / EAT_SECONDS);
+      }
       if (guest && view.mode === 'sit') {
         const waiting = guest.phase === 'waiting';
         view.bubble.sprite.visible = waiting;
@@ -1004,6 +1116,12 @@ export class PlateUpWorld extends GridWorld {
   /** Den Laden öffnen, ohne zur Glocke zu laufen. */
   debugOpen(): void {
     this.ringBell();
+  }
+
+  /** Gleich an einem späteren Tag aufmachen (nur zum Prüfen). */
+  debugDay(day: number): void {
+    this.clearGuests();
+    this.shift = openDay({ ...newShift(7), phase: 'closed', day: Math.max(0, day - 1) });
   }
 
   /** Die Figur versetzen (nur zum Prüfen). */
@@ -1092,6 +1210,12 @@ interface GuestView {
   mode: 'in' | 'sit' | 'out';
   readonly bubble: OrderBubble;
   angry: boolean;
+}
+
+/** Die Zeile am Schirm, kurz fürs Hochformat. */
+function stripShort(shift: Shift): string {
+  const clock = shift.phase === 'open' ? clockText(timeLeft(shift)) : 'Schluss';
+  return `Tag ${shift.day} · ${clock} · ✓ ${shift.served} · ✗ ${shift.lost} · ${shift.coins} Münzen`;
 }
 
 /** Ein Schlüssel für ein Gericht — zum Vergleichen, ob sich das Bild ändern muss. */

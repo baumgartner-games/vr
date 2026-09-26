@@ -134,7 +134,7 @@ export const DECOR: readonly DecorPiece[] = [
   // --- Gastraum ----------------------------------------------------------
   {
     source: 'kaykit',
-    name: 'furniture-bits/rug_rectangle_stripes_B.glb',
+    name: 'furniture-bits/rug_rectangle_A.glb',
     x: 7,
     z: 7.9,
     yaw: E,

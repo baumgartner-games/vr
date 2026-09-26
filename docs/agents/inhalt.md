@@ -1675,6 +1675,12 @@ im Spiel also zwei Kacheln —, und in eine
     Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
     richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
     hinge derselbe Aushang für diesen Blick hochkant.
+  - **Nebenan: der Burgerladen.** Im Gang südlich der Küche, am Westrand,
+    steht ein Tor (`kitchenPlan.BURGER_GATE`) in eine eigene Welt: eine
+    eingerichtete Spielküche mit Gastraum, in der Gäste kommen, bestellen,
+    essen und zahlen — ein Spiel nach _PlateUp!_ mit denselben Regeln am
+    Möbel wie hier (`kitchenDeed`). Ausführlich unter
+    [Der Burgerladen](./burgerladen.md).
   - **Die zweite Küche ist weg** (September 2026). Ganz oben im Norden stand
     über der ersten ein Restaurant aus dem **zweiten** Möbelkatalog
     (`core/dinerFit.ts`, 156 Stücke aus _Restaurant Bits_, CC0 — siehe
