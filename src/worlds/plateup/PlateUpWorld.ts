@@ -97,7 +97,7 @@ import {
   type ShopItem,
 } from './plateUpShop';
 import { tutorialFinished, tutorialHint, type TutorialHint } from './plateUpTutorial';
-import { stationAction, tableAction } from './plateUpHints';
+import { clearanceAbove, stationAction, tableAction } from './plateUpHints';
 
 /**
  * **Der Burgerladen** — eine kleine Küchenwelt mit Gastraum und einem Spiel
@@ -2657,15 +2657,24 @@ class Smoke {
 
 /**
  * **Wie weit etwas vom unteren Rand weg muss**, um über der Tastenleiste zu
- * stehen (`ui/ControlHints`, `.hints`) — am Telefon ist sie drei Zeilen hoch.
- * Mindestens `min` Pixel.
+ * stehen (`ui/ControlHints`, `.hints`) — und am Glas, wo die Tastenleiste
+ * oben steht, über den Stöcken, Knöpfen und dem Werkzeug-Knopf
+ * (`plateUpHints.clearanceAbove`). Mindestens `min` Pixel.
  */
 function aboveHints(min: number): number {
-  const hints = document.querySelector('.hints');
-  if (!(hints instanceof HTMLElement) || hints.hidden) return min;
-  const top = hints.getBoundingClientRect().top;
-  if (top <= 0) return min;
-  return Math.round(Math.max(min, window.innerHeight - top + 8));
+  const tops: number[] = [];
+  const touch = document.querySelector('#touch:not([hidden])') !== null;
+  for (const el of document.querySelectorAll(
+    touch
+      ? '.hints, #touch .touch__stick, #touch .touch__btn, #touch .touch__turn, #hud-tool'
+      : '.hints',
+  )) {
+    if (!(el instanceof HTMLElement)) continue;
+    const box = el.getBoundingClientRect();
+    // Versteckt (`hidden`, `display: none`) hat keine Fläche.
+    if (box.width > 0 && box.height > 0) tops.push(box.top);
+  }
+  return clearanceAbove(tops, window.innerHeight, min);
 }
 
 /** Ob die Willkommens-Karte der Welt gerade am Schirm steht (`ui/WorldWelcome.ts`). */

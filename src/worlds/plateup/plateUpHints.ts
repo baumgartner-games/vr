@@ -63,3 +63,20 @@ export function tableAction(deed: KitchenDeed, serves: boolean, holding: boolean
   if (deed.do === 'refuse') return null;
   return serves ? 'Servieren' : 'Passt nicht';
 }
+
+/**
+ * **Wie weit eine Leiste vom unteren Rand weg muss**, um über allem zu
+ * stehen, was unten am Schirm liegt: der Tastenhilfe (`.hints`) und am Glas
+ * den Stöcken und Knöpfen (`#touch`). `tops` sind deren Oberkanten in
+ * Pixeln. Was in der oberen Hälfte steht, zählt nicht — am Glas rückt die
+ * Tastenhilfe nach oben (`controlHints.css`), und von dort aus gemessen
+ * rutschte die Leiste unter die Kopfzeile. Mindestens `min` Pixel.
+ */
+export function clearanceAbove(tops: readonly number[], height: number, min: number): number {
+  let clear = min;
+  for (const top of tops) {
+    if (top <= height / 2 || top >= height) continue;
+    clear = Math.max(clear, Math.round(height - top + 8));
+  }
+  return clear;
+}

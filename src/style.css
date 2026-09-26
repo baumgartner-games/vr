@@ -152,6 +152,9 @@ html, body {
 .plateup-strip { top: calc(env(safe-area-inset-top, 0px) + 64px); max-width: calc(100vw - 24px); padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); font: 600 14px/1.2 var(--hud-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plateup-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); width: min(92vw, 420px); padding: 12px 16px; border-radius: var(--hud-radius); font: 14px/1.35 var(--hud-font); white-space: pre-line; }
 .plateup-strip[hidden], .plateup-card[hidden] { display: none; }
+/* Am Glas steht die Tastenhilfe oben (`controlHints.css`) — Tafelzeile und Bestellzettel rücken darunter, statt verdeckt zu werden. */
+body:has(.hints[data-device="touch"]:not([hidden])) .plateup-strip { top: calc(env(safe-area-inset-top, 0px) + 104px); }
+body:has(.hints[data-device="touch"]:not([hidden])) .plateup-tickets { top: calc(env(safe-area-inset-top, 0px) + 140px); }
 /*
   Die Leiste unten (Tipp der Einsteigerhilfe, was man in der Hand hat) und die
   Bestellzettel oben. `bottom` der Leiste setzt der Code (über der

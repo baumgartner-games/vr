@@ -3,7 +3,7 @@ import { defaultInputConfig } from '../../core/inputMap';
 import { dish, type Dish } from '../test/zones/kitchenRecipes';
 import { STATIONS } from './plateUpPlan';
 import { newShift, openDay, seatGuest, serveTable, stepShift } from './plateUpGame';
-import { stationAction, tableAction } from './plateUpHints';
+import { clearanceAbove, stationAction, tableAction } from './plateUpHints';
 import { freshStations, stationDeed, useStation, type StationState } from './plateUpStations';
 
 const at = (id: string): StationState => freshStations(STATIONS).find((s) => s.spot.id === id)!;
@@ -69,5 +69,18 @@ describe('Burgerladen: Tastenhilfe nach Station', () => {
     }).map((item) => item.label);
     expect(evening).toContain('Hinstellen');
     expect(evening).not.toContain('Glocke läuten');
+  });
+});
+
+describe('clearanceAbove', () => {
+  it('stellt die Leiste über die Tastenhilfe unten', () => {
+    expect(clearanceAbove([700], 800, 64)).toBe(108);
+  });
+  it('misst nicht von der Tastenhilfe oben am Glas, aber von den Stöcken', () => {
+    expect(clearanceAbove([58], 844, 64)).toBe(64);
+    expect(clearanceAbove([58, 592, 690], 844, 64)).toBe(260);
+  });
+  it('bleibt ohne Hindernis beim Mindestabstand', () => {
+    expect(clearanceAbove([], 844, 18)).toBe(18);
   });
 });
