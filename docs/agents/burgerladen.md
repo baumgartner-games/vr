@@ -150,4 +150,6 @@ n-fach — im Browser ohne Grafikkarte kommen drei Bilder je Sekunde an),
 - Kein Abwasch (die Teller verschwinden nach dem Essen), kein Feuer, keine
   Gruppen an einem Tisch, keine Einrichtung zwischen den Tagen wie bei
   _PlateUp!_.
-- Kein eigener Ton.
+- **Ton nur gerechnet**: Glocke, Aufnehmen/Ablegen, Servieren, Kasse und der
+  hungrige Gast sind Töne aus `core/Audio.playTone` — keine Aufnahmen wie in
+  der Testküche (`kitchenSound.ts`).

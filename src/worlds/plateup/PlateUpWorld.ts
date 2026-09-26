@@ -5,6 +5,7 @@ import type { Usable, UseSource } from '../../core/usable';
 import type { KaykitFigure } from '../../core/kaykitFigure';
 import { CHEF_CARRY, canLoadModels } from '../../core/chefFit';
 import { kitchenEyeScale } from '../../core/posture';
+import { playPick, playTone } from '../../core/Audio';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { MenuEntry } from '../../ui/menu';
 import { TextPlane } from '../../ui/TextPlane';
@@ -492,6 +493,7 @@ export class PlateUpWorld extends GridWorld {
       return false;
     }
     const tookHand = !this.carried && result.held;
+    playPick(!!result.held && deed.do !== 'scrape');
     this.stations = this.stations.map((s, i) => (i === index ? result.station : s));
     this.setHeld(result.held, tookHand ? (by.hand ?? null) : this.carriedHand);
     return true;
@@ -584,6 +586,7 @@ export class PlateUpWorld extends GridWorld {
       }
     }
     this.announce(`${menuItem(result.guest.order).label} serviert — guten Appetit!`);
+    chime([660, 880], 0.12);
     return true;
   }
 
@@ -767,6 +770,9 @@ export class PlateUpWorld extends GridWorld {
     if (phase === 'over') this.clearGuests();
     this.shift = openDay(this.shift);
     this.announce(`Tag ${this.shift.day}: Der Laden ist offen!`);
+    // Die Glocke: ein heller Schlag mit einem Oberton, der nachklingt.
+    playTone({ type: 'sine', from: 1318, duration: 0.9, gain: 0.08 });
+    playTone({ type: 'sine', from: 2637, duration: 0.5, gain: 0.03 });
     this.effects.push(new Ring(this.root, this.bell?.position ?? _v.set(0, 0, 0), 0xf2a33a));
     return true;
   }
@@ -863,9 +869,11 @@ export class PlateUpWorld extends GridWorld {
         if (thing.parent !== controller.hold) controller.hold.add(thing);
         thing.position.set(0, -0.02, -0.08);
         thing.rotation.set(0, 0, 0);
+        thing.scale.setScalar(0.8);
       } else {
         if (thing.parent !== ctx.rig) ctx.rig.add(thing);
         thing.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
+        thing.scale.setScalar(0.8);
       }
       ctx.avatar.carry = null;
       return;
@@ -875,14 +883,18 @@ export class PlateUpWorld extends GridWorld {
       // **Aus den Augen** hängt es unten im Bild und nicht vor dem Bauch —
       // dort läge es unter dem Blickfeld, und man trüge etwas, das man nicht
       // sieht.
-      thing.position.set(0.12, ctx.rig.camera.position.y - 0.42, -0.62);
+      // Kleiner als im Raum: Ein Teller von 47 cm eine Armlänge vor dem
+      // Auge deckte das halbe Bild zu.
+      thing.position.set(0.24, ctx.rig.camera.position.y - 0.4, -0.85);
       thing.rotation.set(0, 0, 0);
+      thing.scale.setScalar(0.42);
       ctx.avatar.carry = null;
       return;
     }
     const y = CHEF_CARRY.y * ctx.avatar.stretch + ctx.avatar.bob;
     thing.position.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
     thing.rotation.set(0, 0, 0);
+    thing.scale.setScalar(1);
     ctx.avatar.carry = this.carryPoint.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
   }
 
@@ -901,10 +913,12 @@ export class PlateUpWorld extends GridWorld {
         break;
       case 'angry':
         this.announce(`Tisch ${event.guest.table + 1}: zu lange gewartet — der Gast geht hungrig.`);
+        playTone({ type: 'sawtooth', from: 330, to: 160, duration: 0.45, gain: 0.05 });
         this.leave(event.guest);
         break;
       case 'paid': {
         this.announce(`Tisch ${event.guest.table + 1} zahlt ${event.coins} Münzen`);
+        chime([1568, 2093, 2637], 0.07);
         this.leave(event.guest);
         const t = TABLES[event.guest.table]!;
         this.effects.push(new CoinPop(this.root, t.x + 1, t.z + 1, event.coins));
@@ -1212,6 +1226,13 @@ interface GuestView {
   angry: boolean;
 }
 
+/** Ein paar Töne nacheinander — Servieren, Kasse. */
+function chime(notes: readonly number[], step: number): void {
+  notes.forEach((from, i) =>
+    playTone({ type: 'triangle', from, duration: step * 2.2, gain: 0.06, delay: i * step }),
+  );
+}
+
 /** Die Zeile am Schirm, kurz fürs Hochformat. */
 function stripShort(shift: Shift): string {
   const clock = shift.phase === 'open' ? clockText(timeLeft(shift)) : 'Schluss';
@@ -1379,9 +1400,9 @@ class OrderBubble {
     };
     draw('#d99a4e', 16, 118, 8);
     for (const layer of layers) {
-      if (layer === 'patty') draw('#6b3a22', 18, 124, 9);
-      if (layer === 'lettuce') draw('#6cc04a', 10, 132, 5);
-      if (layer === 'tomato') draw('#e04a3a', 10, 116, 5);
+      if (layer === 'patty') draw('#6b3a22', 16, 124, 8);
+      if (layer === 'lettuce') draw('#5cc03a', 15, 140, 7);
+      if (layer === 'tomato') draw('#e8402e', 14, 120, 7);
     }
     g.fillStyle = '#e3a85a';
     g.beginPath();
