@@ -19,14 +19,8 @@ import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
 import { NO_TILE, keyLevel, type TileKey } from '../nav/navTile';
-import {
-  FOOTPRINT,
-  cellCentre,
-  glides,
-  moveOnCells,
-  snapCell,
-  type CellGrid,
-} from '../nav/cellGrid';
+import { FOOTPRINT, cellCentre, snapCell, type CellGrid } from '../nav/cellGrid';
+import { PLAYER_PLANE_RADIUS, slideOnCells } from '../nav/planeMove';
 import { yawThrough } from '../portal/portalCrossing';
 
 /**
@@ -98,8 +92,8 @@ export class Npc {
    * gezeichnet wird er dazwischen.
    */
   readonly cells: number;
-  /** Die letzte Stelle, deren Block frei war — wohin ihn das Gitter zurückholt. */
-  private readonly lastFree = { x: 0, z: 0, known: false };
+  /** Die letzte Stelle, an der sein Kreis frei stand — von dort geht `holdOnCells` einen Stoß nach. */
+  private readonly lastFree = { x: 0, z: 0, level: 0, known: false };
   /**
    * Wie schnell er in diesem Sturz höchstens gefallen ist, in m/s — `0`,
    * solange er steht (`land`).
@@ -462,10 +456,22 @@ export class Npc {
     // Schweben.
     this.flying = Math.max(0, this.flying - dt);
     if (this.flying === 0) {
-      // **Wohin er gehen kann, sagt allein das Gitter** — ganz, längs x,
-      // längs z oder gar nicht, wie der Spieler (`moveOnCells`).
+      // **Wohin er gehen kann, sagt allein das Gitter — und er geht darauf
+      // wie der Spieler**: ein Kreis, der an Wänden, Schrägen und Möbeln
+      // entlanggleitet (`planeMove.slideOnCells`). Vorher ging er auf seinem
+      // Block (`moveOnCells`: ganz, längs x, längs z, längs der Diagonalen),
+      // und gewünscht war: _„die sollen sich ja auch so wie ein Spieler
+      // bewegen können"_.
       if (grid && level !== null && dt > 0 && (step.vx !== 0 || step.vz !== 0)) {
-        const to = moveOnCells(grid, t, step.vx * dt, step.vz * dt, level, this.cells);
+        const to = slideOnCells(
+          grid,
+          t.x,
+          t.z,
+          step.vx * dt,
+          step.vz * dt,
+          level,
+          this.planeRadius,
+        );
         step.vx = (to.x - t.x) / dt;
         step.vz = (to.z - t.z) / dt;
       }
@@ -529,26 +535,42 @@ export class Npc {
   }
 
   /**
-   * **Was die Physik mit ihm gemacht hat, prüft das Gitter.** Ein Stoß des
-   * Spielers oder eines anderen NPC kann ihn auf einen gesperrten Block
-   * schieben — in eine Wand, über die Fuge einer Tür. Dorthin kommt er nur
-   * über Eck (`glides`); sonst holt ihn das Gitter auf die letzte Stelle
-   * zurück, deren Block frei war.
+   * **Wie breit er in der Ebene ist** — der Kreis, mit dem er gleitet
+   * (`slideOnCells`). Mittelgroß (2 × 2 Zellen) so breit wie der Spieler
+   * (`PLAYER_PLANE_RADIUS`), größere und kleinere im Verhältnis ihres Blocks.
+   */
+  private get planeRadius(): number {
+    return (PLAYER_PLANE_RADIUS * this.cells) / FOOTPRINT;
+  }
+
+  /**
+   * **Was die Physik mit ihm gemacht hat, prüft die Ebene.** Ein Stoß des
+   * Spielers oder eines anderen NPC kann ihn in eine Wand schieben, denn sein
+   * Zylinder geht durch die Wände des Gitters hindurch (`GROUP_CELL`). Steckt
+   * sein Kreis danach in einer Wand, wird der Stoß von der letzten freien
+   * Stelle aus nachgegangen wie ein Schritt (`slideOnCells`) — er gleitet
+   * dann an der Wand entlang und kommt nicht über ihre Linie. Wer von weit
+   * her versetzt wurde (Portal, Absetzen) und in etwas steckt, wird nur
+   * herausgeschoben.
    */
   private holdOnCells(grid: CellGrid, level: number): void {
     const t = this.entry.body.translation();
-    const here = snapCell(t.x, t.z, this.cells);
-    if (grid.footprintFree(here, level, this.cells)) {
-      this.lastFree.x = t.x;
-      this.lastFree.z = t.z;
-      this.lastFree.known = true;
-      return;
-    }
+    const radius = this.planeRadius;
+    const settled = slideOnCells(grid, t.x, t.z, 0, 0, level, radius);
     const back = this.lastFree;
-    if (!back.known || glides(grid, back.x, back.z, t.x, t.z, level, this.cells)) return;
-    const home = snapCell(back.x, back.z, this.cells);
-    if (!grid.footprintFree(home, level, this.cells)) return;
-    this.entry.body.setTranslation({ x: back.x, y: t.y, z: back.z }, true);
+    let to = settled;
+    if (Math.hypot(settled.x - t.x, settled.z - t.z) > HOLD_SLACK) {
+      const near =
+        back.known && back.level === level && Math.hypot(t.x - back.x, t.z - back.z) < HOLD_REACH;
+      if (near) to = slideOnCells(grid, back.x, back.z, t.x - back.x, t.z - back.z, level, radius);
+      this.entry.body.setTranslation({ x: to.x, y: t.y, z: to.z }, true);
+    } else {
+      to = { x: t.x, z: t.z };
+    }
+    back.x = to.x;
+    back.z = to.z;
+    back.level = level;
+    back.known = true;
   }
 
   /**
@@ -1059,6 +1081,10 @@ const _look = new THREE.Vector3();
 
 /** Wie hoch ein Sprung über das höhere Ende hinausgeht, in Metern. */
 const LEAP_RISE = 0.7;
+/** Wie tief sein Kreis in einer Wand stecken darf, bevor `holdOnCells` eingreift, in Metern. */
+const HOLD_SLACK = 1e-3;
+/** Weiter als so weit in einem Bild versetzt, gilt es als Versetzen und nicht als Stoß (m). */
+const HOLD_REACH = 1;
 
 /**
  * Ab welchem Sinken er überhaupt als fallend gilt, in m/s.

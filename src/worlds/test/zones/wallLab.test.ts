@@ -1,5 +1,9 @@
 import { CellGrid, navCellSource, type Slope } from '../../nav/cellGrid';
+import { cellRoute } from '../../nav/cellRoute';
+import { findPath } from '../../nav/navPath';
+import { HUMAN_PROFILE } from '../../nav/navProfile';
 import { slideOnCells } from '../../nav/planeMove';
+import { shelfWallsToNav } from '../../grid/shelfNav';
 import { GridPlan } from '../../grid/gridPlan';
 import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from '../../nav/navTile';
 import { wallCells } from '../../portal/gridSnap';
@@ -14,9 +18,10 @@ const plan = testPlan();
  * der Welt (`gridSnap.wallCells`, `GridWorld.refreshWallSlopes`), mit den
  * Maßen der Prototyp-Wand: 2 m bzw. 1 m lang, 0,37 m dick.
  */
+const edges = new Set<string>();
+const slopes = new Map<TileKey, Slope>();
+
 function labGrid(): CellGrid {
-  const edges = new Set<string>();
-  const slopes = new Map<TileKey, Slope>();
   for (const wall of wallLabModels()) {
     const half = { x: wall.path === LAB_WALL ? 1 : 0.5, z: 0.185 };
     const turn = { x: 0, y: Math.sin(wall.yaw / 2), z: 0, w: Math.cos(wall.yaw / 2) };
@@ -140,5 +145,83 @@ describe('Die Testwelt ohne Planwände', () => {
   it('hat keine feste Wand mehr im Grundriss und keine Schräge', () => {
     for (const [, wall] of plan.graph.wallEntries()) expect(wall.kind).not.toBe('solid');
     expect(plan.saveSlopes()).toHaveLength(0);
+  });
+});
+
+/**
+ * **NPCs gehen durch den Parcours wie der Spieler** — gewünscht: _„die sollen
+ * sich ja auch so wie ein Spieler bewegen können z.B. bei der Test Welt
+ * zwischen zwei 45° Wänden"_.
+ *
+ * Dieselbe Kette wie im Spiel (`NavAgent.plan`, `Npc.update`): der grobe Weg
+ * über Kacheln (`findPath`) auf einem Graphen, in dem die Regalwände stehen
+ * (`shelfWallsToNav`) und die Schrägen ihre Kachel teilen (`slopeHalf`), der
+ * Weg auf Zellen im Schlauch darum (`cellRoute`), und gelaufen wird er in der
+ * Ebene (`slideOnCells`), mit dem Kreis des Spielers.
+ */
+describe('NPCs im Wandparcours', () => {
+  const graph = testPlan().graph;
+  graph.slopeAt = (key) => slopes.get(key) ?? null;
+  shelfWallsToNav(
+    graph,
+    [...edges].map((id) => {
+      const [x, z, dir] = id.split(',') as [string, string, 'n' | 'w'];
+      return [tileKey(Number(x), Number(z), 0), dir === 'n' ? DIR_N : DIR_W] as const;
+    }),
+    null,
+  );
+
+  /** Vom Start zum Ziel, wie ein NPC: planen, dann den Wegpunkten nach gleiten. */
+  function npcWalk(from: { x: number; z: number }, to: { x: number; z: number }) {
+    const found = findPath(graph, graph.at(from.x, from.z), graph.at(to.x, to.z), {
+      profile: HUMAN_PROFILE,
+    });
+    expect(found.complete).toBe(true);
+    const route = cellRoute(graph, found.tiles, from, to);
+    expect(route).not.toBeNull();
+    let p = { ...from };
+    const trail = [p];
+    for (const point of route!) {
+      for (let i = 0; i < 200; i++) {
+        const dx = point.x - p.x,
+          dz = point.z - p.z,
+          d = Math.hypot(dx, dz);
+        if (d < 0.02) break;
+        const step = Math.min(0.04, d);
+        p = slideOnCells(grid, p.x, p.z, (dx / d) * step, (dz / d) * step);
+        trail.push(p);
+      }
+    }
+    return { end: p, trail };
+  }
+
+  it('7 · gehen durch den schrägen Gang zwischen zwei 45°-Wänden', () => {
+    // Unten im Gang (zwischen x + z = 12 und 14) nach oben hinaus, nach Nordosten.
+    const { end, trail } = npcWalk({ x: X + 1.5, z: Z + 11.5 }, { x: X + 5, z: Z + 7.5 });
+    expect(Math.hypot(end.x - X - 5, end.z - Z - 7.5)).toBeLessThan(0.1);
+    // Und zwar **durch** den Gang: Wo er zwischen den Wänden liegt (z von 8
+    // bis 11), bleibt er zwischen ihren Linien.
+    for (const p of trail) {
+      if (p.z < Z + 8.2 || p.z > Z + 10.8) continue;
+      expect(p.x + p.z).toBeGreaterThan(X + Z + 12);
+      expect(p.x + p.z).toBeLessThan(X + Z + 14);
+    }
+  });
+
+  it('7 · gehen ihn auch zurück, von oben hinein', () => {
+    const { end } = npcWalk({ x: X + 5, z: Z + 7.5 }, { x: X + 1.5, z: Z + 11.5 });
+    expect(Math.hypot(end.x - X - 1.5, end.z - Z - 11.5)).toBeLessThan(0.1);
+  });
+
+  it('1 · planen um die gerade Regalwand herum, statt vor ihr stehen zu bleiben', () => {
+    // Die Wand steht auf x = X + 2 von Z + 2 bis Z + 8.
+    const { end, trail } = npcWalk({ x: X + 1, z: Z + 5 }, { x: X + 3, z: Z + 5 });
+    expect(Math.hypot(end.x - X - 3, end.z - Z - 5)).toBeLessThan(0.1);
+    expect(trail.some((p) => p.z < Z + 2 || p.z > Z + 8)).toBe(true);
+  });
+
+  it('3 · gehen durch die Lücke von einer Kachel', () => {
+    const { end } = npcWalk({ x: X + 8, z: Z + 4.5 }, { x: X + 10.5, z: Z + 4.5 });
+    expect(Math.hypot(end.x - X - 10.5, end.z - Z - 4.5)).toBeLessThan(0.1);
   });
 });

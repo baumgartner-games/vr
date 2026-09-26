@@ -349,6 +349,15 @@ export class NavGraph {
    */
   slopeAt: (key: TileKey) => Slope | null = () => null;
 
+  /**
+   * **Was sonst auf einer Zelle steht** (`cellGrid.CellSource.blocked`) —
+   * Möbel, Einbauten, die Pfosten eines Durchgangs. Wie `slopeAt` eine Frage,
+   * die `GridWorld.navReady` einhängt: Der Weg eines NPC auf Zellen
+   * (`cellRoute.ts`) soll dieselben Zellen meiden, an denen ihn das Gehen
+   * aufhält. Ohne Bauplan steht auf keiner Zelle etwas.
+   */
+  cellBlocked: (ix: number, iz: number, level: number) => boolean = () => false;
+
   constructor(levels: readonly number[] = [0]) {
     this.levels = levels.length > 0 ? [...levels] : [0];
   }
