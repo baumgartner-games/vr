@@ -699,7 +699,7 @@ Wer sie benutzt, und was das ✕ dort heißt:
 
 Bewusst **keine** Meldungen und ohne ✕: was einen Stand zeigt und von selbst
 geht, wenn er sich ändert — die Zeile und die Bestellzettel im Restaurant,
-„In der Hand: …", die Tafel des Technikers, die Baukasten-Leiste, die
+der Bauplan unten im Restaurant, die Tafel des Technikers, die Baukasten-Leiste, die
 Tastenhilfe (abschaltbar im Menü) und der Ladebildschirm. In der Brille gibt es
 kein DOM; dort ist es das ✕ im Raum (`ui/CloseButton.ts`, oben).
 
