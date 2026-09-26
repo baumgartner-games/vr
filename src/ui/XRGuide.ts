@@ -38,6 +38,7 @@ import {
   CARD_INK,
   css,
   paintChip,
+  paintClose,
   paintChips,
   paintFrame,
   wrapLines,
@@ -340,7 +341,8 @@ export class XRGuide extends THREE.Group {
     ctx.fillText('WILLKOMMEN', x, 78);
     ctx.fillStyle = CARD_INK;
     ctx.font = `800 70px ${CARD_FONT}`;
-    ctx.fillText(world.title, x, 150, inner);
+    // Rechts oben steht das ✕ — der Name läuft nicht darunter.
+    ctx.fillText(world.title, x, 150, inner - WELCOME_CLOSE_R * 2);
     let y = 212;
     ctx.font = `500 36px ${CARD_FONT}`;
     ctx.fillStyle = CARD_INK;
@@ -363,7 +365,11 @@ export class XRGuide extends THREE.Group {
     y += 52;
     ctx.font = `500 26px ${CARD_FONT}`;
     ctx.fillStyle = CARD_DIM;
-    ctx.fillText('Trigger auf die Tafel: Verstanden · geht von selbst', x, y, inner);
+    ctx.fillText('Trigger aufs Kreuz oder die Tafel: Verstanden · geht von selbst', x, y, inner);
+    // **Ein sichtbares ✕** — getroffen wird die ganze Tafel
+    // (`asPointerTarget`), aber ohne Zeichen suchte man die Stelle, an der sie
+    // zugeht. Gemeldet war genau das: „Die Texte konnte ich nicht anfassen."
+    paintClose(ctx, w - 30 - WELCOME_CLOSE_R, 30 + WELCOME_CLOSE_R, WELCOME_CLOSE_R, world.accent);
     const h = Math.min(card.height, Math.ceil(y + 40));
     paintFrame(ctx, w, h, world.accent, 'left', 36, true);
     card.fitHeight(h);
@@ -513,6 +519,9 @@ export class XRGuide extends THREE.Group {
     this.removeFromParent();
   }
 }
+
+/** Der Halbmesser des ✕ auf der Willkommens-Tafel, in Leinwandpixeln (Tafel: 1 m = 1024 px). */
+const WELCOME_CLOSE_R = 46;
 
 /** Die Ladetafel: Leinwand in Pixeln, Breite in Metern, Rand, Höhe des Balkens. */
 const TRANSIT_W = 1024;

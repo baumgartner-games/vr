@@ -99,7 +99,7 @@ export type HintZone =
 /** Wie eine Zone auf ihrem Schildchen heißt. */
 export const ZONE_LABELS: Readonly<Record<HintZone['kind'], string>> = {
   kart: 'Kart',
-  burger: 'Burgerladen',
+  burger: 'Restaurant',
   build: 'Baukasten',
   haunting: 'Station',
 };

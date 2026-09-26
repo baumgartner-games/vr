@@ -108,7 +108,7 @@ describe('Burgerladen: Grundriss', () => {
     expect(testPlan().graph.walkable(tileKey(BURGER_GATE_TILE.x, BURGER_GATE_TILE.z))).toBe(true);
     const back = plateUpGrid().fixture(RETURN_GATE);
     expect(back?.props.world).toBe('sandbox');
-    expect(findWorld('plateup')?.title).toBe('Burgerladen');
+    expect(findWorld('plateup')?.title).toBe('Restaurant');
   });
 
   test('kein festes Deko-Stück steht einem Gast im Weg oder auf einer Station', () => {

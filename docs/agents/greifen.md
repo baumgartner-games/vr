@@ -934,9 +934,35 @@ Hand, die zugegriffen hat — demselben Knoten, an dem jedes Werkzeug hängt, un
 der bei einer getrackten Hand schon den Versatz zum Zeigestrahl trägt
 (`core/handHold.ts`). Damit dreht sich die Pfanne mit dem Handgelenk.
 
+**Essen liegt dort halb so groß** (`kitchenGrab.kitchenHandScale`,
+`HAND_FOOD_SCALE` = 0,5): jede Zutat, jeder Burger, jeder Teller, auch der
+dreckige. Gemeldet war, dass Tomate, Salat, Brötchen und Bulette zwar richtig
+groß sind, in der Hand aber die Sicht versperren — in echter Größe hält man
+einen Teller von 47 cm eine Handbreit vor der Brille. **Geräte bleiben groß**
+(Pfanne, Topf, Löscher, Schlüssel). Gestaucht wird **um den Griff**
+(`grabHandles.holdForScaled`): Wer den Teller am Rand hält, behält den Rand in
+der Faust, und der Teller rückt zu ihr hin, statt mit dem halben Maßstab aus
+ihr herauszurutschen. Volle Größe gibt es zurück, sobald es die Hand verlässt
+— beim Ablegen (`restOn`, die eine Stelle, an der alles auf eine Station
+kommt) und vor dem Bauch (`backToBelly`, `fullSize`). Das Restaurant macht
+dasselbe mit derselben Zahl ([Das Restaurant](./burgerladen.md)).
+
 Von oben und am Schreibtisch bleibt alles beim Alten: Das Getragene hängt vor dem
 Bauch (`core/chefFit.CHEF_CARRY`). Fällt ein Controller weg oder wird die Brille
 abgesetzt, holt `kitchen.backToBelly` es dorthin zurück. Ein **Gegenstand der
 Welt** — einer mit Körper, aus dem Beutel oder dem Regal — hängt dort seit
 Kurzem ebenfalls, nur an einem eigenen Anker: siehe _Und am Schirm trägt die
 Figur_.
+
+**Zwei Hände, zwei Dinge — das Eis im Restaurant.** Die Küchen tragen ein
+Ding, und in der Brille liegt es in der Hand, die es genommen hat. Das Eis
+([Das Eis](./burgerladen.md#das-eis)) braucht beide Hände zugleich: das
+Hörnchen in der einen, den Portionierer in der anderen. Beides hängt — wie
+jedes Küchending — ohne Körper an `ControllerState.hold` der jeweiligen Hand,
+gehört also nicht zu `PortalWorld.grabs`; die Hände bleiben für den Kern frei
+und bedienen weiter über `useByHand`. Welche Hand was darf, rechnet
+`plateup/plateUpIce.ts` mit `UseSource.hand`: Die Hand des Portionierers
+bedient keine Station, und keine Hand hält Hörnchen und Portionierer
+zugleich. Eintauchen und Absetzen sind Geometrie (die Schale in der Wanne,
+die Schale über dem Turm) und kein Knopf. Am Schirm gibt es diese Trennung
+nicht: Ein Druck gibt beides in die eine Hand der Figur.

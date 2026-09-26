@@ -397,13 +397,13 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   (`hubGrid.LOBBY_GATES`, `isLobby`), steht jedes Tor mitten in seiner
   Nische, genau gegenüber der Hallenmitte, eine Kachel Nische dahinter
   (`LOBBY_TAIL`). Die Reihenfolge ist die des Menüs und der Startseite
-  (`hubTargets` → `menuGroups.sortWorlds`): **Burgerladen im Norden** — dort,
+  (`hubTargets` → `menuGroups.sortWorlds`): **Restaurant im Norden** — dort,
   wohin man beim Ankommen schaut —, dann Haunting (Osten), Bauplatz (Süden),
   Testwelt (Westen). Ab der fünften Welt wird aus den Nischen wieder die
   Anlage von früher (unten).
 
   **Die Ausstattung** (`hub/hubDecor.ts`, reine Rechnung mit Test) kommt
-  ausschließlich aus dem KayKit-Regal und wird wie im Burgerladen auf eine
+  ausschließlich aus dem KayKit-Regal und wird wie im Restaurant auf eine
   Höhe eingepasst (`kaykitAtHeight`), nicht abgewartet — die Halle steht,
   und die Stücke kommen dazu:
 
@@ -416,7 +416,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   | Topfpflanzen | `furniture-bits/cactus_medium_A/B.glb` | in den vier Ecken |
 
   Die Tafel _Baumgartner VR_ über dem Nordgang ist dafür weg (dort hängt
-  jetzt das Schild des Burgerladens); der Hinweis an der Südwand heißt
+  jetzt das Schild des Restaurants); der Hinweis an der Südwand heißt
   _Lobby_ und sagt, wie man hinkommt. Der Test hält die Mitte der Halle und
   jede Gangmündung frei.
 
@@ -424,7 +424,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Topfpflanzen tragen eine Grundfläche (`HubPiece.solid`, `BENCH_SOLID`,
   `LAMP_SOLID`, `CACTUS_SOLID`, gemessen an den Modellen, etwas knapper);
   `HubWorld.blockDecor` stellt dort **sofort** einen unsichtbaren Quader von
-  1,2 m hin — wie im Burgerladen, und ohne auf das Modell zu warten. Die
+  1,2 m hin — wie im Restaurant, und ohne auf das Modell zu warten. Die
   Quader stehen in `solids`, also sieht sie auch das Wegnetz der NPCs. Der
   Bogen hat keinen: Unter ihm geht man durch. Der Test (`solidBox`) hält
   einen Streifen so breit wie die Mündung (±1,5 m) von der Mitte bis in
@@ -1738,12 +1738,12 @@ im Spiel also zwei Kacheln —, und in eine
     Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
     richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
     hinge derselbe Aushang für diesen Blick hochkant.
-  - **Nebenan: der Burgerladen.** Im Gang südlich der Küche, am Westrand,
+  - **Nebenan: das Restaurant.** Im Gang südlich der Küche, am Westrand,
     steht ein Tor (`kitchenPlan.BURGER_GATE`) in eine eigene Welt: eine
     eingerichtete Spielküche mit Gastraum, in der Gäste kommen, bestellen,
     essen und zahlen — ein Spiel nach _PlateUp!_ mit denselben Regeln am
     Möbel wie hier (`kitchenDeed`). Ausführlich unter
-    [Der Burgerladen](./burgerladen.md).
+    [Das Restaurant](./burgerladen.md).
   - **Die zweite Küche ist weg** (September 2026). Ganz oben im Norden stand
     über der ersten ein Restaurant aus dem **zweiten** Möbelkatalog
     (`core/dinerFit.ts`, 156 Stücke aus _Restaurant Bits_, CC0 — siehe

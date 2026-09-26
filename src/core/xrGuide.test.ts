@@ -138,7 +138,7 @@ describe('xrGuide — die Knöpfe heißen wie in der Hand', () => {
     }
   });
 
-  it('sagt im Burgerladen Stock, A, Griff und ☰ — in dieser Reihenfolge', () => {
+  it('sagt im Restaurant Stock, A, Griff und ☰ — in dieser Reihenfolge', () => {
     const keys = xrIntroKeys(worldIntro('plateup')!.tips);
     expect(keys.map((item) => item.key)).toEqual(['Stock L', 'A', 'Griff', '☰']);
     expect(keys[2]!.label).toBe('Greifen');
@@ -200,7 +200,7 @@ describe('xrGuide — die Beschriftung am Controller', () => {
     expect(label.items.map((item) => item.key)).toEqual(['Trigger R', 'Trigger L', 'A halten']);
   });
 
-  it('greift im Burgerladen mit der Hand', () => {
+  it('greift im Restaurant mit der Hand', () => {
     const closed = xrHints({ kind: 'burger', holding: false, closed: true }, idle)!;
     expect(closed.items[0]).toEqual({ key: 'Griff', label: 'Glocke läuten' });
     const holding = xrHints({ kind: 'burger', holding: true, closed: false }, idle)!;
