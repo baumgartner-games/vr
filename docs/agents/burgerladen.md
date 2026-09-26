@@ -320,9 +320,9 @@ frei, erreichbar, der Weg in den Gastraum offen).
 | Datei                               | Was darin steht                                                                                                                                                                                                                                                            |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `worlds/plateup/plateUpIce.ts`      | **Rein**: Sorten, was die Hände vom Eis halten (`IceHands`), was ein Druck an Stand, Wanne und Station tut (`useStand`, `useTub`, `useCounter`), welche Wanne gemeint ist (`pickTub`, `tubUnder`), über welchem Hörnchen der Portionierer ist (`coneUnder`), Verben, Sätze |
-| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der Turm auf dem Hörnchen — Kette von Verzögerungen, nach oben träger, geschlossen gelöst, weich begrenzt (`followBall`, `softLean`, `stepWobble`)                                                                                                               |
+| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der Turm auf dem Hörnchen — Kette von Verzögerungen, nach oben träger, geschlossen gelöst, je Kugel weich begrenzt (`followBall`, `leanLimit`, `softLean`, `stepWobble`)                                                                                         |
 | `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke (gedreht nach `ICE_FACE`, `ICE_YAW`), Hörnchen mit Kugeln (`IceConeView`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht, Ersatzkörper (`fallback`)                                                                     |
-| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Neigen, nie herunter, 30 gegen 144 Bilder je Sekunde)                                                                                                                  |
+| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Grenze je Kugel, Neigen, nie herunter, kein Sprung bei neuer Kugel, 30 gegen 144 Bilder je Sekunde)                                                                    |
 
 **In der Brille sind es zwei Dinge für zwei Hände.** Eine Hand greift am
 Stapel ein Hörnchen (Greif-Taste oder Trigger), die **andere** den
@@ -359,30 +359,47 @@ wählt die Hand mit einer Greifbox so groß wie die Wanne.
 weitere läuft ihrem Platz auf der Kugel **darunter** mit einer Verzögerung
 erster Ordnung nach (`followBall`: Abstand schrumpft mit `exp(−t/τᵢ)`), und
 die Zeitkonstante wächst quadratisch mit der Höhe (`followTime`:
-`τᵢ = 0,003 s · i²`, höchstens 0,15 s — `WOBBLE.lag`, `.curve`, `.slowest`).
+`τᵢ = 0,001 s · i²`, höchstens 0,04 s — `WOBBLE.lag`, `.curve`, `.slowest`).
 Eine solche Kette schießt nie über das Ziel hinaus — **keine Welle, kein
 Nachwackeln** —, und sie ergibt die gewünschte Form: Bei gleichmäßiger
 Bewegung hängt Glied `i` (in der frei gerechneten Kette) um `v · τᵢ` über,
 der Turm ist also **gebogen** statt schräg-gerade; beim Anhalten stehen die
 unteren Kugeln schnell, und die oberen holen danach auf. Die Richtung
-des Turms folgt der Achse des Hörnchens mit einer Zeitkonstante von 0,35 s
+des Turms folgt der Achse des Hörnchens mit einer Zeitkonstante von 0,2 s
 (`WOBBLE.tilt`, ebenfalls ohne Überschießen) und hängt am Ende etwas weiter
-durch als das Hörnchen (`WOBBLE.sag`): Schräg gehalten neigt er sich langsam
-in dieselbe Richtung. **Nie herunter, und trotzdem gebogen:** Die Kette wird
-frei gerechnet (`WobbleState.chain`), gezeigt wird sie weich begrenzt
-(`softLean`): Der Überhang `r` jeder Kugel über ihrem Platz auf der unteren
-wird zu `L · r / (L + r)` mit `L` = 0,45 Kugelabstände (`WOBBLE.lean`) —
-streng wachsend, nie ganz `L`. So bleibt auch im vollen Gehtempo (2,6 m/s)
-jedes Glied weiter übergehängt als das darunter (Test: 6 / 14 / 19 / 21,6 /
-23 mm, Spitze 8,4 cm zurück), statt oben an einer harten Grenze gerade zu
-werden; nach dem Anhalten holt jedes Glied umso später am schnellsten auf,
-je höher es sitzt. Die frei gerechnete Kette hält nur eine Notbremse bei 10
-Kugelabständen (`WOBBLE.reach`). Gerechnet wird in der Welt und erst danach
-in den Raum des Hörnchens zurückgelegt. Die Verzögerung ist geschlossen
-gelöst für ein Ziel, das während des Schritts gleichmäßig wandert, und ein
-Bild wird in Stücke von 1/120 s geteilt — 30 und 144 Bilder je Sekunde
-ergeben denselben Turm (Test: unter 1 mm nach zwei
-Sekunden Schwenken).
+durch als das Hörnchen (`WOBBLE.sag`): Schräg gehalten neigt er sich in
+dieselbe Richtung.
+
+**Flinker, und oben weiter über als unten.** Zuerst waren es 3 ms · i²,
+höchstens 0,15 s, Neigung 0,35 s, und jede Kugel durfte gleich weit
+überhängen (0,45 Kugelabstände). Das kam an als _„die Eiskugeln bewegen sich
+zu langsam"_ — auf dem Telefon, mit einem Turm aus rund sechzig Kugeln — und
+mit dem Wunsch, dass der erlaubte Abstand zur Kugel darunter **mit der Höhe
+wächst, bis 0,9 der Kugelgröße, nicht linear, sondern wie `(1/x) · 0,9`**,
+_„wie das obere Ende einer S-Kurve"_. So ist es jetzt: Die Kette wird frei
+gerechnet (`WobbleState.chain`), gezeigt wird sie weich begrenzt
+(`softLean`: der Überhang `r` jeder Kugel über ihrem Platz auf der unteren
+wird zu `L · tanh(r / L)` — streng wachsend, nie ganz `L`), und `L` ist je
+Kugel eine andere (`leanLimit`): Bei der obersten Stelle `n` darf Kugel `k`
+höchstens `0,9 / (n − k + 1)` **Kugelgrößen** (Durchmesser, 8 cm in der
+Hand; `WOBBLE.lean`) — die oberste 0,9, die darunter 0,45, dann 0,3, 0,225
+… Gemessen im Test bei 2,6 m/s (in Kugelgrößen, von unten): fünf Kugeln
+0,03 / 0,12 / 0,26 / 0,47; zwanzig Kugeln unten um 0,03 bis 0,05, oben
+… 0,15 / 0,18 / 0,22 / 0,30 / 0,45 / 0,81. Keine kommt über ihre Grenze,
+auch nicht beim wilden Schütteln. Kommt oben eine Kugel dazu, werden alle
+Grenzen darunter kleiner; damit das nicht springt, ziehen sie ihrem neuen
+Wert mit 0,12 s nach (`WobbleState.limits`, `WOBBLE.relimit` — Test: höchstens
+gut 2 mm je Bild, ohne das Nachziehen wären es fast 3 cm). Die frei
+gerechnete Kette wird bei drei Grenzen gehalten (`WOBBLE.reach`), mehr sähe
+man nicht. Nach dem Anhalten aus vollem Gehtempo steht ein Turm aus zehn
+Kugeln in knapp einer halben Sekunde bis auf 1 mm (vorher fast 2 s), zwanzig
+in 1 s (vorher gut 4 s), sechzig in knapp 3 s (vorher über 5 s).
+
+Gerechnet wird in der Welt und erst danach in den Raum des Hörnchens
+zurückgelegt. Die Verzögerung ist geschlossen gelöst für ein Ziel, das
+während des Schritts gleichmäßig wandert, und ein Bild wird in Stücke von
+1/120 s geteilt — 30 und 144 Bilder je Sekunde ergeben denselben Turm (Test:
+unter 1 mm nach zwei Sekunden Schwenken).
 
 **Wohin mit dem Eis.** Es belegt dieselbe Hand wie ein Teller: Wer es hält,
 nimmt nichts anderes, bedient keinen Tisch und nimmt keinen Bauplan. Es geht

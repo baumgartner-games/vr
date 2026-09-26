@@ -22,7 +22,9 @@
  * fahren weich an, laufen weiter, wenn die unteren schon stehen, und holen
  * dann auf. Die Zeitkonstante wächst mit der Höhe quadratisch
  * (`followTime`: `τᵢ = WOBBLE.lag · i^WOBBLE.curve`, höchstens
- * `WOBBLE.slowest`); bei gleichmäßiger Bewegung hängt jedes Glied `i` damit
+ * `WOBBLE.slowest`: 1 ms · i², höchstens 40 ms — anfangs waren es 3 ms · i²
+ * und 150 ms, und das kam als _„die Eiskugeln bewegen sich zu langsam"_ an);
+ * bei gleichmäßiger Bewegung hängt jedes Glied `i` damit
  * um `v · τᵢ` über, die Kugel also um `v · (τ₁ + … + τᵢ)` zurück (vor der
  * weichen Begrenzung, siehe unten), und diese Summe wächst schneller als die
  * Höhe — der Turm biegt sich, statt sich bloß schräg zu stellen.
@@ -37,23 +39,32 @@
  * sondern **folgt** ihr, ebenso ohne Überschießen: Sie dreht sich mit der
  * Zeitkonstante `WOBBLE.tilt` zu ihr hin (`WobbleState.dir`). Wer das
  * Hörnchen kippt, sieht den Turm erst noch aufrecht auf der Öffnung stehen
- * und sich dann langsam hinüberneigen. Zum waagerechten Anteil der Achse kommt
+ * und sich dann hinüberneigen (0,2 s). Zum waagerechten Anteil der Achse kommt
  * ein Stück „Durchhängen" (`WOBBLE.sag`): Ein schräg gehaltenes Hörnchen
  * trägt seinen Turm am Ende etwas schräger, als es selbst steht. Aufrecht
  * gehalten ist dieser Anteil null, und der Turm steht gerade.
  *
- * **Nie herunter — und trotzdem gebogen.** Gerechnet wird die Kette frei
- * (`WobbleState.chain`); gezeigt wird sie **weich begrenzt** (`softLean`):
- * Wie weit eine Kugel von ihrem Platz auf der unteren weg ist, wird mit
- * `L · r / (L + r)` gestaucht, `L = WOBBLE.lean` Kugelabstände. Kleine
- * Abstände bleiben fast, wie sie sind, große kommen `L` nur nahe und
- * erreichen es nie. Weil die Stauchung streng wächst, bleibt die Reihenfolge
- * erhalten: Beim Gehen (2,6 m/s) hängt jedes Glied weiter über als das
- * darunter, der Turm bleibt bis oben gebogen, statt an einer harten Grenze
- * gerade zu werden. Und egal wie heftig man schüttelt, die Kugel bleibt auf
- * der unter ihr sitzen. Nur die frei gerechnete Kette wird hart gehalten, bei
- * `WOBBLE.reach` Kugelabständen, damit sie nach wildem Schütteln nicht ewig
- * braucht — gezeigt wird davon nichts.
+ * **Nie herunter — und trotzdem gebogen: nach oben immer weiter über.**
+ * Gerechnet wird die Kette frei (`WobbleState.chain`); gezeigt wird sie
+ * **weich begrenzt** (`softLean`): Wie weit eine Kugel von ihrem Platz auf
+ * der unteren weg ist, wird mit `L · tanh(r / L)` gestaucht. Kleine Abstände
+ * bleiben fast, wie sie sind, große kommen `L` nahe und erreichen es nie; und
+ * weil die Stauchung streng wächst, bleibt die Reihenfolge erhalten. Die
+ * Grenze `L` ist **je Kugel eine andere** (`leanLimit`), gemessen in
+ * Kugelgrößen (dem Durchmesser, `size` in `stepWobble`): Die unterste sitzt
+ * fest, die oberste darf bis 0,9 Kugelgrößen über der darunter hängen
+ * (`WOBBLE.lean`), die darunter die Hälfte, dann ein Drittel, ein Viertel …
+ * (`0,9 / (n − k + 1)` für Kugel `k` im Turm mit der obersten Stelle `n`).
+ * Nicht gerade also, sondern wie das obere Ende einer S-Kurve — gewünscht:
+ * _„nicht linear … Kugel 3 nur 0,2 zur vorherigen, Kugel 4 0,5 und Kugel 5
+ * 0,9"_. Beim Gehen (2,6 m/s) kommt die oberste ihrer 0,9 nahe (gut 0,8),
+ * und jede darunter hängt weniger über; egal wie heftig man schüttelt, keine
+ * kommt über ihre Grenze. Kommt oben eine Kugel dazu, rücken alle Grenzen
+ * darunter eine Stelle weiter nach unten und werden kleiner — damit das den
+ * Turm nicht springen lässt, ziehen die Grenzen (`WobbleState.limits`) ihrem
+ * neuen Wert mit der Zeitkonstante `WOBBLE.relimit` nach. Die frei gerechnete
+ * Kette wird bei `WOBBLE.reach` Grenzen gehalten — mehr sähe man ohnehin
+ * nicht, und so kommt sie nach dem Anhalten schnell zurück.
  *
  * **Unabhängig von der Bildrate.** Die Verzögerung wird nicht mit
  * Euler-Schritten angenähert, sondern **geschlossen** gelöst — und zwar für
@@ -80,6 +91,12 @@ export interface WobbleState {
   readonly balls: readonly Vec3[];
   /** Die frei gerechnete Kette dahinter, ohne Begrenzung (bis auf `WOBBLE.reach`). */
   readonly chain: readonly Vec3[];
+  /**
+   * Wie weit jede Kugel gerade höchstens überhängen darf, in Kugelgrößen — sie
+   * folgt `leanLimit`, damit eine neue Kugel oben die Grenzen darunter nicht
+   * springen lässt.
+   */
+  readonly limits: readonly number[];
   /** Die Richtung, in der der Turm gerade steht — sie folgt der Achse. `null`: noch keine. */
   readonly dir: Vec3 | null;
   /** Wo die Öffnung im letzten Bild war — dazwischen wird gleichmäßig gewandert. */
@@ -91,17 +108,26 @@ export interface WobbleState {
 /** Die Zahlen des Turms — eine Stelle, an der man ihn träger oder flinker macht. */
 export const WOBBLE = {
   /** Zeitkonstante der zweiten Kugel (über der untersten), in Sekunden. */
-  lag: 0.003,
+  lag: 0.001,
   /** Wie die Zeitkonstante nach oben wächst: `lag · i^curve` — 2 heißt quadratisch. */
   curve: 2,
   /** Träger als so wird keine Kugel, in Sekunden — auch nicht die fünfzigste. */
-  slowest: 0.15,
+  slowest: 0.04,
   /** Zeitkonstante der Neigung, in Sekunden: so langsam folgt der Turm dem Kippen. */
-  tilt: 0.35,
-  /** Wie weit eine Kugel höchstens von ihrem Platz weg darf, in Kugelabständen — nie ganz erreicht. */
-  lean: 0.45,
-  /** Wie weit die frei gerechnete Kette höchstens überhängen darf, in Kugelabständen. */
-  reach: 10,
+  tilt: 0.2,
+  /**
+   * Wie weit die **oberste** Kugel höchstens über der darunter hängt, in
+   * Kugelgrößen (Durchmessern) — nie ganz erreicht. Darunter weniger, siehe
+   * `leanLimit`.
+   */
+  lean: 0.9,
+  /** Zeitkonstante, mit der die Grenzen nachziehen, wenn eine Kugel dazukommt, in Sekunden. */
+  relimit: 0.12,
+  /**
+   * Wie weit die frei gerechnete Kette höchstens überhängen darf, als
+   * Vielfaches der Grenze jeder Kugel — darüber sähe man ohnehin nichts mehr.
+   */
+  reach: 3,
   /** Wie viel stärker sich der Turm neigt als das schräg gehaltene Hörnchen. */
   sag: 0.35,
   /** Das längste Stück, in dem gerechnet wird, in Sekunden. */
@@ -111,7 +137,14 @@ export const WOBBLE = {
 } as const;
 
 /** Ein leerer Turm. */
-export const NO_WOBBLE: WobbleState = { balls: [], chain: [], dir: null, base: null, axis: null };
+export const NO_WOBBLE: WobbleState = {
+  balls: [],
+  chain: [],
+  limits: [],
+  dir: null,
+  base: null,
+  axis: null,
+};
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 };
 
@@ -222,6 +255,19 @@ export function followBall(
   return add(sub(target, scale(d, r)), add(sub(last, lastTarget), d, r), e);
 }
 
+/**
+ * **Wie weit die Kugel `index` höchstens über der darunter hängen darf** —
+ * in Kugelgrößen, bei einem Turm aus `count` Kugeln. Die unterste (0) sitzt
+ * im Hörnchen und hängt gar nicht über. Mit der obersten Stelle `n = count − 1`
+ * darf Kugel `k` höchstens `WOBBLE.lean / (n − k + 1)`: die oberste 0,9, die
+ * darunter die Hälfte, dann ein Drittel, ein Viertel … — nicht gerade,
+ * sondern wie das obere Ende einer S-Kurve.
+ */
+export function leanLimit(index: number, count: number): number {
+  if (index <= 0 || index >= count) return 0;
+  return WOBBLE.lean / (count - index);
+}
+
 /** Wo die Kugeln ruhen würden, wenn nichts wackelte — der starre Turm. */
 export function restTower(base: Vec3, axis: Vec3, count: number, spacing: number): Vec3[] {
   const dir = stackDirection(axis);
@@ -239,6 +285,8 @@ export function restTower(base: Vec3, axis: Vec3, count: number, spacing: number
  * @param count wie viele Kugeln es sind — neue erscheinen an ihrem Platz oben
  *              auf dem Turm, überzählige fallen weg
  * @param spacing der Abstand zweier Kugelmitten, in Metern
+ * @param size  wie groß eine Kugel ist (ihr Durchmesser), in Metern — daran
+ *              misst sich der Überhang (`leanLimit`); ohne Angabe der Abstand
  */
 export function stepWobble(
   state: WobbleState,
@@ -247,22 +295,30 @@ export function stepWobble(
   count: number,
   spacing: number,
   dt: number,
+  size: number = spacing,
 ): WobbleState {
   const fromBase = state.base ?? base;
   const fromAxis = state.axis ?? axis;
   let dir = state.dir ?? stackDirection(axis);
   // Die Ansicht darf `balls` kürzen (eine neue Sorte oben), die Kette folgt.
-  const chain: Vec3[] = state.chain.slice(0, Math.max(0, Math.min(count, state.balls.length)));
+  const kept = Math.max(0, Math.min(count, state.balls.length));
+  const chain: Vec3[] = state.chain.slice(0, kept);
+  const limits: number[] = state.limits.slice(0, kept);
   // **Neue Kugeln oben drauf**, an ihrem Platz: Die Kugel kommt vom
   // Portionierer und soll dort sitzen, wo man sie hingesetzt hat.
   while (chain.length < count) {
     const below = chain[chain.length - 1];
     chain.push(below ? add(below, dir, spacing) : fromBase);
   }
+  while (limits.length < count) limits.push(leanLimit(limits.length, count));
   const total = Math.min(Math.max(0, dt), WOBBLE.maxDt);
   const pieces = Math.max(1, Math.ceil(total / WOBBLE.step - 1e-9));
   const h = total / pieces;
-  const reach = WOBBLE.reach * spacing;
+  // Die Grenzen ziehen ihrem Wert nach — ohne Überschießen, geschlossen.
+  const pull = 1 - Math.exp(-total / WOBBLE.relimit);
+  for (let i = 0; i < limits.length; i++) {
+    limits[i] = limits[i]! + (leanLimit(i, count) - limits[i]!) * pull;
+  }
   for (let k = 1; k <= pieces; k++) {
     // Hörnchen und Achse wandern gleichmäßig vom letzten Bild zu diesem.
     const at = k === pieces ? base : lerp(fromBase, base, k / pieces);
@@ -278,7 +334,8 @@ export function stepWobble(
       const lastTarget = add(before, lastDir, spacing);
       before = chain[i]!;
       let p = followBall(i, target, lastTarget, before, h);
-      // Nur als Notbremse, zum Platz hin: Weiter als `reach` hängt nichts über.
+      // Zum Platz hin gehalten: Weiter als `reach` Grenzen hängt nichts über.
+      const reach = WOBBLE.reach * limits[i]! * size;
       const off = sub(p, target);
       const far = length(off);
       if (far > reach) p = add(target, off, reach / far);
@@ -286,8 +343,7 @@ export function stepWobble(
     }
   }
   // **Gezeigt wird weich begrenzt**: jedes Glied mit seinem gestauchten
-  // Überhang auf die gezeigte Kugel darunter gesetzt.
-  const limit = WOBBLE.lean * spacing;
+  // Überhang auf die gezeigte Kugel darunter gesetzt, jedes mit seiner Grenze.
   const balls: Vec3[] = [];
   chain.forEach((p, i) => {
     if (i === 0) {
@@ -295,20 +351,21 @@ export function stepWobble(
       return;
     }
     const over = sub(p, add(chain[i - 1]!, dir, spacing));
-    balls.push(add(add(balls[i - 1]!, dir, spacing), softLean(over, limit)));
+    balls.push(add(add(balls[i - 1]!, dir, spacing), softLean(over, limits[i]! * size)));
   });
-  return { balls, chain, dir, base, axis };
+  return { balls, chain, limits, dir, base, axis };
 }
 
 /**
  * **Ein Überhang, weich begrenzt** — Richtung bleibt, Länge `r` wird zu
- * `limit · r / (limit + r)`: für kleine `r` fast unverändert, streng wachsend
- * und immer unter `limit`.
+ * `limit · tanh(r / limit)`: für kleine `r` fast unverändert, streng wachsend
+ * und immer unter `limit`, dem es sich aber schon bei `r ≈ 2 · limit` bis auf
+ * wenige Prozent nähert.
  */
 export function softLean(over: Vec3, limit: number): Vec3 {
   const r = length(over);
-  if (r < 1e-12) return { x: 0, y: 0, z: 0 };
-  return scale(over, limit / (limit + r));
+  if (r < 1e-12 || limit <= 0) return { x: 0, y: 0, z: 0 };
+  return scale(over, (limit * Math.tanh(r / limit)) / r);
 }
 
 /**
