@@ -461,7 +461,23 @@ stünde. Die Tore im Hub bleiben eines je Welt.
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
 Ordner _Test_) sind fünf Kammern aus Fensterwänden (`navTestPlan.ts`), vor
 jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
-Zielplatte** (immer sichtbar, ohne Tiefenprüfung).
+Zielplatte**. Daneben im selben Ordner steht das **Test Restaurant**
+(Kapitel [Test Restaurant](testrestaurant.md)).
+
+**Die Böden sind aus dem Regal** (gewünscht: _„der Boden durch prototype
+floor ersetzt … Die Lava durch Spike Boden. Der grüne und blaue Boden durch
+kaykit kitchen Green und Blue"_): Jede Bodenkachel trägt die Platte
+`prototype-bits/Floor_Prototype.glb` (`NavTestWorld.floorPlate` →
+`navTestPlan.FLOOR_MODEL`, auch auf den Podesten). Start und Ziel sind keine
+gemalten Flächen mehr, sondern die Küchenfliesen
+`restaurant-bits/floor_kitchen_small_green` und `…_blue`, die Lava ein Feld
+aus roten Stachelfallen (`platformer/red/floor_spikes_trap_2x2x1_red`, eine je
+Kachel). Alle drei stellt die Welt als Bodenstücke hin (`navTestPlan.floorPieces`
+→ `placeModel`): eingelassen wie aus der Hand (`PortalWorld.sinkFloor`), und
+die Prototyp-Platte darunter geht aus dem Bild (`GridWorld.coverFloor`). Die
+Gefahr selbst steht weiter im Plan (`HAZARD_FIRE`) — die Stacheln sind ihr
+Bild, nicht ihre Regel. Die früheren Platten waren ohne Tiefenprüfung auch
+durch Wände zu sehen; die Fliesen sind es nicht mehr.
 
 **Die Wände sind nur aus dem Regal** (gewünscht: _„keine eigenen Wände
 nutzen, sondern nur die kaykit Wall Elemente"_): Die Kammern und die

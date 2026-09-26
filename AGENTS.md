@@ -141,6 +141,7 @@ Stichpunkten).
 
 - **[Was drin ist](docs/agents/inhalt.md)** — Die Welten, die Zonen und die Spiele: was es gibt und was es tut.
 - **[Haunting / Orbital](docs/agents/haunting.md)** — Die Raumstation für eine Quest und zwei Mobilgeräte: Runde, Rollen, Karte, Bots. Das längste Kapitel.
+- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Eine Mini-Küche je Gericht mit Rezept, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen. Darin auch: welche Rezepte, welche Stücke das Regal dafür hat und welche fehlen.
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Spielküche mit Gastraum und ein Spiel nach _PlateUp!_: Gäste, Geduld, Bestellung, Tage.
   Darin: Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
@@ -172,7 +173,7 @@ Stichpunkten).
   Darin: Wie man aussieht · Was vor einem und an der Hand steht (Brille) · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.
   Darin: Wer hier herumläuft · Charakter: übernehmen, vormachen, nachspielen · Wie sich NPCs orientieren · Verhalten: Plätze aufsuchen, warten, ausweichen.
-- **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, Sandbox (vormals Testwelt), Ordner von Welten und die Test Navigation, und wie Portale und Spiegel rechnen.
+- **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, Sandbox (vormals Testwelt), Ordner von Welten und die Test Navigation (Böden aus dem Regal), und wie Portale und Spiegel rechnen.
   Darin: Welten auf dem Kachelgitter · Eine neue Welt hinzufügen · Wie die Portale funktionieren · Wie die Spiegel funktionieren.
 - **[Zusammen spielen](docs/agents/netzwerk.md)** — Peer-to-Peer, Chat, Stimmen, geteilte Objekte, Zuschauen, asymmetrisches Spielen.
   Darin: Zusammen spielen (Peer-to-Peer) · Chat: Text, und vor allem Codes · Sprechen: Stimmen im Raum · Die Welt teilen: Objekte und Portale · Zuschauen: First und Third Person · Asymmetrisches Spielen.

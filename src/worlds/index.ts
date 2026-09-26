@@ -57,6 +57,22 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./testnav/NavTestWorld')).NavTestWorld(),
   },
   {
+    id: 'test-restaurant',
+    title: 'Test Restaurant',
+    tagline: 'Mini-Küchen, ein Förderband und Gäste mit Wünschen',
+    description:
+      'Für jedes Gericht eine kleine Küche aus dem Regal, das Rezept auf der Tafel darüber: Burger, Eis, Pizza, Pizza to Go, Suppe, Waffeln und Nachtisch, Steak, Schinken und Pommes. Daneben ein Förderband, das Burger ganz von allein baut, und Gäste an zwei Tischen, die in einer Blase zeigen, was sie wollen — aus der Vorratsbox holen und auf ihren Tisch legen.',
+    accent: 0xf2a33a,
+    preview: 'worlds/test-restaurant.webp',
+    // Alle Küchen von oben, Rand bis Rand.
+    topDownSpan: 40,
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () =>
+      new (await import('./testrestaurant/TestRestaurantWorld')).TestRestaurantWorld(),
+  },
+  {
     id: 'plateup',
     title: 'Restaurant',
     tagline: 'Küche, Gastraum und ein Tag voller Gäste',
