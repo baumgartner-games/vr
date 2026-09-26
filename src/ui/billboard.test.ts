@@ -4,6 +4,7 @@ import {
   TOP_DOWN_CAMERA_NAME,
   billboardAngles,
   faceCamera,
+  flipWanted,
   turnWithView,
   unfaceCamera,
   viewYaw,
@@ -277,6 +278,15 @@ describe('Schilder, die der gedrehten Draufsicht folgen (turnWithView)', () => {
   it('stellt Aufrechtes zur Kamera, gleich wie es gebaut wurde', () => {
     expect(viewYaw('upright', -1, 0, Q)).toBeCloseTo(-Q);
     expect(viewYaw('upright', 1, 0, -Q)).toBeCloseTo(Q);
+  });
+
+  it('wendet Gangschrift, sobald sie gegen das Bild läuft', () => {
+    // Leserichtung nach Osten, das Bild hat rechts Osten: bleibt.
+    expect(flipWanted(1, 0, 1, 0)).toBe(false);
+    // Das Bild um eine halbe Drehung gedreht: rechts ist Westen — wenden.
+    expect(flipWanted(1, 0, -1, 0)).toBe(true);
+    // Quer zum Bild: bleibt, wie gebaut.
+    expect(flipWanted(0, 1, 1, 0)).toBe(false);
   });
 
   it('bleibt stehen, wenn die Kamera senkrecht herabschaut', () => {

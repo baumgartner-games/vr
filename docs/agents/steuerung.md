@@ -183,13 +183,15 @@ rechte Stock war keine Wahl (er zielt), die Schultern auch nicht (Zoom).
   Tastenhilfe am Glas nennt sie nicht — man sieht sie.
 - **Schilder lesen sich auch gedreht** (`ui/billboard.turnWithView`, mit
   Test): Was `face` hat, steht ohnehin zur Kamera. Was **flach** liegt und von
-  oben gelesen wird (die Raumnamen der Haunting-Karte,
-  `navigationOverlay.ts`), dreht in der Draufsicht um genau das Gieren der
-  Kamera mit (`'flat'`); die **Tor-Schilder im Hub** stellen sich in der
-  Draufsicht aufrecht zur Kamera (`'upright'`). Beides nur für die Kamera von
-  oben (`TOP_DOWN_CAMERA_NAME`) — aus den Augen und in der Brille steht alles,
-  wie es gebaut ist. Aufgemalte Bodenschrift (die Abteilungs-Schablonen der
-  Station) bleibt, wo sie ist: Sie ist Farbe auf dem Boden und kein Schild.
+  oben gelesen wird (die Raumnamen der Haunting-Karte, `navigationOverlay.ts`,
+  und die Abteilungs-Schablonen am Stationsboden, `shipArt.ts`), dreht in der
+  Draufsicht um genau das Gieren der Kamera mit (`'flat'`). Die Namen **in den
+  Gängen** liegen längs, weil sie quer nicht hineinpassen; sie werden nur
+  **gewendet**, sobald sie gegen das Bild laufen (`'flip'`, `flipWanted`) —
+  nie auf dem Kopf, nie quer zum Gang. Die **Tor-Schilder im Hub** stellen
+  sich in der Draufsicht aufrecht zur Kamera (`'upright'`). Alles nur für die
+  Kamera von oben (`TOP_DOWN_CAMERA_NAME`) — aus den Augen und in der Brille
+  steht es, wie es gebaut ist.
 
 ## Die Tabelle
 
