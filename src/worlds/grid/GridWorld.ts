@@ -1617,8 +1617,11 @@ export abstract class GridWorld extends PortalWorld {
       }
       case 'goto':
         // Genau das, was das Tor des Hubs heute tut — über den Weltkontext und
-        // nicht über einen eigenen Weg in die App.
-        if (event.world) ctx.goTo(event.world);
+        // nicht über einen eigenen Weg in die App. **Nur nicht als Kran**
+        // (`core/crane.ts`): Der fliegt ohne Körper über alles hinweg, und wer
+        // beim Einrichten über das Tor des Bauplatzes schwebt, will den Raum
+        // einrichten und nicht in den Hub.
+        if (event.world && !ctx.crane) ctx.goTo(event.world);
         break;
       case 'sound':
         playFixtureSound(event.name);

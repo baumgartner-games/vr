@@ -1274,9 +1274,13 @@ Bild-Schleife lief im Bauplatz bei 1280×800 und 390×844: Geist grün auf dem
 Tisch, rot halb im Tisch, Bild an der Wand; der eingerichtete Raum von oben
 und aus den Augen nach Norden, Osten und Westen.
 
-**Offen**: Beim Überfliegen des Tors im Bauplatz wechselt der Kran die Welt —
-er ist ein Körper ohne Kollisionen, aber das Tor fragt nur, ob jemand
-hindurchgeht. Am Pad gibt es die Leiste nicht (sie ist DOM); _Zurück_ und
+**Und der Kran reist nicht mehr durch Tore** (`GridWorld.fixtureEvent`,
+`goto`): Beim Durchspielen stand der Bauplatz nach dem Überfliegen seines
+Hub-Tors plötzlich im Hub — der Kran hat keinen Körper, aber das Tor fragte
+nur, ob jemand auf seiner Kachel steht. Als Kran wird eingerichtet, nicht
+gereist.
+
+**Offen**: Am Pad gibt es die Leiste nicht (sie ist DOM); _Zurück_ und
 _Vor_ liegen dort im Menü. Ein Bild lässt sich nur an achsparallele Wände
 hängen, und der Geist zeigt in der Brille nur das, was die Hand hält — eine
 Leiste dort wäre ein eigenes Panel am Handgelenk.
