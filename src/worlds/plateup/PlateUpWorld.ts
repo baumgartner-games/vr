@@ -85,6 +85,7 @@ import {
   buy,
   dayOffers,
   decorCount,
+  extraStations,
   placeCheck,
   placedTiles,
   shopItem,
@@ -575,23 +576,31 @@ export class PlateUpWorld extends GridWorld {
 
   private buildStations(): void {
     this.stationViews.length = 0;
-    STATIONS.forEach((spot, index) => {
-      const anchor = new THREE.Group();
-      anchor.name = `plateup-station:${spot.id}`;
-      anchor.position.set(spot.x + 0.5, 0, spot.z + 0.5);
-      this.root.add(anchor);
-      const view: StationView = {
-        spot,
-        index,
-        anchor,
-        top: STATION_TOP[spot.kind] ?? 0.5,
-        content: null,
-        shown: '',
-        deedKey: '',
-      };
-      this.stationViews.push(view);
-      if (canLoadModels()) void this.stationModel(view, this.building);
-    });
+    STATIONS.forEach((spot) => this.addStationView(spot));
+  }
+
+  /** Eine Station in die Welt: Anker, Modell — der Index ist ihr Platz in `stations`. */
+  private addStationView(spot: StationSpot): void {
+    const anchor = new THREE.Group();
+    anchor.name = `plateup-station:${spot.id}`;
+    anchor.position.set(spot.x + 0.5, 0, spot.z + 0.5);
+    this.root.add(anchor);
+    const view: StationView = {
+      spot,
+      index: this.stationViews.length,
+      anchor,
+      top: STATION_TOP[spot.kind] ?? 0.5,
+      content: null,
+      shown: '',
+      deedKey: '',
+    };
+    this.stationViews.push(view);
+    if (canLoadModels()) void this.stationModel(view, this.building);
+  }
+
+  /** Alle Stationen: die festen und die gekauften (`plateUpShop.extraStations`). */
+  private stationSpots(): StationSpot[] {
+    return [...STATIONS, ...extraStations(this.placed)];
   }
 
   private async stationModel(view: StationView, round: number): Promise<void> {
@@ -1048,7 +1057,7 @@ export class PlateUpWorld extends GridWorld {
     this.blueprint = null;
     this.clearOffers();
     this.sold.clear();
-    this.stations = freshStations(STATIONS);
+    this.stations = freshStations(this.stationSpots());
     this.setHeld(null, null);
     this.shift = { ...openDay(this.shift), decor: decorCount(this.placed) };
     this.refreshDirty();
@@ -1228,7 +1237,7 @@ export class PlateUpWorld extends GridWorld {
   private resetGame(): void {
     this.clearGuests();
     this.shift = newShift(Date.now() % 100000);
-    this.stations = freshStations(STATIONS);
+    this.stations = freshStations(this.stationSpots());
     this.setHeld(null, null);
     this.blueprint = null;
     this.sold.clear();
@@ -1433,9 +1442,12 @@ export class PlateUpWorld extends GridWorld {
     const closed = this.shift.phase === 'closed';
     // Jeder Bauplan einmal je Abend: Was gekauft ist, liegt nicht wieder da.
     const offers = closed
-      ? dayOffers(this.shift.day, this.shift.seed, this.tables.length).filter(
-          (item) => !this.sold.has(item.id),
-        )
+      ? dayOffers(
+          this.shift.day,
+          this.shift.seed,
+          this.tables.length,
+          this.placed.map((p) => p.item),
+        ).filter((item) => !this.sold.has(item.id))
       : [];
     const key = closed ? `${this.shift.day}:${this.tables.length}:${this.placed.length}` : '';
     if (key !== this.offerKey) {
@@ -1588,7 +1600,9 @@ export class PlateUpWorld extends GridWorld {
     );
     this.aimSpot.set(cx, 0, cz);
     if (this.ghostModel && this.ghostModelFor === item.id) {
-      this.shopGhost.show(this.ghostModel, cx, 0, cz, 0, check.ok);
+      // Eine Station zeigt ihre Vorderseite nach Norden, zur Küche (wie die Durchreiche).
+      const yaw = item.kind === 'station' ? Math.PI : 0;
+      this.shopGhost.show(this.ghostModel, cx, 0, cz, yaw, check.ok);
     } else if (this.ghostModelFor !== item.id) {
       this.ghostModelFor = item.id;
       this.ghostModel = null;
@@ -1632,7 +1646,9 @@ export class PlateUpWorld extends GridWorld {
     this.announce(
       item.kind === 'table'
         ? `Neuer Tisch ${this.tables.length} — ab morgen kommen mehr Gäste`
-        : `${item.label} steht — die Gäste warten jetzt etwas geduldiger`,
+        : item.kind === 'station'
+          ? `${item.stationLabel ?? item.label} steht — gleich einsatzbereit`
+          : `${item.label} steht — die Gäste warten jetzt etwas geduldiger`,
     );
     chime([523, 659, 784], 0.08);
     this.effects.push(new Ring(this.root, this.aimSpot, 0x5aa0e0));
@@ -1661,6 +1677,18 @@ export class PlateUpWorld extends GridWorld {
           this.shopRoot.add(model);
         });
       }
+      return;
+    }
+    if (item.kind === 'station') {
+      // **Eine Station mehr**: dieselbe Anmeldung, dieselbe Uhr, dasselbe
+      // Verbrennen wie an der Nordwand — sie steht nur woanders.
+      const spot = extraStations(this.placed).find((s) => s.x === p.x && s.z === p.z);
+      if (!spot) return;
+      this.addBlock(p.x + 0.5, p.z + 0.5, [1, 1], true);
+      if (!this.stations.some((s) => s.spot.id === spot.id)) {
+        this.stations = [...this.stations, ...freshStations([spot])];
+      }
+      if (!this.stationViews.some((v) => v.spot.id === spot.id)) this.addStationView(spot);
       return;
     }
     this.addBlock(p.x + 0.5, p.z + 0.5, [0.8, 0.8], true);
@@ -1693,6 +1721,17 @@ export class PlateUpWorld extends GridWorld {
       if (i >= 0) this.solids.splice(i, 1);
     }
     this.shopBlocks.length = 0;
+    // Die gekauften Stationen gehen mit — samt Anzeige über ihnen.
+    for (const view of this.stationViews.splice(STATIONS.length)) {
+      this.removeUsable(view.anchor);
+      view.anchor.removeFromParent();
+      this.gauges?.clear(`station:${view.spot.id}`);
+      this.gauges?.flame(`flame:${view.spot.id}`, null);
+      this.gauges?.warn(`warn:${view.spot.id}`, null);
+      this.smokes.get(view.spot.id)?.dispose();
+      this.smokes.delete(view.spot.id);
+    }
+    this.stations = this.stations.slice(0, STATIONS.length);
   }
 
   private async loadShopModel(item: ShopItem): Promise<THREE.Object3D | null> {
@@ -1964,7 +2003,7 @@ export class PlateUpWorld extends GridWorld {
 
   /** Eine Station benutzen, als stünde man davor. */
   debugUse(id: string): boolean {
-    const index = STATIONS.findIndex((s) => s.id === id);
+    const index = this.stationViews.findIndex((v) => v.spot.id === id);
     return index >= 0 && this.useStationAt(index, { kind: 'player', at: _v, forward: _v });
   }
 }

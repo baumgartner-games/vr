@@ -1,4 +1,4 @@
-import { DIR_E, DIR_W, tileKey } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_W, tileKey } from '../nav/navTile';
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
 import { DECOR } from './plateUpDecor';
@@ -8,12 +8,15 @@ import {
   DOOR_INSIDE,
   DOOR_X,
   ROOM,
+  SPAWN_TILE,
   TABLES,
   blockedTiles,
   routePlan,
   tableSpot,
+  type StationSpot,
   type TableSpot,
 } from './plateUpPlan';
+import type { StationKind } from '../test/zones/kitchenCarry';
 
 /**
  * **Einrichten zwischen den Tagen** — was es zu kaufen gibt, wo es hindarf und
@@ -31,11 +34,14 @@ import {
  *   teure Wahl, und sie macht den Laden voller und damit schwerer.
  * - **Deko** (Pflanze, Lampe, Sessel …) — nur schön, und die Gäste werden
  *   geduldiger (`plateUpGame.decorPatience`).
+ * - **Eine Station** (zweite Grillplatte, zweites Schneidebrett) — sie kommt
+ *   in die Küche, vor die Durchreiche, und arbeitet wie ihre Schwester an der
+ *   Nordwand (`extraStations`).
  *
  * Alle Modelle kommen aus dem KayKit-Regal, das schon im Laden steht.
  */
 
-export type ShopKind = 'table' | 'decor';
+export type ShopKind = 'table' | 'decor' | 'station';
 
 export interface ShopItem {
   readonly id: string;
@@ -48,6 +54,10 @@ export interface ShopItem {
   readonly model: string;
   /** Auf welche Höhe das Modell gebracht wird (nur `kaykit`). */
   readonly height?: number;
+  /** Welche Regel die gekaufte Station bekommt (nur `station`). */
+  readonly station?: StationKind;
+  /** Wie die gekaufte Station im Satz heißt (nur `station`). */
+  readonly stationLabel?: string;
 }
 
 export const SHOP_ITEMS: readonly ShopItem[] = [
@@ -58,6 +68,26 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
     kind: 'table',
     source: 'diner',
     model: 'table_round_B_tablecloth_green',
+  },
+  {
+    id: 'grill',
+    label: 'Zweite Grillplatte',
+    cost: 30,
+    kind: 'station',
+    source: 'diner',
+    model: 'stove_single',
+    station: 'griddle',
+    stationLabel: 'Grillplatte',
+  },
+  {
+    id: 'board',
+    label: 'Zweites Schneidebrett',
+    cost: 20,
+    kind: 'station',
+    source: 'diner',
+    model: 'kitchencounter_straight_B',
+    station: 'board',
+    stationLabel: 'Schneidebrett',
   },
   {
     id: 'cactus',
@@ -128,14 +158,26 @@ export const OFFER_SPOTS: readonly { readonly x: number; readonly z: number }[] 
 ];
 
 /**
- * **Die Baupläne eines Abends** — ein Tisch (solange Platz ist) und Deko, aus
- * dem Würfel des Tages gezogen. Derselbe Tag gibt dieselben Pläne: Wer die
- * Glocke nicht läutet und wiederkommt, findet dasselbe vor.
+ * **Die Baupläne eines Abends** — ein Tisch (solange Platz ist), eine Station
+ * (solange eine fehlt; an geraden Tagen zuerst der Grill, an ungeraden das
+ * Brett) und Deko, aus dem Würfel des Tages gezogen. Derselbe Tag gibt
+ * dieselben Pläne: Wer die Glocke nicht läutet und wiederkommt, findet
+ * dasselbe vor.
+ *
+ * `owned` sind die Ids dessen, was schon steht — jede Station gibt es nur
+ * einmal zu kaufen.
  */
-export function dayOffers(day: number, seed: number, tables: number): ShopItem[] {
+export function dayOffers(
+  day: number,
+  seed: number,
+  tables: number,
+  owned: readonly string[] = [],
+): ShopItem[] {
   const decor = SHOP_ITEMS.filter((item) => item.kind === 'decor');
   const out: ShopItem[] = [];
   if (tables < MAX_TABLES) out.push(SHOP_ITEMS[0]!);
+  const stations = SHOP_ITEMS.filter((item) => item.kind === 'station' && !owned.includes(item.id));
+  if (stations.length) out.push(stations[day % stations.length]!);
   let s = (seed ^ Math.imul(day + 1, 0x9e3779b1)) >>> 0 || 1;
   const pool = [...decor];
   while (out.length < OFFERS && pool.length) {
@@ -165,6 +207,38 @@ export function allTables(placed: readonly Placed[]): TableSpot[] {
   }
   return out;
 }
+
+/**
+ * **Die gekauften Stationen** — je eine Kachel in der Küche, die Vorderseite
+ * nach Norden (dort steht, wer an ihr arbeitet). Die Ids zählen weiter
+ * (`grill-extra-1`), damit sie keiner festen Station in die Quere kommen.
+ */
+export function extraStations(placed: readonly Placed[]): StationSpot[] {
+  const out: StationSpot[] = [];
+  for (const p of placed) {
+    const item = shopItem(p.item);
+    if (item?.kind !== 'station' || !item.station) continue;
+    out.push({
+      id: `${item.id}-extra-${out.length + 1}`,
+      kind: item.station,
+      x: p.x,
+      z: p.z,
+      label: item.stationLabel ?? item.label,
+      model: item.model,
+      face: DIR_N,
+    });
+  }
+  return out;
+}
+
+/**
+ * **Wo eine gekaufte Station hindarf**: die Reihe direkt nördlich der
+ * Durchreiche (`z = 2`), von der Westwand bis zu ihrem Ende. Die Reihe davor
+ * (`z = 1`) bleibt frei — dort steht, wer an der Nordwand arbeitet, und
+ * jetzt auch, wer an der neuen Station arbeitet. Östlich davon ist der
+ * Durchgang in den Gastraum.
+ */
+export const STATION_ROW = { z: 2, x0: 0, x1: 10 } as const;
 
 /** Auf welcher Seite der Gang eines gekauften Tisches liegt — zur Mitte des Raums hin. */
 function aisleOf(x: number): typeof DIR_E | typeof DIR_W {
@@ -253,6 +327,7 @@ export function placeCheck(
       tz < DINING_AREA.z + DINING_AREA.d
     );
   };
+  if (kind === 'station') return stationCheck(x, z, placed);
   if (!tiles.every(inside)) return { ok: false, why: 'Nur im Gastraum' };
   if (kind === 'table') {
     if (allTables(placed).length >= MAX_TABLES)
@@ -295,6 +370,21 @@ export function placeCheck(
           return { ok: false, why: `Dann käme niemand mehr an Tisch ${t.index + 1}` };
       }
     }
+  }
+  return { ok: true };
+}
+
+/** Die Prüfung für eine Station: nur in die Küchenreihe vor der Durchreiche, auf Freies. */
+function stationCheck(x: number, z: number, placed: readonly Placed[]): PlaceCheck {
+  if (z !== STATION_ROW.z || x < STATION_ROW.x0 || x > STATION_ROW.x1) {
+    return { ok: false, why: 'Stationen nur in die Küche, vor die Durchreiche' };
+  }
+  if (x === SPAWN_TILE.x && z === SPAWN_TILE.z) {
+    return { ok: false, why: 'Hier fängt man morgens an — bitte daneben' };
+  }
+  const key = `${x},${z}`;
+  if (blockedTiles().has(key) || placedTiles(placed).includes(key)) {
+    return { ok: false, why: 'Da steht schon etwas' };
   }
   return { ok: true };
 }

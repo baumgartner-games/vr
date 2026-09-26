@@ -62,5 +62,12 @@ describe('Burgerladen: Tastenhilfe nach Station', () => {
     const labels = controlHints(ctx).map((item) => item.label);
     expect(labels).toContain('Servieren');
     expect(labels).not.toContain('Ablegen');
+    // Abends mit dem Bauplan vor dem Geist: Hinstellen statt Glocke.
+    const evening = controlHints({
+      ...ctx,
+      zone: { kind: 'burger', holding: false, closed: true, action: 'Hinstellen' },
+    }).map((item) => item.label);
+    expect(evening).toContain('Hinstellen');
+    expect(evening).not.toContain('Glocke läuten');
   });
 });

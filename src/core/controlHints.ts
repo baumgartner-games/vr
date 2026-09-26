@@ -318,7 +318,8 @@ function zoneHints(ctx: HintContext, zone: HintZone): HintItem[] {
       return out;
     case 'burger':
       tag(ZONE_LABELS.burger);
-      if (zone.closed) add(use, 'Glocke läuten');
+      // Zu, aber vor einem Bauplan oder dem Geist: dessen Verb statt der Glocke.
+      if (zone.closed && !(ctx.useCandidate && zone.action)) add(use, 'Glocke läuten');
       else if (ctx.useCandidate) add(use, zone.action ?? (zone.holding ? 'Ablegen' : 'Nehmen'));
       // Nichts in Reichweite: sagen, wo `A` etwas tut.
       else add(use, zone.holding ? 'an Platte/Tisch: Ablegen' : 'an der Kiste: Nehmen');

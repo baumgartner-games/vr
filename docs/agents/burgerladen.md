@@ -122,9 +122,9 @@ Alles aus dem KayKit-Regal, nichts Neues (siehe [Modelle](./modelle.md),
 dasteht, liegen im Gang rechts neben dem Durchgang aus der Küche drei
 **Baupläne** auf dem Boden (`OFFER_SPOTS`) — ein blaues Blatt mit dem Modell
 darauf und Name und Preis darüber. Einer ist ein **Tisch mit zwei Stühlen**
-(40 Münzen, bis `MAX_TABLES` = 6), die anderen Deko aus dem Regal (Kaktus,
-Stehlampe, Busch, Sessel, Kaugummiautomat, 8–14 Münzen; aus dem Würfel des
-Tages, `dayOffers`). `A` am Blatt nimmt den Bauplan, und vor der Figur steht
+(40 Münzen, bis `MAX_TABLES` = 6), einer eine **Station** (unten), der Rest
+Deko aus dem Regal (Kaktus, Stehlampe, Busch, Sessel, Kaugummiautomat, 8–14
+Münzen; aus dem Würfel des Tages, `dayOffers`). `A` am Blatt nimmt den Bauplan, und vor der Figur steht
 dann der **Platzierungsgeist** aus dem Baukasten (`portal/placeGhost.ts`):
 grün, wo es passt, rot, wo nicht — die Leiste unten sagt, warum
 (`placeCheck`: nur im Gastraum, nicht auf anderem, Stühle, Tür und die
@@ -138,6 +138,21 @@ Stationen wird nicht gekocht. Jeder Bauplan liegt je Abend einmal aus. Ein gekau
 mehr (`allTables`, mehr Gäste gleichzeitig), jedes Deko-Stück gibt den Gästen
 6 % mehr Geduld, höchstens 30 % (`decorPatience`). Das Gekaufte bleibt, bis
 die Runde endet oder `B`/`Y` alles zurücksetzt.
+
+**Gekaufte Stationen**: eine **zweite Grillplatte** (30 Münzen) und ein
+**zweites Schneidebrett** (20 Münzen), dieselben Möbel wie an der Nordwand
+(`stove_single`, Arbeitsplatte mit Brett). Solange eine fehlt, liegt eine
+davon abends aus (an geraden Tagen zuerst der Grill); jede gibt es einmal.
+Hin darf sie nur in die **Küchenreihe direkt vor der Durchreiche** (`z = 2`,
+`STATION_ROW`, von der Westwand bis zum Ende der Durchreiche) — die Reihe an
+der Nordwand bleibt frei, denn dort steht, wer an beiden Reihen arbeitet;
+der Startplatz und der Durchgang in den Gastraum auch. Dieselbe Prüfung und
+derselbe Geist wie bei Tisch und Deko (`placeCheck` → `stationCheck`, der
+Geist zeigt die Vorderseite nach Norden). Gekauft ist sie sofort eine volle
+Station (`extraStations`: eigene Id `grill-extra-1`, dieselbe Regel, Uhr,
+Verbrennen, Rauch, Anmeldung und Tastenhilfe) und wird über Nacht wie die
+anderen geleert. Die Kachel der Durchreiche dahinter bedient man dann vom
+Gastraum aus.
 
 **Schwierigkeit** (`dayRules`): Öffnungszeit 75 s + 15 s je Tag (bis 150),
 Abstand der Gäste 18 s − 2,5 s je Tag (ab 7 s), Geduld 70 s − 8 s je Tag (ab
@@ -229,9 +244,9 @@ Einrichten-Phase), `debugBlueprint(id)`, `debugPlace(id, x, z)`,
 - **Nicht geteilt**: Gäste, Stationen und Kasse laufen nur lokal; eine zweite
   Person in derselben Sitzung sieht ihren eigenen Laden.
 - **Kein Feuer**: Ein verbranntes Patty raucht, aber die Platte brennt nicht
-  (die Testküche kann das am Herd, `kitchenClock`). Und eingerichtet werden
-  nur Tische und Deko — keine zusätzliche Station (zweiter Grill, Brett) und
-  kein Verschieben dessen, was schon steht.
+  (die Testküche kann das am Herd, `kitchenClock`). Und eingerichtet wird
+  nur dazu — kein Verschieben dessen, was schon steht, und nur je eine
+  zusätzliche Grillplatte und ein Brett.
 - **Gruppen nur zu zweit**: Die Tische haben zwei Stühle; größere Gruppen
   bräuchten zusammengestellte Tische.
 - **Der Bauplan in der Brille** hängt an keiner Hand — man sieht nur den
