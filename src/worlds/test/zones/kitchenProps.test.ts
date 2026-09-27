@@ -11,6 +11,7 @@ import {
   DIRTY_STACK_MAX,
   FOOD_NODE,
   FoodKit,
+  ELSEWHERE,
   ITEM_HEIGHT,
   PLATE_HEIGHT,
   PLATE_RADIUS,
@@ -57,8 +58,13 @@ const FROM_MODEL: readonly KitchenItem[] = ['pot', 'pan', 'extinguisher'];
 /** Was aus `diner.glb` kommt — ohne geladene Datei also nicht zu sehen. */
 const LOADED = Object.keys(FOOD_NODE) as KitchenItem[];
 
-/** Und was dieser Satz weiterhin selbst baut: die vier ohne fremdes Netz. */
-const BUILT = ALL_ITEMS.filter((item) => !FROM_MODEL.includes(item) && !LOADED.includes(item));
+/**
+ * Und was dieser Satz weiterhin selbst baut: die vier ohne fremdes Netz —
+ * ohne die zweite Speisekarte, die er gar nicht zeichnet (`ELSEWHERE`).
+ */
+const BUILT = ALL_ITEMS.filter(
+  (item) => !FROM_MODEL.includes(item) && !LOADED.includes(item) && !ELSEWHERE.includes(item),
+);
 
 /** Die Hülle eines gebauten Dings, in seinem eigenen Raum. */
 function span(object: THREE.Object3D): THREE.Box3 {

@@ -77,8 +77,17 @@ export interface StationSpot {
   readonly kind: StationKind;
   readonly x: number;
   readonly z: number;
-  /** Was eine Kiste hergibt (`crate`, `box`). */
+  /**
+   * Was eine Kiste hergibt (`crate`, `box`), welche Sorte eine Eiswanne
+   * (`tub`) — und welcher Träger auf einem Stapel (`drain`) steht; dort ohne
+   * Angabe der Teller (`plateUpStations.stackGives`).
+   */
   readonly gives?: KitchenItem;
+  /**
+   * **Wie viele auf dem Stapel stehen**, nur beim `drain` — ohne Angabe
+   * `plateUpStations.PLATES`, `Infinity` für einen, der nie leer wird.
+   */
+  readonly stock?: number;
   /** Wie die Station im Satz heißt — „Brötchen nehmen" steht an der Kiste. */
   readonly label: string;
   /** Welches Möbel aus dem Katalog darunter steht (`core/dinerFit`). */

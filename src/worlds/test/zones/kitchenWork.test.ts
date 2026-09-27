@@ -375,12 +375,47 @@ describe('was aus der Spüle herauskommt', () => {
    * wäre. Genau das soll sie leisten.
    */
   it('entscheidet allein über den Weg des Fertigen', () => {
-    expect(WORK_TO_HAND).toEqual({ chop: false, wash: true, blend: false, fry: false });
+    expect(WORK_TO_HAND).toEqual({
+      chop: false,
+      wash: true,
+      blend: false,
+      fry: false,
+      roll: false,
+      cook: false,
+    });
     for (const kind of Object.keys(WORK_TO_HAND) as WorkKind[]) {
       const item = kind === 'wash' ? 'plate-dirty' : 'lettuce';
       const tick = advanceWork(onWork(kind, item), WORK_SECONDS[kind], true, true);
       expect({ kind, toHand: tick.toHand }).toEqual({ kind, toHand: WORK_TO_HAND[kind] });
       expect(tick.state.item === null).toBe(WORK_TO_HAND[kind]);
     }
+  });
+});
+
+/**
+ * **Ausrollen und Kochen** — die beiden Arten des Test Restaurants, aus
+ * derselben Uhr wie alles andere.
+ */
+describe('ausrollen und kochen', () => {
+  it('rollt Teig in drei Sekunden aus, aber nur mit jemandem davor', () => {
+    expect(workStage('roll', 'dough')).toBe('dough-flat');
+    expect(frames(onWork('roll', 'dough'), WORK_SECONDS.roll + 0.1, true).done).toBe('dough-flat');
+    expect(frames(onWork('roll', 'dough'), WORK_SECONDS.roll + 0.1, false).done).toBeNull();
+  });
+
+  it('kocht Gemüse allein zu Suppe, und die Suppe bleibt im Topf', () => {
+    expect(workStage('cook', 'carrot-cut')).toBe('stew');
+    expect(workStage('cook', 'carrot')).toBeNull();
+    const run = frames(onWork('cook', 'potato-cut'), WORK_SECONDS.cook + 0.1, false, true);
+    expect(run.done).toBe('stew');
+    expect(run.toHand).toBe(false);
+    expect(WORK_TO_HAND.cook).toBe(false);
+  });
+
+  it('brät Schinken und Waffelteig auf der Kochstelle, ohne dass etwas verbrennt', () => {
+    expect(workStage('fry', 'ham')).toBe('ham-cooked');
+    expect(workStage('fry', 'ham-cooked')).toBeNull();
+    expect(workStage('fry', 'dough-flat')).toBe('waffle');
+    expect(workStage('fry', 'patty-cooked')).toBeNull();
   });
 });

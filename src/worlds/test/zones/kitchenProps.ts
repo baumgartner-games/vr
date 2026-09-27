@@ -464,7 +464,65 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   // Stapel taucht es nie auf: Kein Träger nimmt es an
   // (`kitchenRecipes.TAKES`).
   water: WATER_DEEP,
+  // **Die zweite Speisekarte trägt hier nichts auf** — aus demselben Grund wie
+  // die Geräte ganz oben: Dieser Satz baut sie nicht (`ELSEWHERE`). Das Test
+  // Restaurant zeigt sie mit Netzen aus dem Regal
+  // (`worlds/elements/itemModels.ts`) und misst dort selbst.
+  bowl: 0,
+  pizzabox: 0,
+  cheese: 0,
+  'cheese-cut': 0,
+  ham: 0,
+  'ham-cooked': 0,
+  'ham-burnt': 0,
+  pizza: 0,
+  'pizza-cut': 0,
+  dough: 0,
+  'dough-flat': 0,
+  waffle: 0,
+  carrot: 0,
+  'carrot-cut': 0,
+  potato: 0,
+  'potato-cut': 0,
+  onion: 0,
+  'onion-cut': 0,
+  stew: 0,
+  'ice-vanilla': 0,
+  'ice-strawberry': 0,
 };
+
+/**
+ * **Was dieser Satz gar nicht zeichnet** — die Dinge der zweiten Speisekarte
+ * (`kitchenRecipes.KitchenItem`), die nur im Test Restaurant vorkommen.
+ *
+ * Sie stehen in derselben Liste wie alles andere, damit `A` mit ihnen nach
+ * denselben Regeln umgeht; gezeichnet werden sie dort mit Netzen aus dem
+ * Regal (`worlds/elements/itemModels.ts`). Hier gibt `view` für sie `null` —
+ * wie ohne geladene Datei —, und die Liste sagt, dass das Absicht ist.
+ */
+export const ELSEWHERE: readonly KitchenItem[] = [
+  'bowl',
+  'pizzabox',
+  'cheese',
+  'cheese-cut',
+  'ham',
+  'ham-cooked',
+  'ham-burnt',
+  'pizza',
+  'pizza-cut',
+  'dough',
+  'dough-flat',
+  'waffle',
+  'carrot',
+  'carrot-cut',
+  'potato',
+  'potato-cut',
+  'onion',
+  'onion-cut',
+  'stew',
+  'ice-vanilla',
+  'ice-strawberry',
+];
 
 /** Was nicht gebaut, sondern aus dem Möbelmodell genommen wird. */
 const FROM_MODEL: readonly KitchenItem[] = ['pot', 'pan', 'extinguisher'];
