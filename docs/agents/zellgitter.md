@@ -267,6 +267,14 @@ den großen Kacheln bleibt.
   - An Verbindungen (andere Etage, keine Nachbarschaft, Wand mit Treppe)
     wird geteilt. Die Enden jedes Stücks tragen ihre Kachel, damit
     `NavAgent.hop` Sprung und Portal erkennt wie bisher.
+  - **Der erste Punkt auf einer anderen Etage wird erst auf seiner Kachel
+    abgehakt** (`NavAgent.pick`, `arrives`, September 2026), nicht schon in
+    Reichweite. Oben an der Treppe liegt er eine halbe Kachel neben der
+    obersten Stufe; abgehakt aus Reichweite bog die Puppe in _Treppe und
+    Lava_ schon auf der Stufe nach links ab, trat seitlich vom Lauf und stand
+    unten neben dem Podest, während der gezeichnete Weg richtig war. Der Test
+    dazu läuft den Weg wie im Spiel (`navTestPlan.test.ts`, _gelaufen wie im
+    Spiel_).
   - Passt in einem Stück kein Block durch (ein Durchlass unter einem
     Meter), bleibt es beim Schnurzug über Kacheln (`pullString`).
   - Die Schrägen kommen über `NavGraph.slopeAt` in den Graphen der NPCs:
