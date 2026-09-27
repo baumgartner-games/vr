@@ -70,14 +70,13 @@ describe('Schinken auf der Grillplatte', () => {
     expect(burnShare(black.station, 10)).toBe(0);
   });
 
-  it('macht aus flachem Teig eine Waffel, die nicht verbrennt', () => {
-    const put = useStation(d('dough-flat'), station('griddle'));
+  it('macht aus der rohen Waffel auf der Grillplatte eine Waffel, die verbrennt', () => {
+    const put = useStation(d('waffle-raw'), station('griddle'));
     const done = wait(put.station, WORK_SECONDS.fry + 0.2, false);
     expect(done.station.on).toEqual(d('waffle'));
     const later = wait(done.station, DEFAULT_BURN + 1, false);
-    expect(later.burnt).toBe(false);
-    expect(later.station.on).toEqual(d('waffle'));
-    expect(burnShare(later.station)).toBe(0);
+    expect(later.burnt).toBe(true);
+    expect(later.station.on).toEqual(d('waffle-burnt'));
   });
 
   it('lässt das Patty verbrennen wie immer', () => {
@@ -281,5 +280,70 @@ describe('Die Pfanne auf dem Herd: gebraten, verkohlt, Feuer', () => {
     expect(out.fire).toBe(false);
     expect(out.on).toEqual(d('pan'));
     expect(stovePhase(out)).toBeNull();
+  });
+});
+
+describe('Waffeln: ausrollen, in vier schneiden, braten, einzeln nehmen', () => {
+  const four = (item: KitchenItem) => d(item, item, item, item);
+
+  it('rollt den Teig aus und schneidet ihn beim zweiten Auflegen in vier rohe Waffeln', () => {
+    const flat = wait(useStation(d('dough'), station('roller')).station, WORK_SECONDS.roll + 0.2);
+    expect(flat.station.on).toEqual(d('dough-flat'));
+    const taken = useStation(null, flat.station);
+    expect(taken.held).toEqual(d('dough-flat'));
+    const cut = wait(useStation(taken.held, taken.station).station, WORK_SECONDS.roll + 0.2);
+    expect(cut.station.on).toEqual(four('waffle-raw'));
+    // Die rohen gehen alle zusammen in die Hand.
+    const all = useStation(null, cut.station);
+    expect(all.held).toEqual(four('waffle-raw'));
+    expect(all.station.on).toBeNull();
+  });
+
+  it('brät alle vier in der Pfanne, und liegen gelassen verbrennen sie mit Warnung', () => {
+    const stove = useStation(four('waffle-raw'), { ...station('stove'), on: d('pan') });
+    expect(stove.deed.do).toBe('combine');
+    expect(stove.station.on).toEqual(
+      d('pan', 'waffle-raw', 'waffle-raw', 'waffle-raw', 'waffle-raw'),
+    );
+    const fried = wait(stove.station, WORK_SECONDS.fry + 0.2, false);
+    expect(fried.station.on).toEqual(d('pan', 'waffle', 'waffle', 'waffle', 'waffle'));
+    expect(stovePhase(fried.station)).toBe('burning');
+    const black = wait(fried.station, DEFAULT_BURN + 0.2, false);
+    expect(black.burnt).toBe(true);
+    expect(black.station.on).toEqual(
+      d('pan', 'waffle-burnt', 'waffle-burnt', 'waffle-burnt', 'waffle-burnt'),
+    );
+    expect(stovePhase(black.station)).toBe('igniting');
+  });
+
+  it('kippt die gebratenen auf die Platte, und von dort nimmt man eine nach der anderen', () => {
+    const pan = d('pan', 'waffle', 'waffle', 'waffle', 'waffle');
+    const dumped = useStation(pan, station('top'));
+    expect(dumped.held).toEqual(d('pan'));
+    expect(dumped.station.on).toEqual(four('waffle'));
+    let top = dumped.station;
+    for (let left = 3; left >= 0; left -= 1) {
+      const one = useStation(null, top);
+      expect(one.held).toEqual(d('waffle'));
+      top = one.station;
+      expect(top.on?.on.length ?? -1).toBe(left - 1);
+    }
+    expect(top.on).toBeNull();
+  });
+
+  it('füllt die Schüssel mit einer Waffel vom Stapel, in beide Richtungen', () => {
+    const top = { ...station('top'), on: four('waffle') };
+    const bowl = useStation(d('bowl'), top);
+    expect(bowl.held).toEqual(d('bowl', 'waffle'));
+    expect(bowl.station.on).toEqual(d('waffle', 'waffle', 'waffle'));
+    const back = useStation(d('waffle', 'waffle'), { ...station('top'), on: d('bowl') });
+    expect(back.station.on).toEqual(d('bowl', 'waffle'));
+    expect(back.held).toEqual(d('waffle'));
+  });
+
+  it('legt eine gebratene Waffel zurück in die Pfanne auf dem Herd, wo sie weiterbrät', () => {
+    const stove = useStation(d('waffle'), { ...station('stove'), on: d('pan', 'waffle') });
+    expect(stove.station.on).toEqual(d('pan', 'waffle', 'waffle'));
+    expect(stovePhase(wait(stove.station, 1, false).station)).toBe('burning');
   });
 });

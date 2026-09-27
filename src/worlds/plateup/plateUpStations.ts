@@ -10,7 +10,9 @@ import {
   burnStage,
   dish,
   isBurnt,
+  pieces,
   servings,
+  stackOf,
   potCooks,
   type Dish,
   type KitchenItem,
@@ -345,7 +347,7 @@ export function tickStation(
       ...idle,
       station: {
         ...state,
-        on: panned ? dish('pan', [black]) : dish(black),
+        on: panned ? inPan(state, black) : dish(black),
         heat: 0,
         work: IDLE_WORK,
       },
@@ -403,8 +405,8 @@ export function tickStation(
         Array.from({ length: servings(tick.done) }, () => tick.done!),
       )
     : panned
-      ? dish('pan', [tick.done])
-      : dish(tick.done);
+      ? inPan(state, tick.done)
+      : stackOf(tick.done, pieces(tick.done));
   return {
     station: { ...state, on, work: IDLE_WORK, heat: 0 },
     done: true,
@@ -444,16 +446,26 @@ export function douseStation(state: StationState): StationState {
   return { ...state, fire: false, heat: 0, on, work: IDLE_WORK };
 }
 
+/** Die Pfanne mit derselben Zahl Stücke darin, alle zu `item` geworden. */
+function inPan(state: StationState, item: KitchenItem): Dish {
+  return dish(
+    'pan',
+    Array.from({ length: state.on?.on.length || 1 }, () => item),
+  );
+}
+
 /**
- * **Was in der Pfanne auf dem Herd liegt** — das eine Ding darin, oder `null`.
+ * **Was in der Pfanne auf dem Herd liegt** — das eine Ding darin (bei den
+ * Waffeln: die eine Sorte, zu der alle darin gehören), oder `null`.
  * Die Pfanne steht dort wie in der Sandbox-Küche (`kitchenClock.stoveUnder`:
  * auf dem Herd die Pfanne, **in** ihr das Patty) und brät, was die
  * Grillplatte brät (`kitchenWork`, `'fry'`).
  */
 export function panOnStove(state: StationState): KitchenItem | null {
   const on = state.on;
-  if (state.spot.kind !== 'stove' || on?.item !== 'pan' || on.on.length !== 1) return null;
-  return on.on[0]!;
+  if (state.spot.kind !== 'stove' || on?.item !== 'pan' || !on.on.length) return null;
+  const first = on.on[0]!;
+  return on.on.every((item) => item === first) ? first : null;
 }
 
 /** Der Anteil 0…1 für den Balken über der Station — 0, wenn nichts arbeitet. */

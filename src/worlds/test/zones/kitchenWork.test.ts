@@ -416,7 +416,8 @@ describe('ausrollen und kochen', () => {
   it('brät Schinken und Waffelteig auf der Kochstelle, ohne dass etwas verbrennt', () => {
     expect(workStage('fry', 'ham')).toBe('ham-cooked');
     expect(workStage('fry', 'ham-cooked')).toBeNull();
-    expect(workStage('fry', 'dough-flat')).toBe('waffle');
+    expect(workStage('fry', 'waffle-raw')).toBe('waffle');
+    expect(workStage('fry', 'waffle')).toBeNull();
     expect(workStage('fry', 'patty-cooked')).toBeNull();
   });
 });

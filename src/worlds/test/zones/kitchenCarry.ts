@@ -87,8 +87,12 @@ import {
   isCarrier,
   isDishware,
   isFood,
+  isStack,
   layered,
   served,
+  servesOne,
+  stackOf,
+  takeOne,
   whyNotServed,
   type Dish,
   type KitchenItem,
@@ -671,8 +675,30 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
     case 'table':
     case 'belt':
     case 'combiner':
-    case 'top':
       return onTop(held, station.on ?? null);
+
+    case 'top': {
+      // **Die Pfanne voller Waffeln wird auf der Platte ausgekippt** — die
+      // Pfanne bleibt in der Hand, die Waffeln liegen als Stapel da.
+      // Gewünscht: _„Gebratene Waffeln 4 können auf eine Arbeitsplatte gelegt
+      // werden."_ Mit einem einzelnen Patty darin wird die Pfanne wie immer
+      // abgestellt.
+      const on = station.on ?? null;
+      if (
+        held?.item === 'pan' &&
+        !on &&
+        held.on.length > 1 &&
+        held.on.every((item) => item === held.on[0])
+      ) {
+        return {
+          do: 'combine',
+          held: dish('pan'),
+          target: stackOf(held.on[0]!, held.on.length),
+          moved: held.on,
+        };
+      }
+      return onTop(held, on);
+    }
   }
 }
 
@@ -684,6 +710,12 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
  * an der aus „Hier liegt schon ein Teller" ein Burger wird.
  */
 function onTop(held: Dish | null, on: Dish | null): KitchenDeed {
+  // **Vom fertigen Stapel nimmt die leere Hand eine** (`servesOne`), bis
+  // keine mehr da ist.
+  if (!held && on && servesOne(on)) {
+    const { one, rest } = takeOne(on);
+    return { do: 'combine', held: one, target: rest, moved: [one.item] };
+  }
   if (!held) return on ? { do: 'take', dish: on } : { do: 'nothing' };
   if (!on) return { do: 'place', dish: held };
   const both = combine(held, on);
@@ -818,7 +850,8 @@ function intoBin(held: Dish | null): KitchenDeed {
   if (!held) return { do: 'nothing' };
   // **Der Träger bleibt.** Abgeräumt wird, was daraufliegt — und was in der
   // Hand zurückbleibt, steht im Ergebnis, damit die Zone nicht raten muss.
-  if (held.on.length) return { do: 'scrape', dish: dish(held.item) };
+  // Ein Stapel ist kein Träger — er geht ganz hinein.
+  if (held.on.length && !isStack(held)) return { do: 'scrape', dish: dish(held.item) };
   if (!isFood(held.item)) {
     return { do: 'refuse', why: `${ITEM_LABELS[held.item]} gehört nicht in den Müll` };
   }

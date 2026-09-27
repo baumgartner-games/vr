@@ -134,7 +134,14 @@ export type KitchenItem =
   /** Teig wird ausgerollt, der flache Teig auf der Grillplatte zur Waffel. */
   | 'dough'
   | 'dough-flat'
+  /**
+   * **Die rohe Waffel** — aus dem ausgerollten Teig geschnitten, vier auf
+   * einmal (`PIECES`), und in der Pfanne zur Waffel gebraten; die gebratene
+   * verbrennt, wenn sie liegen bleibt (`waffle-burnt`).
+   */
+  | 'waffle-raw'
   | 'waffle'
+  | 'waffle-burnt'
   /** Gemüse für die Suppe: geschnitten in den Topf, heraus kommt Suppe. */
   | 'carrot'
   | 'carrot-cut'
@@ -237,6 +244,8 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   dough: 'Teig',
   'dough-flat': 'Ausgerollter Teig',
   waffle: 'Waffel',
+  'waffle-raw': 'Rohe Waffel',
+  'waffle-burnt': 'Verbrannte Waffel',
   carrot: 'Karotte',
   'carrot-cut': 'Geschnittene Karotte',
   potato: 'Kartoffel',
@@ -378,8 +387,9 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'steak',
     'steak-cooked',
     'steak-burnt',
-    'dough-flat',
+    'waffle-raw',
     'waffle',
+    'waffle-burnt',
   ],
   bowl: [
     'waffle',
@@ -454,6 +464,8 @@ const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   potato: 'potato-cut',
   onion: 'onion-cut',
   mushroom: 'mushroom-cut',
+  // Der ausgerollte Teig wird in vier rohe Waffeln geschnitten (`PIECES`).
+  'dough-flat': 'waffle-raw',
   // Das rohe Steak wird auf dem Brett zum rohen Patty — Hackfleisch.
   steak: 'patty',
 };
@@ -481,10 +493,15 @@ const FRIES: Partial<Record<KitchenItem, KitchenItem>> = {
   // Das Steak brät wie der Schinken.
   steak: 'steak-cooked',
   'steak-cooked': 'steak-burnt',
-  // **Die Waffel ist gebratener Teig**, und die Grillplatte ist das Waffeleisen:
-  // ein Möbel mehr wäre ein Möbel, das dasselbe tut. Sie verbrennt nicht — nach
-  // der Waffel kommt nichts mehr.
-  'dough-flat': 'waffle',
+  // **Die Waffel ist gebratener Teig**, und Pfanne wie Grillplatte sind das
+  // Waffeleisen: ein Möbel mehr wäre ein Möbel, das dasselbe tut.
+  // **Die Waffel kommt aus der rohen Waffel**, nicht mehr aus dem ganzen
+  // flachen Teig: Der wird erst in vier geschnitten (`CHOPS`, `PIECES`). Und
+  // die gebratene Waffel verbrennt, wie Patty, Steak und Schinken —
+  // gewünscht: _„wenn ich gebratene Waffeln wieder auf die Platte stelle
+  // sollen diese mit Warnung weiterbraten"_.
+  'waffle-raw': 'waffle',
+  waffle: 'waffle-burnt',
 };
 
 export function fryStage(item: KitchenItem): KitchenItem | null {
@@ -500,7 +517,7 @@ export function fryStage(item: KitchenItem): KitchenItem | null {
  * Stufe aus (`kitchenWork.workStage`), die heiße Platte im Laden läuft genau
  * in sie hinein (`plateup/plateUpStations.tickStation`).
  */
-const BURNT: readonly KitchenItem[] = ['patty-burnt', 'ham-burnt', 'steak-burnt'];
+const BURNT: readonly KitchenItem[] = ['patty-burnt', 'ham-burnt', 'steak-burnt', 'waffle-burnt'];
 
 /** Ob dieses Ding verbrannt ist. */
 export function isBurnt(item: KitchenItem): boolean {
@@ -512,7 +529,8 @@ export function isBurnt(item: KitchenItem): boolean {
  * nicht verbrennen kann.
  *
  * Gebratenes Patty wird verbranntes Patty, gebratener Schinken verbrannter
- * Schinken; die Waffel und alles Rohe nicht (das Rohe wird erst gebraten).
+ * Schinken, gebratene Waffel verbrannte Waffel; alles Rohe nicht (das Rohe
+ * wird erst gebraten).
  */
 export function burnStage(item: KitchenItem): KitchenItem | null {
   const next = fryStage(item);
@@ -529,7 +547,72 @@ export function burnStage(item: KitchenItem): KitchenItem | null {
  */
 const ROLLS: Partial<Record<KitchenItem, KitchenItem>> = {
   dough: 'dough-flat',
+  // **Und auf dem Nudelbrett gleich weiter**: Der flache Teig, noch einmal
+  // aufgelegt, wird dort in vier Waffeln geteilt — wer kein Schneidebrett
+  // daneben hat, braucht keines.
+  'dough-flat': 'waffle-raw',
 };
+
+/**
+ * **Was beim Schneiden in Stücken herauskommt** — die rohe Waffel viermal.
+ * Gewünscht: _„dann Teig schneiden, man hat vier rohe Waffeln dann liegen,
+ * die man alle in die Hand nehmen kann. Und alle braten kann."_ Ein Stapel
+ * gleicher Dinge ist ein `Dish` mit sich selbst darauf (`stackOf`).
+ */
+const PIECES: Partial<Record<KitchenItem, number>> = { 'waffle-raw': 4 };
+
+/** Wie viele Stücke eine Stufe ergibt — meist eines. */
+export function pieces(item: KitchenItem): number {
+  return PIECES[item] ?? 1;
+}
+
+/** **Ein Stapel** aus `count` gleichen Dingen — eins trägt die übrigen. */
+export function stackOf(item: KitchenItem, count: number): Dish {
+  return dish(
+    item,
+    Array.from({ length: Math.max(0, count - 1) }, () => item),
+  );
+}
+
+/** Ob das ein Stapel gleicher Dinge ist (kein Träger mit Belag). */
+export function isStack(d: Dish): boolean {
+  return d.on.length > 0 && !isCarrier(d.item) && d.on.every((item) => item === d.item);
+}
+
+/** Einer vom Stapel — das eine Ding und was übrig bleibt (`null`: nichts mehr). */
+export function takeOne(d: Dish): { one: Dish; rest: Dish | null } {
+  return { one: dish(d.item), rest: d.on.length ? stackOf(d.item, d.on.length) : null };
+}
+
+/**
+ * **Ob man von diesem Stapel einzeln nimmt** — beim Fertigen ja: _„Von da
+ * kann man sich immer einer von weg nehmen bis alle weg sind"_. Rohes und
+ * Verbranntes dagegen geht als Ganzes in die Hand (in die Pfanne, in den
+ * Müll): _„vier rohe Waffeln …, die man alle in die Hand nehmen kann"_.
+ */
+export function servesOne(d: Dish): boolean {
+  return isStack(d) && !isRaw(d.item) && !isBurnt(d.item);
+}
+
+/**
+ * **Was mehrfach in die Pfanne passt** — die Waffeln, bis zu `PAN_MAX`
+ * Stück. Alles andere bleibt einzeln darin (`HOLDS_ONE`).
+ */
+const PAN_STACKS: ReadonlySet<KitchenItem> = new Set<KitchenItem>([
+  'waffle-raw',
+  'waffle',
+  'waffle-burnt',
+]);
+
+/** Wie viele Waffeln höchstens in einer Pfanne liegen. */
+export const PAN_MAX = 4;
+
+/** Ob diese Dinge alle zusammen in eine Pfanne passen, in der schon `inside` liegt. */
+function panFits(inside: readonly KitchenItem[], what: readonly KitchenItem[]): boolean {
+  const all = [...inside, ...what];
+  if (all.length <= 1) return true;
+  return all.length <= PAN_MAX && PAN_STACKS.has(all[0]!) && all.every((item) => item === all[0]);
+}
 
 export function rollStage(item: KitchenItem): KitchenItem | null {
   return ROLLS[item] ?? null;
@@ -608,7 +691,8 @@ const RAW: Partial<Record<KitchenItem, string>> = {
   ham: 'gebraten',
   steak: 'gebraten',
   dough: 'ausgerollt',
-  'dough-flat': 'gebacken',
+  'dough-flat': 'geschnitten',
+  'waffle-raw': 'gebacken',
   carrot: 'geschnitten',
   potato: 'geschnitten',
   onion: 'geschnitten',
@@ -664,7 +748,9 @@ const FOOD: readonly KitchenItem[] = [
   'pizza-cut',
   'dough',
   'dough-flat',
+  'waffle-raw',
   'waffle',
+  'waffle-burnt',
   'carrot',
   'carrot-cut',
   'potato',
@@ -768,6 +854,13 @@ type Pour =
  * seinerseits etwas trägt.
  */
 function offer(d: Dish): { what: readonly KitchenItem[]; rest: Dish | null } {
+  // **Mehrere gleiche in der Pfanne** (die Waffeln) gibt sie einzeln her —
+  // die Schüssel nimmt eine, der Rest brät weiter. Ein Stapel auf der Platte
+  // genauso, sobald er fertig ist (`servesOne`).
+  if (d.item === 'pan' && d.on.length > 1 && d.on.every((item) => item === d.on[0])) {
+    return { what: [d.on[0]!], rest: dish('pan', d.on.slice(1)) };
+  }
+  if (servesOne(d)) return { what: [d.item], rest: takeOne(d).rest };
   if (d.item === 'pan') return { what: d.on, rest: dish('pan') };
   // **Der Topf gibt her, was in ihm gekocht ist**, wie die Pfanne ihr Patty,
   // und bleibt leer zurück: Die Pommes kommen auf den Teller, nicht der Topf.
@@ -854,7 +947,9 @@ function pour(giver: Dish, taker: Dish): Pour {
   // Nur die Pfanne kann leer abgeben — jeder andere Träger wandert selbst mit.
   if (!what.length) return { ok: false, why: 'In der Pfanne liegt nichts', sure: true };
   const one = HOLDS_ONE[taker.item];
-  if (one) {
+  if (taker.item === 'pan' && panFits(taker.on, what)) {
+    // Die Waffeln passen zu viert hinein — dazu unten weiter wie immer.
+  } else if (one) {
     if (taker.on.length) {
       return {
         ok: false,
@@ -868,7 +963,7 @@ function pour(giver: Dish, taker: Dish): Pour {
     if (!carries(taker.item, item)) return { ok: false, why: whyNot(taker.item, item), sure: true };
     // Aufs Hörnchen kommt ein Turm wie im Restaurant (`plateUpIce`): dieselbe
     // Sorte so oft man will.
-    if (taker.on.includes(item) && taker.item !== 'cone') {
+    if (taker.on.includes(item) && taker.item !== 'cone' && taker.item !== 'pan') {
       return { ok: false, why: `${ITEM_LABELS[item]} liegt schon drauf`, sure: true };
     }
   }

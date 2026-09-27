@@ -584,13 +584,16 @@ describe('die zweite Speisekarte', () => {
     }
   });
 
-  it('brät Schinken wie das Patty, bis er verbrennt, und Teig zur Waffel', () => {
+  it('brät Schinken wie das Patty, bis er verbrennt, und die rohe Waffel zur Waffel', () => {
     expect(fryStage('ham')).toBe('ham-cooked');
     expect(fryStage('ham-cooked')).toBe('ham-burnt');
     expect(fryStage('ham-burnt')).toBeNull();
-    expect(fryStage('dough-flat')).toBe('waffle');
-    expect(fryStage('waffle')).toBeNull();
-    // Verbrennen kann nur, was gebraten ist — die Waffel nicht.
+    expect(fryStage('dough-flat')).toBeNull();
+    expect(fryStage('waffle-raw')).toBe('waffle');
+    expect(fryStage('waffle')).toBe('waffle-burnt');
+    // Verbrennen kann nur, was gebraten ist — die gebratene Waffel auch.
+    expect(burnStage('waffle')).toBe('waffle-burnt');
+    expect(burnStage('waffle-raw')).toBeNull();
     expect(burnStage('patty-cooked')).toBe('patty-burnt');
     expect(burnStage('ham-cooked')).toBe('ham-burnt');
     expect(burnStage('ham')).toBeNull();
@@ -599,9 +602,10 @@ describe('die zweite Speisekarte', () => {
     expect(isBurnt('ham-cooked')).toBe(false);
   });
 
-  it('rollt nur Teig aus und kocht nur geschnittenes Gemüse', () => {
+  it('rollt nur Teig aus (und teilt ihn in Waffeln) und kocht nur geschnittenes Gemüse', () => {
     expect(rollStage('dough')).toBe('dough-flat');
-    expect(rollStage('dough-flat')).toBeNull();
+    expect(rollStage('dough-flat')).toBe('waffle-raw');
+    expect(rollStage('waffle-raw')).toBeNull();
     expect(rollStage('cheese')).toBeNull();
     // Jede Suppe ihre Sorte: Karotte, Zwiebel, Pilz, Tomatenscheibe.
     expect(cookStage('carrot-cut')).toBe('stew');

@@ -52,8 +52,8 @@ describe('Test Restaurant — der Plan', () => {
   });
 
   it('stellt jedes Möbel so, wie es in den Listen stand', () => {
-    expect(SPOTS).toHaveLength(39);
-    // Nach Süden, bis auf die gedrehten der Eisecke und der Suppenküche.
+    expect(SPOTS).toHaveLength(46);
+    // Nach Süden, bis auf die gedrehten der Eisecke, Suppenküche und Waffelecke.
     const turned: Record<string, string> = {
       'eis-muell': 'W',
       'suppe-tomaten': 'E',
@@ -64,6 +64,10 @@ describe('Test Restaurant — der Plan', () => {
       'suppe-platte-1': 'N',
       'suppe-platte-2': 'N',
       'suppe-muell': 'N',
+      'waffel-teig': 'N',
+      'waffel-nudelbrett': 'N',
+      'waffel-platte-1': 'N',
+      'waffel-schuesseln': 'N',
     };
     for (const spot of SPOTS)
       expect({ id: spot.id, face: spot.face }).toEqual({

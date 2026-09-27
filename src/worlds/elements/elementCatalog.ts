@@ -323,7 +323,7 @@ export const ELEMENTS: readonly GameElement[] = [
     'rolling-board',
     'Nudelbrett',
     'board',
-    [{ model: COUNTER }, { model: bits('rollingpin'), stack: true, height: 0.1 }],
+    [{ model: COUNTER }, { model: bits('rollingpin'), stack: true, height: 0.25 }],
     { work: 'roll' },
   ),
   ...CRATES,
