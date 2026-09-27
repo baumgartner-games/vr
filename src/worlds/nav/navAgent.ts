@@ -14,6 +14,7 @@ import {
   TILE,
   dirX,
   dirZ,
+  keyLevel,
   keyX,
   keyZ,
   neighbour,
@@ -422,6 +423,15 @@ export class NavAgent {
    * dort fest. Deshalb zählt an einem engen Punkt nicht der Abstand, sondern
    * ob er wirklich an ihm vorbei ist — gemessen daran, ob er schon auf der
    * Seite steht, auf der es weitergeht.
+   *
+   * **Und oben heißt oben.** Der erste Punkt auf einer anderen Etage — oben an
+   * der Treppe, unten nach einem Absatz — ist erst abgehakt, wenn er wirklich
+   * auf dessen Kachel steht. In der Ebene liegt dieser Punkt eine halbe Kachel
+   * neben der obersten Stufe, also in Reichweite, solange er noch auf ihr
+   * steht; hakte er ihn dort ab, bog er schon auf der Stufe zum nächsten ab,
+   * trat seitlich vom Lauf und fiel neben das Podest (_Test Navigation_,
+   * „Treppe und Lava": der Weg oben links herum war richtig gezeichnet, und er
+   * stand unten davor).
    */
   private pick(graph: NavGraph, at: Spot3, goal: Spot3): { x: number; z: number } | null {
     while (this.cursor < this.route.length) {
@@ -429,6 +439,7 @@ export class NavAgent {
       const far = Math.hypot(point.x - at.x, point.z - at.z) > this.tuning.reach;
       if (far) break;
       if (point.tight && !this.passed(point, this.route[this.cursor + 1], at)) break;
+      if (this.arrives(point) && this.atTile !== point.tile) break;
       this.cursor++;
     }
 
@@ -467,6 +478,12 @@ export class NavAgent {
     if (!there) return;
     if (linkBetween(graph, start.tile, point.tile, 'portal')) this.jump = point.tile;
     else if (this.leaps(graph, start.tile, point.tile)) this.leap = point.tile;
+  }
+
+  /** Ob mit diesem Punkt eine andere Etage anfängt als mit dem davor. */
+  private arrives(point: PathPoint): boolean {
+    const before = this.cursor > 0 ? this.route[this.cursor - 1] : undefined;
+    return before !== undefined && keyLevel(before.tile) !== keyLevel(point.tile);
   }
 
   /**

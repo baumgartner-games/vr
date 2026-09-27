@@ -1,8 +1,9 @@
 import { CellGrid, navCellSource } from '../nav/cellGrid';
 import { cellRoute } from '../nav/cellRoute';
+import { NavAgent } from '../nav/navAgent';
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { DIR_W, keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
+import { DIR_W, NO_TILE, keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
 import { slideOnCells } from '../nav/planeMove';
 import { readNav, writeNav } from '../nav/navSerial';
 import { wallLevel } from '../grid/shelfNav';
@@ -222,6 +223,102 @@ describe('Test Navigation — die Kammern', () => {
     expect(goal.x).toBeLessThan(LAVA.x + LAVA.w);
     expect(goal.z).toBeLessThan(LAVA.z);
     expect(top.some((key) => keyZ(key) >= LAVA.z + LAVA.d)).toBe(true);
+  });
+});
+
+/**
+ * **Ein Lauf wie im Spiel**, ohne Physik: der Läufer (`NavAgent`) sagt den
+ * Wegpunkt, der Kreis gleitet in der Ebene seiner Etage (`slideOnCells`), und
+ * die Höhe folgt der Treppe (`GridPlan.flightFloor`, gefragt an der Mitte und
+ * am Rand wie `Npc.stairLift`) — sonst steht er auf dem Boden seiner Kachel.
+ */
+function walk(one: NavTest): { x: number; y: number; z: number }[] {
+  const grid = new CellGrid(
+    navCellSource(graph, (key) => plan.slopeAt(key), {
+      flight: (tx, tz, level) => plan.flightOn(tileKey(tx, tz, level))?.dir ?? null,
+      flightSide: (tx, tz, side, part, level) =>
+        plan.flightSideOpen(tileKey(tx, tz, level), side, part),
+    }),
+  );
+  const agent = new NavAgent({ girth: 0.29 });
+  const goal = {
+    x: tileCentre(one.goal.x),
+    y: graph.levelY(one.goal.level),
+    z: tileCentre(one.goal.z),
+  };
+  const p = {
+    x: tileCentre(one.start.x),
+    y: graph.levelY(one.start.level),
+    z: tileCentre(one.start.z),
+  };
+  const dt = 1 / 60;
+  const out = [{ ...p }];
+  for (let i = 0; i < 60 * 30; i++) {
+    const waypoint = agent.step(graph, p, goal, dt, i * dt).waypoint;
+    if (!waypoint) break;
+    const dx = waypoint.x - p.x,
+      dz = waypoint.z - p.z,
+      d = Math.hypot(dx, dz);
+    // Auf einem Wegpunkt: stehen, bis der Läufer den nächsten sagt — am Ziel ist Schluss.
+    if (d < 0.02) {
+      if (Math.hypot(goal.x - p.x, goal.z - p.z) < 0.05) break;
+      continue;
+    }
+    const here = graph.at(p.x, p.z, p.y);
+    const level = here === NO_TILE ? 0 : keyLevel(here);
+    const step = Math.min(1.5 * dt, d);
+    const to = slideOnCells(grid, p.x, p.z, (dx / d) * step, (dz / d) * step, level);
+    p.x = to.x;
+    p.z = to.z;
+    let floor: number | null = null;
+    for (const [ox, oz] of [
+      [0, 0],
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const high = plan.flightFloor(p.x + ox * 0.29, p.z + oz * 0.29, p.y);
+      if (high !== null && (floor === null || high > floor)) floor = high;
+    }
+    if (floor === null) {
+      const key = graph.at(p.x, p.z, p.y);
+      floor = key === NO_TILE ? 0 : graph.levelY(keyLevel(key));
+    }
+    p.y = floor;
+    out.push({ ...p });
+  }
+  return out;
+}
+
+describe('Test Navigation — gelaufen wie im Spiel', () => {
+  it('3 · geht die Treppe ganz hinauf und biegt erst oben ab — nicht von der Stufe herunter', () => {
+    const one = test('lava');
+    const track = walk(one);
+    // Vor dem Podest ist er auf der Treppe, und zwar in ihrer Spalte: Wer auf
+    // der obersten Stufe schon nach links abbog, trat seitlich vom Lauf und
+    // stand dann unten neben dem Podest.
+    for (const p of track)
+      if (p.z >= LAVA.z + LAVA.d + 1)
+        expect(Math.abs(p.x - tileCentre(one.start.x))).toBeLessThan(0.05);
+    // Einmal oben, bleibt er oben.
+    const up = track.findIndex((p) => p.y >= STOREY - 0.01);
+    expect(up).toBeGreaterThan(0);
+    for (const p of track.slice(up)) expect(p.y).toBeGreaterThan(STOREY - 0.5);
+    const end = track[track.length - 1]!;
+    expect(Math.hypot(end.x - tileCentre(one.goal.x), end.z - tileCentre(one.goal.z))).toBeLessThan(
+      0.6,
+    );
+    expect(end.y).toBeCloseTo(STOREY);
+  });
+
+  it('2 · kommt die gerade Treppe hinauf bis aufs Ziel', () => {
+    const one = test('treppe');
+    const end = walk(one).at(-1)!;
+    expect(Math.hypot(end.x - tileCentre(one.goal.x), end.z - tileCentre(one.goal.z))).toBeLessThan(
+      0.6,
+    );
+    expect(end.y).toBeCloseTo(STOREY);
   });
 });
 
