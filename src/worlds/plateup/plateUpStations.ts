@@ -9,6 +9,7 @@ import {
   ITEM_LABELS,
   burnStage,
   dish,
+  potCooks,
   type Dish,
   type KitchenItem,
 } from '../test/zones/kitchenRecipes';
@@ -198,6 +199,10 @@ export function useStation(held: Dish | null, state: StationState): StationUse {
     case 'trash':
     case 'stow':
       return { held: null, station: state, deed };
+    // Der Topf unter dem Hahn: Er ist danach voll, die Spüle bleibt, wie sie
+    // war (`kitchenCarry.atSink`).
+    case 'fill':
+      return { held: deed.dish, station: state, deed };
     case 'scrape':
       return { held: deed.dish, station: state, deed };
     default:
@@ -268,7 +273,14 @@ export function tickStation(
     };
   }
   let work = state.work;
-  if (!work.working) {
+  // **Der Topf mit Wasser auf dem Herd kocht, was darin liegt**
+  // (`kitchenRecipes.potCooks`) — allein, wie der Suppentopf (`'cook'`,
+  // `kitchenWork.WORK_ALONE`). Die Uhr wird angelegt, sobald Topf und Zutat
+  // zusammen auf dem Herd stehen, egal in welcher Reihenfolge sie kamen.
+  const boiling = state.spot.kind === 'stove' && state.on ? potCooks(state.on) : null;
+  if (!work.working && boiling) {
+    work = onWork('cook', boiling);
+  } else if (!work.working) {
     // **Wer zurückkommt, schneidet weiter** — von vorn, wie in der Küche
     // (`advanceWork` setzt die Uhr zurück, sobald niemand davorsteht). Ohne
     // diese Zeile bliebe ein halb geschnittener Salat für immer liegen, bis
@@ -290,8 +302,11 @@ export function tickStation(
       burnt: false,
     };
   }
+  // Im Topf auf dem Herd bleibt das Gekochte **im Topf** — das Wasser ist
+  // verkocht, der Topf nicht.
+  const on = boiling ? dish('pot', [tick.done]) : dish(tick.done);
   return {
-    station: { ...state, on: dish(tick.done), work: tick.state, heat: 0 },
+    station: { ...state, on, work: tick.state, heat: 0 },
     done: true,
     toHand: null,
     burnt: false,

@@ -617,7 +617,9 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
         return { do: 'refuse', why: 'Der Herd brennt — das braucht den Feuerlöscher' };
       }
       // Sonst ist er eine Fläche, auf der die Pfanne steht: Man nimmt sie mit
-      // Patty und allem in die Hand, statt das Patty herauszuklauben.
+      // Patty und allem in die Hand, statt das Patty herauszuklauben. Steht
+      // der Topf mit Wasser darauf, geht die geschnittene Kartoffel hinein
+      // und die Pommes heraus — beides ist Zusammenlegen (`combine`).
       return onTop(held, station.on ?? null);
     }
 
@@ -907,13 +909,15 @@ function atPass(held: Dish | null): KitchenDeed {
  * leer, weil `onTop` nach dem Träger fragt und nicht nach seinem Inhalt. Eine
  * Sackgasse gibt es damit nicht.
  *
- * **Wozu das Wasser gut ist, steht absichtlich nirgends.** Verlangt war das
- * Füllen, und ein Suppenrezept, das niemand bestellt hat, wäre eine zweite
- * Entscheidung im selben Handgriff. Wenn es eines Tages kommt, ist die Stelle
- * dafür schon da: Wasser ist Inhalt des Topfes wie das Patty Inhalt der Pfanne,
- * der Herd kocht, was in seinem Gefäß liegt (`kitchenClock.onStove` liest heute
- * `on.item === 'pan'`), und `CHOPS`/`FRIES` sind Tabellen. Was fehlte, wäre eine
- * Zeile darin — kein neuer Zustand.
+ * **Wozu das Wasser gut ist**, stand hier lange absichtlich nirgends: Verlangt
+ * war nur das Füllen. Dann kam der Wunsch nach Pommes auf Spielelementen
+ * (_„Es fehlt noch ein Waschbecken wo ich den Topf vollmachen kann"_), und die
+ * Stelle dafür war, wie hier vorhergesagt, schon da — ohne neuen Zustand: Eine
+ * geschnittene Zutat geht in den Topf mit Wasser (`kitchenRecipes.pour`,
+ * `intoPot`), und ein Herd, auf dem dieser Topf steht, kocht sie nach der
+ * Tabelle des Suppentopfs (`kitchenRecipes.potCooks`, `COOKS`). Die Uhr dazu
+ * läuft an den Stationen der Spielelemente (`plateup/plateUpStations.tickStation`).
+ * Die Küche der Testwelt hat keine solche Zutat und bleibt, wie sie war.
  */
 function atSink(held: Dish | null, on: Dish | null, leaking: boolean): KitchenDeed {
   // **Ein spritzendes Becken ist keine Spüle mehr** — Wort für Wort dieselbe

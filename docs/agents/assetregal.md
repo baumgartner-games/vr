@@ -1449,6 +1449,14 @@ statt 2,00 m. Jetzt nehmen `Wall*`, `Primitive_Wall*`, `Floor*`, `Door*` und
 Durchgang (`Wall_Doorway`) ist damit 1,40 m hoch; die Figur des Pakets passt
 nicht mehr hindurch, und das ist der Preis gleich hoher Wände.
 
+**Das quadratische Förderband ist eine Kachel** (September 2026, _„Statt 2x1
+conveyers will ich 1x1 conveyer belts haben"_): `platformer/<Farbe>/conveyor_4x4x1_<Farbe>.glb`
+misst in der Quelle 4,2 × 1,0 × 4,0 (nachgemessen an den Grenzen der GLB, die
+Seitenleisten stehen je 0,1 über) und bekommt 1/4,2 × 0,5 × 1/4 — genau
+1 × 1 m und 0,5 m hoch, in jeder Welt und in jeder Farbe. Das 1 × 1-Band ist
+also `conveyor_4x4x1`; das schmale `conveyor_2x4x1` (1,1 × 2,0 m) und die
+langen `*x8x1` bleiben beim Maßstab des Pakets.
+
 ## Keine Build-Nummer an diesen Adressen
 
 Alles andere unter `public/` trägt eine (`core/assetVersion.ts`, `versioned`),

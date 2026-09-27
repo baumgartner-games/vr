@@ -20,7 +20,7 @@ import {
   kitchenPrompt,
   type StationKind,
 } from '../test/zones/kitchenCarry';
-import type { Dish, KitchenItem } from '../test/zones/kitchenRecipes';
+import { dish, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
 import type { GameElement } from './elementCatalog';
 import { spotElement, spotGives, type ElementSpot } from './elementPlace';
 import { dishKey } from './dishView';
@@ -54,8 +54,8 @@ export const NEAR_STATION = 1.3;
  * **Wie nah man einer Station sein muss, damit sie sich anmeldet**, in
  * Metern — die Füße vom Anker. Gut über dem, womit `A` überhaupt reicht
  * (`usable.USE_REACH`, 1,5 m, dazu der Radius der Anmeldung): Wer weiter weg
- * steht, kann an ihr nichts tun, und das Test Restaurant hat rund 45
- * Stationen, die sonst jedes Bild ihre Tat neu ausrechnen würden.
+ * steht, kann an ihr nichts tun, und eine Welt mit ein paar Dutzend
+ * Stationen rechnete sonst jedes Bild jede Tat neu aus.
  */
 export const REFRESH_RANGE = 3;
 
@@ -68,6 +68,23 @@ export interface StationSlot {
    * `ElementPart.at`). Die Eiswannen tragen zwei Stationen nebeneinander.
    */
   readonly shift: number;
+  /**
+   * **Was zu Beginn darauf steht** (`GameElement.holds`) — der Topf auf dem
+   * Herd. Ohne Angabe ist die Station leer.
+   */
+  readonly holds?: Dish;
+}
+
+/**
+ * **Die Stationen frisch, wie sie hingestellt werden** — leer, die Stapel
+ * voll (`plateUpStations.freshStations`), und was ein Element von Haus aus
+ * trägt, steht darauf (`StationSlot.holds`).
+ */
+export function slotStates(slots: readonly StationSlot[]): StationState[] {
+  return freshStations(slots.map((slot) => slot.spot)).map((state, i) => {
+    const holds = slots[i]!.holds;
+    return holds ? { ...state, on: holds } : state;
+  });
 }
 
 /**
@@ -103,8 +120,16 @@ function isKitchenItem(name: string): name is KitchenItem {
  * links (von vorn gesehen, `-TUB_SHIFT`) Vanille, rechts Erdbeere, so wie sie
  * das Element zeigt.
  *
- * Stapel werden nie leer (`stock: Infinity`): Hier gibt es keine Spüle, und
- * Schüsseln, Kartons und Teller gehen nicht zurück.
+ * Stapel werden nie leer (`stock: Infinity`): Kein Gast bringt dreckiges
+ * Geschirr zurück, und Schüsseln, Kartons und Teller gehen nicht zurück. Die
+ * Spüle (`sink`) füllt hier den Topf.
+ *
+ * **Jedes Element mit einer Stationsart wird eine Station** — hier, an einer
+ * Stelle, und nicht über eine zweite Liste im Plan einer Welt. Im ersten Test
+ * Restaurant standen die Kisten am Band als Elemente da und wurden nie
+ * Stationen (_„die Vorrats Boxen mit Brötchen und Käse und co beim conveyer
+ * belt nicht interagierbar"_), weil die Welt eine eigene Liste führte, welche
+ * Stellen Stationen sind.
  *
  * **Gibt ein Element etwas her, das kein Ding der Küche ist** — die Salami-
  * und die Pilzkiste (`elementCatalog.SHOW_ONLY_GIVES`) —, wird es keine
@@ -142,6 +167,7 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
         ...(kind === 'drain' ? { stock: Infinity } : {}),
       },
       shift: 0,
+      ...(element.holds ? { holds: dish(element.holds) } : {}),
     },
   ];
 }
@@ -206,6 +232,8 @@ interface StationView {
   gauged: boolean;
   /** Das Quadrat des Abstands der Füße zum Anker, in diesem Bild. */
   dist2: number;
+  /** Was zu Beginn darauf stand — `reset` stellt es wieder hin. */
+  readonly holds: Dish | null;
 }
 
 const _v = new THREE.Vector3();
@@ -270,8 +298,9 @@ export class StationLayer {
         deedKey: '',
         gauged: false,
         dist2: Infinity,
+        holds: slot.holds ?? null,
       });
-      this.stations.push(...freshStations([slot.spot]));
+      this.stations.push(...slotStates([slot]));
     }
     return slots.length;
   }
@@ -369,7 +398,10 @@ export class StationLayer {
     const id = `station:${view.spot.id}`;
     const part = stationProgress(state);
     const heat = burnShare(state, this.burn);
-    const hot = view.spot.kind === 'griddle' || view.spot.kind === 'pot';
+    // Heiß ist, was allein gart: Kochstelle, Suppentopf, und der Herd, auf
+    // dem der Topf mit Wasser kocht.
+    const hot =
+      view.spot.kind === 'griddle' || view.spot.kind === 'pot' || view.spot.kind === 'stove';
     if (part <= 0 && heat <= 0 && !state.work.working) {
       if (!view.gauged) return;
       view.gauged = false;
@@ -447,7 +479,13 @@ export class StationLayer {
 
   /** **Alles leer** — was lag, liegt nicht mehr, die Uhren stehen. */
   reset(): void {
-    this.stations = freshStations(this.stations.map((state) => state.spot));
+    this.stations = slotStates(
+      this.views.map((view) => ({
+        spot: view.spot,
+        shift: 0,
+        ...(view.holds ? { holds: view.holds } : {}),
+      })),
+    );
   }
 
   /** Abmelden und abräumen — die Anker gehen mit ihren Elementen. */

@@ -101,8 +101,8 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
     ],
   },
   'test-restaurant': {
-    goal: 'Eine Mini-Küche je Gericht, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen.',
-    first: 'Aus einer Vorratsbox nehmen und auf den Tisch legen, an dem es jemand wünscht.',
+    goal: 'Eine leere Fläche: Das Test Restaurant wird hier neu aufgebaut, aus Spielelementen des Modellregals.',
+    first: 'Was schon steht, tut auf „Benutzen", was es in der Küche tut.',
     tips: [
       { action: 'move', label: 'Gehen' },
       { action: 'use', label: 'Nehmen / Ablegen' },

@@ -1,4 +1,5 @@
 import type { StationKind } from '../test/zones/kitchenCarry';
+import type { KitchenItem } from '../test/zones/kitchenRecipes';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -10,8 +11,8 @@ import type { StationKind } from '../test/zones/kitchenCarry';
  * belegt, wie hoch sein Körper ist, damit niemand hinaufspringt, und was man
  * damit tut (`kind`). Bis hierher stand genau das in jeder Welt neu: in der
  * Testküche als Katalogeintrag (`core/kitchenFit.ts`), im Burgerladen als
- * Station mit Anbauten (`PlateUpWorld.addStationView`), im Test Restaurant als
- * Zeile aus `base` und `items` (`restaurantPlan.ts`) — dreimal dieselbe
+ * Station mit Anbauten (`PlateUpWorld.addStationView`), im ersten Test
+ * Restaurant als Zeile aus `base` und `items` — dreimal dieselbe
  * Arbeitsplatte, dreimal anders zusammengesetzt, und keine davon sperrte ihre
  * Zellen von selbst.
  *
@@ -99,8 +100,8 @@ export interface GameElement {
   readonly label: string;
   /**
    * **Die Grundfläche in Kacheln**, Breite × Tiefe, für ein Element, das nach
-   * Süden schaut. Eine Kachel ist ein Meter und 2 × 2 Zellen. Das Band ist
-   * `[1, 2]`: eine breit, zwei lang in seiner Laufrichtung.
+   * Süden schaut. Eine Kachel ist ein Meter und 2 × 2 Zellen. Fast alles ist
+   * `[1, 1]`, auch das Band; der runde Tisch ist `[2, 2]`.
    */
   readonly tiles: readonly [number, number];
   /**
@@ -120,6 +121,14 @@ export interface GameElement {
    * Rindfleisch ist mal ein Patty und mal ein Steak.
    */
   readonly gives?: string;
+  /**
+   * **Was zu Beginn darauf steht und mitgenommen werden kann** — der Topf auf
+   * dem Herd (`stove-pot`), wie `core/kitchenFit.KitchenPiece.holds` in der
+   * Küche der Testwelt. Es ist **kein Teil** des Bilds: Die Station zeigt es
+   * als das, was auf ihr liegt (`stationLayer.StationSlot.holds`), und wer es
+   * nimmt, nimmt es mit — zur Spüle etwa, um es zu füllen.
+   */
+  readonly holds?: KitchenItem;
   /** Die Modelle, das erste steht auf dem Boden. */
   readonly parts: readonly ElementPart[];
 }
@@ -147,7 +156,7 @@ function piece(
   label: string,
   kind: ElementKind | null,
   parts: readonly ElementPart[],
-  extra: Partial<Pick<GameElement, 'work' | 'gives' | 'tiles' | 'height'>> = {},
+  extra: Partial<Pick<GameElement, 'work' | 'gives' | 'holds' | 'tiles' | 'height'>> = {},
 ): GameElement {
   return { id, label, tiles: [1, 1], height: BODY, kind, parts, ...extra };
 }
@@ -249,10 +258,22 @@ export const ELEMENTS: readonly GameElement[] = [
     { model: bits('stove_single') },
     { model: bits('pan_A'), stack: true },
   ]),
-  piece('stove-pot', 'Herd mit Topf', 'pot', [
-    { model: bits('stove_multi') },
-    { model: bits('pot_A'), stack: true },
-  ]),
+  // **Der Herd mit Topf, wie im Restaurant** — gewünscht: _„Der Herd daneben
+  // soll der Herd aus der Restaurant Welt sein und nicht der mit den 4 Platten
+  // drauf. Der Topf darauf soll auch der sein aus der Restaurant Welt."_ Also
+  // der einflammige Herd und der Topf `pot_A`, wie im Restaurant und in der
+  // Küche der Testwelt (`kitchenFit`, `stove-pot`). Der Topf ist **kein Teil**,
+  // sondern steht zu Beginn darauf (`holds`): Man nimmt ihn mit zur Spüle
+  // (_„Es fehlt noch ein Waschbecken wo ich den Topf vollmachen kann"_), und
+  // mit Wasser auf dem Herd kocht er, was man hineintut
+  // (`kitchenRecipes.potCooks`) — Pommes aus geschnittenen Kartoffeln.
+  piece('stove-pot', 'Herd mit Topf', 'stove', [{ model: bits('stove_single') }], {
+    holds: 'pot',
+  }),
+  // **Die Spüle** — die Arbeitsplatte mit Becken und Hahn aus demselben Paket.
+  // Wer den Topf davorhält, füllt ihn mit Wasser (`kitchenCarry.atSink`, die
+  // Regel der Testküche).
+  piece('sink', 'Spüle', 'sink', [{ model: bits('kitchencounter_sink') }]),
   // So hoch wie im Burgerladen (`PlateUpWorld.addBinProp`): Der Eimer aus
   // _Block Bits_ ist 1,17 m, neben einer Platte von 0,50 m ein Silo.
   piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }]),
@@ -309,27 +330,28 @@ export const ELEMENTS: readonly GameElement[] = [
     { model: bits('icecream_container'), on: 0, at: [0.23, 0], scale: TUB_SCALE },
     { model: bits('icecream_container_icecream_strawberry'), inside: true },
   ]),
-  // **Das Band** — 1,1 × 2,0 m aus _Platformer_, Laufrichtung längs. Die
-  // Pfeile der Datei zeigen nach Norden; eine halbe Drehung, und sie zeigen
-  // dorthin, wohin das Element schaut. Flach und ohne Station: Was darauf
-  // fährt, regelt die Welt (`testrestaurant/burgerBelt.ts`).
+  // **Das Band ist eine Kachel** — gewünscht: _„Statt 2x1 conveyers will ich
+  // 1x1 conveyer belts haben."_ Das quadratische Band aus _Platformer_
+  // (`conveyor_4x4x1_yellow`), das der Lader auf 1 × 1 × 0,5 m bringt
+  // (`core/kaykitFit.KAYKIT_FILE_SCALE`). Die Pfeile der Datei zeigen nach
+  // Norden; eine halbe Drehung, und sie zeigen dorthin, wohin das Element
+  // schaut. Flach und ohne Station: Was darauf fährt, regelt die Welt.
   {
     id: 'belt',
     label: 'Förderband',
-    tiles: [1, 2],
+    tiles: [1, 1],
     height: 0.5,
     kind: null,
-    parts: [{ model: 'platformer/yellow/conveyor_2x4x1_yellow.glb', yaw: Math.PI }],
+    parts: [{ model: 'platformer/yellow/conveyor_4x4x1_yellow.glb', yaw: Math.PI }],
   },
-  // **Die Vorratsbox für fertiges Essen** (`testrestaurant/guestWishes.MENU`)
-  // — die leere Kiste der Pizza-Vorratsbox, aber ohne Zweck: Was obenauf
-  // liegt und was `A` daran tut, ist je Gericht verschieden und Sache der
-  // Welt. Das Element sorgt nur dafür, dass sie steht und im Weg ist.
+  // **Die Vorratsbox für fertiges Essen** — die leere Kiste der
+  // Pizza-Vorratsbox, aber ohne Zweck: Was obenauf liegt und was `A` daran
+  // tut, ist je Gericht verschieden und Sache der Welt. Das Element sorgt nur
+  // dafür, dass sie steht und im Weg ist.
   piece('supply-box', 'Vorratsbox', null, [{ model: bits('crate') }]),
-  // **Der Pizzaofen** — in der Schauküche der Pizza, zum Ansehen.
+  // **Der Pizzaofen** — zum Ansehen, ohne Zweck.
   piece('pizza-oven', 'Pizzaofen', null, [{ model: bits('pizza_oven') }]),
-  // Der Tisch des Test Restaurants (`TestRestaurantWorld.TABLE_MODEL`):
-  // rund, 1,5 m, auf 2 × 2 Kacheln.
+  // Der runde Tisch mit roter Decke: 1,5 m, auf 2 × 2 Kacheln.
   {
     id: 'table-round',
     label: 'Runder Tisch',

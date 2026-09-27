@@ -1019,7 +1019,13 @@ ein Textfeld), _Liste leeren_ fängt neu an. Drei Entscheidungen:
   `{"kitchen":"stove-pan","from":[3,0,0],"to":[8,5,2]}` darin: Kachel `x`,
   `z` und Viertelumdrehungen relativ zur Küche, also genau das, was in
   `kitchenPlan.KITCHEN_SPOTS` steht. `from: null` heißt: neu aus dem
-  Katalog. Modelle aus dem Regal stehen mit Weltmetern und Grad darin.
+  Katalog. Modelle aus dem Regal stehen mit Weltmetern und Grad darin —
+  und seit September 2026 **mit ihrer Welt**:
+  `{"model":"block-bits/barrel.glb","at":[3.5,0.35,7.5],"yaw":90,"world":"test-restaurant"}`.
+  Ein Punkt in Weltmetern sagt ohne die Welt nichts; `world` ist die Kennung
+  aus dem Verzeichnis (`worlds/index.ts`, dieselbe wie `net.world`). Alte
+  Listen ohne `world` lesen sich weiter. Zettel stehen mit Text darin (siehe
+  [Zettel](#zettel-beschriften-was-man-baut)).
 - **Im Browser gespeichert**, anders als der Modus: Eine Liste, die beim
   Neuladen weg ist, bevor man sie kopiert hat, ist eine halbe Stunde
   Einrichten ohne Spur.
@@ -1028,7 +1034,126 @@ Beim Einfügen wird ein umgestelltes Möbel an seiner alten Kachel gesucht und
 über dieselben Handgriffe wie von Hand umgesetzt (`kitchen.applyChange`), in
 zwei Durchgängen, damit getauschte Plätze aufgehen. Was schon dasteht, zählt
 als erledigt; ein Modell, das schon an derselben Stelle steht, wird nicht
-doppelt hingestellt.
+doppelt hingestellt. **Eine Zeile aus einer anderen Welt** (`world` gesetzt
+und nicht die, in der man steht) wird nicht eingefügt, die Meldung zählt sie
+mit (`… · 2 aus einer anderen Welt`); Zeilen ohne Welt gelten wie bisher hier.
+
+**Was aus dem Regal hingestellt wurde, übersteht kein Neuladen.** Das ist
+nachgesehen (September 2026) und nicht selbstverständlich: Die Liste der
+Weltänderungen überlebt es, die Modelle selbst nicht — gespeichert wird nur
+der Grundriss (`grid/worldStore.ts`, `keepWorld` schreibt den `GridPlan`),
+und niemand stellt die Modelle aus der Liste beim Betreten wieder auf. Wer
+nach dem Neuladen weiterbauen will, fügt die Liste ein (_Einfügen_). Die
+einzige Ausnahme sind die Zettel.
+
+## Zettel: beschriften, was man baut
+
+Gewünscht war, als das Test Restaurant leer wurde, um es aus dem Modellregal
+neu aufzubauen: _„Ermögliche es mir, dass ich ein Post vor Felder hinzustellen
+kann und einen Text drauf schreiben kann durch interagieren. Das soll auch in
+Welt Änderungen getrackt werden können."_ Gemeint sind **Post-its**: Der
+Besitzer baut aus dem Regal, stellt Zettel dazu — _„Kartoffel-Vorrat hier"_ —,
+kopiert die Liste der Weltänderungen und schickt sie jemandem, der daraus
+Spielelemente macht. Der Zettel sagt dem Leser, was der Haufen Modelle daneben
+sein soll.
+
+**Holen**: Im **Modellregal** steht vorn die Kachel _Zettel_, dazu dieselbe
+Zeile im Menü _Weltänderungen_ (`PortalWorld.noteEntry`, `takeNote`). Danach
+ist es derselbe Weg wie mit jedem Modell aus dem Regal: in die Hand, an den
+Kran, `R` dreht, Ablegen rastet auf das Kachelgitter ein, auf einem Tisch oder
+einer Theke steht er obendrauf (`conjureModel` → `spawnModel` mit Text). Also
+am Schirm, auf dem Telefon und in der Brille. Nicht mit dem Pinsel, nicht als
+Fläche, nicht mit _Rückgängig_, und im _Baukasten_ kommt nach dem Hinstellen
+kein zweiter Zettel nach — zwanzig gleiche Zettel sagen nichts. _Kopieren_
+(die Pipette) auf einen Zettel gibt einen neuen mit demselben Text.
+
+**Aussehen** (`worlds/notes/notePost.ts`): Das Gestell ist die Menükarte des
+Restaurant-Pakets (`NOTE_MODEL`, `restaurant-bits/menu.glb`), aus dem Regal wie
+alles andere. Obendrauf liegt ein gelbes Blatt mit Klebestreifen, 0,7 × 0,5 m,
+**gerechnet** — eine Fläche mit Leinwand, denn kein Modell hat eine Fläche,
+auf die man schreiben kann, und ein Zettel ist eine Beschriftung, kein Möbel.
+Es liegt 70° aus der Senkrechten nach hinten gekippt (`TILT`): Gelesen wird
+meist von oben, als Kran, und dort wäre ein senkrechtes Schild ein Strich. Die
+Oberkante des Textes zeigt bei Drehung 0 nach Norden, also oben im Bild. Die
+Schrift ist so groß, wie der Text es erlaubt (`noteText.fitNote`, 120 bis
+28 px auf 512 px), und trennt Wörter nur, wenn es gar nicht anders geht.
+
+**Kein Hindernis.** Ein Zettel ist kein Stück Bau: Er sperrt keine Zelle des
+Gitters (`placedModels` lässt ihn aus, also auch keine Wand, keine Fläche zum
+Daraufstellen und kein Geist von oben), er ersetzt keine Wand beim
+Hinstellen, und Spieler und NPCs gehen durch ihn hindurch
+(`PhysicsWorld.setGridWall`). Einen Körper hat er trotzdem — um Gestell und
+Blatt gemessen, damit der Kran ihn in Hüfthöhe zu fassen bekommt — und der
+steht fest, wo er hingestellt wurde (`hang`). Umgestellt wird er wie ein
+Möbel: im _Einrichten_ und im _Baukasten_, beim _Spielen_ nicht.
+
+**Beschriften** (`editNote`, `writeNote`): Frisch hingestellt geht sofort die
+Tastatur der Welt auf (`askLines`, `ui/KeyPanel.ts`, Belegung `lines` mit
+Umlauten). Später schreibt man um, indem man ihn benutzt — `A`, `E` oder der
+Trigger (`addUsable`), und zwar am Schirm beim **_Spielen_**: Als Kran heißt
+`E` auf einem Ding _aufheben_ (`liftUnderCrane`), und das bleibt so. In der
+Brille zielt die Hand darauf und zieht den Trigger — **nur den Trigger**, nicht
+schon das Hineinfassen (`NOTE_INTERACTION`) — angefasst wird ein Zettel mit der
+Greif-Taste zum Umstellen, und dabei soll keine Tastatur aufgehen. Am Schirm tippt
+die echte Tastatur hinein; **in der Brille** zeigt man auf die Tasten der
+Tafel, und auf der Quest kommt, wo es sie gibt, die Systemtastatur dazu
+(`core/systemKeyboard.ts`). Höchstens 200 Zeichen (`NOTE_MAX_CHARS`),
+Ränder und doppelte Leerzeichen gehen weg (`cleanNoteText`).
+
+**Wegwerfen**: leer schreiben und _Fertig_ — oder im _Baukasten_ die
+Abrissbombe (Rechtsklick, dann auf den Zettel), in der Brille das scharfe
+Löschen. Beides streicht auch seine Zeile. _Abbrechen_ lässt ihn, wie er war.
+
+**In der Liste** steht er als eigene Sorte, unter einem Schlüssel je Zettel
+(`changeKey('note')`), und wie alles dort als Bilanz: Umstellen und
+Umschreiben ändern dieselbe Zeile.
+
+```
+Weltänderungen · 2 · kitchen: … · model: … · note: ein Zettel mit Text, Lage wie model · world: …
+Zettel „Kartoffel-Vorrat hier" bei (3.5, 0.3, 7.5) · 90° · in test-restaurant
+[
+{"model":"block-bits/barrel.glb","at":[4.5,0.35,7.5],"yaw":0,"world":"test-restaurant"},
+{"note":"Kartoffel-Vorrat hier","at":[3.5,0.3,7.5],"yaw":90,"world":"test-restaurant"}
+]
+```
+
+Die Sätze über dem JSON sind für den Leser (`describeNote`); zurückgelesen
+wird nur das JSON, und dessen Anfang sucht `parseChanges` jetzt zuerst an
+einem Zeilenanfang — im Text eines Zettels darf also auch eine eckige Klammer
+stehen. `at` ist die Mitte von Gestell und Blatt, in Weltmetern.
+
+**Drei Abweichungen vom Rest der Liste, alle mit Absicht:**
+
+- **Ein Zettel wird auch ohne Häkchen mitgeschrieben** (`recordNote`). Er ist
+  für die Liste da, und die Liste ist sein Speicher. Ein Zettel **ohne Text**
+  bekommt dafür gar keine Zeile.
+- **_Liste leeren_ lässt die Zettel stehen**; nur _Zurücksetzen_ nimmt sie mit
+  (`clearWorldChanges({ notes: true })`). Wer nach dem Kopieren neu anfängt,
+  soll nach dem nächsten Neuladen nicht vor einer unbeschrifteten Welt stehen.
+- **Er übersteht das Neuladen** — anders als die Modelle daneben (siehe oben).
+  Beim Betreten einer Welt stellt `PortalWorld.restoreNotes` die Zettel dieser
+  Welt wieder auf (`worldChanges.notesIn`, nur mit passendem `world`), fest an
+  ihrer Stelle und unter ihrem alten Schlüssel. Gefragt wird im ersten Bild,
+  nicht im Aufbau: Welche Welt das ist, sagt die Sitzung erst nach `init`
+  (`App.goTo` → `net.setWorld`), vorher steht dort die vorige. Ändert sich die
+  Antwort, gehen die aufgestellten wieder (ohne ihre Zeilen), und die richtigen
+  kommen. _Einfügen_ stellt Zettel aus einer kopierten Liste ebenfalls auf,
+  wenn sie in diese Welt gehören; einer, der mit demselben Text schon an der
+  Stelle steht, kommt nicht doppelt.
+
+**Nur auf diesem Gerät.** Modelle aus dem Regal gehen über die Leitung
+(`PortalSync`, `spawn`), Zettel nicht: Drüben käme nur das Gestell an, ohne
+Text, und für den Text gibt es keine Nachricht. Ein Zettel ist deshalb wie
+die Stücke, die eine Welt selbst aufstellt, lokal (`createSync`, `local`) und
+auch nicht in der Beutelware, die das kleine Zurücksetzen (`R`) wegräumt.
+Soll er geteilt werden, braucht es eine eigene Nachricht mit dem Text —
+die Schilder (`worlds/signs/SignRoom.ts`) zeigen, wie.
+
+**Geprüft** in `core/worldChanges.test.ts` (Zeile mit Welt, alte Liste ohne,
+Umschreiben ist dieselbe Zeile, Wegwerfen streicht sie, Satz und JSON beim
+Kopieren, nur die Zettel der betretenen Welt, _Liste leeren_, Speichern und
+Wiederlesen) und `worlds/notes/noteText.test.ts` (Aufräumen, Umbruch,
+Schriftgröße).
 
 ## Flächen setzen im Baukasten
 

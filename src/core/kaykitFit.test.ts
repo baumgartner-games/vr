@@ -127,3 +127,65 @@ describe('Der Maßstab in die Höhe', () => {
     expect(kaykitScale3('prototype-bits/Barrel_A.glb')).toEqual([0.7, 0.7, 0.7]);
   });
 });
+
+/**
+ * **Das quadratische Förderband ist eine Kachel** — nachgemessen an der Datei
+ * selbst und nicht am Namen: `4x4x1` klingt nach vier mal vier, die Quelle ist
+ * aber 4,2 breit (die Seitenleisten), 1,0 hoch und 4,0 tief.
+ */
+describe('Das Förderband', () => {
+  it('liegt in jeder Farbe auf genau einer Kachel und so hoch wie eine Arbeitsplatte', async () => {
+    const { kaykitScale3 } = await import('./kaykitFit');
+    for (const color of ['blue', 'green', 'red', 'yellow']) {
+      const path = `platformer/${color}/conveyor_4x4x1_${color}.glb`;
+      const source = glbSize(path) ?? [4.2, 1.0, 4.0];
+      const [sx, sy, sz] = kaykitScale3(path);
+      expect(source[0] * sx).toBeCloseTo(1, 2);
+      expect(source[1] * sy).toBeCloseTo(0.5, 2);
+      expect(source[2] * sz).toBeCloseTo(1, 2);
+    }
+  });
+
+  it('lässt das schmale Band beim Maßstab des Pakets', async () => {
+    const { kaykitScale3 } = await import('./kaykitFit');
+    expect(kaykitScale3('platformer/yellow/conveyor_2x4x1_yellow.glb')).toEqual([0.5, 0.5, 0.5]);
+    expect(kaykitScale3('platformer/yellow/conveyor_4x8x1_yellow.glb')).toEqual([0.5, 0.5, 0.5]);
+  });
+});
+
+/**
+ * **Wie groß eine Datei des Regals in der Quelle ist** — aus dem JSON-Teil
+ * der GLB: die Grenzen der Positionen (quantisiert: `normalized`) mit Maßstab
+ * und Versatz ihres Knotens. `null`, wenn die Pakete fehlen oder die Datei
+ * mehr als einen Knoten mit Netz hat.
+ */
+function glbSize(path: string): [number, number, number] | null {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(join(process.cwd(), 'public', 'models', 'kaykit', path));
+  } catch {
+    return null;
+  }
+  const length = bytes.readUInt32LE(12);
+  const gltf = JSON.parse(bytes.subarray(20, 20 + length).toString('utf8')) as {
+    nodes: { mesh?: number; scale?: number[] }[];
+    meshes: { primitives: { attributes: { POSITION: number } }[] }[];
+    accessors: { min: number[]; max: number[]; normalized?: boolean; componentType: number }[];
+  };
+  const withMesh = gltf.nodes.filter((node) => node.mesh !== undefined);
+  if (withMesh.length !== 1) return null;
+  const node = withMesh[0]!;
+  const scale = node.scale ?? [1, 1, 1];
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (const primitive of gltf.meshes[node.mesh!]!.primitives) {
+    const accessor = gltf.accessors[primitive.attributes.POSITION]!;
+    // SHORT (5122) normalisiert heißt: geteilt durch 32767.
+    const unit = accessor.normalized ? (accessor.componentType === 5122 ? 32767 : 127) : 1;
+    for (let i = 0; i < 3; i++) {
+      min[i] = Math.min(min[i]!, (accessor.min[i]! / unit) * scale[i]!);
+      max[i] = Math.max(max[i]!, (accessor.max[i]! / unit) * scale[i]!);
+    }
+  }
+  return [max[0]! - min[0]!, max[1]! - min[1]!, max[2]! - min[2]!];
+}

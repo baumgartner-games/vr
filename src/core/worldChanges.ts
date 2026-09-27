@@ -23,6 +23,17 @@
  *   dort ohne Umrechnen eintragen.
  * - **Modelle aus dem Regal** stehen irgendwo in der Welt; ihre Lage ist ein
  *   Punkt in Weltmetern und eine Drehung in Grad.
+ * - **Zettel** (`worlds/notes/`) sind die dritte Sorte und kein Umstellen,
+ *   sondern eine Beschriftung: _„Ermögliche es mir, dass ich ein Post vor
+ *   Felder hinzustellen kann und einen Text drauf schreiben kann durch
+ *   interagieren. Das soll auch in Welt Änderungen getrackt werden können."_
+ *   (gemeint sind Post-its). Punkt, Drehung und Text — damit, wer die Liste
+ *   liest, weiß, was der Besitzer mit dem gemeint hat, was daneben steht.
+ *
+ * **Und in welcher Welt** (`world`, seit September 2026): Ein Modell und ein
+ * Zettel stehen in Weltmetern, und die sagen nichts ohne die Welt, in der sie
+ * gelten. Die Kennung ist die der Welt im Verzeichnis (`test-restaurant`);
+ * alte Listen ohne sie lesen sich weiter, nur eben ohne diese Angabe.
  *
  * **Gespeichert wird im Browser**, anders als der Spielmodus nebenan
  * (`core/gameMode.ts`): Eine Liste, die beim Neuladen verschwindet, bevor man
@@ -56,9 +67,27 @@ export interface ModelChange {
   readonly at: { readonly x: number; readonly y: number; readonly z: number };
   /** Die Drehung um die Hochachse in Grad. */
   readonly yaw: number;
+  /** In welcher Welt (`worlds/index.ts`, z. B. `test-restaurant`) — fehlt in alten Listen. */
+  readonly world?: string;
 }
 
-export type WorldChange = FurnitureChange | ModelChange;
+/**
+ * **Ein Zettel** — ein Schild mit Text, das jemand hingestellt hat, um zu
+ * sagen, was dort hinkommt (`worlds/notes/`).
+ */
+export interface NoteChange {
+  readonly kind: 'note';
+  /** Was daraufsteht. */
+  readonly text: string;
+  /** Die Mitte des Zettels in Weltmetern. */
+  readonly at: { readonly x: number; readonly y: number; readonly z: number };
+  /** Die Drehung um die Hochachse in Grad. */
+  readonly yaw: number;
+  /** In welcher Welt er steht — nach ihr wird er beim Betreten wieder aufgestellt. */
+  readonly world?: string;
+}
+
+export type WorldChange = FurnitureChange | ModelChange | NoteChange;
 
 const KEY = 'vr-weltaenderungen';
 
@@ -104,12 +133,25 @@ export function worldChanges(): WorldChange[] {
   return [...changes.values()];
 }
 
-/** Die Liste leeren. Das Häkchen bleibt, wie es ist. */
-export function clearWorldChanges(): void {
+/**
+ * **Die Liste leeren.** Das Häkchen bleibt, wie es ist — und die Zettel
+ * bleiben auch, solange nicht `notes` dabeisteht.
+ *
+ * Ein Zettel ist keine Änderung, die man abgeschickt hat und vergessen darf,
+ * sondern eine Beschriftung, die noch in der Welt steht, und die Liste ist
+ * ihr einziger Speicher (`notesIn`). Wer nach dem Kopieren neu anfängt, soll
+ * beim nächsten Neuladen nicht vor einer unbeschrifteten Küche stehen.
+ * _Zurücksetzen_ räumt alles weg und sagt `notes: true`.
+ */
+export function clearWorldChanges(options: { notes?: boolean } = {}): void {
   load();
-  if (!changes.size) return;
-  changes.clear();
-  save();
+  let changed = false;
+  for (const [key, change] of [...changes]) {
+    if (change.kind === 'note' && !options.notes) continue;
+    changes.delete(key);
+    changed = true;
+  }
+  if (changed) save();
 }
 
 /** Zuhören, wenn sich die Liste ändert — zurück kommt das Abmelden. */
@@ -147,33 +189,96 @@ export function recordFurniture(
   save();
 }
 
-/** **Ein Modell aus dem Regal ist hingestellt worden** — oder noch einmal umgestellt. */
+/**
+ * **Ein Modell aus dem Regal ist hingestellt worden** — oder noch einmal umgestellt.
+ *
+ * @param world die Kennung der Welt, in der es steht (`test-restaurant`)
+ */
 export function recordModel(
   key: string,
   path: string,
   at: { x: number; y: number; z: number },
   yaw: number,
+  world?: string,
 ): void {
   load();
   if (!tracking) return;
   changes.set(key, {
     kind: 'model',
     path,
-    at: { x: round(at.x), y: round(at.y), z: round(at.z) },
+    at: roundPoint(at),
     yaw: Math.round(yaw),
+    ...(world ? { world } : {}),
   });
   save();
 }
 
 /**
+ * **Ein Zettel ist hingestellt, umgestellt oder neu beschriftet worden.**
+ *
+ * Dieselbe Zeile für alles drei, unter dem Schlüssel des Zettels — eine
+ * Bilanz wie beim Rest: Wo er jetzt steht und was jetzt daraufsteht.
+ *
+ * **Auch ohne Häkchen.** Ein Zettel ist für die Liste da, und die Liste ist
+ * sein Speicher: Ohne Zeile wäre er nach dem Neuladen weg (`notesIn`). Ein
+ * Zettel **ohne Text** dagegen hat nichts zu sagen und bekommt keine Zeile —
+ * eine, die schon da ist, geht wieder.
+ */
+export function recordNote(
+  key: string,
+  text: string,
+  at: { x: number; y: number; z: number },
+  yaw: number,
+  world?: string,
+): void {
+  load();
+  if (!text.trim()) {
+    if (changes.delete(key)) save();
+    return;
+  }
+  changes.set(key, {
+    kind: 'note',
+    text,
+    at: roundPoint(at),
+    yaw: Math.round(yaw),
+    ...(world ? { world } : {}),
+  });
+  save();
+}
+
+/**
+ * **Die Zettel einer Welt, mit ihren Schlüsseln** — was beim Betreten wieder
+ * aufgestellt wird. Unter demselben Schlüssel, damit Umstellen und
+ * Umschreiben danach dieselbe Zeile ändern und keine zweite anlegen.
+ *
+ * Ein Zettel ohne Welt (aus einer fremden, eingefügten Liste) gehört keiner
+ * und wird nirgends von selbst aufgestellt.
+ */
+export function notesIn(world: string): Array<{ key: string; note: NoteChange }> {
+  load();
+  const out: Array<{ key: string; note: NoteChange }> = [];
+  for (const [key, change] of changes) {
+    if (change.kind === 'note' && change.world === world) out.push({ key, note: change });
+  }
+  return out;
+}
+
+/**
  * **Die Zeile eines Dings streichen** — es ist abgerissen worden
  * (`core/craneBomb.ts`). Ein Modell, das erst hingestellt und dann wieder
- * abgerissen wurde, hat an der Welt nichts geändert.
+ * abgerissen wurde, hat an der Welt nichts geändert. Ein Zettel geht auch
+ * ohne Häkchen, so wie er ohne gekommen ist (`recordNote`).
  */
 export function forgetChange(key: string): void {
   load();
-  if (!tracking || !changes.delete(key)) return;
+  const was = changes.get(key);
+  if (!was || (!tracking && was.kind !== 'note')) return;
+  changes.delete(key);
   save();
+}
+
+function roundPoint(at: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+  return { x: round(at.x), y: round(at.y), z: round(at.z) };
 }
 
 function round(value: number): number {
@@ -196,8 +301,33 @@ export function formatChanges(list: readonly WorldChange[]): string {
   const head =
     `Weltänderungen · ${list.length} · ` +
     'kitchen: [x, z, Drehung] in Kacheln relativ zur Küche (wie KITCHEN_SPOTS, Drehung 0=N 1=W 2=S 3=O) · ' +
-    'model: [x, y, z] in Weltmetern, yaw in Grad';
-  return `${head}\n[\n${rows.join(',\n')}\n]`;
+    'model: [x, y, z] in Weltmetern, yaw in Grad · note: ein Zettel mit Text, Lage wie model · ' +
+    'world: die Welt, in der es steht';
+  // **Die Zettel noch einmal zum Lesen**, vor dem JSON: Sie sind das, was ein
+  // Mensch dem Leser sagen wollte, und sollen nicht zwischen Koordinaten
+  // untergehen. Zurückgelesen wird nur das JSON (`parseChanges`).
+  const notes = list
+    .filter((change): change is NoteChange => change.kind === 'note')
+    .map(describeNote);
+  const lines = notes.length ? `${notes.join('\n')}\n` : '';
+  return `${head}\n${lines}[\n${rows.join(',\n')}\n]`;
+}
+
+/**
+ * **Ein Zettel als Satz** — `Zettel „Kartoffel-Vorrat" bei (3.5, 0.3, 7.5) · 90° · in test-restaurant`.
+ *
+ * Zeilenumbrüche werden zu `/` und eckige Klammern zu runden: Die Zeile steht
+ * vor dem JSON, und der Leser der Liste sucht dessen Anfang an der ersten
+ * eckigen Klammer am Zeilenanfang (`parseChanges`).
+ */
+export function describeNote(note: NoteChange): string {
+  const text = note.text
+    .replace(/\s*\n\s*/g, ' / ')
+    .replace(/\[/g, '(')
+    .replace(/\]/g, ')');
+  const where = `(${note.at.x}, ${note.at.y}, ${note.at.z})`;
+  const world = note.world ? ` · in ${note.world}` : '';
+  return `Zettel „${text}" bei ${where} · ${note.yaw}°${world}`;
 }
 
 /**
@@ -211,8 +341,11 @@ export function formatChanges(list: readonly WorldChange[]): string {
  */
 export function parseChanges(text: string): WorldChange[] | null {
   // Die erste Klammer, hinter der eine Zeile anfängt — und nicht die aus der
-  // Kopfzeile, in der `[x, z, Drehung]` steht.
-  const open = text.search(/\[\s*[{\]]/);
+  // Kopfzeile, in der `[x, z, Drehung]` steht. Am liebsten eine am
+  // Zeilenanfang, wie `formatChanges` sie schreibt: Davor stehen die Zettel
+  // als Sätze, und in deren Text kann alles Mögliche stehen.
+  const lineStart = /(^|\n)[ \t]*\[\s*[{\]]/.exec(text);
+  const open = lineStart ? lineStart.index + lineStart[1]!.length : text.search(/\[\s*[{\]]/);
   const close = text.lastIndexOf(']');
   if (open < 0 || close <= open) return null;
   let raw: unknown;
@@ -240,11 +373,16 @@ function parseRow(row: unknown): WorldChange | null {
     if (data.from !== null && data.from !== undefined && !from) return null;
     return { kind: 'furniture', piece: data.kitchen, from, to };
   }
-  if (typeof data.model === 'string') {
+  if (typeof data.model === 'string' || typeof data.note === 'string') {
     const at = numbers(data.at, 3);
     if (!at) return null;
     const yaw = typeof data.yaw === 'number' && Number.isFinite(data.yaw) ? data.yaw : 0;
-    return { kind: 'model', path: data.model, at: { x: at[0]!, y: at[1]!, z: at[2]! }, yaw };
+    const point = { x: at[0]!, y: at[1]!, z: at[2]! };
+    const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
+    if (typeof data.note === 'string') {
+      return { kind: 'note', text: data.note, at: point, yaw, ...world };
+    }
+    return { kind: 'model', path: data.model as string, at: point, yaw, ...world };
   }
   return null;
 }
@@ -293,13 +431,18 @@ function save(): void {
 }
 
 function toRow(change: WorldChange): unknown {
-  return change.kind === 'furniture'
-    ? {
-        kitchen: change.piece,
-        from: change.from ? [change.from.x, change.from.z, change.from.turn] : null,
-        to: [change.to.x, change.to.z, change.to.turn],
-      }
-    : { model: change.path, at: [change.at.x, change.at.y, change.at.z], yaw: change.yaw };
+  if (change.kind === 'furniture') {
+    return {
+      kitchen: change.piece,
+      from: change.from ? [change.from.x, change.from.z, change.from.turn] : null,
+      to: [change.to.x, change.to.z, change.to.turn],
+    };
+  }
+  const at = [change.at.x, change.at.y, change.at.z];
+  const world = change.world ? { world: change.world } : {};
+  return change.kind === 'note'
+    ? { note: change.text, at, yaw: change.yaw, ...world }
+    : { model: change.path, at, yaw: change.yaw, ...world };
 }
 
 /** Nur für Tests: alles auf Anfang, als wäre die Seite frisch geladen. */

@@ -2,13 +2,13 @@ import { bits } from './elementCatalog';
 import { STACK_ORDER, layered, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
 
 /**
- * **Wie die Dinge der Küche im Test Restaurant aussehen** — je `KitchenItem`
+ * **Wie die Dinge der Küche auf Spielelementen aussehen** — je `KitchenItem`
  * ein Stück aus dem Regal (`public/models/kaykit/restaurant-bits`). Ohne
  * three.js, ohne Laden: nur Pfade.
  *
  * Die Küche der Testwelt und der Laden (`worlds/plateup`) zeichnen ihre
  * Zutaten aus dem Diner-Baukasten (`test/zones/kitchenProps.FoodKit`), und
- * dabei bleibt es. Das Test Restaurant baut aus dem KayKit-Regal und bekommt
+ * dabei bleibt es. Die Spielelemente bauen aus dem KayKit-Regal und bekommen
  * deshalb eine eigene Zuordnung — **dieselben Namen**, andere Netze. Die Regeln
  * dahinter (`kitchenCarry.kitchenDeed`) sind für beide dieselben; nur das Bild
  * unterscheidet sich, und das Bild ist diese eine Tabelle.
@@ -70,6 +70,11 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   onion: bits('food_ingredient_onion'),
   'onion-cut': bits('food_ingredient_onion_chopped'),
   stew: bits('food_stew'),
+  // **Pommes hat das Regal nicht** (kein Paket hat sie, auch keine Fritteuse)
+  // — die gewürfelte Kartoffel ist in Farbe und Form am nächsten dran. Die
+  // geschnittene Kartoffel sieht damit genauso aus; sie liegt aber nie auf
+  // einem Teller, sondern auf dem Brett und im Topf.
+  fries: bits('food_ingredient_potato_chopped'),
   // **Die Kugeln sind die Füllung der Eisschale** — so liegen sie im Regal:
   // `icecream_bowl_icecream_*` ist der Eisberg, der in die Schale gehört, mit
   // seinem Ursprung dort, wo die Schale ihn trägt. Eine Kugel für sich gibt
