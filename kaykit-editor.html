@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05070d" />
     <title>KayKit-Editor — Baumgartner VR</title>
-    <meta name="description" content="Ein KayKit-Element von oben auf dem Zellgitter: Größe und Lage einstellen, belegte Zellen sehen, Änderungen als JSON an Claude schicken." />
+    <meta name="description" content="Ein Rohmodell aus dem Modellregal von oben auf dem Zellgitter: Größe und Lage einstellen, belegte Zellen sehen, Änderungen als JSON an Claude schicken." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%93%90%3C/text%3E%3C/svg%3E" />
     <!--
       **Der KayKit-Editor.** Ein Element in der Mitte, die Spielfigur daneben,
@@ -49,7 +49,7 @@
         aside { width: 100%; border-left: none; border-top: 1px solid var(--border); flex: 1; }
       }
     </style>
-    <script type="module" crossorigin src="/vr/assets/kaykitEditor-D4fmulLo.js"></script>
+    <script type="module" crossorigin src="/vr/assets/kaykitEditor-D54rMWai.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/modulepreload-polyfill-B5Qt9EMX.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/graphicsSettings-D-Dy_cWv.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/three-9GcHzmCt.js">
@@ -61,7 +61,7 @@
     <link rel="modulepreload" crossorigin href="/vr/assets/cellGrid-BORyDR0G.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fixtureDimensions-DKmcusfo.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/detailDrag-B2_eIFTh.js">
-    <meta name="bgvr-build" content="1fe6f4855316">
+    <meta name="bgvr-build" content="2108949d453a">
   </head>
   <body>
     <div id="view">
@@ -138,9 +138,9 @@
         <button id="reset" type="button">Element zurücksetzen</button>
       </div>
 
-      <h2>Weiteres Modell aus dem Regal</h2>
+      <h2>Weiteres Modell aus dem Modellregal</h2>
       <form id="add-form">
-        <input id="add-path" type="text" list="kaykit-files" placeholder="z. B. dungeon/barrel_large.glb" aria-label="Adresse im Regal" />
+        <input id="add-path" type="text" list="kaykit-files" placeholder="z. B. dungeon/barrel_large.glb" aria-label="Adresse im Modellregal" />
         <button type="submit">Dazu</button>
       </form>
       <datalist id="kaykit-files"></datalist>
