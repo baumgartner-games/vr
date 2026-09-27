@@ -108,11 +108,14 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   const centre = spotCentre(spot);
   const [w, d] = spotSize(spot);
   const block = host.blockSolid(centre.x, centre.z, w, d, element.height);
+  // Das Bild darf neben seinen Zellen stehen (`ElementSpot.offset`), die
+  // Sperre nicht — sie steht schon.
+  const [sx, sz] = spot.offset ?? [0, 0];
 
   const anchor = new THREE.Group();
   anchor.name = `element:${spot.id}`;
   const front = spotFront(spot);
-  anchor.position.set(front.x, 0, front.z);
+  anchor.position.set(front.x + sx, 0, front.z + sz);
   anchor.rotation.y = yaw;
   host.add(anchor);
 
@@ -151,8 +154,8 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   const views: (THREE.Object3D | null)[] = [];
   element.parts.forEach((part, i) => {
     const [ox, oz] = rotateOffset(face, part.at ?? [0, 0]);
-    const x = centre.x + ox;
-    const z = centre.z + oz;
+    const x = centre.x + sx + ox;
+    const z = centre.z + sz + oz;
     if (i === 0 && fixed) {
       if (!size) {
         laid.push(null);

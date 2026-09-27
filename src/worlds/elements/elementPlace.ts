@@ -33,6 +33,17 @@ export interface ElementSpot {
   readonly gives?: string;
   /** Die Beschriftung hier — schlägt `GameElement.label`. */
   readonly label?: string;
+  /**
+   * **Ein Versatz des Bilds**, in Metern (x Osten, z Süden) — Modelle und
+   * Anker rücken, die gesperrten Zellen nicht.
+   *
+   * Für ein Möbel, das nicht auf der Mitte seiner Kachel steht: Der Stuhl am
+   * runden Tisch steht 1,05 m von dessen Mitte (`restaurantPlan.SEAT_REACH`),
+   * und dort sitzt auch der Gast. Auf die Mitte der Kachel gerückt, säße er
+   * einen halben Meter neben seinem Stuhl. Gesperrt bleibt die Kachel, auf
+   * der der Stuhl zum größten Teil steht — das Gitter kennt nur ganze Zellen.
+   */
+  readonly offset?: readonly [number, number];
 }
 
 /** Das Element einer Stelle. */

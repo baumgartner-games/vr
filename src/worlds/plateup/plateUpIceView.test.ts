@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { dirX, dirZ } from '../nav/navTile';
+import { DIR_S, dirX, dirZ } from '../nav/navTile';
 import { ICE_FACE, ICE_STAND, ICE_TUBS } from './plateUpPlan';
 import type { WorldContext } from '../../core/types';
 import type { IceHands } from './plateUpIce';
-import { CORNER_SIZE, IceCorner, ICE_SIZE, ICE_YAW, fallback } from './plateUpIceView';
+import { CORNER_SIZE, IceCorner, ICE_SIZE, ICE_YAW, fallback, iceYaw } from './plateUpIceView';
 import { WOBBLE, idleLimit } from './plateUpWobble';
 
 /**
@@ -197,4 +197,60 @@ describe('Restaurant: der Turm in der Hand, wie das Spiel ihn rechnet', () => {
       expect(Math.max(...late)).toBeLessThan(idle);
     },
   );
+});
+
+describe('Eisecke an anderer Stelle (Test Restaurant)', () => {
+  test('steht auf ihren Kacheln, schaut nach Süden, die erste Sorte rechts von vorn', async () => {
+    const root = new THREE.Group();
+    const corner = new IceCorner({
+      stand: { x: 3, z: 7 },
+      tubs: { x: 4, z: 7 },
+      face: DIR_S,
+      flavors: ['strawberry', 'vanilla'],
+      furnish: false,
+    });
+    corner.build(root);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    root.updateMatrixWorld(true);
+    const front = new THREE.Vector3(1, 0, 0).applyAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      iceYaw(DIR_S),
+    );
+    expect(front.x).toBeCloseTo(0);
+    expect(front.z).toBeCloseTo(1);
+    expect(corner.stand.position.toArray()).toEqual([3.5, 0, 7.5]);
+    // Ohne eigene Möbel: nichts gebaut außer der Matte des Portionierers.
+    expect(meshes(corner.cones)).toBe(0);
+    for (const tub of corner.tubs) expect(meshes(tub.anchor)).toBe(0);
+    // Von vorn (Süden) gesehen rechts ist Osten: dort die erste Sorte.
+    const [east, west] = corner.tubSpots();
+    expect(corner.tubs.map((tub) => tub.flavor)).toEqual(['strawberry', 'vanilla']);
+    expect(east!.x).toBeCloseTo(4.5 + CORNER_SIZE.tubOffset);
+    expect(west!.x).toBeCloseTo(4.5 - CORNER_SIZE.tubOffset);
+    corner.dispose();
+  });
+
+  test('übernimmt Plattenhöhe, Stapel und Portionierer des Elements an derselben Stelle', () => {
+    const root = new THREE.Group();
+    const corner = new IceCorner({
+      stand: { x: 0, z: 0 },
+      tubs: { x: 1, z: 0 },
+      face: DIR_S,
+      furnish: false,
+    });
+    corner.build(root);
+    const cones = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2));
+    cones.position.set(0.72, 0.8, 0.55);
+    const scoop = new THREE.Group();
+    scoop.position.set(0.3, 0.6, 0.58);
+    root.add(cones, scoop);
+    corner.adopt(0.55, cones, scoop);
+    root.updateMatrixWorld(true);
+    expect(cones.parent).toBe(corner.cones);
+    expect(scoop.parent).toBe(corner.scoop);
+    const at = cones.getWorldPosition(new THREE.Vector3());
+    expect(at.toArray().map((v) => Number(v.toFixed(6)))).toEqual([0.72, 0.8, 0.55]);
+    expect(corner.cones.getWorldPosition(new THREE.Vector3()).y).toBeCloseTo(0.55);
+    corner.dispose();
+  });
 });

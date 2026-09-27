@@ -131,6 +131,22 @@ describe('Spielelemente — hingestellt', () => {
     expect(fill).toBe(tub);
   });
 
+  it('rückt mit einem Versatz das Bild und den Anker, die Sperre nicht', async () => {
+    const { host: world, log, fixed } = host();
+    const placed = await placeElement(world, {
+      id: 'c',
+      element: 'counter',
+      x: 2,
+      z: 1,
+      offset: [0.45, -0.5],
+    });
+    expect(log[0]).toBe('block 2.5,1.5 1×1 1.4');
+    expect(fixed[0]!.at.x).toBeCloseTo(2.95);
+    expect(fixed[0]!.at.z).toBeCloseTo(1);
+    expect(placed.anchor.position.x).toBeCloseTo(2.95);
+    expect(placed.anchor.position.z).toBeCloseTo(1.5);
+  });
+
   it('weiß auch ohne Modelle, wo es steht', async () => {
     const { host: world } = host();
     world.load = () => Promise.resolve(null);

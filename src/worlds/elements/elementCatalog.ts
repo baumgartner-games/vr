@@ -315,6 +315,13 @@ export const ELEMENTS: readonly GameElement[] = [
     kind: null,
     parts: [{ model: 'platformer/yellow/conveyor_2x4x1_yellow.glb', yaw: Math.PI }],
   },
+  // **Die Vorratsbox für fertiges Essen** (`testrestaurant/guestWishes.MENU`)
+  // — die leere Kiste der Pizza-Vorratsbox, aber ohne Zweck: Was obenauf
+  // liegt und was `A` daran tut, ist je Gericht verschieden und Sache der
+  // Welt. Das Element sorgt nur dafür, dass sie steht und im Weg ist.
+  piece('supply-box', 'Vorratsbox', null, [{ model: bits('crate') }]),
+  // **Der Pizzaofen** — in der Schauküche der Pizza, zum Ansehen.
+  piece('pizza-oven', 'Pizzaofen', null, [{ model: bits('pizza_oven') }]),
   // Der Tisch des Test Restaurants (`TestRestaurantWorld.TABLE_MODEL`):
   // rund, 1,5 m, auf 2 × 2 Kacheln.
   {

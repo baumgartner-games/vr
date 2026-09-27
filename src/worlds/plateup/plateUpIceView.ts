@@ -10,7 +10,7 @@ import {
   type TubBox,
 } from './plateUpIce';
 import { ICE_FACE, ICE_STAND, ICE_TUBS } from './plateUpPlan';
-import { dirX, dirZ } from '../nav/navTile';
+import { dirX, dirZ, type Dir } from '../nav/navTile';
 import { NO_WOBBLE, WOBBLE, stepWobble, type WobbleState } from './plateUpWobble';
 
 /**
@@ -93,7 +93,43 @@ const MODEL = {
  * Vorderseite nach +x zeigt; gedreht wird das Ganze, bis +x auf `ICE_FACE`
  * zeigt.
  */
-export const ICE_YAW = Math.atan2(-dirZ(ICE_FACE), dirX(ICE_FACE));
+export const ICE_YAW = iceYaw(ICE_FACE);
+
+/** Die Drehung einer Eisecke, deren Vorderseite nach `face` schaut (`ICE_YAW`). */
+export function iceYaw(face: Dir): number {
+  return Math.atan2(-dirZ(face), dirX(face));
+}
+
+/**
+ * **Wo eine Eisecke steht** — die Kacheln ihrer beiden Platten und wohin sie
+ * schauen. Im Burgerladen ist das fest (`PLATEUP_ICE`); das Test Restaurant
+ * stellt dieselbe Ecke in seine Eis-Küche.
+ */
+export interface IceCornerPlace {
+  /** Die Kachel der Platte mit Stapel und Portionierer. */
+  readonly stand: { readonly x: number; readonly z: number };
+  /** Die Kachel der Platte mit den Wannen. */
+  readonly tubs: { readonly x: number; readonly z: number };
+  /** Wohin die Vorderseite beider Platten schaut. */
+  readonly face: Dir;
+  /**
+   * **Die Sorten der Wannen**, der Reihe nach: die erste auf der Seite, die
+   * von vorn gesehen rechts liegt. Ohne Angabe `ICE_FLAVORS` — im Burgerladen
+   * steht Vanille so im Westen.
+   */
+  readonly flavors?: readonly IceFlavor[];
+  /**
+   * **Ob die Ecke ihre Möbel selbst hinstellt** — Platten, Stapel,
+   * Portionierer, Wannen. `false`: Sie stehen schon als Spielelemente da
+   * (`elements/elementCatalog`, `ice-stand` und `ice-tubs`), und die Ecke
+   * bringt nur ihre Anker mit; was dort liegt, reicht die Welt mit `adopt`
+   * herein.
+   */
+  readonly furnish?: boolean;
+}
+
+/** Die Eisecke des Burgerladens. */
+export const PLATEUP_ICE: IceCornerPlace = { stand: ICE_STAND, tubs: ICE_TUBS, face: ICE_FACE };
 
 /** Wie hoch die Arbeitsplatte ist, bis ihr Modell gemessen ist. */
 const COUNTER_TOP = 0.5;
@@ -474,6 +510,12 @@ export class IceCorner {
   private readonly shelf = new Map<string, IceConeView>();
   private mat: THREE.Mesh | null = null;
   private round = 0;
+  /** Die Drehung dieser Ecke (`iceYaw`). */
+  private readonly yaw: number;
+
+  constructor(private readonly at: IceCornerPlace = PLATEUP_ICE) {
+    this.yaw = iceYaw(at.face);
+  }
 
   /** **Die Eisecke aufbauen** — nach jedem Neuaufbau der Welt neu. */
   build(root: THREE.Object3D): void {
@@ -483,8 +525,8 @@ export class IceCorner {
     this.lying = null;
     this.stand = new THREE.Group();
     this.stand.name = 'plateup-ice-stand';
-    this.stand.position.set(ICE_STAND.x + 0.5, 0, ICE_STAND.z + 0.5);
-    this.stand.rotation.y = ICE_YAW;
+    this.stand.position.set(this.at.stand.x + 0.5, 0, this.at.stand.z + 0.5);
+    this.stand.rotation.y = this.yaw;
     root.add(this.stand);
     this.cones = new THREE.Group();
     this.cones.name = 'plateup-ice-cones';
@@ -493,10 +535,10 @@ export class IceCorner {
     this.stand.add(this.cones, this.scoop);
     this.tubRoot = new THREE.Group();
     this.tubRoot.name = 'plateup-ice-tubs';
-    this.tubRoot.position.set(ICE_TUBS.x + 0.5, 0, ICE_TUBS.z + 0.5);
-    this.tubRoot.rotation.y = ICE_YAW;
+    this.tubRoot.position.set(this.at.tubs.x + 0.5, 0, this.at.tubs.z + 0.5);
+    this.tubRoot.rotation.y = this.yaw;
     root.add(this.tubRoot);
-    this.tubs = ICE_FLAVORS.map((flavor) => {
+    this.tubs = (this.at.flavors ?? ICE_FLAVORS).map((flavor) => {
       const anchor = new THREE.Group();
       anchor.name = `plateup-ice-tub:${flavor}`;
       this.tubRoot.add(anchor);
@@ -515,7 +557,26 @@ export class IceCorner {
     mat.position.y = 0.006;
     this.scoop.add(mat);
     this.place();
-    void this.furnish(round);
+    if (this.at.furnish !== false) void this.furnish(round);
+  }
+
+  /**
+   * **Was schon dasteht, übernehmen** — für eine Ecke ohne eigene Möbel
+   * (`IceCornerPlace.furnish`): die gemessene Plattenhöhe, und der Stapel und
+   * der liegende Portionierer des Spielelements. Beide wandern an die Anker
+   * der Ecke (`attach`: dieselbe Stelle in der Welt) — der Portionierer
+   * verschwindet dann, solange ihn eine Hand hat, und in der Brille greift
+   * die Hand nach dem, was sie sieht.
+   */
+  adopt(top: number, cones: THREE.Object3D | null, scoop: THREE.Object3D | null): void {
+    this.top = top;
+    this.place();
+    this.stand.updateWorldMatrix(true, true);
+    if (cones) this.cones.attach(cones);
+    if (scoop) {
+      this.scoop.attach(scoop);
+      this.lying = scoop;
+    }
   }
 
   /**
@@ -586,7 +647,7 @@ export class IceCorner {
         const at = tub.anchor.getWorldPosition(new THREE.Vector3());
         const deep = CORNER_SIZE.tub / 2;
         const wide = CORNER_SIZE.tub * 0.31;
-        const alongX = Math.abs(Math.cos(ICE_YAW)) > 0.5;
+        const alongX = Math.abs(Math.cos(this.yaw)) > 0.5;
         return {
           centre: { x: at.x, y: at.y + 0.08, z: at.z },
           half: { x: alongX ? deep : wide, y: 0.08, z: alongX ? wide : deep },

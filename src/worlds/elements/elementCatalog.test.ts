@@ -107,6 +107,8 @@ describe('Spielelemente — der Katalog', () => {
       'belt',
       'table-round',
       'chair',
+      'supply-box',
+      'pizza-oven',
     ])
       expect(hasElement(id)).toBe(true);
     expect(elementById('board').work).toBe('chop');
