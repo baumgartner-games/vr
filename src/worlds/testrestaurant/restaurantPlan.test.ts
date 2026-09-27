@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ELEMENTS, hasElement } from '../elements/elementCatalog';
+import { elementById, hasElement } from '../elements/elementCatalog';
 import { overlaps, spotCentre, spotFace, spotTiles } from '../elements/elementPlace';
 import { ITEM_LABELS } from '../test/zones/kitchenRecipes';
 import { BELT_DONE, BELT_PLATE, BELT_STATIONS } from './burgerBelt';
@@ -35,9 +35,7 @@ function everyModel(): string[] {
     for (const element of kitchenElements(spot))
       for (const item of element.show ?? []) out.add(item);
   for (const station of BELT_STATIONS) {
-    out.add(station.model);
     out.add(station.layer);
-    if (station.extra) out.add(station.extra);
   }
   for (const dish of MENU) out.add(dish.model);
   return [...out];
@@ -64,10 +62,10 @@ describe('Test Restaurant — der Plan', () => {
       .map((spot) => spot.element)
       .filter((id) => !hasElement(id));
     expect(unknown).toEqual([]);
-    // Die Stationen am Band sind dasselbe Element wie ihr Modell.
+    // Die Stationen am Band sind Elemente aus _Restaurant Bits_.
     for (const station of BELT_STATIONS) {
-      const element = ELEMENTS.find((one) => one.id === station.element)!;
-      expect(element.parts[0]!.model).toBe(station.model);
+      const element = elementById(station.element);
+      expect(element.parts[0]!.model).toMatch(/^restaurant-bits\//);
     }
   });
 

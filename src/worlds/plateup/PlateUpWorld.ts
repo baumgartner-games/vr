@@ -131,6 +131,8 @@ import {
   type OtherHeld,
 } from './plateUpIce';
 import { IceCorner } from './plateUpIceView';
+import { dishKey } from '../elements/dishView';
+import { NEAR_STATION } from '../elements/stationLayer';
 
 /**
  * **Der Burgerladen** — eine kleine Küchenwelt mit Gastraum und einem Spiel
@@ -2569,8 +2571,6 @@ export class PlateUpWorld extends GridWorld {
 const BLOCK_HEIGHT = 1.4;
 /** Die Tischplatte der runden Gasttische (`dinerFit`, `table_round_B`). */
 const TABLE_TOP = 0.5;
-/** Ab wie nah man „vor" einer Station steht — fürs Schneiden. */
-const NEAR_STATION = 1.3;
 /** Das Schild von oben und in der Brille: gleich südlich der Durchreiche. */
 const SIGN_SPOT = { x: 7, y: 1.35, z: 4.7 } as const;
 /**
@@ -2677,11 +2677,6 @@ function chime(notes: readonly number[], step: number): void {
 function stripShort(shift: Shift): string {
   const clock = shift.phase === 'open' ? clockText(timeLeft(shift)) : 'Schluss';
   return `Tag ${shift.day} · ${clock} · ✓ ${shift.served} · ✗ ${shift.lost} · ${shift.coins} Münzen`;
-}
-
-/** Ein Schlüssel für ein Gericht — zum Vergleichen, ob sich das Bild ändern muss. */
-function dishKey(d: Dish): string {
-  return `${d.item}[${d.on.join(',')}]`;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { bits } from './restaurantPlan';
+import { bits } from '../elements/elementCatalog';
 
 /**
  * **Gäste, die etwas Fertiges wollen** — gewünscht: _„Gäste die an einem

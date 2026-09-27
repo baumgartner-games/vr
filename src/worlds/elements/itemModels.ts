@@ -1,3 +1,4 @@
+import { bits } from './elementCatalog';
 import { STACK_ORDER, layered, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
 
 /**
@@ -20,14 +21,6 @@ import { STACK_ORDER, layered, type Dish, type KitchenItem } from '../test/zones
  * Übersetzer hier nach seinem Bild.
  */
 
-/** Der Ordner im Regal, aus dem fast alles kommt. */
-const BITS = 'restaurant-bits';
-
-/** Ein Stück aus `restaurant-bits`, als Pfad relativ zum Regal. */
-function bit(name: string): string {
-  return `${BITS}/${name}.glb`;
-}
-
 /**
  * **Das Bild je Ding** — ein Pfad, oder mehrere, die zusammen das Ding sind.
  *
@@ -36,53 +29,53 @@ function bit(name: string): string {
  * zusammenpassen. `itemModel` nimmt den ersten, `dishModels` alle.
  */
 export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[]>> = {
-  pot: bit('pot_A'),
-  pan: bit('pan_A'),
+  pot: bits('pot_A'),
+  pan: bits('pan_A'),
   // Kein Feuerlöscher, keine Zange und kein Wasser im Regal (siehe oben).
   extinguisher: '',
   pliers: '',
   water: '',
-  plate: bit('plate'),
-  'plate-dirty': bit('plate_dirty'),
-  bun: bit('food_ingredient_bun'),
-  patty: bit('food_ingredient_burger_uncooked'),
-  'patty-cooked': bit('food_ingredient_burger_cooked'),
-  'patty-burnt': bit('food_ingredient_burger_trash'),
-  lettuce: bit('food_ingredient_lettuce'),
-  'lettuce-cut': bit('food_ingredient_lettuce_slice'),
-  tomato: bit('food_ingredient_tomato'),
-  'tomato-cut': bit('food_ingredient_tomato_slice'),
+  plate: bits('plate'),
+  'plate-dirty': bits('plate_dirty'),
+  bun: bits('food_ingredient_bun'),
+  patty: bits('food_ingredient_burger_uncooked'),
+  'patty-cooked': bits('food_ingredient_burger_cooked'),
+  'patty-burnt': bits('food_ingredient_burger_trash'),
+  lettuce: bits('food_ingredient_lettuce'),
+  'lettuce-cut': bits('food_ingredient_lettuce_slice'),
+  tomato: bits('food_ingredient_tomato'),
+  'tomato-cut': bits('food_ingredient_tomato_slice'),
   // Das Regal hat keine Tomatensuppe, aber eine Tomatensoße — flach, rot und
   // auf einem Burger genau das, was die Suppe dort sein soll.
-  'tomato-soup': bit('food_ingredient_tomato_sauce'),
-  bowl: bit('bowl'),
-  pizzabox: bit('pizzabox_open'),
-  cheese: bit('food_ingredient_cheese'),
-  'cheese-cut': bit('food_ingredient_cheese_slice'),
-  ham: bit('food_ingredient_ham'),
-  'ham-cooked': bit('food_ingredient_ham_cooked'),
-  'ham-burnt': bit('food_ingredient_ham_trash'),
+  'tomato-soup': bits('food_ingredient_tomato_sauce'),
+  bowl: bits('bowl'),
+  pizzabox: bits('pizzabox_open'),
+  cheese: bits('food_ingredient_cheese'),
+  'cheese-cut': bits('food_ingredient_cheese_slice'),
+  ham: bits('food_ingredient_ham'),
+  'ham-cooked': bits('food_ingredient_ham_cooked'),
+  'ham-burnt': bits('food_ingredient_ham_trash'),
   // **Eine ganze Pizza gibt es im Regal nur auf ihrem Brett** — ohne Teller
   // darunter hat sie keine Form. Das Brett ist klein genug, dass sie so auch
   // im offenen Karton liegt.
-  pizza: bit('food_pizza_pepperoni_plated'),
-  'pizza-cut': bit('food_pizza_pepperoni_slice'),
-  dough: bit('food_ingredient_dough'),
-  'dough-flat': bit('food_ingredient_dough_base'),
-  waffle: bit('icecream_waffle'),
-  carrot: bit('food_ingredient_carrot'),
-  'carrot-cut': bit('food_ingredient_carrot_chopped'),
-  potato: bit('food_ingredient_potato'),
-  'potato-cut': bit('food_ingredient_potato_chopped'),
-  onion: bit('food_ingredient_onion'),
-  'onion-cut': bit('food_ingredient_onion_chopped'),
-  stew: bit('food_stew'),
+  pizza: bits('food_pizza_pepperoni_plated'),
+  'pizza-cut': bits('food_pizza_pepperoni_slice'),
+  dough: bits('food_ingredient_dough'),
+  'dough-flat': bits('food_ingredient_dough_base'),
+  waffle: bits('icecream_waffle'),
+  carrot: bits('food_ingredient_carrot'),
+  'carrot-cut': bits('food_ingredient_carrot_chopped'),
+  potato: bits('food_ingredient_potato'),
+  'potato-cut': bits('food_ingredient_potato_chopped'),
+  onion: bits('food_ingredient_onion'),
+  'onion-cut': bits('food_ingredient_onion_chopped'),
+  stew: bits('food_stew'),
   // **Die Kugeln sind die Füllung der Eisschale** — so liegen sie im Regal:
   // `icecream_bowl_icecream_*` ist der Eisberg, der in die Schale gehört, mit
   // seinem Ursprung dort, wo die Schale ihn trägt. Eine Kugel für sich gibt
   // es nicht, und in der Hand kommt sie auch nie vor (`kitchenCarry.atTub`).
-  'ice-vanilla': bit('icecream_bowl_icecream_vanilla'),
-  'ice-strawberry': bit('icecream_bowl_icecream_strawberry'),
+  'ice-vanilla': bits('icecream_bowl_icecream_vanilla'),
+  'ice-strawberry': bits('icecream_bowl_icecream_strawberry'),
 };
 
 /**
@@ -94,8 +87,8 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
  * die Eisschale.
  */
 const IN_BOWL: Partial<Record<KitchenItem, string>> = {
-  stew: bit('stew_bowl'),
-  waffle: bit('icecream_bowl_waffles'),
+  stew: bits('stew_bowl'),
+  waffle: bits('icecream_bowl_waffles'),
 };
 
 /**
@@ -103,8 +96,8 @@ const IN_BOWL: Partial<Record<KitchenItem, string>> = {
  * aufgeschnitten: unten der Boden, oben der Deckel, dazwischen der Belag.
  * Dieselbe Regel wie im Diner-Baukasten (`kitchenProps.FoodKit.pile`).
  */
-export const BUN_BOTTOM = bit('food_ingredient_bun_bottom');
-export const BUN_TOP = bit('food_ingredient_bun_top');
+export const BUN_BOTTOM = bits('food_ingredient_bun_bottom');
+export const BUN_TOP = bits('food_ingredient_bun_top');
 
 /** Alle Pfade eines Eintrags, ohne die leeren. */
 function paths(entry: string | readonly string[]): string[] {

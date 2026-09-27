@@ -141,8 +141,11 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 Die zwölf Kisten geben: Brötchen, Patty (die Fleischkiste `crate_steak`, wie in
 der Burgerküche), Salat, Tomate, Käse, Schinken, Teig, Karotte, Kartoffel,
 Zwiebel, Salami (`pepperoni`) und Pilz (`mushroom`). Salami und Pilz sind noch
-keine `KitchenItem`. Sie stehen nur in Schauküchen, und eine Stelle, die sie
-wirklich ausgeben soll, braucht zuerst die Zutat (siehe unten).
+keine `KitchenItem` und stehen deshalb in `SHOW_ONLY_GIVES`: nur zum Ansehen,
+in Schauküchen. Eine Stelle, die sie wirklich ausgeben soll, braucht zuerst
+die Zutat (siehe unten). `elementCatalog.test.ts` sieht nach, dass jedes
+andere `gives` einer Kiste, eines Stapels oder einer Wanne ein Ding der Küche
+ist.
 
 **Die Art im Katalog ist nicht immer die Stationsart der Küche.** Das
 übersetzt `stationLayer.stationKind`, und zwar an genau drei Stellen:
@@ -155,10 +158,9 @@ wirklich ausgeben soll, braucht zuerst die Zutat (siehe unten).
 - `ice-stand` und alles ohne Zweck wird zu gar keiner Station. Den Eisstand
   regelt die Eisecke.
 
-**`'tub'` und `'pot'` stehen in `ElementKind` doppelt**: Sie kamen in die
-Küche (`StationKind`), während der Katalog schon stand. Die Vereinigung darf
-dort gekürzt werden. `'ice-stand'` und `'ice-tubs'` bleiben, denn die Eisecke
-regelt ihre eigene Logik (`plateup/plateUpIce.ts`) und nicht `kitchenDeed`.
+**`ElementKind` ist `StationKind` und dazu `'ice-stand'` und `'ice-tubs'`**:
+Die Eisecke regelt ihre eigene Logik (`plateup/plateUpIce.ts`) und nicht
+`kitchenDeed`.
 
 ## Hinstellen
 
@@ -232,17 +234,25 @@ drittes Mal ab. Der Burgerladen selbst bleibt, wie er ist.
   die aus einer Stelle keine, eine oder zwei `StationSlot` macht (`spot` als
   `StationSpot` der Regel und `shift` längs der Vorderkante). **Stapel gehen
   nie aus** (`stock: Infinity`): Es gibt keine Spüle, und Teller, Schüsseln
-  und Kartons kommen nicht zurück. Ein `gives`, das kein `KitchenItem` ist,
-  ist ein Fehler beim Aufbau.
+  und Kartons kommen nicht zurück. Ein `gives`, das kein `KitchenItem` ist
+  (`SHOW_ONLY_GIVES`), wird **keine** Station, sondern bleibt ein Möbel, mit
+  einer Warnung in der Konsole. Die Welt stirbt nicht an einer Kiste, und
+  `TestRestaurantWorld.placeAll` fängt auch sonst jeden Fehler beim
+  Hinstellen eines Elements ab.
 - **Die Klasse:** `new StationLayer(host, gauges?, before?, burn =
   DEFAULT_BURN)`, dann `add(placed)` je hingestelltem Element und jedes Bild
   `step(dt, feet)`. Darin laufen die Uhren (`tickStation`): Braten und Kochen
   laufen allein, Schneiden und Ausrollen nur, solange die Füße höchstens
-  1,3 m vom Anker stehen (`NEAR_STATION`). Außerdem wird das Liegende neu
-  gezeigt, wenn es sich ändert, Balken, Flamme und Warnzeichen stehen über
-  dem, was arbeitet oder verbrennt (`KitchenGauges` aus
-  `test/zones/kitchenGauge.ts`, kein Rauch), und angemeldet wird neu, sobald
-  sich die Tat ändert. Dazu `use(index, by)`, `place(id)`, `states`,
+  1,3 m vom Anker stehen (`NEAR_STATION`, auch der Burgerladen nimmt diese).
+  Die Uhren laufen an **jeder** Station, auch fern von der Figur. Außerdem
+  wird das Liegende neu gezeigt, wenn es sich ändert, Balken, Flamme und
+  Warnzeichen stehen über dem, was arbeitet oder verbrennt (`KitchenGauges`
+  aus `test/zones/kitchenGauge.ts`, kein Rauch; gerechnet nur, solange etwas
+  arbeitet oder heiß wird), und angemeldet wird neu, sobald sich die Tat
+  ändert — aber **nur in der Nähe**: Stationen, deren Anker weiter als
+  `REFRESH_RANGE` = 3 m von den Füßen steht, rechnen ihre Tat nicht aus.
+  Wer hinausgeht, wird einmal abgemeldet und bei der Rückkehr neu
+  angemeldet. Dazu `use(index, by)`, `place(id)`, `states`,
   `reset()`, `dispose()`. Verbrannt ist Gebratenes nach `DEFAULT_BURN` =
   14 s, wie am ersten Tag im Restaurant.
 - **Wo was hängt:** Die Anmeldung (`Usable`, der Saum für `A`) hängt an

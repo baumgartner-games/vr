@@ -1,3 +1,4 @@
+import { bits } from '../elements/elementCatalog';
 import { spotTiles, type ElementSpot, type Face } from '../elements/elementPlace';
 import { GridPlan } from '../grid/gridPlan';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
@@ -32,11 +33,6 @@ import { BELT_STATIONS } from './burgerBelt';
  * **Alles aus dem Regal** (`public/models/kaykit/`): Möbel und Zutaten aus
  * _Restaurant Bits_, das Band aus _Platformer_. Keine gebauten Klötze.
  */
-
-/** Eine Datei aus _Restaurant Bits_. */
-export function bits(name: string): string {
-  return `restaurant-bits/${name}.glb`;
-}
 
 /**
  * **Ein Platz in einer Reihe** — welches Spielelement dort steht

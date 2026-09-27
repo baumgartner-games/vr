@@ -162,8 +162,9 @@ arbeiten **allein**. Über allem, was arbeitet oder verbrennt, steht ein Balken
   andere den Portionierer, und eingetaucht und abgesetzt wird mit der Hand.
   Das Hörnchen lässt sich auf die Platte stellen, wieder aufnehmen und in den
   Mülleimer werfen. Die Ecke ist dieselbe `IceCorner` wie im Restaurant, hier
-  mit `face` Süd, den Sorten `['strawberry', 'vanilla']` (Vanille im
-  Westen) und `furnish: false`: Die Möbel stehen schon als Elemente da, und
+  mit dem `face` des Elements `ice-stand` (Süd), den Sorten
+  `['strawberry', 'vanilla']` (von vorn gesehen zuerst rechts, also Vanille
+  links, wie das Element sie trägt) und `furnish: false`: Die Möbel stehen schon als Elemente da, und
   die Ecke übernimmt Stapel und Portionierer (`adopt`).
 
 **In der Hand liegt höchstens eines**: ein Ding der Küche (`carried`), ein
@@ -241,8 +242,9 @@ Rein gerechnet und ohne eigene Uhr (`beltBurgers(time, length)`); die Welt
 fragt jedes Bild. Das ist **nicht** das Band der Testküche
 (`test/zones/kitchenBelt.ts`, Kacheln mit Schub und Zug, echte Gegenstände).
 Hier geht es ums Zusehen. Wer die Linie spielbar will, baut sie dort.
-(`burgerBelt.ts` holt `bits` aus `elementCatalog` und nicht aus dem Plan, sonst
-gäbe es einen Importzyklus.)
+(`bits` gibt es nur einmal, in `elementCatalog`; Plan, Band, Gäste und
+`itemModels.ts` holen es dort. Eine Station am Band ist nur ihr Element, ihr
+Bild bringt das Element mit.)
 
 ## Gäste mit Wünschen
 

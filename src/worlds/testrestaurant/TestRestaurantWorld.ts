@@ -11,10 +11,10 @@ import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { KaykitDishView, dishKey } from '../elements/dishView';
-import { spotCentre, type ElementSpot } from '../elements/elementPlace';
+import { FACES, spotCentre, spotFace, type ElementSpot } from '../elements/elementPlace';
 import { placeElement, type ElementHost, type PlacedElement } from '../elements/elementView';
 import { StationLayer, type StationHost } from '../elements/stationLayer';
-import { DIR_S } from '../nav/navTile';
+import { DIRS } from '../nav/navTile';
 import { DEFAULT_BURN } from '../plateup/plateUpStations';
 import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
@@ -323,9 +323,14 @@ export class TestRestaurantWorld extends GridWorld {
   private placeAll(round: number): void {
     const host = this.elementHost(round);
     const put = (spot: ElementSpot, then: (placed: PlacedElement) => void): void => {
-      void placeElement(host, spot).then((placed) => {
-        if (round === this.round) then(placed);
-      });
+      // Ein Element, das scheitert, fehlt — die Welt stirbt nicht daran.
+      placeElement(host, spot)
+        .then((placed) => {
+          if (round === this.round) then(placed);
+        })
+        .catch((error: unknown) =>
+          console.warn(`Spielelement ${spot.id} nicht aufgestellt`, error),
+        );
     };
     for (const kitchen of kitchenSpots()) {
       const stations = new Set(stationElements(kitchen).map((one) => one.id));
@@ -395,9 +400,9 @@ export class TestRestaurantWorld extends GridWorld {
 
   /**
    * **Die Eisecke der Eis-Küche** (`restaurantIce.ts`) — ihre Anker stehen
-   * auf den Kacheln der Elemente `ice-stand` und `ice-tubs`, und die Wannen
-   * haben dieselben Sorten an derselben Seite wie das Element: Vanille im
-   * Westen.
+   * auf den Kacheln der Elemente `ice-stand` und `ice-tubs`, sie schaut, wohin
+   * der Stand schaut, und die Wannen haben dieselben Sorten an derselben Seite
+   * wie das Element: Vanille von vorn gesehen links.
    */
   private buildIce(): RestaurantIce | null {
     const kitchen = kitchenSpots().find((spot) => spot.kitchen.mode === 'ice');
@@ -415,8 +420,16 @@ export class TestRestaurantWorld extends GridWorld {
         shelf: (id) => this.stations?.place(id) ?? null,
         picked: (taken) => playPick(taken),
       },
-      // Von vorn gesehen rechts, also im Osten, die erste Sorte.
-      { stand, tubs, face: DIR_S, flavors: ['strawberry', 'vanilla'] },
+      // Die Ecke schaut, wohin der Stand schaut (`FACES` und `DIRS` zählen
+      // beide im Uhrzeigersinn von Norden). Die Sorten zählen von vorn
+      // gesehen rechts, wie das Element sie trägt — Erdbeere rechts, Vanille
+      // links —, und bleiben so bei jeder Drehung richtig.
+      {
+        stand,
+        tubs,
+        face: DIRS[FACES.indexOf(spotFace(stand))]!,
+        flavors: ['strawberry', 'vanilla'],
+      },
     );
     ice.build();
     this.ice = ice;

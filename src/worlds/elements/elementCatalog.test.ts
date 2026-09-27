@@ -2,7 +2,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { CRATE_LID_PATH, kaykitPlinth } from '../../core/kaykitCrate';
 import { kaykitFiles, type KaykitIndex } from '../../core/kaykitIndex';
-import { ELEMENTS, elementById, hasElement } from './elementCatalog';
+import { ITEM_LABELS } from '../test/zones/kitchenRecipes';
+import { ELEMENTS, SHOW_ONLY_GIVES, elementById, hasElement } from './elementCatalog';
 
 /** Der Index des Regals — `null`, wenn die gekauften Pakete fehlen. */
 function shelf(): Set<string> | null {
@@ -116,6 +117,19 @@ describe('Spielelemente — der Katalog', () => {
     expect(elementById('belt').tiles).toEqual([1, 2]);
     expect(elementById('table-round').tiles).toEqual([2, 2]);
     expect(elementById('pizza-supply').gives).toBe('pizza');
+  });
+
+  it('gibt aus Kisten, Stapeln und Wannen nur Dinge der Küche — oder sagt, dass es nur zeigt', () => {
+    const strays = ELEMENTS.filter(
+      (element) =>
+        (element.kind === 'crate' || element.kind === 'drain' || element.kind === 'tub') &&
+        element.gives !== undefined &&
+        !(element.gives in ITEM_LABELS) &&
+        !SHOW_ONLY_GIVES.has(element.gives),
+    ).map((element) => `${element.id}: ${element.gives}`);
+    expect(strays).toEqual([]);
+    // Und was nur zeigt, ist wirklich keines — sonst gehört es nicht in die Liste.
+    for (const name of SHOW_ONLY_GIVES) expect(name in ITEM_LABELS).toBe(false);
   });
 
   it('wirft bei einem unbekannten Namen', () => {

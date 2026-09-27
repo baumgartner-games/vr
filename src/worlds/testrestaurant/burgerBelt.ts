@@ -26,10 +26,6 @@ export interface BeltStation {
    * es steht dort und sperrt, mehr nicht: Was es auflegt, rechnet das Band.
    */
   readonly element: string;
-  /** Sein Modell im Regal, dasselbe wie im Element. */
-  readonly model: string;
-  /** Was dazu auf dem Möbel steht — die Pfanne auf dem Herd. */
-  readonly extra?: string;
   /** Wo am Band, in Metern ab dem Westende: die Mitte ihrer Kachel. */
   readonly at: number;
   /** Die Schicht, die sie auf den Burger legt. */
@@ -41,7 +37,6 @@ export const BELT_STATIONS: readonly BeltStation[] = [
     id: 'bun',
     label: 'Brötchen',
     element: 'crate-buns',
-    model: bits('crate_buns'),
     at: 0.5,
     layer: bits('food_ingredient_bun_bottom'),
   },
@@ -49,8 +44,6 @@ export const BELT_STATIONS: readonly BeltStation[] = [
     id: 'grill',
     label: 'Grill',
     element: 'stove',
-    model: bits('stove_single'),
-    extra: bits('pan_A'),
     at: 2.5,
     layer: bits('food_ingredient_burger_cooked'),
   },
@@ -58,7 +51,6 @@ export const BELT_STATIONS: readonly BeltStation[] = [
     id: 'lettuce',
     label: 'Salat',
     element: 'crate-lettuce',
-    model: bits('crate_lettuce'),
     at: 4.5,
     layer: bits('food_ingredient_lettuce_slice'),
   },
@@ -66,7 +58,6 @@ export const BELT_STATIONS: readonly BeltStation[] = [
     id: 'tomato',
     label: 'Tomate',
     element: 'crate-tomatoes',
-    model: bits('crate_tomatoes'),
     at: 6.5,
     layer: bits('food_ingredient_tomato_slice'),
   },
@@ -74,7 +65,6 @@ export const BELT_STATIONS: readonly BeltStation[] = [
     id: 'cheese',
     label: 'Käse',
     element: 'crate-cheese',
-    model: bits('crate_cheese'),
     at: 8.5,
     layer: bits('food_ingredient_cheese_slice'),
   },
@@ -82,7 +72,6 @@ export const BELT_STATIONS: readonly BeltStation[] = [
     id: 'top',
     label: 'Deckel',
     element: 'crate-buns',
-    model: bits('crate_buns'),
     at: 10.5,
     layer: bits('food_ingredient_bun_top'),
   },

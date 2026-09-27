@@ -45,10 +45,19 @@ export const TUB_SHIFT = 0.25;
 
 /**
  * **Wie nah man an einer Station stehen muss**, damit an ihr gearbeitet wird —
- * die Füße höchstens so weit vom Anker, wie im Restaurant
- * (`PlateUpWorld.NEAR_STATION`).
+ * die Füße höchstens so weit vom Anker. Der Burgerladen nimmt dieselbe Zahl
+ * (`PlateUpWorld`).
  */
 export const NEAR_STATION = 1.3;
+
+/**
+ * **Wie nah man einer Station sein muss, damit sie sich anmeldet**, in
+ * Metern — die Füße vom Anker. Gut über dem, womit `A` überhaupt reicht
+ * (`usable.USE_REACH`, 1,5 m, dazu der Radius der Anmeldung): Wer weiter weg
+ * steht, kann an ihr nichts tun, und das Test Restaurant hat rund 45
+ * Stationen, die sonst jedes Bild ihre Tat neu ausrechnen würden.
+ */
+export const REFRESH_RANGE = 3;
 
 /** Eine Station eines Elements: die Stelle der Regel und wo ihr Anker sitzt. */
 export interface StationSlot {
@@ -85,10 +94,8 @@ export function stationKind(element: GameElement): StationKind | null {
 }
 
 /** Ob ein Name ein Ding der Küche ist. */
-function kitchenItem(name: string | null): KitchenItem | undefined {
-  if (name === null) return undefined;
-  if (!(name in ITEM_LABELS)) throw new Error(`Kein Ding der Küche: ${name}`);
-  return name as KitchenItem;
+function isKitchenItem(name: string): name is KitchenItem {
+  return name in ITEM_LABELS;
 }
 
 /**
@@ -98,6 +105,11 @@ function kitchenItem(name: string | null): KitchenItem | undefined {
  *
  * Stapel werden nie leer (`stock: Infinity`): Hier gibt es keine Spüle, und
  * Schüsseln, Kartons und Teller gehen nicht zurück.
+ *
+ * **Gibt ein Element etwas her, das kein Ding der Küche ist** — die Salami-
+ * und die Pilzkiste (`elementCatalog.SHOW_ONLY_GIVES`) —, wird es keine
+ * Station, sondern bleibt ein Möbel, mit einer Warnung in der Konsole. Eine
+ * Welt stirbt nicht an einer Kiste.
  */
 export function elementStations(spot: ElementSpot): StationSlot[] {
   const element = spotElement(spot);
@@ -115,7 +127,11 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
     };
     return [tub('vanilla', -TUB_SHIFT), tub('strawberry', TUB_SHIFT)];
   }
-  const gives = kitchenItem(spotGives(spot));
+  const gives = spotGives(spot);
+  if (gives !== null && !isKitchenItem(gives)) {
+    console.warn(`Spielelement ${spot.id} (${element.id}): „${gives}" ist kein Ding der Küche`);
+    return [];
+  }
   return [
     {
       spot: {
@@ -184,7 +200,12 @@ interface StationView {
   readonly top: number;
   content: THREE.Object3D | null;
   shown: string;
+  /** Was zuletzt angemeldet wurde — `''`: nichts, auch nach dem Weggehen. */
   deedKey: string;
+  /** Ob gerade Balken oder Flamme stehen, die weg müssen, sobald Ruhe ist. */
+  gauged: boolean;
+  /** Das Quadrat des Abstands der Füße zum Anker, in diesem Bild. */
+  dist2: number;
 }
 
 const _v = new THREE.Vector3();
@@ -193,10 +214,11 @@ const _w = new THREE.Vector3();
 /**
  * **Die Stationen einer Welt** — ihr Stand, ihre Anmeldungen, ihr Bild.
  *
- * Jedes Bild einmal `step`: Die Uhren laufen (`tickStation`, braten auch
- * ohne jemanden davor, schneiden nur mit), das Liegende wird neu gezeigt,
- * wenn es sich geändert hat, Balken stehen über dem, was arbeitet oder
- * verbrennt, und angemeldet wird neu, sobald sich die Tat ändert.
+ * Jedes Bild einmal `step`: Die Uhren laufen überall (`tickStation`, braten
+ * auch ohne jemanden davor, schneiden nur mit), das Liegende wird neu
+ * gezeigt, wenn es sich geändert hat, Balken stehen über dem, was arbeitet
+ * oder verbrennt, und angemeldet wird neu, sobald sich die Tat ändert — aber
+ * nur in der Nähe (`REFRESH_RANGE`): Wer weggeht, wird einmal abgemeldet.
  */
 export class StationLayer {
   private stations: StationState[] = [];
@@ -246,6 +268,8 @@ export class StationLayer {
         content: null,
         shown: '',
         deedKey: '',
+        gauged: false,
+        dist2: Infinity,
       });
       this.stations.push(...freshStations([slot.spot]));
     }
@@ -306,7 +330,8 @@ export class StationLayer {
     const next = this.stations.map((state, i) => {
       const view = this.views[i]!;
       const at = this.where(view);
-      const near = Math.hypot(feet.x - at.x, feet.z - at.z) < NEAR_STATION;
+      view.dist2 = (feet.x - at.x) ** 2 + (feet.z - at.z) ** 2;
+      const near = view.dist2 < NEAR_STATION ** 2;
       const tick = tickStation(state, dt, near, free && !toHand, this.burn);
       if (tick.station !== state) changed = true;
       if (tick.toHand) toHand = tick.toHand;
@@ -321,7 +346,11 @@ export class StationLayer {
     this.refresh();
   }
 
-  /** Das Liegende zeigen, und darüber den Balken. */
+  /**
+   * **Das Liegende zeigen, und darüber den Balken** — das Bild bei jeder
+   * Änderung, Balken und Flamme nur, solange etwas arbeitet oder heiß wird,
+   * und einmal weggeräumt, wenn es aufhört.
+   */
   private show(view: StationView, state: StationState): void {
     const key = state.on ? dishKey(state.on) : '';
     if (key !== view.shown) {
@@ -340,8 +369,19 @@ export class StationLayer {
     const id = `station:${view.spot.id}`;
     const part = stationProgress(state);
     const heat = burnShare(state, this.burn);
-    const at = view.surface.localToWorld(_v.set(0, view.top + 0.35, 0));
     const hot = view.spot.kind === 'griddle' || view.spot.kind === 'pot';
+    if (part <= 0 && heat <= 0 && !state.work.working) {
+      if (!view.gauged) return;
+      view.gauged = false;
+      gauges.clear(id);
+      if (hot) {
+        gauges.flame(`flame:${view.spot.id}`, null);
+        gauges.warn(`warn:${view.spot.id}`, null);
+      }
+      return;
+    }
+    view.gauged = true;
+    const at = view.surface.localToWorld(_v.set(0, view.top + 0.35, 0));
     if (part > 0) gauges.bar(id, at, part, hot ? 'cook' : 'chop');
     else if (heat > 0) gauges.bar(id, at, heat, 'burn');
     else gauges.clear(id);
@@ -352,11 +392,22 @@ export class StationLayer {
     }
   }
 
-  /** **Anmelden, was `A` gerade meint** — nur neu, wenn sich die Tat geändert hat. */
+  /**
+   * **Anmelden, was `A` gerade meint** — nur neu, wenn sich die Tat geändert
+   * hat, und nur in der Nähe. Wer aus `REFRESH_RANGE` herausgeht, wird einmal
+   * abgemeldet und bei der Rückkehr neu angemeldet.
+   */
   private refresh(): void {
     const held = this.host.held();
     const busy = this.host.busy();
     this.views.forEach((view, index) => {
+      if (view.dist2 >= REFRESH_RANGE ** 2) {
+        if (view.deedKey !== '') {
+          view.deedKey = '';
+          this.host.removeUsable(view.anchor);
+        }
+        return;
+      }
       const state = this.stations[index]!;
       const deed = stationDeed(held, state);
       const extra = this.before?.key(state) ?? '';

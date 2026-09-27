@@ -28,14 +28,11 @@ import type { StationKind } from '../test/zones/kitchenCarry';
 
 /**
  * **Was man mit einem Element tut** — die Stationsarten der Küche
- * (`kitchenCarry.StationKind`) und die paar, die dort (noch) nicht stehen.
- *
- * `'tub'` und `'pot'` kommen gerade in die Küche; bis sie in `StationKind`
- * stehen, stehen sie hier, danach ist die Vereinigung doppelt und darf weg.
- * `'ice-stand'` und `'ice-tubs'` bleiben: Die Eisecke regelt ihre eigene Logik
- * (`plateup/plateUpIce.ts`), nicht `kitchenDeed`.
+ * (`kitchenCarry.StationKind`) und die zwei der Eisecke: `'ice-stand'` und
+ * `'ice-tubs'` regeln ihre eigene Logik (`plateup/plateUpIce.ts`), nicht
+ * `kitchenDeed`.
  */
-export type ElementKind = StationKind | 'tub' | 'pot' | 'ice-stand' | 'ice-tubs';
+export type ElementKind = StationKind | 'ice-stand' | 'ice-tubs';
 
 /** Was auf einem Brett passiert — Schneiden oder Ausrollen. */
 export type ElementWork = 'chop' | 'roll';
@@ -168,6 +165,15 @@ function piece(
 export function crate(id: string, file: string, gives: string, label: string): GameElement {
   return piece(id, label, 'crate', [{ model: bits(file) }], { gives });
 }
+
+/**
+ * **Was eine Kiste zeigt, die Küche aber nicht kennt** — Salami und Pilze
+ * haben kein `KitchenItem`. Solche Kisten stehen nur zum Ansehen da (in der
+ * Schauküche); in einer spielbaren Küche werden sie keine Station
+ * (`stationLayer.elementStations`). `elementCatalog.test.ts` sieht nach, dass
+ * jedes andere `gives` ein Ding der Küche ist.
+ */
+export const SHOW_ONLY_GIVES: ReadonlySet<string> = new Set(['pepperoni', 'mushroom']);
 
 /** Die Kisten des Pakets, je eine Zutat. */
 const CRATES: readonly GameElement[] = [
