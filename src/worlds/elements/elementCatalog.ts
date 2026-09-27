@@ -389,8 +389,15 @@ export const ELEMENTS: readonly GameElement[] = [
  * Funktion Möbel: eine Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit
  * Schneide Brett, Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte.
  * Waschbecken"_ — und dazu _„die Arbeitsplatte mit dem scoop und cones und
- * die Platte mit ice trays als Vorräte"_. Jedes davon sperrt seine Kachel (2 × 2 Zellen) und tut auf
- * `A`, was es in der Küche tut.
+ * die Platte mit ice trays als Vorräte"_. Dann die Vorräte (_„vorratskisten:
+ * Salat, Käse, Wurst, Steak, Tomaten, Teller, Schüssel, Zwiebel, …"_): die
+ * Kisten in der Reihenfolge des Wunsches — die Wurst ist der Schinken, das
+ * Steak die Fleischkiste mit dem Patty —, Teller und Schüssel als Stapel,
+ * danach der Rest, der in einer Küche etwas hergibt oder tut.
+ *
+ * **Salami und Pilze fehlen mit Absicht** (`SHOW_ONLY_GIVES`): Sie sind noch
+ * keine Zutat der Küche und täten auf `A` nichts. Jedes Element hier sperrt
+ * seine Kachel (2 × 2 Zellen) und tut auf `A`, was es in der Küche tut.
  */
 export const FURNITURE_CATALOGUE: readonly string[] = [
   'counter',
@@ -401,6 +408,79 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'sink',
   'ice-stand',
   'ice-tubs',
+  'crate-lettuce',
+  'crate-cheese',
+  'crate-ham',
+  'crate-steak',
+  'crate-tomatoes',
+  'plate-stack',
+  'bowl-stack',
+  'crate-onions',
+  'crate-buns',
+  'crate-dough',
+  'crate-carrots',
+  'crate-potatoes',
+  'pizza-supply',
+  'pizzabox-stack',
+  'rolling-board',
+  'bin',
+];
+
+/** **Ein Unterordner des Möbelkatalogs** — ein Gericht und was man dafür hinstellt. */
+export interface FurnitureFolder {
+  /** Eindeutig unter den Ordnern, etwa `'pizza'`. */
+  readonly id: string;
+  /** Der Name im Menü. */
+  readonly label: string;
+  /** Die Elemente darin, jedes auch in `FURNITURE_CATALOGUE`. */
+  readonly elements: readonly string[];
+}
+
+/**
+ * **Die Unterordner des Möbelkatalogs** — je Gericht die Möbel, die man dafür
+ * braucht, in der Reihenfolge, in der man sie benutzt. Gewünscht: _„In dem
+ * Menü Möbel will ich ggf einige Möbel doppelt gelistet haben (sind aber die
+ * gleichen) nur weil ich in dem Ordner noch weiter gruppieren will bzw.
+ * unterordner erstellen will: Pizza, Burger, Eis, Waffeln, Suppe"_.
+ *
+ * **Doppelt ist hier nur der Eintrag, nicht das Möbel**: Dieselbe Id steht in
+ * mehreren Ordnern und in der ganzen Liste, und hingestellt wird jedes Mal
+ * dasselbe Element. Welche Möbel zu einem Gericht gehören, sagt die Regel der
+ * Küche (`elementFlows.test.ts` kocht jedes davon mit genau diesen Möbeln).
+ */
+export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
+  {
+    id: 'pizza',
+    label: 'Pizza',
+    elements: ['pizza-supply', 'board', 'pizzabox-stack', 'bin'],
+  },
+  {
+    id: 'burger',
+    label: 'Burger',
+    elements: [
+      'crate-buns',
+      'crate-steak',
+      'crate-lettuce',
+      'crate-tomatoes',
+      'crate-cheese',
+      'crate-ham',
+      'board',
+      'stove',
+      'plate-stack',
+      'bin',
+    ],
+  },
+  { id: 'ice', label: 'Eis', elements: ['ice-stand', 'bowl-stack', 'ice-tubs'] },
+  {
+    id: 'waffles',
+    label: 'Waffeln',
+    elements: ['crate-dough', 'rolling-board', 'stove', 'bowl-stack', 'ice-tubs'],
+  },
+  {
+    id: 'soup',
+    label: 'Suppe',
+    elements: ['crate-carrots', 'crate-onions', 'board', 'stove-pot', 'hob', 'sink', 'bowl-stack'],
+  },
 ];
 
 /** Die Elemente nach Namen. */

@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../core/chefFit';
 import type { SolidBlock } from '../grid/GridWorld';
+import { DETAIL_OVERLAY } from '../../ui/previewGrid';
+import { CELL as CELL_SIZE } from '../nav/cellGrid';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import type { ElementPart, GameElement } from './elementCatalog';
 import {
   rotateOffset,
+  spotCells,
   spotCentre,
   spotElement,
   spotFace,
@@ -352,4 +355,115 @@ export async function elementModel(
     group.add(shown);
   }
   return group.children.some((child) => child.children.length > 0) ? group : null;
+}
+
+/** Die gesperrten Zellen im Bild — dasselbe Rot wie im KayKit-Editor. */
+const CELLS_BLOCKED = 0xe0463c;
+/** Die Linien des Zellgitters darum. */
+const CELLS_LINE = 0x8a93a3;
+/** Die Linien der Kacheln — kräftiger als die der Zellen. */
+const CELLS_TILE = 0xd0d6e0;
+/** Der Pfeil an der Vorderseite. */
+const CELLS_FRONT = 0x46b86a;
+/** Knapp über dem Boden, damit nichts mit ihm flimmert. */
+const CELLS_LIFT = 0.004;
+
+/**
+ * **Die Belegung auf dem Zellgitter als Bild** — für die Detailseite eines
+ * Elements im Möbelkatalog (`PortalWorld.elementMenu`, hinter dem ⓘ).
+ * Gewünscht: _„wie das Grid bzw die Position ist von dem ganzen (Grid Flächen
+ * Belegung)"_.
+ *
+ * Unter dem Modell (`elementModel`, Mitte der Grundfläche im Ursprung): jede
+ * Zelle, die das Element sperrt, rot — gerechnet über `spotCells`, also genau
+ * die, die `GridWorld.blockFootprint` sperrt —, darum eine Kachel Rand mit
+ * Zell- und Kachellinien, und vorn ein grüner Pfeil: Dort ist die
+ * Vorderseite, und davor steht, wer es benutzt. Das ist kein Möbel und keine
+ * gebaute Geometrie einer Welt, sondern eine Anzeige wie der Gitterboden der
+ * Detailseite oder die roten Zellen im KayKit-Editor.
+ */
+export function elementCellsOverlay(id: string): THREE.Group {
+  const group = new THREE.Group();
+  group.name = `element-cells:${id}`;
+  // Nicht mitgemessen: Die Maße auf der Detailseite sind die des Möbels.
+  group.userData[DETAIL_OVERLAY] = true;
+  const probe: ElementSpot = { id, element: id, x: 0, z: 0 };
+  const [w, d] = spotSize(probe);
+  const shifted: ElementSpot = { ...probe, x: -w / 2, z: -d / 2 };
+
+  const fill = new THREE.MeshBasicMaterial({
+    color: CELLS_BLOCKED,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const inset = 0.03;
+  const cell = new THREE.PlaneGeometry(CELL_SIZE - 2 * inset, CELL_SIZE - 2 * inset);
+  cell.rotateX(-Math.PI / 2);
+  // **Die Umrisse durch das Möbel hindurch** (`depthTest: false`): Eine
+  // Arbeitsplatte deckt ihre vier Zellen ganz, und die roten Flächen darunter
+  // sähe man sonst nur am Rand.
+  const edges: number[] = [];
+  const y0 = CELLS_LIFT;
+  for (const key of spotCells(shifted)) {
+    const [ix, iz] = key.split(',').map(Number) as [number, number];
+    const quad = new THREE.Mesh(cell, fill);
+    quad.position.set((ix + 0.5) * CELL_SIZE, y0, (iz + 0.5) * CELL_SIZE);
+    group.add(quad);
+    const [ax, az] = [ix * CELL_SIZE + inset, iz * CELL_SIZE + inset];
+    const [bx, bz] = [(ix + 1) * CELL_SIZE - inset, (iz + 1) * CELL_SIZE - inset];
+    edges.push(ax, y0, az, bx, y0, az, bx, y0, az, bx, y0, bz);
+    edges.push(bx, y0, bz, ax, y0, bz, ax, y0, bz, ax, y0, az);
+  }
+  const outline = new THREE.BufferGeometry();
+  outline.setAttribute('position', new THREE.Float32BufferAttribute(edges, 3));
+  const through = new THREE.LineSegments(
+    outline,
+    new THREE.LineBasicMaterial({ color: CELLS_BLOCKED, depthTest: false, transparent: true }),
+  );
+  through.renderOrder = 10;
+  group.add(through);
+
+  // Das Gitter: eine Kachel Rand um die Grundfläche, Zellen fein, Kacheln kräftig.
+  const x0 = -w / 2 - 1;
+  const x1 = w / 2 + 1;
+  const z0 = -d / 2 - 1;
+  const z1 = d / 2 + 1;
+  const thin: number[] = [];
+  const bold: number[] = [];
+  const y = CELLS_LIFT * 2;
+  for (let x = x0; x <= x1 + 1e-6; x += CELL_SIZE) {
+    const lines = Math.abs(x - Math.round(x)) < 1e-6 ? bold : thin;
+    lines.push(x, y, z0, x, y, z1);
+  }
+  for (let z = z0; z <= z1 + 1e-6; z += CELL_SIZE) {
+    const lines = Math.abs(z - Math.round(z)) < 1e-6 ? bold : thin;
+    lines.push(x0, y, z, x1, y, z);
+  }
+  for (const [points, color] of [
+    [thin, CELLS_LINE],
+    [bold, CELLS_TILE],
+  ] as const) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color })));
+  }
+
+  // Der Pfeil vor der Vorderkante, nach vorn (+z) zeigend.
+  const arrow = new THREE.Shape();
+  arrow.moveTo(-0.18, 0);
+  arrow.lineTo(0.18, 0);
+  arrow.lineTo(0, 0.3);
+  arrow.closePath();
+  const tip = new THREE.ShapeGeometry(arrow);
+  // Die Form liegt in x/y; gekippt zeigt +y nach +z.
+  tip.rotateX(Math.PI / 2);
+  const front = new THREE.Mesh(
+    tip,
+    new THREE.MeshBasicMaterial({ color: CELLS_FRONT, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  front.position.set(0, CELLS_LIFT * 3, d / 2 + 0.1);
+  group.add(front);
+  return group;
 }
