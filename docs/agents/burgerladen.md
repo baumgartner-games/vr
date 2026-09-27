@@ -359,7 +359,7 @@ wählt die Hand mit einer Greifbox so groß wie die Wanne.
 weitere wird ihr „Glied" gerechnet — wie weit sie über ihrem Platz auf der
 Kugel darunter hängt —, und zwar jedes für sich, getrieben von der
 Geschwindigkeit `v` des Hörnchens: Es **will** um `v · followTime` zurück
-hängen, und `followTime` ist 36 ms für die oberste (`WOBBLE.lag`) und für
+hängen, und `followTime` ist 60 ms für die oberste (`WOBBLE.lag`) und für
 jede darunter im Verhältnis ihrer Grenze weniger. Beim gleichmäßigen Gehen
 steht so jedes Glied im selben Verhältnis zu seiner Grenze, und weil die
 Grenzen wie `1/x` wachsen (unten), ist der Turm **gebogen** statt
@@ -370,18 +370,18 @@ neigt er sich in dieselbe Richtung.
 
 **Einmal hinüber und zurück, kein Wackeln.** Dem gewünschten Überhang läuft
 eine träge Größe mit einer **dreifachen** Verzögerung nach (`followBall`:
-`(D + a)³ s = a³ u`, drei gleiche reelle Pole, Rate `a` = 17/s für die
+`(D + a)³ s = a³ u`, drei gleiche reelle Pole, Rate `a` = 12/s für die
 oberste, `WOBBLE.rate`, die unteren flinker mit `(0,9 / Grenze)^0,3`,
 `WOBBLE.stiff`) — die schwingt nie, auch nicht bei zitternder Hand. Gezeigt
 wird `s + ṡ · (1 + 2b)/a` (`linkLean`, `b` = 0,75, `WOBBLE.rebound`): Bleibt
 das Hörnchen stehen, ist der Überhang genau `U · (1 + T − b·T²) · e^(−T)`
 mit `T = a·t` — ein Polynom mit **genau einer** positiven Nullstelle. Jedes
 Glied geht also **einmal** über seinen Platz hinaus (die oberste nach
-0,12 s), am weitesten nach 0,2 s um `(1 + 4b) · e^(−2 − 1/b)` ≈ 14 % (gezeigt,
+0,17 s), am weitesten nach 0,28 s um `(1 + 4b) · e^(−2 − 1/b)` ≈ 14 % (gezeigt,
 nach der weichen Begrenzung, gut 20 %), und kriecht dann zurück, **ohne ein
 zweites Mal** hinüberzugehen. Beim Losgehen dasselbe andersherum: Die
-oberste hängt nach 0,05 s halb so weit zurück wie später, holt kurz etwas
-weiter aus (0,81 statt 0,78 Kugelgrößen) und steht.
+oberste hängt nach 0,07 s halb so weit zurück wie später, holt kurz etwas
+weiter aus und steht.
 
 **Wie es dazu kam.** Zuerst lief jede Kugel der darunter mit einer
 Verzögerung erster Ordnung nach, `3 ms · i²`, höchstens 0,15 s — _„die
@@ -404,18 +404,25 @@ andere (`leanLimit`, gewünscht _„nicht linear, sondern wie `(1/x) · 0,9`"_):
 Bei der obersten Stelle `n` darf Kugel `k` höchstens `0,9 / (n − k + 1)`
 **Kugelgrößen** (Durchmesser, 8 cm in der Hand; `WOBBLE.lean`) — die oberste
 0,9, die darunter 0,45, dann 0,3, 0,225 … Gemessen im Test (in
-Kugelgrößen, von unten): Bei 2,6 m/s steht jedes Glied bei 0,86 seiner
-Grenze — drei Kugeln 0,39 / 0,78, fünf 0,19 / 0,26 / 0,39 / 0,78, zwanzig
-unten 0,04, oben … 0,19 / 0,26 / 0,39 / 0,78; die Spitze hängt 9 / 13 / 22 cm
-hinter dem starren Turm. Bei 0,5 m/s (ein ruhiger Schwenk mit der Hand) bei
-0,24 der Grenze: oben 0,22 Kugelgrößen (1,8 cm), die Spitze 2,6 / 3,7 /
-6,3 cm zurück. Keine kommt über ihre Grenze, auch nicht beim wilden
+Kugelgrößen, von unten): Bei 2,6 m/s steht jedes Glied bei knapp 0,98 seiner
+Grenze — drei Kugeln 0,44 / 0,88, fünf 0,22 / 0,29 / 0,44 / 0,88. Bei
+0,5 m/s (ein ruhiger Schwenk mit der Hand) bei 0,39 der Grenze: drei Kugeln
+0,18 / 0,35, fünf 0,09 / 0,12 / 0,18 / 0,35; selbst bei 0,2 m/s hängt die
+oberste noch 0,15 Kugelgrößen über. Keine kommt über ihre Grenze, auch nicht beim wilden
 Schütteln. Kommt oben eine Kugel dazu, werden alle Grenzen darunter
 kleiner; damit das nicht springt, ziehen sie ihrem neuen Wert mit 0,12 s
 nach (`WobbleState.limits`, `WOBBLE.relimit` — Test: unter 1 cm je Bild).
 Mehr als drei Grenzen will kein Glied überhängen (`WOBBLE.reach`). Nach dem
 Anhalten aus vollem Gehtempo steht ein Turm — ob drei, zehn oder fünfzig
-Kugeln — in knapp einer halben Sekunde bis auf 1 mm (0,49 s).
+Kugeln — in gut einer Dreiviertelsekunde bis auf 1 mm (0,77 s).
+
+**Früher ausschlagen, langsamer zurück.** Gewünscht: _„Die Eiskugeln
+dürfen sich schon früher bewegen bzw. mehr Abstand haben und die
+Rückwärtsbewegung ein wenig langsamer"_. Dafür hängt die oberste länger
+nach (`WOBBLE.lag` 36 → 60 ms) und läuft träger (`WOBBLE.rate` 17 → 12/s):
+Der Ausschlag bei 0,5 m/s steigt von 0,22 auf 0,35 Kugelgrößen, beim Gehen
+von 0,78 auf 0,88, und Hinüber- wie Zurückschwingen dauern rund 40 % länger
+— die Form (genau einmal hinüber) bleibt.
 
 Gerechnet wird in der Welt und erst danach in den Raum des Hörnchens
 zurückgelegt. Die Verzögerung ist geschlossen gelöst für ein Ziel, das
