@@ -31,8 +31,9 @@ import { GridPlan } from '../grid/gridPlan';
  * _Weltänderungen_).
  *
  * Zwei Reihen mit einem Gang dazwischen (z = 13, dort kommt man auch an):
- * im Norden die sechs Vorratskisten und der Herd mit Pfanne, im Süden
- * Mülleimer, Arbeitsplatten, das Schneidebrett und der Tellerstapel.
+ * im Norden die sechs Vorratskisten, der Herd mit Pfanne und der
+ * Feuerlöscher, im Süden Mülleimer, Arbeitsplatten, das Schneidebrett, der
+ * Tellerstapel und die Tellerkiste (die zweite Liste kam gleich danach).
  * **Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist
  * bei allen Süden, bitte anpassen."_ (In der Liste standen die Kisten noch
  * nach Norden.)
@@ -51,6 +52,8 @@ export const SPOTS: readonly ElementSpot[] = [
   { id: 'broetchen', element: 'crate-buns', x: 15, z: 12, face: 'S' },
   { id: 'fleisch', element: 'crate-steak', x: 16, z: 12, face: 'S' },
   { id: 'herd', element: 'stove', x: 17, z: 12, face: 'S' },
+  // Die zweite Liste: der Feuerlöscher neben dem Herd.
+  { id: 'loescher', element: 'extinguisher', x: 18, z: 12, face: 'S' },
   // Die Südreihe: Müll, Platte, Brett, drei Platten, Teller.
   { id: 'muell', element: 'bin', x: 11, z: 14, face: 'S' },
   { id: 'platte-1', element: 'counter', x: 12, z: 14, face: 'S' },
@@ -59,6 +62,8 @@ export const SPOTS: readonly ElementSpot[] = [
   { id: 'platte-3', element: 'counter', x: 15, z: 14, face: 'S' },
   { id: 'platte-4', element: 'counter', x: 16, z: 14, face: 'S' },
   { id: 'teller', element: 'plate-stack', x: 17, z: 14, face: 'S' },
+  // Die zweite Liste: die Tellerkiste neben dem Tellerstapel.
+  { id: 'tellerkiste', element: 'crate-plates', x: 18, z: 14, face: 'S' },
 ];
 
 /**

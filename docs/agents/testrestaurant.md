@@ -15,10 +15,12 @@ Möbelkatalog zusammengestellt und als Liste der _Weltänderungen_ geschickt hat
 Zwei Reihen mit einem Gang dazwischen (z = 13, dort kommt man bei
 (17,5 | 13,5) auch an), jede Zeile in `SPOTS` ein Spielelement:
 
-| z   | x = 11    | 12     | 13        | 14     | 15       | 16      | 17              |
-| --- | --------- | ------ | --------- | ------ | -------- | ------- | --------------- |
-| 12  | Schinken  | Käse   | Tomaten   | Salat  | Brötchen | Fleisch | Herd mit Pfanne |
-| 14  | Mülleimer | Platte | **Brett** | Platte | Platte   | Platte  | Tellerstapel    |
+| z   | x = 11    | 12     | 13        | 14     | 15       | 16      | 17              | 18           |
+| --- | --------- | ------ | --------- | ------ | -------- | ------- | --------------- | ------------ |
+| 12  | Schinken  | Käse   | Tomaten   | Salat  | Brötchen | Fleisch | Herd mit Pfanne | Feuerlöscher |
+| 14  | Mülleimer | Platte | **Brett** | Platte | Platte   | Platte  | Tellerstapel    | Tellerkiste  |
+
+Feuerlöscher und Tellerkiste kamen mit der zweiten Liste dazu.
 
 **Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist
 bei allen Süden, bitte anpassen."_ In der Liste standen die sechs Kisten noch

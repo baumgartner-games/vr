@@ -76,6 +76,23 @@ export const REFRESH_RANGE = 3;
  */
 export const RACK_PLATE_LIFT = SINK_TRAY.floor - 0.5 + RACK_SLOTS.lift;
 
+/**
+ * **Wie weit die Anmeldung einer Station um die Mitte ihrer Platte reicht**,
+ * in Metern — etwas mehr als die halbe Kachel, damit die ganze Platte
+ * getroffen wird, von vorn wie von hinten.
+ *
+ * Gewünscht: _„Beim interagieren durch ablegen soll bitte von der Mitte der
+ * Arbeitsplatte geprüft werden, ob ich mich darum in einem Radius befinde,
+ * sodass ich auch von hinten der Arbeitsplatte das machen kann"_. Vorher saß
+ * die Anmeldung an der Vorderkante: Wer dahinter stand, schaute 1,5 m weit
+ * und damit am Ende des Strahls (`usable.USE_REACH`) vorbei — und bekam
+ * stattdessen die Kiste hinter sich, die seine Füße berührten.
+ */
+export const STATION_REACH = 0.55;
+
+/** Und bei zwei Stationen auf einer Platte (die Eiswannen) je Wanne. */
+const TUB_REACH = 0.3;
+
 /** Wie dick ein Teller ist, in Metern (`kitchenCarry.CLEAN_STACK_MAX`: 0,05 m flach). */
 const PLATE_THICK = 0.05;
 
@@ -236,7 +253,7 @@ export interface StationHost {
 /** Wie die Station gerade gebaut ist. */
 interface StationView {
   readonly spot: StationSpot;
-  /** An der Vorderkante: Daran hängt die Anmeldung, dort steht man. */
+  /** In der Mitte der Grundfläche: Daran hängt die Anmeldung. */
   readonly anchor: THREE.Group;
   /**
    * **Die Mitte der Platte**, auf dem Boden — ein Kind des Ankers, so tief
@@ -298,8 +315,8 @@ export class StationLayer {
 
   /**
    * **Ein hingestelltes Element zur Küche machen** — keine, eine oder zwei
-   * Stationen (`elementStations`). Ihr Anker hängt am Anker des Elements, an
-   * der Mitte seiner Vorderkante.
+   * Stationen (`elementStations`). Ihr Anker hängt am Anker des Elements, in
+   * der **Mitte seiner Grundfläche** (`STATION_REACH`).
    *
    * @param keep der Stand, mit dem es weitermacht — was
    *   `remove` beim Umstellen zurückgab: Was auf der Platte lag, liegt danach
@@ -312,11 +329,13 @@ export class StationLayer {
     for (const slot of slots) {
       const anchor = new THREE.Group();
       anchor.name = `station:${slot.spot.id}`;
-      anchor.position.x = slot.shift;
+      // Die Anmeldung sitzt in der Mitte der Platte und nicht an der
+      // Vorderkante: Gemeint ist, worauf die Figur schaut, von welcher Seite
+      // auch immer (`STATION_REACH`).
+      anchor.position.set(slot.shift, 0, -depth / 2);
       placed.anchor.add(anchor);
       const surface = new THREE.Group();
       surface.name = `station-surface:${slot.spot.id}`;
-      surface.position.z = -depth / 2;
       anchor.add(surface);
       const body = new THREE.Group();
       body.name = `station-body:${slot.spot.id}`;
@@ -503,6 +522,14 @@ export class StationLayer {
     }
   }
 
+  /** Wie groß die Anmeldung einer Station ist — die Wannen teilen sich eine Platte. */
+  private reach(view: StationView): { radius: number; half: number } {
+    const shared = this.views.some(
+      (one) => one !== view && one.anchor.parent === view.anchor.parent,
+    );
+    return { radius: shared ? TUB_REACH : STATION_REACH, half: 0.6 };
+  }
+
   /**
    * **Was an einer Station leuchtet** (`Usable.highlight`) — das, was darauf
    * liegt, wenn ein Druck es nimmt oder etwas darauf legt
@@ -570,14 +597,19 @@ export class StationLayer {
       const use = (by: UseSource): boolean => this.use(index, by);
       const first = this.before?.usable(state, use) ?? null;
       if (first) {
-        this.host.addUsable(view.anchor, first, { radius: 0.5, half: 0.6 });
+        this.host.addUsable(view.anchor, first, this.reach(view));
         return;
       }
       if (busy) {
         this.host.addUsable(
           view.anchor,
-          { use, usePrompt: () => this.host.busy() ?? '', interaction: { kind: 'press' } },
-          { radius: 0.5, half: 0.6 },
+          {
+            use,
+            usePrompt: () => this.host.busy() ?? '',
+            interaction: { kind: 'press' },
+            aimOnly: true,
+          },
+          this.reach(view),
         );
         return;
       }
@@ -593,8 +625,9 @@ export class StationLayer {
             kitchenPrompt(stationDeed(this.host.held(), this.stations[index]!), view.spot.label),
           interaction: kitchenInteractionSpec(deed),
           highlight: () => this.shows(index),
+          aimOnly: true,
         },
-        { radius: 0.5, half: 0.6 },
+        this.reach(view),
       );
     });
   }

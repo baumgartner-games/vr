@@ -53,6 +53,15 @@ describe('Benutzen: die Auswahl', () => {
     expect(pickUsable([underfoot], ORIGIN, NORTH)?.ray).toBe(false);
   });
 
+  it('lässt, was nur beim Hinschauen gilt, nicht von den Füßen wählen', () => {
+    // Die Kiste hinter der Figur im Gang: die Füße berühren sie, der Blick nicht.
+    const behind = { ...at(0, 0.9, 0.55), usable: { ...thing('kiste'), aimOnly: true } };
+    expect(pickUsable([behind], ORIGIN, NORTH)).toBeNull();
+    // Schaut sie hin, ist sie gemeint.
+    const south = new THREE.Vector3(0, 0, 1);
+    expect(pickUsable([behind], ORIGIN, south)?.candidate).toBe(behind);
+  });
+
   it('nimmt unter Gleichen das Nächste', () => {
     const near = at(0, -0.9);
     const far = at(0, -1.4);

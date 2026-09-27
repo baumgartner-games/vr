@@ -230,8 +230,9 @@ function baseOf(part: ElementPart, i: number, laid: readonly (Laid | null)[]): n
   const on = part.on ?? (part.stack ? i - 1 : null);
   if (on === null) return 0;
   // Kam das Teil darunter nicht, steht dieses auf der Höhe einer Platte —
-  // nicht auf dem Boden, wo es im Kasten verschwände.
-  return laid[on]?.top ?? FALLBACK_TOP;
+  // nicht auf dem Boden, wo es im Kasten verschwände. Und was in einer Kiste
+  // liegt, liegt um `sink` tiefer als ihr Rand.
+  return (laid[on]?.top ?? FALLBACK_TOP) - (part.sink ?? 0);
 }
 
 /**

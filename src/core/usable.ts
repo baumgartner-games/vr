@@ -103,6 +103,14 @@ export interface Usable {
    * `elements/stationLayer.StationLayer`.
    */
   highlight?(): THREE.Object3D | null;
+  /**
+   * **Nur, wer hinschaut** — `true`: Die Füße allein wählen es nicht
+   * (`pickUsable`, der zweite Weg). Die Stationen einer Küche stehen dicht an
+   * dicht, und wer im Gang zwischen zwei Reihen steht, berührt mit den Füßen
+   * die Reihe hinter sich. Gemeldet: _„Beim highliten von den Sachen sollen
+   * auch nur die gehighlithed werden, wenn ich in deren Richtung schaue."_
+   */
+  readonly aimOnly?: boolean;
 }
 
 /** **Was leuchtet**, wenn `object` mit `usable` gemeint ist (`Usable.highlight`). */
@@ -284,7 +292,7 @@ export function pickUsable(
     }
 
     // Sonst die Füße: überlappen sie den Zylinder?
-    if (best?.ray) continue;
+    if (best?.ray || candidate.usable.aimOnly) continue;
     const distance = Math.hypot(ox, oz);
     if (distance > touch + radius) continue;
     if (!best || distance < best.distance) best = { candidate, distance, ray: false };
