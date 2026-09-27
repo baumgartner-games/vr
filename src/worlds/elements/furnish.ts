@@ -1,5 +1,6 @@
 import type { ElementSpot } from './elementPlace';
 import { placeElement, type ElementHost, type PlacedElement } from './elementView';
+import type { StationState } from '../plateup/plateUpStations';
 import type { StationLayer } from './stationLayer';
 
 /**
@@ -20,6 +21,8 @@ import type { StationLayer } from './stationLayer';
  * angemeldet.
  *
  * @param then was die Welt darüber hinaus mit einem hingestellten Element tut
+ * @param keep der Stand von Stationen, die weitermachen — ein Element, das im
+ *   Bau-Modus umgestellt wurde (`StationLayer.remove`, `add`)
  * @returns die hingestellten Elemente, sobald alle da sind
  */
 export async function furnish(
@@ -27,13 +30,14 @@ export async function furnish(
   spots: readonly ElementSpot[],
   stations: StationLayer | null,
   then?: (placed: PlacedElement) => void,
+  keep: readonly StationState[] = [],
 ): Promise<PlacedElement[]> {
   const all = await Promise.all(
     spots.map((spot) =>
       placeElement(host, spot)
         .then((placed) => {
           if (!host.alive()) return null;
-          stations?.add(placed);
+          stations?.add(placed, keep);
           then?.(placed);
           return placed;
         })

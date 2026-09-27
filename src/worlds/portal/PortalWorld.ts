@@ -46,7 +46,7 @@ import {
   type NoteChange,
 } from '../../core/worldChanges';
 import { catalogueLabel, elementById, hasElement } from '../elements/elementCatalog';
-import type { ElementSpot } from '../elements/elementPlace';
+import { faceYaw, type CarriedElement, type ElementSpot } from '../elements/elementPlace';
 import { buildNote, NOTE_MODEL, noteLabelOf } from '../notes/notePost';
 import { cleanNoteText, NOTE_MAX_CHARS } from '../notes/noteText';
 import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
@@ -1373,7 +1373,9 @@ export class PortalWorld implements World {
    * Hinstellen stellt die Welt an seiner Stelle das Element hin
    * (`placedElement`). Der Wert ist die Id im Katalog.
    */
-  private readonly elementBodies = new Map<PhysicsBody, string>();
+  private readonly elementBodies = new Map<PhysicsBody, CarriedElement>();
+  /** Die Zeile je Stelle in der Liste der Weltänderungen — Umstellen ändert dieselbe. */
+  private readonly elementKeys = new Map<string, string>();
   /** Wie jedes Modell aus dem Regal steht (`modelStance.ts`) — nur Modelle stehen hier. */
   private readonly stances = new WeakMap<PhysicsBody, ModelStance>();
   /**
@@ -3786,7 +3788,32 @@ export class PortalWorld implements World {
    * @param yaw die Drehung, mit der es getragen wurde, in Bogenmaß
    * @returns die Stelle, auf der es jetzt steht — `null`, wenn dort kein Platz ist
    */
-  protected furnishAt(_id: string, _x: number, _z: number, _yaw: number): ElementSpot | null {
+  protected furnishAt(
+    _carried: CarriedElement,
+    _x: number,
+    _z: number,
+    _yaw: number,
+  ): ElementSpot | null {
+    return null;
+  }
+
+  /** **Ein umgestelltes Element dorthin zurück, wo es stand** — wenn am Ziel kein Platz war. */
+  protected furnishBack(_carried: CarriedElement): ElementSpot | null {
+    return null;
+  }
+
+  /** **Welches Element auf dieser Stelle steht** (Meter) — für _Kopieren_. Hier: keines. */
+  protected elementAt(_x: number, _z: number): string | null {
+    return null;
+  }
+
+  /**
+   * **Ein stehendes Element zum Umstellen aufheben** (Bau-Modus): Die Welt
+   * nimmt es weg — Zellen frei, Bild und Stationen weg — und gibt zurück, was
+   * zum Wiederhinstellen nötig ist, samt dem Stand seiner Stationen. Hier:
+   * keines.
+   */
+  protected liftElementAt(_x: number, _z: number): CarriedElement | null {
     return null;
   }
 
@@ -3848,7 +3875,41 @@ export class PortalWorld implements World {
   ): void {
     ctx.menu.toggle(false);
     const element = elementById(id);
-    void this.conjureModel(ctx, element.parts[0]!.model, hand, yaw, null, id);
+    const carried: CarriedElement = { id, from: null, keep: null };
+    void this.conjureModel(ctx, element.parts[0]!.model, hand, yaw, null, carried);
+  }
+
+  /**
+   * **Im Bau-Modus ein stehendes Element anheben** — wie ein Möbel der Küche:
+   * als Kran (_Einrichten_ oder _Baukasten_) mit leeren Klauen, `E` oder ein
+   * Klick über dem Element. Die Welt nimmt es weg (`liftElementAt`), und sein
+   * Bodenstück hängt am Kran, mit derselben Drehung. Was auf der Platte lag,
+   * kommt mit (`CarriedElement.keep`). Mit der Pipette (_Kopieren_) kommt
+   * stattdessen ein frisches desselben Elements.
+   *
+   * Gewünscht: _„die Sachen will ich wieder bewegen können über den Bau Modus
+   * wie in der Restaurant Welt"_.
+   *
+   * @returns ob eines gemeint war
+   */
+  private liftElementUnderCrane(ctx: WorldContext): boolean {
+    if (!ctx.crane || !movesFurniture(gameMode()) || ctx.renderer.xr.isPresenting) return false;
+    const side = this.screenCarrySide();
+    if (!side || this.grabs.has(side) || this.bomb) return false;
+    ctx.rig.getHeadPosition(_point);
+    if (this.pipette) {
+      const id = this.elementAt(_point.x, _point.z);
+      if (id === null) return false;
+      this.pipette = false;
+      this.takeElement(ctx, id, null);
+      ctx.notify(`Kopiert: ${catalogueLabel(elementById(id))}`);
+      return true;
+    }
+    const lifted = this.liftElementAt(_point.x, _point.z);
+    if (!lifted) return false;
+    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') : null;
+    void this.conjureModel(ctx, elementById(lifted.id).parts[0]!.model, null, yaw, null, lifted);
+    return true;
   }
 
   /**
@@ -3857,9 +3918,11 @@ export class PortalWorld implements World {
    * Beutelware, und wenn es steht, ist es kein Gegenstand mehr, sondern ein
    * Möbel der Welt (`placedElement`).
    */
-  private adoptElement(entry: PhysicsBody, id: string): void {
-    this.elementBodies.set(entry, id);
+  private adoptElement(entry: PhysicsBody, carried: CarriedElement): void {
+    this.elementBodies.set(entry, carried);
     this.spawned.delete(entry);
+    // Umgestellt ist nicht frisch: Im _Baukasten_ kommt danach keine Kopie nach.
+    if (carried.from) this.shelfFresh.delete(entry);
   }
 
   /**
@@ -3873,8 +3936,9 @@ export class PortalWorld implements World {
    * Modell (`placedFromShelf`).
    */
   private placedElement(ctx: WorldContext, hand: Handedness, entry: PhysicsBody): void {
-    const id = this.elementBodies.get(entry);
-    if (id === undefined) return;
+    const carried = this.elementBodies.get(entry);
+    if (carried === undefined) return;
+    const id = carried.id;
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
     const x = _point.x;
@@ -3884,23 +3948,33 @@ export class PortalWorld implements World {
     queueMicrotask(() => {
       if (this.context !== ctx) return;
       this.removeProp(entry, false);
-      const spot = this.furnishAt(id, x, z, yaw);
+      const spot = this.furnishAt(carried, x, z, yaw);
+      const label = catalogueLabel(elementById(id));
       if (spot) this.recordElementOf(spot);
-      else ctx.notify(`${catalogueLabel(elementById(id))}: dort ist kein Platz`);
+      else if (carried.from) {
+        // **Umgestellt, aber kein Platz: zurück, wo es stand** — samt dem, was
+        // darauf lag. In der Hand behalten hieße, dass ein Wechsel der Hand
+        // es wieder hinstellen will, und wieder, und wieder.
+        const back = this.furnishBack(carried);
+        ctx.notify(
+          back
+            ? `${label}: dort ist kein Platz — steht wieder, wo es stand`
+            : `${label}: kein Platz`,
+        );
+        return;
+      } else ctx.notify(`${label}: dort ist kein Platz`);
       if (!spot || (fresh && refillsCatalogue(gameMode()))) this.takeElement(ctx, id, hand, yaw);
     });
   }
 
   /** Das hingestellte Element in die Liste der Weltänderungen (nur mit Häkchen). */
   private recordElementOf(spot: ElementSpot): void {
-    recordElement(
-      changeKey('element'),
-      spot.element,
-      spot.x,
-      spot.z,
-      spot.face ?? 'S',
-      this.context?.net.world,
-    );
+    let key = this.elementKeys.get(spot.id);
+    if (!key) {
+      key = changeKey('element');
+      this.elementKeys.set(spot.id, key);
+    }
+    recordElement(key, spot.element, spot.x, spot.z, spot.face ?? 'S', this.context?.net.world);
   }
 
   // --- Zettel (`worlds/notes/`) ----------------------------------------------
@@ -10577,7 +10651,7 @@ export class PortalWorld implements World {
     else if (carried && path && target) {
       const element = this.elementBodies.get(carried);
       const name = element
-        ? catalogueLabel(elementById(element))
+        ? catalogueLabel(elementById(element.id))
         : this.notes.has(carried)
           ? 'Zettel'
           : propLabel(modelKind(path));
@@ -10626,6 +10700,7 @@ export class PortalWorld implements World {
    * @returns ob etwas aufgehoben wurde — dann ist der Druck verbraucht
    */
   private liftUnderCrane(ctx: WorldContext): boolean {
+    if (this.liftElementUnderCrane(ctx)) return true;
     const found = this.liftTarget(ctx);
     if (!found) return false;
     if (this.pipette) {
@@ -12094,7 +12169,7 @@ export class PortalWorld implements World {
     /** Ein **Zettel** mit diesem Text statt eines bloßen Modells (`takeNote`). */
     note: string | null = null,
     /** Ein **Spielelement** aus dem Möbelkatalog, dessen Bodenstück das ist (`takeElement`). */
-    element: string | null = null,
+    element: CarriedElement | null = null,
   ): Promise<void> {
     const physics = this.physics;
     let model = kaykitModelNow(path);
@@ -12134,7 +12209,7 @@ export class PortalWorld implements World {
     hand: Handedness | null,
     yaw: number | null = null,
     note: string | null = null,
-    element: string | null = null,
+    element: CarriedElement | null = null,
   ): void {
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked ? gripOf(controller) : null;
@@ -12186,7 +12261,7 @@ export class PortalWorld implements World {
     }
     const label =
       element !== null
-        ? catalogueLabel(elementById(element))
+        ? catalogueLabel(elementById(element.id))
         : note === null
           ? propLabel(kind)
           : 'Zettel';

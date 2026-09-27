@@ -536,6 +536,7 @@ export function kitchenHandles(
     // bekommt keines dieser Dinge je zu sehen — sie gehören dem Test
     // Restaurant. Keine Griffe, bis eines davon hier in eine Hand kommt.
     case 'bowl':
+    case 'cone':
     case 'pizzabox':
     case 'cheese':
     case 'cheese-cut':

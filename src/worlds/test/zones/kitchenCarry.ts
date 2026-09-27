@@ -1123,7 +1123,7 @@ function atPot(held: Dish | null, on: Dish | null): KitchenDeed {
 function atTub(held: Dish | null, gives: KitchenItem | undefined): KitchenDeed {
   if (!gives) return { do: 'nothing' };
   if (!held || !carries(held.item, gives)) {
-    return { do: 'refuse', why: `${ITEM_LABELS[gives]} braucht eine Schüssel` };
+    return { do: 'refuse', why: `${ITEM_LABELS[gives]} braucht eine Schüssel oder ein Hörnchen` };
   }
   const scoop = combine(held, dish(gives));
   if (!scoop.ok) return { do: 'refuse', why: scoop.why };

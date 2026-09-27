@@ -156,7 +156,7 @@ describe('Spielelemente — der Katalog', () => {
 });
 
 describe('der Möbelkatalog im Menü', () => {
-  it('hat die sechs gewünschten Möbel, in dieser Reihenfolge und mit diesen Namen', () => {
+  it('hat die gewünschten Möbel, in dieser Reihenfolge und mit diesen Namen', () => {
     expect(FURNITURE_CATALOGUE.map((id) => catalogueLabel(elementById(id)))).toEqual([
       'Arbeitsplatte',
       'Arbeitsplatte mit Schneidebrett',
@@ -164,6 +164,8 @@ describe('der Möbelkatalog im Menü', () => {
       'Herdplatte mit Topf',
       'Herdplatte',
       'Waschbecken',
+      'Arbeitsplatte mit Hörnchen und Portionierer',
+      'Arbeitsplatte mit Eiswannen',
     ]);
   });
 
@@ -183,5 +185,10 @@ describe('der Möbelkatalog im Menü', () => {
       parts: [{ model: 'restaurant-bits/stove_single.glb' }],
     });
     expect(hob.holds).toBeUndefined();
+  });
+
+  it('hat Hörnchen und Eiswannen als Vorräte der Küche', () => {
+    expect(elementById('cone-stack')).toMatchObject({ kind: 'drain', gives: 'cone' });
+    expect(elementById('ice-tubs').kind).toBe('ice-tubs');
   });
 });

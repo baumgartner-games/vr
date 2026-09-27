@@ -198,3 +198,17 @@ export function spotAround(
   const [w, d] = spotSize(probe);
   return { ...probe, x: Math.round(x - w / 2), z: Math.round(z - d / 2) };
 }
+
+/**
+ * **Ein getragenes Spielelement** — frisch aus dem Möbelkatalog
+ * (`takeElement`) oder im Bau-Modus zum Umstellen aufgehoben
+ * (`liftElementAt`).
+ */
+export interface CarriedElement {
+  /** Die Id im Katalog (`elementCatalog.ELEMENTS`). */
+  readonly id: string;
+  /** Wo es stand, als es aufgehoben wurde — `null`: frisch aus dem Katalog. */
+  readonly from: ElementSpot | null;
+  /** Was die Welt zum Wiederhinstellen mitgibt — der Stand seiner Stationen. */
+  readonly keep: unknown;
+}

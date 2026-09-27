@@ -458,3 +458,30 @@ describe('Spielelemente — hingestellt heißt benutzbar', () => {
     expect(layer.states[0]!.on).toEqual({ item: 'pot', on: [] });
   });
 });
+
+describe('Spielelemente — Hörnchen und Eiswannen als Vorräte', () => {
+  it('gibt ein Hörnchen, die Wanne setzt eine Kugel darauf — und nur eine', () => {
+    const cook = new Cook(['cone-stack', 'ice-tubs', 'bin']);
+    expect(cook.press('cone-stack')).toMatchObject({ do: 'take' });
+    expect(cook.held).toEqual({ item: 'cone', on: [] });
+    expect(cook.press('ice-tubs:strawberry').do).toBe('combine');
+    expect(cook.held).toEqual({ item: 'cone', on: ['ice-strawberry'] });
+    expect(dishModels(cook.held!)).toEqual(['restaurant-bits/food_icecream_cone_strawberry.glb']);
+    expect(cook.press('ice-tubs:vanilla')).toMatchObject({ do: 'refuse' });
+    // Der Vorrat geht nicht aus.
+    cook.press('bin');
+    cook.held = null;
+    for (let i = 0; i < 20; i++) {
+      expect(cook.press('cone-stack').do).toBe('take');
+      cook.held = null;
+    }
+  });
+
+  it('ohne Hörnchen oder Schüssel gibt die Wanne nichts her', () => {
+    const cook = new Cook(['ice-tubs']);
+    expect(cook.press('ice-tubs:vanilla')).toEqual({
+      do: 'refuse',
+      why: 'Vanilleeis braucht eine Schüssel oder ein Hörnchen',
+    });
+  });
+});

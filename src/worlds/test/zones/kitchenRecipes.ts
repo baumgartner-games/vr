@@ -105,6 +105,12 @@ export type KitchenItem =
    */
   | 'bowl'
   | 'pizzabox'
+  /**
+   * **Das Hörnchen** — ein Träger wie die Schüssel, nur für Eis: aus dem
+   * Hörnchen-Vorrat (`elements`, `cone-stack`), an der Eiswanne eine Kugel
+   * darauf.
+   */
+  | 'cone'
   /** Käse wird geschnitten, die Scheibe geht auf den Burger. */
   | 'cheese'
   | 'cheese-cut'
@@ -184,6 +190,7 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   // der Topf, und **womit**, sagt dieses Wort.
   water: 'Wasser',
   bowl: 'Schüssel',
+  cone: 'Hörnchen',
   pizzabox: 'Pizzakarton',
   cheese: 'Käse',
   'cheese-cut': 'Käsescheibe',
@@ -319,6 +326,7 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
   bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup', 'cheese-cut'],
   pan: ['patty', 'patty-cooked', 'patty-burnt'],
   bowl: ['waffle', 'stew', 'ice-vanilla', 'ice-strawberry'],
+  cone: ['ice-vanilla', 'ice-strawberry'],
   pizzabox: ['pizza', 'pizza-cut'],
 };
 
@@ -336,6 +344,8 @@ const HOLDS_ONE: Partial<
 > = {
   pan: { inside: 'In der Pfanne', into: 'In die Pfanne', one: 'ein Patty' },
   pizzabox: { inside: 'Im Pizzakarton', into: 'In den Pizzakarton', one: 'eine Pizza' },
+  // Das Regal hat das Hörnchen nur mit **einer** Kugel (`food_icecream_cone_*`).
+  cone: { inside: 'Auf dem Hörnchen', into: 'Aufs Hörnchen', one: 'eine Kugel' },
 };
 
 /** Ob auf diesem Ding überhaupt etwas liegen kann. */
@@ -714,6 +724,7 @@ function whyNot(carrier: KitchenItem, item: KitchenItem): string {
   // Eine Schüssel hat ein Innen und kein Oben — „gehört nicht auf Schüssel"
   // wäre der Satz, bei dem man merkt, dass ihn eine Tabelle gebaut hat.
   if (carrier === 'bowl') return `${ITEM_LABELS[item]} gehört nicht in die Schüssel`;
+  if (carrier === 'cone') return `Aufs Hörnchen gehört nur Eis`;
   return `${ITEM_LABELS[item]} gehört nicht auf ${ITEM_LABELS[carrier]}`;
 }
 

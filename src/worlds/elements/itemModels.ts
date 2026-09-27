@@ -49,6 +49,7 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   // auf einem Burger genau das, was die Suppe dort sein soll.
   'tomato-soup': bits('food_ingredient_tomato_sauce'),
   bowl: bits('bowl'),
+  cone: bits('icecream_cone'),
   pizzabox: bits('pizzabox_open'),
   cheese: bits('food_ingredient_cheese'),
   'cheese-cut': bits('food_ingredient_cheese_slice'),
@@ -97,6 +98,16 @@ const IN_BOWL: Partial<Record<KitchenItem, string>> = {
 };
 
 /**
+ * **Das Hörnchen mit Kugel ist im Regal ein Stück** (`food_icecream_cone_*`):
+ * Hörnchen und Eis in einer Datei, doppelt so hoch wie das leere. Eine Kugel
+ * für sich gibt es nicht — also wird das ganze Hörnchen getauscht.
+ */
+const CONE_WITH: Partial<Record<KitchenItem, string>> = {
+  'ice-vanilla': bits('food_icecream_cone_vanilla'),
+  'ice-strawberry': bits('food_icecream_cone_strawberry'),
+};
+
+/**
  * **Die beiden Hälften des Brötchens** — sobald etwas darin liegt, ist es
  * aufgeschnitten: unten der Boden, oben der Deckel, dazwischen der Belag.
  * Dieselbe Regel wie im Diner-Baukasten (`kitchenProps.FoodKit.pile`).
@@ -132,6 +143,10 @@ export function itemModel(item: KitchenItem): string {
  */
 export function dishModels(dish: Dish): string[] {
   const out = paths(ITEM_MODELS[dish.item]);
+  if (dish.item === 'cone') {
+    const full = dish.on[0] ? CONE_WITH[dish.on[0]] : undefined;
+    return full ? [full] : out;
+  }
   // Was nicht in der Schichtung steht (Wasser), kommt ans Ende — `layered`
   // sortiert Unbekanntes sonst nach vorn, unter den Belag.
   const known = layered(dish.on.filter((item) => STACK_ORDER.includes(item)));

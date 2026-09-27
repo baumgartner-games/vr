@@ -13,12 +13,14 @@ import {
   spotCells,
   spotTiles,
   yawFace,
+  type CarriedElement,
   type ElementSpot,
 } from '../elements/elementPlace';
-import type { ElementHost } from '../elements/elementView';
+import type { ElementHost, PlacedElement } from '../elements/elementView';
 import { furnish } from '../elements/furnish';
 import { StationLayer, type StationHost } from '../elements/stationLayer';
-import { DEFAULT_BURN } from '../plateup/plateUpStations';
+import { DEFAULT_BURN, type StationState } from '../plateup/plateUpStations';
+import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
@@ -63,6 +65,8 @@ export class TestRestaurantWorld extends GridWorld {
   private readonly carryPoint = new THREE.Vector3();
   /** Hochgezählt je Möbel aus dem Katalog — für eindeutige Stellen. */
   private furnished = 0;
+  /** Was steht, als Spielelement — zum Umstellen im Bau-Modus (`liftElementAt`). */
+  private readonly placed: PlacedElement[] = [];
 
   protected override worldId(): string {
     return 'test-restaurant';
@@ -120,7 +124,7 @@ export class TestRestaurantWorld extends GridWorld {
     this.stations = new StationLayer(this.stationHost(), this.gauges, null, DEFAULT_BURN);
     // Jede Stelle sperrt ihre Zellen, sobald `placeElement` aufgerufen ist,
     // und jedes Element mit einer Stationsart wird Station — ohne zweite Liste.
-    void furnish(this.elementHost(), SPOTS, this.stations);
+    void furnish(this.elementHost(), SPOTS, this.stations, (placed) => this.placed.push(placed));
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -150,6 +154,7 @@ export class TestRestaurantWorld extends GridWorld {
       dropMaterials(object);
     }
     this.decor.length = 0;
+    this.placed.length = 0;
     for (const template of this.templates.values()) dropMaterials(template);
     this.templates.clear();
     this.loading.clear();
@@ -167,11 +172,62 @@ export class TestRestaurantWorld extends GridWorld {
     return FURNITURE_CATALOGUE;
   }
 
-  protected override furnishAt(id: string, x: number, z: number, yaw: number): ElementSpot | null {
-    if (!hasElement(id)) return null;
-    this.furnished += 1;
-    const spot = spotAround(`katalog-${this.furnished}`, id, x, z, yawFace(yaw));
-    return this.furnishSpot(spot) ? spot : null;
+  /**
+   * **Hinstellen, wo es losgelassen wurde** — frisch aus dem Katalog unter
+   * einer neuen Stelle, umgestellt unter seiner alten (Name, Beschriftung und
+   * was es hergibt bleiben), und mit dem Stand seiner Stationen.
+   */
+  protected override furnishAt(
+    carried: CarriedElement,
+    x: number,
+    z: number,
+    yaw: number,
+  ): ElementSpot | null {
+    if (!hasElement(carried.id)) return null;
+    const id = carried.from?.id ?? `katalog-${++this.furnished}`;
+    const at = spotAround(id, carried.id, x, z, yawFace(yaw));
+    const spot: ElementSpot = carried.from
+      ? { ...carried.from, x: at.x, z: at.z, face: at.face }
+      : at;
+    return this.furnishSpot(spot, keptStates(carried)) ? spot : null;
+  }
+
+  protected override furnishBack(carried: CarriedElement): ElementSpot | null {
+    const from = carried.from;
+    return from && this.furnishSpot(from, keptStates(carried)) ? from : null;
+  }
+
+  protected override elementAt(x: number, z: number): string | null {
+    return this.placedAt(x, z)?.element.id ?? null;
+  }
+
+  /**
+   * **Ein Element zum Umstellen wegnehmen** — Stationen heraus (ihr Stand geht
+   * mit), Zellen frei, Anker, Teile und Bodenstück weg.
+   */
+  protected override liftElementAt(x: number, z: number): CarriedElement | null {
+    const placed = this.placedAt(x, z);
+    if (!placed) return null;
+    this.placed.splice(this.placed.indexOf(placed), 1);
+    const keep = this.stations?.remove(placed.anchor) ?? [];
+    this.unblockSolid(placed.block);
+    for (const object of [placed.anchor, ...placed.parts]) {
+      if (!object) continue;
+      object.removeFromParent();
+      const at = this.decor.indexOf(object);
+      if (at >= 0) this.decor.splice(at, 1);
+      if (object !== placed.anchor) dropMaterials(object);
+    }
+    void placed.base?.then((body) => {
+      if (body) this.removeProp(body as PhysicsBody, false);
+    });
+    return { id: placed.element.id, from: placed.spot, keep };
+  }
+
+  /** Das Element, dessen Kacheln diesen Punkt (Meter) decken — oder keines. */
+  private placedAt(x: number, z: number): PlacedElement | null {
+    const tile = `${Math.floor(x)},${Math.floor(z)}`;
+    return this.placed.find((one) => spotTiles(one.spot).includes(tile)) ?? null;
   }
 
   /**
@@ -180,7 +236,7 @@ export class TestRestaurantWorld extends GridWorld {
    * Zellen sind gesperrt, sobald das zurückkehrt, und mit Stationsart wird es
    * Station.
    */
-  protected override furnishSpot(spot: ElementSpot): boolean {
+  protected override furnishSpot(spot: ElementSpot, keep: readonly StationState[] = []): boolean {
     if (!this.stations || !hasElement(spot.element)) return false;
     const g = ground();
     const inside = spotTiles(spot).every((tile) => {
@@ -188,7 +244,13 @@ export class TestRestaurantWorld extends GridWorld {
       return tx! >= g.x && tx! < g.x + g.w && tz! >= g.z && tz! < g.z + g.d;
     });
     if (!inside || !this.cellsFree(spotCells(spot))) return false;
-    void furnish(this.elementHost(), [spot], this.stations);
+    void furnish(
+      this.elementHost(),
+      [spot],
+      this.stations,
+      (placed) => this.placed.push(placed),
+      keep,
+    );
     return true;
   }
 
@@ -325,4 +387,9 @@ function dropMaterials(object: THREE.Object3D): void {
     for (const skin of Array.isArray(mesh.material) ? mesh.material : [mesh.material])
       skin.dispose();
   });
+}
+
+/** Der Stand der Stationen, den ein umgestelltes Element mitbringt (`liftElementAt`). */
+function keptStates(carried: CarriedElement): readonly StationState[] {
+  return Array.isArray(carried.keep) ? (carried.keep as StationState[]) : [];
 }
