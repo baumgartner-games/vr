@@ -100,6 +100,15 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
       { action: 'menu', label: 'Menü' },
     ],
   },
+  'test-restaurant': {
+    goal: 'Eine Mini-Küche je Gericht, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen.',
+    first: 'Aus einer Vorratsbox nehmen und auf den Tisch legen, an dem es jemand wünscht.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'use', label: 'Nehmen / Ablegen' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
 };
 
 /** Die Karte zu einer Welt — `null`, wenn sie keine hat. */
