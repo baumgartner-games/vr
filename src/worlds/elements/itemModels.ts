@@ -46,7 +46,9 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   // Sandbox (`core/mixedbagFit.ts`), dort als Datei im Regal. Keine Zange und
   // kein Wasser im Regal (siehe oben).
   extinguisher: 'mixed-bag/fire_extinguisher.glb',
-  pliers: '',
+  // **Die Rohrzange** der Spüle — der Schraubenschlüssel des Regals, wie in
+  // der Sandbox (`kitchenProps.WRENCH_MODEL`).
+  pliers: 'rpg-tools-bits/wrench_A.glb',
   water: '',
   plate: bits('plate'),
   'plate-dirty': bits('plate_dirty'),
@@ -89,6 +91,12 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   'potato-cut': bits('food_ingredient_potato_chopped'),
   onion: bits('food_ingredient_onion'),
   'onion-cut': bits('food_ingredient_onion_chopped'),
+  mushroom: bits('food_ingredient_mushroom'),
+  'mushroom-cut': bits('food_ingredient_mushroom_chopped'),
+  // **Die Suppen** sehen im Regal alle gleich aus (`food_stew`); ihre Farbe
+  // bekommen sie beim Zeigen (`dishView.SOUP_TINT`).
+  'soup-onion': bits('food_stew'),
+  'soup-mushroom': bits('food_stew'),
   stew: bits('food_stew'),
   // **Pommes hat das Regal nicht** (kein Paket hat sie, auch keine Fritteuse)
   // — die gewürfelte Kartoffel ist in Farbe und Form am nächsten dran. Die
@@ -127,6 +135,9 @@ const IN_TRAY: Partial<Record<KitchenItem, string>> = {
  */
 const IN_BOWL: Partial<Record<KitchenItem, string>> = {
   stew: bits('stew_bowl'),
+  'tomato-soup': bits('stew_bowl'),
+  'soup-onion': bits('stew_bowl'),
+  'soup-mushroom': bits('stew_bowl'),
   waffle: bits('icecream_bowl_waffles'),
 };
 
@@ -173,6 +184,11 @@ export function dishModels(dish: Dish): string[] {
   const on = [...known, ...rest];
   const inBowl = dish.item === 'bowl';
   const inTray = dish.item === 'tray';
+  // **Im Topf liegt eine Suppe in Portionen** (`kitchenRecipes.servings`) —
+  // gezeigt wird sie einmal.
+  if (dish.item === 'pot') {
+    return [...out, ...[...new Set(on)].flatMap((item) => paths(ITEM_MODELS[item]))];
+  }
   const piece = (item: KitchenItem): string[] => {
     const special = inBowl ? IN_BOWL[item] : inTray ? IN_TRAY[item] : undefined;
     return special ? [special] : paths(ITEM_MODELS[item]);

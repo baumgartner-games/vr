@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Handedness } from '../../core/XRInput';
-import { RACK_SLOTS, SINK_TRAY } from '../../core/kitchenFit';
+import { RACK_SLOTS, SINK_BOWL, SINK_TRAY } from '../../core/kitchenFit';
+import { TIGHT, fixProgress, springLeak } from '../test/zones/kitchenLeak';
+import { WATER_LOOK } from '../test/zones/kitchenProps';
 import type { Usable, UseSource } from '../../core/usable';
 import type { StationSpot } from '../plateup/plateUpPlan';
 import {
@@ -123,6 +125,13 @@ const BLINK_FAST = 3;
  * detektieren 45°"_.
  */
 export const EXTINGUISH_HALF_ANGLE = (45 * Math.PI) / 180;
+
+/**
+ * **Wie oft die Spüle beim Füllen kaputtgeht** — jedes fünfte Mal im Mittel.
+ * Gewünscht: _„(kann aber auch kaputt gehen, siehe sandbox spühle)"_. In der
+ * Sandbox löst es ein roter Knopf aus; hier gibt es keinen, also der Zufall.
+ */
+export const LEAK_CHANCE = 0.2;
 
 /** Wie hoch das Warndreieck über der Platte steht (`kitchenGauge.WARN_LIFT`). */
 const WARN_LIFT = 0.55;
@@ -313,6 +322,8 @@ export interface StationHost {
    * (`BEEP_SLOW`, `BEEP_FAST`). Wie oft, entscheidet die Stationsschicht.
    */
   warnTone?(fast: boolean): void;
+  /** Zufall 0…1 — ohne Angabe `Math.random` (Tests reichen einen festen). */
+  random?(): number;
 }
 
 /** Wie die Station gerade gebaut ist. */
@@ -345,6 +356,8 @@ interface StationView {
   readonly holds: Dish | null;
   /** Wie weit das Feuer darauf schon gelöscht ist (`kitchenSpray.advanceDouse`). */
   wet: DouseState;
+  /** Das Wasser im Becken — nur an der Spüle, weg, solange es spritzt. */
+  water: THREE.Mesh | null;
 }
 
 const _v = new THREE.Vector3();
@@ -378,6 +391,36 @@ export class StationLayer {
 
   /** Seit wann nicht mehr gepiept wurde, in Sekunden. */
   private sinceBeep = Infinity;
+  /** Das Material des Wassers im Becken — eines für alle Spülen. */
+  private pond: THREE.MeshStandardMaterial | null = null;
+
+  /**
+   * **Wasser im Becken** — die Spüle hat es von Haus aus, wie in der Sandbox
+   * (`kitchen.addWater`: dieselbe Fläche, dieselbe Farbe, dieselbe Höhe).
+   * Gewünscht: _„Das Spülbecken hat default noch Wasser drin"_.
+   */
+  private basinWater(surface: THREE.Object3D): THREE.Mesh {
+    this.pond ??= new THREE.MeshStandardMaterial({ ...WATER_LOOK, transparent: true });
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(SINK_BOWL.width, SINK_BOWL.depth),
+      this.pond,
+    );
+    water.name = 'station-sink-water';
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(SINK_BOWL.at[0], SINK_BOWL.water, SINK_BOWL.at[1]);
+    surface.add(water);
+    return water;
+  }
+
+  /**
+   * **Wo ein Becken gerade spritzt** — für den Strahl der Welt
+   * (`kitchenLeak.LeakJet`), oder `null`, wenn keines.
+   */
+  leakingAt(out: THREE.Vector3): THREE.Vector3 | null {
+    const index = this.stations.findIndex((state) => state.leak?.leaking);
+    if (index < 0) return null;
+    return this.views[index]!.surface.localToWorld(out.set(0, SINK_BOWL.water, 0));
+  }
 
   /** Der Stand aller Stationen, in der Reihenfolge, in der sie dazukamen. */
   get states(): readonly StationState[] {
@@ -424,6 +467,7 @@ export class StationLayer {
         dist2: Infinity,
         holds: slot.holds ?? null,
         wet: DRY,
+        water: slot.spot.kind === 'sink' ? this.basinWater(surface) : null,
       });
       // **Das ganze Möbel unter den Anker** (`elementLit`): Dann kann der
       // Saum die Kiste samt Inhalt umranden, die Arbeitsplatte, auf die man
@@ -507,9 +551,22 @@ export class StationLayer {
     if (by.hand) this.lastHand = by.hand;
     const tookHand = !held && result.held;
     this.host.picked?.(!!result.held && deed.do !== 'scrape');
-    this.stations = this.stations.map((s, i) => (i === index ? result.station : s));
+    let station = result.station;
+    // **Die Spüle kann kaputtgehen** — beim Füllen, ab und zu (`LEAK_CHANCE`),
+    // wie die der Sandbox nach dem roten Knopf: Sie spritzt, füllt nichts mehr,
+    // und nur die Rohrzange dichtet sie ab.
+    if (deed.do === 'fill' && state.spot.kind === 'sink' && this.random() < LEAK_CHANCE) {
+      station = { ...station, leak: springLeak(station.leak ?? TIGHT) };
+      this.host.announce('Das Becken spritzt — die Rohrzange holen!');
+    }
+    this.stations = this.stations.map((s, i) => (i === index ? station : s));
     this.host.setHeld(result.held, tookHand ? (by.hand ?? null) : this.host.heldHand());
     return true;
+  }
+
+  /** Der Zufall der Spüle — die Welt darf ihn reichen, sonst `Math.random`. */
+  private random(): number {
+    return this.host.random?.() ?? Math.random();
   }
 
   /**
@@ -634,6 +691,8 @@ export class StationLayer {
         view.content = shown;
       }
     }
+    // Das Becken ist leer, solange es spritzt — wie in der Sandbox (`showWater`).
+    if (view.water) view.water.visible = !state.leak?.leaking;
     const gauges = this.gauges;
     if (!gauges) return;
     const id = `station:${view.spot.id}`;
@@ -641,11 +700,12 @@ export class StationLayer {
     const safe = view.spot.kind === 'griddle';
     const heat = safe ? 0 : burnShare(state, this.burn, this.ignite);
     const phase = stovePhase(state);
+    const fixing = state.leak ? fixProgress(state.leak) : 0;
     // Heiß ist, was allein gart: Kochstelle, Suppentopf, und der Herd, auf
     // dem der Topf mit Wasser kocht.
     const hot =
       view.spot.kind === 'griddle' || view.spot.kind === 'pot' || view.spot.kind === 'stove';
-    if (part <= 0 && heat <= 0 && !state.work.working && !phase) {
+    if (part <= 0 && heat <= 0 && fixing <= 0 && !state.work.working && !phase) {
       if (!view.gauged) return;
       view.gauged = false;
       gauges.clear(id);
@@ -659,6 +719,7 @@ export class StationLayer {
     const at = view.surface.localToWorld(_v.set(0, view.top + 0.35, 0));
     const dousing = douseProgress(view.wet);
     if (part > 0) gauges.bar(id, at, part, hot ? 'cook' : 'chop');
+    else if (fixing > 0) gauges.bar(id, at, fixing, 'chop');
     else if (dousing > 0) gauges.bar(id, at, dousing, 'chop');
     else if (heat > 0) gauges.bar(id, at, heat, 'burn');
     else gauges.clear(id);
@@ -803,7 +864,10 @@ export class StationLayer {
       this.gauges?.clear(`station:${view.spot.id}`);
       this.gauges?.clear(`flame:${view.spot.id}`);
       this.gauges?.clear(`warn:${view.spot.id}`);
+      view.water?.geometry.dispose();
     }
+    this.pond?.dispose();
+    this.pond = null;
     this.views.length = 0;
     this.stations = [];
   }

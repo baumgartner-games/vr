@@ -192,6 +192,8 @@ describe('der Möbelkatalog im Menü', () => {
       'Nudelbrett',
       'Mülleimer',
       'Feuerlöscher',
+      'Rohrzange',
+      'Pilzkiste',
     ]);
   });
 
@@ -231,7 +233,7 @@ describe('der Möbelkatalog im Menü', () => {
 
   it('hat Waschbecken, Mülleimer und Feuerlöscher in Allgemein, und in Alles jedes Möbel', () => {
     const folder = (id: string) => FURNITURE_FOLDERS.find((one) => one.id === id)!.elements;
-    expect(folder('general')).toEqual(['counter', 'sink', 'bin', 'extinguisher']);
+    expect(folder('general')).toEqual(['counter', 'sink', 'pliers', 'bin', 'extinguisher']);
     expect(folder('all')).toEqual(FURNITURE_CATALOGUE);
   });
 

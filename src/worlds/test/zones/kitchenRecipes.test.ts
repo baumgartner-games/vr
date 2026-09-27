@@ -603,9 +603,11 @@ describe('die zweite Speisekarte', () => {
     expect(rollStage('dough')).toBe('dough-flat');
     expect(rollStage('dough-flat')).toBeNull();
     expect(rollStage('cheese')).toBeNull();
-    for (const item of ['carrot-cut', 'onion-cut'] as const) {
-      expect({ item, next: cookStage(item) }).toEqual({ item, next: 'stew' });
-    }
+    // Jede Suppe ihre Sorte: Karotte, Zwiebel, Pilz, Tomatenscheibe.
+    expect(cookStage('carrot-cut')).toBe('stew');
+    expect(cookStage('onion-cut')).toBe('soup-onion');
+    expect(cookStage('mushroom-cut')).toBe('soup-mushroom');
+    expect(cookStage('tomato-cut')).toBe('tomato-soup');
     // Aus der Kartoffel werden Pommes, nicht Suppe (die Pommes-Kette).
     expect(cookStage('potato-cut')).toBe('fries');
     expect(cookStage('carrot')).toBeNull();
@@ -772,9 +774,10 @@ describe('der Topf mit Wasser', () => {
     expect(isCarrier('pot')).toBe(false);
     const both = combine(d('pot', 'water'), d('plate'));
     expect(both.ok).toBe(false);
-    expect(combine(d('tomato-cut'), d('pot', 'water'))).toEqual({
-      ok: false,
-      why: 'Tomatenscheibe und Topf halten nicht zusammen — es braucht ein Brötchen oder einen Teller darunter',
+    // Die Tomatenscheibe kocht darin jetzt zur Tomatensuppe (`COOKS`).
+    expect(combine(d('tomato-cut'), d('pot', 'water'))).toMatchObject({
+      ok: true,
+      target: d('pot', 'water', 'tomato-cut'),
     });
   });
 });

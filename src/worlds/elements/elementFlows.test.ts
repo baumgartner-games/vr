@@ -394,6 +394,12 @@ describe('Spielelemente — Topf, Spüle und Pommes', () => {
     expect(cook.press('bowl-stack').do).toBe('take');
     expect(cook.press('stove-pot').do).toBe('combine');
     expect(cook.held).toEqual({ item: 'bowl', on: ['stew'] });
+    // Acht Schüsseln aus einem Topf (`SOUP_SERVINGS`): sieben sind noch darin.
+    expect(cook.on('stove-pot')?.on).toHaveLength(7);
+    for (let i = 0; i < 7; i++) {
+      cook.held = { item: 'bowl', on: [] };
+      expect(cook.press('stove-pot').do).toBe('combine');
+    }
     expect(cook.on('stove-pot')).toEqual({ item: 'pot', on: [] });
   });
 

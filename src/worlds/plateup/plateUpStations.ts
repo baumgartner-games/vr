@@ -10,6 +10,7 @@ import {
   burnStage,
   dish,
   isBurnt,
+  servings,
   potCooks,
   type Dish,
   type KitchenItem,
@@ -22,6 +23,7 @@ import {
   type WorkState,
 } from '../test/zones/kitchenWork';
 import type { StationSpot } from './plateUpPlan';
+import { advanceFix, startFix, type LeakState } from '../test/zones/kitchenLeak';
 
 /**
  * **Die Stationen des Burgerladens** — was auf ihnen liegt, was daran gerade
@@ -68,6 +70,13 @@ export interface StationState {
    * (`douseStation`). Ohne Angabe: kein Feuer.
    */
   readonly fire?: boolean;
+  /**
+   * **Ob das Becken spritzt** — nur an der Spüle, wie in der Sandbox
+   * (`test/zones/kitchenLeak`): Solange es leckt, füllt es keinen Topf, und
+   * nur die Rohrzange dichtet es ab (`repair`, dann `REPAIR_SECONDS` davor
+   * stehen). Ohne Angabe: dicht.
+   */
+  readonly leak?: LeakState;
 }
 
 /**
@@ -134,11 +143,19 @@ export function asStation(state: StationState): Station {
     on: state.on,
     ...(state.spot.gives ? { gives: state.spot.gives } : {}),
     ...(state.fire ? { fire: true } : {}),
+    ...(state.leak?.leaking ? { leaking: true } : {}),
   };
 }
 
 /** Was ein Druck hier bewirken würde — für den Saum und den Satz. */
 export function stationDeed(held: Dish | null, state: StationState): KitchenDeed {
+  // **Die Tomatenscheibe wird nicht noch einmal geschnitten** — gewünscht:
+  // _„Tomaten kann man nun doch nur ein Mal schneiden."_ Auf dem Brett liegt
+  // sie wie auf einer Platte; zur Suppe wird sie im Topf (`COOKS`). Die
+  // Sandbox behält ihre zweite Schnittstufe (`kitchenRecipes.CHOPS`).
+  if (state.spot.kind === 'board' && held && ONE_CHOP.has(held.item)) {
+    return kitchenDeed(held, { kind: 'top', on: state.on });
+  }
   if (state.spot.kind === 'drain') {
     const gives = stackGives(state.spot);
     // Schmutziges gehört in die Spüle und nicht auf den Stapel — in ein leeres
@@ -156,6 +173,9 @@ export function stationDeed(held: Dish | null, state: StationState): KitchenDeed
   }
   return kitchenDeed(held, asStation(state));
 }
+
+/** Was an diesen Stationen nur einmal geschnitten wird — die Scheibe bleibt Scheibe. */
+const ONE_CHOP: ReadonlySet<KitchenItem> = new Set<KitchenItem>(['tomato-cut']);
 
 /** Hand und Station nach einem Druck — und die Tat, die es war. */
 export interface StationUse {
@@ -217,6 +237,9 @@ export function useStation(held: Dish | null, state: StationState): StationUse {
       return { held: null, station: state, deed };
     // Der Topf unter dem Hahn: Er ist danach voll, die Spüle bleibt, wie sie
     // war (`kitchenCarry.atSink`).
+    // Die Zange angesetzt: Ab jetzt läuft die Reparatur (`tickStation`).
+    case 'repair':
+      return state.leak ? { held, station: { ...state, leak: startFix(state.leak) }, deed } : same;
     case 'fill':
       return { held: deed.dish, station: state, deed };
     case 'scrape':
@@ -289,6 +312,12 @@ export function tickStation(
   // **Ein brennender Herd tut nichts mehr** — bis der Feuerlöscher kommt
   // (`douseStation`).
   if (state.fire) return idle;
+  // **Das undichte Becken wird abgedichtet**, solange jemand mit angesetzter
+  // Zange davorsteht (`kitchenLeak.advanceFix`).
+  if (state.leak?.leaking) {
+    const fix = advanceFix(state.leak, dt, near);
+    return fix.state === state.leak ? idle : { ...idle, station: { ...state, leak: fix.state } };
+  }
   // **Die Pfanne auf dem Herd ist eine Grillplatte zum Mitnehmen**
   // (`panOnStove`): Was darin liegt, brät und verbrennt wie auf der Platte
   // und bleibt dabei in der Pfanne.
@@ -366,8 +395,13 @@ export function tickStation(
   }
   // Im Topf auf dem Herd bleibt das Gekochte **im Topf** — das Wasser ist
   // verkocht, der Topf nicht.
+  // **Eine Suppe liegt in Portionen im Topf** (`kitchenRecipes.servings`):
+  // acht Schüsseln, dann ist er leer.
   const on = boiling
-    ? dish('pot', [tick.done])
+    ? dish(
+        'pot',
+        Array.from({ length: servings(tick.done) }, () => tick.done!),
+      )
     : panned
       ? dish('pan', [tick.done])
       : dish(tick.done);

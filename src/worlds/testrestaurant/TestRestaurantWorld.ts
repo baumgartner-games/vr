@@ -33,6 +33,7 @@ import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
 import { SprayJet } from '../test/zones/kitchenSpray';
+import { LeakJet } from '../test/zones/kitchenLeak';
 import { iceConeIn, stepIceCones } from '../shared/iceCone';
 import { WOBBLE } from '../shared/iceWobble';
 import type { Dish } from '../test/zones/kitchenRecipes';
@@ -77,6 +78,9 @@ export class TestRestaurantWorld extends GridWorld {
   private dishes: KaykitDishView | null = null;
   /** Der Nebel des Feuerlöschers (`kitchenSpray.SprayJet`, wie in der Sandbox). */
   private jet: SprayJet | null = null;
+  /** Der Strahl einer undichten Spüle (`kitchenLeak.LeakJet`, wie in der Sandbox). */
+  private leak: LeakJet | null = null;
+  private readonly leakAt = new THREE.Vector3();
   /** Die Vorlagen, wie sie gerade laden — damit jede Datei nur einmal kommt. */
   private readonly loading = new Map<string, Promise<THREE.Object3D | null>>();
   private readonly templates = new Map<string, THREE.Object3D>();
@@ -155,6 +159,8 @@ export class TestRestaurantWorld extends GridWorld {
     super.update(dt, ctx);
     this.stations?.step(dt, ctx.rig.position);
     this.spray(dt, ctx);
+    const leaking = this.stations?.leakingAt(this.leakAt) ?? null;
+    if (leaking || this.leak) (this.leak ??= new LeakJet(this.root)).update(dt, leaking);
     this.carryInHands(ctx);
     // Erst hängt das Getragene, dann wackelt der Turm (`shared/iceCone`).
     stepIceCones(dt);
@@ -172,6 +178,8 @@ export class TestRestaurantWorld extends GridWorld {
     this.gauges = null;
     this.jet?.dispose();
     this.jet = null;
+    this.leak?.dispose();
+    this.leak = null;
     this.carriedView?.removeFromParent();
     this.carriedView = null;
     this.carried = null;

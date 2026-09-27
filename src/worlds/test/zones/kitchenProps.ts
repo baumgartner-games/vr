@@ -496,6 +496,10 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   'ice-strawberry': 0,
   'ice-chocolate': 0,
   tray: 0,
+  mushroom: 0,
+  'mushroom-cut': 0,
+  'soup-onion': 0,
+  'soup-mushroom': 0,
 };
 
 /**
@@ -536,6 +540,10 @@ export const ELSEWHERE: readonly KitchenItem[] = [
   'ice-strawberry',
   'ice-chocolate',
   'tray',
+  'mushroom',
+  'mushroom-cut',
+  'soup-onion',
+  'soup-mushroom',
 ];
 
 /** Was nicht gebaut, sondern aus dem Möbelmodell genommen wird. */

@@ -3,6 +3,7 @@ import { kitchenHub } from '../../core/kitchenFit';
 import type { IceFlavor } from '../plateup/plateUpIce';
 import { BallKit, IceConeView } from '../shared/iceCone';
 import { WOBBLE } from '../shared/iceWobble';
+import { WATER_LOOK } from '../test/zones/kitchenProps';
 import type { Dish, KitchenItem } from '../test/zones/kitchenRecipes';
 import { dishModels } from './itemModels';
 
@@ -149,18 +150,99 @@ export class KaykitDishView {
       return { group, done: Promise.resolve() };
     }
     const paths = dishModels(dish);
+    // **Der Topf doppelt so groß** — gewünscht: _„Der Topf sollte übrigens
+    // doppelt so groß sein, dass man auch sieht was drin ist."_ In einer
+    // eigenen Gruppe, denn die äußere bekommt beim Tragen ihren Maßstab.
+    const inner = dish.item === 'pot' ? new THREE.Group() : group;
+    if (inner !== group) {
+      inner.scale.setScalar(POT_SCALE);
+      group.add(inner);
+    }
     const done = Promise.all(paths.map((path) => this.template(path))).then((templates) => {
-      if (this.alive) lay(group, dish.item, templates);
+      if (!this.alive) return;
+      lay(inner, dish.item, templates);
+      tintSoup(inner, dish, paths);
+      if (dish.item === 'pot' && dish.on.includes('water')) this.pourWater(inner);
     });
     return { group, done };
+  }
+
+  /** Das Material des Wassers im Topf — eines für alle Töpfe. */
+  private water: THREE.MeshStandardMaterial | null = null;
+
+  /**
+   * **Wasser im Topf, sichtbar** — gewünscht: _„nur muss das Wasser im Topf
+   * sichtbar sein"_. Eine Scheibe in der Farbe der Sandbox
+   * (`kitchenProps.WATER_LOOK`, dort `FoodKit.water`), so breit wie die
+   * Öffnung und knapp unter dem Rand, gemessen am Topf.
+   */
+  private pourWater(inner: THREE.Group): void {
+    const pot = inner.children[0];
+    if (!pot) return;
+    const box = new THREE.Box3().setFromObject(pot);
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    this.water ??= new THREE.MeshStandardMaterial({ ...WATER_LOOK, transparent: true });
+    const radius = Math.min(size.x, size.z) * 0.36;
+    const deep = size.y * 0.35;
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, deep, 18), this.water);
+    water.name = 'dish-pot-water';
+    water.position.y = size.y * 0.25 + deep / 2;
+    inner.add(water);
   }
 
   /** Nichts mehr füllen, was noch lädt. */
   dispose(): void {
     this.alive = false;
+    this.water?.dispose();
+    this.water = null;
     this.balls?.dispose();
     this.balls = null;
   }
+}
+
+/** Wie groß der Topf gezeigt wird — doppelt so groß wie im Regal. */
+export const POT_SCALE = 2;
+
+/**
+ * **Die Farben der Suppen** — das Regal hat nur einen Eintopf, und jede Suppe
+ * bekommt ihn in ihrer Farbe: Karotte orange, Tomate rot, Zwiebel goldgelb,
+ * Pilz braun.
+ */
+export const SOUP_TINT: Readonly<Partial<Record<KitchenItem, number>>> = {
+  stew: 0xe8872e,
+  'tomato-soup': 0xc9352a,
+  'soup-onion': 0xe0c065,
+  'soup-mushroom': 0x8a6547,
+};
+
+/** Welche Stücke Suppe zeigen — die gefärbt werden. */
+const SOUP_PIECES = new Set(['stew_bowl', 'food_stew']);
+
+/**
+ * **Die Suppe in ihrer Farbe** — eigene Materialien für die Kopien, sonst
+ * färbte sich die Vorlage und mit ihr jede andere Suppe.
+ */
+function tintSoup(group: THREE.Object3D, dish: Dish, paths: readonly string[]): void {
+  const soup = [dish.item, ...dish.on].find((item) => SOUP_TINT[item] !== undefined);
+  if (!soup) return;
+  const color = SOUP_TINT[soup]!;
+  group.children.forEach((piece, i) => {
+    const path = paths[i] ?? '';
+    const name = path.slice(path.lastIndexOf('/') + 1).replace('.glb', '');
+    if (!SOUP_PIECES.has(name)) return;
+    piece.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const skins = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const tinted = skins.map((skin) => {
+        const copy = skin.clone() as THREE.MeshStandardMaterial;
+        if (copy.color) copy.color.lerp(new THREE.Color(color), 0.7);
+        return copy;
+      });
+      mesh.material = Array.isArray(mesh.material) ? tinted : tinted[0]!;
+    });
+  });
 }
 
 /** Die Sorte einer Kugel, wie das Restaurant sie kennt (`plateUpIce.IceFlavor`). */

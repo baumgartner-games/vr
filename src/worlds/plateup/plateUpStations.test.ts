@@ -229,11 +229,12 @@ describe('Eine Stufe je Auflegen', () => {
     // Davorstehen allein macht keine Suppe daraus.
     const still = wait(cut.station, WORK_SECONDS.chop * 3);
     expect(still.station.on).toEqual(d('tomato-cut'));
-    // Nehmen und wieder auflegen: die nächste Stufe.
+    // Nehmen und wieder auflegen: Die Scheibe bleibt Scheibe — Tomaten werden
+    // hier nur einmal geschnitten, Suppe gibt es im Topf.
     const taken = useStation(null, still.station);
     const again = useStation(taken.held, taken.station);
-    expect(again.deed.do).toBe('work');
-    expect(wait(again.station, WORK_SECONDS.chop + 0.2).station.on).toEqual(d('tomato-soup'));
+    expect(again.deed.do).toBe('place');
+    expect(wait(again.station, WORK_SECONDS.chop + 0.2).station.on).toEqual(d('tomato-cut'));
   });
 
   it('schneidet weiter, wer nur kurz weggegangen war', () => {
