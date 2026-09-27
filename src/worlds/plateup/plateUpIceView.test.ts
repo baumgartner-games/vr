@@ -4,6 +4,7 @@ import { ICE_FACE, ICE_STAND, ICE_TUBS } from './plateUpPlan';
 import type { WorldContext } from '../../core/types';
 import type { IceHands } from './plateUpIce';
 import { CORNER_SIZE, IceCorner, ICE_SIZE, ICE_YAW, fallback } from './plateUpIceView';
+import { WOBBLE, idleLimit } from './plateUpWobble';
 
 /**
  * **Die Eisecke ohne ein einziges Modell** — so wie in Jest (kein WebGL, also
@@ -123,9 +124,9 @@ function fakeContext(xrHold: THREE.Object3D | null): WorldContext {
 /**
  * **Wie weit die oberste Kugel entlang x über der Öffnung hängt**, in
  * Kugeldurchmessern, während die Figur 1,2 s mit 2,6 m/s nach +x geht und
- * dann 1,2 s steht — jedes Bild durch `IceCorner.carry`, wie im Spiel.
+ * dann `stand` Bilder (1/60 s) steht — jedes Bild durch `IceCorner.carry`, wie im Spiel.
  */
-function walkAndStop(xr: boolean): { walking: number; after: number[] } {
+function walkAndStop(xr: boolean, stand = 72): { walking: number; after: number[] } {
   const corner = new IceCorner();
   const hold = xr ? new THREE.Object3D() : null;
   if (hold) hold.position.set(0.2, 1.1, -0.3);
@@ -140,7 +141,7 @@ function walkAndStop(xr: boolean): { walking: number; after: number[] } {
   const opening = new THREE.Vector3();
   const trace: number[] = [];
   let size = 0;
-  for (let f = 0; f < 144; f++) {
+  for (let f = 0; f < 72 + stand; f++) {
     if (f < 72) ctx.rig.position.x += 2.6 * dt;
     corner.carry(hands, ctx, dt, out);
     const top = corner.heldTop(new THREE.Vector3())!;
@@ -166,14 +167,34 @@ describe('Restaurant: der Turm in der Hand, wie das Spiel ihn rechnet', () => {
     ['in der Brille, in der Hand, die mit der Figur geht', true],
   ])('%s: beim Gehen hängt die Spitze deutlich zurück, beim Anhalten einmal hinüber', (_, xr) => {
     const { walking, after } = walkAndStop(xr);
-    // Gegen die Richtung, in die gegangen wird — und deutlich, nicht ein Hauch.
-    expect(walking).toBeLessThan(-0.4);
-    // Nach dem Anhalten einmal über den Platz hinaus …
-    const most = Math.max(...after);
+    // Gegen die Richtung, in die gegangen wird — und deutlich, fast bis an die
+    // Grenzen (0,8 + 0,4 + 0,27 Kugelgrößen bei vier Kugeln).
+    expect(walking).toBeLessThan(-1.3);
+    // Die erste halbe Sekunde nach dem Anhalten, bevor das Schaukeln im
+    // Stehen einsetzt (`WOBBLE.idleDelay`): einmal über den Platz hinaus …
+    const stop = after.slice(0, Math.round(WOBBLE.idleDelay * 60));
+    const most = Math.max(...stop);
     expect(most).toBeGreaterThan(0.05);
-    // … genau einmal, und dann Ruhe.
-    const signs = after.filter((x) => Math.abs(x) > 1e-4).map(Math.sign);
+    // … genau einmal.
+    const signs = stop.filter((x) => Math.abs(x) > 1e-4).map(Math.sign);
     expect(signs.slice(1).filter((s, i) => s !== signs[i])).toHaveLength(1);
-    expect(Math.abs(after[after.length - 1]!)).toBeLessThan(0.01);
+    // Danach schaukelt er sanft, nie weiter als die Grenzen dafür zusammen.
+    const idle = [1, 2, 3].reduce((sum, k) => sum + idleLimit(k, 4), 0);
+    for (const x of after.slice(stop.length)) expect(Math.abs(x)).toBeLessThan(idle);
   });
+
+  test.each([
+    ['von oben', false],
+    ['in der Brille', true],
+  ])(
+    '%s: im Stehen schaukelt der Turm in der Hand sanft — sichtbar, aber in seinen Grenzen',
+    (_, xr) => {
+      // Vier Sekunden stehen; ab der dritten ist das Schaukeln ganz da.
+      const { after } = walkAndStop(xr, 240);
+      const late = after.slice(120).map(Math.abs);
+      const idle = [1, 2, 3].reduce((sum, k) => sum + idleLimit(k, 4), 0);
+      expect(Math.max(...late)).toBeGreaterThan(0.15);
+      expect(Math.max(...late)).toBeLessThan(idle);
+    },
+  );
 });
