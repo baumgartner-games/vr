@@ -1292,6 +1292,21 @@ export abstract class GridWorld extends PortalWorld {
     return keys;
   }
 
+  /**
+   * **Ob auf diesen Zellen nichts steht** (`cellKey`: `ix,iz,level`) — dieselbe
+   * Frage wie beim Gehen (`cellTaken`). Für ein Möbel, das jemand hinstellen
+   * will: Zwei Grundflächen auf einer Zelle gibt es nicht.
+   */
+  protected cellsFree(keys: Iterable<string>): boolean {
+    const plan = this.grid;
+    if (!plan) return true;
+    for (const key of keys) {
+      const [ix, iz, level] = key.split(',').map(Number);
+      if (this.cellTaken(plan, ix!, iz!, level ?? 0)) return false;
+    }
+    return true;
+  }
+
   /** Die Gegenrichtung von `blockFootprint`. */
   protected unblockFootprint(keys: Iterable<string>): void {
     for (const key of keys) this.blockedCells.delete(key);

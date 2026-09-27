@@ -34,15 +34,19 @@ import {
   parseChanges,
   forgetChange,
   notesIn,
+  recordElement,
   recordModel,
   recordNote,
   setTrackingChanges,
   trackingChanges,
   worldChanges,
+  type ElementChange,
   type FurnitureChange,
   type ModelChange,
   type NoteChange,
 } from '../../core/worldChanges';
+import { catalogueLabel, elementById, hasElement } from '../elements/elementCatalog';
+import type { ElementSpot } from '../elements/elementPlace';
 import { buildNote, NOTE_MODEL, noteLabelOf } from '../notes/notePost';
 import { cleanNoteText, NOTE_MAX_CHARS } from '../notes/noteText';
 import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
@@ -1363,6 +1367,13 @@ export class PortalWorld implements World {
    * (`core/gameMode.refillsCatalogue`, `release`).
    */
   private readonly shelfFresh = new WeakSet<PhysicsBody>();
+  /**
+   * **Ein Spielelement aus dem Möbelkatalog in der Hand** (`takeElement`) —
+   * getragen wird sein Bodenstück wie ein Modell aus dem Regal, und beim
+   * Hinstellen stellt die Welt an seiner Stelle das Element hin
+   * (`placedElement`). Der Wert ist die Id im Katalog.
+   */
+  private readonly elementBodies = new Map<PhysicsBody, string>();
   /** Wie jedes Modell aus dem Regal steht (`modelStance.ts`) — nur Modelle stehen hier. */
   private readonly stances = new WeakMap<PhysicsBody, ModelStance>();
   /**
@@ -1993,6 +2004,7 @@ export class PortalWorld implements World {
         })),
       },
       this.assetMenu(ctx),
+      ...this.elementMenu(ctx),
       this.buildToolsMenu(),
       this.npcMenu(),
       {
@@ -3543,7 +3555,7 @@ export class PortalWorld implements World {
     // (`world`) stünde hier an einer Stelle, die nichts bedeutet. Alte Zeilen
     // ohne Welt gelten wie bisher hier.
     const here = this.context?.net.world ?? null;
-    const fits = (change: ModelChange | NoteChange): boolean =>
+    const fits = (change: ModelChange | NoteChange | ElementChange): boolean =>
       !change.world || !here || change.world === here;
     const models = list.filter(
       (change): change is ModelChange => change.kind === 'model' && fits(change),
@@ -3553,10 +3565,29 @@ export class PortalWorld implements World {
       (change): change is NoteChange => change.kind === 'note' && fits(change),
     );
     if (here) for (const change of notes) void this.placeNote(change, null, here);
-    const failed = open.length;
+    // **Spielelemente** über die Welt (`furnishSpot`) — was schon dasteht,
+    // sperrt seine Zellen, und dieselbe Liste zweimal stellt nichts doppelt hin.
+    let elements = 0;
+    for (const change of list) {
+      if (change.kind !== 'element' || !fits(change)) continue;
+      if (!hasElement(change.element)) continue;
+      const spot: ElementSpot = {
+        id: `katalog:${changeKey('element')}`,
+        element: change.element,
+        x: change.x,
+        z: change.z,
+        face: change.face,
+      };
+      if (this.furnishSpot(spot)) {
+        elements += 1;
+        this.recordElementOf(spot);
+      }
+    }
+    const offered = list.filter((change) => change.kind === 'element' && fits(change)).length;
+    const failed = open.length + offered - elements;
     const elsewhere = list.filter((change) => change.kind !== 'furniture' && !fits(change)).length;
     this.context?.notify(
-      `Eingefügt: ${done + models.length + notes.length} von ${list.length}` +
+      `Eingefügt: ${done + models.length + notes.length + elements} von ${list.length}` +
         (failed ? ` · ${failed} Möbel nicht gefunden oder kein Platz` : '') +
         (elsewhere ? ` · ${elsewhere} aus einer anderen Welt` : ''),
     );
@@ -3732,6 +3763,144 @@ export class PortalWorld implements World {
     entry.object.getWorldQuaternion(_quaternion);
     _euler.setFromQuaternion(_quaternion, 'YXZ');
     recordModel(key, path, _point, (_euler.y * 180) / Math.PI, this.context?.net.world);
+  }
+
+  // --- Möbelkatalog (`worlds/elements/`) -------------------------------------
+
+  /**
+   * **Die Spielelemente, die man in dieser Welt selbst hinstellen kann** — der
+   * Möbelkatalog im Menü (`elementMenu`). Hier keine: Ein Möbel mit Zweck
+   * braucht eine Welt, die Stationen führt (`elements/stationLayer.ts`), und
+   * die sagt es selbst (`TestRestaurantWorld`).
+   */
+  protected elementCatalogue(): readonly string[] {
+    return [];
+  }
+
+  /**
+   * **Ein Spielelement an der Stelle um diesen Punkt hinstellen** — mit
+   * gesperrten Zellen und, wo es einen Zweck hat, als Station. Die Antwort
+   * hier ist `null` (keine Welt dafür); wer `elementCatalogue` füllt, stellt
+   * hier auch hin.
+   *
+   * @param yaw die Drehung, mit der es getragen wurde, in Bogenmaß
+   * @returns die Stelle, auf der es jetzt steht — `null`, wenn dort kein Platz ist
+   */
+  protected furnishAt(_id: string, _x: number, _z: number, _yaw: number): ElementSpot | null {
+    return null;
+  }
+
+  /** **Eine Stelle hinstellen** — aus einer eingefügten Liste. Hier: nein. */
+  protected furnishSpot(_spot: ElementSpot): boolean {
+    return false;
+  }
+
+  /**
+   * **Das Menü _Möbel_** — der Möbelkatalog: Spielelemente statt Rohmodelle.
+   * Gewünscht: _„Ich brauche bei Möbel Katalog, die Funktion Möbel: eine
+   * Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit Schneide Brett,
+   * Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte. Waschbecken"_.
+   *
+   * Das Modellregal daneben gibt nur das Bild her; was man hier nimmt, wird
+   * beim Hinstellen ein Möbel mit Grundfläche auf dem Zellgitter und Zweck
+   * (`placedElement`). Nur in einer Welt, die das kann (`elementCatalogue`).
+   */
+  private elementMenu(ctx: () => WorldContext): MenuEntry[] {
+    const ids = this.elementCatalogue().filter(hasElement);
+    if (ids.length === 0) return [];
+    const accent = 0xe0914a;
+    return [
+      {
+        id: 'elements',
+        label: 'Möbel',
+        sub: 'Spielelemente — sperren ihre Kachel und tun etwas auf A',
+        icon: 'plank',
+        accent,
+        grid: true,
+        cols: SHELF_COLS,
+        take: true,
+        children: ids.map((id) => {
+          const element = elementById(id);
+          const [w, d] = element.tiles;
+          return {
+            id: `elements:${id}`,
+            label: catalogueLabel(element),
+            caption: `${w} × ${d} Kachel · ${2 * w} × ${2 * d} Zellen gesperrt`,
+            accent,
+            preview: `kaykit:${element.parts[0]!.model}`,
+            run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
+          };
+        }),
+      },
+    ];
+  }
+
+  /**
+   * **Ein Spielelement in die Hand** — getragen wird sein Bodenstück, auf
+   * demselben Weg wie ein Modell aus dem Regal (`conjureModel`): in die Hand,
+   * an den Kran, `R` dreht, Hinstellen legt ab.
+   */
+  private takeElement(
+    ctx: WorldContext,
+    id: string,
+    hand: Handedness | null,
+    yaw: number | null = null,
+  ): void {
+    ctx.menu.toggle(false);
+    const element = elementById(id);
+    void this.conjureModel(ctx, element.parts[0]!.model, hand, yaw, null, id);
+  }
+
+  /**
+   * **Was ein getragenes Spielelement von einem Modell unterscheidet**: Es
+   * geht nicht über die Leitung (`createSync`, `local`), ist keine
+   * Beutelware, und wenn es steht, ist es kein Gegenstand mehr, sondern ein
+   * Möbel der Welt (`placedElement`).
+   */
+  private adoptElement(entry: PhysicsBody, id: string): void {
+    this.elementBodies.set(entry, id);
+    this.spawned.delete(entry);
+  }
+
+  /**
+   * **Ein Spielelement ist hingestellt worden** — das getragene Bodenstück
+   * geht, an seine Stelle kommt das Element selbst (`furnishAt`): Zellen
+   * gesperrt, Körper, Teile, Station. Im _Baukasten_ kommt gleich das nächste
+   * in die Hand, mit derselben Drehung; wo kein Platz ist, bleibt es in der
+   * Hand.
+   *
+   * Nach dem Loslassen und nicht mitten darin (`queueMicrotask`), wie beim
+   * Modell (`placedFromShelf`).
+   */
+  private placedElement(ctx: WorldContext, hand: Handedness, entry: PhysicsBody): void {
+    const id = this.elementBodies.get(entry);
+    if (id === undefined) return;
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const x = _point.x;
+    const z = _point.z;
+    const yaw = quarterYaw(yawOf(_quaternion));
+    const fresh = this.shelfFresh.delete(entry);
+    queueMicrotask(() => {
+      if (this.context !== ctx) return;
+      this.removeProp(entry, false);
+      const spot = this.furnishAt(id, x, z, yaw);
+      if (spot) this.recordElementOf(spot);
+      else ctx.notify(`${catalogueLabel(elementById(id))}: dort ist kein Platz`);
+      if (!spot || (fresh && refillsCatalogue(gameMode()))) this.takeElement(ctx, id, hand, yaw);
+    });
+  }
+
+  /** Das hingestellte Element in die Liste der Weltänderungen (nur mit Häkchen). */
+  private recordElementOf(spot: ElementSpot): void {
+    recordElement(
+      changeKey('element'),
+      spot.element,
+      spot.x,
+      spot.z,
+      spot.face ?? 'S',
+      this.context?.net.world,
+    );
   }
 
   // --- Zettel (`worlds/notes/`) ----------------------------------------------
@@ -6362,6 +6531,7 @@ export class PortalWorld implements World {
     // hier käme ein Blatt ohne Text-Buchführung heraus, das sich die Leinwand
     // mit dem Vorbild teilt.
     if (this.notes.has(entry)) return null;
+    if (this.elementBodies.has(entry)) return null;
 
     const source = entry.object;
     const clone = cloneVisual(source);
@@ -7847,6 +8017,7 @@ export class PortalWorld implements World {
       this.removeUsable(entry.object);
       noteLabelOf(entry.object)?.dispose();
     }
+    this.elementBodies.delete(entry);
     physics.remove(entry);
     disposeTree(entry.object);
   }
@@ -9591,6 +9762,11 @@ export class PortalWorld implements World {
       this.placedNote(entry);
       return;
     }
+    // Ein Spielelement wird an dieser Stelle zum Möbel (`placedElement`).
+    if (this.elementBodies.has(entry)) {
+      this.placedElement(ctx, hand, entry);
+      return;
+    }
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     if (path === null) return;
     this.noteModel(entry, path);
@@ -9642,6 +9818,9 @@ export class PortalWorld implements World {
     if (!refillsCatalogue(gameMode()) || !this.shelfFresh.has(entry)) return false;
     // Mit einem Zettel wird nicht gemalt: zwanzig gleiche Zettel sagen nichts.
     if (this.notes.has(entry)) return false;
+    // Mit einem Spielelement auch nicht: Es wird beim Hinstellen ersetzt, und
+    // eine Reihe davon gibt der Baukasten ohnehin Stück für Stück nach.
+    if (this.elementBodies.has(entry)) return false;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     if (path === null) return false;
     entry.object.getWorldPosition(_point);
@@ -9922,6 +10101,10 @@ export class PortalWorld implements World {
     // Ein Zettel wird nicht geworfen, sondern hingestellt — auch aus einer
     // Faust, die sich im Gehen öffnet.
     const note = this.notes.has(entry);
+    // Ein Spielelement ebenso — und es rastet nicht selbst ein: An seine
+    // Stelle kommt gleich das Element (`placedElement`), und das rechnet seine
+    // Kacheln aus dem Punkt, an dem es losgelassen wurde.
+    if (this.elementBodies.has(entry)) return true;
     if (!note && !placesOnGrid(speed, placed)) return false;
 
     entry.object.getWorldPosition(_point);
@@ -10357,7 +10540,12 @@ export class PortalWorld implements World {
       }
       return;
     }
-    if (carried && this.shelfFresh.has(carried) && !this.notes.has(carried)) {
+    if (
+      carried &&
+      this.shelfFresh.has(carried) &&
+      !this.notes.has(carried) &&
+      !this.elementBodies.has(carried)
+    ) {
       const path = this.modelPath(carried);
       carried.object.getWorldQuaternion(_quaternion);
       if (path !== null) this.lastBrush = { path, yaw: eighthYaw(yawOf(_quaternion)) };
@@ -10387,7 +10575,12 @@ export class PortalWorld implements World {
     else if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
     else if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
     else if (carried && path && target) {
-      const name = this.notes.has(carried) ? 'Zettel' : propLabel(modelKind(path));
+      const element = this.elementBodies.get(carried);
+      const name = element
+        ? catalogueLabel(elementById(element))
+        : this.notes.has(carried)
+          ? 'Zettel'
+          : propLabel(modelKind(path));
       const where = target.mounted
         ? 'an der Wand'
         : target.on
@@ -11383,7 +11576,7 @@ export class PortalWorld implements World {
     const side = this.screenCarrySide();
     const entry = side ? this.grabs.get(side)?.entry : undefined;
     // Ein Zettel ist kein Pinsel: Eine Fläche voller Zettel sagt nichts.
-    if (!entry || this.notes.has(entry)) return null;
+    if (!entry || this.notes.has(entry) || this.elementBodies.has(entry)) return null;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     return path === null ? null : { entry, path };
   }
@@ -11900,6 +12093,8 @@ export class PortalWorld implements World {
     yaw: number | null = null,
     /** Ein **Zettel** mit diesem Text statt eines bloßen Modells (`takeNote`). */
     note: string | null = null,
+    /** Ein **Spielelement** aus dem Möbelkatalog, dessen Bodenstück das ist (`takeElement`). */
+    element: string | null = null,
   ): Promise<void> {
     const physics = this.physics;
     let model = kaykitModelNow(path);
@@ -11925,7 +12120,7 @@ export class PortalWorld implements World {
       now.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
       return;
     }
-    this.spawnModel(now, model, path, hand, yaw, note);
+    this.spawnModel(now, model, path, hand, yaw, note, element);
   }
 
   /**
@@ -11939,6 +12134,7 @@ export class PortalWorld implements World {
     hand: Handedness | null,
     yaw: number | null = null,
     note: string | null = null,
+    element: string | null = null,
   ): void {
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked ? gripOf(controller) : null;
@@ -11971,7 +12167,8 @@ export class PortalWorld implements World {
     // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
     // Ein Zettel nicht: Drüben käme nur das Gestell an, ohne Text.
-    if (note === null) this.sync?.spawned(id, kind, poseOf(entry));
+    if (element !== null) this.adoptElement(entry, element);
+    else if (note === null) this.sync?.spawned(id, kind, poseOf(entry));
     else this.adoptNote(entry, note);
 
     let caught = Boolean(hand && anchor);
@@ -11987,7 +12184,12 @@ export class PortalWorld implements World {
       // Spieler es in der Hand."
       caught = this.screenCatch(ctx, entry);
     }
-    const label = note === null ? propLabel(kind) : 'Zettel';
+    const label =
+      element !== null
+        ? catalogueLabel(elementById(element))
+        : note === null
+          ? propLabel(kind)
+          : 'Zettel';
     ctx.notify(caught ? this.carryNote(label) : label);
   }
 
@@ -13808,7 +14010,12 @@ export class PortalWorld implements World {
       local: (id) => {
         const entry = this.bodies.get(id);
         // Die Zettel auch: Sie gehen nicht über die Leitung (`adoptNote`).
-        return !!entry && (this.worldOwned.has(entry) || this.notes.has(entry));
+        // Und ein Spielelement in der Hand: Hingestellt wird es als Möbel der
+        // Welt und nicht als Gegenstand, den ein anderer übernehmen könnte.
+        return (
+          !!entry &&
+          (this.worldOwned.has(entry) || this.notes.has(entry) || this.elementBodies.has(entry))
+        );
       },
       heldLocally: (id) => {
         const entry = this.bodies.get(id);

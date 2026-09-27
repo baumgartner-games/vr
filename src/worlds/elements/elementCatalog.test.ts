@@ -3,7 +3,14 @@ import { join } from 'path';
 import { CRATE_LID_PATH, kaykitPlinth } from '../../core/kaykitCrate';
 import { kaykitFiles, type KaykitIndex } from '../../core/kaykitIndex';
 import { ITEM_LABELS } from '../test/zones/kitchenRecipes';
-import { ELEMENTS, SHOW_ONLY_GIVES, elementById, hasElement } from './elementCatalog';
+import {
+  ELEMENTS,
+  FURNITURE_CATALOGUE,
+  SHOW_ONLY_GIVES,
+  catalogueLabel,
+  elementById,
+  hasElement,
+} from './elementCatalog';
 
 /** Der Index des Regals — `null`, wenn die gekauften Pakete fehlen. */
 function shelf(): Set<string> | null {
@@ -145,5 +152,36 @@ describe('Spielelemente — der Katalog', () => {
 
   it('wirft bei einem unbekannten Namen', () => {
     expect(() => elementById('sofa')).toThrow(/sofa/);
+  });
+});
+
+describe('der Möbelkatalog im Menü', () => {
+  it('hat die sechs gewünschten Möbel, in dieser Reihenfolge und mit diesen Namen', () => {
+    expect(FURNITURE_CATALOGUE.map((id) => catalogueLabel(elementById(id)))).toEqual([
+      'Arbeitsplatte',
+      'Arbeitsplatte mit Schneidebrett',
+      'Herdplatte mit Pfanne',
+      'Herdplatte mit Topf',
+      'Herdplatte',
+      'Waschbecken',
+    ]);
+  });
+
+  it('sperrt mit jedem eine ganze Kachel — 2 × 2 Zellen — und jedes tut etwas auf A', () => {
+    for (const id of FURNITURE_CATALOGUE) {
+      const element = elementById(id);
+      expect(element.tiles).toEqual([1, 1]);
+      expect(element.height).toBeGreaterThanOrEqual(1.4);
+      expect(element.kind).not.toBeNull();
+    }
+  });
+
+  it('hat die Herdplatte blank: der Herd für den Topf, ohne Topf und ohne Pfanne', () => {
+    const hob = elementById('hob');
+    expect(hob).toMatchObject({
+      kind: 'stove',
+      parts: [{ model: 'restaurant-bits/stove_single.glb' }],
+    });
+    expect(hob.holds).toBeUndefined();
   });
 });

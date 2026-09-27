@@ -169,3 +169,32 @@ export function overlaps(spots: readonly ElementSpot[]): string[] {
     }
   return [...twice];
 }
+
+/**
+ * **Wohin eine Drehung schaut** — die Gegenrichtung von `faceYaw`, auf die
+ * nächste Vierteldrehung gerundet. Für ein Element, das jemand aus dem
+ * Möbelkatalog in der Hand gedreht hat (`PortalWorld.placedElement`).
+ */
+export function yawFace(yaw: number): Face {
+  if (!Number.isFinite(yaw)) return 'S';
+  const turns = ((Math.round(yaw / (Math.PI / 2)) % 4) + 4) % 4;
+  return (['S', 'E', 'N', 'W'] as const)[turns]!;
+}
+
+/**
+ * **Die Stelle um einen Punkt** — für ein Element, das jemand hinstellt, statt
+ * dass ein Plan es bestellt: Der Punkt (in Metern) ist, wo es losgelassen
+ * wurde, und die Stelle ist die, deren Mitte ihm am nächsten liegt. Für eine
+ * Kachel ist das die Kachel, auf die der Punkt fällt.
+ */
+export function spotAround(
+  id: string,
+  element: string,
+  x: number,
+  z: number,
+  face: Face,
+): ElementSpot {
+  const probe: ElementSpot = { id, element, x: 0, z: 0, face };
+  const [w, d] = spotSize(probe);
+  return { ...probe, x: Math.round(x - w / 2), z: Math.round(z - d / 2) };
+}

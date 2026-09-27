@@ -29,6 +29,9 @@
  *   interagieren. Das soll auch in Welt Änderungen getrackt werden können."_
  *   (gemeint sind Post-its). Punkt, Drehung und Text — damit, wer die Liste
  *   liest, weiß, was der Besitzer mit dem gemeint hat, was daneben steht.
+ * - **Spielelemente aus dem Möbelkatalog** (`worlds/elements/`) stehen wie im
+ *   Plan einer Welt: Element, Kachel der Nordwestecke, Blickrichtung — die
+ *   Zeile lässt sich in `SPOTS` übernehmen.
  *
  * **Und in welcher Welt** (`world`, seit September 2026): Ein Modell und ein
  * Zettel stehen in Weltmetern, und die sagen nichts ohne die Welt, in der sie
@@ -87,7 +90,26 @@ export interface NoteChange {
   readonly world?: string;
 }
 
-export type WorldChange = FurnitureChange | ModelChange | NoteChange;
+/**
+ * **Ein Spielelement aus dem Möbelkatalog** (`worlds/elements/`) — genau die
+ * Zeile, die ein Plan dafür braucht (`elementPlace.ElementSpot`): Element,
+ * Kachel der Nordwestecke, Blickrichtung. Was hier steht, lässt sich ohne
+ * Umrechnen in `SPOTS` einer Welt eintragen.
+ */
+export interface ElementChange {
+  readonly kind: 'element';
+  /** Der Name im Katalog der Spielelemente, etwa `board`. */
+  readonly element: string;
+  /** Die Kachel der Nordwestecke. */
+  readonly x: number;
+  readonly z: number;
+  /** Wohin die Vorderseite schaut. */
+  readonly face: 'N' | 'E' | 'S' | 'W';
+  /** In welcher Welt es steht. */
+  readonly world?: string;
+}
+
+export type WorldChange = FurnitureChange | ModelChange | NoteChange | ElementChange;
 
 const KEY = 'vr-weltaenderungen';
 
@@ -214,6 +236,24 @@ export function recordModel(
 }
 
 /**
+ * **Ein Spielelement ist aus dem Möbelkatalog hingestellt worden** — nur mit
+ * Häkchen, wie ein Modell.
+ */
+export function recordElement(
+  key: string,
+  element: string,
+  x: number,
+  z: number,
+  face: 'N' | 'E' | 'S' | 'W',
+  world?: string,
+): void {
+  load();
+  if (!tracking) return;
+  changes.set(key, { kind: 'element', element, x, z, face, ...(world ? { world } : {}) });
+  save();
+}
+
+/**
  * **Ein Zettel ist hingestellt, umgestellt oder neu beschriftet worden.**
  *
  * Dieselbe Zeile für alles drei, unter dem Schlüssel des Zettels — eine
@@ -302,6 +342,7 @@ export function formatChanges(list: readonly WorldChange[]): string {
     `Weltänderungen · ${list.length} · ` +
     'kitchen: [x, z, Drehung] in Kacheln relativ zur Küche (wie KITCHEN_SPOTS, Drehung 0=N 1=W 2=S 3=O) · ' +
     'model: [x, y, z] in Weltmetern, yaw in Grad · note: ein Zettel mit Text, Lage wie model · ' +
+    'element: ein Spielelement, x/z die Kachel der Nordwestecke, face die Vorderseite (wie SPOTS) · ' +
     'world: die Welt, in der es steht';
   // **Die Zettel noch einmal zum Lesen**, vor dem JSON: Sie sind das, was ein
   // Mensch dem Leser sagen wollte, und sollen nicht zwischen Koordinaten
@@ -373,6 +414,16 @@ function parseRow(row: unknown): WorldChange | null {
     if (data.from !== null && data.from !== undefined && !from) return null;
     return { kind: 'furniture', piece: data.kitchen, from, to };
   }
+  if (typeof data.element === 'string') {
+    const x = data.x;
+    const z = data.z;
+    if (typeof x !== 'number' || typeof z !== 'number') return null;
+    if (!Number.isInteger(x) || !Number.isInteger(z)) return null;
+    const face = data.face === undefined ? 'S' : data.face;
+    if (face !== 'N' && face !== 'E' && face !== 'S' && face !== 'W') return null;
+    const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
+    return { kind: 'element', element: data.element, x, z, face, ...world };
+  }
   if (typeof data.model === 'string' || typeof data.note === 'string') {
     const at = numbers(data.at, 3);
     if (!at) return null;
@@ -438,8 +489,11 @@ function toRow(change: WorldChange): unknown {
       to: [change.to.x, change.to.z, change.to.turn],
     };
   }
-  const at = [change.at.x, change.at.y, change.at.z];
   const world = change.world ? { world: change.world } : {};
+  if (change.kind === 'element') {
+    return { element: change.element, x: change.x, z: change.z, face: change.face, ...world };
+  }
+  const at = [change.at.x, change.at.y, change.at.z];
   return change.kind === 'note'
     ? { note: change.text, at, yaw: change.yaw, ...world }
     : { model: change.path, at, yaw: change.yaw, ...world };

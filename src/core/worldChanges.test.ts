@@ -6,6 +6,7 @@ import {
   formatChanges,
   notesIn,
   parseChanges,
+  recordElement,
   recordFurniture,
   recordModel,
   recordNote,
@@ -287,6 +288,32 @@ describe('worldChanges', () => {
       } finally {
         storage.restore();
       }
+    });
+  });
+
+  describe('Spielelemente aus dem Möbelkatalog', () => {
+    it('writes an element as a plan line and pastes it back, only with the box ticked', () => {
+      recordElement(changeKey('element'), 'board', 4, 2, 'N', 'test-restaurant');
+      expect(worldChanges()).toEqual([]);
+      setTrackingChanges(true);
+      recordElement(changeKey('element'), 'board', 4, 2, 'N', 'test-restaurant');
+      recordElement(changeKey('element'), 'hob', -1, 0, 'S');
+      const text = formatChanges(worldChanges());
+      expect(text).toContain(
+        '{"element":"board","x":4,"z":2,"face":"N","world":"test-restaurant"}',
+      );
+      expect(parseChanges(text)).toEqual([
+        { kind: 'element', element: 'board', x: 4, z: 2, face: 'N', world: 'test-restaurant' },
+        { kind: 'element', element: 'hob', x: -1, z: 0, face: 'S' },
+      ]);
+    });
+
+    it('reads an element without a face as facing south, and drops broken rows', () => {
+      expect(
+        parseChanges(
+          '[{"element":"sink","x":1,"z":2},{"element":"sink","x":1.5,"z":2},{"element":"sink","x":1,"z":2,"face":"Q"}]',
+        ),
+      ).toEqual([{ kind: 'element', element: 'sink', x: 1, z: 2, face: 'S' }]);
     });
   });
 });
