@@ -55,7 +55,7 @@ describe('itemModels — die Küche aus dem Regal', () => {
 
   it('lässt ohne Bild, was das Regal nicht hat — und sonst nichts', () => {
     const blank = ALL.filter((item) => itemModel(item) === '').sort();
-    expect(blank).toEqual(['extinguisher', 'pliers', 'water']);
+    expect(blank).toEqual(['pliers', 'water']);
   });
 
   it('zeigt ein Ding für sich als sein eines Stück', () => {

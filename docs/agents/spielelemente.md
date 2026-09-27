@@ -118,28 +118,29 @@ Zentimeter über der Zeile daneben, und der Test verbietet es.
 Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 `counter_A`/`counter_B` sind `kitchencounter_straight_A`/`_B`.
 
-| Id                               | Name                            | Art (`kind`)             | Teile                                                                                                                                                    |
-| -------------------------------- | ------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `counter`                        | Arbeitsplatte                   | `top`                    | `counter_A`                                                                                                                                              |
-| `board`                          | Arbeitsplatte mit Schneidebrett | `board`, `work: 'chop'`  | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                                                             |
-| `rolling-board`                  | Nudelbrett                      | `board`, `work: 'roll'`  | `counter_A`, `rollingpin` auf 10 cm                                                                                                                      |
-| `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten             | `crate`                  | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                                                            |
-| `pizza-supply`                   | Pizza-Vorratsbox                | `crate`, gibt `pizza`    | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                                                     |
-| `stove`                          | Herdplatte mit Pfanne           | `stove`, `holds: 'pan'`  | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin      |
-| `stove-pot`                      | Herdplatte mit Topf             | `stove`, `holds: 'pot'`  | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                                                     |
-| `hob`                            | Herdplatte                      | `stove`                  | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                                                               |
-| `sink`                           | Waschbecken                     | `sink`                   | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                                                    |
-| `bin`                            | Mülleimer                       | `bin`                    | `block-bits/trashcan` auf 0,55 m                                                                                                                         |
-| `plate-stack`                    | Tellerstapel                    | `drain`, gibt `plate`    | `counter_A`, `dishrack_plates`                                                                                                                           |
-| `bowl-stack`                     | Schüsselstapel                  | `drain`, gibt `bowl`     | `counter_A`, zwei `bowl`                                                                                                                                 |
-| `pizzabox-stack`                 | Kartonstapel                    | `drain`, gibt `pizzabox` | `counter_A`, `pizzabox_stacked`                                                                                                                          |
-| `ice-stand`                      | Eisstand                        | `drain`, gibt `cone`     | `counter_A`, `icecream_cone_stacked` (0,5 m), `icecream_scoop` (0,3 m, liegend), wie die Eisecke im Laden, nach Süden; ein Vorrat: `A` gibt ein Hörnchen |
-| `ice-tubs`                       | Eiswannen                       | `ice-tubs`               | `counter_A`, zwei `icecream_container` (×0,825), darin Vanille und Erdbeere (`inside`)                                                                   |
-| `belt`                           | Förderband                      | —                        | `platformer/yellow/conveyor_4x4x1_yellow`, halb gedreht; eine Kachel, 0,5 m (der Lader bringt es auf 1 × 1 m)                                            |
-| `table-round`                    | Runder Tisch                    | —                        | `table_round_B_tablecloth_red`; `[2, 2]` Kacheln                                                                                                         |
-| `chair`                          | Stuhl                           | —                        | `chair_A`                                                                                                                                                |
-| `supply-box`                     | Vorratsbox                      | —                        | leere `crate`; was obenauf liegt und was `A` tut, bestimmt die Welt                                                                                      |
-| `pizza-oven`                     | Pizzaofen                       | —                        | `pizza_oven`, zum Ansehen                                                                                                                                |
+| Id                               | Name                            | Art (`kind`)                   | Teile                                                                                                                                                    |
+| -------------------------------- | ------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `counter`                        | Arbeitsplatte                   | `top`                          | `counter_A`                                                                                                                                              |
+| `board`                          | Arbeitsplatte mit Schneidebrett | `board`, `work: 'chop'`        | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                                                             |
+| `rolling-board`                  | Nudelbrett                      | `board`, `work: 'roll'`        | `counter_A`, `rollingpin` auf 10 cm                                                                                                                      |
+| `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten             | `crate`                        | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                                                            |
+| `pizza-supply`                   | Pizza-Vorratsbox                | `crate`, gibt `pizza`          | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                                                     |
+| `stove`                          | Herdplatte mit Pfanne           | `stove`, `holds: 'pan'`        | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin      |
+| `stove-pot`                      | Herdplatte mit Topf             | `stove`, `holds: 'pot'`        | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                                                     |
+| `hob`                            | Herdplatte                      | `stove`                        | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                                                               |
+| `sink`                           | Waschbecken                     | `sink`                         | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                                                    |
+| `extinguisher`                   | Feuerlöscher                    | `top`, `holds: 'extinguisher'` | `counter_A`; der Löscher (`mixed-bag/fire_extinguisher`) steht als Ding der Küche darauf und geht mit                                                    |
+| `bin`                            | Mülleimer                       | `bin`                          | `block-bits/trashcan` auf 0,55 m                                                                                                                         |
+| `plate-stack`                    | Tellerstapel                    | `drain`, gibt `plate`          | `counter_A`, `dishrack_plates`                                                                                                                           |
+| `bowl-stack`                     | Schüsselstapel                  | `drain`, gibt `bowl`           | `counter_A`, zwei `bowl`                                                                                                                                 |
+| `pizzabox-stack`                 | Kartonstapel                    | `drain`, gibt `pizzabox`       | `counter_A`, `pizzabox_stacked`                                                                                                                          |
+| `ice-stand`                      | Eisstand                        | `drain`, gibt `cone`           | `counter_A`, `icecream_cone_stacked` (0,5 m), `icecream_scoop` (0,3 m, liegend), wie die Eisecke im Laden, nach Süden; ein Vorrat: `A` gibt ein Hörnchen |
+| `ice-tubs`                       | Eiswannen                       | `ice-tubs`                     | `counter_A`, zwei `icecream_container` (×0,825), darin Vanille und Erdbeere (`inside`)                                                                   |
+| `belt`                           | Förderband                      | —                              | `platformer/yellow/conveyor_4x4x1_yellow`, halb gedreht; eine Kachel, 0,5 m (der Lader bringt es auf 1 × 1 m)                                            |
+| `table-round`                    | Runder Tisch                    | —                              | `table_round_B_tablecloth_red`; `[2, 2]` Kacheln                                                                                                         |
+| `chair`                          | Stuhl                           | —                              | `chair_A`                                                                                                                                                |
+| `supply-box`                     | Vorratsbox                      | —                              | leere `crate`; was obenauf liegt und was `A` tut, bestimmt die Welt                                                                                      |
+| `pizza-oven`                     | Pizzaofen                       | —                              | `pizza_oven`, zum Ansehen                                                                                                                                |
 
 **Das Band ist eine Kachel** (September 2026): _„Statt 2x1 conveyers will ich
 1x1 conveyer belts haben. In der Restaurant Test Welt und in der normalen
@@ -287,15 +288,24 @@ Möbelkatalog gibt **Spielelemente** her.
   (`SHOW_ONLY_GIVES`), und der Test verbietet sie hier. Jedes
   belegt eine Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was
   es in der Küche tut.
-- **Unterordner je Gericht** (`FURNITURE_FOLDERS`, gewünscht: _„einige Möbel
-  doppelt gelistet … unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_):
-  Sie stehen als Ordner vor der ganzen Liste und enthalten, was man für das
-  Gericht hinstellt (die Möbel, mit denen `elementFlows.test.ts` es kocht).
-  **Doppelt ist nur die Kachel**: Dasselbe Element steht in mehreren Ordnern
-  und in der ganzen Liste, hingestellt wird jedes Mal dasselbe. Die Menü-Ids
-  tragen deshalb den Ort (`elements:board`, `elements/burger:board`), denn
-  Ids im Menü sind Adressen. Eine Welt gibt ihre Ordner über
-  `PortalWorld.elementFolders` her.
+- **Nur Ordner auf der Seite _Möbel_** (`FURNITURE_FOLDERS`): **Allgemein**
+  (Arbeitsplatte, Waschbecken, Mülleimer, Feuerlöscher auf Arbeitsplatte),
+  je Gericht **Pizza, Burger, Eis, Waffeln, Suppe** — jeder mit der
+  Arbeitsplatte vorn und den Möbeln, mit denen `elementFlows.test.ts` das
+  Gericht kocht, Burger und Pizza mit dem Tellerstapel — und **Alles** mit
+  der ganzen Liste. Gewünscht zuerst: _„einige Möbel doppelt gelistet …
+  unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_, dann: _„bei den unter
+  Ordner die Arbeitsplatte jeweils rein. Und die Möbel aus dem Restaurant
+  Ordner dafür raus. Dafür einen Ordner allgemein … Im Restaurant Ordner noch
+  einen Ordner „alles“"_. **Doppelt ist nur die Kachel**: Dasselbe Element
+  steht in mehreren Ordnern, hingestellt wird jedes Mal dasselbe. Die Menü-Ids
+  tragen deshalb den Ort (`elements/burger:board`), denn Ids im Menü sind
+  Adressen. Eine Welt gibt ihre Ordner über `PortalWorld.elementFolders` her;
+  ohne Ordner steht die Liste wie früher gleich auf der Seite.
+- **Der Feuerlöscher** (`extinguisher`) ist eine Arbeitsplatte, auf der zu
+  Beginn der Löscher steht (`holds: 'extinguisher'`, Bild
+  `mixed-bag/fire_extinguisher.glb` aus `itemModels`): nehmen, mitnehmen,
+  wieder abstellen, wie der Topf auf dem Herd.
 - **Das ⓘ jeder Kachel** (gewünscht: _„wie im Model Regal noch die Details
   sehen, aus welchen Modellen das besteht und auch wie das Grid bzw die
   Position ist von dem ganzen (Grid Flächen Belegung)"_) schlägt dieselbe

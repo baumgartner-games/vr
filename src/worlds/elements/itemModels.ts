@@ -13,8 +13,8 @@ import { STACK_ORDER, layered, type Dish, type KitchenItem } from '../test/zones
  * dahinter (`kitchenCarry.kitchenDeed`) sind für beide dieselben; nur das Bild
  * unterscheidet sich, und das Bild ist diese eine Tabelle.
  *
- * **Ein leerer Pfad ist eine Antwort und keine Lücke.** Für den Feuerlöscher,
- * die Wasserpumpenzange und das Wasser hat das Regal kein Stück; die Welt
+ * **Ein leerer Pfad ist eine Antwort und keine Lücke.** Für die
+ * Wasserpumpenzange und das Wasser hat das Regal kein Stück; die Welt
  * zeichnet sie anders oder gar nicht. Ein `''` sagt das ausdrücklich — ein
  * fehlender Eintrag wäre dagegen ein Übersetzerfehler (`Record` über alle
  * `KitchenItem`), und genau so soll es sein: Kommt ein Ding dazu, fragt der
@@ -42,8 +42,10 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   // war _„die falsche Pfanne beim Herd"_. Sie liegt in `kitchen.glb`, nicht im
   // Regal; geladen wird sie wie dort (`itemTemplate.loadItemModel`).
   pan: KITCHEN_PAN,
-  // Kein Feuerlöscher, keine Zange und kein Wasser im Regal (siehe oben).
-  extinguisher: '',
+  // **Der Feuerlöscher der Wundertüte** — derselbe wie in der Küche der
+  // Sandbox (`core/mixedbagFit.ts`), dort als Datei im Regal. Keine Zange und
+  // kein Wasser im Regal (siehe oben).
+  extinguisher: 'mixed-bag/fire_extinguisher.glb',
   pliers: '',
   water: '',
   plate: bits('plate'),

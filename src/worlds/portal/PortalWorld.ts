@@ -3906,9 +3906,9 @@ export class PortalWorld implements World {
         run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
       };
     };
-    // **Unterordner je Gericht** — gewünscht: _„einige Möbel doppelt gelistet
-    // … Pizza, Burger, Eis, Waffeln, Suppe"_. Doppelt ist nur die Kachel;
-    // genommen wird dasselbe Element.
+    // **Unterordner** — _Allgemein_, je Gericht einer, und _Alles_
+    // (`FURNITURE_FOLDERS`). Doppelt ist nur die Kachel; genommen wird
+    // dasselbe Element.
     const folders = this.elementFolders().flatMap((folder): MenuEntry[] => {
       const inside = folder.elements.filter(hasElement);
       if (inside.length === 0) return [];
@@ -3941,7 +3941,10 @@ export class PortalWorld implements World {
         cols: SHELF_COLS,
         full: true,
         take: true,
-        children: [...folders, ...ids.map((id) => tile(id, 'elements'))],
+        // **Nur Ordner** — gewünscht: _„die Möbel aus dem Restaurant Ordner
+        // dafür raus"_. Die ganze Liste steht im Ordner _Alles_; eine Welt
+        // ohne Ordner zeigt sie wie vorher gleich hier.
+        children: folders.length > 0 ? folders : ids.map((id) => tile(id, 'elements')),
       },
     ];
   }

@@ -182,6 +182,7 @@ describe('der Möbelkatalog im Menü', () => {
       'Kartonstapel',
       'Nudelbrett',
       'Mülleimer',
+      'Feuerlöscher',
     ]);
   });
 
@@ -193,13 +194,15 @@ describe('der Möbelkatalog im Menü', () => {
     }
   });
 
-  it('hat die Unterordner Pizza, Burger, Eis, Waffeln, Suppe — mit Möbeln aus der ganzen Liste', () => {
+  it('hat die Unterordner Allgemein, Pizza, Burger, Eis, Waffeln, Suppe, Alles — aus der ganzen Liste', () => {
     expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
+      'Allgemein',
       'Pizza',
       'Burger',
       'Eis',
       'Waffeln',
       'Suppe',
+      'Alles',
     ]);
     expect(new Set(FURNITURE_FOLDERS.map((folder) => folder.id)).size).toBe(
       FURNITURE_FOLDERS.length,
@@ -211,9 +214,24 @@ describe('der Möbelkatalog im Menü', () => {
     }
   });
 
-  it('listet dasselbe Element in mehreren Ordnern — das Brett bei Pizza, Burger und Suppe', () => {
-    const holding = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('board'));
-    expect(holding.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'soup']);
+  it('hat die Arbeitsplatte in jedem Ordner, den Tellerstapel bei Burger und Pizza', () => {
+    for (const folder of FURNITURE_FOLDERS) expect(folder.elements).toContain('counter');
+    const plates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('plate-stack'));
+    expect(plates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
+  });
+
+  it('hat Waschbecken, Mülleimer und Feuerlöscher in Allgemein, und in Alles jedes Möbel', () => {
+    const folder = (id: string) => FURNITURE_FOLDERS.find((one) => one.id === id)!.elements;
+    expect(folder('general')).toEqual(['counter', 'sink', 'bin', 'extinguisher']);
+    expect(folder('all')).toEqual(FURNITURE_CATALOGUE);
+  });
+
+  it('hat den Feuerlöscher auf der Arbeitsplatte, zum Mitnehmen', () => {
+    expect(elementById('extinguisher')).toMatchObject({
+      kind: 'top',
+      holds: 'extinguisher',
+      parts: [{ model: 'restaurant-bits/kitchencounter_straight_A.glb' }],
+    });
   });
 
   it('sperrt mit jedem eine ganze Kachel — 2 × 2 Zellen — und jedes tut etwas auf A', () => {

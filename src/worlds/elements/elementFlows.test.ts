@@ -282,6 +282,16 @@ describe('Spielelemente — Topf, Spüle und Pommes', () => {
   const pommes = (): Cook =>
     new Cook(['crate-potatoes', 'board', 'counter', 'stove-pot', 'sink', 'plate-stack', 'bin']);
 
+  it('Feuerlöscher: steht auf der Arbeitsplatte, geht mit und kommt wieder hin', () => {
+    const cook = new Cook(['extinguisher']);
+    expect(cook.on('extinguisher')).toEqual({ item: 'extinguisher', on: [] });
+    expect(cook.press('extinguisher').do).toBe('take');
+    expect(cook.held?.item).toBe('extinguisher');
+    expect(cook.on('extinguisher')).toBeNull();
+    expect(cook.press('extinguisher').do).toBe('place');
+    expect(cook.held).toBeNull();
+  });
+
   it('füllt den Topf an der Spüle — die Spüle bleibt leer', () => {
     const cook = pommes();
     expect(cook.press('stove-pot')).toEqual({ do: 'take', dish: { item: 'pot', on: [] } });
