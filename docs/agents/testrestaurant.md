@@ -28,9 +28,10 @@ der Südseite (z = 15).
 Was dazu im **Katalog** geändert wurde und damit in jeder Welt gilt
 ([Spielelemente](./spielelemente.md#die-elemente-heute)):
 
-- **Kisten und Mülleimer leuchten ganz** (`GameElement.lit`): Der Saum für
-  `A` umfasst Kiste samt Gemüse und den Eimer, wie die Pfanne auf dem Herd —
-  vorher lag dort nur ein Ring auf dem Boden.
+- **Das Möbel leuchtet, wenn es gemeint ist** (`elementLit`,
+  `Usable.highlight`): Kiste samt Gemüse beim Nehmen, der Eimer beim
+  Wegwerfen, die Arbeitsplatte beim Ablegen — das, was darauf liegt, beim
+  Nehmen. Vorher lag dort nur ein Ring auf dem Boden.
 - **Der Tellerstapel ist ein Abtropfgitter wie in der Sandbox**
   (`GameElement.rack`): höchstens vier Teller, zu Beginn voll, einzeln in den
   Fächern des leeren `dishrack` gezeigt; ein fünfter wird abgelehnt.
@@ -38,8 +39,9 @@ Was dazu im **Katalog** geändert wurde und damit in jeder Welt gilt
   man will — im Möbelkatalog bei Burger, Pizza und Alles.
 
 Geschnitten und belegt wird nach der Regel der Küche, die es schon gab: Salat
-oder Tomate aus der Kiste aufs Brett, und geschnitten wird, solange man
-davorsteht (`NEAR_STATION`); das Geschnittene aufs Brötchen, das Brötchen mit
+oder Tomate aus der Kiste aufs Brett, und geschnitten wird sofort, solange man
+höchstens 1,3 m von der Mitte des Bretts steht, auch vom Gang dahinter aus
+(`NEAR_STATION`); wer weggeht, hält es an; das Geschnittene aufs Brötchen, das Brötchen mit
 Belag an den Tellerstapel, und man hat den obersten Teller mit dem Burger in
 der Hand. `restaurantPlan.test.ts` kocht genau das auf diesen Stellen.
 

@@ -9,6 +9,7 @@ import {
   FURNITURE_FOLDERS,
   SHOW_ONLY_GIVES,
   elementById,
+  elementLit,
   hasElement,
 } from './elementCatalog';
 
@@ -254,14 +255,13 @@ describe('der Möbelkatalog im Menü', () => {
   });
 
   it('hat die Tellerkiste bei Burger und Pizza — eine Kiste, die Teller hergibt', () => {
-    expect(elementById('crate-plates')).toMatchObject({ kind: 'crate', gives: 'plate', lit: true });
+    expect(elementById('crate-plates')).toMatchObject({ kind: 'crate', gives: 'plate' });
     const crates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('crate-plates'));
     expect(crates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
   });
 
-  it('lässt jede Vorratskiste und den Mülleimer ganz leuchten', () => {
-    for (const element of ELEMENTS)
-      if (element.kind === 'crate' || element.kind === 'bin') expect(element.lit).toBe(true);
+  it('lässt jedes Möbel mit Zweck selbst leuchten — Kisten, Mülleimer, Arbeitsplatte —, Tisch und Band nicht', () => {
+    for (const element of ELEMENTS) expect(elementLit(element)).toBe(element.kind !== null);
   });
 
   it('macht den Tellerstapel zum Abtropfgitter wie in der Sandbox: leeres Gitter, Teller zählt die Station', () => {
