@@ -11,8 +11,11 @@ Branch gearbeitet hat, **löscht ihn hinterher wieder**, lokal und auf `origin`
 (`git push origin --delete <branch>`). Ein Branch, dessen Commits in `main`
 stecken, bleibt nicht liegen.
 
-Und: **Es wird aus vorhandenen Modellen gebaut** (KayKit-Regal), keine
-eigenen Wände oder Klötze — außer, es ist ausdrücklich so gewünscht.
+Und: **Es wird aus vorhandenen Modellen gebaut** (Modellregal), keine
+eigenen Wände oder Klötze — außer, es ist ausdrücklich so gewünscht. Möbel und
+Stationen stellt eine Welt als **Spielelement** hin (`src/worlds/elements/`,
+[Spielelemente](docs/agents/spielelemente.md)), das seine Zellen auf dem
+2D-Gitter selbst sperrt, und nie als rohes Modell aus dem Regal.
 
 Wessen Session gar nicht auf `main` pushen darf — Claude Code im Browser
 bekommt einen Branch zugewiesen —, nimmt den Umweg aus AGENTS.md und geht ihn

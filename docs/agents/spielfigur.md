@@ -546,7 +546,7 @@ Blatts.
 ## Was aus dem Beutel kommt
 
 > **Und was aus dem Regal kommt**, steht nebenan: Neben dem Beutel hängt im
-> Menü das [KayKit-Regal](./assetregal.md) — die gekaufte Sammlung, rund 4500
+> Menü das [Modellregal](./assetregal.md) — die gekaufte Sammlung, rund 4500
 > Dateien, durchblättert wie ein Dateibrowser. Der Unterschied ist der zwischen
 > einer Kiste mit Spielzeug und einem Lager: Was hier steht, ist von Hand
 > gebaut und heißt beim Namen; was dort steht, ist eine Datei, und ihr Pfad

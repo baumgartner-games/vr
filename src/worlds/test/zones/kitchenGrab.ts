@@ -531,6 +531,32 @@ export function kitchenHandles(
     // Genau das hat diese hier gemeldet, als sie dazukam.
     case 'water':
       return [];
+
+    // **Die zweite Speisekarte** (`kitchenRecipes.KitchenItem`): Diese Küche
+    // bekommt keines dieser Dinge je zu sehen — sie gehören dem Test
+    // Restaurant. Keine Griffe, bis eines davon hier in eine Hand kommt.
+    case 'bowl':
+    case 'pizzabox':
+    case 'cheese':
+    case 'cheese-cut':
+    case 'ham':
+    case 'ham-cooked':
+    case 'ham-burnt':
+    case 'pizza':
+    case 'pizza-cut':
+    case 'dough':
+    case 'dough-flat':
+    case 'waffle':
+    case 'carrot':
+    case 'carrot-cut':
+    case 'potato':
+    case 'potato-cut':
+    case 'onion':
+    case 'onion-cut':
+    case 'stew':
+    case 'ice-vanilla':
+    case 'ice-strawberry':
+      return [];
   }
 }
 

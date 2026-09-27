@@ -50,7 +50,7 @@ Material); zu sehen sind die Wandstücke aus _Restaurant Bits_.
 ## Wie es aussieht
 
 Alles aus dem KayKit-Regal, nichts Neues (siehe [Modelle](./modelle.md),
-[Das KayKit-Regal](./assetregal.md)):
+[Das Modellregal](./assetregal.md)):
 
 - **Möbel** aus dem Restaurant-Katalog (`core/dinerModel`, halbe Größe wie in
   der Testküche — Arbeitshöhe 0,5 m, ein runder Gasttisch auf 2 × 2 Kacheln):
@@ -296,6 +296,15 @@ Man bedient sie vom Gang `z = 1` aus, mit dem Blick nach Süden.
   daneben auf einer dunklen Matte der **Portionierer**.
 - Auf der östlichen zwei **Eiswannen**: Vanille (cremegelb) und Erdbeere
   (rosa).
+
+**Die Ecke steht auch woanders** (September 2026): `IceCorner` nimmt ihre
+Stellung als Parameter, `new IceCorner(place = PLATEUP_ICE)` mit
+`IceCornerPlace = { stand, tubs, face, flavors?, furnish? }`, gedreht über
+`iceYaw(face)`. Mit `furnish: false` stellt sie keine Möbel hin und übernimmt
+mit `adopt(top, cones, scoop)` Platte, Stapel und Portionierer der
+Spielelemente `ice-stand` und `ice-tubs`. So steht sie in der Eis-Küche des
+[Test Restaurants](./testrestaurant.md) (`restaurantIce.ts`). Der Laden hier
+ruft sie unverändert.
 
 **Warum dort und nicht mehr an der Westwand.** Zuerst stand die Eisecke auf
 0 | 1 und 0 | 2, südlich des Kühlschranks — und kam so an: _„ich sehe den

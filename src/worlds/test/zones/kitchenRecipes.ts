@@ -86,7 +86,56 @@ export type KitchenItem =
    * `FRIES` und in keinem `FOOD`. Warum es trotzdem ein `KitchenItem` ist und
    * nicht ein zweites Ding `'pot-water'`, steht bei `Dish`.
    */
-  | 'water';
+  | 'water'
+  /**
+   * **Die zweite Speisekarte** — was das Test Restaurant außer Burgern kocht
+   * (`worlds/testrestaurant`): Schinken, Pizza zum Mitnehmen, Suppe, Waffeln
+   * mit Eis und Käse auf den Burger.
+   *
+   * Sie steht **in derselben Liste** und nicht in einer zweiten, obwohl die
+   * Küche der Testwelt und der Laden (`worlds/plateup`) keines dieser Dinge je
+   * zu sehen bekommen. Eine zweite Liste hieße zweite Regeln: ein zweites
+   * `combine`, ein zweiter Mülleimer, ein zweites „was tut `A` hier" — und
+   * genau die Sorte Doppelung, gegen die `kitchenCarry.kitchenDeed` als
+   * **eine** Funktion steht. So ist eine Schüssel ein Träger wie der Teller,
+   * und Schinken verbrennt auf derselben Grillplatte wie das Patty.
+   *
+   * Der **Pizzakarton** und die **Schüssel** sind Träger (`TAKES`); alles
+   * andere ist Zutat in ihren Stufen.
+   */
+  | 'bowl'
+  | 'pizzabox'
+  /** Käse wird geschnitten, die Scheibe geht auf den Burger. */
+  | 'cheese'
+  | 'cheese-cut'
+  /** Schinken und seine drei Stufen — dieselben wie beim Patty. */
+  | 'ham'
+  | 'ham-cooked'
+  | 'ham-burnt'
+  /** Die ganze Pizza und ihre Stücke — beide passen in den Karton. */
+  | 'pizza'
+  | 'pizza-cut'
+  /** Teig wird ausgerollt, der flache Teig auf der Grillplatte zur Waffel. */
+  | 'dough'
+  | 'dough-flat'
+  | 'waffle'
+  /** Gemüse für die Suppe: geschnitten in den Topf, heraus kommt Suppe. */
+  | 'carrot'
+  | 'carrot-cut'
+  | 'potato'
+  | 'potato-cut'
+  | 'onion'
+  | 'onion-cut'
+  | 'stew'
+  /**
+   * **Eiskugeln** — aus der Eiswanne direkt in die Schüssel.
+   *
+   * Sie gibt es nie für sich in der Hand: Die Wanne gibt eine Kugel nur in
+   * eine Schüssel (`kitchenCarry.atTub`). Das Hörnchen der Eisecke im Laden
+   * (`plateup/plateUpIce.ts`) ist davon getrennt und bleibt, wie es ist.
+   */
+  | 'ice-vanilla'
+  | 'ice-strawberry';
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -123,6 +172,29 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   // Hinweis der Spüle („Topf mit Wasser füllen") stünde er falsch: Gefüllt wird
   // der Topf, und **womit**, sagt dieses Wort.
   water: 'Wasser',
+  bowl: 'Schüssel',
+  pizzabox: 'Pizzakarton',
+  cheese: 'Käse',
+  'cheese-cut': 'Käsescheibe',
+  ham: 'Roher Schinken',
+  'ham-cooked': 'Gebratener Schinken',
+  'ham-burnt': 'Verbrannter Schinken',
+  pizza: 'Pizza',
+  'pizza-cut': 'Geschnittene Pizza',
+  dough: 'Teig',
+  'dough-flat': 'Ausgerollter Teig',
+  waffle: 'Waffel',
+  carrot: 'Karotte',
+  'carrot-cut': 'Geschnittene Karotte',
+  potato: 'Kartoffel',
+  'potato-cut': 'Geschnittene Kartoffel',
+  onion: 'Zwiebel',
+  'onion-cut': 'Geschnittene Zwiebel',
+  // **„Gemüsesuppe" und nicht „Suppe"**: Die Tomatensuppe gibt es schon, und
+  // zwei Dinge, die in einem Satz gleich heißen, sind im Satz ein Ding.
+  stew: 'Gemüsesuppe',
+  'ice-vanilla': 'Vanilleeis',
+  'ice-strawberry': 'Erdbeereis',
 };
 
 /**
@@ -213,11 +285,43 @@ export function dish(item: KitchenItem, on: readonly KitchenItem[] = []): Dish {
  * rechts steht, gibt `carries(x, 'water')` für **jedes** `x` falsch. Wasser
  * landet auf keinem Brötchen, auf keinem Teller und in keiner Pfanne — nicht
  * weil niemand daran gedacht hat, sondern weil die Tabelle es nicht hergibt.
+ *
+ * **Die zweite Speisekarte hängt sich hinten an.** Käse geht auf Teller und
+ * Brötchen wie der Salat, gebratener Schinken auf den Teller; die **Schüssel**
+ * nimmt Waffel, Suppe und Eiskugeln, der **Pizzakarton** genau eine Pizza,
+ * ganz oder geschnitten (`HOLDS_ONE`). Keine der alten Zeilen verliert dabei
+ * etwas — wer in der Testwelt einen Burger baut, baut ihn wie vorher.
  */
 const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
-  plate: ['bun', 'patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
-  bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
+  plate: [
+    'bun',
+    'patty-cooked',
+    'lettuce-cut',
+    'tomato-cut',
+    'tomato-soup',
+    'cheese-cut',
+    'ham-cooked',
+  ],
+  bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup', 'cheese-cut'],
   pan: ['patty', 'patty-cooked', 'patty-burnt'],
+  bowl: ['waffle', 'stew', 'ice-vanilla', 'ice-strawberry'],
+  pizzabox: ['pizza', 'pizza-cut'],
+};
+
+/**
+ * **Träger, in die genau ein Ding passt** — und wie sie das im Satz sagen.
+ *
+ * Die Pfanne war lange der einzige, und ihre beiden Sätze standen deshalb als
+ * Sonderfall in `pour`. Mit dem Pizzakarton gibt es einen zweiten: Eine Pizza
+ * liegt darin, ganz oder in Stücken, und eine zweite passt nicht hinein. Eine
+ * Zeile hier statt eines zweiten `if` daneben — und die Sätze der Pfanne
+ * kommen Wort für Wort so heraus wie vorher.
+ */
+const HOLDS_ONE: Partial<
+  Record<KitchenItem, { readonly inside: string; readonly into: string; readonly one: string }>
+> = {
+  pan: { inside: 'In der Pfanne', into: 'In die Pfanne', one: 'ein Patty' },
+  pizzabox: { inside: 'Im Pizzakarton', into: 'In den Pizzakarton', one: 'eine Pizza' },
 };
 
 /** Ob auf diesem Ding überhaupt etwas liegen kann. */
@@ -254,6 +358,11 @@ const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   lettuce: 'lettuce-cut',
   tomato: 'tomato-cut',
   'tomato-cut': 'tomato-soup',
+  cheese: 'cheese-cut',
+  pizza: 'pizza-cut',
+  carrot: 'carrot-cut',
+  potato: 'potato-cut',
+  onion: 'onion-cut',
 };
 
 export function chopStage(item: KitchenItem): KitchenItem | null {
@@ -272,10 +381,81 @@ export function chopStage(item: KitchenItem): KitchenItem | null {
 const FRIES: Partial<Record<KitchenItem, KitchenItem>> = {
   patty: 'patty-cooked',
   'patty-cooked': 'patty-burnt',
+  // Schinken geht denselben Weg wie das Patty, Stufe für Stufe — und
+  // verbrennt deshalb auch genauso (`BURNT`).
+  ham: 'ham-cooked',
+  'ham-cooked': 'ham-burnt',
+  // **Die Waffel ist gebratener Teig**, und die Grillplatte ist das Waffeleisen:
+  // ein Möbel mehr wäre ein Möbel, das dasselbe tut. Sie verbrennt nicht — nach
+  // der Waffel kommt nichts mehr.
+  'dough-flat': 'waffle',
 };
 
 export function fryStage(item: KitchenItem): KitchenItem | null {
   return FRIES[item] ?? null;
+}
+
+/**
+ * **Was verbrannt ist** — und damit nur noch in den Müll gehört.
+ *
+ * Eine Liste der Ergebnisse und keine zweite Tabelle der Übergänge: Welche
+ * Stufe zu welcher verbrennt, steht schon in `FRIES`. Hier steht nur, welche
+ * dieser Stufen die schwarze ist. Die sichere Kochstelle lässt genau diese
+ * Stufe aus (`kitchenWork.workStage`), die heiße Platte im Laden läuft genau
+ * in sie hinein (`plateup/plateUpStations.tickStation`).
+ */
+const BURNT: readonly KitchenItem[] = ['patty-burnt', 'ham-burnt'];
+
+/** Ob dieses Ding verbrannt ist. */
+export function isBurnt(item: KitchenItem): boolean {
+  return BURNT.includes(item);
+}
+
+/**
+ * **Was aus diesem Ding wird, wenn es zu lange liegt** — `null`, wenn es
+ * nicht verbrennen kann.
+ *
+ * Gebratenes Patty wird verbranntes Patty, gebratener Schinken verbrannter
+ * Schinken; die Waffel und alles Rohe nicht (das Rohe wird erst gebraten).
+ */
+export function burnStage(item: KitchenItem): KitchenItem | null {
+  const next = fryStage(item);
+  return next && isBurnt(next) ? next : null;
+}
+
+/**
+ * **Was aus einer Zutat unter dem Nudelholz wird** — der Teig wird flach.
+ *
+ * Eine eigene Tabelle und nicht eine Zeile in `CHOPS`, obwohl das Ausrollen
+ * genauso lange dauert und genauso jemanden davor braucht: Sonst ließe sich
+ * Teig auf jedem Schneidebrett ausrollen und Käse unter dem Nudelholz
+ * schneiden, und das Möbel, auf dem das Nudelholz liegt, wäre nur ein Bild.
+ */
+const ROLLS: Partial<Record<KitchenItem, KitchenItem>> = {
+  dough: 'dough-flat',
+};
+
+export function rollStage(item: KitchenItem): KitchenItem | null {
+  return ROLLS[item] ?? null;
+}
+
+/**
+ * **Was im Suppentopf aus Gemüse wird** — Suppe, und zwar aus **einem**
+ * geschnittenen Gemüse.
+ *
+ * Mehrere Sorten nacheinander in denselben Topf wären ehrlicher und sind eine
+ * zweite Uhr mit Inhalt; dafür gibt es heute kein Rezept, das es verlangt.
+ * Kommt eines, wird aus dieser Tabelle eine Regel über `Dish.on` — bis dahin
+ * ist jede Sorte für sich schon eine Suppe.
+ */
+const COOKS: Partial<Record<KitchenItem, KitchenItem>> = {
+  'carrot-cut': 'stew',
+  'potato-cut': 'stew',
+  'onion-cut': 'stew',
+};
+
+export function cookStage(item: KitchenItem): KitchenItem | null {
+  return COOKS[item] ?? null;
 }
 
 /**
@@ -290,6 +470,19 @@ const RAW: Partial<Record<KitchenItem, string>> = {
   patty: 'gebraten',
   lettuce: 'geschnitten',
   tomato: 'geschnitten',
+  cheese: 'geschnitten',
+  ham: 'gebraten',
+  dough: 'ausgerollt',
+  'dough-flat': 'gebacken',
+  carrot: 'geschnitten',
+  potato: 'geschnitten',
+  onion: 'geschnitten',
+  // **Geschnittenes Gemüse ist hier noch roh**, anders als die
+  // Tomatenscheibe: Die darf auf den Burger, die Karotte gehört nur in den
+  // Topf. „Muss noch" und nicht „kann noch" — genau die Regel von oben.
+  'carrot-cut': 'gekocht',
+  'potato-cut': 'gekocht',
+  'onion-cut': 'gekocht',
 };
 
 /** Ob dieses Ding erst noch durch Herd oder Brett muss. */
@@ -319,6 +512,28 @@ const FOOD: readonly KitchenItem[] = [
   'tomato',
   'tomato-cut',
   'tomato-soup',
+  // Die zweite Speisekarte — alles, was man essen kann, ohne die beiden
+  // Träger: Schüssel und Pizzakarton bleiben am Mülleimer in der Hand wie der
+  // Teller (`kitchenCarry.intoBin` → `scrape`).
+  'cheese',
+  'cheese-cut',
+  'ham',
+  'ham-cooked',
+  'ham-burnt',
+  'pizza',
+  'pizza-cut',
+  'dough',
+  'dough-flat',
+  'waffle',
+  'carrot',
+  'carrot-cut',
+  'potato',
+  'potato-cut',
+  'onion',
+  'onion-cut',
+  'stew',
+  'ice-vanilla',
+  'ice-strawberry',
 ];
 
 /** Ob dieses Ding in den Müll darf. */
@@ -340,9 +555,19 @@ export const STACK_ORDER: readonly KitchenItem[] = [
   'patty',
   'patty-cooked',
   'patty-burnt',
+  // Schinken und Käse liegen wie beim Cheeseburger direkt auf dem Fleisch.
+  'ham-cooked',
+  'cheese-cut',
   'lettuce-cut',
   'tomato-cut',
   'tomato-soup',
+  // Was in Karton und Schüssel liegt: erst das Feste, dann die Kugeln obenauf.
+  'pizza',
+  'pizza-cut',
+  'waffle',
+  'stew',
+  'ice-vanilla',
+  'ice-strawberry',
 ];
 
 /** Dieselben Zutaten, von unten nach oben sortiert. */
@@ -411,10 +636,14 @@ function whyNot(carrier: KitchenItem, item: KitchenItem): string {
   // **Das Verbrannte bekommt seinen eigenen Satz**, und der nennt den einzigen
   // Weg, der ihm noch bleibt. Ohne ihn stünde hier „Verbranntes Patty gehört
   // nicht auf Teller" — richtig, aber ratlos.
-  if (item === 'patty-burnt') return 'Verbranntes Patty gehört in den Müll';
-  if (carrier === 'pan') return 'In die Pfanne gehört nur ein Patty';
+  if (isBurnt(item)) return `${ITEM_LABELS[item]} gehört in den Müll`;
+  const one = HOLDS_ONE[carrier];
+  if (one) return `${one.into} gehört nur ${one.one}`;
   if (item === 'bun') return 'Zwei Brötchen werden kein Burger — dafür braucht es einen Teller';
   if (item === 'plate') return 'Ein Teller gehört unter das Essen und nicht darauf';
+  // Eine Schüssel hat ein Innen und kein Oben — „gehört nicht auf Schüssel"
+  // wäre der Satz, bei dem man merkt, dass ihn eine Tabelle gebaut hat.
+  if (carrier === 'bowl') return `${ITEM_LABELS[item]} gehört nicht in die Schüssel`;
   return `${ITEM_LABELS[item]} gehört nicht auf ${ITEM_LABELS[carrier]}`;
 }
 
@@ -430,15 +659,16 @@ function pour(giver: Dish, taker: Dish): Pour {
   const { what, rest } = offer(giver);
   // Nur die Pfanne kann leer abgeben — jeder andere Träger wandert selbst mit.
   if (!what.length) return { ok: false, why: 'In der Pfanne liegt nichts', sure: true };
-  if (taker.item === 'pan') {
+  const one = HOLDS_ONE[taker.item];
+  if (one) {
     if (taker.on.length) {
       return {
         ok: false,
-        why: `In der Pfanne liegt schon ${ITEM_LABELS[taker.on[0]]}`,
+        why: `${one.inside} liegt schon ${ITEM_LABELS[taker.on[0]]}`,
         sure: true,
       };
     }
-    if (what.length > 1) return { ok: false, why: 'In die Pfanne passt nur ein Patty', sure: true };
+    if (what.length > 1) return { ok: false, why: `${one.into} passt nur ${one.one}`, sure: true };
   }
   for (const item of what) {
     if (!carries(taker.item, item)) return { ok: false, why: whyNot(taker.item, item), sure: true };
@@ -591,7 +821,7 @@ export function recipeOf(parts: readonly KitchenItem[]): Recipe | null {
  */
 export function served(d: Dish): Recipe | null {
   const parts = contentsOf(d);
-  if (parts.includes('patty-burnt')) return null;
+  if (parts.some(isBurnt)) return null;
   if (!parts.includes('bun') || !parts.includes('patty-cooked')) return null;
   return recipeOf(parts) ?? FREESTYLE;
 }
@@ -605,7 +835,7 @@ export function served(d: Dish): Recipe | null {
  */
 export function whyNotServed(d: Dish): string {
   const parts = contentsOf(d);
-  if (parts.includes('patty-burnt')) return 'Verbranntes wird nicht serviert — ab in den Müll';
+  if (parts.some(isBurnt)) return 'Verbranntes wird nicht serviert — ab in den Müll';
   if (!parts.includes('bun')) return 'Dafür fehlt noch das Brötchen';
   if (!parts.includes('patty-cooked')) return 'Dafür fehlt noch ein gebratenes Patty';
   return 'Das ist noch kein Burger';

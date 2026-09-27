@@ -77,9 +77,13 @@ import {
 } from '../../../core/interaction';
 import {
   ITEM_LABELS,
+  carries,
+  chopStage,
   combine,
+  cookStage,
   dish,
   dishLabel,
+  isCarrier,
   isDishware,
   isFood,
   layered,
@@ -96,19 +100,23 @@ export {
   ITEM_LABELS,
   RECIPES,
   STACK_ORDER,
+  burnStage,
   carries,
   chopStage,
   combine,
   contentsOf,
+  cookStage,
   dish,
   dishLabel,
   fryStage,
+  isBurnt,
   isCarrier,
   isDishware,
   isFood,
   isRaw,
   layered,
   recipeOf,
+  rollStage,
   served,
   whyNotServed,
   type Combined,
@@ -213,7 +221,29 @@ export type StationKind =
    * Inhalt — `kitchenClock.ts`). Hier liegt das Patty unmittelbar auf der
    * Platte, und `A` findet eine Arbeitsfläche vor wie am Brett.
    */
-  | 'griddle';
+  | 'griddle'
+  /**
+   * **Das Nudelholz**: ein Schneidebrett für Teig (`kitchenWork` `'roll'`).
+   *
+   * Für `A` ist es dasselbe wie das Brett — auflegen, dabeistehen, fertig —,
+   * und es steht deshalb in derselben Zeile von `kitchenDeed`. Eine eigene Art
+   * bekommt es nur für die Uhr: Was hier gearbeitet wird, sagt `STATION_WORK`.
+   */
+  | 'roller'
+  /**
+   * **Der Suppentopf auf dem Herd** — nicht zu verwechseln mit dem Topf, den
+   * man in die Hand nimmt (`KitchenItem` `'pot'`).
+   *
+   * Hinein geht geschnittenes Gemüse, und es kocht allein zu Suppe
+   * (`kitchenWork` `'cook'`). Heraus geht die Suppe nur in eine Schüssel:
+   * Suppe in der bloßen Hand gibt es nicht (`atPot`).
+   */
+  | 'pot'
+  /**
+   * **Die Eiswanne**: Sie gibt ihre Sorte (`Station.gives`) als Kugel in die
+   * Schüssel, die man hinhält — und in nichts sonst (`atTub`).
+   */
+  | 'tub';
 
 /**
  * **Welche Station welche Arbeit laufen lässt** — eine Zeile je Art, `null`
@@ -238,6 +268,9 @@ export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
   mixer: 'blend',
   griddle: 'fry',
   sink: 'wash',
+  roller: 'roll',
+  pot: 'cook',
+  tub: null,
   top: null,
   bin: null,
   box: null,
@@ -328,6 +361,9 @@ export const EXTINGUISHER_REST: Readonly<Record<StationKind, ExtinguisherRest>> 
   return: 'never',
   table: 'never',
   combiner: 'never',
+  roller: 'never',
+  pot: 'never',
+  tub: 'never',
 };
 
 /**
@@ -373,7 +409,10 @@ export interface Station {
   readonly kind: StationKind;
   /** Was darauf liegt — beim Herd die Pfanne, in der Halterung der Löscher. */
   readonly on?: Dish | null;
-  /** Was die Kiste hergibt — nur bei `box`. */
+  /**
+   * **Was die Station hergibt** — bei `box` und `crate` die Zutat, bei `tub`
+   * die Eissorte.
+   */
   readonly gives?: KitchenItem;
   /** Ob der Herd brennt — nur bei `stove` (`kitchenClock.StoveState.fire`). */
   readonly fire?: boolean;
@@ -399,6 +438,12 @@ export interface Station {
    * Es steht am **Platz** und nicht am Möbel: Dasselbe Abtropfgitter ist heute
    * das der sauberen und morgen das der dreckigen Teller, je nachdem, was
    * jemand hineingestellt hat.
+   *
+   * **Und es kann auch ein anderer Träger sein** — ein Stapel Schüsseln oder
+   * Pizzakartons im Test Restaurant (`plateup/plateUpStations.asStation`
+   * reicht dafür `StationSpot.gives` durch). Dann ist es kein Gitter mehr,
+   * sondern ein Stapel, der genau diese eine Sorte hergibt und zurücknimmt
+   * (`inRack`).
    */
   readonly stacked?: KitchenItem | null;
 }
@@ -576,7 +621,14 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
       return onTop(held, station.on ?? null);
     }
 
+    case 'pot':
+      return atPot(held, station.on ?? null);
+
+    case 'tub':
+      return atTub(held, station.gives);
+
     case 'board':
+    case 'roller':
     case 'mixer':
     case 'griddle': {
       const on = station.on ?? null;
@@ -933,6 +985,10 @@ function inRack(held: Dish | null, stack: number, stacked: KitchenItem | null): 
   if (!held) {
     return stack > 0 ? { do: 'take', dish: dish(stacked ?? 'plate') } : { do: 'nothing' };
   }
+  // **Was obenauf steht und etwas aufnehmen kann** — der saubere Teller, im
+  // Test Restaurant auch die Schüssel oder der Pizzakarton. Der dreckige
+  // Teller ist kein Träger (`kitchenRecipes.TAKES`) und fällt hier heraus.
+  const top = stacked && isCarrier(stacked) ? stacked : null;
   // **Der oberste saubere Teller nimmt an, was auf ihn gehört** — und kommt
   // mit dem Gericht darauf in die Hand.
   //
@@ -951,8 +1007,12 @@ function inRack(held: Dish | null, stack: number, stacked: KitchenItem | null): 
   // und auf einen dreckigen legt man nichts (`kitchenRecipes.TAKES`), der
   // Versuch endet also ohnehin im Satz darunter. Gefragt wird trotzdem, damit
   // hier steht, was gemeint ist.
-  if (stack > 0 && stacked === 'plate') {
-    const both = combine(held, dish('plate'));
+  //
+  // **Und mit jedem anderen Träger genauso**: Wer die geschnittene Pizza vor
+  // den Kartons hält, bekommt den Karton mit der Pizza darin; wer die Waffel
+  // vor die Schüsseln hält, die Schüssel mit der Waffel.
+  if (stack > 0 && top) {
+    const both = combine(held, dish(top));
     // Dieselbe Bedingung wie an der Kiste: Was nicht in **eine** Hand geht,
     // hinge in der Luft — ein Gitter hat vier Fächer für Teller und keine
     // Ablage für den Rest.
@@ -960,6 +1020,16 @@ function inRack(held: Dish | null, stack: number, stacked: KitchenItem | null): 
       const one = both.target ?? both.held;
       if (one) return { do: 'combine', held: one, target: null, moved: both.moved };
     }
+  }
+  // **Ein Stapel, der kein Teller ist, nimmt nur seine eigene Sorte zurück** —
+  // leer, und bis zur selben Grenze. Die Sätze über saubere und dreckige
+  // Teller darunter gelten für ihn nicht: Hier stehen keine Teller.
+  if (stacked && !isDishware(stacked)) {
+    if (held.item !== stacked || held.on.length) {
+      return { do: 'refuse', why: `Auf diesen Stapel gehört nur ${ITEM_LABELS[stacked]}, leer` };
+    }
+    if (stack >= CLEAN_STACK_MAX) return { do: 'refuse', why: 'Der Stapel ist voll' };
+    return { do: 'place', dish: held };
   }
   if ((held.item !== 'plate' && held.item !== 'plate-dirty') || held.on.length) {
     return { do: 'refuse', why: 'In das Abtropfgitter gehören nur leere Teller' };
@@ -992,6 +1062,72 @@ function atReturn(held: Dish | null, stack: number): KitchenDeed {
     return { do: 'refuse', why: 'Hier wird nur dreckiges Geschirr abgestellt' };
   }
   return { do: 'place', dish: held };
+}
+
+/**
+ * **Der Suppentopf** — Gemüse hinein, Suppe in die Schüssel.
+ *
+ * Er ist eine Arbeitsstation wie die Kochstelle (`STATION_WORK`: `'cook'`,
+ * läuft allein), aber **keine Ablage**: Ein Teller im Suppentopf ist kein
+ * abgestellter Teller, sondern ein Versehen. Deshalb nimmt er nur, was er
+ * kochen kann, und sagt bei allem anderen, warum nicht.
+ *
+ * **Die Suppe geht nicht in die leere Hand.** Sie ist das einzige Ding dieser
+ * Küche, das ohne Träger nicht zu halten ist, und statt ein Ding „Suppe in der
+ * Hand" zu erlauben, das man dann irgendwo in eine Schüssel kippt, sagt der
+ * Topf, was fehlt. Mit der Schüssel in der Hand ist es ein gewöhnliches
+ * Zusammenlegen (`combine`): Die Suppe wandert in die Schüssel, der Topf ist
+ * danach leer.
+ *
+ * Gemüse, das noch kocht, darf dagegen wieder heraus — wer sich vergriffen
+ * hat, soll nicht fünf Sekunden auf eine Suppe warten müssen, die er nicht
+ * wollte.
+ */
+function atPot(held: Dish | null, on: Dish | null): KitchenDeed {
+  if (!held) {
+    if (!on) return { do: 'nothing' };
+    if (!on.on.length && on.item === 'stew') {
+      return { do: 'refuse', why: `${ITEM_LABELS.stew} braucht eine Schüssel` };
+    }
+    return { do: 'take', dish: on };
+  }
+  if (!on) {
+    if (!held.on.length && cookStage(held.item)) return { do: 'work', kind: 'cook', dish: held };
+    // Das ganze Gemüse bekommt den Satz, der den nächsten Schritt nennt.
+    if (!held.on.length && chopStage(held.item) && cookStage(chopStage(held.item)!)) {
+      return { do: 'refuse', why: `${ITEM_LABELS[held.item]} muss erst geschnitten werden` };
+    }
+    return { do: 'refuse', why: 'In den Topf gehört geschnittenes Gemüse' };
+  }
+  const both = combine(held, on);
+  if (both.ok) return { do: 'combine', held: both.held, target: both.target, moved: both.moved };
+  // Ein Träger hat seinen eigenen, besseren Satz („muss erst gekocht werden");
+  // wer mit einer zweiten Zutat davorsteht, liest, dass der Topf besetzt ist.
+  if (isCarrier(held.item)) return { do: 'refuse', why: both.why };
+  return { do: 'refuse', why: `Im Topf ist schon ${ITEM_LABELS[on.item]}` };
+}
+
+/**
+ * **Die Eiswanne** gibt eine Kugel ihrer Sorte — in eine Schüssel.
+ *
+ * Es ist der Handgriff der Vorratskiste (`fromCrate`), nur ohne die leere
+ * Hand: Eine Kugel Eis ohne Schüssel darunter wäre ein Ding, das man sofort
+ * irgendwo hinlegen muss und das nirgends hingehört. Also gibt die Wanne nur
+ * in einen Träger, der Eis nimmt (`kitchenRecipes.TAKES`: die Schüssel, auch
+ * mit Waffel oder anderer Kugel darin), und sagt sonst, was fehlt.
+ */
+function atTub(held: Dish | null, gives: KitchenItem | undefined): KitchenDeed {
+  if (!gives) return { do: 'nothing' };
+  if (!held || !carries(held.item, gives)) {
+    return { do: 'refuse', why: `${ITEM_LABELS[gives]} braucht eine Schüssel` };
+  }
+  const scoop = combine(held, dish(gives));
+  if (!scoop.ok) return { do: 'refuse', why: scoop.why };
+  // Die Schüssel nimmt die Kugel auf (`held`), in der Wanne bleibt nichts
+  // liegen — dieselbe Lesart wie an der Kiste.
+  const one = scoop.held ?? scoop.target;
+  if (!one) return { do: 'nothing' };
+  return { do: 'combine', held: one, target: null, moved: scoop.moved };
 }
 
 /**
@@ -1184,6 +1320,8 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
       // Tabelle.
       if (deed.kind === 'wash') return 'Geschirr spülen';
       if (deed.kind === 'fry') return `${ITEM_LABELS[deed.dish.item]} braten`;
+      if (deed.kind === 'roll') return `${ITEM_LABELS[deed.dish.item]} ausrollen`;
+      if (deed.kind === 'cook') return `${ITEM_LABELS[deed.dish.item]} kochen`;
       return `${ITEM_LABELS[deed.dish.item]} ${deed.kind === 'blend' ? 'mixen' : 'schneiden'}`;
     case 'fill':
       // „Topf mit Wasser füllen" — der Träger im Nominativ, der Inhalt hinter

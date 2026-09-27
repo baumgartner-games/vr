@@ -18,6 +18,10 @@ import {
   served,
   stackOn,
   whyNotServed,
+  burnStage,
+  cookStage,
+  isBurnt,
+  rollStage,
   type Dish,
   type KitchenItem,
 } from './kitchenRecipes';
@@ -558,5 +562,144 @@ describe('in eine Richtung auflegen', () => {
 
   it('lässt eine leere Pfanne nichts abgeben', () => {
     expect(why(stackOn(d('pan'), d('bun')))).toBe('In der Pfanne liegt nichts');
+  });
+});
+
+/**
+ * **Die zweite Speisekarte** — was das Test Restaurant außer Burgern kocht.
+ *
+ * Dieselben Tabellen, dieselben Regeln; hier steht nur, dass die neuen Zeilen
+ * sagen, was sie sollen, und die alten dabei nichts verlieren.
+ */
+describe('die zweite Speisekarte', () => {
+  it('schneidet Käse, Pizza und Gemüse einmal', () => {
+    expect(chopStage('cheese')).toBe('cheese-cut');
+    expect(chopStage('pizza')).toBe('pizza-cut');
+    expect(chopStage('carrot')).toBe('carrot-cut');
+    expect(chopStage('potato')).toBe('potato-cut');
+    expect(chopStage('onion')).toBe('onion-cut');
+    for (const item of ['cheese-cut', 'pizza-cut', 'carrot-cut', 'dough'] as const) {
+      expect({ item, next: chopStage(item) }).toEqual({ item, next: null });
+    }
+  });
+
+  it('brät Schinken wie das Patty, bis er verbrennt, und Teig zur Waffel', () => {
+    expect(fryStage('ham')).toBe('ham-cooked');
+    expect(fryStage('ham-cooked')).toBe('ham-burnt');
+    expect(fryStage('ham-burnt')).toBeNull();
+    expect(fryStage('dough-flat')).toBe('waffle');
+    expect(fryStage('waffle')).toBeNull();
+    // Verbrennen kann nur, was gebraten ist — die Waffel nicht.
+    expect(burnStage('patty-cooked')).toBe('patty-burnt');
+    expect(burnStage('ham-cooked')).toBe('ham-burnt');
+    expect(burnStage('ham')).toBeNull();
+    expect(burnStage('dough-flat')).toBeNull();
+    expect(isBurnt('ham-burnt')).toBe(true);
+    expect(isBurnt('ham-cooked')).toBe(false);
+  });
+
+  it('rollt nur Teig aus und kocht nur geschnittenes Gemüse', () => {
+    expect(rollStage('dough')).toBe('dough-flat');
+    expect(rollStage('dough-flat')).toBeNull();
+    expect(rollStage('cheese')).toBeNull();
+    for (const item of ['carrot-cut', 'potato-cut', 'onion-cut'] as const) {
+      expect({ item, next: cookStage(item) }).toEqual({ item, next: 'stew' });
+    }
+    expect(cookStage('carrot')).toBeNull();
+    expect(cookStage('stew')).toBeNull();
+  });
+
+  it('legt Käse auf Teller und Brötchen, Schinken auf den Teller', () => {
+    expect(combine(d('cheese-cut'), d('plate'))).toMatchObject({
+      ok: true,
+      held: null,
+      target: d('plate', 'cheese-cut'),
+    });
+    expect(combine(d('bun', 'patty-cooked'), d('cheese-cut'))).toMatchObject({
+      ok: true,
+      held: d('bun', 'patty-cooked', 'cheese-cut'),
+    });
+    expect(combine(d('ham-cooked'), d('plate'))).toMatchObject({
+      ok: true,
+      target: d('plate', 'ham-cooked'),
+    });
+    // Roh und verbrannt bekommen ihren Satz wie beim Patty.
+    expect(why(combine(d('cheese'), d('plate')))).toBe('Käse muss erst geschnitten werden');
+    expect(why(combine(d('ham'), d('plate')))).toBe('Roher Schinken muss erst gebraten werden');
+    expect(why(combine(d('ham-burnt'), d('plate')))).toBe(
+      'Verbrannter Schinken gehört in den Müll',
+    );
+    // Ein Cheeseburger geht über die Theke — als Burger nach Art des Hauses.
+    expect(served(d('plate', 'bun', 'patty-cooked', 'cheese-cut'))).toBe(FREESTYLE);
+  });
+
+  it('legt genau eine Pizza in den Karton', () => {
+    expect(combine(d('pizza-cut'), d('pizzabox'))).toMatchObject({
+      ok: true,
+      held: null,
+      target: d('pizzabox', 'pizza-cut'),
+    });
+    expect(combine(d('pizzabox'), d('pizza'))).toMatchObject({
+      ok: true,
+      held: d('pizzabox', 'pizza'),
+      target: null,
+    });
+    expect(why(combine(d('pizza'), d('pizzabox', 'pizza-cut')))).toBe(
+      'Im Pizzakarton liegt schon Geschnittene Pizza',
+    );
+    expect(why(combine(d('cheese-cut'), d('pizzabox')))).toBe(
+      'In den Pizzakarton gehört nur eine Pizza',
+    );
+    // Und die Pfanne sagt ihre Sätze wie immer.
+    expect(why(combine(d('patty'), d('pan', 'patty')))).toBe(
+      'In der Pfanne liegt schon Rohes Patty',
+    );
+  });
+
+  it('füllt die Schüssel mit Waffel, Suppe und Eis', () => {
+    const waffle = combine(d('bowl'), d('waffle'));
+    expect(waffle).toMatchObject({ ok: true, held: d('bowl', 'waffle'), target: null });
+    const scoop = combine(d('bowl', 'waffle'), d('ice-vanilla'));
+    expect(scoop).toMatchObject({ ok: true, held: d('bowl', 'waffle', 'ice-vanilla') });
+    expect(combine(d('bowl'), d('stew'))).toMatchObject({ ok: true, held: d('bowl', 'stew') });
+    expect(why(combine(d('carrot-cut'), d('bowl')))).toBe(
+      'Geschnittene Karotte muss erst gekocht werden',
+    );
+    expect(why(combine(d('cheese-cut'), d('bowl')))).toBe(
+      'Käsescheibe gehört nicht in die Schüssel',
+    );
+    expect(dishLabel(d('bowl', 'ice-vanilla', 'waffle'))).toBe('Schüssel (Waffel, Vanilleeis)');
+  });
+
+  it('nennt alles Neue Essen und die beiden Träger nicht', () => {
+    const food: KitchenItem[] = [
+      'cheese',
+      'cheese-cut',
+      'ham',
+      'ham-cooked',
+      'ham-burnt',
+      'pizza',
+      'pizza-cut',
+      'dough',
+      'dough-flat',
+      'waffle',
+      'carrot',
+      'carrot-cut',
+      'potato',
+      'potato-cut',
+      'onion',
+      'onion-cut',
+      'stew',
+      'ice-vanilla',
+      'ice-strawberry',
+    ];
+    for (const item of food) expect({ item, food: isFood(item) }).toEqual({ item, food: true });
+    for (const item of ['bowl', 'pizzabox'] as const) {
+      expect({ item, food: isFood(item), carrier: isCarrier(item) }).toEqual({
+        item,
+        food: false,
+        carrier: true,
+      });
+    }
   });
 });

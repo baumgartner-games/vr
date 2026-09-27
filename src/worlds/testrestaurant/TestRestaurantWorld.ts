@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { playPick } from '../../core/Audio';
 import { markBlobShadow } from '../../core/blobShadow';
 import { CHEF_CARRY, canLoadModels } from '../../core/chefFit';
 import { kaykitModel } from '../../core/kaykitModel';
@@ -9,9 +10,17 @@ import type { UseSource } from '../../core/usable';
 import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
+import { KaykitDishView, dishKey } from '../elements/dishView';
+import { FACES, spotCentre, spotFace, type ElementSpot } from '../elements/elementPlace';
+import { placeElement, type ElementHost, type PlacedElement } from '../elements/elementView';
+import { StationLayer, type StationHost } from '../elements/stationLayer';
+import { DIRS } from '../nav/navTile';
+import { DEFAULT_BURN } from '../plateup/plateUpStations';
 import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
+import { KitchenGauges } from '../test/zones/kitchenGauge';
+import type { Dish } from '../test/zones/kitchenRecipes';
 import {
   BELT_DONE,
   BELT_PLATE,
@@ -30,19 +39,25 @@ import {
   type WishGuest,
 } from './guestWishes';
 import {
-  BELT_MODEL,
-  BELT_PIECE,
-  BELT_PIECES,
+  beltEndSpot,
+  beltPieces,
   beltSpot,
-  bits,
+  beltStationSpots,
+  diningElements,
   diningTables,
+  kitchenElements,
   kitchenSpots,
+  kitchenWidth,
   restaurantPlan,
   spawn,
-  supplySpots,
+  stationElements,
+  supplyElements,
   type DiningTable,
+  type KitchenElement,
   type KitchenSpot,
+  type MiniKitchen,
 } from './restaurantPlan';
+import { RestaurantIce } from './restaurantIce';
 
 /** So groß sind die Gäste — wie im Restaurant (`PlateUpWorld`), passend zu den halben Möbeln. */
 const GUEST_HEIGHT = 1.15;
@@ -56,12 +71,6 @@ const GUEST_FIGURES: readonly string[] = [
   'adventurers/characters/Druid.glb',
 ];
 const SIT_FILE = 'character-animations/animations/rig-medium/Rig_Medium_Simulation.glb';
-
-/** Der Tisch mit Tischdecke und die Stühle — dieselben wie im Restaurant. */
-const TABLE_MODEL = bits('table_round_B_tablecloth_red');
-const CHAIR_MODEL = bits('chair_A');
-/** Die Vorratsbox: eine offene Kiste, das fertige Essen obenauf. */
-const SUPPLY_MODEL = bits('crate');
 
 /** Wie groß das Getragene in der Brille in der Hand liegt (`kitchenGrab.HAND_FOOD_SCALE`). */
 const HAND_FOOD_SCALE = 0.5;
@@ -103,18 +112,24 @@ interface BurgerView {
 /**
  * **Test Restaurant** — die zweite Welt im Ordner _Test_ (`restaurantPlan.ts`).
  *
- * Drei Teile, alle aus dem Regal:
+ * Drei Teile, alle aus dem Regal und alle als **Spielelemente**
+ * (`elements/elementView.placeElement`: Zellen gesperrt, Kasten gestellt,
+ * bevor ein Modell lädt):
  *
- * - **Mini-Küchen**, eine je Gericht: Möbel in einer Reihe, darauf Zutaten,
- *   Werkzeug und das fertige Gericht, darüber eine Tafel mit dem Rezept und
- *   dem, was das Regal nicht hat.
+ * - **Mini-Küchen**, eine je Gericht, darüber eine Tafel mit dem Rezept und
+ *   dem, was das Regal nicht hat. Die meisten sind **spielbar**: Kisten,
+ *   Brett, Herd, Topf, Stapel und Mülleimer tun auf `A`, was sie im
+ *   Restaurant tun (`elements/stationLayer.ts`); die Eis-Küche ist die
+ *   Eisecke des Restaurants (`restaurantIce.ts`). Drei sind **Schauküchen**
+ *   (Pizza, Steak, Pommes), obenauf liegt das Rezept zum Ansehen.
  * - **Ein Förderband**, das allein Burger baut (`burgerBelt.ts`).
  * - **Gäste an Tischen** mit einer Blase über dem Kopf; das Gewünschte holt
  *   man fertig aus einer **Vorratsbox** und legt es auf ihren Tisch
  *   (`guestWishes.ts`).
  *
- * Die Möbel stehen als feste Stücke der Welt (`placeModel`: ein Körper, von
- * oben durchsichtig wie jede Wand); was auf ihnen liegt, ist nur Bild.
+ * **In der Hand liegt höchstens eines**: ein Ding der Küche (`carried`), ein
+ * fertiges Essen aus einer Vorratsbox (`dish`) oder etwas vom Eis — nie zwei
+ * davon zugleich.
  */
 export class TestRestaurantWorld extends GridWorld {
   private readonly panels: TextPlane[] = [];
@@ -125,8 +140,17 @@ export class TestRestaurantWorld extends GridWorld {
   /** Hochgezählt beim Aufräumen: Was danach noch aus dem Netz kommt, wird verworfen. */
   private round = 0;
 
+  private gauges: KitchenGauges | null = null;
+  private stations: StationLayer | null = null;
+  private dishes: KaykitDishView | null = null;
+  private ice: RestaurantIce | null = null;
+  /** Die Vorlagen, wie sie gerade laden — damit jede Datei nur einmal kommt. */
+  private readonly loading = new Map<string, Promise<THREE.Object3D | null>>();
+
   private beltTime = 0;
   private beltTop = 0.5;
+  /** Die Oberkante der Platte am Ende des Bands, sobald sie steht. */
+  private endTop = 0.5;
   private beltSign: TextPlane | null = null;
   private beltCount = -1;
   private readonly burgers = new Map<number, BurgerView>();
@@ -141,7 +165,11 @@ export class TestRestaurantWorld extends GridWorld {
   private sitClip: THREE.AnimationClip | null = null;
   private bubbleSkins: { wish: THREE.Texture; thanks: THREE.Texture } | null = null;
 
+  /** Das fertige Essen aus einer Vorratsbox, auf dem Weg zum Tisch. */
   private dish: MenuDish | null = null;
+  /** Ein Ding der Küche — was eine Kiste, ein Brett, ein Stapel hergegeben hat. */
+  private carried: Dish | null = null;
+  /** Die Hand, in der das eine oder das andere liegt. */
   private dishHand: Handedness | null = null;
   private dishView: THREE.Object3D | null = null;
   private readonly carryPoint = new THREE.Vector3();
@@ -173,10 +201,10 @@ export class TestRestaurantWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Test Restaurant · Mini-Küchen, Förderband, Gäste mit Wünschen';
+    return 'Test Restaurant · Mini-Küchen zum Kochen, Förderband, Gäste mit Wünschen';
   }
 
-  /** Leere Hände: Getragen wird hier nur, was aus einer Vorratsbox kommt. */
+  /** Leere Hände: Getragen wird hier nur, was eine Küche oder eine Vorratsbox hergibt. */
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
     return [];
   }
@@ -199,6 +227,11 @@ export class TestRestaurantWorld extends GridWorld {
   protected override buildProps(): void {
     const ctx = this.context;
     if (!ctx) return;
+    const round = this.round;
+    this.gauges ??= new KitchenGauges(this.root);
+    this.dishes = new KaykitDishView((path) => this.template(path));
+    const ice = this.buildIce();
+    this.stations = new StationLayer(this.stationHost(), this.gauges, ice, DEFAULT_BURN);
     for (const spot of kitchenSpots()) this.kitchenSign(spot);
     this.beltSign = this.sign(
       beltSpot().x + beltSpot().length / 2,
@@ -216,11 +249,14 @@ export class TestRestaurantWorld extends GridWorld {
       'Die Blase zeigt, was sie wollen. Aus der Vorratsbox nehmen, auf ihren Tisch legen.',
       4.2,
     );
-    for (const [i, spot] of supplySpots(MENU.length).entries()) this.buildSupply(MENU[i]!, spot);
+    // **Erst alles hinstellen** — jedes Element sperrt seine Zellen, sobald
+    // `placeElement` aufgerufen ist, und nicht erst, wenn sein Modell kommt.
+    this.placeAll(round);
+    const supply = supplyElements(MENU.map((dish) => dish.id));
+    supply.forEach((spot, i) => this.buildSupply(round, MENU[i]!, spot));
     for (const t of tables) this.buildTableUsable(t);
     if (!canLoadModels()) return;
-    const round = this.round;
-    void this.furnish(round, tables);
+    void this.buildDining(round, tables);
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -229,15 +265,28 @@ export class TestRestaurantWorld extends GridWorld {
     this.stepBelt();
     this.guests = stepGuests(this.guests, dt);
     this.stepGuestViews(dt, ctx);
+    this.stations?.step(dt, ctx.rig.position);
     this.carryInHands(ctx);
+    if (this.ice?.step(dt, ctx, this.carryPoint)) ctx.avatar.carry = this.carryPoint;
+    this.gauges?.update(dt);
   }
 
   override dispose(ctx: WorldContext): void {
     this.round++;
     ctx.avatar.carry = null;
+    this.stations?.dispose();
+    this.stations = null;
+    this.ice?.dispose();
+    this.ice = null;
+    this.dishes?.dispose();
+    this.dishes = null;
+    this.gauges?.dispose();
+    this.gauges = null;
     this.dishView?.removeFromParent();
     this.dishView = null;
     this.dish = null;
+    this.carried = null;
+    this.dishHand = null;
     for (const view of this.guestViews) view.figure?.dispose();
     this.guestViews.length = 0;
     for (const view of this.burgers.values()) view.group.removeFromParent();
@@ -255,6 +304,7 @@ export class TestRestaurantWorld extends GridWorld {
     this.owned.length = 0;
     for (const template of this.templates.values()) dropMaterials(template);
     this.templates.clear();
+    this.loading.clear();
     this.layerHeights.clear();
     this.bubbleSkins = null;
     this.beltSign = null;
@@ -265,51 +315,157 @@ export class TestRestaurantWorld extends GridWorld {
 
   // --- Aufstellen -----------------------------------------------------------
 
-  /** Alles, was geladen werden muss — der Reihe nach, damit die Höhen stimmen. */
-  private async furnish(round: number, tables: readonly DiningTable[]): Promise<void> {
-    await Promise.all([
-      ...kitchenSpots().map((spot) => this.buildKitchen(round, spot)),
-      this.buildBelt(round),
-      this.buildDining(round, tables),
-    ]);
-  }
-
-  /** Eine Mini-Küche: die Möbel in der Reihe, und obenauf, was dazugehört. */
-  private async buildKitchen(round: number, spot: KitchenSpot): Promise<void> {
-    await Promise.all(
-      spot.kitchen.slots.map(async (slot, i) => {
-        const x = spot.x + i + 0.5;
-        const z = spot.z + 0.5;
-        const top = await this.stand(round, slot.base, x, z, 0);
-        if (top === null) return;
-        const items = slot.items ?? [];
-        if (slot.stack) {
-          let y = top;
-          for (const item of items) {
-            const next = await this.lay(round, item, x, y, z);
-            if (next === null) return;
-            y = next;
-          }
-          return;
-        }
-        await Promise.all(
-          items.map((item, k) => this.lay(round, item, x + spread(items.length, k), top, z + 0.05)),
+  /**
+   * **Alle Spielelemente hinstellen** — Küchen, Band, Tische und Stühle. Die
+   * Sperre steht mit dem Aufruf; was danach kommt (Modelle, Stationen, das
+   * Gelegte der Schauküchen), kommt, sobald es geladen ist.
+   */
+  private placeAll(round: number): void {
+    const host = this.elementHost(round);
+    const put = (spot: ElementSpot, then: (placed: PlacedElement) => void): void => {
+      // Ein Element, das scheitert, fehlt — die Welt stirbt nicht daran.
+      placeElement(host, spot)
+        .then((placed) => {
+          if (round === this.round) then(placed);
+        })
+        .catch((error: unknown) =>
+          console.warn(`Spielelement ${spot.id} nicht aufgestellt`, error),
         );
+    };
+    for (const kitchen of kitchenSpots()) {
+      const stations = new Set(stationElements(kitchen).map((one) => one.id));
+      for (const element of kitchenElements(kitchen))
+        put(element, (placed) =>
+          this.furnishKitchen(round, kitchen.kitchen, element, placed, stations.has(element.id)),
+        );
+    }
+    beltPieces().forEach((spot, i) =>
+      put(spot, (placed) => {
+        if (i === 0) this.beltTop = placed.top;
       }),
     );
+    for (const spot of beltStationSpots()) put(spot, () => {});
+    put(beltEndSpot(), (placed) => (this.endTop = placed.top));
+    for (const spot of diningElements())
+      put(spot, (placed) => {
+        if (spot.element === 'table-round') this.tableTop = Math.max(0.3, placed.top);
+      });
+  }
+
+  /**
+   * **Was aus einem hingestellten Element einer Küche wird** — eine Station
+   * (`restaurantPlan.stationElements`), in der Eis-Küche der Stand der
+   * Eisecke, in einer Schauküche das Gelegte obenauf.
+   */
+  private furnishKitchen(
+    round: number,
+    kitchen: MiniKitchen,
+    spot: KitchenElement,
+    placed: PlacedElement,
+    station: boolean,
+  ): void {
+    if (station) {
+      this.stations?.add(placed);
+      return;
+    }
+    if (kitchen.mode === 'show') {
+      void this.show(round, spot, placed.top);
+      return;
+    }
+    if (spot.element === 'ice-stand') {
+      // Stapel und Portionierer des Elements gehören ab jetzt der Eisecke:
+      // Der Portionierer verschwindet, solange ihn eine Hand hat.
+      this.ice?.corner.adopt(placed.top, placed.parts[1] ?? null, placed.parts[2] ?? null);
+    }
+  }
+
+  /** **Das Gelegte einer Schauküche** — nebeneinander oder aufeinander, obenauf. */
+  private async show(round: number, spot: KitchenElement, top: number): Promise<void> {
+    const items = spot.show ?? [];
+    if (!items.length || !canLoadModels()) return;
+    const { x, z } = spotCentre(spot);
+    if (spot.stack) {
+      let y = top;
+      for (const item of items) {
+        const next = await this.lay(round, item, x, y, z);
+        if (next === null) return;
+        y = next;
+      }
+      return;
+    }
+    await Promise.all(
+      items.map((item, k) => this.lay(round, item, x + spread(items.length, k), top, z + 0.05)),
+    );
+  }
+
+  /**
+   * **Die Eisecke der Eis-Küche** (`restaurantIce.ts`) — ihre Anker stehen
+   * auf den Kacheln der Elemente `ice-stand` und `ice-tubs`, sie schaut, wohin
+   * der Stand schaut, und die Wannen haben dieselben Sorten an derselben Seite
+   * wie das Element: Vanille von vorn gesehen links.
+   */
+  private buildIce(): RestaurantIce | null {
+    const kitchen = kitchenSpots().find((spot) => spot.kitchen.mode === 'ice');
+    const elements = kitchen ? kitchenElements(kitchen) : [];
+    const stand = elements.find((one) => one.element === 'ice-stand');
+    const tubs = elements.find((one) => one.element === 'ice-tubs');
+    if (!stand || !tubs) return null;
+    const ice = new RestaurantIce(
+      {
+        root: this.root,
+        addUsable: (anchor, usable, options) => this.addUsable(anchor, usable, options),
+        removeUsable: (anchor) => this.removeUsable(anchor),
+        announce: (text) => this.announce(text),
+        other: () => ({ busy: !!this.carried || !!this.dish, hand: this.dishHand }),
+        shelf: (id) => this.stations?.place(id) ?? null,
+        picked: (taken) => playPick(taken),
+      },
+      // Die Ecke schaut, wohin der Stand schaut (`FACES` und `DIRS` zählen
+      // beide im Uhrzeigersinn von Norden). Die Sorten zählen von vorn
+      // gesehen rechts, wie das Element sie trägt — Erdbeere rechts, Vanille
+      // links —, und bleiben so bei jeder Drehung richtig.
+      {
+        stand,
+        tubs,
+        face: DIRS[FACES.indexOf(spotFace(stand))]!,
+        flavors: ['strawberry', 'vanilla'],
+      },
+    );
+    ice.build();
+    this.ice = ice;
+    return ice;
+  }
+
+  /** Was die Stationen von der Welt brauchen (`elements/stationLayer.StationHost`). */
+  private stationHost(): StationHost {
+    return {
+      addUsable: (anchor, usable, options) => this.addUsable(anchor, usable, options),
+      removeUsable: (anchor) => this.removeUsable(anchor),
+      announce: (text) => this.announce(text),
+      held: () => this.carried,
+      heldHand: () => this.dishHand,
+      setHeld: (dish, hand) => this.setCarried(dish, hand),
+      busy: () =>
+        this.dish
+          ? `Erst ${this.dish.label} an den Tisch bringen — oder zurück in die Vorratsbox`
+          : null,
+      dishView: (dish) => this.dishes?.view(dish) ?? new THREE.Group(),
+      picked: (taken) => playPick(taken),
+    };
   }
 
   /** Die Tafel einer Küche: Name, Rezept und was fehlt. */
   private kitchenSign(spot: KitchenSpot): void {
     const { kitchen } = spot;
+    const width = kitchenWidth(kitchen);
     const steps = kitchen.recipe.map((step, i) => `${i + 1}. ${step}`).join('\n');
     const body = kitchen.missing ? `${steps}\nFehlt: ${kitchen.missing}` : steps;
     this.sign(
-      spot.x + kitchen.slots.length / 2,
+      spot.x + width / 2,
       spot.z - 0.2,
       kitchen.title,
       body,
-      Math.max(3.2, Math.min(5, kitchen.slots.length * 0.5)),
+      Math.max(3.2, Math.min(5, width * 0.5)),
     );
   }
 
@@ -330,66 +486,19 @@ export class TestRestaurantWorld extends GridWorld {
     return panel;
   }
 
-  /**
-   * **Das Band und seine Stationen**: die Förderbänder aus dem Regal in einer
-   * Reihe, an der Nordseite je Station ihr Möbel, am Ostende eine Platte für
-   * die fertigen Burger. Dazu die Vorlagen der Schichten, gemessen.
-   */
-  private async buildBelt(round: number): Promise<void> {
-    const belt = beltSpot();
-    const z = belt.z + 0.5;
-    const tops = await Promise.all(
-      Array.from({ length: BELT_PIECES }, (_, i) =>
-        // Gedreht, bis die Pfeile auf dem Band nach Osten zeigen, wohin es läuft.
-        this.stand(round, BELT_MODEL, belt.x + BELT_PIECE * i + BELT_PIECE / 2, z, -Math.PI / 2),
-      ),
-    );
-    this.beltTop = Math.max(0, ...tops.map((top) => top ?? 0));
-    await Promise.all([
-      ...BELT_STATIONS.map(async (station) => {
-        const top = await this.stand(round, station.model, belt.x + station.at, z - 1, 0);
-        if (top !== null && station.extra)
-          await this.lay(round, station.extra, belt.x + station.at, top, z - 1);
-      }),
-      this.stand(round, bits('kitchencounter_straight_A'), belt.x + belt.length + 0.5, z, 0),
-      ...[...BELT_STATIONS.map((station) => station.layer), BELT_DONE, BELT_PLATE].map((path) =>
+  /** Gäste — und die Vorlagen für das, was je Bild kopiert wird: Schichten, Teller, Karte. */
+  private async buildDining(round: number, tables: readonly DiningTable[]): Promise<void> {
+    await Promise.all(
+      [...BELT_STATIONS.map((station) => station.layer), BELT_DONE, BELT_PLATE].map((path) =>
         this.warm(round, path),
       ),
-    ]);
-  }
-
-  /** Tische, Stühle, Gäste — und die Vorlage für den Teller auf dem Tisch. */
-  private async buildDining(round: number, tables: readonly DiningTable[]): Promise<void> {
-    const tops = await Promise.all(tables.map((t) => this.stand(round, TABLE_MODEL, t.x, t.z, 0)));
-    this.tableTop = Math.max(0.3, ...tops.map((top) => top ?? 0));
-    for (const t of tables)
-      for (const seat of t.seats) void this.stand(round, CHAIR_MODEL, seat.x, seat.z, seat.yaw);
+    );
     for (const dish of MENU) void this.warm(round, dish.model);
     const { kaykitClips } = await import('../../core/kaykitModel');
     const clips = await kaykitClips(SIT_FILE, null);
     if (round !== this.round) return;
     this.sitClip = clips.find((clip) => clip.name === 'Sit_Chair_Idle') ?? null;
     for (const guest of this.guests) this.spawnGuest(round, tables[guest.table]!, guest);
-  }
-
-  /**
-   * **Ein Möbel auf den Boden stellen** — als festes Stück der Welt
-   * (`placeModel`), mit der Mitte seiner Hülle über der Kachel.
-   *
-   * @returns die Oberkante, auf die man etwas legen kann — `null`, wenn nichts kam
-   */
-  private async stand(
-    round: number,
-    path: string,
-    x: number,
-    z: number,
-    yaw: number,
-  ): Promise<number | null> {
-    const size = await this.measure(path);
-    if (!size || round !== this.round) return null;
-    this.layerHeights.set(path, size.y);
-    await this.placeModel(path, new THREE.Vector3(x, size.y / 2, z), yaw);
-    return size.y;
   }
 
   /**
@@ -419,13 +528,59 @@ export class TestRestaurantWorld extends GridWorld {
     return y + box.max.y - box.min.y;
   }
 
-  /** Wie groß ein Modell ist (Breite, Höhe, Tiefe), gemessen an einer Kopie. */
+  /**
+   * **Die Vorlage einer Datei** — einmal geladen, dann geteilt: Kopien davon
+   * (`copyOf`, `KaykitDishView`) haben Geometrie und Materialien mit ihr
+   * gemeinsam, und freigegeben wird nur sie, beim Aufräumen.
+   */
+  private template(path: string): Promise<THREE.Object3D | null> {
+    if (!canLoadModels()) return Promise.resolve(null);
+    let pending = this.loading.get(path);
+    if (!pending) {
+      const round = this.round;
+      pending = kaykitModel(path).then((model) => {
+        if (!model) return null;
+        if (round !== this.round) {
+          dropMaterials(model);
+          return null;
+        }
+        this.templates.set(path, model);
+        return model;
+      });
+      this.loading.set(path, pending);
+    }
+    return pending;
+  }
+
+  /** Wie groß ein Modell ist (Breite, Höhe, Tiefe), gemessen an seiner Vorlage. */
   private async measure(path: string): Promise<THREE.Vector3 | null> {
-    const template = this.templates.get(path) ?? (await kaykitModel(path));
+    const template = await this.template(path);
     if (!template) return null;
-    this.templates.set(path, template);
     const box = new THREE.Box3().setFromObject(template);
     return box.isEmpty() ? null : box.getSize(new THREE.Vector3());
+  }
+
+  /**
+   * **Die Welt als Gastgeber der Spielelemente** (`elements/elementView.ts`,
+   * `placeElement`) — für diese Runde: Was nach dem Aufräumen noch aus dem
+   * Netz kommt, wird nicht mehr hingestellt.
+   *
+   * Die Sperre ist die der Gitterwelt (`GridWorld.blockSolid`), das Bodenstück
+   * steht wie jedes Möbel hier (`placeModel`), was obenauf liegt, geht mit
+   * `decor` weg — samt seiner Materialien.
+   */
+  protected elementHost(round = this.round): ElementHost {
+    return {
+      blockSolid: (cx, cz, w, d, height) => this.blockSolid(cx, cz, w, d, height),
+      placeModel: (path, at, yaw) => this.placeModel(path, at, yaw),
+      measure: (path) => this.measure(path),
+      load: (path) => kaykitModel(path),
+      add: (object) => {
+        this.root.add(object);
+        this.decor.push(object);
+      },
+      alive: () => round === this.round,
+    };
   }
 
   /** Eine Vorlage holen und ihre Höhe merken — für das, was je Bild kopiert wird. */
@@ -485,7 +640,7 @@ export class TestRestaurantWorld extends GridWorld {
 
   /** Die Oberkante der Platte am Ende des Bands — dieselbe wie jede Arbeitsplatte. */
   private counterTop(): number {
-    return this.layerHeights.get(bits('kitchencounter_straight_A')) ?? this.beltTop;
+    return this.endTop;
   }
 
   /** Die Schichten eines Burgers nachziehen — oder ihn zum fertigen Teller machen. */
@@ -517,10 +672,12 @@ export class TestRestaurantWorld extends GridWorld {
 
   // --- Vorratsboxen und Tische ----------------------------------------------
 
-  /** Eine Vorratsbox: die Kiste, obenauf das Gericht, darüber sein Name. */
-  private buildSupply(dish: MenuDish, spot: { x: number; z: number }): void {
-    const x = spot.x + 0.5;
-    const z = spot.z + 0.5;
+  /**
+   * **Eine Vorratsbox**: das Element `supply-box` (es sperrt wie jede Kiste),
+   * obenauf das Gericht, darüber sein Name.
+   */
+  private buildSupply(round: number, dish: MenuDish, spot: ElementSpot): void {
+    const { x, z } = spotCentre(spot);
     const anchor = new THREE.Group();
     anchor.name = `test-restaurant-supply:${dish.id}`;
     anchor.position.set(x, 0.4, z);
@@ -544,20 +701,25 @@ export class TestRestaurantWorld extends GridWorld {
       },
       { radius: 0.6, half: 0.5 },
     );
-    if (!canLoadModels()) return;
-    const round = this.round;
-    void this.stand(round, SUPPLY_MODEL, x, z, 0).then((top) => {
-      if (top !== null) void this.lay(round, dish.model, x, top, z);
+    void placeElement(this.elementHost(round), spot).then((placed) => {
+      if (round === this.round && canLoadModels())
+        void this.lay(round, dish.model, x, placed.top, z);
     });
   }
 
   private takeDish(dish: MenuDish, by: UseSource): boolean {
     if (this.dish?.id === dish.id) {
-      this.setHeld(null, null);
+      this.setMenuDish(null, null);
       this.announce(`${dish.label} zurückgelegt`);
       return true;
     }
-    this.setHeld(dish, by.hand ?? null);
+    // Eine Hand, ein Ding: Wer aus einer Küche etwas trägt oder ein Eis hält,
+    // bekommt kein zweites Essen dazu.
+    if (this.carried || this.ice?.holding()) {
+      this.announce('Erst die Hände frei machen');
+      return false;
+    }
+    this.setMenuDish(dish, by.hand ?? null);
     this.announce(`${dish.label} genommen — ab an den Tisch`);
     return true;
   }
@@ -580,6 +742,12 @@ export class TestRestaurantWorld extends GridWorld {
   /** **Aufs Tischtuch** — bekommt es jemand, liegt es vor ihm, bis er aufgegessen hat. */
   private serveAt(t: DiningTable): boolean {
     const held = this.dish;
+    if (!held && this.carried) {
+      // Was die Küchen hergeben, ist zum Üben; die Gäste bestellen von der
+      // Karte, und die steht in den Vorratsboxen.
+      this.announce('Die Gäste wollen ihr Essen aus den Vorratsboxen');
+      return false;
+    }
     if (!held) {
       const wanted = this.guests
         .filter((guest) => guest.table === t.index && guest.phase === 'waiting')
@@ -597,7 +765,7 @@ export class TestRestaurantWorld extends GridWorld {
       return false;
     }
     this.guests = result.guests;
-    this.setHeld(null, null);
+    this.setMenuDish(null, null);
     const view = this.guestViews.find(
       (one) => one.table === t.index && one.seat === result.guest.seat,
     );
@@ -747,12 +915,29 @@ export class TestRestaurantWorld extends GridWorld {
 
   // --- Das Getragene --------------------------------------------------------
 
-  private setHeld(dish: MenuDish | null, hand: Handedness | null): void {
+  /** Das fertige Essen aus einer Vorratsbox in die Hand — oder aus ihr. */
+  private setMenuDish(dish: MenuDish | null, hand: Handedness | null): void {
     if (this.dish?.id === dish?.id && this.dishHand === hand) return;
     this.dish = dish;
+    this.carried = null;
     this.dishHand = dish ? hand : null;
     this.dishView?.removeFromParent();
     this.dishView = dish ? this.copyOf(dish.model) : null;
+  }
+
+  /**
+   * **Ein Ding der Küche in die Hand** — oder aus ihr (`StationLayer`). Das
+   * Bild wird nur neu gebaut, wenn sich das Gericht geändert hat.
+   */
+  private setCarried(next: Dish | null, hand: Handedness | null): void {
+    const before = this.carried ? dishKey(this.carried) : '';
+    const after = next ? dishKey(next) : '';
+    this.carried = next;
+    if (next) this.dish = null;
+    this.dishHand = next ? hand : null;
+    if (before === after && (this.dishView || !next)) return;
+    this.dishView?.removeFromParent();
+    this.dishView = next ? (this.dishes?.view(next) ?? null) : null;
   }
 
   /**

@@ -108,7 +108,7 @@ ein NPC ein **Skelett aus Klötzen**, und das war
 eine Behauptung: „ein Skelett mit Gelenken an den richtigen Stellen bewegt sich
 besser als ein gekaufter Charakter, der still steht". Seit die Figuren des
 Regals laufen können (`core/kaykitFigure.ts`, siehe
-[Das KayKit-Regal](assetregal.md) → _Eine Figur, die läuft_), stimmt sie nicht
+[Das Modellregal](assetregal.md) → _Eine Figur, die läuft_), stimmt sie nicht
 mehr — der gekaufte Charakter steht nicht mehr still. Der Auftrag dazu war
 knapp: „Ich ärgere mich, dass die Charaktere aus dem KayKit-Regal nicht auch
 Default-NPC sind. … Zombie durch Mannequin."

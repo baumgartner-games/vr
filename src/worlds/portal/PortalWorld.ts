@@ -10800,7 +10800,7 @@ export class PortalWorld implements World {
       {
         id: 'build:place',
         label: 'Setzen',
-        sub: 'Den letzten Pinsel in die Hand, sonst das Regal',
+        sub: 'Den letzten Pinsel in die Hand, sonst das Modellregal',
         icon: 'cube',
         accent,
         run: run((ctx, hand) => {
@@ -11458,7 +11458,14 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Das KayKit-Regal** — der gekaufte Ordnerbaum als Menüseite.
+   * **Das Modellregal** (KayKit) — der gekaufte Ordnerbaum als Menüseite.
+   *
+   * **Rohmodelle, keine Spielelemente**: Was hier liegt, ist nur ein Bild —
+   * ohne Grundfläche auf dem Zellgitter, ohne Körper, ohne Zweck. Möbel und
+   * Stationen einer Welt kommen aus dem Katalog der Spielelemente
+   * (`worlds/elements/`, `docs/agents/spielelemente.md`); gewünscht: _„einen
+   * 3d Objekt roh Katalog …, der nur optisch da ist"_. Daher der Name im Menü
+   * und nicht mehr „KayKit-Regal".
    *
    * Der Beutel daneben ist eine Kiste mit Spielzeug: achtzehn Sorten, von
    * Hand gebaut, jede mit ihrem Namen und ihrem Symbol. Das Regal ist eine
@@ -11478,8 +11485,8 @@ export class PortalWorld implements World {
   private assetMenu(ctx: () => WorldContext): MenuEntry {
     return {
       id: 'assets',
-      label: 'KayKit-Regal',
-      sub: 'Modelle aus der Sammlung',
+      label: 'Modellregal',
+      sub: 'Rohmodelle — nur das Bild, kein Spielelement',
       icon: 'folder',
       accent: KAYKIT_ACCENT,
       grid: true,
@@ -11527,7 +11534,7 @@ export class PortalWorld implements World {
       return [
         {
           id: 'assets:missing',
-          label: 'Kein Regal',
+          label: 'Kein Modellregal',
           sub: 'models/kaykit/index.json fehlt',
           icon: 'folder',
           accent: 0x6f7d99,

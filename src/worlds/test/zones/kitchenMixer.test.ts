@@ -52,7 +52,16 @@ describe('der Mixer arbeitet allein', () => {
     // Zwei Möbel arbeiten ohne Aufsicht, und beide sind dafür gebaut: der
     // Mixer und die sichere Kochstelle (`kitchenGriddle.ts`). Brett und Spüle
     // tun es nicht, und das ist dort die Arbeit selbst.
-    expect(WORK_ALONE).toEqual({ chop: false, wash: false, blend: true, fry: true });
+    // Dazu kommt seit dem Test Restaurant der Suppentopf (`cook`); das
+    // Nudelholz (`roll`) will wie das Brett jemanden davor.
+    expect(WORK_ALONE).toEqual({
+      chop: false,
+      wash: false,
+      blend: true,
+      fry: true,
+      roll: false,
+      cook: true,
+    });
     // Die Gegenprobe: Am Brett fällt die Uhr beim Weggehen auf null zurück.
     const away = advanceWork(onWork('chop', 'lettuce'), WORK_SECONDS.chop, false);
     expect(away.done).toBeNull();

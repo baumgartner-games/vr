@@ -44,7 +44,14 @@
  * selbst — der Zustand ist unveränderlich und gehört an die Station.
  */
 
-import { chopStage, fryStage, type KitchenItem } from './kitchenRecipes';
+import {
+  chopStage,
+  cookStage,
+  fryStage,
+  isBurnt,
+  rollStage,
+  type KitchenItem,
+} from './kitchenRecipes';
 
 /** Welche Arbeit an einer Station getan wird. */
 export type WorkKind =
@@ -80,7 +87,24 @@ export type WorkKind =
    *
    * Der ganze Unterschied steht in `WORK_ALONE`.
    */
-  | 'blend';
+  | 'blend'
+  /**
+   * **Am Nudelholz: aus Teig wird flacher Teig** (`kitchenRecipes.ROLLS`).
+   *
+   * Dieselbe Arbeit wie am Brett — drei Sekunden, und wer weggeht, fängt von
+   * vorn an —, nur mit einer eigenen Stufentabelle. Das ist der einzige Grund
+   * für eine eigene Art: Am Brett soll sich kein Teig ausrollen lassen.
+   */
+  | 'roll'
+  /**
+   * **Im Suppentopf: aus geschnittenem Gemüse wird Suppe**
+   * (`kitchenRecipes.COOKS`).
+   *
+   * Er köchelt allein wie die Kochstelle brät (`WORK_ALONE`), und das Fertige
+   * bleibt im Topf, bis jemand es mit einer Schüssel holt
+   * (`kitchenCarry.atPot`).
+   */
+  | 'cook';
 
 /**
  * **Wie lange eine Stufe dauert** — je Art, in Sekunden.
@@ -110,6 +134,12 @@ export const WORK_SECONDS: Readonly<Record<WorkKind, number>> = {
   // jemals die Pfanne zu benutzen — und die Pfanne ist das Herzstück dieser
   // Küche.
   fry: 5,
+  // Ausrollen ist Schneiden mit einem anderen Werkzeug — dieselbe Zeit, aus
+  // demselben Grund wie dort.
+  roll: 3,
+  // **Kochen dauert wie die Kochstelle**: Es läuft allein, und wer
+  // Anwesenheit spart, bezahlt mit Zeit — dieselbe Rechnung wie beim Braten.
+  cook: 5,
 };
 
 /**
@@ -147,6 +177,10 @@ export const WORK_TO_HAND: Readonly<Record<WorkKind, boolean>> = {
   // Und auf der Kochstelle genauso: Das gebratene Patty bleibt liegen, bis ein
   // Filterband es abholt.
   fry: false,
+  // Der flache Teig bleibt auf dem Brett liegen wie der geschnittene Salat,
+  // die Suppe im Topf, bis eine Schüssel sie holt.
+  roll: false,
+  cook: false,
 };
 
 /**
@@ -173,6 +207,8 @@ export const WORK_ALONE: Readonly<Record<WorkKind, boolean>> = {
   wash: false,
   blend: true,
   fry: true,
+  roll: false,
+  cook: true,
 };
 
 /**
@@ -220,10 +256,16 @@ export function workStage(kind: WorkKind, item: KitchenItem): KitchenItem | null
   // sähe harmloser aus und wäre die zweite Wahrheit über das Braten — käme
   // eines Tages ein Hähnchen dazu, brutzelte es in der Pfanne und läge auf der
   // Kochstelle für immer roh.
+  //
+  // **Verbrannt ist jede schwarze Stufe** (`kitchenRecipes.isBurnt`) und nicht
+  // nur die des Pattys — sonst verbrennte gebratener Schinken auf der
+  // sicheren Kochstelle, die genau das nicht kann.
   if (kind === 'fry') {
     const done = fryStage(item);
-    return done === 'patty-burnt' ? null : done;
+    return done && isBurnt(done) ? null : done;
   }
+  if (kind === 'roll') return rollStage(item);
+  if (kind === 'cook') return cookStage(item);
   return item === 'plate-dirty' ? 'plate' : null;
 }
 

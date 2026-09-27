@@ -7,7 +7,7 @@ import {
   beltBurgers,
   beltFinished,
 } from './burgerBelt';
-import { bits } from './restaurantPlan';
+import { bits } from '../elements/elementCatalog';
 
 const LENGTH = 12;
 const TRAVEL = (LENGTH - BELT_STATIONS[0]!.at) / BELT_SPEED;

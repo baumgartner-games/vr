@@ -1,0 +1,218 @@
+import { DIR_S } from '../nav/navTile';
+import type { StationKind } from '../test/zones/kitchenCarry';
+import { dish, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
+import { WORK_SECONDS } from '../test/zones/kitchenWork';
+import type { StationSpot } from './plateUpPlan';
+import {
+  DEFAULT_BURN,
+  PLATES,
+  burnShare,
+  freshStations,
+  stationDeed,
+  tickStation,
+  useStation,
+  type StationState,
+} from './plateUpStations';
+
+/**
+ * **Die Mini-Küchen des Test Restaurants, nachgespielt** — Hand und Station
+ * nach jedem Druck, und die Uhr dazwischen.
+ *
+ * Es sind dieselben Stationen wie im Laden (`plateUpStations.ts`), nur mit den
+ * Dingen der zweiten Speisekarte (`kitchenRecipes.KitchenItem`). Geprüft wird
+ * hier der ganze Weg eines Gerichts, so wie ihn jemand im Spiel geht.
+ */
+
+/** Ein Platz, so knapp wie möglich — Modell und Blickrichtung spielen hier keine Rolle. */
+function spot(kind: StationKind, extra: Partial<StationSpot> = {}): StationSpot {
+  return { id: kind, kind, x: 0, z: 0, label: kind, model: '', face: DIR_S, ...extra };
+}
+
+/** Eine frische Station dieser Art. */
+function station(kind: StationKind, extra: Partial<StationSpot> = {}): StationState {
+  return freshStations([spot(kind, extra)])[0]!;
+}
+
+/** Kurz geschrieben: `d('bowl', 'waffle')`. */
+function d(item: KitchenItem, ...on: KitchenItem[]): Dish {
+  return dish(item, on);
+}
+
+/** `seconds` Sekunden an der Station, in kleinen Bildern. */
+function wait(state: StationState, seconds: number, near = true, burn = DEFAULT_BURN) {
+  let now = state;
+  let done = false;
+  let burnt = false;
+  for (let t = 0; t < seconds; t += 0.1) {
+    const tick = tickStation(now, 0.1, near, false, burn);
+    now = tick.station;
+    done ||= tick.done;
+    burnt ||= tick.burnt;
+  }
+  return { station: now, done, burnt };
+}
+
+describe('Schinken auf der Grillplatte', () => {
+  it('brät ihn allein und lässt ihn nach der Frist verbrennen', () => {
+    const put = useStation(d('ham'), station('griddle'));
+    expect(put.deed.do).toBe('work');
+    expect(put.held).toBeNull();
+    const fried = wait(put.station, WORK_SECONDS.fry + 0.2, false);
+    expect(fried.done).toBe(true);
+    expect(fried.station.on).toEqual(d('ham-cooked'));
+    expect(burnShare(fried.station, 10)).toBeLessThan(0.1);
+    const black = wait(fried.station, 10.2, false, 10);
+    expect(black.burnt).toBe(true);
+    expect(black.station.on).toEqual(d('ham-burnt'));
+    expect(burnShare(black.station, 10)).toBe(0);
+  });
+
+  it('macht aus flachem Teig eine Waffel, die nicht verbrennt', () => {
+    const put = useStation(d('dough-flat'), station('griddle'));
+    const done = wait(put.station, WORK_SECONDS.fry + 0.2, false);
+    expect(done.station.on).toEqual(d('waffle'));
+    const later = wait(done.station, DEFAULT_BURN + 1, false);
+    expect(later.burnt).toBe(false);
+    expect(later.station.on).toEqual(d('waffle'));
+    expect(burnShare(later.station)).toBe(0);
+  });
+
+  it('lässt das Patty verbrennen wie immer', () => {
+    const put = useStation(d('patty'), station('griddle'));
+    const fried = wait(put.station, WORK_SECONDS.fry + 0.2, false);
+    expect(fried.station.on).toEqual(d('patty-cooked'));
+    expect(wait(fried.station, DEFAULT_BURN + 0.2, false).station.on).toEqual(d('patty-burnt'));
+  });
+});
+
+describe('Brett und Nudelholz', () => {
+  it('schneidet die Pizza und den Käse', () => {
+    const pizza = wait(useStation(d('pizza'), station('board')).station, WORK_SECONDS.chop + 0.2);
+    expect(pizza.station.on).toEqual(d('pizza-cut'));
+    const cheese = wait(useStation(d('cheese'), station('board')).station, WORK_SECONDS.chop + 0.2);
+    expect(cheese.station.on).toEqual(d('cheese-cut'));
+    // Und die Käsescheibe geht auf den Teller.
+    const plated = useStation(d('plate'), cheese.station);
+    expect(plated.held).toEqual(d('plate', 'cheese-cut'));
+    expect(plated.station.on).toBeNull();
+  });
+
+  it('rollt Teig nur mit jemandem davor aus', () => {
+    const put = useStation(d('dough'), station('roller'));
+    expect(put.deed).toEqual({ do: 'work', kind: 'roll', dish: d('dough') });
+    expect(wait(put.station, WORK_SECONDS.roll + 0.2, false).station.on).toEqual(d('dough'));
+    expect(wait(put.station, WORK_SECONDS.roll + 0.2, true).station.on).toEqual(d('dough-flat'));
+  });
+});
+
+describe('Pizzakartons', () => {
+  const boxes = () => station('drain', { gives: 'pizzabox', stock: Infinity });
+
+  it('gibt der leeren Hand einen Karton und bleibt voll', () => {
+    const take = useStation(null, boxes());
+    expect(take.held).toEqual(d('pizzabox'));
+    expect(take.station.stock).toBe(Infinity);
+  });
+
+  it('packt die gehaltene Pizza in einen Karton', () => {
+    const packed = useStation(d('pizza-cut'), boxes());
+    expect(packed.held).toEqual(d('pizzabox', 'pizza-cut'));
+  });
+
+  it('nimmt keine zweite Pizza in den Karton', () => {
+    const top = { ...station('top'), on: d('pizzabox', 'pizza-cut') };
+    const deed = stationDeed(d('pizza'), top);
+    expect(deed).toEqual({ do: 'refuse', why: 'Im Pizzakarton liegt schon Geschnittene Pizza' });
+    // Und am Stapel geht der volle Karton nicht zurück.
+    expect(stationDeed(d('pizzabox', 'pizza'), boxes()).do).toBe('refuse');
+  });
+
+  it('sagt es, wenn der Stapel leer ist', () => {
+    const empty = station('drain', { gives: 'pizzabox', stock: 0 });
+    expect(stationDeed(null, empty)).toEqual({ do: 'refuse', why: 'Kein Pizzakarton mehr da' });
+  });
+});
+
+describe('Waffeln mit Eis', () => {
+  it('nimmt eine Schüssel, die Waffel, und zwei Kugeln aus zwei Wannen', () => {
+    const bowls = station('drain', { gives: 'bowl', stock: 3 });
+    const got = useStation(null, bowls);
+    expect(got.held).toEqual(d('bowl'));
+    expect(got.station.stock).toBe(2);
+
+    const griddle = { ...station('griddle'), on: d('waffle') };
+    const waffle = useStation(got.held, griddle);
+    expect(waffle.held).toEqual(d('bowl', 'waffle'));
+    expect(waffle.station.on).toBeNull();
+
+    const vanilla = station('tub', { gives: 'ice-vanilla' });
+    const one = useStation(waffle.held, vanilla);
+    expect(one.held).toEqual(d('bowl', 'waffle', 'ice-vanilla'));
+    expect(one.station).toBe(vanilla);
+
+    const strawberry = station('tub', { gives: 'ice-strawberry' });
+    const two = useStation(one.held, strawberry);
+    expect(two.held).toEqual(d('bowl', 'waffle', 'ice-vanilla', 'ice-strawberry'));
+
+    // Mit leerer Hand gibt die Wanne nichts.
+    expect(useStation(null, vanilla).deed).toEqual({
+      do: 'refuse',
+      why: 'Vanilleeis braucht eine Schüssel',
+    });
+  });
+
+  it('richtet die Waffel aus der Hand direkt in der obersten Schüssel an', () => {
+    // Die Waffel aus der Hand geht direkt in die oberste Schüssel.
+    const bowls = station('drain', { gives: 'bowl', stock: 3 });
+    const filled = useStation(d('waffle'), bowls);
+    expect(filled.held).toEqual(d('bowl', 'waffle'));
+    expect(filled.station.stock).toBe(2);
+  });
+});
+
+describe('Suppe', () => {
+  it('kocht geschnittene Karotte allein zu Suppe und gibt sie in die Schüssel', () => {
+    const put = useStation(d('carrot-cut'), station('pot'));
+    expect(put.deed).toEqual({ do: 'work', kind: 'cook', dish: d('carrot-cut') });
+    const cooked = wait(put.station, WORK_SECONDS.cook + 0.2, false);
+    expect(cooked.done).toBe(true);
+    expect(cooked.station.on).toEqual(d('stew'));
+    // Die Suppe verbrennt nicht und kocht nicht weiter.
+    expect(wait(cooked.station, 30).station.on).toEqual(d('stew'));
+
+    expect(useStation(null, cooked.station).deed.do).toBe('refuse');
+    const served = useStation(d('bowl'), cooked.station);
+    expect(served.held).toEqual(d('bowl', 'stew'));
+    expect(served.station.on).toBeNull();
+  });
+});
+
+describe('Mülleimer', () => {
+  it('nimmt jedes neue Essen und lässt Schüssel und Karton in der Hand', () => {
+    const bin = station('bin');
+    for (const item of ['ham-burnt', 'pizza-cut', 'stew', 'waffle', 'dough', 'onion'] as const) {
+      const r = useStation(d(item), bin);
+      expect({ item, do: r.deed.do, held: r.held }).toEqual({ item, do: 'trash', held: null });
+    }
+    expect(useStation(d('bowl', 'stew'), bin).held).toEqual(d('bowl'));
+    expect(useStation(d('pizzabox', 'pizza'), bin).held).toEqual(d('pizzabox'));
+  });
+});
+
+describe('der Tellerstapel des Ladens', () => {
+  it('bleibt ohne Angabe ein Stapel aus sechs Tellern', () => {
+    const plates = station('drain');
+    expect(plates.stock).toBe(PLATES);
+    expect(useStation(null, plates).held).toEqual(d('plate'));
+    expect(stationDeed(d('plate-dirty'), plates)).toEqual({
+      do: 'refuse',
+      why: 'Schmutzige Teller erst spülen — die Spüle ist daneben',
+    });
+    const empty = { ...plates, stock: 0 };
+    expect(stationDeed(null, empty)).toEqual({
+      do: 'refuse',
+      why: 'Keine sauberen Teller — Geschirr abräumen und spülen',
+    });
+    expect(useStation(d('plate'), empty).station.stock).toBe(1);
+  });
+});

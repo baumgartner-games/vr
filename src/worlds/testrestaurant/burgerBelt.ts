@@ -1,4 +1,4 @@
-import { bits } from './restaurantPlan';
+import { bits } from '../elements/elementCatalog';
 
 /**
  * **Das Förderband, das einen Burger ganz von allein baut** — gewünscht:
@@ -21,10 +21,11 @@ import { bits } from './restaurantPlan';
 export interface BeltStation {
   readonly id: string;
   readonly label: string;
-  /** Das Möbel an der Nordseite des Bands. */
-  readonly model: string;
-  /** Was dazu auf dem Möbel steht — die Pfanne auf dem Herd. */
-  readonly extra?: string;
+  /**
+   * Das Spielelement an der Nordseite des Bands (`elements/elementCatalog`) —
+   * es steht dort und sperrt, mehr nicht: Was es auflegt, rechnet das Band.
+   */
+  readonly element: string;
   /** Wo am Band, in Metern ab dem Westende: die Mitte ihrer Kachel. */
   readonly at: number;
   /** Die Schicht, die sie auf den Burger legt. */
@@ -35,43 +36,42 @@ export const BELT_STATIONS: readonly BeltStation[] = [
   {
     id: 'bun',
     label: 'Brötchen',
-    model: bits('crate_buns'),
+    element: 'crate-buns',
     at: 0.5,
     layer: bits('food_ingredient_bun_bottom'),
   },
   {
     id: 'grill',
     label: 'Grill',
-    model: bits('stove_single'),
-    extra: bits('pan_A'),
+    element: 'stove',
     at: 2.5,
     layer: bits('food_ingredient_burger_cooked'),
   },
   {
     id: 'lettuce',
     label: 'Salat',
-    model: bits('crate_lettuce'),
+    element: 'crate-lettuce',
     at: 4.5,
     layer: bits('food_ingredient_lettuce_slice'),
   },
   {
     id: 'tomato',
     label: 'Tomate',
-    model: bits('crate_tomatoes'),
+    element: 'crate-tomatoes',
     at: 6.5,
     layer: bits('food_ingredient_tomato_slice'),
   },
   {
     id: 'cheese',
     label: 'Käse',
-    model: bits('crate_cheese'),
+    element: 'crate-cheese',
     at: 8.5,
     layer: bits('food_ingredient_cheese_slice'),
   },
   {
     id: 'top',
     label: 'Deckel',
-    model: bits('crate_buns'),
+    element: 'crate-buns',
     at: 10.5,
     layer: bits('food_ingredient_bun_top'),
   },

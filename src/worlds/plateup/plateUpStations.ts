@@ -5,7 +5,13 @@ import {
   type KitchenDeed,
   type Station,
 } from '../test/zones/kitchenCarry';
-import { dish, type Dish } from '../test/zones/kitchenRecipes';
+import {
+  ITEM_LABELS,
+  burnStage,
+  dish,
+  type Dish,
+  type KitchenItem,
+} from '../test/zones/kitchenRecipes';
 import {
   IDLE_WORK,
   advanceWork,
@@ -40,11 +46,16 @@ export interface StationState {
    * **Wie viele saubere Teller** auf dem Stapel stehen — nur beim `drain`.
    * Teller gibt es nicht beliebig: Was an den Tisch geht, kommt schmutzig
    * zurück und muss durch die Spüle, bevor es wieder hier steht.
+   *
+   * Gibt der Stapel etwas anderes her (`stackGives`: Schüsseln,
+   * Pizzakartons), zählt dieselbe Zahl eben diese.
    */
   readonly stock: number;
   /**
-   * **Wie lange das gebratene Patty schon liegt**, in Sekunden — nur an der
-   * Grillplatte. Ab `burn` Sekunden (`plateUpGame.dayRules`) ist es schwarz.
+   * **Wie lange das Gebratene schon liegt**, in Sekunden — nur an der
+   * Grillplatte und nur bei dem, was verbrennen kann (Patty, Schinken:
+   * `kitchenRecipes.burnStage`). Ab `burn` Sekunden (`plateUpGame.dayRules`)
+   * ist es schwarz.
    */
   readonly heat: number;
 }
@@ -55,13 +66,34 @@ export interface StationState {
  */
 export const PLATES = 6;
 
-/** Alle Stationen, leer — der Tellerstapel voll. */
+/**
+ * **Was ein Stapel hergibt** — `spot.gives`, ohne Angabe der Teller.
+ *
+ * Der Laden hatte nur einen Stapel, und der war der Tellerstapel. Das Test
+ * Restaurant braucht zwei weitere — Schüsseln für Suppe und Waffeln,
+ * Pizzakartons für die Pizza zum Mitnehmen —, und die unterscheiden sich vom
+ * Tellerstapel in nichts als dem, was obenauf steht. Also ist es derselbe
+ * `drain`, und `gives` sagt, welche Sorte; ohne Angabe bleibt alles, wie es
+ * im Laden immer war.
+ */
+export function stackGives(spot: Pick<StationSpot, 'gives'>): KitchenItem {
+  return spot.gives ?? 'plate';
+}
+
+/**
+ * **Alle Stationen, leer — die Stapel voll.**
+ *
+ * Wie viele es je Stapel sind, sagt der Platz selbst (`StationSpot.stock`):
+ * ohne Angabe `PLATES`, und `Infinity` für einen Stapel, der nie leer wird
+ * (Schüsseln und Kartons, die mit dem Gericht zum Gast gehen und nicht
+ * zurückkommen). Alle anderen Stationen zählen nichts.
+ */
 export function freshStations(spots: readonly StationSpot[]): StationState[] {
   return spots.map((spot) => ({
     spot,
     on: null,
     work: IDLE_WORK,
-    stock: spot.kind === 'drain' ? PLATES : 0,
+    stock: spot.kind === 'drain' ? (spot.stock ?? PLATES) : 0,
     heat: 0,
   }));
 }
@@ -72,8 +104,15 @@ export function asStation(state: StationState): Station {
     // **Der Stapel ist ein Abtropfgitter ohne Obergrenze**: Die Küche zählt
     // bis vier (`CLEAN_STACK_MAX`), dieser Laden hat sechs Teller. Die Regel
     // bekommt deshalb nie mehr als drei zu sehen — damit sie nie „voll" sagt.
+    //
+    // **Und `stacked` ist, was der Stapel hergibt** (`stackGives`) — beim
+    // Tellerstapel wie immer der saubere Teller, sobald einer dasteht. Ein
+    // Stapel aus Schüsseln oder Kartons nennt seine Sorte auch leer: Nur so
+    // weiß die Regel, dass dort nichts anderes hingestellt werden darf.
     const stack = Math.min(state.stock, CLEAN_STACK_MAX - 1);
-    return { kind: 'drain', stack, stacked: stack > 0 ? 'plate' : null };
+    const gives = stackGives(state.spot);
+    const stacked = gives === 'plate' && stack <= 0 ? null : gives;
+    return { kind: 'drain', stack, stacked };
   }
   return {
     kind: state.spot.kind,
@@ -85,12 +124,16 @@ export function asStation(state: StationState): Station {
 /** Was ein Druck hier bewirken würde — für den Saum und den Satz. */
 export function stationDeed(held: Dish | null, state: StationState): KitchenDeed {
   if (state.spot.kind === 'drain') {
+    const gives = stackGives(state.spot);
     // Schmutziges gehört in die Spüle und nicht auf den Stapel — in ein leeres
-    // Gitter ließe die Küche es sonst hinein.
-    if (held?.item === 'plate-dirty') {
+    // Gitter ließe die Küche es sonst hinein. Vor einem Stapel Schüsseln sagt
+    // es die Regel selbst (`kitchenCarry.inRack`), und die Spüle muss dort
+    // nicht daneben sein.
+    if (gives === 'plate' && held?.item === 'plate-dirty') {
       return { do: 'refuse', why: 'Schmutzige Teller erst spülen — die Spüle ist daneben' };
     }
     if (!held && state.stock <= 0) {
+      if (gives !== 'plate') return { do: 'refuse', why: `Kein ${ITEM_LABELS[gives]} mehr da` };
       return { do: 'refuse', why: 'Keine sauberen Teller — Geschirr abräumen und spülen' };
     }
   }
@@ -145,7 +188,9 @@ export function useStation(held: Dish | null, state: StationState): StationUse {
         deed,
       };
     case 'combine': {
-      if (kind === 'crate') return { held: deed.held, station: state, deed };
+      // Kiste und Eiswanne geben aus dem Nichts in die Hand und bleiben, wie
+      // sie sind.
+      if (kind === 'crate' || kind === 'tub') return { held: deed.held, station: state, deed };
       const on = deed.target;
       const heat = on && state.on && on.item === state.on.item ? state.heat : 0;
       return { held: deed.held, station: { ...state, on, work: restart(state, on), heat }, deed };
@@ -178,7 +223,7 @@ export interface StationTick {
   readonly done: boolean;
   /** Der saubere Teller aus der Spüle, der **in die Hand** gehen soll — sonst `null`. */
   readonly toHand: Dish | null;
-  /** Ob in diesem Bild ein Patty verbrannt ist. */
+  /** Ob in diesem Bild etwas verbrannt ist — Patty oder Schinken. */
   readonly burnt: boolean;
 }
 
@@ -209,17 +254,16 @@ export function tickStation(
   burn = DEFAULT_BURN,
 ): StationTick {
   const idle = { station: state, done: false, toHand: null, burnt: false };
-  if (
-    state.spot.kind === 'griddle' &&
-    state.on?.item === 'patty-cooked' &&
-    !state.on.on.length &&
-    !state.work.working
-  ) {
+  // **Was verbrennen kann, verbrennt** — das Patty wie der Schinken
+  // (`kitchenRecipes.burnStage`). Die Waffel steht nicht darin: Sie bleibt
+  // auf der heißen Platte, wie sie ist.
+  const black = state.on && !state.on.on.length ? burnStage(state.on.item) : null;
+  if (state.spot.kind === 'griddle' && black && !state.work.working) {
     const heat = state.heat + Math.max(0, dt);
     if (heat < burn) return { ...idle, station: { ...state, heat } };
     return {
       ...idle,
-      station: { ...state, on: dish('patty-burnt'), heat: 0, work: IDLE_WORK },
+      station: { ...state, on: dish(black), heat: 0, work: IDLE_WORK },
       burnt: true,
     };
   }
@@ -260,11 +304,11 @@ export function stationProgress(state: StationState): number {
 }
 
 /**
- * **Wie nah das Patty am Verbrennen ist** — 0…1, 0 wenn nichts Gebratenes
- * auf der Grillplatte liegt. Ab der Hälfte warnt die Welt (Rauch, roter
- * Balken).
+ * **Wie nah das Gebratene am Verbrennen ist** — 0…1, 0 wenn nichts auf der
+ * Grillplatte liegt, das verbrennen kann (`kitchenRecipes.burnStage`). Ab der
+ * Hälfte warnt die Welt (Rauch, roter Balken).
  */
 export function burnShare(state: StationState, burn = DEFAULT_BURN): number {
-  if (state.spot.kind !== 'griddle' || state.on?.item !== 'patty-cooked') return 0;
+  if (state.spot.kind !== 'griddle' || !state.on || !burnStage(state.on.item)) return 0;
   return Math.min(1, Math.max(0, state.heat / Math.max(0.001, burn)));
 }

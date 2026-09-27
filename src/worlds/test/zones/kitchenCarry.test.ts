@@ -1240,7 +1240,7 @@ describe('wie eine Tat bedient werden will', () => {
 describe('welche Station arbeitet', () => {
   it('kennt jede Stationsart, und keine zweimal anders', () => {
     // Vollständig ist sie schon durch ihren Typ (`Record<StationKind, …>`);
-    // hier steht, **was** darin steht — vier, die arbeiten, der Rest `null`.
+    // hier steht, **was** darin steht — sechs, die arbeiten, der Rest `null`.
     const works = STATION_WORKS.filter(([, work]) => work !== null).sort(([a], [b]) =>
       a.localeCompare(b),
     );
@@ -1248,6 +1248,8 @@ describe('welche Station arbeitet', () => {
       ['board', 'chop'],
       ['griddle', 'fry'],
       ['mixer', 'blend'],
+      ['pot', 'cook'],
+      ['roller', 'roll'],
       ['sink', 'wash'],
     ]);
   });
@@ -1264,13 +1266,14 @@ describe('welche Station arbeitet', () => {
     }
   });
 
-  it('lässt genau die beiden ohne Zuschauer laufen', () => {
+  it('lässt genau die drei ohne Zuschauer laufen', () => {
     // Und die zweite Tabelle daneben sagt, welche der vier weiterläuft, wenn
     // niemand davorsteht (`kitchenWork.WORK_ALONE`) — Mixer und Kochstelle.
     const alone = STATION_WORKS.filter(([, work]) => work !== null && WORK_ALONE[work])
       .map(([kind]) => kind)
       .sort();
-    expect(alone).toEqual(['griddle', 'mixer']);
+    // Und der Suppentopf des Test Restaurants köchelt ebenso allein.
+    expect(alone).toEqual(['griddle', 'mixer', 'pot']);
   });
 });
 
@@ -1575,5 +1578,128 @@ describe('von einer Hand in die andere', () => {
    */
   it('übergibt nicht über die Reichweite hinaus', () => {
     expect(handsOver({ ...ready, together: false })).toBe(false);
+  });
+});
+
+/**
+ * **Die Stationen des Test Restaurants** — Nudelholz, Suppentopf, Eiswanne
+ * und die Stapel, die etwas anderes hergeben als Teller.
+ *
+ * Für `A` sind sie dieselbe Regel wie der Rest der Küche; hier steht, was an
+ * jeder davon neu ist.
+ */
+describe('Nudelholz, Suppentopf, Eiswanne', () => {
+  it('rollt Teig auf dem Nudelholz aus und legt sonst nur ab', () => {
+    expect(press(d('dough'), { kind: 'roller' })).toEqual({
+      do: 'work',
+      kind: 'roll',
+      dish: d('dough'),
+    });
+    // Käse gehört aufs Brett — auf dem Nudelholz bleibt er bloß liegen.
+    expect(press(d('cheese'), { kind: 'roller' })).toEqual({ do: 'place', dish: d('cheese') });
+    expect(press(d('dough'), { kind: 'board' })).toEqual({ do: 'place', dish: d('dough') });
+    expect(kitchenPrompt(press(d('dough'), { kind: 'roller' }), 'Nudelholz')).toBe(
+      'Teig ausrollen',
+    );
+  });
+
+  it('kocht geschnittenes Gemüse im Topf und gibt die Suppe nur in eine Schüssel', () => {
+    const pot = (on: Dish | null): Station => ({ kind: 'pot', on });
+    expect(press(d('carrot-cut'), pot(null))).toEqual({
+      do: 'work',
+      kind: 'cook',
+      dish: d('carrot-cut'),
+    });
+    expect(why(press(d('carrot'), pot(null)))).toBe('Karotte muss erst geschnitten werden');
+    expect(why(press(d('plate'), pot(null)))).toBe('In den Topf gehört geschnittenes Gemüse');
+    expect(why(press(null, pot(d('stew'))))).toBe('Gemüsesuppe braucht eine Schüssel');
+    expect(press(d('bowl'), pot(d('stew')))).toEqual({
+      do: 'combine',
+      held: d('bowl', 'stew'),
+      target: null,
+      moved: ['stew'],
+    });
+    // Was noch kocht, darf wieder heraus — aber nicht in die Schüssel.
+    expect(press(null, pot(d('onion-cut')))).toEqual({ do: 'take', dish: d('onion-cut') });
+    expect(why(press(d('bowl'), pot(d('onion-cut'))))).toBe(
+      'Geschnittene Zwiebel muss erst gekocht werden',
+    );
+    expect(why(press(d('potato-cut'), pot(d('stew'))))).toBe('Im Topf ist schon Gemüsesuppe');
+  });
+
+  it('gibt Eis nur in eine Schüssel, Kugel für Kugel', () => {
+    const vanilla: Station = { kind: 'tub', gives: 'ice-vanilla' };
+    const strawberry: Station = { kind: 'tub', gives: 'ice-strawberry' };
+    expect(why(press(null, vanilla))).toBe('Vanilleeis braucht eine Schüssel');
+    expect(why(press(d('plate'), vanilla))).toBe('Vanilleeis braucht eine Schüssel');
+    const one = press(d('bowl', 'waffle'), vanilla);
+    expect(one).toEqual({
+      do: 'combine',
+      held: d('bowl', 'waffle', 'ice-vanilla'),
+      target: null,
+      moved: ['ice-vanilla'],
+    });
+    const two = press(d('bowl', 'waffle', 'ice-vanilla'), strawberry);
+    expect(two).toEqual({
+      do: 'combine',
+      held: d('bowl', 'waffle', 'ice-vanilla', 'ice-strawberry'),
+      target: null,
+      moved: ['ice-strawberry'],
+    });
+    expect(why(press(d('bowl', 'ice-vanilla'), vanilla))).toBe('Vanilleeis liegt schon drauf');
+    expect(press(null, { kind: 'tub' })).toEqual({ do: 'nothing' });
+  });
+
+  it('gibt aus einem Stapel Kartons einen Karton — mit der Pizza darin, wenn man sie hält', () => {
+    const boxes: Station = { kind: 'drain', stack: 3, stacked: 'pizzabox' };
+    expect(press(null, boxes)).toEqual({ do: 'take', dish: d('pizzabox') });
+    expect(press(d('pizza-cut'), boxes)).toEqual({
+      do: 'combine',
+      held: d('pizzabox', 'pizza-cut'),
+      target: null,
+      moved: ['pizza-cut'],
+    });
+    // Der leere Karton geht zurück, ein voller nicht, ein Teller auch nicht.
+    expect(press(d('pizzabox'), boxes)).toEqual({ do: 'place', dish: d('pizzabox') });
+    expect(why(press(d('pizzabox', 'pizza'), boxes))).toBe(
+      'Auf diesen Stapel gehört nur Pizzakarton, leer',
+    );
+    expect(why(press(d('plate'), boxes))).toBe('Auf diesen Stapel gehört nur Pizzakarton, leer');
+    // Auch ein leerer Stapel weiß, was er ist.
+    expect(why(press(d('plate'), { kind: 'drain', stack: 0, stacked: 'bowl' }))).toBe(
+      'Auf diesen Stapel gehört nur Schüssel, leer',
+    );
+  });
+
+  it('räumt im Mülleimer jede neue Zutat weg und lässt den Träger in der Hand', () => {
+    for (const item of ['ham-burnt', 'pizza', 'stew', 'waffle', 'cheese-cut'] as const) {
+      expect(press(d(item), { kind: 'bin' })).toEqual({ do: 'trash', dish: d(item) });
+    }
+    expect(press(d('bowl', 'waffle', 'ice-vanilla'), { kind: 'bin' })).toEqual({
+      do: 'scrape',
+      dish: d('bowl'),
+    });
+    expect(press(d('pizzabox', 'pizza-cut'), { kind: 'bin' })).toEqual({
+      do: 'scrape',
+      dish: d('pizzabox'),
+    });
+    expect(why(press(d('bowl'), { kind: 'bin' }))).toBe('Schüssel gehört nicht in den Müll');
+  });
+
+  it('lässt das Abtropfgitter der Testwelt, wie es war', () => {
+    // Saubere Teller richten an, dreckige nicht, und die Sätze sind die alten.
+    const clean: Station = { kind: 'drain', stack: 2, stacked: 'plate' };
+    expect(press(d('bun'), clean)).toEqual({
+      do: 'combine',
+      held: d('plate', 'bun'),
+      target: null,
+      moved: ['bun'],
+    });
+    expect(why(press(d('plate'), { kind: 'drain', stack: 2, stacked: 'plate-dirty' }))).toBe(
+      'Im Abtropfgitter stehen dreckige Teller',
+    );
+    expect(why(press(d('bun'), { kind: 'drain', stack: 0, stacked: null }))).toBe(
+      'In das Abtropfgitter gehören nur leere Teller',
+    );
   });
 });

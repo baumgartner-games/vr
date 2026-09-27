@@ -519,6 +519,10 @@ const WORK_WORDS: Readonly<Record<WorkKind, string>> = {
   blend: 'wird gemixt',
   fry: 'brät',
   wash: 'wird gespült',
+  // Die beiden Arten des Test Restaurants — in dieser Küche gibt es weder
+  // Nudelholz noch Suppentopf, der Übersetzer fragt trotzdem nach ihnen.
+  roll: 'wird ausgerollt',
+  cook: 'kocht',
 };
 
 const GHOST_ALPHA = 0.35;
