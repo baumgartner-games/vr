@@ -34,6 +34,14 @@ ein anderes Gericht (`CONE_HAND`), und sein Turm wackelt wie im Restaurant
 
 Feuerlöscher und Tellerkiste kamen mit der zweiten Liste dazu.
 
+Im Norden die **Suppenküche** (fünfte Liste): bei z = 7 von West nach Ost
+Kartoffelkiste (nach Westen), Tomatenkiste (nach Osten), Karottenkiste, Herd mit
+Topf, Spüle, Schüsselstapel, Feuerlöscher und — nicht in der Liste, aber
+nötig, weil die Spüle kaputtgehen kann — die Rohrzange; bei z = 9 Pilzkiste
+(nach Osten), dann nach Norden Zwiebelkiste, Brett, zwei Platten, Mülleimer.
+Pilz- und Kartoffelkiste standen als rohe Modelle in der Liste und sind hier
+die Spielelemente dazu.
+
 **Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist
 bei allen Süden, bitte anpassen."_ In der Liste standen die sechs Kisten noch
 nach Norden. Die Nordreihe arbeitet man damit vom Gang aus, die Südreihe von

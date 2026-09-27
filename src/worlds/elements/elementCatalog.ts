@@ -221,7 +221,7 @@ export function crate(id: string, file: string, gives: string, label: string): G
  * (`stationLayer.elementStations`). `elementCatalog.test.ts` sieht nach, dass
  * jedes andere `gives` ein Ding der Küche ist.
  */
-export const SHOW_ONLY_GIVES: ReadonlySet<string> = new Set(['pepperoni', 'mushroom']);
+export const SHOW_ONLY_GIVES: ReadonlySet<string> = new Set(['pepperoni']);
 
 /** Die Tellerkiste: die leere Kiste, darin sechs Teller, jeder verdreht. */
 function plateCrate(): ElementPart[] {
@@ -391,6 +391,10 @@ export const ELEMENTS: readonly GameElement[] = [
   piece('extinguisher', 'Feuerlöscher', 'top', [{ model: COUNTER }], {
     holds: 'extinguisher',
   }),
+  // **Die Rohrzange auf der Arbeitsplatte** — damit wird die Spüle wieder
+  // dicht, wenn sie spritzt (`kitchenCarry.atSink`, `repair`), wie in der
+  // Sandbox, wo sie auf einer Platte neben dem Becken liegt. Sie geht mit.
+  piece('pliers', 'Rohrzange', 'top', [{ model: COUNTER }], { holds: 'pliers' }),
   // So hoch wie im Burgerladen (`PlateUpWorld.addBinProp`): Der Eimer aus
   // _Block Bits_ ist 1,17 m, neben einer Platte von 0,50 m ein Silo.
   piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }]),
@@ -586,6 +590,8 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'rolling-board',
   'bin',
   'extinguisher',
+  'pliers',
+  'crate-mushrooms',
 ];
 
 /**
@@ -629,7 +635,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   {
     id: 'general',
     label: 'Allgemein',
-    elements: ['counter', 'sink', 'bin', 'extinguisher'],
+    elements: ['counter', 'sink', 'pliers', 'bin', 'extinguisher'],
   },
   {
     id: 'pizza',
@@ -700,10 +706,13 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'counter',
       'crate-carrots',
       'crate-onions',
+      'crate-tomatoes',
+      'crate-mushrooms',
       'board',
       'stove-pot',
       'hob',
       'sink',
+      'pliers',
       'bowl-stack',
     ],
   },

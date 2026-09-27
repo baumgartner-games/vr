@@ -67,6 +67,28 @@ export const SPOTS: readonly ElementSpot[] = [
   { id: 'eismaschine', element: 'ice-machine', x: 26, z: 12, face: 'S' },
   { id: 'wannen-kiste', element: 'crate-trays', x: 27, z: 12, face: 'S' },
   { id: 'eis-muell', element: 'bin', x: 20, z: 14, face: 'W' },
+  // Die fünfte Liste: die Suppenküche im Norden (z = 7 und 9). Vorräte nach
+  // Osten und Süden, Herd mit Topf, Spüle, Schüsseln, Feuerlöscher, und
+  // gegenüber nach Norden Zwiebeln, Brett, zwei Platten, Mülleimer. Pilz- und
+  // Kartoffelkiste standen in der Liste als rohe Modelle aus dem Regal; hier
+  // sind sie die Spielelemente dazu, gedreht wie die Modelle (90° → Osten,
+  // −90° → Westen).
+  { id: 'suppe-karotten', element: 'crate-carrots', x: 11, z: 7, face: 'S' },
+  { id: 'suppe-tomaten', element: 'crate-tomatoes', x: 10, z: 7, face: 'E' },
+  { id: 'suppe-kartoffeln', element: 'crate-potatoes', x: 9, z: 7, face: 'W' },
+  { id: 'suppe-herd', element: 'stove-pot', x: 12, z: 7, face: 'S' },
+  { id: 'suppe-spuele', element: 'sink', x: 13, z: 7, face: 'S' },
+  { id: 'suppe-schuesseln', element: 'bowl-stack', x: 14, z: 7, face: 'S' },
+  { id: 'suppe-loescher', element: 'extinguisher', x: 15, z: 7, face: 'S' },
+  // Nicht in der Liste, aber nötig: Die Spüle kann kaputtgehen, und ohne
+  // Rohrzange bliebe sie es (`stationLayer.LEAK_CHANCE`).
+  { id: 'suppe-zange', element: 'pliers', x: 16, z: 7, face: 'S' },
+  { id: 'suppe-pilze', element: 'crate-mushrooms', x: 10, z: 9, face: 'E' },
+  { id: 'suppe-zwiebeln', element: 'crate-onions', x: 11, z: 9, face: 'N' },
+  { id: 'suppe-brett', element: 'board', x: 12, z: 9, face: 'N' },
+  { id: 'suppe-platte-1', element: 'counter', x: 13, z: 9, face: 'N' },
+  { id: 'suppe-platte-2', element: 'counter', x: 14, z: 9, face: 'N' },
+  { id: 'suppe-muell', element: 'bin', x: 15, z: 9, face: 'N' },
   // Die Südreihe: Müll, Platte, Brett, drei Platten, Teller.
   { id: 'muell', element: 'bin', x: 11, z: 14, face: 'S' },
   { id: 'platte-1', element: 'counter', x: 12, z: 14, face: 'S' },

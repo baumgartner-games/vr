@@ -142,7 +142,18 @@ export type KitchenItem =
   | 'potato-cut'
   | 'onion'
   | 'onion-cut'
+  /** Pilze — geschnitten wie die Karotte, im Topf zur Pilzsuppe. */
+  | 'mushroom'
+  | 'mushroom-cut'
   | 'stew'
+  /**
+   * **Jede Suppe ihre Sorte** — gewünscht: _„Es gibt dann verschiedene
+   * Suppen, unterschiedliche Farbe."_ Die Karotte gibt die Gemüsesuppe
+   * (`stew`), die Tomate die Tomatensuppe (`tomato-soup`), dazu Zwiebel und
+   * Pilz. Die Kartoffel bleibt bei den Pommes.
+   */
+  | 'soup-onion'
+  | 'soup-mushroom'
   /**
    * **Pommes** — die geschnittene Kartoffel, im Topf gekocht (`COOKS`).
    *
@@ -232,6 +243,10 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   'potato-cut': 'Geschnittene Kartoffel',
   onion: 'Zwiebel',
   'onion-cut': 'Geschnittene Zwiebel',
+  mushroom: 'Pilz',
+  'mushroom-cut': 'Geschnittener Pilz',
+  'soup-onion': 'Zwiebelsuppe',
+  'soup-mushroom': 'Pilzsuppe',
   // **„Gemüsesuppe" und nicht „Suppe"**: Die Tomatensuppe gibt es schon, und
   // zwei Dinge, die in einem Satz gleich heißen, sind im Satz ein Ding.
   stew: 'Gemüsesuppe',
@@ -366,7 +381,16 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'dough-flat',
     'waffle',
   ],
-  bowl: ['waffle', 'stew', 'ice-vanilla', 'ice-strawberry', 'ice-chocolate'],
+  bowl: [
+    'waffle',
+    'stew',
+    'tomato-soup',
+    'soup-onion',
+    'soup-mushroom',
+    'ice-vanilla',
+    'ice-strawberry',
+    'ice-chocolate',
+  ],
   cone: ['ice-vanilla', 'ice-strawberry', 'ice-chocolate'],
   pizzabox: ['pizza', 'pizza-cut'],
 };
@@ -415,7 +439,10 @@ export function carries(carrier: KitchenItem, item: KitchenItem): boolean {
  *
  * Zwei Stufen bei der Tomate, und das ist kein Spaß, sondern die Probe darauf,
  * dass eine **zweite** Schnittstufe überhaupt geht: Wer aus Scheiben Suppe
- * macht, hat den Fortschritt zweimal von vorn laufen lassen.
+ * macht, hat den Fortschritt zweimal von vorn laufen lassen. **Nur in der
+ * Sandbox** — an den Stationen der Spielelemente wird die Tomate einmal
+ * geschnitten (`plateUpStations.stationDeed`, `ONE_CHOP`), und die Scheiben
+ * kochen im Topf zur Tomatensuppe (`COOKS`).
  */
 const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   lettuce: 'lettuce-cut',
@@ -426,6 +453,7 @@ const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   carrot: 'carrot-cut',
   potato: 'potato-cut',
   onion: 'onion-cut',
+  mushroom: 'mushroom-cut',
   // Das rohe Steak wird auf dem Brett zum rohen Patty — Hackfleisch.
   steak: 'patty',
 };
@@ -521,8 +549,26 @@ const COOKS: Partial<Record<KitchenItem, KitchenItem>> = {
   // **Aus der Kartoffel werden Pommes** und keine Suppe mehr — gewünscht war
   // die Pommes-Kette (`fries`). Suppe gibt es weiter aus Karotte und Zwiebel.
   'potato-cut': 'fries',
-  'onion-cut': 'stew',
+  'onion-cut': 'soup-onion',
+  'mushroom-cut': 'soup-mushroom',
+  'tomato-cut': 'tomato-soup',
 };
+
+/**
+ * **Wie viele Schüsseln eine Suppe hergibt** — acht, dann ist der Topf leer.
+ * Gewünscht: _„Aus einer Suppe sollte man so 8 Suppen Schalen nehmen können
+ * bevor die Suppe leer ist."_ Im Topf liegt die Suppe deshalb achtmal
+ * (`Dish.on`), und jede Schüssel nimmt eine (`offer`).
+ */
+export const SOUP_SERVINGS = 8;
+
+/** Die Suppen — was im Topf in Portionen liegt (`SOUP_SERVINGS`). */
+export const SOUPS: readonly KitchenItem[] = ['stew', 'tomato-soup', 'soup-onion', 'soup-mushroom'];
+
+/** Wie oft ein gekochtes Ding im Topf liegt — Suppe achtmal, alles andere einmal. */
+export function servings(item: KitchenItem): number {
+  return SOUPS.includes(item) ? SOUP_SERVINGS : 1;
+}
 
 export function cookStage(item: KitchenItem): KitchenItem | null {
   return COOKS[item] ?? null;
@@ -566,12 +612,14 @@ const RAW: Partial<Record<KitchenItem, string>> = {
   carrot: 'geschnitten',
   potato: 'geschnitten',
   onion: 'geschnitten',
+  mushroom: 'geschnitten',
   // **Geschnittenes Gemüse ist hier noch roh**, anders als die
   // Tomatenscheibe: Die darf auf den Burger, die Karotte gehört nur in den
   // Topf. „Muss noch" und nicht „kann noch" — genau die Regel von oben.
   'carrot-cut': 'gekocht',
   'potato-cut': 'gekocht',
   'onion-cut': 'gekocht',
+  'mushroom-cut': 'gekocht',
 };
 
 /** Ob dieses Ding erst noch durch Herd oder Brett muss. */
@@ -623,7 +671,11 @@ const FOOD: readonly KitchenItem[] = [
   'potato-cut',
   'onion',
   'onion-cut',
+  'mushroom',
+  'mushroom-cut',
   'stew',
+  'soup-onion',
+  'soup-mushroom',
   'fries',
   'ice-vanilla',
   'ice-strawberry',
@@ -661,6 +713,8 @@ export const STACK_ORDER: readonly KitchenItem[] = [
   'pizza-cut',
   'waffle',
   'stew',
+  'soup-onion',
+  'soup-mushroom',
   'fries',
   'ice-vanilla',
   'ice-strawberry',
@@ -719,6 +773,12 @@ function offer(d: Dish): { what: readonly KitchenItem[]; rest: Dish | null } {
   // und bleibt leer zurück: Die Pommes kommen auf den Teller, nicht der Topf.
   // Nur, wenn alles darin Essen ist — ein Topf mit Wasser (in der Küche der
   // Testwelt der einzige Inhalt, den er je hat) wandert wie bisher selbst.
+  //
+  // **Eine Suppe gibt Portionen her** (`SOUP_SERVINGS`): Liegt dieselbe Suppe
+  // mehrmals im Topf, nimmt die Schüssel eine, und der Rest bleibt darin.
+  if (d.item === 'pot' && d.on.length > 1 && d.on.every((item) => item === d.on[0])) {
+    return { what: [d.on[0]!], rest: dish('pot', d.on.slice(1)) };
+  }
   if (d.item === 'pot' && d.on.length && d.on.every(isFood)) {
     return { what: d.on, rest: dish('pot') };
   }

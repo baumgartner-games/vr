@@ -355,4 +355,32 @@ describe('Stationen auf Spielelementen', () => {
     expect(parts[3]!.parent?.parent).toBe(strawberry);
     expect(parts[4]!.parent?.parent).toBe(strawberry);
   });
+
+  it('lässt die Spüle beim Füllen kaputtgehen — die Rohrzange dichtet sie ab', () => {
+    const { host, usables, hand, said } = world();
+    host.random = () => 0;
+    const layer = new StationLayer(host);
+    const sink = placed({ id: 'spuele', element: 'sink', x: 0, z: 0 });
+    layer.add(sink);
+    const station = sink.anchor.children[0]!;
+    // Wasser im Becken, von Haus aus.
+    expect(station.getObjectByName('station-sink-water')?.visible).toBe(true);
+    hand.held = { item: 'pot', on: [] };
+    layer.step(0, MID);
+    expect(usables.get(station)!.use(by)).toBe(true);
+    expect(hand.held).toEqual({ item: 'pot', on: ['water'] });
+    expect(layer.states[0]!.leak?.leaking).toBe(true);
+    expect(said.at(-1)).toMatch(/spritzt/);
+    expect(layer.leakingAt(new THREE.Vector3())).not.toBeNull();
+    layer.step(0, MID);
+    expect(station.getObjectByName('station-sink-water')?.visible).toBe(false);
+    // Ohne Zange geht nichts, mit Zange und davorstehen wird es dicht.
+    hand.held = { item: 'pliers', on: [] };
+    layer.step(0, MID);
+    expect(usables.get(station)!.use(by)).toBe(true);
+    const near = { x: 0.5, z: 1.2 };
+    for (let i = 0; i < 50; i++) layer.step(0.1, near);
+    expect(layer.states[0]!.leak?.leaking).toBe(false);
+    expect(layer.leakingAt(new THREE.Vector3())).toBeNull();
+  });
 });

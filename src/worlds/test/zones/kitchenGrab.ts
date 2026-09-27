@@ -563,6 +563,10 @@ export function kitchenHandles(
     case 'ice-strawberry':
     case 'ice-chocolate':
     case 'tray':
+    case 'mushroom':
+    case 'mushroom-cut':
+    case 'soup-onion':
+    case 'soup-mushroom':
       return [];
   }
 }

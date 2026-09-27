@@ -509,6 +509,27 @@ Schneidebrett stehe"_.
 
 ## Topf, Spüle und Pommes
 
+**Suppen, Spüle und Topf** (September 2026, fünfte Runde):
+
+- **Jede Suppe ihre Sorte** (`kitchenRecipes.COOKS`): Karotte → Gemüsesuppe
+  (`stew`), Zwiebel → Zwiebelsuppe, Pilz → Pilzsuppe (neu: `mushroom`,
+  `mushroom-cut`, die Pilzkiste ist jetzt eine Zutatenkiste), Tomatenscheibe →
+  Tomatensuppe. Die Kartoffel gibt weiter Pommes. Jede Suppe hat ihre Farbe
+  (`dishView.SOUP_TINT`, das Regal hat nur einen Eintopf).
+- **Acht Schüsseln je Topf** (`SOUP_SERVINGS`): Die Suppe liegt achtmal im
+  Topf, jede Schüssel nimmt eine (`offer`), gezeigt wird sie einmal.
+- **Die Tomate wird an den Stationen der Spielelemente nur einmal
+  geschnitten** (`plateUpStations.stationDeed`, `ONE_CHOP`); die Scheibe liegt
+  auf dem Brett wie auf einer Platte. Die Sandbox behält die zweite Stufe.
+- **Die Spüle hat Wasser im Becken** (`stationLayer.basinWater`, die Fläche
+  der Sandbox) und **kann kaputtgehen**: beim Füllen, im Mittel jedes fünfte
+  Mal (`LEAK_CHANCE`). Dann spritzt sie (`kitchenLeak.LeakJet`), füllt nichts
+  mehr, und nur die **Rohrzange** (`pliers`, neues Element „Rohrzange" auf
+  einer Arbeitsplatte, Bild `rpg-tools-bits/wrench_A`) dichtet sie ab:
+  ansetzen, `REPAIR_SECONDS` davorstehen (`StationState.leak`).
+- **Der Topf ist doppelt so groß** (`dishView.POT_SCALE`), und **Wasser darin
+  ist zu sehen** (`KaykitDishView.pourWater`, die Farbe der Sandbox).
+
 Gewünscht, für die Pommes: _„Die Kartoffeln Vorräte sollen auch
 gehighlighted werden und interagierbar sein. Das Schneidebrett daneben soll
 leer sein ohne die Kartoffel drauf, aber ich will darauf z.B. auch Kartoffeln
