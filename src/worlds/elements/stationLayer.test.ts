@@ -55,8 +55,8 @@ function world(): {
 
 const by = { kind: 'player' as const, at: new THREE.Vector3(), forward: new THREE.Vector3() };
 
-/** Nah genug, dass sich Kiste und Brett (Anker bei x 0,5 und 1,5, z 1) anmelden — zu weit zum Schneiden. */
-const MID = { x: 1, z: 3.5 };
+/** Nah genug, dass sich Kiste und Brett (Anker in der Mitte, bei x 0,5 und 1,5, z 0,5) anmelden — zu weit zum Schneiden. */
+const MID = { x: 1, z: 3 };
 const FAR = { x: 50, z: 50 };
 
 describe('Stationen auf Spielelementen', () => {

@@ -68,6 +68,12 @@ export interface ElementPart {
    * Eis unter dem Rand statt obenauf.
    */
   readonly inside?: boolean;
+  /**
+   * **So tief unter der Oberkante dessen, worauf es steht**, in Metern — für
+   * etwas, das **in** einer offenen Kiste liegt und nicht auf ihrem Rand: die
+   * Teller in der Tellerkiste.
+   */
+  readonly sink?: number;
   /** Zusätzliche Drehung um die Hochachse, in Bogenmaß. */
   readonly yaw?: number;
   /**
@@ -215,6 +221,17 @@ export function crate(id: string, file: string, gives: string, label: string): G
  */
 export const SHOW_ONLY_GIVES: ReadonlySet<string> = new Set(['pepperoni', 'mushroom']);
 
+/** Die Tellerkiste: die leere Kiste, darin sechs Teller, jeder verdreht. */
+function plateCrate(): ElementPart[] {
+  const twist = (13 * Math.PI) / 180;
+  const plates = Array.from({ length: 6 }, (_, i): ElementPart => ({
+    model: bits('plate'),
+    ...(i === 0 ? { on: 0, sink: 0.35 } : { stack: true }),
+    yaw: i * twist,
+  }));
+  return [{ model: bits('crate') }, ...plates];
+}
+
 /** Die Kisten des Pakets, je eine Zutat. */
 const CRATES: readonly GameElement[] = [
   crate('crate-buns', 'crate_buns', 'bun', 'Brötchenkiste'),
@@ -234,15 +251,16 @@ const CRATES: readonly GameElement[] = [
   // vorratskiste mit Tellern (aus der unendlich viele kommen können)"_. Wie
   // die Tellerkiste der Sandbox (`core/kitchenFit`, `plate-counter`): eine
   // Kiste, aus der Teller kommen und die nie leer wird — anders als das
-  // Abtropfgitter (`plate-stack`), das höchstens vier hält. Die leere Kiste
-  // und obenauf ein Teller, damit man sieht, was darin ist.
-  piece(
-    'crate-plates',
-    'Tellerkiste',
-    'crate',
-    [{ model: bits('crate') }, { model: bits('plate'), stack: true }],
-    { gives: 'plate' },
-  ),
+  // Abtropfgitter (`plate-stack`), das höchstens vier hält.
+  //
+  // **Ein Stapel Teller in der Kiste** und nicht einer auf dem Rand —
+  // gemeldet: _„Bei den Teller vorratskiste sollten ein paar mehr Teller schon
+  // drin sein. So sieht es aus als wenn der Teller schwebt."_ Sechs wie in der
+  // Sandbox: Der Boden der Kiste liegt 5 cm über ihrem Fuß, der Rand 0,40 m
+  // darüber; die Teller (je 5 cm) fangen also 0,35 m unter dem Rand an und
+  // bleiben mit dem sechsten darunter. Jeder liegt 13° gegen den vorigen
+  // verdreht (`kitchenProps.DIRTY_TWIST`), sonst sähe man von oben einen.
+  piece('crate-plates', 'Tellerkiste', 'crate', plateCrate(), { gives: 'plate' }),
 ];
 
 /**

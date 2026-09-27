@@ -100,6 +100,8 @@ Osten, z nach Süden, von der Mitte der Grundfläche aus.
 - `stack`: obenauf auf dem Teil davor, auf dessen gemessener Oberkante.
 - `on`: auf einem früheren Teil (Index), etwa der Portionierer auf der Platte
   statt auf dem Hörnchenstapel daneben.
+- `sink`: so viele Meter tiefer als die Oberkante dessen, worauf es steht,
+  etwa die Teller **in** der Tellerkiste statt auf ihrem Rand.
 - `inside`: im Teil davor, mit dessen Maßstab und Drehung und nicht
   nachgemessen, etwa das Eis in seiner Wanne. Die beiden Dateien haben
   denselben Ursprung und sitzen nur zusammen richtig.
@@ -126,7 +128,7 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | `board`                          | Arbeitsplatte mit Schneidebrett | `board`, `work: 'chop'`        | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                                                             |
 | `rolling-board`                  | Nudelbrett                      | `board`, `work: 'roll'`        | `counter_A`, `rollingpin` auf 10 cm                                                                                                                      |
 | `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten             | `crate`                        | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                                                            |
-| `crate-plates`                   | Tellerkiste                     | `crate`, gibt `plate`          | leere `crate`, obenauf ein `plate`; gibt Teller, so viele man will, und nimmt einen leeren zurück                                                        |
+| `crate-plates`                   | Tellerkiste                     | `crate`, gibt `plate`          | leere `crate`, darin sechs `plate`, je 13° verdreht (`sink`); gibt Teller, so viele man will, und nimmt einen leeren zurück                              |
 | `pizza-supply`                   | Pizza-Vorratsbox                | `crate`, gibt `pizza`          | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                                                     |
 | `stove`                          | Herdplatte mit Pfanne           | `stove`, `holds: 'pan'`        | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin      |
 | `stove-pot`                      | Herdplatte mit Topf             | `stove`, `holds: 'pot'`        | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                                                     |
@@ -415,8 +417,14 @@ DEFAULT_BURN)`, dann `add(placed)` je hingestelltem Element und jedes Bild
   `reset()` (stellt auch den Topf zurück auf den Herd), `dispose()`. Verbrannt ist Gebratenes nach `DEFAULT_BURN` =
   14 s, wie am ersten Tag im Restaurant.
 - **Wo was hängt:** Die Anmeldung (`Usable`, der Saum für `A`) hängt an
-  einem Kind des Ankers an der Vorderkante, und das Liegende auf einem Kind
-  in der Mitte der Platte, auf `top`. Die Teile des Elements hängen, wo es
+  einem Kind des Element-Ankers **in der Mitte der Platte** (seit September
+  2026; vorher an der Vorderkante), mit `STATION_REACH` = 0,55 m Halbmesser,
+  bei den Eiswannen 0,3 m je Wanne. Gemeint ist so, worauf die Figur schaut,
+  von vorn wie von hinten; von hinten schaute man vorher über das Ende des
+  Strahls hinaus. Und **nur, wer hinschaut** (`Usable.aimOnly`): Die Füße
+  allein wählen keine Station, sonst leuchtete im Gang die Kiste hinter einem
+  (_„sollen auch nur die gehighlithed werden, wenn ich in deren Richtung
+  schaue"_). Das Liegende hängt auf einem Kind davon, auf `top`. Die Teile des Elements hängen, wo es
   leuchten kann (`elementLit`), als **Körper** ebenfalls darunter (`attach`,
   sie bleiben stehen, wo sie stehen).
 - **Was leuchtet** (`Usable.highlight`, `core/usable.highlightOf`): Der Saum
