@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipes';
-import { BUN_BOTTOM, BUN_TOP, ITEM_MODELS, dishModels, itemModel } from './itemModels';
+import { BUN_BOTTOM, BUN_TOP, ITEM_MODELS, KITCHEN_PAN, dishModels, itemModel } from './itemModels';
 
 /** Ein Ordner des Regals, so wie `index.json` ihn beschreibt. */
 interface ShelfDir {
@@ -47,6 +47,8 @@ describe('itemModels — die Küche aus dem Regal', () => {
     }
     // Und die Füllungen der Schüssel, die nur `dishModels` kennt.
     for (const p of dishModels(dish('bowl', ['stew', 'waffle']))) wanted.add(p);
+    // Die Pfanne ist die der Sandbox-Küche (`kitchen.glb`) und nicht im Regal.
+    wanted.delete(KITCHEN_PAN);
     const missing = [...wanted].filter((p) => !files.has(p));
     expect(missing).toEqual([]);
   });

@@ -89,8 +89,7 @@ export function slotStates(slots: readonly StationSlot[]): StationState[] {
 
 /**
  * **Welche Stationsart ein Element ist** — `null` für eines ohne Zweck
- * (Tisch, Stuhl, Band) und für den Eisstand, den die Eisecke regelt
- * (`plateup/plateUpIce.ts`).
+ * (Tisch, Stuhl, Band).
  *
  * Zwei Übersetzungen, sonst gilt die Art des Elements: Ein Brett, auf dem
  * ausgerollt wird, ist für die Regel das Nudelholz (`roller`), und die
@@ -99,7 +98,6 @@ export function slotStates(slots: readonly StationSlot[]): StationState[] {
 export function stationKind(element: GameElement): StationKind | null {
   switch (element.kind) {
     case null:
-    case 'ice-stand':
       return null;
     case 'ice-tubs':
       return 'tub';

@@ -45,7 +45,12 @@ import {
   type ModelChange,
   type NoteChange,
 } from '../../core/worldChanges';
-import { catalogueLabel, elementById, hasElement } from '../elements/elementCatalog';
+import { elementById, hasElement } from '../elements/elementCatalog';
+import { elementModel } from '../elements/elementView';
+import { KaykitDishView } from '../elements/dishView';
+import { dish } from '../test/zones/kitchenRecipes';
+import { loadItemModel } from '../elements/itemTemplate';
+
 import { faceYaw, type CarriedElement, type ElementSpot } from '../elements/elementPlace';
 import { buildNote, NOTE_MODEL, noteLabelOf } from '../notes/notePost';
 import { cleanNoteText, NOTE_MAX_CHARS } from '../notes/noteText';
@@ -1072,6 +1077,29 @@ interface NearGrab {
   hold: Vec3;
 }
 
+/** Die Vorschau-Id eines Spielelements im Möbelkatalog (`menuModel`). */
+const ELEMENT_PREVIEW = 'element:';
+
+/**
+ * **Wie ein Spielelement in den Händen liegt**: mit der Vorderseite **von der
+ * Figur weg**, wie jedes Möbel der Sandbox-Küche (`kitchen.Furnish.hold`, 0 —
+ * _„wer nach Süden schaut und absetzt, stellt es nach Süden hin"_). Ein Modell
+ * aus dem Regal liegt mit +z zur Figur hin; das Bodenstück eines Elements
+ * steckt deshalb um eine halbe Drehung gewendet im getragenen Körper
+ * (`heldElement`), und die Vorderseite des Elements ist dessen Drehung plus
+ * diese. Gemeldet war: _„die Standard Ausrichtung beim platzieren des Herds
+ * ist falsch"_.
+ */
+const ELEMENT_HOLD = Math.PI;
+
+/** Das Bodenstück eines Elements, gewendet (`ELEMENT_HOLD`), als getragenes Modell. */
+function heldElement(model: THREE.Object3D): THREE.Object3D {
+  const holder = new THREE.Group();
+  model.rotation.y += ELEMENT_HOLD;
+  holder.add(model);
+  return holder;
+}
+
 /**
  * Portal sandbox with real physics: walk, jump and fall through portals, knock
  * over dominoes and carry the companion cube around.
@@ -1376,6 +1404,10 @@ export class PortalWorld implements World {
   private readonly elementBodies = new Map<PhysicsBody, CarriedElement>();
   /** Die Zeile je Stelle in der Liste der Weltänderungen — Umstellen ändert dieselbe. */
   private readonly elementKeys = new Map<string, string>();
+  /** Die Kachelbilder des Möbelkatalogs, je Element einmal gebaut (`elementPreview`). */
+  private readonly elementPreviews = new Map<string, THREE.Group | null>();
+  /** Was auf den Kacheln obenauf steht — Topf, Pfanne (`elementModel`, `holds`). */
+  private elementDishes: KaykitDishView | null = null;
   /** Wie jedes Modell aus dem Regal steht (`modelStance.ts`) — nur Modelle stehen hier. */
   private readonly stances = new WeakMap<PhysicsBody, ModelStance>();
   /**
@@ -3851,10 +3883,10 @@ export class PortalWorld implements World {
           const [w, d] = element.tiles;
           return {
             id: `elements:${id}`,
-            label: catalogueLabel(element),
+            label: element.label,
             caption: `${w} × ${d} Kachel · ${2 * w} × ${2 * d} Zellen gesperrt`,
             accent,
-            preview: `kaykit:${element.parts[0]!.model}`,
+            preview: `${ELEMENT_PREVIEW}${id}`,
             run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
           };
         }),
@@ -3902,12 +3934,12 @@ export class PortalWorld implements World {
       if (id === null) return false;
       this.pipette = false;
       this.takeElement(ctx, id, null);
-      ctx.notify(`Kopiert: ${catalogueLabel(elementById(id))}`);
+      ctx.notify(`Kopiert: ${elementById(id).label}`);
       return true;
     }
     const lifted = this.liftElementAt(_point.x, _point.z);
     if (!lifted) return false;
-    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') : null;
+    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') - ELEMENT_HOLD : null;
     void this.conjureModel(ctx, elementById(lifted.id).parts[0]!.model, null, yaw, null, lifted);
     return true;
   }
@@ -3948,8 +3980,8 @@ export class PortalWorld implements World {
     queueMicrotask(() => {
       if (this.context !== ctx) return;
       this.removeProp(entry, false);
-      const spot = this.furnishAt(carried, x, z, yaw);
-      const label = catalogueLabel(elementById(id));
+      const spot = this.furnishAt(carried, x, z, yaw + ELEMENT_HOLD);
+      const label = elementById(id).label;
       if (spot) this.recordElementOf(spot);
       else if (carried.from) {
         // **Umgestellt, aber kein Platz: zurück, wo es stand** — samt dem, was
@@ -10651,7 +10683,7 @@ export class PortalWorld implements World {
     else if (carried && path && target) {
       const element = this.elementBodies.get(carried);
       const name = element
-        ? catalogueLabel(elementById(element.id))
+        ? elementById(element.id).label
         : this.notes.has(carried)
           ? 'Zettel'
           : propLabel(modelKind(path));
@@ -12234,7 +12266,7 @@ export class PortalWorld implements World {
     const entry = this.createModelProp(
       id,
       kind,
-      note === null ? model : buildNote(model, note),
+      element !== null ? heldElement(model) : note === null ? model : buildNote(model, note),
       _point,
       spin,
     );
@@ -12260,11 +12292,7 @@ export class PortalWorld implements World {
       caught = this.screenCatch(ctx, entry);
     }
     const label =
-      element !== null
-        ? catalogueLabel(elementById(element.id))
-        : note === null
-          ? propLabel(kind)
-          : 'Zettel';
+      element !== null ? elementById(element.id).label : note === null ? propLabel(kind) : 'Zettel';
     ctx.notify(caught ? this.carryNote(label) : label);
   }
 
@@ -12301,7 +12329,27 @@ export class PortalWorld implements World {
   private menuModel(id: string): THREE.Object3D | null {
     const path = kaykitPathOf(id);
     if (path !== null) return kaykitModelNow(path);
+    if (id.startsWith(ELEMENT_PREVIEW))
+      return this.elementPreview(id.slice(ELEMENT_PREVIEW.length));
     return this.tool(id);
+  }
+
+  /**
+   * **Das ganze Element für die Kachel im Möbelkatalog** (`elementModel`) —
+   * einmal gebaut, danach je Frage eine Kopie. `null` heißt „noch nicht"; das
+   * Menü fragt wieder.
+   */
+  private elementPreview(id: string): THREE.Object3D | null {
+    if (!this.elementPreviews.has(id)) {
+      this.elementPreviews.set(id, null);
+      this.elementDishes ??= new KaykitDishView(loadItemModel);
+      const dishes = this.elementDishes;
+      void elementModel(id, kaykitModel, (item) => dishes.ready(dish(item))).then((model) =>
+        this.elementPreviews.set(id, model),
+      );
+      return null;
+    }
+    return this.elementPreviews.get(id)?.clone(true) ?? null;
   }
 
   /**

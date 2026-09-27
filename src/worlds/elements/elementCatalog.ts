@@ -29,11 +29,10 @@ import type { KitchenItem } from '../test/zones/kitchenRecipes';
 
 /**
  * **Was man mit einem Element tut** — die Stationsarten der Küche
- * (`kitchenCarry.StationKind`) und die zwei der Eisecke: `'ice-stand'` und
- * `'ice-tubs'` regeln ihre eigene Logik (`plateup/plateUpIce.ts`), nicht
- * `kitchenDeed`.
+ * (`kitchenCarry.StationKind`) und `'ice-tubs'`: zwei Wannen auf einer
+ * Platte, also zwei Stationen (`stationLayer.elementStations`).
  */
-export type ElementKind = StationKind | 'ice-stand' | 'ice-tubs';
+export type ElementKind = StationKind | 'ice-tubs';
 
 /** Was auf einem Brett passiert — Schneiden oder Ausrollen. */
 export type ElementWork = 'chop' | 'roll';
@@ -213,7 +212,7 @@ export const ELEMENTS: readonly GameElement[] = [
   // der vorderen Hälfte des Bretts.
   piece(
     'board',
-    'Schneidebrett',
+    'Arbeitsplatte mit Schneidebrett',
     'board',
     [
       { model: bits('kitchencounter_straight_B') },
@@ -252,12 +251,16 @@ export const ELEMENTS: readonly GameElement[] = [
     ],
     { gives: 'pizza' },
   ),
-  // Der Herd mit Pfanne: Was man ablegt, liegt in der Pfanne — die Ablage ist
-  // der Rost darunter (`kitchenFit.HOB_TOP`, dieselbe gemessene Oberkante).
-  piece('stove', 'Herd', 'griddle', [
-    { model: bits('stove_single') },
-    { model: bits('pan_A'), stack: true },
-  ]),
+  // **Der Herd mit Pfanne, wie in der Küche der Sandbox** (`kitchenFit`,
+  // `stove-pan`): Die Pfanne ist **kein Teil**, sondern steht zu Beginn darauf
+  // (`holds`) und geht mit, wie der Topf auf `stove-pot`. Gemeldet: _„man kann
+  // die Pfanne nicht vom Herd nehmen"_ — vorher lag hier eine Pfanne aus dem
+  // Regal als Bild auf einer Grillplatte. Was in der Pfanne auf dem Herd liegt,
+  // brät (`plateUpStations.tickStation`), und sie ist die der Sandbox
+  // (`itemModels.KITCHEN_PAN`).
+  piece('stove', 'Herdplatte mit Pfanne', 'stove', [{ model: bits('stove_single') }], {
+    holds: 'pan',
+  }),
   // **Der Herd mit Topf, wie im Restaurant** — gewünscht: _„Der Herd daneben
   // soll der Herd aus der Restaurant Welt sein und nicht der mit den 4 Platten
   // drauf. Der Topf darauf soll auch der sein aus der Restaurant Welt."_ Also
@@ -267,7 +270,7 @@ export const ELEMENTS: readonly GameElement[] = [
   // (_„Es fehlt noch ein Waschbecken wo ich den Topf vollmachen kann"_), und
   // mit Wasser auf dem Herd kocht er, was man hineintut
   // (`kitchenRecipes.potCooks`) — Pommes aus geschnittenen Kartoffeln.
-  piece('stove-pot', 'Herd mit Topf', 'stove', [{ model: bits('stove_single') }], {
+  piece('stove-pot', 'Herdplatte mit Topf', 'stove', [{ model: bits('stove_single') }], {
     holds: 'pot',
   }),
   // **Die blanke Herdplatte** — derselbe Herd, leer: kein Topf, keine Pfanne.
@@ -278,7 +281,7 @@ export const ELEMENTS: readonly GameElement[] = [
   // **Die Spüle** — die Arbeitsplatte mit Becken und Hahn aus demselben Paket.
   // Wer den Topf davorhält, füllt ihn mit Wasser (`kitchenCarry.atSink`, die
   // Regel der Testküche).
-  piece('sink', 'Spüle', 'sink', [{ model: bits('kitchencounter_sink') }]),
+  piece('sink', 'Waschbecken', 'sink', [{ model: bits('kitchencounter_sink') }]),
   // So hoch wie im Burgerladen (`PlateUpWorld.addBinProp`): Der Eimer aus
   // _Block Bits_ ist 1,17 m, neben einer Platte von 0,50 m ein Silo.
   piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }]),
@@ -312,26 +315,14 @@ export const ELEMENTS: readonly GameElement[] = [
   // (0,05 | −0,22), der Portionierer bei (0,08 | 0,20). Eine Vierteldrehung
   // später, mit der Vorderseite nach +z, sind das (0,22 | 0,05) und
   // (−0,20 | 0,08). Der Portionierer liegt längs, die Schale zum Stapel hin.
-  piece('ice-stand', 'Eisstand', 'ice-stand', [
-    { model: COUNTER },
-    { model: bits('icecream_cone_stacked'), on: 0, at: [0.22, 0.05], height: 0.5 },
-    {
-      model: bits('icecream_scoop'),
-      on: 0,
-      at: [-0.2, 0.08],
-      height: 0.3,
-      tilt: [-Math.PI / 2, 0, 0],
-      yaw: -Math.PI / 2,
-    },
-  ]),
-  // **Der Hörnchen-Vorrat** — dieselbe Platte wie der Eisstand, mit Stapel
-  // und Portionierer, aber als Vorrat der Küche und nicht als Eisecke: `A`
-  // gibt ein Hörnchen (`drain`, nie leer), und an den Eiswannen kommt eine
-  // Kugel darauf. Gewünscht: _„die Arbeitsplatte mit dem scoop und cones und
-  // die Platte mit ice trays als Vorräte"_.
+  //
+  // **Ein Vorrat** (_„die Arbeitsplatte mit dem scoop und cones … als
+  // Vorräte"_): `A` gibt ein Hörnchen (`drain`, nie leer), an den Eiswannen
+  // kommen Kugeln darauf, so viele man will — gezeichnet als Turm wie im
+  // Restaurant (`plateUpIceView.IceConeView`).
   piece(
-    'cone-stack',
-    'Hörnchen-Vorrat',
+    'ice-stand',
+    'Eisstand',
     'drain',
     [
       { model: COUNTER },
@@ -408,27 +399,9 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'stove-pot',
   'hob',
   'sink',
-  'cone-stack',
+  'ice-stand',
   'ice-tubs',
 ];
-
-/**
- * **Wie ein Element im Möbelkatalog heißt**, wenn es dort anders heißen soll
- * als im Plan — mit den Worten des Wunsches.
- */
-const CATALOGUE_LABELS: Readonly<Record<string, string>> = {
-  board: 'Arbeitsplatte mit Schneidebrett',
-  stove: 'Herdplatte mit Pfanne',
-  'stove-pot': 'Herdplatte mit Topf',
-  sink: 'Waschbecken',
-  'cone-stack': 'Arbeitsplatte mit Hörnchen und Portionierer',
-  'ice-tubs': 'Arbeitsplatte mit Eiswannen',
-};
-
-/** Der Name eines Elements im Möbelkatalog (`CATALOGUE_LABELS`, sonst `label`). */
-export function catalogueLabel(element: GameElement): string {
-  return CATALOGUE_LABELS[element.id] ?? element.label;
-}
 
 /** Die Elemente nach Namen. */
 const BY_ID = new Map(ELEMENTS.map((element) => [element.id, element]));

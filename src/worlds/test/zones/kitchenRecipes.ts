@@ -106,9 +106,9 @@ export type KitchenItem =
   | 'bowl'
   | 'pizzabox'
   /**
-   * **Das Hörnchen** — ein Träger wie die Schüssel, nur für Eis: aus dem
-   * Hörnchen-Vorrat (`elements`, `cone-stack`), an der Eiswanne eine Kugel
-   * darauf.
+   * **Das Hörnchen** — ein Träger wie die Schüssel, nur für Eis: vom
+   * Eisstand (`elements`, `ice-stand`), an den Eiswannen Kugeln darauf, so
+   * viele man will — ein Turm wie im Restaurant.
    */
   | 'cone'
   /** Käse wird geschnitten, die Scheibe geht auf den Burger. */
@@ -324,7 +324,18 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'fries',
   ],
   bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup', 'cheese-cut'],
-  pan: ['patty', 'patty-cooked', 'patty-burnt'],
+  // Was die Grillplatte brät, brät auch die Pfanne auf dem Herd
+  // (`plateUpStations.panOnStove`): Patty, Schinken, flacher Teig zur Waffel.
+  pan: [
+    'patty',
+    'patty-cooked',
+    'patty-burnt',
+    'ham',
+    'ham-cooked',
+    'ham-burnt',
+    'dough-flat',
+    'waffle',
+  ],
   bowl: ['waffle', 'stew', 'ice-vanilla', 'ice-strawberry'],
   cone: ['ice-vanilla', 'ice-strawberry'],
   pizzabox: ['pizza', 'pizza-cut'],
@@ -344,8 +355,6 @@ const HOLDS_ONE: Partial<
 > = {
   pan: { inside: 'In der Pfanne', into: 'In die Pfanne', one: 'ein Patty' },
   pizzabox: { inside: 'Im Pizzakarton', into: 'In den Pizzakarton', one: 'eine Pizza' },
-  // Das Regal hat das Hörnchen nur mit **einer** Kugel (`food_icecream_cone_*`).
-  cone: { inside: 'Auf dem Hörnchen', into: 'Aufs Hörnchen', one: 'eine Kugel' },
 };
 
 /** Ob auf diesem Ding überhaupt etwas liegen kann. */
@@ -755,7 +764,9 @@ function pour(giver: Dish, taker: Dish): Pour {
   }
   for (const item of what) {
     if (!carries(taker.item, item)) return { ok: false, why: whyNot(taker.item, item), sure: true };
-    if (taker.on.includes(item)) {
+    // Aufs Hörnchen kommt ein Turm wie im Restaurant (`plateUpIce`): dieselbe
+    // Sorte so oft man will.
+    if (taker.on.includes(item) && taker.item !== 'cone') {
       return { ok: false, why: `${ITEM_LABELS[item]} liegt schon drauf`, sure: true };
     }
   }

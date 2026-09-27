@@ -293,7 +293,7 @@ export const fallback = {
 };
 
 /** Geometrie und Materialien der Kugeln — einmal für alle. */
-class BallKit {
+export class BallKit {
   readonly geometry = new THREE.SphereGeometry(ICE_SIZE.ball, 14, 10);
   private readonly materials = new Map<IceFlavor, THREE.MeshStandardMaterial>();
 

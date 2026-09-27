@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { kitchenHub } from '../../core/kitchenFit';
+import type { IceFlavor } from '../plateup/plateUpIce';
+import { BallKit, IceConeView } from '../plateup/plateUpIceView';
 import type { Dish, KitchenItem } from '../test/zones/kitchenRecipes';
 import { dishModels } from './itemModels';
 
@@ -108,24 +111,54 @@ export type TemplateSource = (path: string) => Promise<THREE.Object3D | null>;
  */
 export class KaykitDishView {
   private alive = true;
+  /** Die Kugeln der Hörnchen — einmal für alle (`plateUpIceView.BallKit`). */
+  private balls: BallKit | null = null;
 
   constructor(private readonly template: TemplateSource) {}
 
   /** Das Bild eines Gerichts, die Unterseite auf y = 0 und mittig über dem Ursprung. */
   view(dish: Dish): THREE.Group {
+    return this.build(dish).group;
+  }
+
+  /** Dasselbe Bild, aber erst, wenn es gefüllt ist — für eine Kachel im Menü. */
+  async ready(dish: Dish): Promise<THREE.Group> {
+    const { group, done } = this.build(dish);
+    await done;
+    return group;
+  }
+
+  private build(dish: Dish): { group: THREE.Group; done: Promise<void> } {
     const group = new THREE.Group();
     group.name = `dish:${dishKey(dish)}`;
+    // **Das Hörnchen ist das des Restaurants** (`IceConeView`): Hörnchen und
+    // ein Turm aus Kugeln, so viele es sind — dasselbe Bild wie im Laden.
+    if (dish.item === 'cone') {
+      const cone = new IceConeView((this.balls ??= new BallKit()), 0);
+      cone.set({ balls: dish.on.map(flavorOf).filter((one) => one !== null) });
+      group.add(cone.root);
+      return { group, done: Promise.resolve() };
+    }
     const paths = dishModels(dish);
-    void Promise.all(paths.map((path) => this.template(path))).then((templates) => {
+    const done = Promise.all(paths.map((path) => this.template(path))).then((templates) => {
       if (this.alive) lay(group, dish.item, templates);
     });
-    return group;
+    return { group, done };
   }
 
   /** Nichts mehr füllen, was noch lädt. */
   dispose(): void {
     this.alive = false;
+    this.balls?.dispose();
+    this.balls = null;
   }
+}
+
+/** Die Sorte einer Kugel, wie das Restaurant sie kennt (`plateUpIce.IceFlavor`). */
+function flavorOf(item: KitchenItem): IceFlavor | null {
+  if (item === 'ice-vanilla') return 'vanilla';
+  if (item === 'ice-strawberry') return 'strawberry';
+  return null;
 }
 
 /** Die Stücke kopieren, messen und nach `dishLayout` in die Gruppe legen. */
@@ -150,12 +183,16 @@ function lay(
     const box = boxes[i];
     const where = layout[i];
     if (!piece || !box || !where) return;
+    // Der Träger steht mit seiner **Mulde** über der Mitte und nicht mit der
+    // Mitte seiner Hülle — bei der Pfanne gehört der Stiel zur Hülle
+    // (`kitchenFit.kitchenHub`, dieselbe Zahl wie in der Sandbox-Küche).
+    const [hx, hz] = i === 0 ? kitchenHub(carrier) : [0, 0];
     if (where.inside) piece.position.copy(shift).add(new THREE.Vector3(0, where.y, 0));
     else
       piece.position.set(
-        -(box.min.x + box.max.x) / 2,
+        -(box.min.x + box.max.x) / 2 - hx,
         where.y - box.min.y,
-        -(box.min.z + box.max.z) / 2,
+        -(box.min.z + box.max.z) / 2 - hz,
       );
     group.add(piece);
   });

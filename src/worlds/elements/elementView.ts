@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../core/chefFit';
 import type { SolidBlock } from '../grid/GridWorld';
+import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import type { ElementPart, GameElement } from './elementCatalog';
 import {
   rotateOffset,
@@ -289,4 +290,66 @@ function pose(
   spin.rotation.y = yaw;
   spin.add(tilted);
   return spin;
+}
+
+/**
+ * **Ein Element als ein Modell** — für die Kachel im Möbelkatalog
+ * (`PortalWorld.elementMenu`). Gebaut von `placeElement` selbst, mit einem
+ * Gastgeber, der nichts sperrt und alles in eine Gruppe legt: Die Kachel zeigt
+ * so genau das, was hingestellt wird — Platte, Brett und Messer, Stapel und
+ * Portionierer —, und nicht nur das Bodenstück. Gemeldet war: _„Werden die
+ * Möbel im Möbel Menü nicht korrekt angezeigt"_.
+ *
+ * **Und mit dem, was darauf steht** (`GameElement.holds`): Topf und Pfanne sind
+ * keine Teile, sondern Dinge der Küche; `holds` zeichnet sie, wie die Station
+ * sie zeigt (`dishView.KaykitDishView.view`).
+ *
+ * @param kaykitModel der Lader des Regals (`core/kaykitModel`) — hereingereicht,
+ *   damit diese Datei ohne ihn prüfbar bleibt
+ * @returns die Gruppe, die Mitte der Grundfläche im Ursprung — `null`, wenn
+ *   kein Modell kam
+ */
+export async function elementModel(
+  id: string,
+  kaykitModel: (path: string) => Promise<THREE.Object3D | null>,
+  holds?: (item: KitchenItem) => Promise<THREE.Object3D>,
+): Promise<THREE.Group | null> {
+  const group = new THREE.Group();
+  group.name = `element-model:${id}`;
+  const host: ElementHost = {
+    blockSolid: () => ({ cells: [], mesh: new THREE.Mesh() }),
+    placeModel: async (path, at, yaw) => {
+      const model = await kaykitModel(path);
+      if (!model) return null;
+      const box = new THREE.Box3().setFromObject(model);
+      const centre = box.getCenter(new THREE.Vector3());
+      model.position.sub(centre);
+      const holder = new THREE.Group();
+      holder.add(model);
+      holder.position.copy(at);
+      holder.rotation.y = yaw;
+      group.add(holder);
+      return holder;
+    },
+    measure: async (path) => {
+      const model = await kaykitModel(path);
+      if (!model) return null;
+      const box = new THREE.Box3().setFromObject(model);
+      return box.isEmpty() ? null : box.getSize(new THREE.Vector3());
+    },
+    load: (path) => kaykitModel(path),
+    add: (object) => group.add(object),
+    alive: () => true,
+  };
+  const probe: ElementSpot = { id, element: id, x: 0, z: 0 };
+  const [w, d] = spotSize(probe);
+  const placed = await placeElement(host, { ...probe, x: -w / 2, z: -d / 2 });
+  await placed.base;
+  const item = placed.element.holds;
+  if (item && holds) {
+    const shown = await holds(item);
+    shown.position.y = placed.top;
+    group.add(shown);
+  }
+  return group.children.some((child) => child.children.length > 0) ? group : null;
 }
