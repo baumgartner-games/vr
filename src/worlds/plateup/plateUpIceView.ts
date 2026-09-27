@@ -11,7 +11,7 @@ import {
 } from './plateUpIce';
 import { ICE_FACE, ICE_STAND, ICE_TUBS } from './plateUpPlan';
 import { dirX, dirZ } from '../nav/navTile';
-import { NO_WOBBLE, stepWobble, type WobbleState } from './plateUpWobble';
+import { NO_WOBBLE, WOBBLE, stepWobble, type WobbleState } from './plateUpWobble';
 
 /**
  * **Das Eis zum Ansehen** — Eisecke, Hörnchen mit Kugelturm, Portionierer.
@@ -292,8 +292,8 @@ const _q = new THREE.Quaternion();
 /**
  * **Ein Hörnchen mit seinem Turm** — die Kugeln folgen ihm nicht starr,
  * sondern verzögert, nach oben hin immer weiter zurück und beim Anhalten
- * einmal hinüber und zurück (`plateUpWobble.ts`),
- * gerechnet **in der Welt** und
+ * einmal hinüber und zurück, und in der Hand im Stehen sanft schaukelnd
+ * (`plateUpWobble.ts`), gerechnet **in der Welt** und
  * erst danach in den Raum des Hörnchens zurückgelegt. Nur so kann ein Turm
  * hinter einer Hand zurückbleiben, die ihn trägt.
  */
@@ -304,7 +304,14 @@ export class IceConeView {
   private wobble: WobbleState = NO_WOBBLE;
   private alive = true;
 
-  constructor(private readonly kit: BallKit) {
+  /**
+   * @param idle wie weit die oberste Kugel im Stehen schaukelt (`WOBBLE.idle`)
+   *             — ein abgestelltes Eis schaukelt nicht (0)
+   */
+  constructor(
+    private readonly kit: BallKit,
+    private readonly idle: number = WOBBLE.idle,
+  ) {
     this.root.name = 'plateup-ice-cone';
     void loadKaykit(MODEL.cone).then((loaded) => {
       if (!this.alive) return;
@@ -360,6 +367,7 @@ export class IceConeView {
       ICE_SIZE.spacing * s,
       dt,
       2 * ICE_SIZE.ball * s,
+      this.idle,
     );
     this.wobble.balls.forEach((ball, i) => {
       const mesh = this.balls[i];
@@ -723,7 +731,7 @@ export class IceCorner {
       if (!spot) continue;
       let entry = this.shelf.get(id);
       if (!entry) {
-        entry = new IceConeView(this.kit);
+        entry = new IceConeView(this.kit, 0);
         this.shelf.set(id, entry);
       }
       const view = entry;
