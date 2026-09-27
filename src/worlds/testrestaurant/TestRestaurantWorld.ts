@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { playPick } from '../../core/Audio';
+import { playPick, playWarn } from '../../core/Audio';
+import { aimForward } from '../../core/usable';
 import { CHEF_CARRY, canLoadModels } from '../../core/chefFit';
 import { kaykitModel } from '../../core/kaykitModel';
 import { loadItemModel } from '../elements/itemTemplate';
@@ -31,8 +32,16 @@ import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
+import { SprayJet } from '../test/zones/kitchenSpray';
 import type { Dish } from '../test/zones/kitchenRecipes';
 import { SPOTS, ground, restaurantPlan, spawn } from './restaurantPlan';
+
+const _rigAhead = new THREE.Vector3();
+const _headAhead = new THREE.Vector3();
+const _aim = new THREE.Vector3();
+const _nozzle = new THREE.Vector3();
+const _turn = new THREE.Quaternion();
+const _ray = new THREE.Ray();
 
 /** Wie groß das Getragene in der Brille in der Hand liegt (`kitchenGrab.HAND_FOOD_SCALE`). */
 const HAND_FOOD_SCALE = 0.5;
@@ -57,6 +66,8 @@ export class TestRestaurantWorld extends GridWorld {
   private gauges: KitchenGauges | null = null;
   private stations: StationLayer | null = null;
   private dishes: KaykitDishView | null = null;
+  /** Der Nebel des Feuerlöschers (`kitchenSpray.SprayJet`, wie in der Sandbox). */
+  private jet: SprayJet | null = null;
   /** Die Vorlagen, wie sie gerade laden — damit jede Datei nur einmal kommt. */
   private readonly loading = new Map<string, Promise<THREE.Object3D | null>>();
   private readonly templates = new Map<string, THREE.Object3D>();
@@ -134,6 +145,7 @@ export class TestRestaurantWorld extends GridWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.stations?.step(dt, ctx.rig.position);
+    this.spray(dt, ctx);
     this.carryInHands(ctx);
     this.gauges?.update(dt);
   }
@@ -147,6 +159,8 @@ export class TestRestaurantWorld extends GridWorld {
     this.dishes = null;
     this.gauges?.dispose();
     this.gauges = null;
+    this.jet?.dispose();
+    this.jet = null;
     this.carriedView?.removeFromParent();
     this.carriedView = null;
     this.carried = null;
@@ -298,7 +312,39 @@ export class TestRestaurantWorld extends GridWorld {
       busy: () => null,
       dishView: (dish) => this.dishes?.view(dish) ?? new THREE.Group(),
       picked: (taken) => playPick(taken),
+      warnTone: (fast) => playWarn(fast),
     };
+  }
+
+  /**
+   * **Der Feuerlöscher sprüht von selbst**, sobald man ihn trägt und damit
+   * auf einen brennenden Herd in der Nähe zeigt (`StationLayer.extinguish`).
+   * Die Richtung ist die, in die `A` zeigt (`core/usable.aimForward`), in der
+   * Brille der Strahl der Hand, die ihn hält — wie in der Sandbox
+   * (`kitchen.aimJet`).
+   */
+  private spray(dt: number, ctx: WorldContext): void {
+    if (!this.stations) return;
+    const holding = this.carried?.item === 'extinguisher';
+    _rigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_turn));
+    ctx.rig.getHeadForward(_headAhead);
+    aimForward(ctx.topDown, _rigAhead, _headAhead, _aim);
+    const controller =
+      holding && this.carriedHand && ctx.renderer.xr.isPresenting
+        ? ctx.input.get(this.carriedHand)
+        : null;
+    if (controller?.tracked) {
+      controller.getRay(_ray);
+      const flat = Math.hypot(_ray.direction.x, _ray.direction.z);
+      if (flat > 1e-4) _aim.set(_ray.direction.x / flat, 0, _ray.direction.z / flat);
+    }
+    if (this.carriedView) this.carriedView.getWorldPosition(_nozzle);
+    else _nozzle.set(ctx.rig.position.x, ctx.rig.getFloorY() + 0.8, ctx.rig.position.z);
+    const spraying = this.stations.extinguish(dt, holding, _nozzle, _aim);
+    if (spraying || this.jet) {
+      this.jet ??= new SprayJet(this.root);
+      this.jet.update(dt, spraying, _nozzle, _aim);
+    }
   }
 
   /**

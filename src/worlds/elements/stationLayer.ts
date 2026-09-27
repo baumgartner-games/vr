@@ -5,8 +5,11 @@ import type { Usable, UseSource } from '../../core/usable';
 import type { StationSpot } from '../plateup/plateUpPlan';
 import {
   DEFAULT_BURN,
+  DEFAULT_IGNITE,
   burnShare,
+  douseStation,
   freshStations,
+  stovePhase,
   stationDeed,
   stationProgress,
   tickStation,
@@ -15,6 +18,13 @@ import {
 } from '../plateup/plateUpStations';
 import { DIR_S } from '../nav/navTile';
 import type { KitchenGauges } from '../test/zones/kitchenGauge';
+import {
+  DRY,
+  advanceDouse,
+  douseProgress,
+  inSpray,
+  type DouseState,
+} from '../test/zones/kitchenSpray';
 import {
   CLEAN_STACK_MAX,
   ITEM_LABELS,
@@ -92,6 +102,21 @@ export const STATION_REACH = 0.55;
 
 /** Und bei zwei Stationen auf einer Platte (die Eiswannen) je Wanne. */
 const TUB_REACH = 0.3;
+
+/**
+ * **Wie oft der Warnton piept und das Dreieck blinkt**, in Sekunden und Hertz —
+ * langsam, solange das Gebratene aufs Verkohlen zuläuft, schnell, solange das
+ * Verkohlte aufs Feuer zuläuft. Gewünscht: _„wenn gebraten, dann leuchtet ein
+ * Dreieck und blinkt langsam mit warm Ton … dabei ein schnellerer warm Ton und
+ * das warm Dreieck blinkt schneller, dann brennt es"_.
+ */
+export const BEEP_SLOW = 1.2;
+export const BEEP_FAST = 0.4;
+const BLINK_SLOW = 1;
+const BLINK_FAST = 3;
+
+/** Wie hoch das Warndreieck über der Platte steht (`kitchenGauge.WARN_LIFT`). */
+const WARN_LIFT = 0.55;
 
 /** Wie dick ein Teller ist, in Metern (`kitchenCarry.CLEAN_STACK_MAX`: 0,05 m flach). */
 const PLATE_THICK = 0.05;
@@ -248,6 +273,11 @@ export interface StationHost {
   dishView(dish: Dish): THREE.Object3D;
   /** Ein kurzer Ton — `taken`: etwas kam in die Hand. */
   picked?(taken: boolean): void;
+  /**
+   * **Der Warnton** — einmal piepen; `fast`: kurz vor dem Feuer
+   * (`BEEP_SLOW`, `BEEP_FAST`). Wie oft, entscheidet die Stationsschicht.
+   */
+  warnTone?(fast: boolean): void;
 }
 
 /** Wie die Station gerade gebaut ist. */
@@ -278,6 +308,8 @@ interface StationView {
   dist2: number;
   /** Was zu Beginn darauf stand — `reset` stellt es wieder hin. */
   readonly holds: Dish | null;
+  /** Wie weit das Feuer darauf schon gelöscht ist (`kitchenSpray.advanceDouse`). */
+  wet: DouseState;
 }
 
 const _v = new THREE.Vector3();
@@ -306,7 +338,11 @@ export class StationLayer {
     private readonly gauges: KitchenGauges | null = null,
     private readonly before: StationOverride | null = null,
     private readonly burn = DEFAULT_BURN,
+    private readonly ignite = DEFAULT_IGNITE,
   ) {}
+
+  /** Seit wann nicht mehr gepiept wurde, in Sekunden. */
+  private sinceBeep = Infinity;
 
   /** Der Stand aller Stationen, in der Reihenfolge, in der sie dazukamen. */
   get states(): readonly StationState[] {
@@ -352,6 +388,7 @@ export class StationLayer {
         gauged: false,
         dist2: Infinity,
         holds: slot.holds ?? null,
+        wet: DRY,
       });
       // **Das ganze Möbel unter den Anker** (`elementLit`): Dann kann der
       // Saum die Kiste samt Inhalt umranden, die Arbeitsplatte, auf die man
@@ -453,18 +490,85 @@ export class StationLayer {
       view.dist2 = (feet.x - at.x) ** 2 + (feet.z - at.z) ** 2;
       const mid = view.surface.getWorldPosition(_w);
       const near = (feet.x - mid.x) ** 2 + (feet.z - mid.z) ** 2 < NEAR_STATION ** 2;
-      const tick = tickStation(state, dt, near, free && !toHand, this.burn);
+      // **Die Grillplatte der Elemente ist die sichere Kochstelle**: Sie brät
+      // allein und ohne Pfanne, verkohlt aber nie (`griddle`, gewünscht wie
+      // in der Sandbox).
+      const burn = view.spot.kind === 'griddle' ? Infinity : this.burn;
+      const tick = tickStation(state, dt, near, free && !toHand, burn, this.ignite);
       if (tick.station !== state) changed = true;
       if (tick.toHand) toHand = tick.toHand;
       if (tick.burnt && tick.station.on) {
         this.host.announce(`${ITEM_LABELS[tick.station.on.item]} — ab in den Mülleimer!`);
       }
+      if (tick.lit) this.host.announce('Der Herd brennt — Feuerlöscher holen!');
       return tick.station;
     });
     if (changed) this.stations = next;
     if (toHand) this.host.setHeld(toHand, this.lastHand);
     this.views.forEach((view, i) => this.show(view, this.stations[i]!));
+    this.beep(dt);
     this.refresh();
+  }
+
+  /**
+   * **Der Warnton** — langsam, solange irgendwo etwas aufs Verkohlen zuläuft,
+   * schnell, sobald etwas aufs Feuer zuläuft oder brennt. Einer für alle
+   * Herde: zwei Herde, zwei Takte, klängen wie ein Fehler.
+   */
+  private beep(dt: number): void {
+    let fast: boolean | null = null;
+    for (const state of this.stations) {
+      const phase = stovePhase(state);
+      if (phase === 'igniting' || phase === 'fire') fast = true;
+      else if (phase === 'burning' && fast === null) fast = false;
+    }
+    if (fast === null) {
+      this.sinceBeep = Infinity;
+      return;
+    }
+    this.sinceBeep += dt;
+    if (this.sinceBeep < (fast ? BEEP_FAST : BEEP_SLOW)) return;
+    this.sinceBeep = 0;
+    this.host.warnTone?.(fast);
+  }
+
+  /**
+   * **Mit dem Feuerlöscher auf ein Feuer halten** — er sprüht von selbst,
+   * sobald ein brennender Herd in Reichweite vor ihm liegt
+   * (`kitchenSpray.inSpray`: 2,5 m, 25° zu jeder Seite). Gewünscht: _„Beim
+   * Feuerlöscher soll dieser auch aktiviert werden, wenn er in Richtung Feuer
+   * gehalten wird bzw. wenn er in der Nähe ist und in Richtung Feuer gezeigt
+   * wird"_. Nach `kitchenSpray.SPRAY_SECONDS` im Strahl ist das Feuer aus
+   * (`douseStation`); wer wegzielt, verliert den Fortschritt langsam.
+   *
+   * @param holding ob die Figur den Feuerlöscher hält
+   * @param from wo sie steht, @param forward wohin sie ihn hält (waagerecht)
+   * @returns ob gesprüht wird — dann zeigt die Welt den Nebel
+   */
+  extinguish(
+    dt: number,
+    holding: boolean,
+    from: { readonly x: number; readonly z: number },
+    forward: { readonly x: number; readonly z: number },
+  ): boolean {
+    let spraying = false;
+    this.stations = this.stations.map((state, i) => {
+      const view = this.views[i]!;
+      if (!state.fire) {
+        view.wet = DRY;
+        return state;
+      }
+      const centre = view.surface.getWorldPosition(_w);
+      const hit = holding && inSpray(from, forward, { x: centre.x, z: centre.z });
+      spraying ||= hit;
+      const tick = advanceDouse(view.wet, dt, hit);
+      view.wet = tick.state;
+      if (!tick.out) return state;
+      view.wet = DRY;
+      this.host.announce('Feuer gelöscht');
+      return douseStation(state);
+    });
+    return spraying;
   }
 
   /**
@@ -495,12 +599,14 @@ export class StationLayer {
     if (!gauges) return;
     const id = `station:${view.spot.id}`;
     const part = stationProgress(state);
-    const heat = burnShare(state, this.burn);
+    const safe = view.spot.kind === 'griddle';
+    const heat = safe ? 0 : burnShare(state, this.burn, this.ignite);
+    const phase = stovePhase(state);
     // Heiß ist, was allein gart: Kochstelle, Suppentopf, und der Herd, auf
     // dem der Topf mit Wasser kocht.
     const hot =
       view.spot.kind === 'griddle' || view.spot.kind === 'pot' || view.spot.kind === 'stove';
-    if (part <= 0 && heat <= 0 && !state.work.working) {
+    if (part <= 0 && heat <= 0 && !state.work.working && !phase) {
       if (!view.gauged) return;
       view.gauged = false;
       gauges.clear(id);
@@ -512,13 +618,20 @@ export class StationLayer {
     }
     view.gauged = true;
     const at = view.surface.localToWorld(_v.set(0, view.top + 0.35, 0));
+    const dousing = douseProgress(view.wet);
     if (part > 0) gauges.bar(id, at, part, hot ? 'cook' : 'chop');
+    else if (dousing > 0) gauges.bar(id, at, dousing, 'chop');
     else if (heat > 0) gauges.bar(id, at, heat, 'burn');
     else gauges.clear(id);
     if (hot) {
       const base = view.surface.localToWorld(_w.set(0, view.top, 0));
-      gauges.flame(`flame:${view.spot.id}`, state.work.working ? base : null);
-      gauges.warn(`warn:${view.spot.id}`, heat > 0.5 ? base : null);
+      // Die kleine Flamme unter dem, was brät; die große, wenn es brennt.
+      if (phase === 'fire') gauges.flame(`flame:${view.spot.id}`, base, 'fire');
+      else gauges.flame(`flame:${view.spot.id}`, state.work.working ? base : null);
+      // Das Dreieck: langsam, solange es aufs Verkohlen zuläuft, schnell aufs Feuer.
+      const sign = view.surface.localToWorld(_v.set(0, view.top + WARN_LIFT, 0));
+      const blink = phase === 'burning' ? BLINK_SLOW : phase === 'igniting' ? BLINK_FAST : null;
+      gauges.warn(`warn:${view.spot.id}`, blink ? sign : null, blink ?? 0);
     }
   }
 

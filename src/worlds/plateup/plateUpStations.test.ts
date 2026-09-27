@@ -5,9 +5,12 @@ import { WORK_SECONDS } from '../test/zones/kitchenWork';
 import type { StationSpot } from './plateUpPlan';
 import {
   DEFAULT_BURN,
+  DEFAULT_IGNITE,
   PLATES,
   burnShare,
+  douseStation,
   freshStations,
+  stovePhase,
   stationDeed,
   tickStation,
   useStation,
@@ -214,5 +217,68 @@ describe('der Tellerstapel des Ladens', () => {
       why: 'Keine sauberen Teller — Geschirr abräumen und spülen',
     });
     expect(useStation(d('plate'), empty).station.stock).toBe(1);
+  });
+});
+
+describe('Eine Stufe je Auflegen', () => {
+  it('macht aus der Tomate Scheiben — und erst nach neuem Auflegen Suppe', () => {
+    const put = useStation(d('tomato'), station('board'));
+    expect(put.deed.do).toBe('work');
+    const cut = wait(put.station, WORK_SECONDS.chop + 0.2);
+    expect(cut.station.on).toEqual(d('tomato-cut'));
+    // Davorstehen allein macht keine Suppe daraus.
+    const still = wait(cut.station, WORK_SECONDS.chop * 3);
+    expect(still.station.on).toEqual(d('tomato-cut'));
+    // Nehmen und wieder auflegen: die nächste Stufe.
+    const taken = useStation(null, still.station);
+    const again = useStation(taken.held, taken.station);
+    expect(again.deed.do).toBe('work');
+    expect(wait(again.station, WORK_SECONDS.chop + 0.2).station.on).toEqual(d('tomato-soup'));
+  });
+
+  it('schneidet weiter, wer nur kurz weggegangen war', () => {
+    const put = useStation(d('lettuce'), station('board'));
+    const half = wait(put.station, WORK_SECONDS.chop / 2);
+    const away = wait(half.station, 1, false);
+    expect(away.station.on).toEqual(d('lettuce'));
+    expect(wait(away.station, WORK_SECONDS.chop + 0.2).station.on).toEqual(d('lettuce-cut'));
+  });
+});
+
+describe('Die Pfanne auf dem Herd: gebraten, verkohlt, Feuer', () => {
+  /** Eine Uhr, die mitschreibt, in welcher Phase der Herd war. */
+  function watch(state: StationState, seconds: number) {
+    let now = state;
+    const phases = new Set<string>();
+    let lit = false;
+    for (let t = 0; t < seconds; t += 0.1) {
+      const tick = tickStation(now, 0.1, false);
+      now = tick.station;
+      lit ||= tick.lit === true;
+      phases.add(String(stovePhase(now)));
+    }
+    return { station: now, phases, lit };
+  }
+
+  it('warnt nach dem Braten, verkohlt, warnt schneller und fängt dann Feuer', () => {
+    const stove = { ...station('stove'), on: d('pan', 'patty') };
+    const fried = watch(stove, WORK_SECONDS.fry + 0.2);
+    expect(fried.station.on).toEqual(d('pan', 'patty-cooked'));
+    expect(stovePhase(fried.station)).toBe('burning');
+    const charred = watch(fried.station, DEFAULT_BURN + 0.2);
+    expect(charred.station.on).toEqual(d('pan', 'patty-burnt'));
+    expect(stovePhase(charred.station)).toBe('igniting');
+    expect(burnShare(charred.station)).toBeLessThan(0.2);
+    const burning = watch(charred.station, DEFAULT_IGNITE + 0.2);
+    expect(burning.lit).toBe(true);
+    expect(burning.station.fire).toBe(true);
+    expect(stovePhase(burning.station)).toBe('fire');
+    // Ein brennender Herd nimmt nichts an und gibt nichts her.
+    expect(stationDeed(null, burning.station)).toMatchObject({ do: 'refuse' });
+    // Gelöscht: die Pfanne bleibt, leer.
+    const out = douseStation(burning.station);
+    expect(out.fire).toBe(false);
+    expect(out.on).toEqual(d('pan'));
+    expect(stovePhase(out)).toBeNull();
   });
 });

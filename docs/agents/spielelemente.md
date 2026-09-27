@@ -133,6 +133,7 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | `stove`                          | Herdplatte mit Pfanne           | `stove`, `holds: 'pan'`        | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin      |
 | `stove-pot`                      | Herdplatte mit Topf             | `stove`, `holds: 'pot'`        | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                                                     |
 | `hob`                            | Herdplatte                      | `stove`                        | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                                                               |
+| `griddle`                        | Sichere Kochstelle              | `griddle`                      | `stove_single_countertop`; brät ohne Pfanne allein, verkohlt nie (`burn` = ∞ in der Stationsschicht), brennt nie                                         |
 | `sink`                           | Waschbecken                     | `sink`                         | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                                                    |
 | `extinguisher`                   | Feuerlöscher                    | `top`, `holds: 'extinguisher'` | `counter_A`; der Löscher (`mixed-bag/fire_extinguisher`) steht als Ding der Küche darauf und geht mit                                                    |
 | `bin`                            | Mülleimer                       | `bin`                          | `block-bits/trashcan` auf 0,55 m                                                                                                                         |
@@ -458,6 +459,46 @@ weitere Kugel 0,35 × höher (`SECOND_SCOOP`). Die Pizza im Karton liegt bei
 0,25 × (`IN_BOX`), was im Topf kocht, bei 0,45 × Topfhöhe (`IN_POT`). Das
 Wasser hat kein Bild. Diese Zahlen sind gerechnet und noch nicht im Bild
 nachgesehen ([Test Restaurant → Offen](./testrestaurant.md#offen)).
+
+## Braten, Verkohlen, Feuer — und der Löscher
+
+Gewünscht (September 2026): _„Alles was auf der Pfanne gebraten wird kann auch
+Anfangen zu brennen. Erst: Braten, wenn gebraten, dann leuchtet ein Dreieck und
+blinkt langsam mit warm Ton, wenn die Stufe durch ist, ist es verkohlt wie
+aktuell aber dann beginnt nochmal ein Countdown bis das was auf dem Herd ist
+anfängt zu brennen, dabei ein schnellerer warm Ton und das warm Dreieck blinkt
+schneller, dann brennt es."_ Die Stufen in der Pfanne auf dem Herd
+(`plateUpStations.stovePhase`):
+
+1. **Braten** (`fry`, 5 s): kleine Flamme, Balken.
+2. **`burning`** — gebraten, `DEFAULT_BURN` = 14 s bis verkohlt: das
+   Warndreieck blinkt langsam (`BLINK_SLOW`), der Warnton piept langsam
+   (`BEEP_SLOW`, `core/Audio.playWarn`).
+3. **`igniting`** — verkohlt, `DEFAULT_IGNITE` = 8 s bis zum Feuer: Dreieck
+   und Ton schneller (`BLINK_FAST`, `BEEP_FAST`).
+4. **`fire`** (`StationState.fire`): große Flamme, _„Der Herd brennt —
+   Feuerlöscher holen!"_, der Herd lehnt alles ab (`kitchenCarry`, `fire`).
+
+Blinken kann jedes Dreieck für sich (`KitchenGauges.warn(key, at, blink)`),
+gepiept wird einmal für alle Herde, im Takt des dringendsten. Die Grillplatte
+des Restaurants verkohlt weiter, brennt aber nicht; die **sichere Kochstelle**
+(`griddle`) brät ohne Pfanne und verkohlt nie — im Möbelkatalog bei Burger und
+Waffeln.
+
+**Der Feuerlöscher sprüht von selbst** (`StationLayer.extinguish`): Wer ihn
+trägt und damit auf einen brennenden Herd in Reichweite zeigt
+(`kitchenSpray.inSpray`, 2,5 m, 25° zu jeder Seite; gezielt wird in der
+Richtung von `A`, in der Brille mit dem Strahl der Hand), sprüht — der Nebel
+ist der der Sandbox (`SprayJet`). Nach `SPRAY_SECONDS` = 1,5 s im Strahl ist
+das Feuer aus (`douseStation`): Die Pfanne bleibt, leer. Gewünscht: _„wenn er
+in der Nähe ist und in Richtung Feuer gezeigt wird, damit das Feuer gelöscht
+werden kann"_.
+
+**Eine Stufe je Auflegen** (`tickStation`): Wer davorsteht, schneidet weiter,
+was **unterbrochen** wurde, aber nicht, was eben fertig wurde. Die Tomate wird
+zu Scheiben, und erst nach neuem Auflegen zu Suppe — _„Tomaten sollen
+übrigens nicht sofort zu Tomaten Suppe werden, nur weil ich davor beim
+Schneidebrett stehe"_.
 
 ## Topf, Spüle und Pommes
 

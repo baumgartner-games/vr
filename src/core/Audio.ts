@@ -115,6 +115,17 @@ export function playStopwatch(slowing: boolean): void {
   }
 }
 
+/**
+ * **Der Warnton am Herd** — ein weicher Doppelpiep; `fast` höher und kürzer,
+ * kurz bevor es brennt (`worlds/elements/stationLayer`, `BEEP_FAST`).
+ */
+export function playWarn(fast: boolean): void {
+  const pitch = fast ? 880 : 660;
+  const length = fast ? 0.07 : 0.11;
+  playTone({ type: 'sine', from: pitch, duration: length, gain: 0.08 });
+  playTone({ type: 'sine', from: pitch * 0.8, duration: length, gain: 0.07, delay: length + 0.03 });
+}
+
 /** Soft blip for picking something up or putting it away. */
 export function playPick(up: boolean): void {
   playTone({

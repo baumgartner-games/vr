@@ -9,6 +9,7 @@ import {
   ITEM_LABELS,
   burnStage,
   dish,
+  isBurnt,
   potCooks,
   type Dish,
   type KitchenItem,
@@ -59,6 +60,14 @@ export interface StationState {
    * ist es schwarz.
    */
   readonly heat: number;
+  /**
+   * **Ob es brennt** — nur der Herd mit Pfanne: Was darin verkohlt liegt und
+   * weiter auf dem Herd bleibt, fängt nach `ignite` Sekunden Feuer
+   * (`tickStation`). Solange es brennt, lehnt der Herd alles ab
+   * (`kitchenCarry.kitchenDeed`, `fire`), bis der Feuerlöscher es löscht
+   * (`douseStation`). Ohne Angabe: kein Feuer.
+   */
+  readonly fire?: boolean;
 }
 
 /**
@@ -124,6 +133,7 @@ export function asStation(state: StationState): Station {
     kind: state.spot.kind,
     on: state.on,
     ...(state.spot.gives ? { gives: state.spot.gives } : {}),
+    ...(state.fire ? { fire: true } : {}),
   };
 }
 
@@ -236,10 +246,20 @@ export interface StationTick {
   readonly toHand: Dish | null;
   /** Ob in diesem Bild etwas verbrannt ist — Patty oder Schinken. */
   readonly burnt: boolean;
+  /** Ob in diesem Bild die Pfanne Feuer gefangen hat. */
+  readonly lit?: boolean;
 }
 
 /** Wie lange ein gebratenes Patty liegen darf, wenn niemand etwas sagt (Tag 1). */
 export const DEFAULT_BURN = 14;
+
+/**
+ * **Wie lange Verkohltes in der Pfanne liegen darf, bis der Herd brennt**, in
+ * Sekunden — die zweite Frist nach `DEFAULT_BURN`. Gewünscht: _„wenn die Stufe
+ * durch ist, ist es verkohlt wie aktuell aber dann beginnt nochmal ein
+ * Countdown bis das was auf dem Herd ist anfängt zu brennen"_.
+ */
+export const DEFAULT_IGNITE = 8;
 
 /**
  * **Ein Bild an einer Station** — `dt` Sekunden weiter.
@@ -263,12 +283,24 @@ export function tickStation(
   near: boolean,
   handFree = false,
   burn = DEFAULT_BURN,
+  ignite = DEFAULT_IGNITE,
 ): StationTick {
   const idle = { station: state, done: false, toHand: null, burnt: false };
+  // **Ein brennender Herd tut nichts mehr** — bis der Feuerlöscher kommt
+  // (`douseStation`).
+  if (state.fire) return idle;
   // **Die Pfanne auf dem Herd ist eine Grillplatte zum Mitnehmen**
   // (`panOnStove`): Was darin liegt, brät und verbrennt wie auf der Platte
   // und bleibt dabei in der Pfanne.
   const panned = panOnStove(state);
+  // **Und was darin verkohlt liegt, fängt Feuer** — nach `ignite` Sekunden.
+  // Nur in der Pfanne: Die Grillplatte des Restaurants verkohlt, brennt aber
+  // nicht, und die sichere Kochstelle verkohlt nicht einmal.
+  if (panned && isBurnt(panned)) {
+    const heat = state.heat + Math.max(0, dt);
+    if (heat < ignite) return { ...idle, station: { ...state, heat } };
+    return { ...idle, station: { ...state, heat: 0, fire: true }, lit: true };
+  }
   // **Was verbrennen kann, verbrennt** — das Patty wie der Schinken
   // (`kitchenRecipes.burnStage`). Die Waffel steht nicht darin: Sie bleibt
   // auf der heißen Platte, wie sie ist.
@@ -307,8 +339,16 @@ export function tickStation(
     // (`advanceWork` setzt die Uhr zurück, sobald niemand davorsteht). Ohne
     // diese Zeile bliebe ein halb geschnittener Salat für immer liegen, bis
     // ihn jemand aufnimmt und wieder hinlegt.
+    //
+    // **Aber nur, was unterbrochen wurde** — nicht, was eben fertig wurde:
+    // Nach einer Stufe steht die Uhr leer (`IDLE_WORK`, unten), und die
+    // nächste Stufe braucht einen neuen Handgriff. Gemeldet: _„Tomaten sollen
+    // übrigens nicht sofort zu Tomaten Suppe werden, nur weil ich davor beim
+    // Schneidebrett stehe"_ — dieselbe Regel wie in der Sandbox
+    // (`kitchenWork.advanceWork`: „genau eine Stufe je Auflegen").
     const kind = STATION_WORK[state.spot.kind];
     if (!near || !kind || !state.on || state.on.on.length) return idle;
+    if (work.kind !== kind || work.item !== state.on.item) return idle;
     work = onWork(kind, state.on.item);
     if (!work.working) return idle;
   }
@@ -332,11 +372,42 @@ export function tickStation(
       ? dish('pan', [tick.done])
       : dish(tick.done);
   return {
-    station: { ...state, on, work: tick.state, heat: 0 },
+    station: { ...state, on, work: IDLE_WORK, heat: 0 },
     done: true,
     toHand: null,
     burnt: false,
   };
+}
+
+/**
+ * **Wie weit es auf dem Herd ist** — für Dreieck, Warnton und Feuer
+ * (`elements/stationLayer`):
+ *
+ * - `burning`: gebraten, die Uhr läuft aufs Verkohlen zu (langsam blinken);
+ * - `igniting`: verkohlt, die Uhr läuft aufs Feuer zu (schnell blinken);
+ * - `fire`: es brennt.
+ *
+ * `null`, wenn nichts davon — auch auf der Grillplatte, die nur verkohlt.
+ */
+export type StovePhase = 'burning' | 'igniting' | 'fire';
+
+export function stovePhase(state: StationState): StovePhase | null {
+  if (state.fire) return 'fire';
+  const panned = panOnStove(state);
+  if (!panned || state.work.working) return null;
+  if (isBurnt(panned)) return 'igniting';
+  return burnStage(panned) ? 'burning' : null;
+}
+
+/**
+ * **Das Feuer löschen** — der Herd brennt nicht mehr, und was in der Pfanne
+ * verkohlt war, ist weg. Die Pfanne bleibt, wie in der Sandbox
+ * (`kitchenClock.douse`, `kitchen.putOut`).
+ */
+export function douseStation(state: StationState): StationState {
+  if (!state.fire) return state;
+  const on = state.on?.item === 'pan' ? dish('pan') : state.on;
+  return { ...state, fire: false, heat: 0, on, work: IDLE_WORK };
 }
 
 /**
@@ -361,9 +432,16 @@ export function stationProgress(state: StationState): number {
  * Grillplatte liegt, das verbrennen kann (`kitchenRecipes.burnStage`). Ab der
  * Hälfte warnt die Welt (Rauch, roter Balken).
  */
-export function burnShare(state: StationState, burn = DEFAULT_BURN): number {
+export function burnShare(
+  state: StationState,
+  burn = DEFAULT_BURN,
+  ignite = DEFAULT_IGNITE,
+): number {
   const panned = panOnStove(state);
-  if (panned) return burnStage(panned) ? Math.min(1, state.heat / Math.max(0.001, burn)) : 0;
+  if (panned) {
+    if (isBurnt(panned) && !state.fire) return Math.min(1, state.heat / Math.max(0.001, ignite));
+    return burnStage(panned) ? Math.min(1, state.heat / Math.max(0.001, burn)) : 0;
+  }
   if (state.spot.kind !== 'griddle' || !state.on || !burnStage(state.on.item)) return 0;
   return Math.min(1, Math.max(0, state.heat / Math.max(0.001, burn)));
 }

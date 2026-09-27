@@ -252,8 +252,12 @@ export class KitchenGauges {
    * **Das Warndreieck zeigen** — oder mit `null` wieder wegnehmen.
    *
    * @param at **Mitte** des Dreiecks, in Weltmaß (`WARN_LIFT` über der Platte)
+   * @param blink wie oft es in der Sekunde **aus- und angeht** — 0: nie, es
+   *   pulst nur. Die Herde der Spielelemente blinken langsam, solange das
+   *   Gebratene aufs Verkohlen zuläuft, und schnell kurz vor dem Feuer
+   *   (`elements/stationLayer`).
    */
-  warn(key: string, at: THREE.Vector3 | null): void {
+  warn(key: string, at: THREE.Vector3 | null, blink = 0): void {
     if (!at) {
       const gone = this.warns.get(key);
       if (!gone) return;
@@ -268,6 +272,8 @@ export class KitchenGauges {
       this.parent.add(sign);
       this.warns.set(key, sign);
     }
+    sign.userData['blink'] = blink;
+    if (blink <= 0) sign.visible = true;
     this.place(sign, at);
   }
 
@@ -349,7 +355,11 @@ export class KitchenGauges {
       if (red) red.opacity = alpha;
       if (ink) ink.opacity = alpha;
       const grow = 1 + WARN_GROW * pulse;
-      for (const sign of this.warns.values()) sign.scale.setScalar(grow);
+      for (const sign of this.warns.values()) {
+        sign.scale.setScalar(grow);
+        const blink = (sign.userData['blink'] as number | undefined) ?? 0;
+        sign.visible = blink <= 0 || (this.clock * blink) % 1 < 0.6;
+      }
     }
 
     for (const flame of this.flames.values()) {
