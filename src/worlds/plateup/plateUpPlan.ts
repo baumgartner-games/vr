@@ -88,6 +88,13 @@ export interface StationSpot {
    * `plateUpStations.PLATES`, `Infinity` für einen, der nie leer wird.
    */
   readonly stock?: number;
+  /**
+   * **Ein Abtropfgitter mit Grenze**, nur beim `drain` — höchstens
+   * `kitchenCarry.CLEAN_STACK_MAX` Teller, und die Regel sagt „voll", wie in
+   * der Sandbox. Ohne Angabe hat der Stapel keine Obergrenze
+   * (`plateUpStations.asStation`).
+   */
+  readonly rack?: boolean;
   /** Wie die Station im Satz heißt — „Brötchen nehmen" steht an der Kiste. */
   readonly label: string;
   /** Welches Möbel aus dem Katalog darunter steht (`core/dinerFit`). */

@@ -6,9 +6,44 @@ Ein Prüfstand für Küchen aus [Spielelementen](./spielelemente.md). Das
 eigentliche Spiel mit Tagen, Geduld und Kasse ist
 [Das Restaurant](burgerladen.md).
 
-**Im Moment ist sie leer**: der Boden und der Ankunftsort, sonst nichts.
+**Darin steht die Burgerküche**, die der Besitzer im Spiel aus dem
+Möbelkatalog zusammengestellt und als Liste der _Weltänderungen_ geschickt hat
+(September 2026) — siehe [Die Burgerküche](#die-burgerküche).
 
-## Warum leer
+## Die Burgerküche
+
+Zwei Reihen mit einem Gang dazwischen (z = 13, dort kommt man bei
+(17,5 | 13,5) auch an), jede Zeile in `SPOTS` ein Spielelement:
+
+| z   | x = 11    | 12     | 13        | 14     | 15       | 16      | 17              |
+| --- | --------- | ------ | --------- | ------ | -------- | ------- | --------------- |
+| 12  | Schinken  | Käse   | Tomaten   | Salat  | Brötchen | Fleisch | Herd mit Pfanne |
+| 14  | Mülleimer | Platte | **Brett** | Platte | Platte   | Platte  | Tellerstapel    |
+
+**Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist
+bei allen Süden, bitte anpassen."_ In der Liste standen die sechs Kisten noch
+nach Norden. Die Nordreihe arbeitet man damit vom Gang aus, die Südreihe von
+der Südseite (z = 15).
+
+Was dazu im **Katalog** geändert wurde und damit in jeder Welt gilt
+([Spielelemente](./spielelemente.md#die-elemente-heute)):
+
+- **Kisten und Mülleimer leuchten ganz** (`GameElement.lit`): Der Saum für
+  `A` umfasst Kiste samt Gemüse und den Eimer, wie die Pfanne auf dem Herd —
+  vorher lag dort nur ein Ring auf dem Boden.
+- **Der Tellerstapel ist ein Abtropfgitter wie in der Sandbox**
+  (`GameElement.rack`): höchstens vier Teller, zu Beginn voll, einzeln in den
+  Fächern des leeren `dishrack` gezeigt; ein fünfter wird abgelehnt.
+- **Neu: die Tellerkiste** (`crate-plates`), aus der Teller kommen, so viele
+  man will — im Möbelkatalog bei Burger, Pizza und Alles.
+
+Geschnitten und belegt wird nach der Regel der Küche, die es schon gab: Salat
+oder Tomate aus der Kiste aufs Brett, und geschnitten wird, solange man
+davorsteht (`NEAR_STATION`); das Geschnittene aufs Brötchen, das Brötchen mit
+Belag an den Tellerstapel, und man hat den obersten Teller mit dem Burger in
+der Hand. `restaurantPlan.test.ts` kocht genau das auf diesen Stellen.
+
+## Warum sie einmal leer war
 
 Gewünscht, im September 2026, nach einer Runde durch die alte Welt:
 
@@ -48,16 +83,16 @@ Welt, denn dort gelten sie für jede Welt:
   ([Spielelemente → Topf, Spüle und Pommes](./spielelemente.md#topf-spüle-und-pommes)).
   Das Brett (`board`) ist leer, wie jedes Brett, und schneidet Kartoffeln.
 
-Und die Welt selbst ist leer, bis der Besitzer schickt, was er im Modellregal
-zusammengestellt hat.
+Die Welt selbst blieb leer, bis der Besitzer die Liste schickte — heute die
+[Burgerküche](#die-burgerküche).
 
 ## Was noch da ist
 
-| Datei                                   | Was darin steht                                                                                                                                                                   |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `testrestaurant/restaurantPlan.ts`      | **Rein**: `SPOTS` (heute leer), `ground()` (40 × 32 Kacheln ab (−3 \| −3), dieselbe Fläche wie zuletzt), `spawn()` (Mitte), `restaurantPlan()`                                    |
-| `testrestaurant/TestRestaurantWorld.ts` | Die Welt: Prototyp-Boden, Himmel, `elementHost`, eine `StationLayer`, das Getragene in der Hand (`carryInHands`)                                                                  |
-| `testrestaurant/restaurantPlan.test.ts` | Boden 40 × 32, Ankunft auf dem Boden und mitten auf einer Kachel; jede Stelle auf dem Boden, ohne Überlappen, nicht auf dem Ankunftsort; jede Stelle mit Stationsart wird Station |
+| Datei                                   | Was darin steht                                                                                                                                                                                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `testrestaurant/restaurantPlan.ts`      | **Rein**: `SPOTS` (die Burgerküche), `ground()` (40 × 32 Kacheln ab (−3 \| −3), dieselbe Fläche wie zuletzt), `spawn()` (Mitte), `restaurantPlan()`                                                                                                              |
+| `testrestaurant/TestRestaurantWorld.ts` | Die Welt: Prototyp-Boden, Himmel, `elementHost`, eine `StationLayer`, das Getragene in der Hand (`carryInHands`)                                                                                                                                                 |
+| `testrestaurant/restaurantPlan.test.ts` | Boden 40 × 32, Ankunft auf dem Boden und mitten auf einer Kachel; jede Stelle auf dem Boden, ohne Überlappen, nicht auf dem Ankunftsort; jede Stelle mit Stationsart wird Station; alle nach Süden; ein Burger mit Salat und Tomate, geschnitten, auf dem Teller |
 
 Die Welt erbt von `GridWorld`. Im Plan steht **nur der Boden**, dieselbe
 Prototyp-Platte wie in der Test Navigation (`floorPlate` →
@@ -135,7 +170,8 @@ Zellen je Kachel rot sein.
 
 ## Offen
 
-- Die Liste des Besitzers aus dem Modellregal steht noch aus.
+- Nicht im Bild nachgesehen, nur gerechnet: die Teller in den Fächern des
+  Tellerstapels (`stationLayer.RACK_PLATE_LIFT`, die Zahlen der Sandbox).
 - Nicht im Bild nachgesehen, nur gerechnet: das Band auf einer Kachel
   (1/4,2 × 0,5 × 1/4), der Topf auf dem Rost des einflammigen Herds, die
   Pommes im Topf (`dishView.IN_POT`) und auf dem Teller, die übrigen

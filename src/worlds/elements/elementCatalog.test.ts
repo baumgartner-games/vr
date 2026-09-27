@@ -172,6 +172,7 @@ describe('der Möbelkatalog im Menü', () => {
       'Fleischkiste',
       'Tomatenkiste',
       'Tellerstapel',
+      'Tellerkiste',
       'Schüsselstapel',
       'Zwiebelkiste',
       'Brötchenkiste',
@@ -250,6 +251,29 @@ describe('der Möbelkatalog im Menü', () => {
       parts: [{ model: 'restaurant-bits/stove_single.glb' }],
     });
     expect(hob.holds).toBeUndefined();
+  });
+
+  it('hat die Tellerkiste bei Burger und Pizza — eine Kiste, die Teller hergibt', () => {
+    expect(elementById('crate-plates')).toMatchObject({ kind: 'crate', gives: 'plate', lit: true });
+    const crates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('crate-plates'));
+    expect(crates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
+  });
+
+  it('lässt jede Vorratskiste und den Mülleimer ganz leuchten', () => {
+    for (const element of ELEMENTS)
+      if (element.kind === 'crate' || element.kind === 'bin') expect(element.lit).toBe(true);
+  });
+
+  it('macht den Tellerstapel zum Abtropfgitter wie in der Sandbox: leeres Gitter, Teller zählt die Station', () => {
+    expect(elementById('plate-stack')).toMatchObject({
+      kind: 'drain',
+      gives: 'plate',
+      rack: true,
+      parts: [
+        { model: 'restaurant-bits/kitchencounter_straight_A.glb' },
+        { model: 'restaurant-bits/dishrack.glb', stack: true },
+      ],
+    });
   });
 
   it('hat Hörnchen und Eiswannen als Vorräte der Küche', () => {

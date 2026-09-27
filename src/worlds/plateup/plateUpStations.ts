@@ -110,7 +110,12 @@ export function asStation(state: StationState): Station {
     // Tellerstapel wie immer der saubere Teller, sobald einer dasteht. Ein
     // Stapel aus Schüsseln oder Kartons nennt seine Sorte auch leer: Nur so
     // weiß die Regel, dass dort nichts anderes hingestellt werden darf.
-    const stack = Math.min(state.stock, CLEAN_STACK_MAX - 1);
+    //
+    // **Außer beim Abtropfgitter mit Grenze** (`StationSpot.rack`): Das hält
+    // wirklich höchstens vier, und die Regel soll „voll" sagen dürfen.
+    const stack = state.spot.rack
+      ? Math.min(state.stock, CLEAN_STACK_MAX)
+      : Math.min(state.stock, CLEAN_STACK_MAX - 1);
     const gives = stackGives(state.spot);
     const stacked = gives === 'plate' && stack <= 0 ? null : gives;
     return { kind: 'drain', stack, stacked };
@@ -135,6 +140,7 @@ export function stationDeed(held: Dish | null, state: StationState): KitchenDeed
     }
     if (!held && state.stock <= 0) {
       if (gives !== 'plate') return { do: 'refuse', why: `Kein ${ITEM_LABELS[gives]} mehr da` };
+      if (state.spot.rack) return { do: 'refuse', why: 'Im Abtropfgitter steht kein Teller mehr' };
       return { do: 'refuse', why: 'Keine sauberen Teller — Geschirr abräumen und spülen' };
     }
   }

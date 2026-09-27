@@ -198,4 +198,66 @@ describe('Stationen auf Spielelementen', () => {
     layer.add(placed({ id: 'brett-2', element: 'board', x: 6, z: 0 }), keep);
     expect(layer.states[2]!.on).toBeNull();
   });
+
+  it('hängt Kiste und Mülleimer ganz unter den Anker ihrer Station — der Saum umfasst sie', () => {
+    const { host } = world();
+    const layer = new StationLayer(host);
+    for (const element of ['crate-lettuce', 'bin', 'counter']) {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1));
+      const one = { ...placed({ id: element, element, x: 0, z: 0 }), parts: [body] };
+      layer.add(one);
+      const station = one.anchor.children[0]!;
+      // Die Kiste und der Eimer leuchten ganz, die Platte nur mit dem, was darauf liegt.
+      expect(body.parent === station).toBe(element !== 'counter');
+    }
+  });
+
+  it('hält im Tellerstapel höchstens vier Teller, wie das Abtropfgitter der Sandbox', () => {
+    const { host, usables, hand, said } = world();
+    const layer = new StationLayer(host);
+    const rack = placed({ id: 'teller', element: 'plate-stack', x: 0, z: 0 });
+    layer.add(rack);
+    const station = rack.anchor.children[0]!;
+    expect(layer.states[0]!.stock).toBe(4);
+    layer.step(0, MID);
+    // Vier Teller in den Fächern.
+    const shown = station.children[0]!.children.find((one) => one.name === 'rack-plates')!;
+    expect(shown.children).toHaveLength(4);
+    // Einen nehmen, zurückstellen — ein fünfter geht nicht hinein.
+    expect(usables.get(station)!.use(by)).toBe(true);
+    expect(hand.held?.item).toBe('plate');
+    expect(layer.states[0]!.stock).toBe(3);
+    layer.step(0, MID);
+    expect(usables.get(station)!.use(by)).toBe(true);
+    expect(layer.states[0]!.stock).toBe(4);
+    hand.held = { item: 'plate', on: [] };
+    layer.step(0, MID);
+    expect(usables.get(station)!.use(by)).toBe(false);
+    expect(said.at(-1)).toMatch(/4 Teller/);
+    // Leer geräumt, sagt es das auch.
+    hand.held = null;
+    for (let i = 0; i < 4; i++) {
+      layer.step(0, MID);
+      usables.get(station)!.use(by);
+      hand.held = null;
+    }
+    expect(layer.states[0]!.stock).toBe(0);
+    layer.step(0, MID);
+    expect(usables.get(station)!.use(by)).toBe(false);
+    expect(said.at(-1)).toMatch(/kein Teller mehr/);
+  });
+
+  it('gibt aus der Tellerkiste Teller, so viele man will', () => {
+    const { host, usables, hand } = world();
+    const layer = new StationLayer(host);
+    const crate = placed({ id: 'tellerkiste', element: 'crate-plates', x: 0, z: 0 });
+    layer.add(crate);
+    const station = crate.anchor.children[0]!;
+    for (let i = 0; i < 10; i++) {
+      hand.held = null;
+      layer.step(0, MID);
+      expect(usables.get(station)!.use(by)).toBe(true);
+      expect(hand.held).toEqual({ item: 'plate', on: [] });
+    }
+  });
 });

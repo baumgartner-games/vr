@@ -153,7 +153,7 @@ Stichpunkten).
 
 - **[Was drin ist](docs/agents/inhalt.md)** — Die Welten, die Zonen und die Spiele: was es gibt und was es tut.
 - **[Haunting / Orbital](docs/agents/haunting.md)** — Die Raumstation für eine Quest und zwei Mobilgeräte: Runde, Rollen, Karte, Bots. Das längste Kapitel.
-- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Leer bis auf Boden und Ankunftsort, bereit für den Neuaufbau, den der Besitzer aus dem Modellregal schickt: jede Zeile in `SPOTS` ein Spielelement, jedes mit Stationsart auf `A` benutzbar. Darin auch: wo die alten Mini-Küchen, das Burgerband und die Gäste in der Geschichte liegen.
+- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Die Burgerküche, die der Besitzer aus dem Möbelkatalog geschickt hat (sechs Vorratskisten, Herd, Brett, Platten, Tellerstapel, Mülleimer, alle nach Süden): jede Zeile in `SPOTS` ein Spielelement, jedes mit Stationsart auf `A` benutzbar. Darin auch: wo die alten Mini-Küchen, das Burgerband und die Gäste in der Geschichte liegen.
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Spielküche mit Gastraum und ein Spiel nach _PlateUp!_: Gäste, Geduld, Bestellung, Tage.
   Darin: Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
