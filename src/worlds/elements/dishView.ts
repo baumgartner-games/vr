@@ -207,17 +207,21 @@ export const POT_SCALE = 2;
 /**
  * **Die Farben der Suppen** — das Regal hat nur einen Eintopf, und jede Suppe
  * bekommt ihn in ihrer Farbe: Karotte orange, Tomate rot, Zwiebel goldgelb,
- * Pilz braun.
+ * Pilz braun. Dazu rohe und verbrannte Waffel.
  */
 export const SOUP_TINT: Readonly<Partial<Record<KitchenItem, number>>> = {
   stew: 0xe8872e,
   'tomato-soup': 0xc9352a,
   'soup-onion': 0xe0c065,
   'soup-mushroom': 0x8a6547,
+  // **Die Waffel in ihren Stufen** — auch für sie gibt es nur ein Modell: roh
+  // blass, verbrannt fast schwarz, die gebratene ungefärbt.
+  'waffle-raw': 0xf3dfa8,
+  'waffle-burnt': 0x3a2a1c,
 };
 
-/** Welche Stücke Suppe zeigen — die gefärbt werden. */
-const SOUP_PIECES = new Set(['stew_bowl', 'food_stew']);
+/** Welche Stücke gefärbt werden — die Suppe und die Waffel. */
+const SOUP_PIECES = new Set(['stew_bowl', 'food_stew', 'icecream_waffle']);
 
 /**
  * **Die Suppe in ihrer Farbe** — eigene Materialien für die Kopien, sonst

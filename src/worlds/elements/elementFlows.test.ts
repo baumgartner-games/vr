@@ -262,20 +262,42 @@ describe('Spielelemente — jede Küche kocht', () => {
     expect(cook.on('board')).toBeNull();
   });
 
-  it('Waffeln: Teig ausrollen, backen, in die Schüssel, zwei Kugeln darauf', () => {
-    const cook = new Cook(['crate-dough', 'rolling-board', 'stove', 'bowl-stack', 'ice-tubs']);
+  it('Waffeln: ausrollen, in vier schneiden, alle braten, auf der Platte einzeln nehmen', () => {
+    const cook = new Cook([
+      'crate-dough',
+      'rolling-board',
+      'stove',
+      'counter',
+      'bowl-stack',
+      'ice-tubs',
+    ]);
+    const raw = ['waffle-raw', 'waffle-raw', 'waffle-raw'];
     expect(cook.press('crate-dough').do).toBe('take');
     expect(cook.press('rolling-board')).toMatchObject({ do: 'work', kind: 'roll' });
     cook.until('rolling-board', 'dough-flat', true);
+    // Noch einmal aufgelegt, wird der flache Teig in vier rohe Waffeln geteilt.
     expect(cook.press('rolling-board').do).toBe('take');
+    expect(cook.press('rolling-board')).toMatchObject({ do: 'work', kind: 'roll' });
+    cook.until('rolling-board', 'waffle-raw', true);
+    expect(cook.on('rolling-board')).toEqual({ item: 'waffle-raw', on: raw });
+    // Alle vier in die Hand, alle vier in die Pfanne.
+    expect(cook.press('rolling-board').do).toBe('take');
+    expect(cook.held).toEqual({ item: 'waffle-raw', on: raw });
     expect(cook.press('stove').do).toBe('combine');
+    expect(cook.on('stove')).toEqual({ item: 'pan', on: ['waffle-raw', ...raw] });
     cook.until('stove', 'waffle', false);
-    // Die Waffel verbrennt nicht: Sie liegt eine Minute und bleibt, was sie ist.
-    cook.wait(60);
-    expect(cook.on('stove')).toEqual({ item: 'pan', on: ['waffle'] });
+    expect(cook.on('stove')).toEqual({ item: 'pan', on: ['waffle', 'waffle', 'waffle', 'waffle'] });
+    // Die Pfanne auf die Platte gekippt: vier Waffeln, die Pfanne bleibt in der Hand.
+    expect(cook.press('stove').do).toBe('take');
+    expect(cook.press('counter').do).toBe('combine');
+    expect(cook.held).toEqual({ item: 'pan', on: [] });
+    expect(cook.on('counter')).toEqual({ item: 'waffle', on: ['waffle', 'waffle', 'waffle'] });
+    expect(cook.press('stove').do).toBe('place');
+    // Mit der Schüssel eine Waffel vom Stapel, dann zwei Kugeln darauf.
     expect(cook.press('bowl-stack').do).toBe('take');
-    expect(cook.press('stove').do).toBe('combine');
+    expect(cook.press('counter').do).toBe('combine');
     expect(cook.held).toEqual({ item: 'bowl', on: ['waffle'] });
+    expect(cook.on('counter')).toEqual({ item: 'waffle', on: ['waffle', 'waffle'] });
     expect(cook.press('ice-tubs:vanilla').do).toBe('combine');
     expect(cook.press('ice-tubs:vanilla').do).toBe('refuse');
     expect(cook.press('ice-tubs:strawberry').do).toBe('combine');

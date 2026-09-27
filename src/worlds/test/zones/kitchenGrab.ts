@@ -551,6 +551,8 @@ export function kitchenHandles(
     case 'dough':
     case 'dough-flat':
     case 'waffle':
+    case 'waffle-raw':
+    case 'waffle-burnt':
     case 'carrot':
     case 'carrot-cut':
     case 'potato':

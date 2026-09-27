@@ -85,6 +85,8 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   dough: bits('food_ingredient_dough'),
   'dough-flat': bits('food_ingredient_dough_base'),
   waffle: bits('icecream_waffle'),
+  'waffle-raw': bits('icecream_waffle'),
+  'waffle-burnt': bits('icecream_waffle'),
   carrot: bits('food_ingredient_carrot'),
   'carrot-cut': bits('food_ingredient_carrot_chopped'),
   potato: bits('food_ingredient_potato'),

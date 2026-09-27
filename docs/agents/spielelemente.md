@@ -483,6 +483,18 @@ schneller, dann brennt es."_ Die Stufen in der Pfanne auf dem Herd
 4. **`fire`** (`StationState.fire`): große Flamme, _„Der Herd brennt —
    Feuerlöscher holen!"_, der Herd lehnt alles ab (`kitchenCarry`, `fire`).
 
+**Waffeln sind ein Stapel** (`kitchenRecipes.stackOf`, `isStack`): Der
+flache Teig wird auf Nudel- oder Schneidebrett in **vier rohe Waffeln**
+geteilt (`PIECES`), die als ein `Dish` gleicher Dinge liegen und zusammen in
+die Hand und in die Pfanne gehen (bis `PAN_MAX` = 4 gleiche Waffeln,
+`panFits`). In der Pfanne braten, verkohlen und brennen alle zugleich
+(`plateUpStations.panOnStove` nimmt jede Pfanne mit lauter gleichen Dingen).
+Die volle Pfanne auf einer leeren Platte wird ausgekippt
+(`kitchenCarry`, Fall `top`); von einem fertigen Stapel nimmt die leere Hand
+oder die Schüssel **eine** (`servesOne`, `offer`), Rohes und Verbranntes geht
+ganz. Rohe und verbrannte Waffel sind das Waffelmodell, gefärbt
+(`dishView.SOUP_TINT`).
+
 Blinken kann jedes Dreieck für sich (`KitchenGauges.warn(key, at, blink)`),
 gepiept wird einmal für alle Herde, im Takt des dringendsten. Die Grillplatte
 des Restaurants verkohlt weiter, brennt aber nicht; die **sichere Kochstelle**
