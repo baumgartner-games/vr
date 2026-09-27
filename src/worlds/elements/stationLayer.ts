@@ -239,7 +239,7 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
         ...(kind === 'drain' && element.rack ? { rack: true } : {}),
       },
       shift: 0,
-      ...(element.holds ? { holds: dish(element.holds) } : {}),
+      ...(element.holds ? { holds: dish(element.holds, element.holdsOn ?? []) } : {}),
     },
   ];
 }

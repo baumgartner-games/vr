@@ -134,6 +134,8 @@ export interface GameElement {
    * nimmt, nimmt es mit — zur Spüle etwa, um es zu füllen.
    */
   readonly holds?: KitchenItem;
+  /** Und was darin liegt — das Eis in der Eiswanne (`ice-tray-vanilla`). */
+  readonly holdsOn?: readonly KitchenItem[];
   /**
    * **Ob das Möbel selbst den Saum bekommt** — ohne Angabe jedes Element mit
    * Zweck (`elementLit`).
@@ -189,7 +191,7 @@ function piece(
   kind: ElementKind | null,
   parts: readonly ElementPart[],
   extra: Partial<
-    Pick<GameElement, 'work' | 'gives' | 'holds' | 'tiles' | 'height' | 'lit' | 'rack'>
+    Pick<GameElement, 'work' | 'gives' | 'holds' | 'holdsOn' | 'tiles' | 'height' | 'lit' | 'rack'>
   > = {},
 ): GameElement {
   return { id, label, tiles: [1, 1], height: BODY, kind, parts, ...extra };
@@ -246,6 +248,11 @@ function pattyCrate(): ElementPart[] {
     yaw: i * twist,
   }));
   return [{ model: bits('crate') }, ...patties];
+}
+
+/** Eine Eiswanne mit ihrer Sorte auf einer Arbeitsplatte. */
+function iceTray(id: string, label: string, flavor: KitchenItem): GameElement {
+  return piece(id, label, 'top', [{ model: COUNTER }], { holds: 'tray', holdsOn: [flavor] });
 }
 
 /** Die Kisten des Pakets, je eine Zutat. */
@@ -458,15 +465,43 @@ export const ELEMENTS: readonly GameElement[] = [
     { model: bits('icecream_container'), on: 0, at: [0.23, 0], scale: TUB_SCALE },
     { model: bits('icecream_container_icecream_strawberry'), inside: true },
   ]),
-  // **Die Eismaschine auf der Arbeitsplatte** — gewünscht im Ordner Eis:
-  // _„Als Möbel bei den Eis Ordner fehlt noch die Eis Maschine auf einer
-  // Arbeitsplatte als ein Möbelstück. Wie ich die nutze weiß ich noch nicht.
-  // Erstmal deko Möbel Stück."_ Also ohne Zweck (`DECOR`): Sie sperrt ihre
-  // Kachel und steht im Weg, `A` tut an ihr nichts.
-  piece('ice-machine', 'Eismaschine', null, [
+  // **Die Eismaschine auf der Arbeitsplatte** — erst Deko, jetzt die Stelle,
+  // an der eine Eiswanne gefüllt wird (`icemachine`, `kitchenCarry.atMachine`):
+  // leer mit Vanille, danach jedes Mal die nächste Sorte.
+  piece('ice-machine', 'Eismaschine', 'icemachine', [
     { model: COUNTER },
     { model: bits('icecream_machine'), stack: true },
   ]),
+  // **Drei Eiswannen, je eine auf einer Arbeitsplatte** — gewünscht: _„Also
+  // möchte ich 3 Möbel haben Eis trays mit Vanille, erdbeer, Schoko."_ Die
+  // Wanne ist kein Teil, sondern ein Ding der Küche, das darauf steht
+  // (`holds: 'tray'` mit ihrer Füllung): Man nimmt sie mit zur Maschine oder
+  // zum Mülleimer, und auf der Platte schöpft man daraus, ohne dass sie leer
+  // wird (`kitchenRecipes.trayScoop`). Sie liegt um 90° gedreht
+  // (`dishView`).
+  iceTray('ice-tray-vanilla', 'Eiswanne Vanille', 'ice-vanilla'),
+  iceTray('ice-tray-strawberry', 'Eiswanne Erdbeere', 'ice-strawberry'),
+  iceTray('ice-tray-chocolate', 'Eiswanne Schoko', 'ice-chocolate'),
+  // **Die Vorratskiste mit leeren Eiswannen** — _„Ich will noch zudem eine
+  // vorratskiste mit Eis trays leer."_ Die leere Kiste und darin, quer, zwei
+  // leere Wannen übereinander.
+  piece(
+    'crate-trays',
+    'Kiste mit Eiswannen',
+    'crate',
+    [
+      { model: bits('crate') },
+      {
+        model: bits('icecream_container'),
+        on: 0,
+        sink: 0.3,
+        yaw: Math.PI / 2,
+        scale: TUB_SCALE,
+      },
+      { model: bits('icecream_container'), stack: true, yaw: Math.PI / 2, scale: TUB_SCALE },
+    ],
+    { gives: 'tray' },
+  ),
   // **Das Band ist eine Kachel** — gewünscht: _„Statt 2x1 conveyers will ich
   // 1x1 conveyer belts haben."_ Das quadratische Band aus _Platformer_
   // (`conveyor_4x4x1_yellow`), das der Lader auf 1 × 1 × 0,5 m bringt
@@ -527,7 +562,10 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'griddle',
   'sink',
   'ice-stand',
-  'ice-tubs',
+  'ice-tray-vanilla',
+  'ice-tray-strawberry',
+  'ice-tray-chocolate',
+  'crate-trays',
   'ice-machine',
   'crate-lettuce',
   'crate-cheese',
@@ -554,7 +592,7 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
  * **Was im Möbelkatalog nur zum Ansehen steht** — ohne Zweck, noch. Jedes
  * andere Möbel dort tut auf `A` etwas (`elementCatalog.test.ts`).
  */
-export const DECOR: ReadonlySet<string> = new Set(['ice-machine']);
+export const DECOR: ReadonlySet<string> = new Set<string>();
 
 /** **Ein Unterordner des Möbelkatalogs** — ein Gericht und was man dafür hinstellt. */
 export interface FurnitureFolder {
@@ -629,7 +667,16 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   {
     id: 'ice',
     label: 'Eis',
-    elements: ['counter', 'ice-stand', 'bowl-stack', 'ice-tubs', 'ice-machine'],
+    elements: [
+      'counter',
+      'ice-stand',
+      'bowl-stack',
+      'ice-tray-vanilla',
+      'ice-tray-strawberry',
+      'ice-tray-chocolate',
+      'crate-trays',
+      'ice-machine',
+    ],
   },
   {
     id: 'waffles',
@@ -641,7 +688,9 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'stove',
       'griddle',
       'bowl-stack',
-      'ice-tubs',
+      'ice-tray-vanilla',
+      'ice-tray-strawberry',
+      'ice-tray-chocolate',
     ],
   },
   {

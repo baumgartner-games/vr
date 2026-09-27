@@ -58,8 +58,14 @@ export const SPOTS: readonly ElementSpot[] = [
   // Wannen, Schüsseln, und ein Mülleimer gegenüber, nach Westen gedreht.
   { id: 'eis-platte', element: 'counter', x: 20, z: 12, face: 'S' },
   { id: 'eisstand', element: 'ice-stand', x: 21, z: 12, face: 'S' },
-  { id: 'eiswannen', element: 'ice-tubs', x: 22, z: 12, face: 'S' },
+  // Die Doppelwanne ist seit der vierten Runde eine Wanne je Platte, drei
+  // Sorten, dazu die Eismaschine, die sie füllt, und die Kiste mit leeren.
+  { id: 'eis-vanille', element: 'ice-tray-vanilla', x: 22, z: 12, face: 'S' },
   { id: 'schuesseln', element: 'bowl-stack', x: 23, z: 12, face: 'S' },
+  { id: 'eis-erdbeere', element: 'ice-tray-strawberry', x: 24, z: 12, face: 'S' },
+  { id: 'eis-schoko', element: 'ice-tray-chocolate', x: 25, z: 12, face: 'S' },
+  { id: 'eismaschine', element: 'ice-machine', x: 26, z: 12, face: 'S' },
+  { id: 'wannen-kiste', element: 'crate-trays', x: 27, z: 12, face: 'S' },
   { id: 'eis-muell', element: 'bin', x: 20, z: 14, face: 'W' },
   // Die Südreihe: Müll, Platte, Brett, drei Platten, Teller.
   { id: 'muell', element: 'bin', x: 11, z: 14, face: 'S' },

@@ -38,7 +38,7 @@ import type { Vec3 } from '../shared/iceWobble';
  */
 
 /** Die Sorten — genau zwei Wannen, zwei Farben, die man von oben auseinanderhält. */
-export type IceFlavor = 'vanilla' | 'strawberry';
+export type IceFlavor = 'vanilla' | 'strawberry' | 'chocolate';
 
 /** Die Wannen von Nord nach Süd. */
 export const ICE_FLAVORS: readonly IceFlavor[] = ['vanilla', 'strawberry'];
@@ -47,12 +47,14 @@ export const ICE_FLAVORS: readonly IceFlavor[] = ['vanilla', 'strawberry'];
 export const FLAVOR_LABELS: Readonly<Record<IceFlavor, string>> = {
   vanilla: 'Vanille',
   strawberry: 'Erdbeere',
+  chocolate: 'Schoko',
 };
 
 /** Die Farbe der Kugel — cremegelb und rosa, auch von oben gut zu trennen. */
 export const FLAVOR_COLORS: Readonly<Record<IceFlavor, number>> = {
   vanilla: 0xf5e6b3,
   strawberry: 0xf07aa0,
+  chocolate: 0x7a4a2e,
 };
 
 /** Ein Hörnchen und seine Kugeln, **von unten nach oben** — ohne Obergrenze. */

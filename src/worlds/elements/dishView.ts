@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { kitchenHub } from '../../core/kitchenFit';
 import type { IceFlavor } from '../plateup/plateUpIce';
 import { BallKit, IceConeView } from '../shared/iceCone';
+import { WOBBLE } from '../shared/iceWobble';
 import type { Dish, KitchenItem } from '../test/zones/kitchenRecipes';
 import { dishModels } from './itemModels';
 
@@ -78,7 +79,8 @@ export function dishLayout(carrier: KitchenItem, heights: readonly number[]): Di
       out.push({ y: 0, inside: false });
       return;
     }
-    if (carrier === 'bowl') {
+    // Die Eiswanne trägt ihre Füllung wie die Schüssel: darin, mit ihrem Ursprung.
+    if (carrier === 'bowl' || carrier === 'tray') {
       out.push({ y: (i - 1) * SECOND_SCOOP * h, inside: true });
       return;
     }
@@ -131,12 +133,17 @@ export class KaykitDishView {
   private build(dish: Dish): { group: THREE.Group; done: Promise<void> } {
     const group = new THREE.Group();
     group.name = `dish:${dishKey(dish)}`;
+    // **Die Eiswanne liegt quer** — um 90° gedreht gegen die Eisecke, längs
+    // der Platte: _„Ich glaube ich möchte Eis trays auf der Arbeitsplatte um
+    // 90° gedreht haben und nur eines pro Arbeitsplatte."_
+    if (dish.item === 'tray') group.rotation.y = Math.PI / 2;
     // **Das Hörnchen ist das des Restaurants** (`IceConeView`): Hörnchen und
     // ein Turm aus Kugeln, so viele es sind — dasselbe Bild wie im Laden.
     if (dish.item === 'cone') {
       // Angemeldet (`auto`): Der Turm wackelt, sobald die Welt `stepIceCones`
-      // ruft — auf der Platte ohne Schaukeln, in der Hand mit.
-      const cone = new IceConeView((this.balls ??= new BallKit()), 0, true);
+      // ruft — und schaukelt auch auf der Platte, gewünscht: _„das Eis wackelt
+      // da auch im idle"_.
+      const cone = new IceConeView((this.balls ??= new BallKit()), WOBBLE.idle, true);
       cone.set({ balls: dish.on.map(flavorOf).filter((one) => one !== null) });
       group.add(cone.root);
       return { group, done: Promise.resolve() };
@@ -160,6 +167,7 @@ export class KaykitDishView {
 function flavorOf(item: KitchenItem): IceFlavor | null {
   if (item === 'ice-vanilla') return 'vanilla';
   if (item === 'ice-strawberry') return 'strawberry';
+  if (item === 'ice-chocolate') return 'chocolate';
   return null;
 }
 
