@@ -2579,3 +2579,11 @@ aufgeschrieben, dass die erste Küche es anders macht und dass das der
 schlechtere Weg ist. Aufgefallen ist es trotzdem erst dem, der in der Küche
 durch einen Herd gelaufen ist. Die Zone ist inzwischen weg, die Regel ist
 geblieben (`zones/kitchenBlocks.ts`).
+
+**Für neue Welten steht die Regel im Katalog der Spielelemente**
+([Zwei Kataloge](./spielelemente.md)): `placeElement` sperrt Zellen und
+Kasten, bevor ein Modell lädt, und jedes Element mit Zweck ist mindestens
+1,40 m hoch. Auch die Eisecke des Restaurants (`plateUpIceView.IceCorner`)
+nimmt dafür inzwischen eine Stellung als Parameter (`IceCornerPlace`,
+`furnish: false`, `adopt`) und steht im Test Restaurant auf den Elementen
+`ice-stand` und `ice-tubs` ([Das Restaurant → Das Eis](./burgerladen.md#das-eis)).

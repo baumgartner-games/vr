@@ -74,7 +74,7 @@ Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5922 Tests) — eine zweite,
+gibt** und in gut einer halben Minute durch (5953 Tests) — eine zweite,
 langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
 [Tests](docs/agents/tests.md)).
 
@@ -153,7 +153,7 @@ Stichpunkten).
 
 - **[Was drin ist](docs/agents/inhalt.md)** — Die Welten, die Zonen und die Spiele: was es gibt und was es tut.
 - **[Haunting / Orbital](docs/agents/haunting.md)** — Die Raumstation für eine Quest und zwei Mobilgeräte: Runde, Rollen, Karte, Bots. Das längste Kapitel.
-- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Eine Mini-Küche je Gericht aus Spielelementen, die meisten mit `A` spielbar, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen. Darin auch: welche Rezepte, welche Stücke das Regal dafür hat und welche fehlen.
+- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Eine Mini-Küche je Gericht aus Spielelementen, fünf davon und die Eisecke mit `A` spielbar, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen. Darin auch: welche Rezepte, welche Stücke das Regal dafür hat und welche fehlen.
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Spielküche mit Gastraum und ein Spiel nach _PlateUp!_: Gäste, Geduld, Bestellung, Tage.
   Darin: Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
@@ -178,7 +178,7 @@ Stichpunkten).
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
   Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Das vierte: ein Regal und kein Katalog · Was aus dem Regal die gebaute Geometrie ersetzt — und was nicht · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
 - **[Zwei Kataloge: Rohmodelle und Spielelemente](docs/agents/spielelemente.md)** — Was eine Welt als Möbel hinstellt (`src/worlds/elements/`): Grundfläche auf dem Zellgitter, Körper, Rohmodelle und Zweck in einem Stück. Die Regel, die Liste, wie man hinstellt und wie man eines dazutut.
-  Darin: Warum es zwei sind · Die Regel · Was ein Spielelement ist · Die Elemente heute · Hinstellen · Ein neues Element · Eine neue Zutat · Was noch nicht umgezogen ist · Was wo liegt.
+  Darin: Warum es zwei sind · Die Regel · Was ein Spielelement ist · Die Elemente heute · Hinstellen · Was `A` daran tut: die Stationsschicht · Ein neues Element · Eine neue Zutat · Was noch nicht umgezogen ist · Was wo liegt.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — der Umbau, während man darin steht, und die drei Spielmodi.
   Darin: Der Konstrukt-Raum · Bauen, während man darin steht · Der Spielmodus und die Liste der Weltänderungen · Flächen setzen im Baukasten · Die Werkzeugleiste des Baukastens · Räume dekorieren.
 - **[Das Modellregal (KayKit)](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü, der Katalog der Rohmodelle (nur das Bild): Schubladen, Suchfeld, Ordner für Ordner, mit dem Modell in der Kachel.

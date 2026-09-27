@@ -144,10 +144,16 @@ Zwiebel, Salami (`pepperoni`) und Pilz (`mushroom`). Salami und Pilz sind noch
 keine `KitchenItem`. Sie stehen nur in Schauküchen, und eine Stelle, die sie
 wirklich ausgeben soll, braucht zuerst die Zutat (siehe unten).
 
-<!-- NACHTRAG C: Elemente, die Agent C beim Umbau des Test Restaurants
-dazugetan, umbenannt oder umgestellt hat (etwa `rolling-board` auf `kind:
-'roller'`, die Vereinigung `ElementKind` ohne 'tub'/'pot'), hier und in der
-Tabelle nachziehen. -->
+**Die Art im Katalog ist nicht immer die Stationsart der Küche.** Das
+übersetzt `stationLayer.stationKind`, und zwar an genau drei Stellen:
+
+- `rolling-board` bleibt im Katalog ein `board` mit `work: 'roll'` und wird
+  für die Regel zum Nudelholz (`roller`).
+- `ice-tubs` wird zu **zwei** Stationen `tub`, `<id>:vanilla` links und
+  `<id>:strawberry` rechts, je 0,25 m neben der Mitte der Vorderkante
+  (`TUB_SHIFT`).
+- `ice-stand` und alles ohne Zweck wird zu gar keiner Station. Den Eisstand
+  regelt die Eisecke.
 
 **`'tub'` und `'pot'` stehen in `ElementKind` doppelt**: Sie kamen in die
 Küche (`StationKind`), während der Katalog schon stand. Die Vereinigung darf
@@ -211,15 +217,54 @@ ein Objekt aus Pfeilen und macht sie nicht öffentlich
 (`TestRestaurantWorld.elementHost`). `alive` sorgt dafür, dass nach dem
 Verlassen nichts mehr hingestellt wird, was noch aus dem Netz kam.
 
-**Was man damit tut**, entscheidet nicht das Element, sondern die Küche. `kind`,
-`work` und `gives` sind genau die Felder, die eine Station der Küche braucht
-(`plateUpPlan.StationSpot`, `plateUpStations.freshStations`,
-`kitchenCarry.kitchenDeed`). Die Welt macht aus der Stelle eine Station und
-hängt den Saum an den Anker. Eine Regel für `A`, egal in welcher Welt.
+## Was `A` daran tut: die Stationsschicht
 
-<!-- NACHTRAG C: Wie das Test Restaurant eine Stelle zur Station macht
-(Funktionsname, wo die Uhr läuft, wo der Saum hängt), hier mit Dateinamen
-nachtragen. -->
+**Was man damit tut**, entscheidet nicht das Element, sondern die Küche. `kind`,
+`work` und `gives` sind genau die Felder, die eine Station der Küche braucht.
+Die Regel ist die des Restaurants (`plateup/plateUpStations.ts`, dahinter
+`kitchenCarry.kitchenDeed`) und wird nicht neu erfunden. Was der Burgerladen
+dafür in `PlateUpWorld` selbst trägt (anmelden, ticken, das Liegende zeigen,
+Balken), steht für jede andere Welt einmal als Klasse in
+`elements/stationLayer.ts`. Die nächste Welt schreibt es damit nicht ein
+drittes Mal ab. Der Burgerladen selbst bleibt, wie er ist.
+
+- **Rein:** `stationKind(element)` (siehe oben) und `elementStations(spot)`,
+  die aus einer Stelle keine, eine oder zwei `StationSlot` macht (`spot` als
+  `StationSpot` der Regel und `shift` längs der Vorderkante). **Stapel gehen
+  nie aus** (`stock: Infinity`): Es gibt keine Spüle, und Teller, Schüsseln
+  und Kartons kommen nicht zurück. Ein `gives`, das kein `KitchenItem` ist,
+  ist ein Fehler beim Aufbau.
+- **Die Klasse:** `new StationLayer(host, gauges?, before?, burn =
+  DEFAULT_BURN)`, dann `add(placed)` je hingestelltem Element und jedes Bild
+  `step(dt, feet)`. Darin laufen die Uhren (`tickStation`): Braten und Kochen
+  laufen allein, Schneiden und Ausrollen nur, solange die Füße höchstens
+  1,3 m vom Anker stehen (`NEAR_STATION`). Außerdem wird das Liegende neu
+  gezeigt, wenn es sich ändert, Balken, Flamme und Warnzeichen stehen über
+  dem, was arbeitet oder verbrennt (`KitchenGauges` aus
+  `test/zones/kitchenGauge.ts`, kein Rauch), und angemeldet wird neu, sobald
+  sich die Tat ändert. Dazu `use(index, by)`, `place(id)`, `states`,
+  `reset()`, `dispose()`. Verbrannt ist Gebratenes nach `DEFAULT_BURN` =
+  14 s, wie am ersten Tag im Restaurant.
+- **Wo was hängt:** Die Anmeldung (`Usable`, der Saum für `A`) hängt an
+  einem Kind des Ankers an der Vorderkante, und das Liegende auf einem Kind
+  in der Mitte der Platte, auf `top`.
+- **Was die Welt reicht** (`StationHost`): `addUsable`, `removeUsable`,
+  `announce` (die Ablehnungen als Zeile unten im Bild), `held`, `heldHand`,
+  `setHeld`, `busy()` (volle Hände mit etwas, das kein Ding der Küche ist,
+  und der Satz dazu), `dishView(dish)` und wahlweise `picked` für den Ton.
+- **Was davor drankommt** (`StationOverride`: `key`, `usable`, `use`): Das
+  Eis hängt sich so vor die Küche, wie es in `PlateUpWorld.useStationAt` vor
+  der Küche steht. Wer ein Hörnchen hält, stellt es auf eine Platte oder
+  wirft es weg, statt dass `kitchenDeed` gefragt wird.
+
+**Wie ein Gericht aussieht**, sagt `elements/dishView.ts`: `KaykitDishView`
+baut aus `dishModels` sofort eine Gruppe aus geteilten Klonen der Vorlagen,
+und `dishLayout` ist die reine Stapelrechnung dazu. Auf dem Teller liegt das
+erste Stück bei 0,6 × Tellerhöhe in der Mulde (`ON_PLATE`), alles Weitere
+0,7 × ineinander (`NEST`). In der Schüssel sitzt die Füllung innen, und jede
+weitere Kugel 0,35 × höher (`SECOND_SCOOP`). Die Pizza im Karton liegt bei
+0,25 × (`IN_BOX`). Diese Zahlen sind gerechnet und noch nicht im Bild
+nachgesehen ([Test Restaurant → Offen](./testrestaurant.md#offen)).
 
 ## Ein neues Element
 
@@ -249,8 +294,13 @@ nachtragen. -->
    Modelle steht. Wer ein Element in einer Welt braucht, trägt seine Id
    außerdem in die Liste _„kennt die Elemente, die eine Welt braucht"_ ein.
 
-<!-- NACHTRAG C: Falls Agent C einen Test „jedes Element sperrt alle seine
-Zellen" (über ELEMENTS × alle vier Richtungen) dazutut, hier nennen. -->
+**Den Gang aus vier Richtungen** gegen jedes Element prüft nicht der Katalog,
+sondern die Welt, die es hinstellt: `testrestaurant/restaurantFeet.test.ts`
+läuft über alle Stellen des Test Restaurants. Jede Zelle unter jedem Element
+ist gesperrt, kein 2 × 2-Block kommt aus einer der vier Richtungen hinein,
+wer lange dagegen läuft, steht nie darauf, und vom Ankunftsort kommt man vor
+jede Station. Eine neue Welt aus Elementen bekommt denselben Test über ihre
+eigenen Stellen.
 
 ## Eine neue Zutat
 
@@ -314,6 +364,8 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`. Kein three.js, kein Laden                    |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                         |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                   |
+| `worlds/elements/stationLayer.ts`     | `stationKind`, `elementStations` (**rein**), `StationLayer`, `StationHost`, `StationOverride`: was `A` an einem hingestellten Element tut          |
+| `worlds/elements/dishView.ts`         | `KaykitDishView` (ein Gericht als Bild aus dem Regal), `dishLayout` (**rein**: wie hoch jedes Stück auf Teller, in Schüssel und Karton liegt)   |
 | `worlds/elements/itemModels.ts`       | **Rein**: `ITEM_MODELS` (je `KitchenItem` ein Pfad im Regal), `IN_BOWL`, `BUN_BOTTOM`/`BUN_TOP`, `itemModel`, `dishModels`                      |
 | `worlds/elements/*.test.ts`           | Alles liegt im Regal, Körper hoch genug, Stapeln geht nur auf Früheres, Zellen je Kachel, Drehung wie three.js, Sperre vor dem Laden             |
 | `worlds/grid/GridWorld.ts`            | `blockedCells`, `blockFootprint`/`unblockFootprint`, `blockSolid`/`unblockSolid`, `SOLID_BLOCK_HEIGHT` = 1,4; `cellTaken` fragt die Menge mit |
