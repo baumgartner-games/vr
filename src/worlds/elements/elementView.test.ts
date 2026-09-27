@@ -11,6 +11,7 @@ const SIZES: Record<string, readonly [number, number, number]> = {
   [bits('kitchencounter_straight_B')]: [1, 0.5, 1],
   [bits('cuttingboard')]: [0.75, 0.075, 0.5],
   [bits('knife')]: [0.125, 0.575, 0.05],
+  [bits('pizza_oven')]: [1, 1.2, 1],
   [bits('icecream_container')]: [0.5, 0.25, 0.8],
   [bits('icecream_container_icecream_vanilla')]: [0.4, 0.18, 0.7],
   [bits('icecream_container_icecream_strawberry')]: [0.4, 0.18, 0.7],
@@ -81,16 +82,20 @@ describe('Spielelemente — hingestellt', () => {
     expect(log[0]).toBe('block 3.5,2.5 1×1 1.4');
     expect(log.filter((line) => line.startsWith('block'))).toHaveLength(1);
     expect(fixed).toHaveLength(0);
-    await pending;
-    expect(fixed).toHaveLength(1);
+    const placed = await pending;
+    expect(placed.parts[0]).not.toBeNull();
   });
 
-  it('stellt die Platte als Stück der Welt hin und legt Brett und Messer obenauf', async () => {
+  it('stellt die Platte als Bild hin — damit sie leuchten kann — und legt Brett und Messer obenauf', async () => {
     const { host: world, fixed, added } = host();
     const placed = await placeElement(world, { id: 'b', element: 'board', x: 3, z: 2 });
-    expect(fixed).toHaveLength(1);
-    expect(fixed[0]!.path).toBe(bits('kitchencounter_straight_B'));
-    expect(fixed[0]!.at.toArray()).toEqual([3.5, 0.25, 2.5]);
+    // Ein Element mit Zweck leuchtet selbst (`elementLit`): Die Platte ist kein
+    // Stück der Welt, sondern ein Bild, das unter die Station gehängt wird.
+    expect(fixed).toHaveLength(0);
+    const counter = bounds(placed.parts[0]!);
+    expect(counter.min.y).toBeCloseTo(0);
+    expect((counter.min.x + counter.max.x) / 2).toBeCloseTo(3.5);
+    expect((counter.min.z + counter.max.z) / 2).toBeCloseTo(2.5);
     // Abgelegt wird auf dem Brett: 0,50 + 0,075.
     expect(placed.top).toBeCloseTo(0.575);
     const [, board, knife] = placed.parts;
@@ -132,7 +137,7 @@ describe('Spielelemente — hingestellt', () => {
   });
 
   it('rückt mit einem Versatz das Bild und den Anker, die Sperre nicht', async () => {
-    const { host: world, log, fixed } = host();
+    const { host: world, log } = host();
     const placed = await placeElement(world, {
       id: 'c',
       element: 'counter',
@@ -141,10 +146,18 @@ describe('Spielelemente — hingestellt', () => {
       offset: [0.45, -0.5],
     });
     expect(log[0]).toBe('block 2.5,1.5 1×1 1.4');
-    expect(fixed[0]!.at.x).toBeCloseTo(2.95);
-    expect(fixed[0]!.at.z).toBeCloseTo(1);
+    const counter = bounds(placed.parts[0]!);
+    expect((counter.min.x + counter.max.x) / 2).toBeCloseTo(2.95);
+    expect((counter.min.z + counter.max.z) / 2).toBeCloseTo(1);
     expect(placed.anchor.position.x).toBeCloseTo(2.95);
     expect(placed.anchor.position.z).toBeCloseTo(1.5);
+  });
+
+  it('stellt, was nur im Weg steht, weiter als Stück der Welt hin', async () => {
+    const { host: world, fixed } = host();
+    await placeElement(world, { id: 'o', element: 'pizza-oven', x: 1, z: 1 });
+    expect(fixed.map((one) => one.path)).toEqual([bits('pizza_oven')]);
+    expect(fixed[0]!.at.toArray()).toEqual([1.5, 0.6, 1.5]);
   });
 
   it('weiß auch ohne Modelle, wo es steht', async () => {

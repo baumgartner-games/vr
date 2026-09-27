@@ -438,6 +438,7 @@ import {
   markUsable,
   pickUsable,
   shotHitsUsable,
+  highlightOf,
   usableShows,
   type UseCandidate,
   type UsePick,
@@ -3504,6 +3505,21 @@ export class PortalWorld implements World {
         this.context?.notify('Liste der Weltänderungen geleert');
       },
     };
+    // **Alle eigenen Änderungen zurück** — gewünscht: _„bei Welt Tracking
+    // fehlt mir die Option alle meine Änderungen zurück zusetzen, ich habe nur
+    // Liste leeren"_. Dasselbe wie _Zurücksetzen_ im Menü
+    // (`resetEverything`): Umbau vergessen, Liste und Zettel leer, die Welt
+    // frisch geladen, so wie sie ausgeliefert wird.
+    const undo: MenuEntry = {
+      id: 'changes:reset',
+      label: 'Alle Änderungen zurücksetzen',
+      sub: 'Die Welt wie ausgeliefert · Liste und Zettel leer',
+      icon: 'eraser',
+      accent,
+      run: () => {
+        if (this.context) this.resetEverything(this.context);
+      },
+    };
     const menu: MenuEntry = {
       id: 'changes',
       label: 'Weltänderungen',
@@ -3514,6 +3530,7 @@ export class PortalWorld implements World {
         copy,
         paste,
         clear,
+        undo,
         this.noteEntry(() => this.context!, 'changes:note', accent),
         ...this.buildEntries(accent),
       ],
@@ -13161,7 +13178,10 @@ export class PortalWorld implements World {
       // dasselbe Netz geben keinen zweiten Saum, sondern einen doppelt dicken.
       this.secondHighlighter.highlight(second === first ? null : second);
     } else {
-      const shown = this.useInteraction?.interactive ? (chosen?.object ?? null) : null;
+      const shown =
+        this.useInteraction?.interactive && chosen
+          ? highlightOf(chosen.usable, chosen.object)
+          : null;
       this.highlighter.highlight(shown);
       this.secondHighlighter.highlight(null);
       this.updateCraneMark(ctx, shown !== null);
@@ -13184,7 +13204,7 @@ export class PortalWorld implements World {
     const resolved = resolveInteraction(pick.usable.interaction, view, {
       config: inputConfig(),
     });
-    return resolved.interactive ? pick.object : null;
+    return resolved.interactive ? highlightOf(pick.usable, pick.object) : null;
   }
 
   /**

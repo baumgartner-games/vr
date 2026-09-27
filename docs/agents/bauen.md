@@ -1010,7 +1010,12 @@ Modus **nicht**: Jede Sitzung fängt mit _Spielen_ an.
 _Weltänderungen_) ist dafür da, Umgestelltes weiterzugeben — einrichten,
 _Kopieren_, in den Chat einfügen. Ein Häkchen schaltet das Mitschreiben ein;
 _Einfügen_ stellt eine kopierte Liste in der Welt nach (Zwischenablage, sonst
-ein Textfeld), _Liste leeren_ fängt neu an. Drei Entscheidungen:
+ein Textfeld), _Liste leeren_ fängt neu an, und **_Alle Änderungen
+zurücksetzen_** (seit September 2026, gewünscht: _„bei Welt Tracking fehlt mir
+die Option alle meine Änderungen zurück zusetzen, ich habe nur Liste
+leeren"_) ist dasselbe wie _Zurücksetzen_ im Menü (`resetEverything`): Umbau
+vergessen, Liste und Zettel leer, die Welt frisch geladen, wie sie
+ausgeliefert wird. Drei Entscheidungen:
 
 - **Eine Bilanz und kein Protokoll.** Dreimal umgestellt ist einmal
   umgestellt; wer ein Möbel an seinen alten Platz zurückstellt, hat nichts

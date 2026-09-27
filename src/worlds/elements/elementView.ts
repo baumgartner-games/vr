@@ -4,7 +4,7 @@ import type { SolidBlock } from '../grid/GridWorld';
 import { DETAIL_OVERLAY } from '../../ui/previewGrid';
 import { CELL as CELL_SIZE } from '../nav/cellGrid';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
-import type { ElementPart, GameElement } from './elementCatalog';
+import { elementLit, type ElementPart, type GameElement } from './elementCatalog';
 import {
   rotateOffset,
   spotCells,
@@ -108,7 +108,7 @@ interface Laid {
  * durchsichtig wie jede Wand, gebündelt gezeichnet), alles darauf nur als
  * Bild, gemessen und mit der Unterseite auf der Oberkante dessen, worauf es
  * steht. Braucht schon das erste Teil einen eigenen Maßstab oder ein
- * Umlegen — oder leuchtet das Element ganz (`GameElement.lit`) —, steht es
+ * Umlegen — oder kann das Element selbst leuchten (`elementLit`) —, steht es
  * ebenfalls nur als Bild da; den Körper hat ohnehin der Kasten.
  */
 export async function placeElement(host: ElementHost, spot: ElementSpot): Promise<PlacedElement> {
@@ -147,10 +147,10 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
     );
 
   const [first] = element.parts;
-  // Ein Element, das ganz leuchtet (`GameElement.lit`), braucht auch sein
+  // Ein Element, das selbst leuchten kann (`elementLit`), braucht auch sein
   // erstes Teil als Bild: Nur ein Bild lässt sich unter den Anker der Station
   // hängen, und nur was dort hängt, bekommt den Saum.
-  const fixed = !!first && plainFloor(first) && !element.lit;
+  const fixed = !!first && plainFloor(first) && !elementLit(element);
   // Alles auf einmal holen, gestellt wird danach der Reihe nach: Was obenauf
   // liegt, braucht die Oberkante dessen, worauf es liegt.
   const [size, ...models] = await Promise.all([

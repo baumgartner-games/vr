@@ -20,10 +20,11 @@ import {
   ITEM_LABELS,
   kitchenInteractionSpec,
   kitchenPrompt,
+  meansContent,
   type StationKind,
 } from '../test/zones/kitchenCarry';
 import { dish, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
-import type { GameElement } from './elementCatalog';
+import { elementLit, type GameElement } from './elementCatalog';
 import { spotElement, spotGives, type ElementSpot } from './elementPlace';
 import { dishKey } from './dishView';
 import type { PlacedElement } from './elementView';
@@ -47,8 +48,13 @@ export const TUB_SHIFT = 0.25;
 
 /**
  * **Wie nah man an einer Station stehen muss**, damit an ihr gearbeitet wird —
- * die Füße höchstens so weit vom Anker. Der Burgerladen nimmt dieselbe Zahl
- * (`PlateUpWorld`).
+ * die Füße höchstens so weit von der **Mitte der Platte**, gleich von welcher
+ * Seite. Der Burgerladen nimmt dieselbe Zahl (`PlateUpWorld`).
+ *
+ * Gemessen wurde hier bis September 2026 vom Anker an der Vorderkante, und
+ * wer hinter dem Brett stand (im Test Restaurant der Gang), war 1,5 m davon
+ * weg: _„beim Ablegen der Gemüse anscheinend keines davon direkt angegangen
+ * wird zu schneiden"_. Ablegen ging von dort, schneiden nicht.
  */
 export const NEAR_STATION = 1.3;
 
@@ -240,6 +246,12 @@ interface StationView {
   readonly surface: THREE.Group;
   readonly top: number;
   content: THREE.Object3D | null;
+  /**
+   * **Das Möbel selbst**, unter dem Anker — die Teile des Elements
+   * (`elementLit`). Es leuchtet, wenn ein Druck die Station meint und nicht
+   * das, was darauf liegt. Leer, wo das Element nicht leuchtet.
+   */
+  readonly body: THREE.Group;
   shown: string;
   /** Was zuletzt angemeldet wurde — `''`: nichts, auch nach dem Weggehen. */
   deedKey: string;
@@ -306,24 +318,28 @@ export class StationLayer {
       surface.name = `station-surface:${slot.spot.id}`;
       surface.position.z = -depth / 2;
       anchor.add(surface);
+      const body = new THREE.Group();
+      body.name = `station-body:${slot.spot.id}`;
+      anchor.add(body);
       this.views.push({
         spot: slot.spot,
         anchor,
         surface,
         top: placed.top,
         content: null,
+        body,
         shown: '',
         deedKey: '',
         gauged: false,
         dist2: Infinity,
         holds: slot.holds ?? null,
       });
-      // **Das ganze Möbel unter den Anker** (`GameElement.lit`): Der Saum
-      // umrandet, was dort hängt — dann die Kiste samt Inhalt und nicht nur
-      // einen Ring auf dem Boden. `attach` lässt jedes Teil stehen, wo es
-      // steht.
-      if (placed.element.lit && slots.length === 1) {
-        for (const part of placed.parts) if (part) anchor.attach(part);
+      // **Das ganze Möbel unter den Anker** (`elementLit`): Dann kann der
+      // Saum die Kiste samt Inhalt umranden, die Arbeitsplatte, auf die man
+      // ablegt, den Mülleimer — und nicht nur einen Ring auf den Boden legen
+      // (`highlightOf`). `attach` lässt jedes Teil stehen, wo es steht.
+      if (elementLit(placed.element) && slots.length === 1) {
+        for (const part of placed.parts) if (part) body.attach(part);
       }
       const [fresh] = slotStates([slot]);
       const was = keep.find((one) => one.spot.id === slot.spot.id);
@@ -416,7 +432,8 @@ export class StationLayer {
       const view = this.views[i]!;
       const at = this.where(view);
       view.dist2 = (feet.x - at.x) ** 2 + (feet.z - at.z) ** 2;
-      const near = view.dist2 < NEAR_STATION ** 2;
+      const mid = view.surface.getWorldPosition(_w);
+      const near = (feet.x - mid.x) ** 2 + (feet.z - mid.z) ** 2 < NEAR_STATION ** 2;
       const tick = tickStation(state, dt, near, free && !toHand, this.burn);
       if (tick.station !== state) changed = true;
       if (tick.toHand) toHand = tick.toHand;
@@ -484,6 +501,24 @@ export class StationLayer {
       gauges.flame(`flame:${view.spot.id}`, state.work.working ? base : null);
       gauges.warn(`warn:${view.spot.id}`, heat > 0.5 ? base : null);
     }
+  }
+
+  /**
+   * **Was an einer Station leuchtet** (`Usable.highlight`) — das, was darauf
+   * liegt, wenn ein Druck es nimmt oder etwas darauf legt
+   * (`kitchenCarry.meansContent`), sonst das Möbel selbst: die Arbeitsplatte
+   * beim Ablegen, das Brett beim Schneiden, die Kiste beim Nehmen, der Eimer
+   * beim Wegwerfen. Gewünscht: _„Beim ablegen eines Gegenstands soll z.B. die
+   * Arbeitsfläche gehighlithed sein."_ `null`: der Anker selbst (ein Ring, wo
+   * kein Möbel mitleuchten kann).
+   */
+  private shows(index: number): THREE.Object3D | null {
+    const view = this.views[index];
+    const state = this.stations[index];
+    if (!view || !state) return null;
+    const deed = stationDeed(this.host.held(), state);
+    if (meansContent(deed) && view.content) return view.content;
+    return view.body.children.length ? view.body : null;
   }
 
   /**
@@ -557,6 +592,7 @@ export class StationLayer {
           usePrompt: () =>
             kitchenPrompt(stationDeed(this.host.held(), this.stations[index]!), view.spot.label),
           interaction: kitchenInteractionSpec(deed),
+          highlight: () => this.shows(index),
         },
         { radius: 0.5, half: 0.6 },
       );

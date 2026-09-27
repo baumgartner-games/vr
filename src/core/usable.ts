@@ -94,6 +94,20 @@ export interface Usable {
   use(by: UseSource): boolean;
   usePrompt?(): string;
   readonly interaction?: InteractionLike;
+  /**
+   * **Was den gelben Saum bekommt**, wenn es nicht das angemeldete Objekt
+   * selbst sein soll (`core/highlight.ts`) — `null` oder ohne Angabe: das
+   * Objekt. Eine Station der Küche meldet sich an ihrer Vorderkante an und
+   * lässt je nach Tat das Möbel leuchten (Ablegen: die Arbeitsplatte) oder
+   * das, was darauf liegt (Nehmen: der Teller) —
+   * `elements/stationLayer.StationLayer`.
+   */
+  highlight?(): THREE.Object3D | null;
+}
+
+/** **Was leuchtet**, wenn `object` mit `usable` gemeint ist (`Usable.highlight`). */
+export function highlightOf(usable: Usable, object: THREE.Object3D): THREE.Object3D {
+  return usable.highlight?.() ?? object;
 }
 
 /**

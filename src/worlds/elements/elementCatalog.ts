@@ -129,20 +129,22 @@ export interface GameElement {
    */
   readonly holds?: KitchenItem;
   /**
-   * **Der Saum umfasst das Möbel selbst** — nicht nur das, was darauf liegt.
+   * **Ob das Möbel selbst den Saum bekommt** — ohne Angabe jedes Element mit
+   * Zweck (`elementLit`).
    *
-   * Der gelbe Saum für `A` (`core/highlight.ts`) umrandet, was unter dem
-   * Anker der Station hängt: die Pfanne auf dem Herd, der Teller auf der
-   * Platte. Eine Vorratskiste hat nichts darauf liegen — ihr Inhalt ist Teil
-   * ihres Modells —, und so leuchtete an ihr nur ein Ring auf dem Boden.
-   * Gewünscht: _„Die vorratskisten mit den Gemüse müssen alle noch
-   * Highlighting bekommen, wie bei der Pfanne, also Kiste und das Gemüse
-   * darin"_ und _„Der Mülleimer soll auch gehighlighted werden können"_.
+   * Der gelbe Saum für `A` (`core/highlight.ts`) zeigt, was ein Druck meint:
+   * beim Nehmen das, was darauf liegt (die Pfanne, der Teller), sonst **das
+   * Möbel** — die Kiste samt Gemüse, der Mülleimer, die Arbeitsplatte, auf die
+   * man ablegt, das Brett, auf dem geschnitten wird. Gewünscht: _„Die
+   * vorratskisten mit den Gemüse müssen alle noch Highlighting bekommen, wie
+   * bei der Pfanne, also Kiste und das Gemüse darin"_, _„Der Mülleimer soll
+   * auch gehighlighted werden können"_ und _„Beim ablegen eines Gegenstands
+   * soll z.B. die Arbeitsfläche gehighlithed sein"_.
    *
-   * Mit `lit` steht auch das erste Teil nur als Bild da (nicht als Stück der
-   * Welt, den Körper hat ohnehin der Kasten), und die Stationsschicht hängt
-   * alle Teile unter den Anker ihrer Station (`StationLayer.add`). Nur bei
-   * einem Element mit genau einer Station.
+   * Dafür steht auch das erste Teil nur als Bild da (nicht als Stück der Welt,
+   * den Körper hat ohnehin der Kasten), und die Stationsschicht hängt alle
+   * Teile unter den Anker ihrer Station (`StationLayer.add`) — nur bei einem
+   * Element mit genau einer Station. `false`: Das Möbel leuchtet nie.
    */
   readonly lit?: boolean;
   /**
@@ -195,13 +197,13 @@ function piece(
  * `crate_lid` hinzuschreiben hieße zwei Deckel, und die Kiste stünde zehn
  * Zentimeter über der Zeile daneben.
  *
- * **Und sie leuchtet ganz** (`lit`): Kiste und Inhalt bekommen den Saum, wie
- * die Pfanne auf dem Herd.
+ * **Und sie leuchtet ganz** (`elementLit`): Kiste und Inhalt bekommen den
+ * Saum, wie die Pfanne auf dem Herd.
  *
  * @param file der Dateiname ohne Paket und Endung, etwa `'crate_buns'`
  */
 export function crate(id: string, file: string, gives: string, label: string): GameElement {
-  return piece(id, label, 'crate', [{ model: bits(file) }], { gives, lit: true });
+  return piece(id, label, 'crate', [{ model: bits(file) }], { gives });
 }
 
 /**
@@ -239,7 +241,7 @@ const CRATES: readonly GameElement[] = [
     'Tellerkiste',
     'crate',
     [{ model: bits('crate') }, { model: bits('plate'), stack: true }],
-    { gives: 'plate', lit: true },
+    { gives: 'plate' },
   ),
 ];
 
@@ -292,7 +294,7 @@ export const ELEMENTS: readonly GameElement[] = [
       { model: bits('crate') },
       { model: bits('food_pizza_pepperoni_plated'), stack: true, height: 0.12 },
     ],
-    { gives: 'pizza', lit: true },
+    { gives: 'pizza' },
   ),
   // **Der Herd mit Pfanne, wie in der Küche der Sandbox** (`kitchenFit`,
   // `stove-pan`): Die Pfanne ist **kein Teil**, sondern steht zu Beginn darauf
@@ -335,11 +337,7 @@ export const ELEMENTS: readonly GameElement[] = [
   }),
   // So hoch wie im Burgerladen (`PlateUpWorld.addBinProp`): Der Eimer aus
   // _Block Bits_ ist 1,17 m, neben einer Platte von 0,50 m ein Silo.
-  // Er leuchtet ganz (`lit`) — gewünscht: _„Der Mülleimer soll auch
-  // gehighlighted werden können."_
-  piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }], {
-    lit: true,
-  }),
+  piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }]),
   // **Die Arbeitsplatte mit Tellern ist ein Abtropfgitter wie in der Sandbox**
   // (`rack`, `core/kitchenFit`, `sink-drain`) — gewünscht: _„Die aktuelle
   // Arbeitsplatte mit Tellern soll hoffentlich genauso klappen wie in der
@@ -593,6 +591,15 @@ export function elementById(id: string): GameElement {
   const element = BY_ID.get(id);
   if (!element) throw new Error(`Unbekanntes Spielelement: ${id}`);
   return element;
+}
+
+/**
+ * **Ob das Möbel selbst den Saum bekommen kann** (`GameElement.lit`) — ohne
+ * Angabe jedes Element mit Zweck. Was nur im Weg steht (Tisch, Band), wird
+ * nie gemeint und bleibt ein festes Stück der Welt.
+ */
+export function elementLit(element: GameElement): boolean {
+  return element.lit ?? element.kind !== null;
 }
 
 /** Ob es ein Element dieses Namens gibt. */

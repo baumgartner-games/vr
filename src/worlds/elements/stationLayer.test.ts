@@ -199,17 +199,47 @@ describe('Stationen auf Spielelementen', () => {
     expect(layer.states[2]!.on).toBeNull();
   });
 
-  it('hängt Kiste und Mülleimer ganz unter den Anker ihrer Station — der Saum umfasst sie', () => {
-    const { host } = world();
+  it('lässt beim Ablegen das Möbel leuchten und beim Nehmen, was darauf liegt', () => {
+    const { host, usables, hand } = world();
     const layer = new StationLayer(host);
-    for (const element of ['crate-lettuce', 'bin', 'counter']) {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1));
-      const one = { ...placed({ id: element, element, x: 0, z: 0 }), parts: [body] };
-      layer.add(one);
-      const station = one.anchor.children[0]!;
-      // Die Kiste und der Eimer leuchten ganz, die Platte nur mit dem, was darauf liegt.
-      expect(body.parent === station).toBe(element !== 'counter');
-    }
+    const shows = (one: PlacedElement): THREE.Object3D | null | undefined =>
+      usables.get(one.anchor.children[0]!)?.highlight?.();
+    const parts = (): THREE.Mesh[] => [new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1))];
+    const crate = {
+      ...placed({ id: 'kiste', element: 'crate-lettuce', x: 0, z: 0 }),
+      parts: parts(),
+    };
+    const top = { ...placed({ id: 'platte', element: 'counter', x: 1, z: 0 }), parts: parts() };
+    const bin = { ...placed({ id: 'eimer', element: 'bin', x: 2, z: 0 }), parts: parts() };
+    for (const one of [crate, top, bin]) layer.add(one);
+    layer.step(0, MID);
+    // Die Kiste samt Inhalt beim Nehmen — ihr Bild hängt unter der Station.
+    expect(shows(crate)).toBe(crate.parts[0]!.parent);
+    expect(crate.parts[0]!.parent?.parent).toBe(crate.anchor.children[0]);
+    expect(usables.get(crate.anchor.children[0]!)!.use(by)).toBe(true);
+    layer.step(0, MID);
+    // Mit dem Salat in der Hand: die Arbeitsplatte zum Ablegen, der Eimer zum Wegwerfen.
+    expect(shows(top)).toBe(top.parts[0]!.parent);
+    expect(shows(bin)).toBe(bin.parts[0]!.parent);
+    expect(usables.get(top.anchor.children[0]!)!.use(by)).toBe(true);
+    expect(hand.held).toBeNull();
+    layer.step(0, MID);
+    // Liegt der Salat, meint `A` den Salat.
+    expect(shows(top)?.name).toBe('view:lettuce');
+  });
+
+  it('schneidet auch, wer hinter dem Brett steht — gemessen wird von der Mitte der Platte', () => {
+    const { host, usables, hand } = world();
+    const layer = new StationLayer(host);
+    const board = placed({ id: 'brett', element: 'board', x: 0, z: 0 });
+    layer.add(board);
+    hand.held = { item: 'lettuce', on: [] };
+    // Hinter dem Brett: die Vorderkante (z = 1) ist 1,5 m weg, die Mitte 1 m.
+    const behind = { x: 0.5, z: -0.5 };
+    layer.step(0, behind);
+    expect(usables.get(board.anchor.children[0]!)!.use(by)).toBe(true);
+    for (let i = 0; i < 100; i++) layer.step(0.1, behind);
+    expect(layer.states[0]!.on?.item).toBe('lettuce-cut');
   });
 
   it('hält im Tellerstapel höchstens vier Teller, wie das Abtropfgitter der Sandbox', () => {
