@@ -282,6 +282,14 @@ export const ELEMENTS: readonly GameElement[] = [
   // Wer den Topf davorhält, füllt ihn mit Wasser (`kitchenCarry.atSink`, die
   // Regel der Testküche).
   piece('sink', 'Waschbecken', 'sink', [{ model: bits('kitchencounter_sink') }]),
+  // **Der Feuerlöscher auf der Arbeitsplatte** — gewünscht im Ordner
+  // _Allgemein_ (_„Feuerlöscher (auf Arbeitsplatte)"_), wie in der Küche der
+  // Sandbox (`kitchenFit`, `extinguisher`). Der Löscher ist **kein Teil**,
+  // sondern steht zu Beginn darauf (`holds`) und geht mit, wie der Topf auf
+  // dem Herd; sein Bild ist der Löscher der Wundertüte (`itemModels`).
+  piece('extinguisher', 'Feuerlöscher', 'top', [{ model: COUNTER }], {
+    holds: 'extinguisher',
+  }),
   // So hoch wie im Burgerladen (`PlateUpWorld.addBinProp`): Der Eimer aus
   // _Block Bits_ ist 1,17 m, neben einer Platte von 0,50 m ein Silo.
   piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }]),
@@ -424,6 +432,7 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'pizzabox-stack',
   'rolling-board',
   'bin',
+  'extinguisher',
 ];
 
 /** **Ein Unterordner des Möbelkatalogs** — ein Gericht und was man dafür hinstellt. */
@@ -437,27 +446,42 @@ export interface FurnitureFolder {
 }
 
 /**
- * **Die Unterordner des Möbelkatalogs** — je Gericht die Möbel, die man dafür
- * braucht, in der Reihenfolge, in der man sie benutzt. Gewünscht: _„In dem
- * Menü Möbel will ich ggf einige Möbel doppelt gelistet haben (sind aber die
- * gleichen) nur weil ich in dem Ordner noch weiter gruppieren will bzw.
- * unterordner erstellen will: Pizza, Burger, Eis, Waffeln, Suppe"_.
+ * **Die Unterordner des Möbelkatalogs** — und seit dem zweiten Wunsch die
+ * einzigen Einträge der Seite _Möbel_: vorn _Allgemein_, dann je Gericht die
+ * Möbel, die man dafür braucht, in der Reihenfolge, in der man sie benutzt,
+ * und zuletzt _Alles_ mit jedem Möbel der Küche.
+ *
+ * Gewünscht: _„In dem Menü Möbel will ich ggf einige Möbel doppelt gelistet
+ * haben (sind aber die gleichen) nur weil ich in dem Ordner noch weiter
+ * gruppieren will bzw. unterordner erstellen will: Pizza, Burger, Eis,
+ * Waffeln, Suppe"_ — und danach: _„bei den unter Ordner die Arbeitsplatte
+ * jeweils rein. Und die Möbel aus dem Restaurant Ordner dafür raus. Dafür
+ * einen Ordner allgemein, in welchem dann Waschbecken, Mülleimer, und
+ * Feuerlöscher (auf Arbeitsplatte) liegt. Bei dem Burger und Pizza noch die
+ * Teller Vorrats Kiste rein. Im Restaurant Ordner noch einen Ordner „alles“ in
+ * welchem dann alle Möbel die zur Küche gehören drin sind."_
  *
  * **Doppelt ist hier nur der Eintrag, nicht das Möbel**: Dieselbe Id steht in
- * mehreren Ordnern und in der ganzen Liste, und hingestellt wird jedes Mal
- * dasselbe Element. Welche Möbel zu einem Gericht gehören, sagt die Regel der
- * Küche (`elementFlows.test.ts` kocht jedes davon mit genau diesen Möbeln).
+ * mehreren Ordnern, und hingestellt wird jedes Mal dasselbe Element. Welche
+ * Möbel zu einem Gericht gehören, sagt die Regel der Küche
+ * (`elementFlows.test.ts` kocht jedes davon mit genau diesen Möbeln).
  */
 export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   {
+    id: 'general',
+    label: 'Allgemein',
+    elements: ['counter', 'sink', 'bin', 'extinguisher'],
+  },
+  {
     id: 'pizza',
     label: 'Pizza',
-    elements: ['pizza-supply', 'board', 'pizzabox-stack', 'bin'],
+    elements: ['counter', 'pizza-supply', 'board', 'pizzabox-stack', 'plate-stack', 'bin'],
   },
   {
     id: 'burger',
     label: 'Burger',
     elements: [
+      'counter',
       'crate-buns',
       'crate-steak',
       'crate-lettuce',
@@ -470,17 +494,28 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'bin',
     ],
   },
-  { id: 'ice', label: 'Eis', elements: ['ice-stand', 'bowl-stack', 'ice-tubs'] },
+  { id: 'ice', label: 'Eis', elements: ['counter', 'ice-stand', 'bowl-stack', 'ice-tubs'] },
   {
     id: 'waffles',
     label: 'Waffeln',
-    elements: ['crate-dough', 'rolling-board', 'stove', 'bowl-stack', 'ice-tubs'],
+    elements: ['counter', 'crate-dough', 'rolling-board', 'stove', 'bowl-stack', 'ice-tubs'],
   },
   {
     id: 'soup',
     label: 'Suppe',
-    elements: ['crate-carrots', 'crate-onions', 'board', 'stove-pot', 'hob', 'sink', 'bowl-stack'],
+    elements: [
+      'counter',
+      'crate-carrots',
+      'crate-onions',
+      'board',
+      'stove-pot',
+      'hob',
+      'sink',
+      'bowl-stack',
+    ],
   },
+  // **Alles, was zur Küche gehört** — die ganze Liste des Katalogs.
+  { id: 'all', label: 'Alles', elements: FURNITURE_CATALOGUE },
 ];
 
 /** Die Elemente nach Namen. */
