@@ -177,6 +177,9 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'tools', group: 'bauen' },
   { match: 'bag', group: 'bauen' },
   { match: 'assets', group: 'bauen' },
+  // Der Möbelkatalog gleich hinter dem Regal: dort das Bild, hier das Möbel
+  // mit Zweck (`PortalWorld.elementMenu`, nur in Welten mit Stationen).
+  { match: 'elements', group: 'bauen' },
   { match: 'build-tools', group: 'bauen' },
   { match: 'npc', group: 'bauen' },
   { match: 'plan-store', group: 'bauen' },

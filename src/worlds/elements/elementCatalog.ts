@@ -270,6 +270,11 @@ export const ELEMENTS: readonly GameElement[] = [
   piece('stove-pot', 'Herd mit Topf', 'stove', [{ model: bits('stove_single') }], {
     holds: 'pot',
   }),
+  // **Die blanke Herdplatte** — derselbe Herd, leer: kein Topf, keine Pfanne.
+  // Gewünscht im Möbelkatalog neben „Herdplatte mit Pfanne" und „Herdplatte
+  // mit Topf". Sie ist ein Herd für den Topf (`stove`): Wer einen Topf mit
+  // Wasser daraufstellt, kocht darin wie auf dem Herd mit Topf.
+  piece('hob', 'Herdplatte', 'stove', [{ model: bits('stove_single') }]),
   // **Die Spüle** — die Arbeitsplatte mit Becken und Hahn aus demselben Paket.
   // Wer den Topf davorhält, füllt ihn mit Wasser (`kitchenCarry.atSink`, die
   // Regel der Testküche).
@@ -362,6 +367,40 @@ export const ELEMENTS: readonly GameElement[] = [
   },
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
 ];
+
+/**
+ * **Der Möbelkatalog im Menü** — die Elemente, die man in einer Welt mit
+ * Stationen selbst hinstellt (Menü _Möbel_, `PortalWorld.elementMenu`), in
+ * dieser Reihenfolge. Gewünscht: _„Ich brauche bei Möbel Katalog, die
+ * Funktion Möbel: eine Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit
+ * Schneide Brett, Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte.
+ * Waschbecken"_. Jedes davon sperrt seine Kachel (2 × 2 Zellen) und tut auf
+ * `A`, was es in der Küche tut.
+ */
+export const FURNITURE_CATALOGUE: readonly string[] = [
+  'counter',
+  'board',
+  'stove',
+  'stove-pot',
+  'hob',
+  'sink',
+];
+
+/**
+ * **Wie ein Element im Möbelkatalog heißt**, wenn es dort anders heißen soll
+ * als im Plan — mit den Worten des Wunsches.
+ */
+const CATALOGUE_LABELS: Readonly<Record<string, string>> = {
+  board: 'Arbeitsplatte mit Schneidebrett',
+  stove: 'Herdplatte mit Pfanne',
+  'stove-pot': 'Herdplatte mit Topf',
+  sink: 'Waschbecken',
+};
+
+/** Der Name eines Elements im Möbelkatalog (`CATALOGUE_LABELS`, sonst `label`). */
+export function catalogueLabel(element: GameElement): string {
+  return CATALOGUE_LABELS[element.id] ?? element.label;
+}
 
 /** Die Elemente nach Namen. */
 const BY_ID = new Map(ELEMENTS.map((element) => [element.id, element]));

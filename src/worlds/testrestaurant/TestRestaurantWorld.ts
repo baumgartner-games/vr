@@ -7,6 +7,14 @@ import type { Handedness } from '../../core/XRInput';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { KaykitDishView, dishKey } from '../elements/dishView';
+import { FURNITURE_CATALOGUE, hasElement } from '../elements/elementCatalog';
+import {
+  spotAround,
+  spotCells,
+  spotTiles,
+  yawFace,
+  type ElementSpot,
+} from '../elements/elementPlace';
 import type { ElementHost } from '../elements/elementView';
 import { furnish } from '../elements/furnish';
 import { StationLayer, type StationHost } from '../elements/stationLayer';
@@ -16,7 +24,7 @@ import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
 import type { Dish } from '../test/zones/kitchenRecipes';
-import { SPOTS, restaurantPlan, spawn } from './restaurantPlan';
+import { SPOTS, ground, restaurantPlan, spawn } from './restaurantPlan';
 
 /** Wie groß das Getragene in der Brille in der Hand liegt (`kitchenGrab.HAND_FOOD_SCALE`). */
 const HAND_FOOD_SCALE = 0.5;
@@ -53,6 +61,8 @@ export class TestRestaurantWorld extends GridWorld {
   private carriedHand: Handedness | null = null;
   private carriedView: THREE.Object3D | null = null;
   private readonly carryPoint = new THREE.Vector3();
+  /** Hochgezählt je Möbel aus dem Katalog — für eindeutige Stellen. */
+  private furnished = 0;
 
   protected override worldId(): string {
     return 'test-restaurant';
@@ -147,6 +157,40 @@ export class TestRestaurantWorld extends GridWorld {
   }
 
   // --- Spielelemente ----------------------------------------------------------
+
+  /**
+   * **Der Möbelkatalog im Menü** (`PortalWorld.elementMenu`): Arbeitsplatte,
+   * Schneidebrett, Herdplatte mit Pfanne, mit Topf und blank, Waschbecken —
+   * hingestellt wie jede Stelle aus `SPOTS`.
+   */
+  protected override elementCatalogue(): readonly string[] {
+    return FURNITURE_CATALOGUE;
+  }
+
+  protected override furnishAt(id: string, x: number, z: number, yaw: number): ElementSpot | null {
+    if (!hasElement(id)) return null;
+    this.furnished += 1;
+    const spot = spotAround(`katalog-${this.furnished}`, id, x, z, yawFace(yaw));
+    return this.furnishSpot(spot) ? spot : null;
+  }
+
+  /**
+   * **Eine Stelle hinstellen, wenn Platz ist** — auf dem Boden und auf Zellen,
+   * die frei sind (`cellsFree`). Derselbe Weg wie `SPOTS` (`furnish`): Die
+   * Zellen sind gesperrt, sobald das zurückkehrt, und mit Stationsart wird es
+   * Station.
+   */
+  protected override furnishSpot(spot: ElementSpot): boolean {
+    if (!this.stations || !hasElement(spot.element)) return false;
+    const g = ground();
+    const inside = spotTiles(spot).every((tile) => {
+      const [tx, tz] = tile.split(',').map(Number);
+      return tx! >= g.x && tx! < g.x + g.w && tz! >= g.z && tz! < g.z + g.d;
+    });
+    if (!inside || !this.cellsFree(spotCells(spot))) return false;
+    void furnish(this.elementHost(), [spot], this.stations);
+    return true;
+  }
 
   /**
    * **Die Welt als Gastgeber der Spielelemente** (`elements/elementView.ts`,

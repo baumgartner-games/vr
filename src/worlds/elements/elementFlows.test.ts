@@ -356,6 +356,23 @@ describe('Spielelemente — Topf, Spüle und Pommes', () => {
     expect(cook.held).toEqual({ item: 'bowl', on: ['stew'] });
     expect(cook.on('stove-pot')).toEqual({ item: 'pot', on: [] });
   });
+
+  it('Herdplatte: blank, der Topf mit Wasser darauf kocht wie auf dem Herd mit Topf', () => {
+    const cook = new Cook(['crate-potatoes', 'board', 'stove-pot', 'hob', 'sink', 'plate-stack']);
+    expect(cook.on('hob')).toBeNull();
+    cook.press('stove-pot');
+    cook.press('sink');
+    expect(cook.press('hob').do).toBe('place');
+    cook.press('crate-potatoes');
+    cook.press('board');
+    cook.until('board', 'potato-cut', true);
+    cook.press('board');
+    expect(cook.press('hob').do).toBe('combine');
+    cook.until('hob', 'fries', false);
+    cook.press('plate-stack');
+    expect(cook.press('hob').do).toBe('combine');
+    expect(cook.held).toEqual({ item: 'plate', on: ['fries'] });
+  });
 });
 
 /** Ein Gastgeber ohne Modelle: sperrt, stellt nichts hin, misst nichts. */

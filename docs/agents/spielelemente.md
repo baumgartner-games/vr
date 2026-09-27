@@ -127,6 +127,7 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | `pizza-supply`                   | Pizza-Vorratsbox    | `crate`, gibt `pizza`    | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                  |
 | `stove`                          | Herd                | `griddle`                | `stove_single`, `pan_A` obenauf                                                                                       |
 | `stove-pot`                      | Herd mit Topf       | `stove`, `holds: 'pot'`  | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                  |
+| `hob`                            | Herdplatte          | `stove`                  | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                            |
 | `sink`                           | Spüle               | `sink`                   | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                 |
 | `bin`                            | Mülleimer           | `bin`                    | `block-bits/trashcan` auf 0,55 m                                                                                      |
 | `plate-stack`                    | Tellerstapel        | `drain`, gibt `plate`    | `counter_A`, `dishrack_plates`                                                                                        |
@@ -257,6 +258,46 @@ Burgerband standen als Elemente da, aber nicht in der Liste der Stationen,
 und so kam es an: _„In der Test Restaurant welt sind die Vorrats Boxen mit
 Brötchen und Käse und co beim conveyer belt nicht interagierbar."_ Ein
 Element, das scheitert, fehlt mit einer Warnung, die Welt stirbt nicht daran.
+
+## Der Möbelkatalog im Menü
+
+Gewünscht (September 2026): _„Ich brauche bei Möbel Katalog, die Funktion
+Möbel: eine Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit Schneide
+Brett, Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte.
+Waschbecken"_. Das Modellregal gibt nur Bilder her; wer darin eine
+Arbeitsplatte nimmt, stellt ein Fass hin, durch dessen Zellen man läuft. Der
+Möbelkatalog gibt **Spielelemente** her.
+
+- **Wo:** Menü _Bauen & Gestalten_ → **Möbel**, gleich hinter dem Modellregal
+  (`PortalWorld.elementMenu`, Id `elements`, `ui/menuGroups.ts`). Nur in einer
+  Welt, die Stationen führt und es sagt (`elementCatalogue`); heute das
+  [Test Restaurant](./testrestaurant.md). Anderswo fehlt der Eintrag.
+- **Was:** `FURNITURE_CATALOGUE` in `elementCatalog.ts`, in der Reihenfolge
+  des Wunsches und mit seinen Worten (`catalogueLabel`): Arbeitsplatte
+  (`counter`), Arbeitsplatte mit Schneidebrett (`board`), Herdplatte mit
+  Pfanne (`stove`), Herdplatte mit Topf (`stove-pot`), Herdplatte (`hob`, neu:
+  der leere Herd für den Topf) und Waschbecken (`sink`). Jedes belegt eine
+  Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was es in der
+  Küche tut.
+- **Wie:** Getragen wird das **Bodenstück** des Elements wie ein Modell aus
+  dem Regal (`takeElement` → `conjureModel`): in die Hand, an den Kran, `R`
+  dreht, `E`/`A`/Loslassen stellt hin. Beim Hinstellen geht das getragene
+  Stück, und die Welt stellt an seiner Stelle das Element hin
+  (`placedElement` → `furnishAt` → `furnish`): die Kachel, auf die der Punkt
+  fällt (`elementPlace.spotAround`), die Richtung aus der Drehung
+  (`yawFace`). Ist dort kein Platz (Zellen belegt, `GridWorld.cellsFree`,
+  oder neben dem Boden), bleibt es mit einer Meldung in der Hand. Im
+  _Baukasten_ kommt wie beim Regal gleich das nächste nach, gleich gedreht;
+  gemalt wird damit nicht.
+- **In der Liste der Weltänderungen** steht es mit Häkchen als Zeile des Plans,
+  `{"element":"board","x":4,"z":2,"face":"N","world":"test-restaurant"}`
+  (`worldChanges.recordElement`) — genau das, was in `SPOTS` gehört.
+  _Einfügen_ stellt solche Zeilen wieder hin (`furnishSpot`); was schon steht,
+  sperrt seine Zellen, also kommt nichts doppelt.
+- **Grenzen:** Ein hingestelltes Element ist Teil der Welt und kein
+  Gegenstand. Umstellen, Abreißen und _Rückgängig_ gibt es dafür noch nicht,
+  und wie die Modelle aus dem Regal übersteht es kein Neuladen — wer es
+  behalten will, kopiert die Liste. Es geht auch nicht über die Leitung.
 
 ## Was `A` daran tut: die Stationsschicht
 

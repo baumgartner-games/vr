@@ -86,6 +86,14 @@ Spielelemente**, nicht in rohe Modelle ([Die Regel](./spielelemente.md#die-regel
    mehr als die Küche (Tafeln, Gäste, ein Band, das etwas fährt), kommt das
    als eigener Teil dazu, mit eigenem reinem Plan und Test.
 
+**Oder gleich aus dem Möbelkatalog** (September 2026): Menü _Bauen &
+Gestalten_ → **Möbel** gibt Arbeitsplatte, Arbeitsplatte mit Schneidebrett,
+Herdplatte mit Pfanne, mit Topf und blank sowie das Waschbecken als
+Spielelemente her; hingestellt sperren sie ihre Kachel und tun auf `A`, was
+sie in der Küche tun. Mit Häkchen bei _Weltänderungen_ steht jedes als fertige
+Zeile für `SPOTS` in der Liste
+([Der Möbelkatalog im Menü](./spielelemente.md#der-möbelkatalog-im-menü)).
+
 Das Eis braucht dabei mehr als eine Zeile: Den Eisstand (`ice-stand`) regelt
 die Eisecke des Restaurants als `StationOverride` vor der Küche, und die
 Brücke dafür war `restaurantIce.ts` (siehe unten).

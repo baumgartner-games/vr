@@ -11,7 +11,9 @@ import {
   spotGives,
   spotSize,
   spotTiles,
+  spotAround,
   spotYaw,
+  yawFace,
   type ElementSpot,
 } from './elementPlace';
 
@@ -125,5 +127,33 @@ describe('Spielelemente — wo sie stehen', () => {
     ];
     expect(overlaps(spots).sort()).toEqual(['1,0', '5,5']);
     expect(overlaps([counter(0, 0), counter(1, 0)])).toEqual([]);
+  });
+});
+
+describe('Hinstellen aus der Hand', () => {
+  it('liest die Blickrichtung aus einer Drehung — die Gegenrichtung von faceYaw', () => {
+    for (const face of FACES) expect(yawFace(faceYaw(face))).toBe(face);
+    expect(yawFace(0.3)).toBe('S');
+    expect(yawFace(Math.PI / 2 + 0.4)).toBe('E');
+    expect(yawFace(-Math.PI)).toBe('N');
+    expect(yawFace(3 * Math.PI)).toBe('N');
+    expect(yawFace(Number.NaN)).toBe('S');
+  });
+
+  it('nimmt für eine Kachel die Kachel, auf die der Punkt fällt', () => {
+    for (const [x, z] of [
+      [4.1, 2.9],
+      [4.5, 2.5],
+      [4.95, 2.02],
+    ] as const) {
+      expect(spotAround('a', 'counter', x, z, 'S')).toMatchObject({ x: 4, z: 2, face: 'S' });
+    }
+    expect(spotAround('a', 'counter', -0.2, -1.7, 'W')).toMatchObject({ x: -1, z: -2 });
+  });
+
+  it('nimmt für den Tisch die Stelle, deren Mitte dem Punkt am nächsten ist', () => {
+    const spot = spotAround('t', 'table-round', 4.3, 2.6, 'S');
+    expect(spot).toMatchObject({ x: 3, z: 2 });
+    expect(spotCentre(spot)).toEqual({ x: 4, z: 3 });
   });
 });
