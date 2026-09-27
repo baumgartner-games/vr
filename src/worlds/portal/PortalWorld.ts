@@ -33,13 +33,18 @@ import {
   onWorldChanges,
   parseChanges,
   forgetChange,
+  notesIn,
   recordModel,
+  recordNote,
   setTrackingChanges,
   trackingChanges,
   worldChanges,
   type FurnitureChange,
   type ModelChange,
+  type NoteChange,
 } from '../../core/worldChanges';
+import { buildNote, NOTE_MODEL, noteLabelOf } from '../notes/notePost';
+import { cleanNoteText, NOTE_MAX_CHARS } from '../notes/noteText';
 import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
 import { PortalGhosts } from './PortalGhosts';
 import { crossPoint } from './portalCrossing';
@@ -448,6 +453,7 @@ import {
   interactionView,
   resolveInteraction,
   vrInputs,
+  type InteractionSpec,
   type InteractionView,
   type ResolvedInteraction,
 } from '../../core/interaction';
@@ -532,6 +538,16 @@ const PREVIEW_REACH = DEFAULT_NEAR_RADIUS * 2;
  */
 const GHOST_PATH_COLOR = 0x39d0ff;
 const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * **Wie ein Zettel benutzt werden will** (`adoptNote`): ein Knopf, der
+ * beschriftet — in der Brille aber nur mit dem Trigger, nicht mit der
+ * Berührung, denn angefasst wird er zum Umstellen.
+ */
+const NOTE_INTERACTION: InteractionSpec = {
+  kind: 'press',
+  views: { vr: { inputs: ['aimTrigger'] } },
+};
 /** Wie viele Kacheln die Vorschau einer Fläche höchstens zeigt (`PlaceGrid.show`). */
 const AREA_PREVIEW = 1600;
 /** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
@@ -1357,6 +1373,14 @@ export class PortalWorld implements World {
   private readonly floorPieces = new WeakMap<PhysicsBody, number>();
   /** Unter welchem Schlüssel die Liste der Weltänderungen ein Modell führt. */
   private readonly changeKeys = new WeakMap<PhysicsBody, string>();
+  /**
+   * **Die Zettel dieser Welt** (`worlds/notes/`) und was daraufsteht. Ein
+   * Zettel ist ein Modell aus dem Regal mit einem Blatt obendrauf; alles, was
+   * ihn davon unterscheidet, fragt hier nach.
+   */
+  private readonly notes = new Map<PhysicsBody, { text: string }>();
+  /** Für welche Welt die Zettel aufgestellt sind (`restoreNotes`) — `null`: noch keine. */
+  private notesWorld: string | null = null;
   /** Die Zuhörer, die die Menüzeilen nachziehen — einmal je Welt angemeldet. */
   private modeWatch: (() => void) | null = null;
   private changesWatch: (() => void) | null = null;
@@ -1861,6 +1885,7 @@ export class PortalWorld implements World {
     this.time += dt;
     this.portalBlue.setTime(this.time);
     this.portalRed.setTime(this.time);
+    this.restoreNotes(ctx);
 
     this.updateTools(dt, ctx);
     this.updateUsables(ctx);
@@ -3415,7 +3440,7 @@ export class PortalWorld implements World {
     const clear: MenuEntry = {
       id: 'changes:clear',
       label: 'Liste leeren',
-      sub: 'Das Häkchen bleibt, wie es ist',
+      sub: 'Das Häkchen bleibt, wie es ist · die Zettel bleiben auch',
       icon: 'eraser',
       accent,
       run: () => {
@@ -3429,15 +3454,22 @@ export class PortalWorld implements World {
       label: 'Weltänderungen',
       icon: 'tape',
       accent,
-      children: [track, copy, paste, clear, ...this.buildEntries(accent)],
+      children: [
+        track,
+        copy,
+        paste,
+        clear,
+        this.noteEntry(() => this.context!, 'changes:note', accent),
+        ...this.buildEntries(accent),
+      ],
     };
     const paint = (): void => {
       const on = trackingChanges();
       const count = worldChanges().length;
       track.checked = on;
       track.sub = on
-        ? 'Möbel und Modelle werden mitgeschrieben'
-        : 'Aus — es wird nichts mitgeschrieben';
+        ? 'Möbel, Modelle und Zettel werden mitgeschrieben'
+        : 'Aus — nur Zettel werden mitgeschrieben';
       copy.sub = count
         ? `${count} Änderung(en) in die Zwischenablage`
         : 'Noch nichts aufgezeichnet';
@@ -3507,12 +3539,26 @@ export class PortalWorld implements World {
       }
       open = left;
     }
-    const models = list.filter((change): change is ModelChange => change.kind === 'model');
+    // **Nur, was in diese Welt gehört**: Eine Zeile mit einer anderen Welt
+    // (`world`) stünde hier an einer Stelle, die nichts bedeutet. Alte Zeilen
+    // ohne Welt gelten wie bisher hier.
+    const here = this.context?.net.world ?? null;
+    const fits = (change: ModelChange | NoteChange): boolean =>
+      !change.world || !here || change.world === here;
+    const models = list.filter(
+      (change): change is ModelChange => change.kind === 'model' && fits(change),
+    );
     for (const change of models) void this.placeModelChange(change);
+    const notes = list.filter(
+      (change): change is NoteChange => change.kind === 'note' && fits(change),
+    );
+    if (here) for (const change of notes) void this.placeNote(change, null, here);
     const failed = open.length;
+    const elsewhere = list.filter((change) => change.kind !== 'furniture' && !fits(change)).length;
     this.context?.notify(
-      `Eingefügt: ${done + models.length} von ${list.length}` +
-        (failed ? ` · ${failed} Möbel nicht gefunden oder kein Platz` : ''),
+      `Eingefügt: ${done + models.length + notes.length} von ${list.length}` +
+        (failed ? ` · ${failed} Möbel nicht gefunden oder kein Platz` : '') +
+        (elsewhere ? ` · ${elsewhere} aus einer anderen Welt` : ''),
     );
   }
 
@@ -3685,7 +3731,188 @@ export class PortalWorld implements World {
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
     _euler.setFromQuaternion(_quaternion, 'YXZ');
-    recordModel(key, path, _point, (_euler.y * 180) / Math.PI);
+    recordModel(key, path, _point, (_euler.y * 180) / Math.PI, this.context?.net.world);
+  }
+
+  // --- Zettel (`worlds/notes/`) ----------------------------------------------
+
+  /**
+   * **Ein Zettel in die Hand** — derselbe Weg wie ein Modell aus dem Regal
+   * (`conjureModel`): nehmen, tragen oder am Kran hängen, drehen, hinstellen,
+   * einrasten. Nur dass auf dem Gestell ein Blatt sitzt (`buildNote`).
+   *
+   * Gewünscht war: _„Ermögliche es mir, dass ich ein Post vor Felder
+   * hinzustellen kann und einen Text drauf schreiben kann durch interagieren.
+   * Das soll auch in Welt Änderungen getrackt werden können."_
+   */
+  private takeNote(
+    ctx: WorldContext,
+    hand: Handedness | null,
+    text = '',
+    yaw: number | null = null,
+  ): void {
+    ctx.menu.toggle(false);
+    void this.conjureModel(ctx, NOTE_MODEL, hand, yaw, text);
+  }
+
+  /** Die Menüzeile, die einen Zettel in die Hand gibt — im Regal und bei den Weltänderungen. */
+  private noteEntry(ctx: () => WorldContext, id: string, accent: number): MenuEntry {
+    return {
+      id,
+      label: 'Zettel',
+      sub: 'Hinstellen und beschreiben — steht in der Liste der Weltänderungen',
+      caption: 'Ein Post-it zum Beschriften: hinstellen, A / E schreibt darauf',
+      icon: 'sign',
+      accent,
+      run: (hand) => this.takeNote(ctx(), hand),
+    };
+  }
+
+  /**
+   * **Was einen Zettel von einem Modell unterscheidet** — gleich nach dem
+   * Entstehen, ob aus der Hand oder aus der Liste (`placeNote`).
+   *
+   * - **Fest wie ein Möbel** (`stances`): Umgestellt wird er im _Einrichten_
+   *   und im _Baukasten_; beim _Spielen_ bleibt er stehen, und dort meint
+   *   `A`/`E` das Beschriften und nicht das Aufheben.
+   * - **Nur hier**: nicht über die Leitung (`local` in `createSync`) und nicht
+   *   in der Beutelware, die das kleine Zurücksetzen wegräumt (`spawned`).
+   * - **Kein Hindernis** (`setGridWall`): Spieler und NPCs gehen hindurch; eine
+   *   Zelle des Gitters sperrt er ohnehin nicht (`placedModels` lässt ihn aus).
+   * - **Benutzbar** (`addUsable`): `A`, `E` oder der Trigger öffnen die
+   *   Tastatur (`editNote`).
+   */
+  private adoptNote(entry: PhysicsBody, text: string): void {
+    this.notes.set(entry, { text });
+    this.stances.set(entry, 'furniture');
+    this.spawned.delete(entry);
+    this.physics?.setGridWall(entry, true);
+    this.addUsable(entry.object, {
+      use: () => this.editNote(entry),
+      usePrompt: () => 'Zettel beschriften',
+      // In der Brille nur mit dem Trigger und nicht schon beim Hineinfassen:
+      // Wer einen Zettel mit der Greif-Taste umstellen will, fasst ihn an,
+      // und dabei soll nicht jedes Mal die Tastatur aufgehen.
+      interaction: NOTE_INTERACTION,
+    });
+  }
+
+  /**
+   * **Ein Zettel ist hingestellt worden** — fest an seiner Stelle, in die
+   * Liste, und frisch aus dem Menü gleich die Tastatur: Wer einen Zettel
+   * hinstellt, will etwas daraufschreiben.
+   */
+  private placedNote(entry: PhysicsBody): void {
+    this.pickedFrom.delete(entry);
+    this.hang(entry);
+    const fresh = this.shelfFresh.delete(entry);
+    this.recordNoteOf(entry);
+    if (fresh) this.editNote(entry);
+  }
+
+  /** Den Zettel in die Liste der Weltänderungen — unter seinem eigenen Schlüssel. */
+  private recordNoteOf(entry: PhysicsBody): void {
+    const note = this.notes.get(entry);
+    if (!note || entry.removed) return;
+    let key = this.changeKeys.get(entry);
+    if (!key) {
+      key = changeKey('note');
+      this.changeKeys.set(entry, key);
+    }
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    _euler.setFromQuaternion(_quaternion, 'YXZ');
+    recordNote(key, note.text, _point, (_euler.y * 180) / Math.PI, this.context?.net.world);
+  }
+
+  /**
+   * **Beschriften** — die Tastatur der Welt (`askLines`, `ui/KeyPanel.ts`):
+   * am Schirm tippt die echte Tastatur hinein, in der Brille zeigt man auf die
+   * Tasten (und die Quest bietet, wo sie kann, ihre eigene an).
+   *
+   * @returns ob die Tastatur aufging — nicht für einen Zettel in der Hand
+   */
+  private editNote(entry: PhysicsBody): boolean {
+    const note = this.notes.get(entry);
+    if (!note || entry.removed || entry.carried) return false;
+    this.askLines({
+      title: 'Zettel',
+      sub: 'Was hier hinkommt · leer und Fertig wirft ihn weg',
+      value: note.text,
+      hint: `Höchstens ${NOTE_MAX_CHARS} Zeichen · Fertig oder Strg+Eingabe · Abbrechen lässt ihn, wie er ist`,
+      commit: (typed) => this.writeNote(entry, typed),
+    });
+    return true;
+  }
+
+  /**
+   * **Was getippt wurde, auf den Zettel** — oder, leer, den Zettel weg: samt
+   * seiner Zeile in der Liste (`dropModel`), wie beim Abreißen.
+   */
+  private writeNote(entry: PhysicsBody, typed: string): void {
+    const note = this.notes.get(entry);
+    if (!note || entry.removed) return;
+    const text = cleanNoteText(typed);
+    if (!text) {
+      this.dropModel(entry);
+      this.context?.notify('Zettel weggeworfen');
+      return;
+    }
+    note.text = text;
+    noteLabelOf(entry.object)?.write(text);
+    this.recordNoteOf(entry);
+  }
+
+  /**
+   * **Die Zettel dieser Welt wieder aufstellen** — aus der Liste der
+   * Weltänderungen (`notesIn`), einmal je Welt.
+   *
+   * Gefragt wird im Bild und nicht im Aufbau: Welche Welt das ist, sagt die
+   * Sitzung erst, wenn die Welt geladen ist (`App.goTo` → `net.setWorld`) —
+   * vorher steht dort noch die vorige. Ändert sich die Antwort, gehen die
+   * aufgestellten Zettel wieder (ohne ihre Zeilen) und die richtigen kommen.
+   */
+  private restoreNotes(ctx: WorldContext): void {
+    const world = ctx.net.world;
+    if (!world || world === this.notesWorld) return;
+    for (const entry of [...this.notes.keys()]) this.removeProp(entry, false);
+    this.notesWorld = world;
+    for (const { key, note } of notesIn(world)) void this.placeNote(note, key, world);
+  }
+
+  /**
+   * **Einen Zettel an genau seine Stelle setzen** — beim Betreten der Welt und
+   * aus einer eingefügten Liste. Fest, ohne Einrasten: Die Stelle stand schon
+   * fest, als er hingestellt wurde.
+   *
+   * @param key der Schlüssel seiner Zeile — `null` für eine neue
+   * @returns ob einer kam (nicht, wenn derselbe schon dasteht)
+   */
+  private async placeNote(note: NoteChange, key: string | null, world: string): Promise<boolean> {
+    const physics = this.physics;
+    if (!physics) return false;
+    for (const [entry, own] of this.notes) {
+      if (own.text !== note.text || entry.carried) continue;
+      entry.object.getWorldPosition(_point);
+      if (_point.distanceTo(_target.set(note.at.x, note.at.y, note.at.z)) < 0.05) return false;
+    }
+    const model = kaykitModelNow(NOTE_MODEL) ?? (await kaykitModel(NOTE_MODEL));
+    if (!model || this.physics !== physics || this.notesWorld !== world) return false;
+    const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
+    const at = new THREE.Vector3(note.at.x, note.at.y, note.at.z);
+    const spin = new THREE.Quaternion().setFromAxisAngle(UP, (note.yaw * Math.PI) / 180);
+    const entry = this.createModelProp(
+      id,
+      modelKind(NOTE_MODEL),
+      buildNote(model, note.text),
+      at,
+      spin,
+    );
+    this.adoptNote(entry, note.text);
+    this.hang(entry);
+    if (key) this.changeKeys.set(entry, key);
+    else this.recordNoteOf(entry);
+    return true;
   }
 
   private depthEntry(): MenuEntry {
@@ -5060,6 +5287,10 @@ export class PortalWorld implements World {
     this.crosshair?.remove();
     this.crosshair = null;
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
+    // Die Leinwände der Zettel — ihre Zeilen in der Liste bleiben, beim
+    // nächsten Betreten stehen sie wieder da (`restoreNotes`).
+    for (const entry of this.notes.keys()) noteLabelOf(entry.object)?.dispose();
+    this.notes.clear();
     // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
     this.highlighter.dispose();
     this.secondHighlighter.dispose();
@@ -6127,6 +6358,10 @@ export class PortalWorld implements World {
     const physics = this.physics;
     if (!physics || !this.props.includes(entry)) return null;
     if (this.loose.has(entry)) return null;
+    // Ein Zettel kopiert sich über _Kopieren_ im Baukasten (`copyFrom`) —
+    // hier käme ein Blatt ohne Text-Buchführung heraus, das sich die Leinwand
+    // mit dem Vorbild teilt.
+    if (this.notes.has(entry)) return null;
 
     const source = entry.object;
     const clone = cloneVisual(source);
@@ -7603,6 +7838,14 @@ export class PortalWorld implements World {
       this.kinds.delete(id);
       this.ids.delete(entry);
       if (share) this.sync?.despawned(id);
+    }
+    // Ein Zettel: Griff abmelden, Leinwand freigeben. Seine Zeile in der
+    // Liste bleibt — weggeräumt wird er auch beim Verlassen der Welt, und dann
+    // soll er beim nächsten Mal wieder dastehen. Gestrichen wird sie nur beim
+    // Abreißen und Wegwerfen (`dropModel`).
+    if (this.notes.delete(entry)) {
+      this.removeUsable(entry.object);
+      noteLabelOf(entry.object)?.dispose();
     }
     physics.remove(entry);
     disposeTree(entry.object);
@@ -9343,6 +9586,11 @@ export class PortalWorld implements World {
    * Schirm fängt die Bildschirmhand gerade das alte auf.
    */
   private placedFromShelf(ctx: WorldContext, hand: Handedness, entry: PhysicsBody): void {
+    // Ein Zettel ist kein Bauschritt und holt keine Kopie nach (`placedNote`).
+    if (this.notes.has(entry)) {
+      this.placedNote(entry);
+      return;
+    }
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     if (path === null) return;
     this.noteModel(entry, path);
@@ -9392,6 +9640,8 @@ export class PortalWorld implements World {
     this.paint = null;
     if (!ctx.topDown || !ctx.rig.paintHeld) return false;
     if (!refillsCatalogue(gameMode()) || !this.shelfFresh.has(entry)) return false;
+    // Mit einem Zettel wird nicht gemalt: zwanzig gleiche Zettel sagen nichts.
+    if (this.notes.has(entry)) return false;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     if (path === null) return false;
     entry.object.getWorldPosition(_point);
@@ -9669,7 +9919,10 @@ export class PortalWorld implements World {
   private snapPlaced(entry: PhysicsBody, placed: boolean, speed: number): boolean {
     const kind = (entry.object.userData as { propKind?: PropKind }).propKind ?? null;
     if (modelPathOf(kind) === null) return false;
-    if (!placesOnGrid(speed, placed)) return false;
+    // Ein Zettel wird nicht geworfen, sondern hingestellt — auch aus einer
+    // Faust, die sich im Gehen öffnet.
+    const note = this.notes.has(entry);
+    if (!note && !placesOnGrid(speed, placed)) return false;
 
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
@@ -9683,8 +9936,12 @@ export class PortalWorld implements World {
       _point.set(decor.x, decor.y, decor.z);
       _quaternion.setFromAxisAngle(UP, decor.yaw);
     } else {
-      this.replaceWalls(entry, pose);
-      this.fitWall(entry, pose);
+      // Ein Zettel ersetzt keine Wand, auch wenn sein Blatt einmal so dünn
+      // gemessen würde wie eine.
+      if (!note) {
+        this.replaceWalls(entry, pose);
+        this.fitWall(entry, pose);
+      }
       // Auf der Höhe, auf der es steht, und nicht auf der des Hakens.
       const own = decor && !this.floorPieces.has(entry);
       _point.set(own ? decor.x : pose.x, own ? decor.y : _point.y, own ? decor.z : pose.z);
@@ -9851,7 +10108,9 @@ export class PortalWorld implements World {
     for (const entry of this.bodies.values()) {
       if (entry.carried || entry.removed) continue;
       const kind = (entry.object.userData as { propKind?: PropKind }).propKind ?? null;
-      if (modelPathOf(kind) !== null) out.push(entry);
+      // **Ein Zettel ist kein Stück Bau**: keine Wand fürs Gitter, keine
+      // Fläche zum Daraufstellen, kein Geist von oben.
+      if (modelPathOf(kind) !== null && !this.notes.has(entry)) out.push(entry);
     }
     return out;
   }
@@ -10098,7 +10357,7 @@ export class PortalWorld implements World {
       }
       return;
     }
-    if (carried && this.shelfFresh.has(carried)) {
+    if (carried && this.shelfFresh.has(carried) && !this.notes.has(carried)) {
       const path = this.modelPath(carried);
       carried.object.getWorldQuaternion(_quaternion);
       if (path !== null) this.lastBrush = { path, yaw: eighthYaw(yawOf(_quaternion)) };
@@ -10128,7 +10387,7 @@ export class PortalWorld implements World {
     else if (this.pipette) status = 'Kopieren: das Stück anklicken, das kopiert werden soll';
     else if (this.bomb) status = 'Löschen: Stück unter dem Kran anklicken';
     else if (carried && path && target) {
-      const name = propLabel(modelKind(path));
+      const name = this.notes.has(carried) ? 'Zettel' : propLabel(modelKind(path));
       const where = target.mounted
         ? 'an der Wand'
         : target.on
@@ -10354,6 +10613,11 @@ export class PortalWorld implements World {
     if (path === null) return;
     source.object.getWorldQuaternion(_quaternion);
     const side = this.screenCarrySide();
+    const note = this.notes.get(source);
+    if (note) {
+      this.takeNote(ctx, side ?? null, note.text, eighthYaw(yawOf(_quaternion)));
+      return;
+    }
     this.takeModel(ctx, path, side ?? null, eighthYaw(yawOf(_quaternion)));
     ctx.notify(`Kopiert: ${propLabel(modelKind(path))}`);
   }
@@ -11118,7 +11382,8 @@ export class PortalWorld implements World {
     if (!refillsCatalogue(gameMode())) return null;
     const side = this.screenCarrySide();
     const entry = side ? this.grabs.get(side)?.entry : undefined;
-    if (!entry) return null;
+    // Ein Zettel ist kein Pinsel: Eine Fläche voller Zettel sagt nichts.
+    if (!entry || this.notes.has(entry)) return null;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     return path === null ? null : { entry, path };
   }
@@ -11513,7 +11778,9 @@ export class PortalWorld implements World {
         kaykitSearchEntries(this.shelfFiles, query, (path, hand) =>
           this.takeModel(ctx(), path, hand),
         ),
-      children: this.shelfEntries(ctx),
+      // **Vorn im Regal der Zettel** (`takeNote`): Wer aus dem Regal baut,
+      // beschriftet damit, was er baut — und nimmt ihn auf demselben Weg.
+      children: [this.noteEntry(ctx, 'assets:note', KAYKIT_ACCENT), ...this.shelfEntries(ctx)],
     };
   }
 
@@ -11631,6 +11898,8 @@ export class PortalWorld implements World {
     path: string,
     hand: Handedness | null,
     yaw: number | null = null,
+    /** Ein **Zettel** mit diesem Text statt eines bloßen Modells (`takeNote`). */
+    note: string | null = null,
   ): Promise<void> {
     const physics = this.physics;
     let model = kaykitModelNow(path);
@@ -11656,7 +11925,7 @@ export class PortalWorld implements World {
       now.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
       return;
     }
-    this.spawnModel(now, model, path, hand, yaw);
+    this.spawnModel(now, model, path, hand, yaw, note);
   }
 
   /**
@@ -11669,6 +11938,7 @@ export class PortalWorld implements World {
     path: string,
     hand: Handedness | null,
     yaw: number | null = null,
+    note: string | null = null,
   ): void {
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked ? gripOf(controller) : null;
@@ -11690,11 +11960,19 @@ export class PortalWorld implements World {
     // Gedreht wie das zuletzt hingestellte Stück (`placedFromShelf`) — gegriffen wird
     // danach mit genau dieser Lage, und der Kran hält sie beim Tragen fest.
     const spin = yaw === null ? null : new THREE.Quaternion().setFromAxisAngle(UP, yaw);
-    const entry = this.createModelProp(id, kind, model, _point, spin);
+    const entry = this.createModelProp(
+      id,
+      kind,
+      note === null ? model : buildNote(model, note),
+      _point,
+      spin,
+    );
     this.shelfFresh.add(entry);
     // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
-    this.sync?.spawned(id, kind, poseOf(entry));
+    // Ein Zettel nicht: Drüben käme nur das Gestell an, ohne Text.
+    if (note === null) this.sync?.spawned(id, kind, poseOf(entry));
+    else this.adoptNote(entry, note);
 
     let caught = Boolean(hand && anchor);
     if (hand && anchor) {
@@ -11709,7 +11987,8 @@ export class PortalWorld implements World {
       // Spieler es in der Hand."
       caught = this.screenCatch(ctx, entry);
     }
-    ctx.notify(caught ? this.carryNote(propLabel(kind)) : propLabel(kind));
+    const label = note === null ? propLabel(kind) : 'Zettel';
+    ctx.notify(caught ? this.carryNote(label) : label);
   }
 
   /**
@@ -12364,7 +12643,7 @@ export class PortalWorld implements World {
     // Geist gehört allen Zielen und darf dabei nicht mit weg.
     this.markBombTarget(null);
     const path = this.modelPath(entry);
-    if (path !== null && !this.replaying)
+    if (path !== null && !this.replaying && !this.notes.has(entry))
       this.buildHistory.push({ kind: 'remove', item: { path, pose: this.buildPoseOf(entry) } });
     this.dropModel(entry);
     playTone({ type: 'sawtooth', from: 180, to: 40, duration: 0.35, gain: 0.08 });
@@ -13474,7 +13753,7 @@ export class PortalWorld implements World {
     this.resetShared();
     this.sync?.resetShared();
     this.forgetStored();
-    clearWorldChanges();
+    clearWorldChanges({ notes: true });
     if (ctx.reload) {
       ctx.notify('Alles zurückgesetzt');
       ctx.reload();
@@ -13528,7 +13807,8 @@ export class PortalWorld implements World {
       bodies: this.bodies,
       local: (id) => {
         const entry = this.bodies.get(id);
-        return !!entry && this.worldOwned.has(entry);
+        // Die Zettel auch: Sie gehen nicht über die Leitung (`adoptNote`).
+        return !!entry && (this.worldOwned.has(entry) || this.notes.has(entry));
       },
       heldLocally: (id) => {
         const entry = this.bodies.get(id);
