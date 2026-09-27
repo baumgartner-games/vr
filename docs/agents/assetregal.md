@@ -41,29 +41,29 @@ liegt in der Hand.
 
 ## Was wo liegt
 
-| Datei                          | Was darin steht |
-| ------------------------------ | --------------- |
-| `public/models/kaykit/`        | Die aufbereiteten Pakete, je Paket mit eigener `LICENSE.txt` und eigenem `textures/`-Ordner |
-| `…/kaykit/index.json`          | Der erzeugte Verzeichnisbaum — geschrieben von `tools/kaykit-model.mjs` |
-| `core/kaykitIndex.ts`          | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`) |
-| `core/kaykitTerms.ts`          | **Rein**: das Wörterbuch Englisch ↔ Deutsch — 710 Wörter der Sammlung, die Rückrichtung für die Suche und die deutsche Bedeutung eines Dateinamens |
-| `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)` |
-| `core/kaykitCrate.ts`          | **Rein**: unter welche Adresse ein Kistendeckel als Sockel gehört |
-| `core/kaykitClips.ts`          | **Rein**: welches Skelett eine Figur hat, welche Dateien seine Bewegungen tragen, wie eine Spur im Feld heißt |
+| Datei                          | Was darin steht                                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `public/models/kaykit/`        | Die aufbereiteten Pakete, je Paket mit eigener `LICENSE.txt` und eigenem `textures/`-Ordner                                                         |
+| `…/kaykit/index.json`          | Der erzeugte Verzeichnisbaum — geschrieben von `tools/kaykit-model.mjs`                                                                             |
+| `core/kaykitIndex.ts`          | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`)                                                         |
+| `core/kaykitTerms.ts`          | **Rein**: das Wörterbuch Englisch ↔ Deutsch — 710 Wörter der Sammlung, die Rückrichtung für die Suche und die deutsche Bedeutung eines Dateinamens  |
+| `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)`                                                             |
+| `core/kaykitCrate.ts`          | **Rein**: unter welche Adresse ein Kistendeckel als Sockel gehört                                                                                   |
+| `core/kaykitClips.ts`          | **Rein**: welches Skelett eine Figur hat, welche Dateien seine Bewegungen tragen, wie eine Spur im Feld heißt                                       |
 | `core/kaykitFigureFit.ts`      | **Rein**: der Gang zum Tempo (`gaitFor`), die Clipnamen je Gang und Aktion, die Knochennamen, der Maßstab auf eine erklärte Höhe, die Blickrichtung |
-| `core/kaykitFigure.ts`         | Der Lader für **laufende Figuren**: `loadKaykitFigure(pfad, höhe)` — Skelett, Mischer, Gänge, Aktionen, Anker, Aufräumen |
-| `ui/detailDrag.ts`             | **Rein**: wem ein Finger auf der großen Vorschau gehört — Mitte oder Saum —, und was ein Wisch, ein Kneifen und eine Raste daraus machen |
-| `ui/PageDetail.ts`             | Die große Vorschau: eigener Renderer, Kamera um das Ding herum, Gitterboden, Hülle, Mischer |
-| `ui/clipboard.ts`              | Einen Text mitnehmen — und wenn der Browser das verbietet, wenigstens markieren (`copyText`, `COPY_FALLBACK`); geteilt mit dem Netzpanel |
-| `core/kitchenShelf.ts`         | **Rein**: welche Adresse in der Küche ein **funktionierendes Möbel** ist |
-| `ui/pageCols.ts`               | **Rein**: wie viele Spalten in ein Fenster passen, und die beiden Knöpfe |
-| `worlds/portal/placeGrid.ts`   | Das Gitter unter dem Getragenen — eine Fläche und ein Rahmen je Kachel |
-| `core/kaykitModel.ts`          | Der Lader: `loadKaykitIndex`, `kaykitModel`, `kaykitModelNow` |
-| `core/screenCarry.ts`          | **Rein**: wo ein getragener Gegenstand am Schirm hängt — von oben und aus den Augen |
-| `worlds/portal/props.ts`       | `ModelKind` (`model:<pfad>`) und `modelPropShape` — wie aus einem Modell ein Gegenstand wird |
-| `worlds/portal/gridSnap.ts`    | **Rein**: Kachelmitte, Vierteldrehung, und ab wann ein Loslassen ein Wurf ist |
-| `worlds/portal/screenHand.ts`  | Die Bildschirmhand mit ihrem zweiten Anker (`carry`) |
-| `worlds/portal/PortalWorld.ts` | Der Menüeintrag `assets`, `conjureModel`, `screenCatch`/`updateScreenCarry`, die Modellfabrik |
+| `core/kaykitFigure.ts`         | Der Lader für **laufende Figuren**: `loadKaykitFigure(pfad, höhe)` — Skelett, Mischer, Gänge, Aktionen, Anker, Aufräumen                            |
+| `ui/detailDrag.ts`             | **Rein**: wem ein Finger auf der großen Vorschau gehört — Mitte oder Saum —, und was ein Wisch, ein Kneifen und eine Raste daraus machen            |
+| `ui/PageDetail.ts`             | Die große Vorschau: eigener Renderer, Kamera um das Ding herum, Gitterboden, Hülle, Mischer                                                         |
+| `ui/clipboard.ts`              | Einen Text mitnehmen — und wenn der Browser das verbietet, wenigstens markieren (`copyText`, `COPY_FALLBACK`); geteilt mit dem Netzpanel            |
+| `core/kitchenShelf.ts`         | **Rein**: welche Adresse in der Küche ein **funktionierendes Möbel** ist                                                                            |
+| `ui/pageCols.ts`               | **Rein**: wie viele Spalten in ein Fenster passen, und die beiden Knöpfe                                                                            |
+| `worlds/portal/placeGrid.ts`   | Das Gitter unter dem Getragenen — eine Fläche und ein Rahmen je Kachel                                                                              |
+| `core/kaykitModel.ts`          | Der Lader: `loadKaykitIndex`, `kaykitModel`, `kaykitModelNow`                                                                                       |
+| `core/screenCarry.ts`          | **Rein**: wo ein getragener Gegenstand am Schirm hängt — von oben und aus den Augen                                                                 |
+| `worlds/portal/props.ts`       | `ModelKind` (`model:<pfad>`) und `modelPropShape` — wie aus einem Modell ein Gegenstand wird                                                        |
+| `worlds/portal/gridSnap.ts`    | **Rein**: Kachelmitte, Vierteldrehung, und ab wann ein Loslassen ein Wurf ist                                                                       |
+| `worlds/portal/screenHand.ts`  | Die Bildschirmhand mit ihrem zweiten Anker (`carry`)                                                                                                |
+| `worlds/portal/PortalWorld.ts` | Der Menüeintrag `assets`, `conjureModel`, `screenCatch`/`updateScreenCarry`, die Modellfabrik                                                       |
 
 **Die Dateien sind nicht die gekauften.** `tools/kaykit-model.mjs` baut jede
 einzeln neu — verschweißt, entdoppelt, beschnitten, quantisiert
@@ -335,7 +335,7 @@ ein Wörterbuch, das dabei 4470 Namen nachschlüge, wäre 4470 Nachschlagewerke
 je Buchstabe. Ein Suchbegriff hat zwei Wörter. Was je Datei nötig ist, steht
 längst da und ist **einmal** beim Aufbau der flachen Liste gerechnet: ihre
 Schubladen (`KaykitFileRef.cats`) und ihre Wörter (`.words`) — Letztere als
-eine Zeichenkette mit Leerzeichen um jedes Wort (` dungeon barrel large `),
+eine Zeichenkette mit Leerzeichen um jedes Wort (`dungeon barrel large`),
 denn damit ist „ganzes Wort" ein gewöhnliches `includes` und keine Zerlegung.
 
 **Ein ganzes Wort, und am Wortanfang erst ab fünf Buchstaben**
@@ -659,7 +659,7 @@ Telefon eine Handvoll her. Also gilt hier dieselbe Disziplin wie überall in
 diesem Menü, nur schärfer:
 
 - **Nie zwei zugleich.** Sobald eine Detailseite aufgeht, hält die Schleife des
-  Rasters an (`PageMenu.syncPreviews`) — und zwar *bevor* die große Leinwand
+  Rasters an (`PageMenu.syncPreviews`) — und zwar _bevor_ die große Leinwand
   gebaut wird. Beim Zurückgehen läuft sie wieder an.
 - **Weg ist weg.** Beim Verlassen der Seite, beim Zumachen des Menüs und beim
   Wechsel der Vorschauschicht geht alles: Schleife, Zuhörer, Mischer, Gitter,
@@ -830,6 +830,19 @@ Drei Stufen, und jede ist nötig:
    sind Geometrie und Material ohnehin mit der Vorlage im Speicher, hier fällt
    also nur der Rahmen weg — aber ohne diese Zeile wüchse das Panel mit jedem
    Ordner, den man je aufgemacht hat.
+4. **Und am Schirm werden sie wirklich entladen** (September 2026, gemeldet:
+   _„Die App stürzt ab wenn ich im Möbel Katalog zu weit /lange scrollen"_).
+   Die Leinwand der Seite (`ui/PagePreviews`) hält ein **Fenster**: die
+   sichtbaren Kacheln und gleich viele davor und danach
+   (`previewGrid.previewWindow`); die Nachbarn werden schon geholt, aber nicht
+   gezeichnet. Was aus dem Fenster fällt, gibt seine Materialien frei, und die
+   Welt vergisst die Vorlage (`forget` → `PortalWorld.forgetMenuModel` →
+   `core/kaykitModel.forgetKaykitModel`, bei Möbeln die gebaute Vorschau).
+   Nach `RECYCLE_AFTER` = 40 entladenen Modellen wird die Leinwand neu
+   aufgesetzt: Nur so vergisst die Grafikkarte Geometrie und Texturen, die
+   sie für die Vorschau hochgeladen hatte. Vorher wuchs beides mit jedem
+   Modell, an dem man je vorbeigescrollt war, bis das Telefon aufgab. Die
+   Brille (`WristMenu`) räumt weiter nur den Rahmen weg.
 
 ### Der Vertrag der Modellfabrik: `null` heißt „noch nicht"
 
@@ -1024,7 +1037,7 @@ Dach eines Hauses. Also bleibt y stehen, Geschwindigkeit und Drall gehen auf
 null, und den letzten Zentimeter macht die Schwerkraft. Ein Kasten, der ohne
 Drall aufrecht auf eine ebene Fläche fällt, bleibt aufrecht stehen.
 
-**Geworfen wird trotzdem noch.** Einrasten soll, was jemand *hinstellt* — wer
+**Geworfen wird trotzdem noch.** Einrasten soll, was jemand _hinstellt_ — wer
 ein Fass durch den Raum wirft, meint etwas anderes, und ein Wurf, der mitten im
 Flug auf eine Kachelmitte springt, sähe aus wie ein Fehler. Die Grenze ist
 `PLACE_SPEED` (1,5 m/s), gemessen an derselben Zahl, die auch den Wurf antreibt
@@ -1136,7 +1149,7 @@ bleibt.
 
 Erkannt wird an Paket und Dateinamen und nicht an einer Liste: Was in
 `restaurant-bits` mit `crate` anfängt, ist eine Kiste. Der **Deckel selbst**
-bekommt keinen — er *ist* der Sockel, und ein Deckel auf einem Deckel wäre ein
+bekommt keinen — er _ist_ der Sockel, und ein Deckel auf einem Deckel wäre ein
 Brett von 0,20 m, das niemand bestellt hat. Und `kaykitModelNow` gibt eine
 Kiste erst heraus, wenn **beide** Dateien da sind: Sie ohne Sockel zu zeigen
 und im nächsten Bild zu verschieben wären zwei Bilder von derselben Kiste.
@@ -1242,13 +1255,13 @@ geteilt und an `kaykitRigOf` weitergereicht: An dieser einen Zahl hängt, ob die
 Figur die Spuren des mittleren oder des großen Skeletts bekommt. Nachgemessen
 im Browser (Quelle / daraus mit 0,7):
 
-| Datei | Quelle | mit 0,7 | Skelett |
-| ----- | ------ | ------- | ------- |
-| `character-animations/mannequin-character/characters/Mannequin_Medium.glb` | 2,204 | 1,543 m | medium |
-| `character-animations/mannequin-character/characters/Mannequin_Large.glb` | 3,981 | 2,787 m | large |
-| `prototype-bits/character/Dummy.glb` | 2,396 | 1,677 m | medium |
-| `mystery-monthly-4/12-june-2024-robot/characters/Robot_One.glb` | 2,175 | 1,522 m | medium |
-| `mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb` | 2,405 | 1,683 m | medium |
+| Datei                                                                      | Quelle | mit 0,7 | Skelett |
+| -------------------------------------------------------------------------- | ------ | ------- | ------- |
+| `character-animations/mannequin-character/characters/Mannequin_Medium.glb` | 2,204  | 1,543 m | medium  |
+| `character-animations/mannequin-character/characters/Mannequin_Large.glb`  | 3,981  | 2,787 m | large   |
+| `prototype-bits/character/Dummy.glb`                                       | 2,396  | 1,677 m | medium  |
+| `mystery-monthly-4/12-june-2024-robot/characters/Robot_One.glb`            | 2,175  | 1,522 m | medium  |
+| `mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb`            | 2,405  | 1,683 m | medium  |
 
 ### Drei Gänge und drei Aktionen
 

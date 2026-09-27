@@ -20,6 +20,7 @@ import { DIR_S } from '../nav/navTile';
 import type { KitchenGauges } from '../test/zones/kitchenGauge';
 import {
   DRY,
+  SPRAY_RANGE,
   advanceDouse,
   douseProgress,
   inSpray,
@@ -114,6 +115,14 @@ export const BEEP_SLOW = 1.2;
 export const BEEP_FAST = 0.4;
 const BLINK_SLOW = 1;
 const BLINK_FAST = 3;
+
+/**
+ * **Wie weit der Feuerlöscher zu jeder Seite trifft**, im Bogenmaß — 45°,
+ * breiter als in der Sandbox (25°, `kitchenSpray.SPRAY_HALF_ANGLE`).
+ * Gewünscht: _„Der Feuerlöscher braucht einen größeren Winkel zum löschen und
+ * detektieren 45°"_.
+ */
+export const EXTINGUISH_HALF_ANGLE = (45 * Math.PI) / 180;
 
 /** Wie hoch das Warndreieck über der Platte steht (`kitchenGauge.WARN_LIFT`). */
 const WARN_LIFT = 0.55;
@@ -559,7 +568,9 @@ export class StationLayer {
         return state;
       }
       const centre = view.surface.getWorldPosition(_w);
-      const hit = holding && inSpray(from, forward, { x: centre.x, z: centre.z });
+      const hit =
+        holding &&
+        inSpray(from, forward, { x: centre.x, z: centre.z }, SPRAY_RANGE, EXTINGUISH_HALF_ANGLE);
       spraying ||= hit;
       const tick = advanceDouse(view.wet, dt, hit);
       view.wet = tick.state;

@@ -142,7 +142,7 @@ describe('Stationen auf Spielelementen', () => {
   it('meldet nur in der Nähe an, meldet beim Weggehen ab — und brät trotzdem weiter', () => {
     const { host, usables, hand } = world();
     const layer = new StationLayer(host);
-    const crate = placed({ id: 'kiste', element: 'crate-steak', x: 0, z: 0 });
+    const crate = placed({ id: 'kiste', element: 'crate-patties', x: 0, z: 0 });
     const stove = placed({ id: 'herd', element: 'stove', x: 10, z: 0 });
     layer.add(crate);
     layer.add(stove);

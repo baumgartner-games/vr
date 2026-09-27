@@ -351,3 +351,17 @@ export interface DetailView {
   /** Leinwand, Mischer, Gitter, Hülle und die Schleife: alles weg. */
   dispose(): void;
 }
+
+/**
+ * **Das Fenster der Vorschau**: die sichtbaren Kacheln und gleich viele davor
+ * und danach, in der Reihenfolge der Seite. Rein, damit ein Test es nachzählt.
+ */
+export function previewWindow(order: readonly string[], shown: readonly string[]): string[] {
+  if (!shown.length) return [];
+  const at = shown.map((id) => order.indexOf(id)).filter((i) => i >= 0);
+  if (!at.length) return [...shown];
+  const reach = shown.length;
+  const from = Math.max(0, Math.min(...at) - reach);
+  const to = Math.min(order.length - 1, Math.max(...at) + reach);
+  return order.slice(from, to + 1);
+}

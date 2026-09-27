@@ -159,7 +159,7 @@ describe('Spielelemente — jede Küche kocht', () => {
       'bin',
       'plate-stack',
       'crate-buns',
-      'crate-steak',
+      'crate-patties',
       'crate-lettuce',
       'crate-tomatoes',
       'crate-cheese',
@@ -179,7 +179,7 @@ describe('Spielelemente — jede Küche kocht', () => {
       expect(cook.press('counter').do).toBe('combine');
       expect(cook.held).toBeNull();
     }
-    expect(cook.press('crate-steak').do).toBe('take');
+    expect(cook.press('crate-patties').do).toBe('take');
     expect(cook.held?.item).toBe('patty');
     // In die Pfanne auf dem Herd — sie brät allein.
     expect(cook.on('stove')).toEqual({ item: 'pan', on: [] });
@@ -200,6 +200,25 @@ describe('Spielelemente — jede Küche kocht', () => {
     expect(models[1]).toMatch(/bun_bottom/);
     expect(models[models.length - 1]).toMatch(/bun_top/);
     expect(models.some((model) => model.includes('cheese_slice'))).toBe(true);
+  });
+
+  it('Steak: aus der Kiste, auf dem Brett zum Patty — oder in der Pfanne gebraten auf den Teller', () => {
+    const cook = new Cook(['crate-steak', 'board', 'stove', 'plate-stack', 'griddle']);
+    expect(cook.press('crate-steak')).toEqual({ do: 'take', dish: { item: 'steak', on: [] } });
+    expect(cook.press('board').do).toBe('work');
+    cook.until('board', 'patty', true);
+    expect(cook.press('board').do).toBe('take');
+    expect(cook.held?.item).toBe('patty');
+    // Das Patty auf die sichere Kochstelle: Es brät ohne Pfanne und verkohlt nie.
+    expect(cook.press('griddle').do).toBe('work');
+    cook.until('griddle', 'patty-cooked', false);
+    // Das zweite Steak in die Pfanne, gebraten auf den Teller.
+    expect(cook.press('crate-steak').do).toBe('take');
+    expect(cook.press('stove').do).toBe('combine');
+    cook.until('stove', 'steak-cooked', false);
+    expect(cook.press('plate-stack').do).toBe('take');
+    expect(cook.press('stove').do).toBe('combine');
+    expect(cook.held).toEqual({ item: 'plate', on: ['steak-cooked'] });
   });
 
   it('Schinken: braten, liegen lassen — er verbrennt am ersten Tag nach 14 s, dann in den Müll', () => {

@@ -7,6 +7,7 @@ import {
   PREVIEW_SPIN,
   PreviewLedger,
   previewSheet,
+  previewWindow,
   previewSlot,
   type DetailRequest,
   type DetailView,
@@ -83,9 +84,20 @@ import type { MenuModelFactory } from './WristMenu';
  * Ein `IntersectionObserver` auf den Kacheln sagt, welche im Bild stehen; nur
  * für die wird überhaupt nach einem Modell gefragt. Was hinausscrollt, gibt
  * seines wieder her, und eine neue Seite gibt alle her (`PreviewLedger`).
- * Geometrie und Material gehören der Vorlage im Speicher
- * (`core/kaykitModel.ts`) und werden **nicht** freigegeben — weggeräumt wird
- * nur der Rahmen.
+ *
+ * ## Und entladen wird, was weit weg ist
+ *
+ * Gemeldet: _„Die App stürzt ab wenn ich im Möbel Katalog zu weit /lange
+ * scrollen … dass im Katalog nur die angezeigten und gleiche Anzahl vor und
+ * nach angezeigten im Katalog gerendert werden und alle anderen entladen."_
+ * Weggeräumt wurde bis dahin nur der Rahmen: Die Leinwand behielt Geometrie
+ * und Texturen jedes Modells, das je darauf stand, und der Speicher jede
+ * Vorlage. Jetzt gilt ein **Fenster** (`previewWindow`): die sichtbaren
+ * Kacheln und gleich viele davor und danach. Die daneben werden schon geholt
+ * (unsichtbar), alles außerhalb geht — mit seinen Materialien, seiner Vorlage
+ * (`forget`, `core/kaykitModel.forgetKaykitModel`) und, nach `RECYCLE_AFTER`
+ * entladenen Modellen, mit der ganzen Leinwand: Sie wird neu aufgesetzt, und
+ * was die Grafikkarte von den alten Modellen noch hielt, ist weg.
  */
 export class PagePreviews implements PagePreviewLayer {
   private readonly ledger = new PreviewLedger();
@@ -115,11 +127,15 @@ export class PagePreviews implements PagePreviewLayer {
   private spin = 0;
   /** Ein Modell kam an: Die Seite soll neu zeichnen, aber nur einmal je Bild. */
   private dirty = false;
+  /** Wie viele Modelle seit dem letzten Neuaufsetzen der Leinwand entladen wurden. */
+  private released = 0;
 
   constructor(
     private readonly factory: MenuModelFactory,
     /** Woher die Bewegungen kommen — ohne Quelle bleibt das Feld leer. */
     private readonly clips: MenuClipSource | null = null,
+    /** Wem gesagt wird, dass ein Modell entladen ist — die Welt vergisst die Vorlage. */
+    private readonly forget: ((id: string) => void) | null = null,
   ) {}
 
   /**
@@ -290,6 +306,7 @@ export class PagePreviews implements PagePreviewLayer {
 
   private readonly loop = (): void => {
     this.frame = requestAnimationFrame(this.loop);
+    if (this.released >= RECYCLE_AFTER) this.recycle();
     const stage = this.view;
     const box = this.box;
     if (!stage || !box) return;
@@ -317,11 +334,20 @@ export class PagePreviews implements PagePreviewLayer {
       shown.push(id);
       const model = this.model(id);
       if (!model) continue;
+      model.visible = true;
       model.position.set(slot.x, -slot.y, 0);
       model.scale.setScalar(slot.size * PREVIEW_FILL);
       model.rotation.y = this.spin;
     }
-    for (const id of this.ledger.keepOnly(shown)) this.release(id);
+    // Die Nachbarn im Fenster werden schon geholt, aber nicht gezeichnet.
+    const keep = previewWindow([...this.boxes.keys()], shown);
+    const visible = new Set(shown);
+    for (const id of keep) {
+      if (visible.has(id)) continue;
+      const model = this.model(id);
+      if (model) model.visible = false;
+    }
+    for (const id of this.ledger.keepOnly(keep)) this.release(id);
 
     stage.render();
 
@@ -377,10 +403,50 @@ export class PagePreviews implements PagePreviewLayer {
     const model = this.models.get(id);
     if (!model) return;
     model.removeFromParent();
+    // Die Materialien der Kachel sind Kopien (`core/kaykitModel.copyOf`) —
+    // freigeben kostet höchstens ein neues Übersetzen, wenn sie wiederkommt.
+    model.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const skin of Array.isArray(mesh.material) ? mesh.material : [mesh.material])
+        skin.dispose();
+    });
     this.models.delete(id);
+    this.forget?.(id);
+    this.released++;
     this.dirty = true;
   }
+
+  /**
+   * **Die Leinwand neu aufsetzen** — die einzige Art, der Grafikkarte zu
+   * sagen, dass sie Geometrie und Texturen der entladenen Modelle vergessen
+   * darf: Sie gehören den Vorlagen, und die teilt diese Leinwand mit dem
+   * Spiel. Wer noch im Fenster steht, zieht mit auf die neue um.
+   */
+  private recycle(): void {
+    this.released = 0;
+    const old = this.view;
+    const box = this.box;
+    if (!old || !box) return;
+    let fresh: PreviewStage;
+    try {
+      fresh = new PreviewStage(box);
+    } catch {
+      return;
+    }
+    for (const model of this.models.values()) fresh.scene.add(model);
+    old.dispose();
+    this.view = fresh;
+    this.sheet = null;
+  }
 }
+
+/**
+ * **Nach wie vielen entladenen Modellen die Leinwand neu aufgesetzt wird** —
+ * genug, dass es beim gemächlichen Scrollen selten geschieht, wenig genug, dass
+ * ein Telefon die Texturen dazwischen tragen kann.
+ */
+export const RECYCLE_AFTER = 40;
 
 /** Ob das Fenster gerade vorn liegt — im Test gibt es kein `document`. */
 function visible(): boolean {

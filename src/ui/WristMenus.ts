@@ -204,9 +204,13 @@ export class WristMenus extends THREE.Group {
    * Figur die Bewegung wählen (`ui/PageDetail.ts`), und woher die kommen, weiß
    * die Welt und nicht das Menü. Ohne Quelle bleibt das Auswahlfeld weg.
    */
-  setModelFactory(factory: MenuModelFactory | null, clips: MenuClipSource | null = null): void {
+  setModelFactory(
+    factory: MenuModelFactory | null,
+    clips: MenuClipSource | null = null,
+    forget: ((id: string) => void) | null = null,
+  ): void {
     for (const menu of this.menus) menu.setModelFactory(factory);
-    this.page?.setPreviews(factory ? new PagePreviews(factory, clips) : null);
+    this.page?.setPreviews(factory ? new PagePreviews(factory, clips, forget) : null);
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {

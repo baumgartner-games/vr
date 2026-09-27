@@ -39,8 +39,9 @@ describe('der Steckbrief eines Möbels', () => {
     expect(fact('counter', 'Belegung')).toContain('■ ■\n■ ■\n↓ vorn');
   });
 
-  it('sagt, was es tut und hergibt — die Fleischkiste gibt ein Patty, der Herd trägt den Topf', () => {
-    expect(fact('crate-steak', 'Gibt')).toBe('Rohes Patty');
+  it('sagt, was es tut und hergibt — die Steakkiste gibt ein Steak, der Herd trägt den Topf', () => {
+    expect(fact('crate-steak', 'Gibt')).toBe('Rohes Steak');
+    expect(fact('crate-patties', 'Gibt')).toBe('Rohes Patty');
     expect(fact('crate-steak', 'Zweck')).toMatch(/Vorratskiste/);
     expect(fact('stove-pot', 'Steht darauf')).toBe('Topf');
     expect(fact('rolling-board', 'Zweck')).toMatch(/rollt Teig aus/);

@@ -543,6 +543,9 @@ export function kitchenHandles(
     case 'ham':
     case 'ham-cooked':
     case 'ham-burnt':
+    case 'steak':
+    case 'steak-cooked':
+    case 'steak-burnt':
     case 'pizza':
     case 'pizza-cut':
     case 'dough':

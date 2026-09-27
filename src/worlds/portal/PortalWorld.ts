@@ -243,7 +243,13 @@ import {
   type KaykitFileRef,
   type KaykitIndex,
 } from '../../core/kaykitIndex';
-import { kaykitClips, kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
+import {
+  forgetKaykitModel,
+  kaykitClips,
+  kaykitModel,
+  kaykitModelNow,
+  loadKaykitIndex,
+} from '../../core/kaykitModel';
 import { kaykitSkins } from '../../core/kaykitHeight';
 import { BULLET_MODEL, BULLET_VIEW_GROWTH, bulletAim, bulletScale } from './bulletFit';
 import { snapToGrip } from './propGrip';
@@ -1928,6 +1934,7 @@ export class PortalWorld implements World {
     ctx.menu.setModelFactory(
       (id) => this.menuModel(id),
       (id, height) => this.menuClips(id, height),
+      (id) => this.forgetMenuModel(id),
     );
 
     ctx.notify(this.welcome());
@@ -12405,6 +12412,21 @@ export class PortalWorld implements World {
       return this.elementPreview(id.slice(ELEMENT_PREVIEW.length));
     if (id.startsWith(ELEMENT_CELLS)) return this.elementWithCells(id.slice(ELEMENT_CELLS.length));
     return this.tool(id);
+  }
+
+  /**
+   * **Ein Vorschaumodell ist aus dem Bild gescrollt** (`ui/PagePreviews`) —
+   * dann darf auch seine Vorlage gehen. Gemeldet: _„Die App stürzt ab wenn ich
+   * im Möbel Katalog zu weit /lange scrollen."_ Das Regal behielt jede Datei,
+   * an der man je vorbeigescrollt war.
+   */
+  private forgetMenuModel(id: string): void {
+    const path = kaykitPathOf(id);
+    if (path !== null) forgetKaykitModel(path);
+    else if (id.startsWith(ELEMENT_PREVIEW)) {
+      const element = id.slice(ELEMENT_PREVIEW.length);
+      if (this.elementPreviews.get(element)) this.elementPreviews.delete(element);
+    }
   }
 
   /**

@@ -37,7 +37,7 @@ describe('Spielelemente — der Katalog', () => {
     if (!files) return;
     const missing = ELEMENTS.flatMap((element) =>
       element.parts
-        .filter((part) => !files.has(part.model))
+        .filter((part) => !files.has(part.model) && !part.model.startsWith('built:'))
         .map((part) => `${element.id}: ${part.model}`),
     );
     expect(missing).toEqual([]);
@@ -171,7 +171,8 @@ describe('der Möbelkatalog im Menü', () => {
       'Salatkiste',
       'Käsekiste',
       'Schinkenkiste',
-      'Fleischkiste',
+      'Steakkiste',
+      'Pattykiste',
       'Tomatenkiste',
       'Tellerstapel',
       'Tellerkiste',

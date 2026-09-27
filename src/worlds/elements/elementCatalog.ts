@@ -232,11 +232,29 @@ function plateCrate(): ElementPart[] {
   return [{ model: bits('crate') }, ...plates];
 }
 
+/**
+ * **Die Pattykiste**: die leere Kiste, darin rohe Pattys übereinander, jedes
+ * verdreht — gewünscht: _„Ich will eine vorratskiste von Burger pattys
+ * haben."_ Das Regal hat keine Kiste mit Pattys; gebaut wird sie wie die
+ * Tellerkiste aus Kiste und Inhalt (`sink`, `plateCrate`).
+ */
+function pattyCrate(): ElementPart[] {
+  const twist = (29 * Math.PI) / 180;
+  const patties = Array.from({ length: 4 }, (_, i): ElementPart => ({
+    model: bits('food_ingredient_burger_uncooked'),
+    ...(i === 0 ? { on: 0, sink: 0.3 } : { stack: true }),
+    yaw: i * twist,
+  }));
+  return [{ model: bits('crate') }, ...patties];
+}
+
 /** Die Kisten des Pakets, je eine Zutat. */
 const CRATES: readonly GameElement[] = [
   crate('crate-buns', 'crate_buns', 'bun', 'Brötchenkiste'),
-  // Rindfleisch: in der Burgerküche das Patty (`kitchenFit`, `crate-patty`).
-  crate('crate-steak', 'crate_steak', 'patty', 'Fleischkiste'),
+  // **Die Steakkiste gibt Steaks** — gewünscht: _„Steak Vorrat Kisten sollen
+  // keine Burger Pattys geben sondern Steaks (also eines davon)."_ Das Steak
+  // brät wie Schinken oder wird auf dem Brett zum Patty (`kitchenRecipes`).
+  crate('crate-steak', 'crate_steak', 'steak', 'Steakkiste'),
   crate('crate-lettuce', 'crate_lettuce', 'lettuce', 'Salatkiste'),
   crate('crate-tomatoes', 'crate_tomatoes', 'tomato', 'Tomatenkiste'),
   crate('crate-cheese', 'crate_cheese', 'cheese', 'Käsekiste'),
@@ -261,6 +279,7 @@ const CRATES: readonly GameElement[] = [
   // bleiben mit dem sechsten darunter. Jeder liegt 13° gegen den vorigen
   // verdreht (`kitchenProps.DIRTY_TWIST`), sonst sähe man von oben einen.
   piece('crate-plates', 'Tellerkiste', 'crate', plateCrate(), { gives: 'plate' }),
+  piece('crate-patties', 'Pattykiste', 'crate', pattyCrate(), { gives: 'patty' }),
 ];
 
 /**
@@ -346,10 +365,13 @@ export const ELEMENTS: readonly GameElement[] = [
   // Pfanne, sondern z.B. das Steak brät darauf automatisch, kann aber nicht
   // verkohlen, sondern nur gebraten werden."_ Was man darauflegt und brät
   // (`kitchenWork`, `'fry'`), brät allein; verkohlen lässt die Stationsschicht
-  // es nie (`stationLayer`, `griddle`), und brennen kann es auch nicht. Das
-  // Bild ist die Platte mit eingelassenem Kochfeld aus demselben Paket
-  // (`stove_single_countertop`) — der Herd mit Pfanne ist der freistehende.
-  piece('griddle', 'Sichere Kochstelle', 'griddle', [{ model: bits('stove_single_countertop') }]),
+  // es nie (`stationLayer`, `griddle`), und brennen kann es auch nicht.
+  //
+  // **Das Bild ist das der Sandbox** und nicht aus dem Regal — gewünscht:
+  // _„Die sichere Kochstelle soll bitte das Model nutzen welches in sandbox
+  // Welt genutzt wird bei den Förderbändern"_: die gebaute Platte mit den
+  // roten Ringen (`builtParts`, `built:griddle`).
+  piece('griddle', 'Sichere Kochstelle', 'griddle', [{ model: 'built:griddle' }]),
   // **Die Spüle** — die Arbeitsplatte mit Becken und Hahn aus demselben Paket.
   // Wer den Topf davorhält, füllt ihn mit Wasser (`kitchenCarry.atSink`, die
   // Regel der Testküche).
@@ -479,7 +501,8 @@ export const ELEMENTS: readonly GameElement[] = [
  * die Platte mit ice trays als Vorräte"_. Dann die Vorräte (_„vorratskisten:
  * Salat, Käse, Wurst, Steak, Tomaten, Teller, Schüssel, Zwiebel, …"_): die
  * Kisten in der Reihenfolge des Wunsches — die Wurst ist der Schinken, das
- * Steak die Fleischkiste mit dem Patty —, Teller und Schüssel als Stapel,
+ * Steak die Steakkiste, gleich daneben die Pattykiste —, Teller und Schüssel
+ * als Stapel,
  * danach der Rest, der in einer Küche etwas hergibt oder tut.
  *
  * **Salami und Pilze fehlen mit Absicht** (`SHOW_ONLY_GIVES`): Sie sind noch
@@ -500,6 +523,7 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'crate-cheese',
   'crate-ham',
   'crate-steak',
+  'crate-patties',
   'crate-tomatoes',
   'plate-stack',
   'crate-plates',
@@ -572,6 +596,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
     elements: [
       'counter',
       'crate-buns',
+      'crate-patties',
       'crate-steak',
       'crate-lettuce',
       'crate-tomatoes',
