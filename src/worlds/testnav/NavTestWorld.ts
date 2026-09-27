@@ -18,14 +18,17 @@ import {
 } from '../test/zones/navigation';
 import { HAZARD_FIRE } from '../nav/navProfile';
 import type { NavGraph } from '../nav/navGraph';
-import { NO_TILE } from '../nav/navTile';
+import { NO_TILE, tileKey } from '../nav/navTile';
+import { cellKey } from '../nav/cellGrid';
 import type { Npc } from '../npc/Npc';
 import { npcSkin } from '../npc/npcKinds';
 import { createSky } from '../shared/environment';
 import { BUTTON_DOME_R, buildRedButton, type RedButton } from '../shared/redButton';
 import {
+  dropCells,
   LAVA,
   NAV_TESTS,
+  OBSTACLE_MODEL,
   gateDir,
   gateTile,
   inLava,
@@ -56,18 +59,27 @@ const GOAL_REACH = 0.3;
 /** So nah an der Mitte der Zielplatte gilt ein Test als bestanden, in Metern. */
 const ARRIVED = 0.6;
 
+/** Aus welcher Höhe die Arbeitsplatte fällt, in Metern über dem Boden. */
+const DROP_HEIGHT = 1.6;
+/** Wie schnell sie fällt, in m/s² — etwas langsamer als die Wirklichkeit, damit man es sieht. */
+const DROP_GRAVITY = 6;
+
 /** Was zu einem Test in der Welt gehört: der Knopf und wer gerade läuft. */
 interface Bench {
   readonly test: NavTest;
   readonly button: RedButton;
   runner: Npc | null;
   arrived: boolean;
+  /** Ob das Hindernis dieses Laufs schon liegt (`NavTest.drop`). */
+  dropped: boolean;
+  /** Die Arbeitsplatte, sobald sie da ist — und wie schnell sie gerade fällt. */
+  obstacle: { model: THREE.Object3D; floor: number; speed: number } | null;
 }
 
 /**
  * **Test Navigation** — die Welt im Ordner _Test_ (`worlds/index.WORLD_FOLDERS`).
  *
- * Vier Kammern aus Fensterwänden (`navTestPlan.ts`), vor jeder ein roter Knopf: Er
+ * Sechs Kammern aus Fensterwänden (`navTestPlan.ts`), vor jeder ein roter Knopf: Er
  * stellt eine Übungspuppe auf die grüne Platte und schickt sie zur blauen.
  * **Der berechnete Weg ist immer zu sehen** — die Ebene _Wege_ der
  * Navigationsansicht ist hier von Anfang an an (`setNavLayer('paths')`), und
@@ -85,6 +97,11 @@ export class NavTestWorld extends GridWorld {
   private lava: THREE.Mesh | null = null;
   /** Ob die Welt schon wieder weg ist, während die Fallen noch unterwegs waren. */
   private gone = false;
+  /**
+   * **Die Zellen, auf denen gerade ein Hindernis liegt** (`dropObstacle`) — für
+   * das Zellgitter des Spielers und für den Weg der NPCs (`cellBlocked`).
+   */
+  private readonly droppedCells = new Set<string>();
 
   protected override worldId(): string {
     return 'test-navigation';
@@ -127,6 +144,15 @@ export class NavTestWorld extends GridWorld {
     const graph = this.nav;
     if (!graph) return;
     for (const test of NAV_TESTS) graph.setWall(gateTile(test), gateDir(test), { kind: 'solid' });
+    // Ein Hindernis, das schon liegt, liegt auch im neu gebackenen Graphen.
+    for (const bench of this.benches)
+      if (bench.dropped && bench.test.drop)
+        graph.setBlocked(tileKey(bench.test.drop.x, bench.test.drop.z, 0), true);
+  }
+
+  /** Was hier auf Zellen steht, ist das gefallene Hindernis (`dropObstacle`). */
+  protected override cellBlocked(ix: number, iz: number, level: number): boolean {
+    return this.droppedCells.size > 0 && this.droppedCells.has(cellKey(ix, iz, level));
   }
 
   protected override skyColor(): number {
@@ -194,6 +220,14 @@ export class NavTestWorld extends GridWorld {
       this.label(plan, test.goal, 'Ziel', test.title);
       this.benches.push(this.buildButton(ctx, test));
     }
+    // Die Arbeitsplatte schon einmal holen, damit sie im Moment des Fallens da
+    // ist und nicht erst über die Leitung kommt (`kaykitModel` merkt sich die
+    // Vorlage).
+    if (canLoadModels() && NAV_TESTS.some((test) => test.drop))
+      void import('../../core/kaykitModel').then(async (module) => {
+        const copy = await module.kaykitModel(OBSTACLE_MODEL);
+        if (copy) for (const skin of skinsOf(copy)) skin.dispose();
+      });
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -201,6 +235,8 @@ export class NavTestWorld extends GridWorld {
     for (const bench of this.benches) {
       bench.button.update(dt);
       this.watch(bench);
+      this.watchDrop(bench);
+      this.fall(bench, dt);
     }
     this.burn(dt);
   }
@@ -209,7 +245,10 @@ export class NavTestWorld extends GridWorld {
     this.gone = true;
     this.lava = null;
     for (const object of this.pointed) ctx.pointer.remove(object);
-    for (const bench of this.benches) bench.button.dispose();
+    for (const bench of this.benches) {
+      bench.button.dispose();
+      this.clearObstacle(bench);
+    }
     for (const panel of this.panels) panel.dispose();
     for (const shape of this.shapes) shape.dispose();
     for (const skin of this.skins) skin.dispose();
@@ -304,7 +343,14 @@ export class NavTestWorld extends GridWorld {
     // Die Säule sieht nach Süden, dorthin, wo man herkommt.
     button.group.rotation.y = Math.PI;
     this.root.add(button.group);
-    const bench: Bench = { test, button, runner: null, arrived: false };
+    const bench: Bench = {
+      test,
+      button,
+      runner: null,
+      arrived: false,
+      dropped: false,
+      obstacle: null,
+    };
     const run = (): boolean => this.run(bench);
     this.addUsable(
       button.dome,
@@ -326,6 +372,9 @@ export class NavTestWorld extends GridWorld {
     if (!director || !plan) return false;
     bench.button.press();
     if (bench.runner) director.remove(bench.runner);
+    // Das Hindernis des letzten Laufs räumt der nächste weg: Er beginnt mit
+    // freiem Weg, sonst gäbe es nichts neu zu planen.
+    this.clearObstacle(bench);
     const { start, goal } = bench.test;
     const from = new THREE.Vector3(
       tileCentre(start.x),
@@ -368,6 +417,94 @@ export class NavTestWorld extends GridWorld {
     if (!near) return;
     bench.arrived = true;
     this.announce(`${bench.test.title}: am Ziel`);
+  }
+
+  /**
+   * **Ist er weit genug, fällt ihm das Hindernis in den Weg** (`NavTest.drop`):
+   * sobald er die Reihe `trigger` hinter sich hat — da ist sein Weg längst
+   * geradeaus geplant.
+   */
+  private watchDrop(bench: Bench): void {
+    const drop = bench.test.drop;
+    const runner = bench.runner;
+    if (!drop || bench.dropped || !runner || !runner.alive) return;
+    if (runner.feet(_feet).z > drop.trigger) return;
+    this.dropObstacle(bench);
+  }
+
+  /**
+   * **Die Arbeitsplatte fallen lassen** — und die Kachel sofort sperren.
+   *
+   * Gesperrt wird zweimal, weil der NPC zweimal plant (`navAgent.plan`): grob
+   * über Kacheln (`NavGraph.setBlocked` — eine gesperrte Kachel, von der er
+   * keine eigene Meinung hat, hält er für gesperrt, `navBelief`) und fein über
+   * Zellen (`cellBlocked`, zwei mal zwei unter der Platte). Neu geplant wird
+   * beim nächsten regelmäßigen Nachplanen (`NavAgent` `replan`), also nach
+   * spätestens einer guten halben Sekunde — und die Linie des Wegs knickt
+   * sichtbar um die Platte herum.
+   *
+   * Das Bild kommt aus dem Regal (`OBSTACLE_MODEL`); ohne WebGL kommt keins,
+   * gesperrt ist trotzdem.
+   */
+  private dropObstacle(bench: Bench): void {
+    const drop = bench.test.drop;
+    const plan = this.grid;
+    if (!drop || !plan) return;
+    bench.dropped = true;
+    for (const cell of dropCells(drop)) this.droppedCells.add(cell);
+    this.nav?.setBlocked(tileKey(drop.x, drop.z, 0), true);
+    this.announce(`${bench.test.title}: Arbeitsplatte im Weg`);
+    if (!canLoadModels()) return;
+    const floor = plan.graph.levelY(0);
+    void import('../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(OBSTACLE_MODEL);
+      if (!model) return;
+      // Inzwischen abgeräumt oder schon der nächste Lauf: Dann gehört sie
+      // niemandem mehr.
+      if (this.gone || !bench.dropped || bench.obstacle) {
+        for (const skin of skinsOf(model)) skin.dispose();
+        return;
+      }
+      // Die Unterkante auf den Boden, die Mitte auf die Kachelmitte — gemessen
+      // und nicht abgeschrieben.
+      model.position.set(0, 0, 0);
+      model.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(model);
+      const centre = box.getCenter(new THREE.Vector3());
+      const holder = new THREE.Group();
+      holder.name = 'nav-test-hindernis';
+      model.position.set(-centre.x, -box.min.y, -centre.z);
+      holder.add(model);
+      holder.position.set(tileCentre(drop.x), floor + DROP_HEIGHT, tileCentre(drop.z));
+      this.root.add(holder);
+      bench.obstacle = { model: holder, floor, speed: 0 };
+    });
+  }
+
+  /** Sie fällt, bis sie auf dem Boden liegt. */
+  private fall(bench: Bench, dt: number): void {
+    const obstacle = bench.obstacle;
+    if (!obstacle || obstacle.model.position.y <= obstacle.floor) return;
+    obstacle.speed += DROP_GRAVITY * dt;
+    obstacle.model.position.y = Math.max(
+      obstacle.floor,
+      obstacle.model.position.y - obstacle.speed * dt,
+    );
+  }
+
+  /** Das Hindernis wegräumen und Kachel und Zellen wieder freigeben. */
+  private clearObstacle(bench: Bench): void {
+    const drop = bench.test.drop;
+    if (drop && bench.dropped) {
+      for (const cell of dropCells(drop)) this.droppedCells.delete(cell);
+      this.nav?.setBlocked(tileKey(drop.x, drop.z, 0), false);
+    }
+    bench.dropped = false;
+    const obstacle = bench.obstacle;
+    bench.obstacle = null;
+    if (!obstacle) return;
+    obstacle.model.removeFromParent();
+    for (const skin of skinsOf(obstacle.model)) skin.dispose();
   }
 
   /** **Die Lava tötet**, wer auf ihr steht (`NpcDirector.harm`). */

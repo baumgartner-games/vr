@@ -1,4 +1,4 @@
-import { CellGrid, navCellSource } from '../nav/cellGrid';
+import { CellGrid, cellKey, navCellSource } from '../nav/cellGrid';
 import { cellRoute } from '../nav/cellRoute';
 import { NavAgent } from '../nav/navAgent';
 import { findPath } from '../nav/navPath';
@@ -11,6 +11,8 @@ import { clearPlanWalls, SHELF_WALL, SHELF_WINDOW_PIECES } from '../grid/shelfWa
 import {
   LAVA,
   NAV_TESTS,
+  dropCells,
+  OBSTACLE_MODEL,
   SPAWN,
   STOREY,
   navTestPlan,
@@ -45,8 +47,15 @@ function route(one: NavTest) {
 }
 
 describe('Test Navigation — die Kammern', () => {
-  it('hat fünf Tests, jeder mit Start, Ziel und Knopf außerhalb der Kammer', () => {
-    expect(NAV_TESTS.map((one) => one.id)).toEqual(['schraege', 'treppe', 'lava', 'eng', 'engste']);
+  it('hat sechs Tests, jeder mit Start, Ziel und Knopf außerhalb der Kammer', () => {
+    expect(NAV_TESTS.map((one) => one.id)).toEqual([
+      'schraege',
+      'treppe',
+      'lava',
+      'eng',
+      'engste',
+      'hindernis',
+    ]);
     for (const one of NAV_TESTS) {
       expect(graph.walkable(tileKey(one.start.x, one.start.z, one.start.level))).toBe(true);
       expect(graph.walkable(tileKey(one.goal.x, one.goal.z, one.goal.level))).toBe(true);
@@ -70,6 +79,46 @@ describe('Test Navigation — die Kammern', () => {
       const to = { x: tileCentre(one.goal.x), z: tileCentre(one.goal.z) };
       expect(cellRoute(graph, found.tiles, from, to)).not.toBeNull();
     }
+  });
+
+  it('6 · plant um die gefallene Arbeitsplatte herum — vorher geradeaus, danach daneben', () => {
+    const one = test('hindernis');
+    const drop = one.drop!;
+    const blockedTile = tileKey(drop.x, drop.z, 0);
+    const from = { x: tileCentre(one.start.x), z: tileCentre(one.start.z) };
+    const to = { x: tileCentre(one.goal.x), z: tileCentre(one.goal.z) };
+    // Vorher: geradeaus, mitten über die Kachel, auf die sie fallen wird.
+    const before = route(one);
+    expect(before.complete).toBe(true);
+    expect(before.tiles).toContain(blockedTile);
+    // Sie fällt erst, wenn er losgegangen ist: zwischen Start und Kachel.
+    expect(drop.trigger).toBeLessThan(one.start.z);
+    expect(drop.trigger).toBeGreaterThan(drop.z);
+
+    // Danach: auf einer Kopie des Graphen gesperrt, wie in der Welt
+    // (`NavTestWorld.dropObstacle`) — Kachel und ihre zwei mal zwei Zellen.
+    const copy = readNav(writeNav(graph));
+    copy.slopeAt = (key) => plan.slopeAt(key);
+    const cells = new Set(dropCells(drop));
+    expect(cells.size).toBe(4);
+    copy.cellBlocked = (ix, iz, level) => cells.has(cellKey(ix, iz, level));
+    copy.setBlocked(blockedTile, true);
+    const after = findPath(
+      copy,
+      tileKey(one.start.x, one.start.z, 0),
+      tileKey(one.goal.x, one.goal.z, 0),
+      { profile: HUMAN_PROFILE },
+    );
+    expect(after.complete).toBe(true);
+    expect(after.tiles).not.toContain(blockedTile);
+    const points = cellRoute(copy, after.tiles, from, to);
+    expect(points).not.toBeNull();
+    for (const point of points!)
+      expect(Math.floor(point.x) === drop.x && Math.floor(point.z) === drop.z).toBe(false);
+  });
+
+  it('6 · nimmt als Hindernis eine Arbeitsplatte aus dem Regal', () => {
+    expect(OBSTACLE_MODEL).toBe('restaurant-bits/kitchencounter_straight_A.glb');
   });
 
   it('4 · geht auch durch den engeren schrägen Gang — ohne die Kammer zu verlassen', () => {
