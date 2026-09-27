@@ -340,4 +340,19 @@ describe('Stationen auf Spielelementen', () => {
     expect(layer.states[0]!.on).toEqual({ item: 'patty-cooked', on: [] });
     expect(layer.states[0]!.fire).toBeFalsy();
   });
+
+  it('lässt bei den Eiswannen nur die gemeinte Wanne samt Eis leuchten', () => {
+    const { host } = world();
+    const layer = new StationLayer(host);
+    const parts = [0, 1, 2, 3, 4].map(() => new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2)));
+    const tubs = { ...placed({ id: 'wannen', element: 'ice-tubs', x: 0, z: 0 }), parts };
+    expect(layer.add(tubs)).toBe(2);
+    const [vanilla, strawberry] = tubs.anchor.children;
+    // Die Platte gehört keiner, Kasten und Eis links der Vanille, rechts der Erdbeere.
+    expect(parts[0]!.parent).toBeNull();
+    expect(parts[1]!.parent?.parent).toBe(vanilla);
+    expect(parts[2]!.parent?.parent).toBe(vanilla);
+    expect(parts[3]!.parent?.parent).toBe(strawberry);
+    expect(parts[4]!.parent?.parent).toBe(strawberry);
+  });
 });

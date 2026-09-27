@@ -780,6 +780,17 @@ ihr Greifen abgibt, solange die Karte draußen ist.
 
 ## Der Spielmodus und die Liste der Weltänderungen
 
+**Ein Möbel im Spielmodus** (September 2026, gewünscht: _„wenn der Spieler
+Möbel im spielmödus platzieren will, sollen diese direkt vor ihm gehalten
+werden und immer mit south Ausrichtung zu ihm. Ich brauche kein ghost des
+Objektes … sondern lediglich das floor tile gehighlithed"_): Ein Spielelement
+aus dem Möbelkatalog hängt vor der Figur, und seine Vorderseite zeigt immer
+zu ihr (`PortalWorld.attach`, der Halter steht um `-ELEMENT_HOLD` gegen den
+Anker). Abgestellt wird es so, wie es hängt — es schaut dorthin, von wo man
+es hingestellt hat. Der Geist (`PlaceGhost`) bleibt für Möbel im Spielmodus
+weg; es leuchten nur die Kacheln, auf denen es landen wird, gerechnet wie
+beim Abstellen (`spotAround` → `spotTiles`) statt aus dem Collider.
+
 **Drei Modi, eine Zeile** (`core/gameMode.ts`): _Einstellungen →
 Spielmodus_ schaltet mit jedem Klick weiter — **Spielen**, **Einrichten**,
 **Baukasten**, und wieder von vorn. Gewünscht war das mit den Namen

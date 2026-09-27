@@ -52,7 +52,14 @@ import { KaykitDishView } from '../elements/dishView';
 import { dish } from '../test/zones/kitchenRecipes';
 import { loadItemModel } from '../elements/itemTemplate';
 
-import { faceYaw, type CarriedElement, type ElementSpot } from '../elements/elementPlace';
+import {
+  faceYaw,
+  spotAround,
+  spotTiles,
+  yawFace,
+  type CarriedElement,
+  type ElementSpot,
+} from '../elements/elementPlace';
 import { buildNote, NOTE_MODEL, noteLabelOf } from '../notes/notePost';
 import { cleanNoteText, NOTE_MAX_CHARS } from '../notes/noteText';
 import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
@@ -9806,6 +9813,21 @@ export class PortalWorld implements World {
         offset.compose(_point, _quaternion, scale);
         entry.object.getWorldPosition(_point);
       }
+      // **Ein Möbel im Spielmodus trägt man vor sich, die Vorderseite zu sich**
+      // — gewünscht: _„wenn der Spieler Möbel im Spielmodus platzieren will,
+      // sollen diese direkt vor ihm gehalten werden und immer mit south
+      // Ausrichtung zu ihm"_. Das Modell liegt im Halter um `ELEMENT_HOLD`
+      // gedreht; der Halter steht deshalb um dieselbe halbe Drehung gegen den
+      // Anker, und die Vorderseite (+z) zeigt zur Figur. Abgestellt wird mit
+      // eben dieser Drehung (`placedElement`): Das Möbel schaut dorthin, von
+      // wo man es hingestellt hat.
+      if (this.elementBodies.has(entry) && gameMode() === 'play') {
+        const scale = new THREE.Vector3();
+        offset.decompose(_point, _quaternion, scale);
+        _quaternion.setFromAxisAngle(UP, -ELEMENT_HOLD);
+        offset.compose(_point, _quaternion, scale);
+        entry.object.getWorldPosition(_point);
+      }
     }
     // **Diese Hand hat gehandelt** (`lastActHand`): Ihr gehört von jetzt an der
     // Saum, solange nur ein Gegenstand getragen wird.
@@ -10433,6 +10455,23 @@ export class PortalWorld implements World {
     }
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
+    // **Ein Spielelement leuchtet dort, wo es landet** — dieselbe Rechnung wie
+    // beim Abstellen (`placedElement` → `furnishAt` → `spotAround`), und nicht
+    // die des Colliders: Seine Kacheln sagt der Katalog.
+    const element = this.elementBodies.get(entry);
+    if (element) {
+      this.markReplaced([]);
+      const face = yawFace(quarterYaw(yawOf(_quaternion)) + ELEMENT_HOLD);
+      const spot = spotAround('', element.id, _point.x, _point.z, face);
+      grid.show(
+        spotTiles(spot).map((tile) => {
+          const [tx, tz] = tile.split(',').map(Number) as [number, number];
+          return { x: (tx + 0.5) * TILE, z: (tz + 0.5) * TILE };
+        }),
+        ctx.rig.getFloorY(),
+      );
+      return;
+    }
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long, this.fineTurn);
     const floorY = ctx.rig.getFloorY();
@@ -10701,7 +10740,11 @@ export class PortalWorld implements World {
     if (this.faceMark) this.faceMark.visible = false;
     const carried = this.carriedModel();
     const target = carried ? this.decorTarget(ctx, carried, ...this.carriedSpot(carried)) : null;
-    if (carried && target && !this.areaOn) {
+    // **Kein Geist für ein Möbel im Spielmodus** — gewünscht: _„Ich brauche
+    // kein ghost des Objektes zu sehen wo es stehen würde, sondern lediglich
+    // das floor tile gehighlithed."_ Die Kachel zeigt `updatePlaceGrid`.
+    const plain = carried !== null && this.elementBodies.has(carried) && gameMode() === 'play';
+    if (carried && target && !this.areaOn && !plain) {
       const ghost = (this.placeGhost ??= new PlaceGhost());
       if (ghost.root.parent !== ctx.scene) ctx.scene.add(ghost.root);
       ghost.show(carried.object, target.x, target.y, target.z, target.yaw, target.valid);

@@ -142,7 +142,8 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | `bowl-stack`                     | Schüsselstapel                  | `drain`, gibt `bowl`           | `counter_A`, zwei `bowl`                                                                                                                                                             |
 | `pizzabox-stack`                 | Kartonstapel                    | `drain`, gibt `pizzabox`       | `counter_A`, `pizzabox_stacked`                                                                                                                                                      |
 | `ice-stand`                      | Eisstand                        | `drain`, gibt `cone`           | `counter_A`, `icecream_cone_stacked` (0,5 m), `icecream_scoop` (0,3 m, liegend), wie die Eisecke im Laden, nach Süden; ein Vorrat: `A` gibt ein Hörnchen                             |
-| `ice-tubs`                       | Eiswannen                       | `ice-tubs`                     | `counter_A`, zwei `icecream_container` (×0,825), darin Vanille und Erdbeere (`inside`)                                                                                               |
+| `ice-tubs`                       | Eiswannen                       | `ice-tubs`                     | `counter_A`, zwei `icecream_container` (×0,825), darin Vanille und Erdbeere (`inside`); es leuchtet die gemeinte Wanne samt Eis (`stationLayer.partSlot`)                            |
+| `ice-machine`                    | Eismaschine                     | — (Deko, `DECOR`)              | `counter_A`, obenauf `icecream_machine`; im Ordner Eis, noch ohne Zweck (_„Erstmal deko Möbel Stück"_)                                                                               |
 | `belt`                           | Förderband                      | —                              | `platformer/yellow/conveyor_4x4x1_yellow`, halb gedreht; eine Kachel, 0,5 m (der Lader bringt es auf 1 × 1 m)                                                                        |
 | `table-round`                    | Runder Tisch                    | —                              | `table_round_B_tablecloth_red`; `[2, 2]` Kacheln                                                                                                                                     |
 | `chair`                          | Stuhl                           | —                              | `chair_A`                                                                                                                                                                            |
@@ -490,7 +491,8 @@ Waffeln.
 trägt und damit auf einen brennenden Herd in Reichweite zeigt
 (`kitchenSpray.inSpray`, 2,5 m, **45°** zu jeder Seite, `EXTINGUISH_HALF_ANGLE` —
 gewünscht: _„braucht einen größeren Winkel zum löschen und detektieren 45°"_;
-die Sandbox nimmt 25°; gezielt wird in der
+die Sandbox nimmt 25°; der Kegel geht **von der Figur** aus, nicht vom
+Löscher, den sie ein Stück vor sich trägt; gezielt wird in der
 Richtung von `A`, in der Brille mit dem Strahl der Hand), sprüht — der Nebel
 ist der der Sandbox (`SprayJet`). Nach `SPRAY_SECONDS` = 1,5 s im Strahl ist
 das Feuer aus (`douseStation`): Die Pfanne bleibt, leer. Gewünscht: _„wenn er

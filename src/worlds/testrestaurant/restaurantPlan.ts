@@ -54,6 +54,13 @@ export const SPOTS: readonly ElementSpot[] = [
   { id: 'herd', element: 'stove', x: 17, z: 12, face: 'S' },
   // Die zweite Liste: der Feuerlöscher neben dem Herd.
   { id: 'loescher', element: 'extinguisher', x: 18, z: 12, face: 'S' },
+  // Die dritte Liste: die Eisecke daneben, nach Osten — Platte, Eisstand,
+  // Wannen, Schüsseln, und ein Mülleimer gegenüber, nach Westen gedreht.
+  { id: 'eis-platte', element: 'counter', x: 20, z: 12, face: 'S' },
+  { id: 'eisstand', element: 'ice-stand', x: 21, z: 12, face: 'S' },
+  { id: 'eiswannen', element: 'ice-tubs', x: 22, z: 12, face: 'S' },
+  { id: 'schuesseln', element: 'bowl-stack', x: 23, z: 12, face: 'S' },
+  { id: 'eis-muell', element: 'bin', x: 20, z: 14, face: 'W' },
   // Die Südreihe: Müll, Platte, Brett, drei Platten, Teller.
   { id: 'muell', element: 'bin', x: 11, z: 14, face: 'S' },
   { id: 'platte-1', element: 'counter', x: 12, z: 14, face: 'S' },

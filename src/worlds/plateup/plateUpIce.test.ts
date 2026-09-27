@@ -54,7 +54,7 @@ import {
   type Vec3,
   type WobbleLink,
   type WobbleState,
-} from './plateUpWobble';
+} from '../shared/iceWobble';
 
 /** Eine freie Arbeitsplatte, eine mit etwas darauf, Kiste, Mülleimer. */
 const TOP: IceStation = { kind: 'top', taken: false, cone: null };

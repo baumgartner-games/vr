@@ -4,6 +4,7 @@ import { CRATE_LID_PATH, kaykitPlinth } from '../../core/kaykitCrate';
 import { kaykitFiles, type KaykitIndex } from '../../core/kaykitIndex';
 import { ITEM_LABELS } from '../test/zones/kitchenRecipes';
 import {
+  DECOR,
   ELEMENTS,
   FURNITURE_CATALOGUE,
   FURNITURE_FOLDERS,
@@ -168,6 +169,7 @@ describe('der Möbelkatalog im Menü', () => {
       'Waschbecken',
       'Eisstand',
       'Eiswannen',
+      'Eismaschine',
       'Salatkiste',
       'Käsekiste',
       'Schinkenkiste',
@@ -243,7 +245,7 @@ describe('der Möbelkatalog im Menü', () => {
       const element = elementById(id);
       expect(element.tiles).toEqual([1, 1]);
       expect(element.height).toBeGreaterThanOrEqual(1.4);
-      expect(element.kind).not.toBeNull();
+      expect(element.kind === null).toBe(DECOR.has(id));
     }
   });
 

@@ -245,6 +245,32 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
 }
 
 /**
+ * **Zu welcher Station ein Teil gehört** — bei einer Station alle, bei zweien
+ * (die Eiswannen) das Teil, das auf ihrer Seite der Platte steht, samt dem,
+ * was darin sitzt (`ElementPart.inside`). Die Platte darunter gehört keiner:
+ * Sie liegt in der Mitte, und ein Saum um sie sagte nicht, welche Wanne
+ * gemeint ist. Gemeldet: _„Die Eis trays werden nicht gehighlithed welches
+ * ausgewählt ist."_
+ */
+export function partSlot(
+  element: GameElement,
+  index: number,
+  slots: readonly StationSlot[],
+): StationSlot | null {
+  if (slots.length === 1) return slots[0]!;
+  let i = index;
+  while (i > 0 && element.parts[i]!.inside) i--;
+  const at = element.parts[i]!.at?.[0];
+  if (at === undefined || at === 0) return null;
+  let best: StationSlot | null = null;
+  for (const slot of slots) {
+    if (Math.sign(slot.shift) !== Math.sign(at)) continue;
+    if (!best || Math.abs(slot.shift - at) < Math.abs(best.shift - at)) best = slot;
+  }
+  return best;
+}
+
+/**
  * **Was vor der Küche drankommt** — das Eis: Wer ein Hörnchen hält, stellt es
  * auf eine Platte oder wirft es in den Müll, statt dass die Küche gefragt
  * wird (`PlateUpWorld.useStationAt` fragt genauso zuerst das Eis).
@@ -403,8 +429,10 @@ export class StationLayer {
       // Saum die Kiste samt Inhalt umranden, die Arbeitsplatte, auf die man
       // ablegt, den Mülleimer — und nicht nur einen Ring auf den Boden legen
       // (`highlightOf`). `attach` lässt jedes Teil stehen, wo es steht.
-      if (elementLit(placed.element) && slots.length === 1) {
-        for (const part of placed.parts) if (part) body.attach(part);
+      if (elementLit(placed.element)) {
+        placed.parts.forEach((part, i) => {
+          if (part && partSlot(placed.element, i, slots) === slot) body.attach(part);
+        });
       }
       const [fresh] = slotStates([slot]);
       const was = keep.find((one) => one.spot.id === slot.spot.id);

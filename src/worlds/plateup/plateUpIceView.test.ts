@@ -3,8 +3,9 @@ import { DIR_S, dirX, dirZ } from '../nav/navTile';
 import { ICE_FACE, ICE_STAND, ICE_TUBS } from './plateUpPlan';
 import type { WorldContext } from '../../core/types';
 import type { IceHands } from './plateUpIce';
-import { CORNER_SIZE, IceCorner, ICE_SIZE, ICE_YAW, fallback, iceYaw } from './plateUpIceView';
-import { WOBBLE, idleLimit } from './plateUpWobble';
+import { ICE_SIZE } from '../shared/iceCone';
+import { CORNER_SIZE, IceCorner, ICE_YAW, fallback, iceYaw } from './plateUpIceView';
+import { WOBBLE, idleLimit } from '../shared/iceWobble';
 
 /**
  * **Die Eisecke ohne ein einziges Modell** — so wie in Jest (kein WebGL, also
