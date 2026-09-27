@@ -8,7 +8,7 @@ import {
 } from '../grid/shelfWalls';
 import { HAZARD_FIRE } from '../nav/navProfile';
 import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from '../nav/navTile';
-import type { Slope } from '../nav/cellGrid';
+import { cellKey, type Slope } from '../nav/cellGrid';
 import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
 
@@ -66,6 +66,13 @@ export interface NavTest {
    * (`NavTestWorld.navReady`).
    */
   readonly gate: { readonly x: number; readonly z: number; readonly dir?: typeof DIR_W };
+  /**
+   * **Was ihm unterwegs in den Weg fällt** — nur beim Test „Hindernis"
+   * (`NavTestWorld.dropObstacle`): Sobald er die Reihe `trigger` hinter sich
+   * hat, landet auf der Kachel `x`/`z` eine Arbeitsplatte, und er muss neu
+   * planen.
+   */
+  readonly drop?: { readonly x: number; readonly z: number; readonly trigger: number };
 }
 
 /** Wie hoch eine Etage ist — dieselbe Zahl wie in der Sandbox (`test/layout.STOREY`). */
@@ -95,6 +102,23 @@ const NARROW = { x: 29, z: 0, w: 8, d: 8 } as const;
  * Südwand, also steht sein Tor in der Westwand.
  */
 const NARROWEST = { x: 40, z: 0, w: 8, d: 8 } as const;
+
+/**
+ * **6 · Das Hindernis** — eine leere Kammer, Start unten, Ziel oben, der Weg
+ * schnurgerade. Gewünscht: _„ein neuer Test, wo während der npc sich bewegt
+ * ein Gegenstand in den Weg gelegt wird sodass der npc neu Routen muss"_.
+ */
+const OBSTACLE = { x: 51, z: 0, w: 5, d: 8 } as const;
+const OBSTACLE_X = OBSTACLE.x + 2;
+
+/**
+ * **Was ihm dort in den Weg fällt**: eine Arbeitsplatte aus dem Regal —
+ * gewünscht _„eine kaykit Arbeitsplatte z.B. die 2x2 Grid hat"_. Die
+ * Küchenzeile misst 2 × 2 Quelleinheiten, halbiert
+ * (`core/kaykitFit.KAYKIT_SCALE`) genau eine Kachel, also **zwei mal zwei
+ * Zellen** des Zellgitters (`nav/cellGrid.CELL`).
+ */
+export const OBSTACLE_MODEL = 'restaurant-bits/kitchencounter_straight_A.glb';
 
 /**
  * **2 · Die Treppe** — eine Treppe auf ein Podest, oben das Ziel.
@@ -170,19 +194,43 @@ export const NAV_TESTS: readonly NavTest[] = [
     button: { x: NARROWEST.x + 1, z: NARROWEST.z + NARROWEST.d + 1 },
     gate: { x: NARROWEST.x, z: NARROWEST.z + 6, dir: DIR_W },
   },
+  {
+    id: 'hindernis',
+    title: '6 · Hindernis',
+    body: 'Unterwegs fällt ihm eine Arbeitsplatte in den Weg',
+    room: OBSTACLE,
+    start: { x: OBSTACLE_X, z: OBSTACLE.z + OBSTACLE.d - 1, level: 0 },
+    goal: { x: OBSTACLE_X, z: OBSTACLE.z, level: 0 },
+    button: { x: OBSTACLE_X + 1, z: OBSTACLE.z + OBSTACLE.d + 1 },
+    gate: { x: OBSTACLE.x, z: OBSTACLE.z + OBSTACLE.d - 1 },
+    // Mitten auf den geraden Weg, und erst, wenn er zwei Kacheln gegangen ist:
+    // Geplant hat er da längst geradeaus.
+    drop: { x: OBSTACLE_X, z: OBSTACLE.z + 3, trigger: OBSTACLE.z + OBSTACLE.d - 2 },
+  },
 ];
+
+/**
+ * **Die Zellen unter dem Hindernis** — zwei mal zwei, eine Kachel
+ * (`OBSTACLE_MODEL`). Als Schlüssel für `NavGraph.cellBlocked`.
+ */
+export function dropCells(drop: { x: number; z: number }): string[] {
+  const cells: string[] = [];
+  for (let dz = 0; dz < 2; dz++)
+    for (let dx = 0; dx < 2; dx++) cells.push(cellKey(drop.x * 2 + dx, drop.z * 2 + dz, 0));
+  return cells;
+}
 
 /** Das Tor aus dem Regal: eine Kachel breit, 2,1 m Öffnung (`props.MODEL_ARCHES`). */
 export const GATE_MODEL = 'prototype-bits/Wall_Doorway.glb';
 
 /** Der Boden, auf dem man zwischen den Kammern herumläuft. */
-export const GROUND = { x: -4, z: -4, w: 56, d: 22 } as const;
+export const GROUND = { x: -4, z: -4, w: 64, d: 22 } as const;
 
 /** Wo man ankommt: vor der Mitte der Reihe, mit Blick auf alle Kammern. */
-export const SPAWN = { x: 23.5, z: 15.5 } as const;
+export const SPAWN = { x: 27.5, z: 15.5 } as const;
 
 /**
- * **Der Plan der Welt**: Boden, drei Kammern, die Schrägen, zwei Treppen auf
+ * **Der Plan der Welt**: Boden, sechs Kammern, die Schrägen, zwei Treppen auf
  * ihre Podeste und die Lava.
  */
 export function navTestPlan(): GridPlan {

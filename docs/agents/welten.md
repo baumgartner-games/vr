@@ -459,7 +459,7 @@ rechnet `ui/menuGroups.folderWorlds`: Ein Ordner steht, wo seine erste Welt
 stünde. Die Tore im Hub bleiben eines je Welt.
 
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
-Ordner _Test_) sind fünf Kammern aus Fensterwänden (`navTestPlan.ts`), vor
+Ordner _Test_) sind sechs Kammern aus Fensterwänden (`navTestPlan.ts`), vor
 jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
 Zielplatte**. Daneben im selben Ordner steht das **Test Restaurant**
 (Kapitel [Test Restaurant](testrestaurant.md)).
@@ -503,6 +503,18 @@ Rand eines Podests Luft, sodass die Brüstung oben die Kante unten sperrte.
    der Schrägkacheln daneben. Er stößt nicht an die Südwand, sein Tor steht
    deshalb in der Westwand (`NavTest.gate.dir`, `gateDir`). Die Puppe kommt
    durch — auf dem Plan (`navTestPlan.test.ts`) wie im Browser.
+6. **Hindernis** — eine leere Kammer, der Weg schnurgerade von Süd nach Nord.
+   Gewünscht: _„ein neuer Test, wo während der npc sich bewegt ein Gegenstand
+   in den Weg gelegt wird sodass der npc neu Routen muss. Bitte eine kaykit
+   Arbeitsplatte z.B. die 2x2 Grid hat"_. Hat die Puppe zwei Kacheln hinter
+   sich (`NavTest.drop.trigger`), fällt drei Kacheln vor dem Ziel
+   `restaurant-bits/kitchencounter_straight_A` mitten auf den Weg
+   (`OBSTACLE_MODEL`, eine Kachel = zwei mal zwei Zellen, `dropCells`).
+   Gesperrt wird sofort und doppelt, wie der NPC plant: die Kachel im Graphen
+   (`NavGraph.setBlocked`) und ihre vier Zellen (`NavTestWorld.cellBlocked` →
+   `GridWorld.cellTaken`, gilt auch für den Spieler). Beim nächsten
+   regelmäßigen Nachplanen (`NavAgent`, `replan` 0,55 s) knickt die Weglinie
+   um die Platte herum. Der nächste Druck räumt sie weg (`clearObstacle`).
 
 **Jede Kammer hat ein Tor, durch das nur der Spieler kommt** (gewünscht:
 _„zu allen Bereichen auch ein Tor … über welches nur der Spieler rein und
