@@ -353,7 +353,7 @@ function fillSelect(): void {
   const station = document.createElement('optgroup');
   station.label = 'Raumstation';
   const own = document.createElement('optgroup');
-  own.label = 'Weitere aus dem Regal';
+  own.label = 'Weitere aus dem Modellregal';
   for (const element of allElements(state)) {
     const option = document.createElement('option');
     option.value = element.id;

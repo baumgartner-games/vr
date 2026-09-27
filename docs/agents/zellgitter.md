@@ -185,19 +185,31 @@ den großen Kacheln bleibt.
   (`cellGrid.footprintCellKeys`, dieselbe 15-cm-Regel wie `furnitureCells`),
   und die Welt meldet sie über `GridWorld.cellBlocked` — wie
   `HauntingWorld` die Einrichtung der Station. **Wer eine neue Welt mit
-  eigener Einrichtung baut, geht diesen Weg**, nicht über einen Physik-Körper
-  allein.
-  - **Und muss ihn nicht mehr selbst pflastern** (September 2026): Die
-    Gitterwelt bringt ihn mit — `GridWorld.blockFootprint(cx, cz, w, d)`
-    trägt die Zellen in `blockedCells` ein, `cellTaken` fragt diese Menge
-    neben `cellBlocked`, und `blockSolid` stellt dazu gleich den
-    unsichtbaren Kasten von 1,40 m (`SOLID_BLOCK_HEIGHT`, wie `addBlock` im
-    Burgerladen); `unblockSolid` nimmt beides wieder weg. Beim Verlassen der
-    Welt wird die Menge geleert. Burgerladen, Hub und Testwelt behalten ihr
-    Überschreiben, beides gilt. Die **Spielelemente** (`worlds/elements/`,
-    `placeElement`) sperren darüber, und zwar bevor ein Modell lädt.
-    Nachgelaufen in `grid/blockFootprint.test.ts`: eine Kachel sperrt genau
-    ihre vier Zellen, und kein 2 × 2-Block kommt von irgendeiner Seite hinein.
+  eigener Einrichtung baut, sperrt Zellen**, nicht nur einen Physik-Körper —
+  und zwar heute über den nächsten Punkt, nicht über ein eigenes
+  Überschreiben.
+  - **Die Gitterwelt sperrt selbst** (September 2026) — und **für neue Welten
+    ist das der Weg**: `GridWorld.blockFootprint(cx, cz, w, d, level)` trägt
+    die Zellen einer Grundfläche in `blockedCells` ein (dieselbe 15-cm-Regel,
+    `footprintCellKeys`), `cellTaken` fragt diese Menge neben `cellBlocked` —
+    für das Gehen des Spielers ebenso wie für den Graphen der NPCs —, und
+    `blockSolid(cx, cz, w, d, height)` stellt dazu gleich den unsichtbaren
+    Kasten, ohne Angabe 1,40 m hoch (`SOLID_BLOCK_HEIGHT`, wie `addBlock` im
+    Burgerladen). `unblockFootprint` und `unblockSolid` nehmen es wieder weg;
+    beim Verlassen der Welt wird die Menge geleert. Gewünscht, nachdem es
+    wieder passiert war: _„Das Element der Arbeitsplatte sollte eigentlich
+    sowieso bereits von Haus aus 2x2 undurchgehbar sein."_
+  - **Noch besser: gar nicht selbst rechnen, sondern ein Spielelement
+    hinstellen** (`worlds/elements/`, `placeElement`, siehe
+    [Zwei Kataloge: Rohmodelle und Spielelemente](./spielelemente.md)). Das
+    Element kennt seine Grundfläche in Kacheln und ruft `blockSolid` auf,
+    **bevor** irgendein Modell lädt; eine Kachel sind vier Zellen, alle
+    gesperrt. Burgerladen, Hub und Testwelt behalten bis zu ihrem Umzug ihr
+    Überschreiben von `cellBlocked` — beides gilt nebeneinander.
+  - Nachgelaufen in `grid/blockFootprint.test.ts`: Eine Kachel sperrt genau
+    ihre vier Zellen, kein 2 × 2-Block kommt von irgendeiner Seite hinein, der
+    Spieler steht auf der Kachel nirgends und daneben überall, ein Tisch auf
+    2 × 2 Kacheln sperrt sechzehn Zellen und keine daneben.
   - **Die Küche der Testwelt ebenso** (September 2026, gemeldet: _„ich komme
     als Spieler auf Möbel rauf wie in der Küche, wenn ich nur einfach dagegen
     laufe … auf dem 2D-Grid die Logik behalten"_). Ihre Möbel, Knopfsäulen
@@ -223,7 +235,8 @@ den großen Kacheln bleibt.
     (30 cm).
   - Treppe, Rampe und Podest sperren nichts.
   - Ein Einbau mit Körper sperrt seine Kachel.
-  - Eine Welt kann weitere Zellen sperren (`GridWorld.cellBlocked`).
+  - Eine Welt kann weitere Zellen sperren — neu über `GridWorld.blockSolid`
+    bzw. ein Spielelement, älter über `GridWorld.cellBlocked`.
   - Was keine Zelle sperrt, zum Beispiel ein dünnes Geländer, bleibt für den
     Spieler Physik.
 - **Blöcke jeder Größe** (`size`, `blockStart`, `cellsFor`):

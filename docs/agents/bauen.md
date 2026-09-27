@@ -313,7 +313,7 @@ einer Datei, und daraus folgen zwei Dinge:
 Im Regal steht dabei nur die **kuratierte Handvoll**. Die rund 85 Figuren der
 Sammlung hätten 85 Ständer gebraucht, also fünf Ringe; wer eine der übrigen
 will, nimmt den Weg über die Detailseite des Regals (_Als Figur tragen_, siehe
-[Das KayKit-Regal](assetregal.md)).
+[Das Modellregal](assetregal.md)).
 
 **Zurück geht es über den Anker, und nur über ihn.** Alles andere ist unsichtbar
 und meldet sich deshalb gar nicht mehr (`PortalWorld.collectUsables`) — der
@@ -1228,7 +1228,7 @@ hinstellt.
 sie). Gewünscht war, dass der Spieler einen Raum gestalten kann — Möbel,
 Pflanzen, Lampen, Bilder aus dem KayKit-Regal, auch an Wänden und auf Tischen.
 Das Einrasten auf dem Kachelgitter (`gridSnap.ts`, siehe
-[Das KayKit-Regal](assetregal.md)) lässt die Höhe bewusst offen; hier wird sie
+[Das Modellregal](assetregal.md)) lässt die Höhe bewusst offen; hier wird sie
 beantwortet.
 
 - **Worauf etwas steht** (`restOn`): auf dem, was **unter seiner Mitte** liegt

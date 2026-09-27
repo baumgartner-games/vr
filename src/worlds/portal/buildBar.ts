@@ -130,7 +130,7 @@ export class BuildBar {
   private readonly row = document.createElement('div');
   private readonly queue: BuildEvent[] = [];
   private shown = '';
-  private readonly place = this.button('✚', 'Setzen', 'Stück aus dem Regal setzen', {
+  private readonly place = this.button('✚', 'Setzen', 'Stück aus dem Modellregal setzen', {
     kind: 'tool',
     tool: 'place',
   });

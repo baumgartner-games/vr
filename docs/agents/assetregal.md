@@ -1,7 +1,23 @@
-# Das KayKit-Regal
+# Das Modellregal (KayKit)
 
 Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 über alle, und dort stehen die Arbeitsregeln.
+
+**Das Regal ist der Katalog der Rohmodelle — nur Bilder, keine fertigen
+Dinge.** Seit September 2026 heißt es im Menü deshalb _Modellregal_ und nicht
+mehr _KayKit-Regal_, und darunter steht _Rohmodelle — nur das Bild, kein
+Spielelement_. Gewünscht: _„wir sollten einen 3d Objekt roh Katalog haben,
+der nur optisch da ist aber keine fertigen Objekte sind, und einen Spiel
+Element Katalog haben die man in der Welt platzieren kann, weil diese
+Eigenschaften haben 2d, Interaktion etc."_ Ein Modell von hier weiß nichts vom
+Zellgitter, hat keinen Körper, den das Gehen kennt, und keinen Zweck. **Wer in
+einer Welt ein Möbel oder eine Station hinstellt, nimmt ein Spielelement**
+([Zwei Kataloge: Rohmodelle und Spielelemente](./spielelemente.md),
+`src/worlds/elements/`) — das setzt sich aus Dateien dieses Regals zusammen
+und bringt die Grundfläche mit. Direkt aus dem Regal in eine Welt, mit
+`placeModel` und ohne Sperre, ist genau der Fehler, den der Besitzer immer
+wieder findet: Man läuft über die Kisten. Die Bezeichner im Code bleiben, wie
+sie waren (`assets`, `shelf*`, `kaykit*`); nur was man liest, heißt neu.
 
 ## Warum ein Regal und kein zweiter Beutel
 
@@ -803,8 +819,8 @@ Drei Stufen, und jede ist nötig:
    herunterladen. Dafür gibt es `MenuEntry.onOpen`: Beide Bedienflächen rufen
    es, bevor sie eine Ebene tiefer gehen (`ui/WristMenu.ts`, `ui/PageMenu.ts`).
    Bis der Index da ist, steht im Regal eine graue Zeile _Lädt …_; gibt es ihn
-   nicht, steht dort _Kein Regal_. **Werfen darf dabei nichts** — ein Checkout
-   ohne die gekauften Pakete ist ein normaler Zustand, kein Fehler.
+   nicht, steht dort _Kein Modellregal_. **Werfen darf dabei nichts** — ein
+   Checkout ohne die gekauften Pakete ist ein normaler Zustand, kein Fehler.
 2. **Modelle kommen je sichtbarer Kachel.** Auf einer Rasterseite mit zwei
    Spalten sind vier Kacheln zu sehen, also werden vier Dateien geholt — nicht
    1588, weil jemand den Waldordner aufgemacht hat. Gefragt wird nur, wofür
@@ -1126,6 +1142,10 @@ Kiste erst heraus, wenn **beide** Dateien da sind: Sie ohne Sockel zu zeigen
 und im nächsten Bild zu verschieben wären zwei Bilder von derselben Kiste.
 
 ## Aus dem Regal wird in der Küche ein Möbel
+
+_Das hier ist der Weg zur Laufzeit, in der Küche der Testwelt: ein Stück, das
+man aus dem Menü in der Hand hat. Wer eine Welt **baut**, stellt keine Modelle
+hin, sondern Spielelemente ([Zwei Kataloge](./spielelemente.md))._
 
 Ein Modell aus dem Regal ist ein **Bild**: eine Hülle als Collider, eine
 Masse, und damit ein Fass, durch das man nicht hindurchgeht. Ein Möbel der

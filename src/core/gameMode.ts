@@ -14,7 +14,7 @@
  *   man in dem Modus nicht in die Hand; sie liegen ja auf den Möbeln und fahren
  *   mit. Die Uhren halten solange an — es wird eingerichtet, nicht gekocht.
  * - **Baukasten** — Einrichten, und dazu: Wer ein Stück aus einem Katalog
- *   genommen hat (dem Möbelkatalog der Küche oder dem KayKit-Regal) und es
+ *   genommen hat (dem Möbelkatalog der Küche oder dem Modellregal) und es
  *   hinstellt, hat sofort die nächste Kopie in der Hand. Eine Reihe aus zehn
  *   Arbeitsplatten ist dann zehn Mal hinstellen und nicht zehn Mal hin- und
  *   herlaufen.

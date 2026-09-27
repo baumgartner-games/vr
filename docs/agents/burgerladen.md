@@ -50,7 +50,7 @@ Material); zu sehen sind die Wandstücke aus _Restaurant Bits_.
 ## Wie es aussieht
 
 Alles aus dem KayKit-Regal, nichts Neues (siehe [Modelle](./modelle.md),
-[Das KayKit-Regal](./assetregal.md)):
+[Das Modellregal](./assetregal.md)):
 
 - **Möbel** aus dem Restaurant-Katalog (`core/dinerModel`, halbe Größe wie in
   der Testküche — Arbeitshöhe 0,5 m, ein runder Gasttisch auf 2 × 2 Kacheln):

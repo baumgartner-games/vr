@@ -89,7 +89,7 @@ export type FullGroup = (typeof FULL_ORDER)[number];
 export const FULL_LABELS: Readonly<Record<FullGroup, string>> = {
   programm: 'Programm',
   medien: 'Modelle und Töne',
-  regal: 'Regal',
+  regal: 'Modellregal',
 };
 
 /** Eine Datei des vollständigen Downloads. */
@@ -490,7 +490,7 @@ export function fullHint(state: FullState): string {
     case 'offen':
       return state.have > 0
         ? `${mb(state.have)} von ${mb(state.total)} liegen schon im Gerät.`
-        : `${mb(state.total)} für Spiel und Regal — danach läuft alles ohne Netz.`;
+        : `${mb(state.total)} für Spiel und Modellregal — danach läuft alles ohne Netz.`;
     case 'läuft':
       // **Fehlschläge werden schon im Lauf gesagt.** Ein Balken, der steht,
       // während die Restzeit weiter eine Zahl nennt, ist sonst nicht zu

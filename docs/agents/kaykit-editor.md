@@ -12,6 +12,12 @@ alle Änderungen getrackt, sodass ich die finale Einstellung dir senden kann."_
 Anlass: Möbel der Raumstation sperren zu viele Zellen oder stehen so, dass ein
 1 × 1-Ding mittig 2 × 2 Zellen nimmt.
 
+**„Element" heißt hier ein Rohmodell** aus dem Modellregal, eingepasst wie in
+der Station, und kein Spielelement im Sinn von
+[Zwei Kataloge](./spielelemente.md). Der Editor misst, welche Zellen ein Bild
+belegen _würde_. Was eine Welt tatsächlich sperrt, sagt dort die Grundfläche
+des Elements in ganzen Kacheln.
+
 ## Was wo liegt
 
 - `src/kaykitEditor/editorModel.ts` — die Rechnung ohne three.js, geprüft in

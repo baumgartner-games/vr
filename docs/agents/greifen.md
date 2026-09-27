@@ -752,7 +752,7 @@ der Figur ist seinerzeit mit gutem Grund verschwunden.
 
 Alles bisher Gesagte setzt eine **Hand** voraus, und die gibt es nur in der
 Brille. Von oben und aus den Augen gab es deshalb lange gar kein Greifen: Was
-aus dem magischen Beutel oder aus dem [KayKit-Regal](./assetregal.md) kam,
+aus dem magischen Beutel oder aus dem [Modellregal](./assetregal.md) kam,
 entstand 70 cm vor dem Kopf und fiel zu Boden. Das war kein Vorsatz, sondern
 eine Lücke — und sie wurde als Fehler gemeldet: _„Wenn ich ein Asset gewählt
 habe, hat der Spieler es in der Hand."_

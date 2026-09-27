@@ -302,7 +302,9 @@ describe('die Restzeit', () => {
 describe('was der Knopf sagt', () => {
   it('nennt im Leerlauf die ganze Zahl — und später nur den Rest', () => {
     const leer = { kind: 'offen', have: 0, total: 62_914_560 } as const;
-    expect(fullHint(leer)).toBe('60,0 MB für Spiel und Regal — danach läuft alles ohne Netz.');
+    expect(fullHint(leer)).toBe(
+      '60,0 MB für Spiel und Modellregal — danach läuft alles ohne Netz.',
+    );
     const halb = { kind: 'offen', have: 31_457_280, total: 62_914_560 } as const;
     expect(fullHint(halb)).toBe('30,0 MB von 60,0 MB liegen schon im Gerät.');
   });

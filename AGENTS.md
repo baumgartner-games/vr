@@ -43,6 +43,18 @@ nutzen will, außer ich sage es explizit"_. Für Wände heißt das
 darf Wände für die Rechnung tragen, die Welt räumt sie dann weg
 (`clearPlanWalls`) und stellt die Stücke hin.
 
+**Möbel und Stationen kommen aus dem Katalog der Spielelemente**
+(`src/worlds/elements/`, siehe [Spielelemente](docs/agents/spielelemente.md)).
+Ein Spielelement bringt mit, was ein Modell nicht weiß: seine Grundfläche auf
+dem Zellgitter (jede Kachel 2 × 2 Zellen, alle gesperrt, bevor irgendetwas
+lädt), einen Körper von 1,40 m, die Rohmodelle, aus denen es besteht, und was
+man damit tut. Ein Modell aus dem Modellregal ist **nur ein Bild**. Wer es mit
+`placeModel` als Möbel in eine Welt stellt, baut genau den Fehler, den der
+Besitzer immer wieder findet: _„Es ist mir öfters aufgefallen dass die Agenten
+entweder komplett neue 3d Elemente bauen oder nur die 3d Elemente ohne Physik
+Info (2d Grid) platzieren in den Welten."_ Fehlt ein Element, kommt es in den
+Katalog, aus Dateien des Regals zusammengesetzt, und nicht in die Welt.
+
 **Jeder Pull Request erhöht die Patch-Version.** Auf der Startseite steht
 `0.<Build>.<Patch>` aus `package.json` (siehe
 [Die Seite selbst](docs/agents/seite.md#die-version-auf-der-startseite)), und
@@ -62,7 +74,7 @@ Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5069 Tests) — eine zweite,
+gibt** und in gut einer halben Minute durch (5922 Tests) — eine zweite,
 langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
 [Tests](docs/agents/tests.md)).
 
@@ -141,7 +153,7 @@ Stichpunkten).
 
 - **[Was drin ist](docs/agents/inhalt.md)** — Die Welten, die Zonen und die Spiele: was es gibt und was es tut.
 - **[Haunting / Orbital](docs/agents/haunting.md)** — Die Raumstation für eine Quest und zwei Mobilgeräte: Runde, Rollen, Karte, Bots. Das längste Kapitel.
-- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Eine Mini-Küche je Gericht mit Rezept, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen. Darin auch: welche Rezepte, welche Stücke das Regal dafür hat und welche fehlen.
+- **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Eine Mini-Küche je Gericht aus Spielelementen, die meisten mit `A` spielbar, ein Förderband, das Burger allein baut, und Gäste, die in einer Blase zeigen, was sie wollen. Darin auch: welche Rezepte, welche Stücke das Regal dafür hat und welche fehlen.
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Spielküche mit Gastraum und ein Spiel nach _PlateUp!_: Gäste, Geduld, Bestellung, Tage.
   Darin: Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
@@ -165,9 +177,11 @@ Stichpunkten).
   Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Ghosting zeigen · Position zeigen · Griffe zeigen · Quest-3-Blickfeld und Mensch als Boxen · Info-Ansichten: ein Optionsfeld für alle · Squishy: die Figur federt beim Laufen und atmet im Stehen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht · Die Messstrecke der Welten — was die neuen Welten kosten.
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
   Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Das vierte: ein Regal und kein Katalog · Was aus dem Regal die gebaute Geometrie ersetzt — und was nicht · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
+- **[Zwei Kataloge: Rohmodelle und Spielelemente](docs/agents/spielelemente.md)** — Was eine Welt als Möbel hinstellt (`src/worlds/elements/`): Grundfläche auf dem Zellgitter, Körper, Rohmodelle und Zweck in einem Stück. Die Regel, die Liste, wie man hinstellt und wie man eines dazutut.
+  Darin: Warum es zwei sind · Die Regel · Was ein Spielelement ist · Die Elemente heute · Hinstellen · Ein neues Element · Eine neue Zutat · Was noch nicht umgezogen ist · Was wo liegt.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — der Umbau, während man darin steht, und die drei Spielmodi.
   Darin: Der Konstrukt-Raum · Bauen, während man darin steht · Der Spielmodus und die Liste der Weltänderungen · Flächen setzen im Baukasten · Die Werkzeugleiste des Baukastens · Räume dekorieren.
-- **[Das KayKit-Regal](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü: Schubladen, Suchfeld, Ordner für Ordner, mit dem Modell in der Kachel.
+- **[Das Modellregal (KayKit)](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü, der Katalog der Rohmodelle (nur das Bild): Schubladen, Suchfeld, Ordner für Ordner, mit dem Modell in der Kachel.
   Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten in der Brille — und so viele, wie passen, am Schirm · Der Katalog nimmt den ganzen Schirm · Drei Wege hinein: alles, Pakete, Kategorien · Schubladen: Figuren, Möbel, Natur — und sieben weitere · Wo man war, wenn man wiederkommt — und der Weg zurück an den Anfang · Und ein Suchfeld — aber nur am Schirm · Deutsch suchen — ein Wörterbuch und keine 4470 Zeilen · Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt · In der Kachel stand nur der Kopf — und warum · Ein ⓘ in der Ecke jeder Kachel — und die Seite dahinter · Die genaue Bezeichnung — die Adresse an einem Stück, und ein Knopf daneben · Geladen wird, was zu sehen ist · Fächer in der Brille — und Nachladen beim Scrollen am Schirm · Die Ids sind Adressen · Was beim Nehmen passiert · Was hingestellt wird, rastet auf dem Kachelgitter ein · Das Gitter unter dem Getragenen · Die Kisten des Regals stehen auf einem Deckel · Aus dem Regal wird in der Küche ein Möbel · Aus einem Modell wird ein Gegenstand · Eine Figur, die läuft · Ein Maßstab je Paket — und warum die Ritter zu groß waren · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.
   Darin: Wie man aussieht · Was vor einem und an der Hand steht (Brille) · Die Karte in der Hand · Was aus dem Beutel kommt.
@@ -182,7 +196,7 @@ Stichpunkten).
 
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
-- **[Der KayKit-Editor](docs/agents/kaykit-editor.md)** — `kaykit-editor.html`: ein Element von oben auf dem Zellgitter, Größe und Lage per Regler, belegte Zellen in Rot, Änderungen als JSON.
+- **[Der KayKit-Editor](docs/agents/kaykit-editor.md)** — `kaykit-editor.html`: ein Rohmodell von oben auf dem Zellgitter, Größe und Lage per Regler, belegte Zellen in Rot, Änderungen als JSON.
 - **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, das Menü und seine Bereiche, die Startseite mit Weltauswahl, der Weg ins Spiel (Ladebildschirm, Willkommen, eine Meldung mit ✕, ein Stil für Leisten), Vollbild, der Start — und die Seite als App.
   Darin: Die Eingabeseite · Das Menü: acht Bereiche und eine Tabelle (Brotkrumen, Esc, alte und neue Wege) · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Startseite: eine Welt wählen, einmal drücken · Vom ersten Öffnen bis ins Spiel: der Weg eines neuen Spielers (Ladebildschirm, Willkommens-Karte, in der Brille Blende und Tafeln, `--hud-*`) · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft und geladen wird von selbst, und solange hält es _Beitreten_ auf.
 

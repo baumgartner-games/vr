@@ -179,7 +179,7 @@ lesen:
 | _Weiterspielen_ | steht über allem — das Häufigste, was man mit einem offenen Menü tut |
 | **Spielen** | die Welten (`world:*`, Spiele zuerst, `WIP`/`TEST` hinten) und _Ansicht_ (`view`) |
 | **_Name der Welt_** (`welt`) | was diese Welt anbietet — in der Testwelt _Zu einer Zone_, _Karts in die Box_, _Zeiten löschen_, in Haunting Runde, Plätze, Ton; _Zurücksetzen_ ganz unten (`tail`). Name, Zeile, Farbe und Schildchen kommen von der Welt (`GroupOptions.overrides`) |
-| **Bauen & Gestalten** | _Spielmodus_ (aus `settings` herausgezogen), _Werkzeuge_, _Magischer Beutel_, _KayKit-Regal_, _NPC_, _Welt sichern_ |
+| **Bauen & Gestalten** | _Spielmodus_ (aus `settings` herausgezogen), _Werkzeuge_, _Magischer Beutel_, _Modellregal_, _NPC_, _Welt sichern_ |
 | **Zusammen** | die Verbindung (`net`): Raum, Name, Chat, Stimme, Zuschauen |
 | **Figur** | das Aussehen (`look`) |
 | **Einstellungen** | _Bewegung_, _Grafik_, _Hände & Greifen_ (so heißt `settings` hier) |
@@ -258,7 +258,7 @@ Drei Regeln halten den Baum ehrlich (`groupMenu`):
 - **Das Menü bleibt, wo man war** (`menuNav.ts`) — über Schließen und
   Wiederöffnen, an beiden Handgelenken und am Schirm. Über das **Neuladen**
   hinaus merkt es sich nur den Katalog (`menuRecall.ts`); der gilt jetzt
-  auch eine Ebene tiefer: Wer _Bauen & Gestalten → KayKit-Regal_ öffnet,
+  auch eine Ebene tiefer: Wer _Bauen & Gestalten → Modellregal_ öffnet,
   steht wieder im Ordner von vorhin.
 
 ### Alte Wege, neue Wege
@@ -275,7 +275,7 @@ In älteren Kapiteln steht oft noch der alte Weg; so heißt er jetzt:
 | Menü → Bewegung / Grafik | Menü → Einstellungen → Bewegung / Grafik |
 | Menü → Einstellungen (der Welt) | Menü → Einstellungen → Hände & Greifen; _Spielmodus_ unter Bauen & Gestalten |
 | Menü → Eingaben | Menü → Steuerung & Hilfe → Eingaben |
-| Menü → Werkzeuge / Beutel / KayKit-Regal / NPC | Menü → Bauen & Gestalten → … |
+| Menü → Werkzeuge / Beutel / KayKit-Regal (heute _Modellregal_) / NPC | Menü → Bauen & Gestalten → … |
 | Menü → Grafik → Hitboxen, Bildrate, Position, Gitter, Griffe, Ghosting | Menü → Werkstatt |
 | Menü → NPC → Trefferzonen, Navigation | Menü → Werkstatt |
 | Menü → Einstellungen → Welt-Physik, Konfig-Code, Posen; Menü → Weltänderungen | Menü → Werkstatt |
@@ -1435,7 +1435,7 @@ schnell gesagt:
 - **Töne und die gebündelten Kataloge** stehen darin — `audio/**` und
   `models/*.glb`.
 - **Das Regal, seine Texturen und sein Index** stehen nicht darin: 4470
-  gekaufte Dateien, die sich nie ändern ([Das KayKit-Regal](assetregal.md),
+  gekaufte Dateien, die sich nie ändern ([Das Modellregal](assetregal.md),
   _Keine Build-Nummer_). Eine `.glb` zeigt mit einer **relativen** Adresse auf
   ihre Textur, und three.js löst sie ohne Frage im Anhang auf.
 - **Die Controller-Profile** stehen nicht darin (`core/ControllerModels.ts`):

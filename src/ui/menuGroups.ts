@@ -78,7 +78,7 @@ export const MENU_GROUPS: readonly MenuGroup[] = [
   {
     id: 'bauen',
     label: 'Bauen & Gestalten',
-    sub: 'Werkzeuge, Beutel, Regal, NPCs',
+    sub: 'Werkzeuge, Beutel, Modellregal, NPCs',
     icon: 'hammer',
     accent: 0xffb454,
   },
