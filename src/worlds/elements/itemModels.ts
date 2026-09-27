@@ -101,6 +101,20 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   // es nicht, und in der Hand kommt sie auch nie vor (`kitchenCarry.atTub`).
   'ice-vanilla': bits('icecream_bowl_icecream_vanilla'),
   'ice-strawberry': bits('icecream_bowl_icecream_strawberry'),
+  'ice-chocolate': bits('icecream_bowl_icecream_chocolate'),
+  // **Die Eiswanne** ist der Kasten der Eisecke (`icecream_container`); was
+  // darin liegt, ist die Füllung derselben Wanne (`IN_TRAY`).
+  tray: bits('icecream_container'),
+};
+
+/**
+ * **Was in der Eiswanne anders aussieht** — das Eis als Füllung des Kastens
+ * (`icecream_container_icecream_*`), mit demselben Ursprung wie er.
+ */
+const IN_TRAY: Partial<Record<KitchenItem, string>> = {
+  'ice-vanilla': bits('icecream_container_icecream_vanilla'),
+  'ice-strawberry': bits('icecream_container_icecream_strawberry'),
+  'ice-chocolate': bits('icecream_container_icecream_chocolate'),
 };
 
 /**
@@ -158,8 +172,9 @@ export function dishModels(dish: Dish): string[] {
   const rest = dish.on.filter((item) => !STACK_ORDER.includes(item));
   const on = [...known, ...rest];
   const inBowl = dish.item === 'bowl';
+  const inTray = dish.item === 'tray';
   const piece = (item: KitchenItem): string[] => {
-    const special = inBowl ? IN_BOWL[item] : undefined;
+    const special = inBowl ? IN_BOWL[item] : inTray ? IN_TRAY[item] : undefined;
     return special ? [special] : paths(ITEM_MODELS[item]);
   };
 

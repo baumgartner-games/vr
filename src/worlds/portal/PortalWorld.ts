@@ -12500,7 +12500,7 @@ export class PortalWorld implements World {
       this.elementPreviews.set(id, null);
       this.elementDishes ??= new KaykitDishView(loadItemModel);
       const dishes = this.elementDishes;
-      void elementModel(id, kaykitModel, (item) => dishes.ready(dish(item))).then((model) =>
+      void elementModel(id, kaykitModel, (item, on) => dishes.ready(dish(item, on))).then((model) =>
         this.elementPreviews.set(id, model),
       );
       return null;

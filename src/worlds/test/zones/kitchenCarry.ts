@@ -82,6 +82,7 @@ import {
   combine,
   cookStage,
   dish,
+  nextTrayFill,
   dishLabel,
   isCarrier,
   isDishware,
@@ -243,7 +244,13 @@ export type StationKind =
    * **Die Eiswanne**: Sie gibt ihre Sorte (`Station.gives`) als Kugel in die
    * Schüssel, die man hinhält — und in nichts sonst (`atTub`).
    */
-  | 'tub';
+  | 'tub'
+  /**
+   * **Die Eismaschine**: Wer eine Eiswanne davorhält, bekommt sie gefüllt —
+   * leer mit Vanille, danach jedes Mal mit der nächsten Sorte (`atMachine`,
+   * `kitchenRecipes.nextTrayFill`).
+   */
+  | 'icemachine';
 
 /**
  * **Welche Station welche Arbeit laufen lässt** — eine Zeile je Art, `null`
@@ -271,6 +278,7 @@ export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
   roller: 'roll',
   pot: 'cook',
   tub: null,
+  icemachine: null,
   top: null,
   bin: null,
   box: null,
@@ -364,6 +372,7 @@ export const EXTINGUISHER_REST: Readonly<Record<StationKind, ExtinguisherRest>> 
   roller: 'never',
   pot: 'never',
   tub: 'never',
+  icemachine: 'never',
 };
 
 /**
@@ -628,6 +637,9 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
 
     case 'tub':
       return atTub(held, station.gives);
+
+    case 'icemachine':
+      return atMachine(held);
 
     case 'board':
     case 'roller':
@@ -1132,6 +1144,20 @@ function atTub(held: Dish | null, gives: KitchenItem | undefined): KitchenDeed {
   const one = scoop.held ?? scoop.target;
   if (!one) return { do: 'nothing' };
   return { do: 'combine', held: one, target: null, moved: scoop.moved };
+}
+
+/**
+ * **Die Eismaschine füllt die Eiswanne** — und nur sie. Es ist ein `fill` wie
+ * der Topf unter dem Hahn: Die Hand hält danach die gefüllte Wanne, die
+ * Maschine bleibt, wie sie war, und sie leuchtet (`meansContent`). Gewünscht:
+ * _„Dafür kann man ein Eis tray auf nehmen und es bei der Maschine damit
+ * interagieren und füllt das tray auf damit. Interagiert man nochmal mit einem
+ * gefüllten tray wird es zur nächsten Sorte, bis es loopt."_
+ */
+function atMachine(held: Dish | null): KitchenDeed {
+  if (!held) return { do: 'refuse', why: 'Eine Eiswanne an die Eismaschine halten' };
+  if (held.item !== 'tray') return { do: 'refuse', why: 'In die Eismaschine gehört eine Eiswanne' };
+  return { do: 'fill', dish: nextTrayFill(held) };
 }
 
 /**

@@ -325,7 +325,7 @@ function pose(
 export async function elementModel(
   id: string,
   kaykitModel: (path: string) => Promise<THREE.Object3D | null>,
-  holds?: (item: KitchenItem) => Promise<THREE.Object3D>,
+  holds?: (item: KitchenItem, on: readonly KitchenItem[]) => Promise<THREE.Object3D>,
 ): Promise<THREE.Group | null> {
   const group = new THREE.Group();
   group.name = `element-model:${id}`;
@@ -360,7 +360,7 @@ export async function elementModel(
   await placed.base;
   const item = placed.element.holds;
   if (item && holds) {
-    const shown = await holds(item);
+    const shown = await holds(item, placed.element.holdsOn ?? []);
     shown.position.y = placed.top;
     group.add(shown);
   }

@@ -561,6 +561,8 @@ export function kitchenHandles(
     case 'fries':
     case 'ice-vanilla':
     case 'ice-strawberry':
+    case 'ice-chocolate':
+    case 'tray':
       return [];
   }
 }

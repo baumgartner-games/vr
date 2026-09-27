@@ -20,9 +20,15 @@ Zwei Reihen mit einem Gang dazwischen (z = 13, dort kommt man bei
 | 12  | Schinken  | Käse   | Tomaten   | Salat  | Brötchen | Fleisch | Herd mit Pfanne | Feuerlöscher |
 | 14  | Mülleimer | Platte | **Brett** | Platte | Platte   | Platte  | Tellerstapel    | Tellerkiste  |
 
-Daneben die **Eisecke** (dritte Liste): bei z = 12 von x = 20 bis 23 Platte,
-Eisstand, Eiswannen und Schüsselstapel, alle nach Süden, und bei (20 | 14) ein
-Mülleimer nach Westen. Das Hörnchen liegt in der Hand dreimal so groß wie
+Daneben die **Eisecke** (dritte Liste, in der vierten Runde umgebaut): bei
+z = 12 von x = 20 bis 27 Platte, Eisstand, Eiswanne Vanille, Schüsselstapel,
+Eiswanne Erdbeere, Eiswanne Schoko, Eismaschine und die Kiste mit leeren
+Wannen, alle nach Süden, und bei (20 | 14) ein Mülleimer nach Westen. Eine
+Wanne nimmt man mit zur Maschine (füllt sie, jede weitere Füllung die nächste
+Sorte) oder zum Mülleimer (leert sie); auf einer Platte schöpft man mit
+Hörnchen oder Schüssel daraus, und sie wird nicht leer. Hörnchen, mit oder
+ohne Eis, legt man auf Platten ab wie jede Zutat; ihr Turm schaukelt auch
+dort. Das Hörnchen liegt in der Hand dreimal so groß wie
 ein anderes Gericht (`CONE_HAND`), und sein Turm wackelt wie im Restaurant
 (`shared/iceCone.stepIceCones`).
 

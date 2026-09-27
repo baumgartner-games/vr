@@ -162,7 +162,18 @@ export type KitchenItem =
    * (`plateup/plateUpIce.ts`) ist davon getrennt und bleibt, wie es ist.
    */
   | 'ice-vanilla'
-  | 'ice-strawberry';
+  | 'ice-strawberry'
+  | 'ice-chocolate'
+  /**
+   * **Die Eiswanne** — ein Träger, den man trägt: leer aus der Kiste, an der
+   * Eismaschine gefüllt (`kitchenCarry.atMachine`, jede weitere Füllung die
+   * nächste Sorte), auf einer Arbeitsplatte eine Wanne, aus der man Kugeln
+   * schöpft, ohne dass sie leer wird (`trayScoop`). Leer macht sie nur der
+   * Mülleimer. Gewünscht: _„Jedes Eis tray kann bei der Eis Maschine befüllen …
+   * Interagiert man nochmal mit einem gefüllten tray wird es zur nächsten
+   * Sorte, bis es loopt. Trays werden nicht leer."_
+   */
+  | 'tray';
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -228,6 +239,8 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   fries: 'Pommes',
   'ice-vanilla': 'Vanilleeis',
   'ice-strawberry': 'Erdbeereis',
+  'ice-chocolate': 'Schokoeis',
+  tray: 'Eiswanne',
 };
 
 /**
@@ -353,8 +366,8 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'dough-flat',
     'waffle',
   ],
-  bowl: ['waffle', 'stew', 'ice-vanilla', 'ice-strawberry'],
-  cone: ['ice-vanilla', 'ice-strawberry'],
+  bowl: ['waffle', 'stew', 'ice-vanilla', 'ice-strawberry', 'ice-chocolate'],
+  cone: ['ice-vanilla', 'ice-strawberry', 'ice-chocolate'],
   pizzabox: ['pizza', 'pizza-cut'],
 };
 
@@ -614,6 +627,7 @@ const FOOD: readonly KitchenItem[] = [
   'fries',
   'ice-vanilla',
   'ice-strawberry',
+  'ice-chocolate',
 ];
 
 /** Ob dieses Ding in den Müll darf. */
@@ -650,6 +664,7 @@ export const STACK_ORDER: readonly KitchenItem[] = [
   'fries',
   'ice-vanilla',
   'ice-strawberry',
+  'ice-chocolate',
 ];
 
 /** Dieselben Zutaten, von unten nach oben sortiert. */
@@ -824,6 +839,12 @@ function nothingHolds(a: Dish, b: Dish): string {
  * ungeprüft ist.
  */
 export function combine(held: Dish, target: Dish): Combined {
+  // **Aus der Eiswanne schöpfen**, in beide Richtungen: Die Wanne gibt ihre
+  // Sorte als Kugel in den Träger und bleibt, wie sie ist (`trayScoop`).
+  const fromTarget = trayScoop(target, held);
+  if (fromTarget) return { ok: true, held: fromTarget, target, moved: [target.on[0]!] };
+  const fromHand = trayScoop(held, target);
+  if (fromHand) return { ok: true, held, target: fromHand, moved: [held.on[0]!] };
   const into = pour(held, target);
   if (into.ok) return { ok: true, held: into.give, target: into.take, moved: into.moved };
   const out = pour(target, held);
@@ -831,6 +852,37 @@ export function combine(held: Dish, target: Dish): Combined {
   if (into.sure) return { ok: false, why: into.why };
   if (out.sure) return { ok: false, why: out.why };
   return { ok: false, why: nothingHolds(held, target) };
+}
+
+/**
+ * **Eine Kugel aus einer gefüllten Eiswanne** in den Träger, der sie nimmt
+ * (Hörnchen, Schüssel) — der Träger mit der Kugel darauf, oder `null`, wenn
+ * das keine gefüllte Wanne ist oder der Träger ihre Sorte nicht nimmt. Die
+ * Wanne selbst ändert sich nicht: _„Trays werden nicht leer."_
+ */
+export function trayScoop(tray: Dish, carrier: Dish): Dish | null {
+  if (tray.item !== 'tray' || tray.on.length !== 1) return null;
+  const ice = tray.on[0]!;
+  if (!carries(carrier.item, ice)) return null;
+  const scoop = stackOn(dish(ice), carrier);
+  return scoop.ok ? scoop.target : null;
+}
+
+/** **Die Sorten der Eismaschine**, in der Reihenfolge, in der sie wechselt. */
+export const MACHINE_FLAVORS: readonly KitchenItem[] = [
+  'ice-vanilla',
+  'ice-strawberry',
+  'ice-chocolate',
+];
+
+/**
+ * **Die nächste Füllung einer Eiswanne** an der Eismaschine — leer wird sie
+ * Vanille, danach Erdbeere, Schoko und wieder Vanille.
+ */
+export function nextTrayFill(tray: Dish): Dish {
+  const now = tray.on[0];
+  const at = now ? MACHINE_FLAVORS.indexOf(now) : -1;
+  return dish('tray', [MACHINE_FLAVORS[(at + 1) % MACHINE_FLAVORS.length]!]);
 }
 
 /**

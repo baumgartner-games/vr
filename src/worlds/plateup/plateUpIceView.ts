@@ -78,6 +78,7 @@ const MODEL = {
   tub: {
     vanilla: 'restaurant-bits/icecream_container_icecream_vanilla.glb',
     strawberry: 'restaurant-bits/icecream_container_icecream_strawberry.glb',
+    chocolate: 'restaurant-bits/icecream_container_icecream_chocolate.glb',
   } satisfies Record<IceFlavor, string>,
 } as const;
 

@@ -454,6 +454,45 @@ function stationWorld(): { host: StationHost; usables: Map<THREE.Object3D, Usabl
  * stand. Jetzt gibt es einen Weg (`furnish`), und auf ihm wird jedes
  * Element mit Stationsart Station.
  */
+describe('Spielelemente — Eiswannen, Eismaschine, Hörnchen', () => {
+  it('füllt die Wanne an der Maschine, wechselt die Sorte, schöpft ohne leer zu werden und leert am Mülleimer', () => {
+    const cook = new Cook(['crate-trays', 'ice-machine', 'counter', 'ice-stand', 'bin']);
+    expect(cook.press('crate-trays')).toEqual({ do: 'take', dish: { item: 'tray', on: [] } });
+    expect(cook.press('ice-machine')).toMatchObject({ do: 'fill' });
+    expect(cook.held).toEqual({ item: 'tray', on: ['ice-vanilla'] });
+    cook.press('ice-machine');
+    expect(cook.held).toEqual({ item: 'tray', on: ['ice-strawberry'] });
+    cook.press('ice-machine');
+    expect(cook.held).toEqual({ item: 'tray', on: ['ice-chocolate'] });
+    cook.press('ice-machine');
+    expect(cook.held).toEqual({ item: 'tray', on: ['ice-vanilla'] });
+    // Auf die Platte, ein Hörnchen holen, zwei Kugeln schöpfen — die Wanne bleibt voll.
+    expect(cook.press('counter').do).toBe('place');
+    expect(cook.press('ice-stand').do).toBe('take');
+    expect(cook.press('counter').do).toBe('combine');
+    expect(cook.press('counter').do).toBe('combine');
+    expect(cook.held).toEqual({ item: 'cone', on: ['ice-vanilla', 'ice-vanilla'] });
+    expect(cook.on('counter')).toEqual({ item: 'tray', on: ['ice-vanilla'] });
+    // Das Hörnchen mit Eis auf eine freie Platte legen geht wie jede Zutat.
+    const counter = new Cook(['counter']);
+    counter.held = cook.held;
+    expect(counter.press('counter').do).toBe('place');
+    // Die Wanne am Mülleimer leeren und zurück in die Kiste.
+    cook.held = null;
+    expect(cook.press('counter').do).toBe('take');
+    expect(cook.press('bin').do).toBe('scrape');
+    expect(cook.held).toEqual({ item: 'tray', on: [] });
+    expect(cook.press('crate-trays').do).toBe('stow');
+  });
+
+  it('stellt die Wannen mit ihrer Sorte hin', () => {
+    const cook = new Cook(['ice-tray-vanilla', 'ice-tray-strawberry', 'ice-tray-chocolate']);
+    expect(cook.on('ice-tray-vanilla')).toEqual({ item: 'tray', on: ['ice-vanilla'] });
+    expect(cook.on('ice-tray-strawberry')).toEqual({ item: 'tray', on: ['ice-strawberry'] });
+    expect(cook.on('ice-tray-chocolate')).toEqual({ item: 'tray', on: ['ice-chocolate'] });
+  });
+});
+
 describe('Spielelemente — hingestellt heißt benutzbar', () => {
   it('meldet jede Kiste an, die eine Welt hinstellt — auch neben einem Band', async () => {
     const { host, usables } = stationWorld();

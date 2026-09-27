@@ -52,7 +52,7 @@ describe('Test Restaurant — der Plan', () => {
   });
 
   it('stellt jedes Möbel nach Süden', () => {
-    expect(SPOTS).toHaveLength(21);
+    expect(SPOTS).toHaveLength(25);
     // Alle nach Süden — bis auf den Mülleimer der Eisecke, den die Liste nach Westen dreht.
     for (const spot of SPOTS)
       expect({ id: spot.id, face: spot.face }).toEqual({
