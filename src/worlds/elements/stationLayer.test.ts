@@ -134,7 +134,7 @@ describe('Stationen auf Spielelementen', () => {
     layer.step(0, { x: 0.5, z: 1 });
     expect(usables.get(stove.anchor.children[0]!)!.use(by)).toBe(true);
     for (let i = 0; i < 250; i++) layer.step(0.1, FAR);
-    expect(layer.states[0]!.on?.item).toBe('ham-burnt');
+    expect(layer.states[0]!.on).toEqual({ item: 'pan', on: ['ham-burnt'] });
     expect(said.some((line) => line.includes('Mülleimer'))).toBe(true);
   });
 
@@ -162,7 +162,7 @@ describe('Stationen auf Spielelementen', () => {
     layer.step(0, away);
     expect(usables.has(stoveAnchor)).toBe(false);
     for (let i = 0; i < 100; i++) layer.step(0.1, FAR);
-    expect(layer.states[1]!.on?.item).toBe('patty-cooked');
+    expect(layer.states[1]!.on).toEqual({ item: 'pan', on: ['patty-cooked'] });
     expect(usables.has(stoveAnchor)).toBe(false);
     // Zurück: wieder angemeldet, und zwar zum Nehmen.
     layer.step(0, { x: 10.5, z: 2 });

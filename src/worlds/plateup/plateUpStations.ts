@@ -259,16 +259,29 @@ export function tickStation(
   burn = DEFAULT_BURN,
 ): StationTick {
   const idle = { station: state, done: false, toHand: null, burnt: false };
+  // **Die Pfanne auf dem Herd ist eine Grillplatte zum Mitnehmen**
+  // (`panOnStove`): Was darin liegt, brät und verbrennt wie auf der Platte
+  // und bleibt dabei in der Pfanne.
+  const panned = panOnStove(state);
   // **Was verbrennen kann, verbrennt** — das Patty wie der Schinken
   // (`kitchenRecipes.burnStage`). Die Waffel steht nicht darin: Sie bleibt
   // auf der heißen Platte, wie sie ist.
-  const black = state.on && !state.on.on.length ? burnStage(state.on.item) : null;
-  if (state.spot.kind === 'griddle' && black && !state.work.working) {
+  const black = panned
+    ? burnStage(panned)
+    : state.on && !state.on.on.length
+      ? burnStage(state.on.item)
+      : null;
+  if ((state.spot.kind === 'griddle' || panned) && black && !state.work.working) {
     const heat = state.heat + Math.max(0, dt);
     if (heat < burn) return { ...idle, station: { ...state, heat } };
     return {
       ...idle,
-      station: { ...state, on: dish(black), heat: 0, work: IDLE_WORK },
+      station: {
+        ...state,
+        on: panned ? dish('pan', [black]) : dish(black),
+        heat: 0,
+        work: IDLE_WORK,
+      },
       burnt: true,
     };
   }
@@ -280,6 +293,9 @@ export function tickStation(
   const boiling = state.spot.kind === 'stove' && state.on ? potCooks(state.on) : null;
   if (!work.working && boiling) {
     work = onWork('cook', boiling);
+  } else if (!work.working && panned) {
+    work = onWork('fry', panned);
+    if (!work.working) return idle;
   } else if (!work.working) {
     // **Wer zurückkommt, schneidet weiter** — von vorn, wie in der Küche
     // (`advanceWork` setzt die Uhr zurück, sobald niemand davorsteht). Ohne
@@ -304,13 +320,29 @@ export function tickStation(
   }
   // Im Topf auf dem Herd bleibt das Gekochte **im Topf** — das Wasser ist
   // verkocht, der Topf nicht.
-  const on = boiling ? dish('pot', [tick.done]) : dish(tick.done);
+  const on = boiling
+    ? dish('pot', [tick.done])
+    : panned
+      ? dish('pan', [tick.done])
+      : dish(tick.done);
   return {
     station: { ...state, on, work: tick.state, heat: 0 },
     done: true,
     toHand: null,
     burnt: false,
   };
+}
+
+/**
+ * **Was in der Pfanne auf dem Herd liegt** — das eine Ding darin, oder `null`.
+ * Die Pfanne steht dort wie in der Sandbox-Küche (`kitchenClock.stoveUnder`:
+ * auf dem Herd die Pfanne, **in** ihr das Patty) und brät, was die
+ * Grillplatte brät (`kitchenWork`, `'fry'`).
+ */
+export function panOnStove(state: StationState): KitchenItem | null {
+  const on = state.on;
+  if (state.spot.kind !== 'stove' || on?.item !== 'pan' || on.on.length !== 1) return null;
+  return on.on[0]!;
 }
 
 /** Der Anteil 0…1 für den Balken über der Station — 0, wenn nichts arbeitet. */
@@ -324,6 +356,8 @@ export function stationProgress(state: StationState): number {
  * Hälfte warnt die Welt (Rauch, roter Balken).
  */
 export function burnShare(state: StationState, burn = DEFAULT_BURN): number {
+  const panned = panOnStove(state);
+  if (panned) return burnStage(panned) ? Math.min(1, state.heat / Math.max(0.001, burn)) : 0;
   if (state.spot.kind !== 'griddle' || !state.on || !burnStage(state.on.item)) return 0;
   return Math.min(1, Math.max(0, state.heat / Math.max(0.001, burn)));
 }

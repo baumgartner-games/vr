@@ -78,7 +78,9 @@ class Cook {
     let burnt = false;
     const there = (): boolean => {
       const on = this.states[i]!.on;
-      return on?.item === item || (on?.item === 'pot' && on.on.includes(item));
+      return (
+        on?.item === item || ((on?.item === 'pot' || on?.item === 'pan') && on.on.includes(item))
+      );
     };
     while (!there()) {
       const tick = tickStation(this.states[i]!, 0.1, near, !this.held, DEFAULT_BURN);
@@ -101,11 +103,11 @@ describe('Spielelemente — was aus ihnen für Stationen werden', () => {
   it('macht aus Brett, Nudelbrett, Herd, Herd mit Topf, Spüle und Wannen die Stationen der Küche', () => {
     expect(stationKind(elementById('board'))).toBe('board');
     expect(stationKind(elementById('rolling-board'))).toBe('roller');
-    expect(stationKind(elementById('stove'))).toBe('griddle');
+    expect(stationKind(elementById('stove'))).toBe('stove');
     expect(stationKind(elementById('stove-pot'))).toBe('stove');
     expect(stationKind(elementById('sink'))).toBe('sink');
     expect(stationKind(elementById('ice-tubs'))).toBe('tub');
-    expect(stationKind(elementById('ice-stand'))).toBeNull();
+    expect(stationKind(elementById('ice-stand'))).toBe('drain');
     expect(stationKind(elementById('table-round'))).toBeNull();
     expect(stationKind(elementById('belt'))).toBeNull();
   });
@@ -179,11 +181,14 @@ describe('Spielelemente — jede Küche kocht', () => {
     }
     expect(cook.press('crate-steak').do).toBe('take');
     expect(cook.held?.item).toBe('patty');
-    expect(cook.press('stove').do).toBe('work');
-    // Der Herd brät allein.
+    // In die Pfanne auf dem Herd — sie brät allein.
+    expect(cook.on('stove')).toEqual({ item: 'pan', on: [] });
+    expect(cook.press('stove').do).toBe('combine');
     cook.until('stove', 'patty-cooked', false);
+    expect(cook.on('stove')).toEqual({ item: 'pan', on: ['patty-cooked'] });
     expect(cook.press('counter').do).toBe('take');
     expect(cook.press('stove').do).toBe('combine');
+    expect(cook.on('stove')).toEqual({ item: 'pan', on: [] });
     expect(cook.press('crate-buns').do).toBe('combine');
     expect(cook.held?.item).toBe('plate');
     expect([...cook.held!.on].sort()).toEqual(
@@ -200,14 +205,16 @@ describe('Spielelemente — jede Küche kocht', () => {
   it('Schinken: braten, liegen lassen — er verbrennt am ersten Tag nach 14 s, dann in den Müll', () => {
     const cook = new Cook(['crate-ham', 'stove', 'counter', 'bin']);
     expect(cook.press('crate-ham').do).toBe('take');
-    expect(cook.press('stove').do).toBe('work');
+    expect(cook.press('stove').do).toBe('combine');
     cook.until('stove', 'ham-cooked', false);
     const burn = cook.until('stove', 'ham-burnt', false);
     expect(burn.burnt).toBe(true);
     expect(burn.seconds).toBeCloseTo(DEFAULT_BURN, 0);
+    // Die Pfanne geht mit, das Verbrannte in den Müll, die Pfanne bleibt.
     expect(cook.press('stove').do).toBe('take');
-    expect(cook.press('bin').do).toBe('trash');
-    expect(cook.held).toBeNull();
+    expect(cook.held).toEqual({ item: 'pan', on: ['ham-burnt'] });
+    expect(cook.press('bin').do).toBe('scrape');
+    expect(cook.held).toEqual({ item: 'pan', on: [] });
   });
 
   it('Schinken: rechtzeitig vom Herd, bleibt er gebraten', () => {
@@ -215,9 +222,13 @@ describe('Spielelemente — jede Küche kocht', () => {
     cook.press('crate-ham');
     cook.press('stove');
     cook.until('stove', 'ham-cooked', false);
-    expect(cook.press('stove').do).toBe('take');
+    // **Die Pfanne vom Herd nehmen** — mit dem Schinken darin; gebraten wird
+    // in der Hand nicht weiter.
+    expect(cook.press('stove')).toEqual({ do: 'take', dish: { item: 'pan', on: ['ham-cooked'] } });
+    cook.wait(30);
+    expect(cook.held).toEqual({ item: 'pan', on: ['ham-cooked'] });
     expect(cook.press('counter').do).toBe('place');
-    expect(cook.on('counter')?.item).toBe('ham-cooked');
+    expect(cook.on('counter')).toEqual({ item: 'pan', on: ['ham-cooked'] });
   });
 
   it('Pizza to Go: aus der Box, in Stücke, in den Karton', () => {
@@ -238,11 +249,11 @@ describe('Spielelemente — jede Küche kocht', () => {
     expect(cook.press('rolling-board')).toMatchObject({ do: 'work', kind: 'roll' });
     cook.until('rolling-board', 'dough-flat', true);
     expect(cook.press('rolling-board').do).toBe('take');
-    expect(cook.press('stove')).toMatchObject({ do: 'work', kind: 'fry' });
+    expect(cook.press('stove').do).toBe('combine');
     cook.until('stove', 'waffle', false);
     // Die Waffel verbrennt nicht: Sie liegt eine Minute und bleibt, was sie ist.
     cook.wait(60);
-    expect(cook.on('stove')?.item).toBe('waffle');
+    expect(cook.on('stove')).toEqual({ item: 'pan', on: ['waffle'] });
     expect(cook.press('bowl-stack').do).toBe('take');
     expect(cook.press('stove').do).toBe('combine');
     expect(cook.held).toEqual({ item: 'bowl', on: ['waffle'] });
@@ -460,19 +471,21 @@ describe('Spielelemente — hingestellt heißt benutzbar', () => {
 });
 
 describe('Spielelemente — Hörnchen und Eiswannen als Vorräte', () => {
-  it('gibt ein Hörnchen, die Wanne setzt eine Kugel darauf — und nur eine', () => {
-    const cook = new Cook(['cone-stack', 'ice-tubs', 'bin']);
-    expect(cook.press('cone-stack')).toMatchObject({ do: 'take' });
+  it('gibt am Eisstand ein Hörnchen, und die Wannen türmen Kugeln darauf wie im Restaurant', () => {
+    const cook = new Cook(['ice-stand', 'ice-tubs', 'bin']);
+    expect(cook.press('ice-stand')).toMatchObject({ do: 'take' });
     expect(cook.held).toEqual({ item: 'cone', on: [] });
-    expect(cook.press('ice-tubs:strawberry').do).toBe('combine');
-    expect(cook.held).toEqual({ item: 'cone', on: ['ice-strawberry'] });
-    expect(dishModels(cook.held!)).toEqual(['restaurant-bits/food_icecream_cone_strawberry.glb']);
-    expect(cook.press('ice-tubs:vanilla')).toMatchObject({ do: 'refuse' });
+    for (const tub of ['strawberry', 'vanilla', 'vanilla', 'strawberry', 'vanilla']) {
+      expect(cook.press(`ice-tubs:${tub}`).do).toBe('combine');
+    }
+    expect(cook.held).toEqual({
+      item: 'cone',
+      on: ['ice-strawberry', 'ice-vanilla', 'ice-vanilla', 'ice-strawberry', 'ice-vanilla'],
+    });
     // Der Vorrat geht nicht aus.
-    cook.press('bin');
     cook.held = null;
     for (let i = 0; i < 20; i++) {
-      expect(cook.press('cone-stack').do).toBe('take');
+      expect(cook.press('ice-stand').do).toBe('take');
       cook.held = null;
     }
   });

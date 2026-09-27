@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { playPick } from '../../core/Audio';
 import { CHEF_CARRY, canLoadModels } from '../../core/chefFit';
 import { kaykitModel } from '../../core/kaykitModel';
+import { loadItemModel } from '../elements/itemTemplate';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import { GridWorld } from '../grid/GridWorld';
@@ -302,7 +303,7 @@ export class TestRestaurantWorld extends GridWorld {
     let pending = this.loading.get(path);
     if (!pending) {
       const round = this.round;
-      pending = kaykitModel(path).then((model) => {
+      pending = loadItemModel(path).then((model) => {
         if (!model) return null;
         if (round !== this.round) {
           dropMaterials(model);
