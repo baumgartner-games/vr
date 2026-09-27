@@ -20,6 +20,12 @@ Zwei Reihen mit einem Gang dazwischen (z = 13, dort kommt man bei
 | 12  | Schinken  | Käse   | Tomaten   | Salat  | Brötchen | Fleisch | Herd mit Pfanne | Feuerlöscher |
 | 14  | Mülleimer | Platte | **Brett** | Platte | Platte   | Platte  | Tellerstapel    | Tellerkiste  |
 
+Daneben die **Eisecke** (dritte Liste): bei z = 12 von x = 20 bis 23 Platte,
+Eisstand, Eiswannen und Schüsselstapel, alle nach Süden, und bei (20 | 14) ein
+Mülleimer nach Westen. Das Hörnchen liegt in der Hand dreimal so groß wie
+ein anderes Gericht (`CONE_HAND`), und sein Turm wackelt wie im Restaurant
+(`shared/iceCone.stepIceCones`).
+
 Feuerlöscher und Tellerkiste kamen mit der zweiten Liste dazu.
 
 **Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist

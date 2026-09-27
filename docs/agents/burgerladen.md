@@ -326,12 +326,12 @@ unsichtbar. Geprüft in `plateUpIceView.test.ts` (ohne WebGL, also mit
 Ersatz) und in `plateUpIce.test.ts` (neben dem Startplatz, vor jeder Platte
 frei, erreichbar, der Weg in den Gastraum offen).
 
-| Datei                               | Was darin steht                                                                                                                                                                                                                                                            |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `worlds/plateup/plateUpIce.ts`      | **Rein**: Sorten, was die Hände vom Eis halten (`IceHands`), was ein Druck an Stand, Wanne und Station tut (`useStand`, `useTub`, `useCounter`), welche Wanne gemeint ist (`pickTub`, `tubUnder`), über welchem Hörnchen der Portionierer ist (`coneUnder`), Verben, Sätze |
-| `worlds/plateup/plateUpWobble.ts`   | **Rein**: der Turm auf dem Hörnchen — je Glied eine dreifache Verzögerung, einmal Nachschwingen, geschlossen gelöst, je Kugel weich begrenzt (`followBall`, `linkLean`, `leanLimit`, `softLean`, `stepWobble`)                                                             |
-| `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke (gedreht nach `ICE_FACE`, `ICE_YAW`), Hörnchen mit Kugeln (`IceConeView`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht, Ersatzkörper (`fallback`)                                                                     |
-| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Grenze je Kugel, genau einmal Nachschwingen, zitternde Hand, Neigen, nie herunter, kein Sprung bei neuer Kugel, 30 gegen 144 Bilder je Sekunde)                        |
+| Datei                               | Was darin steht                                                                                                                                                                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `worlds/plateup/plateUpIce.ts`      | **Rein**: Sorten, was die Hände vom Eis halten (`IceHands`), was ein Druck an Stand, Wanne und Station tut (`useStand`, `useTub`, `useCounter`), welche Wanne gemeint ist (`pickTub`, `tubUnder`), über welchem Hörnchen der Portionierer ist (`coneUnder`), Verben, Sätze           |
+| `worlds/shared/iceWobble.ts`        | **Rein** (seit September 2026 nicht mehr im Restaurant, sondern für jede Welt): der Turm auf dem Hörnchen — je Glied eine dreifache Verzögerung, einmal Nachschwingen, geschlossen gelöst, je Kugel weich begrenzt (`followBall`, `linkLean`, `leanLimit`, `softLean`, `stepWobble`) |
+| `worlds/plateup/plateUpIceView.ts`  | Die Darstellung: Eisecke (gedreht nach `ICE_FACE`, `ICE_YAW`), Hörnchen mit Kugeln (`IceConeView`, jetzt in `worlds/shared/iceCone.ts`), Portionierer (`ScoopView`), was in den Händen und auf den Platten steht, Ersatzkörper (`fallback`)                                          |
+| `worlds/plateup/plateUpIce.test.ts` | Stapel ohne Ende, beide Bedienungen, Abstellen und Wegwerfen, die eine Wanne, der Turm (Nachhinken, Grenze je Kugel, genau einmal Nachschwingen, zitternde Hand, Neigen, nie herunter, kein Sprung bei neuer Kugel, 30 gegen 144 Bilder je Sekunde)                                  |
 
 **In der Brille sind es zwei Dinge für zwei Hände.** Eine Hand greift am
 Stapel ein Hörnchen (Greif-Taste oder Trigger), die **andere** den
@@ -364,7 +364,9 @@ den Augen die des Kopfes). In der Brille sind beide angemeldet, denn dort
 wählt die Hand mit einer Greifbox so groß wie die Wanne.
 
 **Der Turm folgt verzögert, schwingt einmal nach und fällt nie**
-(`plateUpWobble.ts`). Die unterste Kugel sitzt genau im Hörnchen; für jede
+(`shared/iceWobble.ts`, am Hörnchen `shared/iceCone.IceConeView`; jede Welt
+stößt angemeldete Hörnchen mit `stepIceCones` an, das Restaurant seine selbst).
+Die unterste Kugel sitzt genau im Hörnchen; für jede
 weitere wird ihr „Glied" gerechnet — wie weit sie über ihrem Platz auf der
 Kugel darunter hängt —, und zwar jedes für sich, getrieben von der
 Geschwindigkeit `v` des Hörnchens: Es **will** um `v · followTime` zurück

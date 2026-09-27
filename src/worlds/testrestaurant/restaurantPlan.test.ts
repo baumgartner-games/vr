@@ -40,7 +40,7 @@ describe('Test Restaurant — der Plan', () => {
   });
 
   it('macht aus jeder Stelle mit Stationsart eine Station — ohne zweite Liste', () => {
-    // Jede Zeile: Wer eine Stationsart hat, antwortet auf `A` — hier alle 16.
+    // Jede Zeile: Wer eine Stationsart hat, antwortet auf `A` — hier alle.
     expect(SPOTS.every((spot) => stationKind(elementById(spot.element)) !== null)).toBe(true);
     for (const spot of SPOTS) {
       const kind = stationKind(elementById(spot.element));
@@ -52,9 +52,13 @@ describe('Test Restaurant — der Plan', () => {
   });
 
   it('stellt jedes Möbel nach Süden', () => {
-    expect(SPOTS).toHaveLength(16);
+    expect(SPOTS).toHaveLength(21);
+    // Alle nach Süden — bis auf den Mülleimer der Eisecke, den die Liste nach Westen dreht.
     for (const spot of SPOTS)
-      expect({ id: spot.id, face: spot.face }).toEqual({ id: spot.id, face: 'S' });
+      expect({ id: spot.id, face: spot.face }).toEqual({
+        id: spot.id,
+        face: spot.id === 'eis-muell' ? 'W' : 'S',
+      });
   });
 
   it('kocht einen Burger: Salat und Tomate schneiden, aufs Brötchen, auf den Teller', () => {

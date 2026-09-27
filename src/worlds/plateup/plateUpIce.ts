@@ -1,7 +1,7 @@
 import type { InteractionSpec } from '../../core/interaction';
 import type { Handedness } from '../../core/XRInput';
 import type { StationKind } from '../test/zones/kitchenCarry';
-import type { Vec3 } from './plateUpWobble';
+import type { Vec3 } from '../shared/iceWobble';
 
 /**
  * **Das Eis im Restaurant** — Hörnchen, Portionierer, zwei Eiswannen und was

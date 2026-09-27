@@ -458,6 +458,15 @@ export const ELEMENTS: readonly GameElement[] = [
     { model: bits('icecream_container'), on: 0, at: [0.23, 0], scale: TUB_SCALE },
     { model: bits('icecream_container_icecream_strawberry'), inside: true },
   ]),
+  // **Die Eismaschine auf der Arbeitsplatte** — gewünscht im Ordner Eis:
+  // _„Als Möbel bei den Eis Ordner fehlt noch die Eis Maschine auf einer
+  // Arbeitsplatte als ein Möbelstück. Wie ich die nutze weiß ich noch nicht.
+  // Erstmal deko Möbel Stück."_ Also ohne Zweck (`DECOR`): Sie sperrt ihre
+  // Kachel und steht im Weg, `A` tut an ihr nichts.
+  piece('ice-machine', 'Eismaschine', null, [
+    { model: COUNTER },
+    { model: bits('icecream_machine'), stack: true },
+  ]),
   // **Das Band ist eine Kachel** — gewünscht: _„Statt 2x1 conveyers will ich
   // 1x1 conveyer belts haben."_ Das quadratische Band aus _Platformer_
   // (`conveyor_4x4x1_yellow`), das der Lader auf 1 × 1 × 0,5 m bringt
@@ -519,6 +528,7 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'sink',
   'ice-stand',
   'ice-tubs',
+  'ice-machine',
   'crate-lettuce',
   'crate-cheese',
   'crate-ham',
@@ -539,6 +549,12 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'bin',
   'extinguisher',
 ];
+
+/**
+ * **Was im Möbelkatalog nur zum Ansehen steht** — ohne Zweck, noch. Jedes
+ * andere Möbel dort tut auf `A` etwas (`elementCatalog.test.ts`).
+ */
+export const DECOR: ReadonlySet<string> = new Set(['ice-machine']);
 
 /** **Ein Unterordner des Möbelkatalogs** — ein Gericht und was man dafür hinstellt. */
 export interface FurnitureFolder {
@@ -610,7 +626,11 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'bin',
     ],
   },
-  { id: 'ice', label: 'Eis', elements: ['counter', 'ice-stand', 'bowl-stack', 'ice-tubs'] },
+  {
+    id: 'ice',
+    label: 'Eis',
+    elements: ['counter', 'ice-stand', 'bowl-stack', 'ice-tubs', 'ice-machine'],
+  },
   {
     id: 'waffles',
     label: 'Waffeln',

@@ -33,6 +33,8 @@ import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
 import { SprayJet } from '../test/zones/kitchenSpray';
+import { iceConeIn, stepIceCones } from '../shared/iceCone';
+import { WOBBLE } from '../shared/iceWobble';
 import type { Dish } from '../test/zones/kitchenRecipes';
 import { SPOTS, ground, restaurantPlan, spawn } from './restaurantPlan';
 
@@ -45,6 +47,13 @@ const _ray = new THREE.Ray();
 
 /** Wie groß das Getragene in der Brille in der Hand liegt (`kitchenGrab.HAND_FOOD_SCALE`). */
 const HAND_FOOD_SCALE = 0.5;
+
+/**
+ * **Das Hörnchen in der Hand dreimal so groß** wie ein anderes Gericht —
+ * gewünscht: _„Die Eiswaffel und Kugeln in der Hand sind zu klein, 3x so groß
+ * bitte."_ Das Hörnchen ist nur 14 cm hoch (`shared/iceCone.ICE_SIZE`).
+ */
+const CONE_HAND = 3;
 
 /**
  * **Test Restaurant** — die zweite Welt im Ordner _Test_: Boden, Ankunftsort
@@ -147,6 +156,8 @@ export class TestRestaurantWorld extends GridWorld {
     this.stations?.step(dt, ctx.rig.position);
     this.spray(dt, ctx);
     this.carryInHands(ctx);
+    // Erst hängt das Getragene, dann wackelt der Turm (`shared/iceCone`).
+    stepIceCones(dt);
     this.gauges?.update(dt);
   }
 
@@ -338,9 +349,14 @@ export class TestRestaurantWorld extends GridWorld {
       const flat = Math.hypot(_ray.direction.x, _ray.direction.z);
       if (flat > 1e-4) _aim.set(_ray.direction.x / flat, 0, _ray.direction.z / flat);
     }
+    // **Der Kegel geht von der Figur aus**, nicht vom Löscher: Den trägt sie
+    // ein Stück vor sich, und wer dicht vor dem Herd steht, hätte das Feuer
+    // sonst neben oder hinter der Düse — gemeldet: _„Der Feuerlöscher hat
+    // anscheinend keine 45° Winkel? … der Kegel vom Spieler aus"_. Der Nebel
+    // kommt weiter aus dem Löscher.
+    const spraying = this.stations.extinguish(dt, holding, ctx.rig.position, _aim);
     if (this.carriedView) this.carriedView.getWorldPosition(_nozzle);
     else _nozzle.set(ctx.rig.position.x, ctx.rig.getFloorY() + 0.8, ctx.rig.position.z);
-    const spraying = this.stations.extinguish(dt, holding, _nozzle, _aim);
     if (spraying || this.jet) {
       this.jet ??= new SprayJet(this.root);
       this.jet.update(dt, spraying, _nozzle, _aim);
@@ -406,30 +422,41 @@ export class TestRestaurantWorld extends GridWorld {
       ctx.avatar.carry = null;
       return;
     }
+    // Das Hörnchen dreimal so groß, und in der Hand schaukelt sein Turm wie im
+    // Restaurant (`WOBBLE.idle`); nach einem Sprung an einen anderen Platz
+    // fängt er ruhig an (`settle`), statt einmal quer durchs Bild zu schwingen.
+    const cone = iceConeIn(thing);
+    const k = cone ? CONE_HAND : 1;
+    if (cone) cone.idle = WOBBLE.idle;
+    const hang = (parent: THREE.Object3D): void => {
+      if (thing.parent === parent) return;
+      parent.add(thing);
+      cone?.settle();
+    };
     if (ctx.renderer.xr.isPresenting) {
       const controller = this.carriedHand ? ctx.input.get(this.carriedHand) : null;
       if (controller?.tracked) {
-        if (thing.parent !== controller.hold) controller.hold.add(thing);
+        hang(controller.hold);
         thing.position.set(0, -0.02, -0.08);
-        thing.scale.setScalar(HAND_FOOD_SCALE);
+        thing.scale.setScalar(HAND_FOOD_SCALE * k);
       } else {
-        if (thing.parent !== ctx.rig) ctx.rig.add(thing);
+        hang(ctx.rig);
         thing.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
-        thing.scale.setScalar(0.8);
+        thing.scale.setScalar(0.8 * k);
       }
       ctx.avatar.carry = null;
       return;
     }
-    if (thing.parent !== ctx.rig) ctx.rig.add(thing);
+    hang(ctx.rig);
     if (!ctx.topDown) {
       thing.position.set(0.24, ctx.rig.camera.position.y - 0.4, -0.85);
-      thing.scale.setScalar(0.42);
+      thing.scale.setScalar(0.42 * k);
       ctx.avatar.carry = null;
       return;
     }
     const y = CHEF_CARRY.y * ctx.avatar.stretch + ctx.avatar.bob;
     thing.position.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
-    thing.scale.setScalar(1);
+    thing.scale.setScalar(k);
     ctx.avatar.carry = this.carryPoint.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
   }
 }

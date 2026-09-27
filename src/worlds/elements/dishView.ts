@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { kitchenHub } from '../../core/kitchenFit';
 import type { IceFlavor } from '../plateup/plateUpIce';
-import { BallKit, IceConeView } from '../plateup/plateUpIceView';
+import { BallKit, IceConeView } from '../shared/iceCone';
 import type { Dish, KitchenItem } from '../test/zones/kitchenRecipes';
 import { dishModels } from './itemModels';
 
@@ -134,7 +134,9 @@ export class KaykitDishView {
     // **Das Hörnchen ist das des Restaurants** (`IceConeView`): Hörnchen und
     // ein Turm aus Kugeln, so viele es sind — dasselbe Bild wie im Laden.
     if (dish.item === 'cone') {
-      const cone = new IceConeView((this.balls ??= new BallKit()), 0);
+      // Angemeldet (`auto`): Der Turm wackelt, sobald die Welt `stepIceCones`
+      // ruft — auf der Platte ohne Schaukeln, in der Hand mit.
+      const cone = new IceConeView((this.balls ??= new BallKit()), 0, true);
       cone.set({ balls: dish.on.map(flavorOf).filter((one) => one !== null) });
       group.add(cone.root);
       return { group, done: Promise.resolve() };
