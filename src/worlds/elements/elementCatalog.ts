@@ -341,6 +341,15 @@ export const ELEMENTS: readonly GameElement[] = [
   // mit Topf". Sie ist ein Herd für den Topf (`stove`): Wer einen Topf mit
   // Wasser daraufstellt, kocht darin wie auf dem Herd mit Topf.
   piece('hob', 'Herdplatte', 'stove', [{ model: bits('stove_single') }]),
+  // **Die sichere Kochstelle, wie in der Sandbox** (`core/kitchenFit`,
+  // `griddle`) — gewünscht: _„Man braucht für die sichere Kochstelle keine
+  // Pfanne, sondern z.B. das Steak brät darauf automatisch, kann aber nicht
+  // verkohlen, sondern nur gebraten werden."_ Was man darauflegt und brät
+  // (`kitchenWork`, `'fry'`), brät allein; verkohlen lässt die Stationsschicht
+  // es nie (`stationLayer`, `griddle`), und brennen kann es auch nicht. Das
+  // Bild ist die Platte mit eingelassenem Kochfeld aus demselben Paket
+  // (`stove_single_countertop`) — der Herd mit Pfanne ist der freistehende.
+  piece('griddle', 'Sichere Kochstelle', 'griddle', [{ model: bits('stove_single_countertop') }]),
   // **Die Spüle** — die Arbeitsplatte mit Becken und Hahn aus demselben Paket.
   // Wer den Topf davorhält, füllt ihn mit Wasser (`kitchenCarry.atSink`, die
   // Regel der Testküche).
@@ -483,6 +492,7 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'stove',
   'stove-pot',
   'hob',
+  'griddle',
   'sink',
   'ice-stand',
   'ice-tubs',
@@ -569,6 +579,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'crate-ham',
       'board',
       'stove',
+      'griddle',
       'plate-stack',
       'crate-plates',
       'bin',
@@ -578,7 +589,15 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   {
     id: 'waffles',
     label: 'Waffeln',
-    elements: ['counter', 'crate-dough', 'rolling-board', 'stove', 'bowl-stack', 'ice-tubs'],
+    elements: [
+      'counter',
+      'crate-dough',
+      'rolling-board',
+      'stove',
+      'griddle',
+      'bowl-stack',
+      'ice-tubs',
+    ],
   },
   {
     id: 'soup',

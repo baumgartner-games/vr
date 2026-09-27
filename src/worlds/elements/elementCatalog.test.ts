@@ -164,6 +164,7 @@ describe('der Möbelkatalog im Menü', () => {
       'Herdplatte mit Pfanne',
       'Herdplatte mit Topf',
       'Herdplatte',
+      'Sichere Kochstelle',
       'Waschbecken',
       'Eisstand',
       'Eiswannen',

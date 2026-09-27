@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Usable } from '../../core/usable';
+import type { StationState } from '../plateup/plateUpStations';
 import type { Dish } from '../test/zones/kitchenRecipes';
 import { elementById } from './elementCatalog';
 import type { ElementSpot } from './elementPlace';
@@ -289,5 +290,54 @@ describe('Stationen auf Spielelementen', () => {
       expect(usables.get(station)!.use(by)).toBe(true);
       expect(hand.held).toEqual({ item: 'plate', on: [] });
     }
+  });
+
+  it('piept langsam, solange es aufs Verkohlen zuläuft, schnell vor dem Feuer — und der Löscher löscht', () => {
+    const { host, said } = world();
+    const tones: boolean[] = [];
+    host.warnTone = (fast) => tones.push(fast);
+    const layer = new StationLayer(host);
+    const stove = placed({ id: 'herd', element: 'stove', x: 0, z: 0 });
+    layer.add(stove);
+    // Die Pfanne mit einem gebratenen Patty.
+    (layer as unknown as { stations: StationState[] }).stations = layer.states.map((one) => ({
+      ...one,
+      on: { item: 'pan', on: ['patty-cooked'] },
+    }));
+    for (let i = 0; i < 30; i++) layer.step(0.1, FAR);
+    expect(tones.length).toBeGreaterThan(0);
+    expect(tones.every((fast) => !fast)).toBe(true);
+    tones.length = 0;
+    for (let i = 0; i < 150; i++) layer.step(0.1, FAR);
+    expect(layer.states[0]!.on).toEqual({ item: 'pan', on: ['patty-burnt'] });
+    for (let i = 0; i < 90; i++) layer.step(0.1, FAR);
+    expect(tones.some((fast) => fast)).toBe(true);
+    expect(layer.states[0]!.fire).toBe(true);
+    expect(said).toContain('Der Herd brennt — Feuerlöscher holen!');
+    // Weggezielt: nichts. Auf den Herd (Mitte bei 0,5 | 0,5) gezielt: gelöscht.
+    const from = { x: 0.5, z: 2 };
+    expect(layer.extinguish(0.1, true, from, { x: 0, z: 1 })).toBe(false);
+    let spraying = false;
+    for (let i = 0; i < 20; i++) {
+      const now = layer.extinguish(0.1, true, from, { x: 0, z: -1 });
+      spraying ||= now;
+    }
+    expect(spraying).toBe(true);
+    expect(layer.states[0]!.fire).toBe(false);
+    expect(layer.states[0]!.on).toEqual({ item: 'pan', on: [] });
+    expect(said).toContain('Feuer gelöscht');
+  });
+
+  it('lässt auf der sicheren Kochstelle braten, aber nie verkohlen', () => {
+    const { host, usables, hand } = world();
+    const layer = new StationLayer(host);
+    const griddle = placed({ id: 'platte', element: 'griddle', x: 0, z: 0 });
+    layer.add(griddle);
+    hand.held = { item: 'patty', on: [] };
+    layer.step(0, MID);
+    expect(usables.get(griddle.anchor.children[0]!)!.use(by)).toBe(true);
+    for (let i = 0; i < 600; i++) layer.step(0.1, FAR);
+    expect(layer.states[0]!.on).toEqual({ item: 'patty-cooked', on: [] });
+    expect(layer.states[0]!.fire).toBeFalsy();
   });
 });
