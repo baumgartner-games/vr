@@ -641,12 +641,12 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     expect(deepest).toBeLessThan(0.25);
   });
 
-  test('flink: nach dem Anhalten aus vollem Gehtempo stehen fünf und zehn Kugeln in einer halben Sekunde', () => {
+  test('flink: nach dem Anhalten aus vollem Gehtempo stehen fünf und zehn Kugeln in 0,8 Sekunden', () => {
     for (const count of [5, 10]) {
       let state = run(count, 3, 60, walk(2.6), run(count, 1, 60, still));
       const base = walk(2.6)(3).base;
       expect(Math.max(...wobbleLag(state, base, UP, SPACING))).toBeGreaterThan(0.1);
-      state = run(count, 0.5, 120, () => ({ base, axis: UP }), state);
+      state = run(count, 0.8, 120, () => ({ base, axis: UP }), state);
       for (const lag of wobbleLag(state, base, UP, SPACING)) expect(lag).toBeLessThan(0.001);
     }
   });
@@ -666,10 +666,10 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
         }
       });
     }
-    // Je höher das Glied, desto später — und alle innerhalb einer Viertelsekunde.
+    // Je höher das Glied, desto später — und alle innerhalb von 0,35 s.
     for (let i = 1; i < 5; i++) expect(when[i]!).toBeGreaterThan(when[i - 1]!);
     expect(when[0]!).toBeGreaterThan(0.05);
-    expect(when[4]!).toBeLessThan(0.25);
+    expect(when[4]!).toBeLessThan(0.35);
   });
 
   test('zitternde Hand: kein Aufschaukeln, und danach steht er gleich', () => {

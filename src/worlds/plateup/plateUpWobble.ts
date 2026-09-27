@@ -35,7 +35,7 @@
  * Hörnchen nach gleichmäßigem Gehen stehen, ist der Überhang genau
  * `U · (1 + T − b·T²) · e^(−T)` mit `T = a·t` — ein Polynom mit **genau einer**
  * positiven Nullstelle: Das Glied geht **einmal** über seinen Platz hinaus
- * (bei der obersten nach 0,12 s), am weitesten nach `(2 + 1/b)/a` (0,2 s),
+ * (bei der obersten nach 0,17 s), am weitesten nach `(2 + 1/b)/a` (0,28 s),
  * um `(1 + 4b) · e^(−2 − 1/b)` ≈ 14 % des Überhangs davor, und kriecht von
  * drüben zurück, ohne ein zweites Mal hinüberzugehen. Gezeigt (nach der
  * weichen Begrenzung, die den Überhang davor staucht) sind es gut 20 %. Beim
@@ -137,14 +137,14 @@ export const WOBBLE = {
    * Zeit: `v · lag` (vor der weichen Begrenzung). Jede darunter im selben
    * Verhältnis zu ihrer Grenze weniger — siehe `followTime`.
    */
-  lag: 0.036,
+  lag: 0.06,
   /**
    * Wie flink die oberste Kugel ihrem Überhang nachläuft, in 1/s — die Rate
    * `a` der dreifachen Verzögerung (`followBall`). Nach dem Anhalten ist sie
-   * nach `2/a` Sekunden (0,12 s) über ihren Platz hinaus, nach `(2 + 1/rebound)/a`
-   * (0,2 s) am weitesten drüben.
+   * nach `2/a` Sekunden (0,17 s) über ihren Platz hinaus, nach `(2 + 1/rebound)/a`
+   * (0,28 s) am weitesten drüben — gewünscht war ein etwas langsamerer Rückweg.
    */
-  rate: 17,
+  rate: 12,
   /**
    * Wie viel flinker die unteren sind: die Rate wächst mit
    * `(lean / Grenze)^stiff` — die zweitoberste um `2^stiff`, die dritte um `3^stiff` …
