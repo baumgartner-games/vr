@@ -461,7 +461,8 @@ stünde. Die Tore im Hub bleiben eines je Welt.
 **Die Test Navigation** (`worlds/testnav/`, Kennung `test-navigation`, im
 Ordner _Test_) sind fünf Kammern aus Fensterwänden (`navTestPlan.ts`), vor
 jeder ein roter Knopf, drinnen eine **grüne Startplatte** und eine **blaue
-Zielplatte**.
+Zielplatte**. Daneben im selben Ordner steht das **Test Restaurant**
+(Kapitel [Test Restaurant](testrestaurant.md)).
 
 **Der Boden ist nur aus dem Regal** (gewünscht: _„der Boden soll bitte nur aus
 kaykit floor prototype Sachen bestehen außer die Lava, aber dafür gibt es ja

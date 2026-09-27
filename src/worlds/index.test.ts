@@ -13,9 +13,10 @@ describe('Die Welten', () => {
     }
   });
 
-  it('hat im Ordner „Test" genau die Test Navigation', () => {
+  it('hat im Ordner „Test" die Test Navigation und das Test Restaurant', () => {
     expect(WORLDS.filter((world) => world.folder === 'test').map((world) => world.id)).toEqual([
       'test-navigation',
+      'test-restaurant',
     ]);
   });
 });
