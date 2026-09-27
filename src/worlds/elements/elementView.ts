@@ -4,6 +4,7 @@ import type { SolidBlock } from '../grid/GridWorld';
 import { DETAIL_OVERLAY } from '../../ui/previewGrid';
 import { CELL as CELL_SIZE } from '../nav/cellGrid';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
+import { builtPart, isBuiltPart } from './builtParts';
 import { elementLit, type ElementPart, type GameElement } from './elementCatalog';
 import {
   rotateOffset,
@@ -156,7 +157,11 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   const [size, ...models] = await Promise.all([
     fixed && first ? host.measure(first.model) : Promise.resolve(null),
     ...element.parts.map((part, i) =>
-      i === 0 && fixed ? Promise.resolve(null) : host.load(part.model),
+      i === 0 && fixed
+        ? Promise.resolve(null)
+        : isBuiltPart(part.model)
+          ? Promise.resolve(builtPart(part.model))
+          : host.load(part.model),
     ),
   ]);
   if (!host.alive())
@@ -222,6 +227,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
  * Regal kommt. `placeModel` kennt weder Maßstab noch Umlegen.
  */
 function plainFloor(part: ElementPart): boolean {
+  if (isBuiltPart(part.model)) return false;
   return part.height === undefined && part.scale === undefined && part.tilt === undefined;
 }
 

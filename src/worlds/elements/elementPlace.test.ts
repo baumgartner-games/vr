@@ -110,9 +110,9 @@ describe('Spielelemente — wo sie stehen', () => {
   });
 
   it('nimmt, was die Stelle hergibt, vor dem, was die Kiste vorschlägt', () => {
-    expect(spotGives({ id: 'c', element: 'crate-steak', x: 0, z: 0 })).toBe('patty');
-    expect(spotGives({ id: 'c', element: 'crate-steak', x: 0, z: 0, gives: 'steak' })).toBe(
-      'steak',
+    expect(spotGives({ id: 'c', element: 'crate-steak', x: 0, z: 0 })).toBe('steak');
+    expect(spotGives({ id: 'c', element: 'crate-steak', x: 0, z: 0, gives: 'patty' })).toBe(
+      'patty',
     );
     expect(spotGives(counter(0, 0))).toBeNull();
   });

@@ -69,6 +69,12 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   ham: bits('food_ingredient_ham'),
   'ham-cooked': bits('food_ingredient_ham_cooked'),
   'ham-burnt': bits('food_ingredient_ham_trash'),
+  // **Das Steak**: roh das ganze Stück; gebraten in Scheiben — das Regal hat
+  // kein gebratenes Steak, aber aufgeschnittenes, und so liegt es auf dem
+  // Teller; verbrannt wie das verbrannte Patty.
+  steak: bits('food_ingredient_steak'),
+  'steak-cooked': bits('food_ingredient_steak_pieces'),
+  'steak-burnt': bits('food_ingredient_burger_trash'),
   // **Eine ganze Pizza gibt es im Regal nur auf ihrem Brett** — ohne Teller
   // darunter hat sie keine Form. Das Brett ist klein genug, dass sie so auch
   // im offenen Karton liegt.

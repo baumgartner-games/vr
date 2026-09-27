@@ -118,6 +118,16 @@ export type KitchenItem =
   | 'ham'
   | 'ham-cooked'
   | 'ham-burnt'
+  /**
+   * **Das Steak** und seine drei Stufen — gebraten wie der Schinken, oder auf
+   * dem Brett zum rohen Patty verarbeitet (`CHOPS`). Gewünscht: _„Steak
+   * Vorrat Kisten sollen keine Burger Pattys geben sondern Steaks … Ein Steak
+   * kann ich wie Schinken anbraten oder alternativ auf dem Schneidebrett zu
+   * einem Burger Patty verarbeiten."_
+   */
+  | 'steak'
+  | 'steak-cooked'
+  | 'steak-burnt'
   /** Die ganze Pizza und ihre Stücke — beide passen in den Karton. */
   | 'pizza'
   | 'pizza-cut'
@@ -196,6 +206,9 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   'cheese-cut': 'Käsescheibe',
   ham: 'Roher Schinken',
   'ham-cooked': 'Gebratener Schinken',
+  steak: 'Rohes Steak',
+  'steak-cooked': 'Gebratenes Steak',
+  'steak-burnt': 'Verbranntes Steak',
   'ham-burnt': 'Verbrannter Schinken',
   pizza: 'Pizza',
   'pizza-cut': 'Geschnittene Pizza',
@@ -321,6 +334,7 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'tomato-soup',
     'cheese-cut',
     'ham-cooked',
+    'steak-cooked',
     'fries',
   ],
   bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup', 'cheese-cut'],
@@ -333,6 +347,9 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'ham',
     'ham-cooked',
     'ham-burnt',
+    'steak',
+    'steak-cooked',
+    'steak-burnt',
     'dough-flat',
     'waffle',
   ],
@@ -396,6 +413,8 @@ const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   carrot: 'carrot-cut',
   potato: 'potato-cut',
   onion: 'onion-cut',
+  // Das rohe Steak wird auf dem Brett zum rohen Patty — Hackfleisch.
+  steak: 'patty',
 };
 
 export function chopStage(item: KitchenItem): KitchenItem | null {
@@ -418,6 +437,9 @@ const FRIES: Partial<Record<KitchenItem, KitchenItem>> = {
   // verbrennt deshalb auch genauso (`BURNT`).
   ham: 'ham-cooked',
   'ham-cooked': 'ham-burnt',
+  // Das Steak brät wie der Schinken.
+  steak: 'steak-cooked',
+  'steak-cooked': 'steak-burnt',
   // **Die Waffel ist gebratener Teig**, und die Grillplatte ist das Waffeleisen:
   // ein Möbel mehr wäre ein Möbel, das dasselbe tut. Sie verbrennt nicht — nach
   // der Waffel kommt nichts mehr.
@@ -437,7 +459,7 @@ export function fryStage(item: KitchenItem): KitchenItem | null {
  * Stufe aus (`kitchenWork.workStage`), die heiße Platte im Laden läuft genau
  * in sie hinein (`plateup/plateUpStations.tickStation`).
  */
-const BURNT: readonly KitchenItem[] = ['patty-burnt', 'ham-burnt'];
+const BURNT: readonly KitchenItem[] = ['patty-burnt', 'ham-burnt', 'steak-burnt'];
 
 /** Ob dieses Ding verbrannt ist. */
 export function isBurnt(item: KitchenItem): boolean {
@@ -525,6 +547,7 @@ const RAW: Partial<Record<KitchenItem, string>> = {
   tomato: 'geschnitten',
   cheese: 'geschnitten',
   ham: 'gebraten',
+  steak: 'gebraten',
   dough: 'ausgerollt',
   'dough-flat': 'gebacken',
   carrot: 'geschnitten',
@@ -573,6 +596,9 @@ const FOOD: readonly KitchenItem[] = [
   'ham',
   'ham-cooked',
   'ham-burnt',
+  'steak',
+  'steak-cooked',
+  'steak-burnt',
   'pizza',
   'pizza-cut',
   'dough',
@@ -611,6 +637,7 @@ export const STACK_ORDER: readonly KitchenItem[] = [
   'patty-burnt',
   // Schinken und Käse liegen wie beim Cheeseburger direkt auf dem Fleisch.
   'ham-cooked',
+  'steak-cooked',
   'cheese-cut',
   'lettuce-cut',
   'tomato-cut',

@@ -4,6 +4,7 @@ import {
   PreviewLedger,
   previewSheet,
   previewSlot,
+  previewWindow,
   type ListView,
   type Rect,
   type Sheet,
@@ -184,5 +185,22 @@ describe('PreviewLedger', () => {
     expect(book.turnTo('kaykit:dungeon').sort()).toEqual(['a', 'b']);
     expect(book.size).toBe(0);
     expect(book.has('a')).toBe(false);
+  });
+});
+
+describe('das Fenster der Vorschau', () => {
+  const order = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+
+  it('hält die sichtbaren und gleich viele davor und danach', () => {
+    expect(previewWindow(order, ['e', 'f'])).toEqual(['c', 'd', 'e', 'f', 'g', 'h']);
+  });
+
+  it('bleibt an den Enden der Seite', () => {
+    expect(previewWindow(order, ['a', 'b', 'c'])).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    expect(previewWindow(order, ['j'])).toEqual(['i', 'j']);
+  });
+
+  it('hält nichts, wenn nichts zu sehen ist', () => {
+    expect(previewWindow(order, [])).toEqual([]);
   });
 });

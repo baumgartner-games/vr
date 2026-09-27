@@ -260,6 +260,23 @@ function template(path: string): Promise<THREE.Object3D | null> {
 }
 
 /**
+ * **Eine Vorlage vergessen** — das Menü hat sie nicht mehr im Bild
+ * (`ui/PagePreviews`, wer lange durch das Regal scrollt).
+ *
+ * Nur der Eintrag geht: Kopien, die schon irgendwo stehen, behalten Geometrie
+ * und Textur, denn sie zeigen darauf und nicht auf diese Karte. Wer die Datei
+ * wieder will, bekommt sie neu geladen, aus dem Zwischenspeicher des Service
+ * Workers. Eine Vorlage, die gerade erst lädt, bleibt stehen — sonst holte die
+ * nächste Frage sie ein zweites Mal.
+ */
+export function forgetKaykitModel(path: string): void {
+  if (!ready.has(path)) return;
+  ready.delete(path);
+  templates.delete(path);
+  clips.delete(path);
+}
+
+/**
  * **Eine Kopie der Vorlage**, mit dem Maßstab ihres Pakets darüber
  * (`core/kaykitFit.kaykitScale`).
  *
