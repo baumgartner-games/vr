@@ -324,6 +324,29 @@ export const ELEMENTS: readonly GameElement[] = [
       yaw: -Math.PI / 2,
     },
   ]),
+  // **Der Hörnchen-Vorrat** — dieselbe Platte wie der Eisstand, mit Stapel
+  // und Portionierer, aber als Vorrat der Küche und nicht als Eisecke: `A`
+  // gibt ein Hörnchen (`drain`, nie leer), und an den Eiswannen kommt eine
+  // Kugel darauf. Gewünscht: _„die Arbeitsplatte mit dem scoop und cones und
+  // die Platte mit ice trays als Vorräte"_.
+  piece(
+    'cone-stack',
+    'Hörnchen-Vorrat',
+    'drain',
+    [
+      { model: COUNTER },
+      { model: bits('icecream_cone_stacked'), on: 0, at: [0.22, 0.05], height: 0.5 },
+      {
+        model: bits('icecream_scoop'),
+        on: 0,
+        at: [-0.2, 0.08],
+        height: 0.3,
+        tilt: [-Math.PI / 2, 0, 0],
+        yaw: -Math.PI / 2,
+      },
+    ],
+    { gives: 'cone' },
+  ),
   // Zwei Wannen nebeneinander, quer zur Platte (von vorn nach hinten), je
   // 0,66 m lang wie im Burgerladen (`CORNER_SIZE.tub`): Der Kasten ist im
   // Paket 0,80 m lang, also 0,825 — und das Eis darin mit demselben Faktor,
@@ -374,7 +397,8 @@ export const ELEMENTS: readonly GameElement[] = [
  * dieser Reihenfolge. Gewünscht: _„Ich brauche bei Möbel Katalog, die
  * Funktion Möbel: eine Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit
  * Schneide Brett, Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte.
- * Waschbecken"_. Jedes davon sperrt seine Kachel (2 × 2 Zellen) und tut auf
+ * Waschbecken"_ — und dazu _„die Arbeitsplatte mit dem scoop und cones und
+ * die Platte mit ice trays als Vorräte"_. Jedes davon sperrt seine Kachel (2 × 2 Zellen) und tut auf
  * `A`, was es in der Küche tut.
  */
 export const FURNITURE_CATALOGUE: readonly string[] = [
@@ -384,6 +408,8 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'stove-pot',
   'hob',
   'sink',
+  'cone-stack',
+  'ice-tubs',
 ];
 
 /**
@@ -395,6 +421,8 @@ const CATALOGUE_LABELS: Readonly<Record<string, string>> = {
   stove: 'Herdplatte mit Pfanne',
   'stove-pot': 'Herdplatte mit Topf',
   sink: 'Waschbecken',
+  'cone-stack': 'Arbeitsplatte mit Hörnchen und Portionierer',
+  'ice-tubs': 'Arbeitsplatte mit Eiswannen',
 };
 
 /** Der Name eines Elements im Möbelkatalog (`CATALOGUE_LABELS`, sonst `label`). */

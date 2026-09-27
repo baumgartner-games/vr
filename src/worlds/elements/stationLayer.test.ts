@@ -18,6 +18,7 @@ function placed(spot: ElementSpot): PlacedElement {
     cells: [],
     block: { cells: [], mesh: new THREE.Mesh() },
     parts: [],
+    base: null,
   };
 }
 
@@ -166,5 +167,35 @@ describe('Stationen auf Spielelementen', () => {
     // Zurück: wieder angemeldet, und zwar zum Nehmen.
     layer.step(0, { x: 10.5, z: 2 });
     expect(usables.get(stoveAnchor)?.usePrompt?.()).toMatch(/nehmen/);
+  });
+
+  it('nimmt ein Element zum Umstellen heraus und stellt es mit allem, was darauf lag, wieder hin', () => {
+    const { host, usables, hand } = world();
+    const layer = new StationLayer(host);
+    const crate = placed({ id: 'kiste', element: 'crate-lettuce', x: 0, z: 0 });
+    const board = placed({ id: 'brett', element: 'board', x: 1, z: 0 });
+    layer.add(crate);
+    layer.add(board);
+    hand.held = { item: 'tomato', on: [] };
+    layer.step(0, MID);
+    expect(usables.get(board.anchor.children[0]!)!.use(by)).toBe(true);
+    expect(layer.states[1]!.on?.item).toBe('tomato');
+    // Das Brett geht zum Umstellen weg — abgemeldet, der Stand kommt mit.
+    const keep = layer.remove(board.anchor);
+    expect(keep.map((state) => state.on?.item)).toEqual(['tomato']);
+    expect(layer.states).toHaveLength(1);
+    expect(usables.has(board.anchor.children[0]!)).toBe(false);
+    // Die Kiste davor rückt in der Liste nach vorn und nimmt immer noch.
+    hand.held = null;
+    layer.step(0, MID);
+    expect(usables.get(crate.anchor.children[0]!)!.use(by)).toBe(true);
+    expect((hand.held as Dish | null)?.item).toBe('lettuce');
+    // An der neuen Stelle liegt die Tomate wieder darauf.
+    const moved = placed({ id: 'brett', element: 'board', x: 4, z: 0 });
+    layer.add(moved, keep);
+    expect(layer.states[1]!.on?.item).toBe('tomato');
+    // Frisch hingestellt ohne Stand: leer.
+    layer.add(placed({ id: 'brett-2', element: 'board', x: 6, z: 0 }), keep);
+    expect(layer.states[2]!.on).toBeNull();
   });
 });

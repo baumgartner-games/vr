@@ -274,9 +274,12 @@ export class StationLayer {
    * Stationen (`elementStations`). Ihr Anker hängt am Anker des Elements, an
    * der Mitte seiner Vorderkante.
    *
+   * @param keep der Stand, mit dem es weitermacht — was
+   *   `remove` beim Umstellen zurückgab: Was auf der Platte lag, liegt danach
+   *   wieder darauf, und die Uhren laufen weiter, wo sie standen.
    * @returns wie viele Stationen es wurden
    */
-  add(placed: PlacedElement): number {
+  add(placed: PlacedElement, keep: readonly StationState[] = []): number {
     const slots = elementStations(placed.spot);
     const [, depth] = placed.element.tiles;
     for (const slot of slots) {
@@ -300,9 +303,40 @@ export class StationLayer {
         dist2: Infinity,
         holds: slot.holds ?? null,
       });
-      this.stations.push(...slotStates([slot]));
+      const [fresh] = slotStates([slot]);
+      const was = keep.find((one) => one.spot.id === slot.spot.id);
+      this.stations.push(
+        was ? { ...fresh!, on: was.on, work: was.work, stock: was.stock, heat: was.heat } : fresh!,
+      );
     }
     return slots.length;
+  }
+
+  /**
+   * **Die Stationen eines Elements herausnehmen** — es wird umgestellt
+   * (Bau-Modus). Abgemeldet, Balken und Liegendes weg; zurück kommt ihr
+   * Stand, damit `add` an der neuen Stelle damit weitermacht.
+   *
+   * @param anchor der Anker des Elements (`PlacedElement.anchor`)
+   */
+  remove(anchor: THREE.Object3D): StationState[] {
+    const out: StationState[] = [];
+    for (let i = this.views.length - 1; i >= 0; i--) {
+      const view = this.views[i]!;
+      if (view.anchor.parent !== anchor) continue;
+      this.host.removeUsable(view.anchor);
+      view.content?.removeFromParent();
+      this.gauges?.clear(`station:${view.spot.id}`);
+      this.gauges?.clear(`flame:${view.spot.id}`);
+      this.gauges?.clear(`warn:${view.spot.id}`);
+      out.unshift(this.stations[i]!);
+      this.views.splice(i, 1);
+      this.stations = this.stations.filter((_, j) => j !== i);
+    }
+    // Die Anmeldungen der übrigen zählen nach ihrer Stelle in der Liste
+    // (`refresh`, `use(index)`), und die hat sich verschoben: alle neu.
+    if (out.length) for (const view of this.views) view.deedKey = '';
+    return out;
   }
 
   /**

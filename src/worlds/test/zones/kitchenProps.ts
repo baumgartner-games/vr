@@ -469,6 +469,7 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   // Restaurant zeigt sie mit Netzen aus dem Regal
   // (`worlds/elements/itemModels.ts`) und misst dort selbst.
   bowl: 0,
+  cone: 0,
   pizzabox: 0,
   cheese: 0,
   'cheese-cut': 0,
@@ -503,6 +504,7 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
  */
 export const ELSEWHERE: readonly KitchenItem[] = [
   'bowl',
+  'cone',
   'pizzabox',
   'cheese',
   'cheese-cut',

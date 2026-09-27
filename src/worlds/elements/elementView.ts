@@ -67,6 +67,12 @@ export interface PlacedElement {
   readonly block: SolidBlock;
   /** Die Modelle obenauf, je Teil — `null`, wo keines kam oder das Teil als Stück der Welt steht. */
   readonly parts: readonly (THREE.Object3D | null)[];
+  /**
+   * **Das Bodenstück als Stück der Welt**, sobald es steht — was
+   * `ElementHost.placeModel` zurückgab (`null`: keines). Wer das Element
+   * wieder wegnimmt (umstellen im Bau-Modus), räumt es damit ab.
+   */
+  readonly base: Promise<unknown> | null;
 }
 
 /** So hoch ist eine Arbeitsplatte — die Ablage, solange nichts gemessen ist. */
@@ -119,6 +125,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   anchor.rotation.y = yaw;
   host.add(anchor);
 
+  let base: Promise<unknown> | null = null;
   const placed = (top: number, parts: readonly (THREE.Object3D | null)[]): PlacedElement => ({
     spot,
     element,
@@ -127,6 +134,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
     cells: block.cells,
     block,
     parts,
+    base,
   });
   if (!canLoadModels())
     return placed(
@@ -162,7 +170,11 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
         views.push(null);
         return;
       }
-      void host.placeModel(part.model, new THREE.Vector3(x, size.y / 2, z), yaw + (part.yaw ?? 0));
+      base = host.placeModel(
+        part.model,
+        new THREE.Vector3(x, size.y / 2, z),
+        yaw + (part.yaw ?? 0),
+      );
       laid.push({
         holder: null,
         top: size.y,

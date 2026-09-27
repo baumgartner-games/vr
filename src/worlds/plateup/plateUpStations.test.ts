@@ -157,7 +157,7 @@ describe('Waffeln mit Eis', () => {
     // Mit leerer Hand gibt die Wanne nichts.
     expect(useStation(null, vanilla).deed).toEqual({
       do: 'refuse',
-      why: 'Vanilleeis braucht eine Schüssel',
+      why: 'Vanilleeis braucht eine Schüssel oder ein Hörnchen',
     });
   });
 

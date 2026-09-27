@@ -1630,8 +1630,10 @@ describe('Nudelholz, Suppentopf, Eiswanne', () => {
   it('gibt Eis nur in eine Schüssel, Kugel für Kugel', () => {
     const vanilla: Station = { kind: 'tub', gives: 'ice-vanilla' };
     const strawberry: Station = { kind: 'tub', gives: 'ice-strawberry' };
-    expect(why(press(null, vanilla))).toBe('Vanilleeis braucht eine Schüssel');
-    expect(why(press(d('plate'), vanilla))).toBe('Vanilleeis braucht eine Schüssel');
+    expect(why(press(null, vanilla))).toBe('Vanilleeis braucht eine Schüssel oder ein Hörnchen');
+    expect(why(press(d('plate'), vanilla))).toBe(
+      'Vanilleeis braucht eine Schüssel oder ein Hörnchen',
+    );
     const one = press(d('bowl', 'waffle'), vanilla);
     expect(one).toEqual({
       do: 'combine',

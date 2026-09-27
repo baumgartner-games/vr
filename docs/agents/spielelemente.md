@@ -128,6 +128,7 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | `stove`                          | Herd                | `griddle`                | `stove_single`, `pan_A` obenauf                                                                                       |
 | `stove-pot`                      | Herd mit Topf       | `stove`, `holds: 'pot'`  | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                  |
 | `hob`                            | Herdplatte          | `stove`                  | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                            |
+| `cone-stack`                     | Hörnchen-Vorrat     | `drain`, gibt `cone`     | wie der Eisstand (`counter_A`, Hörnchenstapel, Portionierer), aber als Vorrat der Küche: `A` gibt ein Hörnchen       |
 | `sink`                           | Spüle               | `sink`                   | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                 |
 | `bin`                            | Mülleimer           | `bin`                    | `block-bits/trashcan` auf 0,55 m                                                                                      |
 | `plate-stack`                    | Tellerstapel        | `drain`, gibt `plate`    | `counter_A`, `dishrack_plates`                                                                                        |
@@ -276,9 +277,12 @@ Möbelkatalog gibt **Spielelemente** her.
   des Wunsches und mit seinen Worten (`catalogueLabel`): Arbeitsplatte
   (`counter`), Arbeitsplatte mit Schneidebrett (`board`), Herdplatte mit
   Pfanne (`stove`), Herdplatte mit Topf (`stove-pot`), Herdplatte (`hob`, neu:
-  der leere Herd für den Topf) und Waschbecken (`sink`). Jedes belegt eine
-  Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was es in der
-  Küche tut.
+  der leere Herd für den Topf) und Waschbecken (`sink`) — dazu, als Vorräte
+  (_„die Arbeitsplatte mit dem scoop und cones und die Platte mit ice trays
+  als Vorräte"_), die Arbeitsplatte mit Hörnchen und Portionierer
+  (`cone-stack`) und die Arbeitsplatte mit Eiswannen (`ice-tubs`). Jedes
+  belegt eine Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was
+  es in der Küche tut.
 - **Wie:** Getragen wird das **Bodenstück** des Elements wie ein Modell aus
   dem Regal (`takeElement` → `conjureModel`): in die Hand, an den Kran, `R`
   dreht, `E`/`A`/Loslassen stellt hin. Beim Hinstellen geht das getragene
@@ -294,9 +298,23 @@ Möbelkatalog gibt **Spielelemente** her.
   (`worldChanges.recordElement`) — genau das, was in `SPOTS` gehört.
   _Einfügen_ stellt solche Zeilen wieder hin (`furnishSpot`); was schon steht,
   sperrt seine Zellen, also kommt nichts doppelt.
-- **Grenzen:** Ein hingestelltes Element ist Teil der Welt und kein
-  Gegenstand. Umstellen, Abreißen und _Rückgängig_ gibt es dafür noch nicht,
-  und wie die Modelle aus dem Regal übersteht es kein Neuladen — wer es
+- **Umstellen im Bau-Modus** (gewünscht: _„die Sachen will ich wieder bewegen
+  können über den Bau Modus wie in der Restaurant Welt"_): Als Kran
+  (_Einrichten_ oder _Baukasten_, `movesFurniture`) hebt `E` mit leeren
+  Klauen das Element unter dem Kran an (`PortalWorld.liftElementUnderCrane`
+  → `liftElementAt`): Die Welt nimmt es weg — Stationen heraus
+  (`StationLayer.remove`, ihr Stand geht mit), Zellen frei, Teile und
+  Bodenstück weg —, und sein Bodenstück hängt am Kran. Hingestellt wird es
+  wie aus dem Katalog, unter **derselben** Stelle (Id, Beschriftung, `gives`
+  bleiben) und **samt dem, was darauf lag** (`StationLayer.add(placed,
+  keep)`): Der Topf bleibt auf dem Herd, die Tomate auf dem Brett, die Uhren
+  laufen weiter. Ist am Ziel kein Platz, steht es wieder, wo es stand
+  (`furnishBack`). In der Liste der Weltänderungen ändert das Umstellen
+  dieselbe Zeile (`elementKeys`). Mit der Pipette (_Kopieren_) gibt `E` über
+  einem Element ein frisches desselben. Beim _Spielen_ bleibt `E` die Küche.
+- **Grenzen:** Abreißen und _Rückgängig_ gibt es für Elemente noch nicht,
+  Umstellen nur als Kran am Schirm (in der Brille bleibt es beim Alten), und
+  wie die Modelle aus dem Regal übersteht ein Element kein Neuladen — wer es
   behalten will, kopiert die Liste. Es geht auch nicht über die Leitung.
 
 ## Was `A` daran tut: die Stationsschicht
@@ -389,6 +407,15 @@ ohne neue Arbeit**, nur mit Regeln, die es schon gab, und einem neuen Ding
    gekocht ist (`offer`, wie die Pfanne ihr Patty), der Teller hat die
    Pommes, der leere Topf bleibt stehen. Der Mülleimer räumt Teller und Topf ab
    (`scrape`).
+
+**Eis im Hörnchen** (September 2026): Das Hörnchen (`cone`) ist ein Träger
+wie die Schüssel, nur für Eis und für **eine** Kugel (`HOLDS_ONE`), denn das
+Regal hat es nur so: `food_icecream_cone_vanilla`/`_strawberry` ist Hörnchen
+und Kugel in einer Datei (`itemModels.CONE_WITH`). Vom `cone-stack` nehmen, an
+den `ice-tubs` eine Kugel darauf; die Wanne sagt ohne Träger jetzt
+_„… braucht eine Schüssel oder ein Hörnchen"_. Die Eisecke des Restaurants
+(`plateup/plateUpIce.ts`, mit Portionierer in der Hand und Türmen aus
+Kugeln) bleibt davon unberührt.
 
 **Suppe geht genauso**: Karotte oder Zwiebel, geschnitten, in den Topf mit
 Wasser, und die Schüssel holt die Gemüsesuppe. `COOKS` gilt für beide Töpfe,
