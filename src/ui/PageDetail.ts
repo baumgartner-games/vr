@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createLighting } from '../worlds/shared/environment';
 import { wheelPixels, wheelStep } from '../core/wheelZoom';
 import { DETAIL_POSE, detailDrag, detailGutter, detailZoom, type DetailPose } from './detailDrag';
-import { PREVIEW_RETRY } from './previewGrid';
+import { DETAIL_OVERLAY, PREVIEW_RETRY } from './previewGrid';
 import type { DetailFacts, DetailOptions, DetailView } from './previewGrid';
 import type { MenuModelFactory } from './WristMenu';
 
@@ -234,10 +234,12 @@ export class PageDetail implements DetailView {
     this.model = model;
     this.scene.add(model);
     model.updateMatrixWorld(true);
-    this.box.setFromObject(model);
+    modelBox(model, this.box);
     if (this.box.isEmpty()) this.box.setFromCenterAndSize(_zero, _one);
     this.box.getCenter(this.target);
-    this.box.getSize(_size);
+    // Ins Bild passen soll alles, auch eine Anzeige am Boden
+    // (`DETAIL_OVERLAY`); gemessen wird nur das Ding selbst.
+    _frame.setFromObject(model).union(this.box).getSize(_size);
     // Der Abstand, aus dem die Hülle gerade ins Bild passt: die halbe Diagonale
     // geteilt durch den halben Öffnungswinkel. Gerechnet über die Diagonale und
     // nicht über die Höhe, damit eine breite Wand beim Drehen nicht aus dem
@@ -452,5 +454,34 @@ function disposeMaterial(material: THREE.Material | THREE.Material[]): void {
 }
 
 const _size = new THREE.Vector3();
+/**
+ * Die Hülle des Modells ohne die Anzeigen daneben (`DETAIL_OVERLAY`) — für
+ * jeden Ast ohne Anzeige genau das, was `Box3.setFromObject` rechnet.
+ */
+function modelBox(model: THREE.Object3D, box: THREE.Box3): THREE.Box3 {
+  box.makeEmpty();
+  model.updateWorldMatrix(true, true);
+  const visit = (object: THREE.Object3D): void => {
+    if (object.userData[DETAIL_OVERLAY]) return;
+    if (!hasOverlay(object)) {
+      box.expandByObject(object);
+      return;
+    }
+    for (const child of object.children) visit(child);
+  };
+  visit(model);
+  return box;
+}
+
+/** Ob irgendwo darunter eine Anzeige hängt. */
+function hasOverlay(object: THREE.Object3D): boolean {
+  let found = false;
+  object.traverse((one) => {
+    if (one.userData[DETAIL_OVERLAY]) found = true;
+  });
+  return found;
+}
+
+const _frame = new THREE.Box3();
 const _zero = new THREE.Vector3();
 const _one = new THREE.Vector3(1, 1, 1);

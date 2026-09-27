@@ -70,7 +70,7 @@ Ein Eintrag `GameElement` in `ELEMENTS`:
 | `label`  | Der deutsche Name                                                                                                                                  |
 | `tiles`  | **Grundfläche in Kacheln**, Breite × Tiefe, für ein Element, das nach Süden schaut. Der runde Tisch `[2, 2]`, alles andere `[1, 1]`, auch das Band |
 | `height` | **Wie hoch der Körper ist**, nicht das Modell: 1,40 m für jedes Möbel mit Zweck, 0,5 m für das flache Band                                         |
-| `kind`   | Was man damit tut, eine Stationsart der Küche (`kitchenCarry.StationKind`) oder `'ice-tubs'`; `null` für etwas, das nur im Weg steht |
+| `kind`   | Was man damit tut, eine Stationsart der Küche (`kitchenCarry.StationKind`) oder `'ice-tubs'`; `null` für etwas, das nur im Weg steht               |
 | `work`   | Bei einem Brett: `'chop'` (schneiden) oder `'roll'` (ausrollen)                                                                                    |
 | `gives`  | Was eine Kiste oder ein Stapel hergibt, als Vorschlag. Die Stelle im Plan gewinnt (`ElementSpot.gives`)                                            |
 | `holds`  | Was zu Beginn **auf** der Station steht und mitgenommen werden kann, als `KitchenItem`: der Topf auf dem Herd (`stove-pot`). Kein Teil des Bilds   |
@@ -118,28 +118,28 @@ Zentimeter über der Zeile daneben, und der Test verbietet es.
 Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 `counter_A`/`counter_B` sind `kitchencounter_straight_A`/`_B`.
 
-| Id                               | Name                | Art (`kind`)             | Teile                                                                                                                 |
-| -------------------------------- | ------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `counter`                        | Arbeitsplatte       | `top`                    | `counter_A`                                                                                                           |
-| `board`                          | Arbeitsplatte mit Schneidebrett | `board`, `work: 'chop'`  | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                          |
-| `rolling-board`                  | Nudelbrett          | `board`, `work: 'roll'`  | `counter_A`, `rollingpin` auf 10 cm                                                                                   |
-| `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten | `crate`                  | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                         |
-| `pizza-supply`                   | Pizza-Vorratsbox    | `crate`, gibt `pizza`    | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                  |
-| `stove`                          | Herdplatte mit Pfanne | `stove`, `holds: 'pan'` | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin |
-| `stove-pot`                      | Herdplatte mit Topf | `stove`, `holds: 'pot'`  | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                  |
-| `hob`                            | Herdplatte          | `stove`                  | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                            |
-| `sink`                           | Waschbecken         | `sink`                   | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                 |
-| `bin`                            | Mülleimer           | `bin`                    | `block-bits/trashcan` auf 0,55 m                                                                                      |
-| `plate-stack`                    | Tellerstapel        | `drain`, gibt `plate`    | `counter_A`, `dishrack_plates`                                                                                        |
-| `bowl-stack`                     | Schüsselstapel      | `drain`, gibt `bowl`     | `counter_A`, zwei `bowl`                                                                                              |
-| `pizzabox-stack`                 | Kartonstapel        | `drain`, gibt `pizzabox` | `counter_A`, `pizzabox_stacked`                                                                                       |
-| `ice-stand`                      | Eisstand            | `drain`, gibt `cone`     | `counter_A`, `icecream_cone_stacked` (0,5 m), `icecream_scoop` (0,3 m, liegend), wie die Eisecke im Laden, nach Süden; ein Vorrat: `A` gibt ein Hörnchen |
-| `ice-tubs`                       | Eiswannen           | `ice-tubs`               | `counter_A`, zwei `icecream_container` (×0,825), darin Vanille und Erdbeere (`inside`)                                |
-| `belt`                           | Förderband          | —                        | `platformer/yellow/conveyor_4x4x1_yellow`, halb gedreht; eine Kachel, 0,5 m (der Lader bringt es auf 1 × 1 m)         |
-| `table-round`                    | Runder Tisch        | —                        | `table_round_B_tablecloth_red`; `[2, 2]` Kacheln                                                                      |
-| `chair`                          | Stuhl               | —                        | `chair_A`                                                                                                             |
-| `supply-box`                     | Vorratsbox          | —                        | leere `crate`; was obenauf liegt und was `A` tut, bestimmt die Welt                                                   |
-| `pizza-oven`                     | Pizzaofen           | —                        | `pizza_oven`, zum Ansehen                                                                                             |
+| Id                               | Name                            | Art (`kind`)             | Teile                                                                                                                                                    |
+| -------------------------------- | ------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `counter`                        | Arbeitsplatte                   | `top`                    | `counter_A`                                                                                                                                              |
+| `board`                          | Arbeitsplatte mit Schneidebrett | `board`, `work: 'chop'`  | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                                                             |
+| `rolling-board`                  | Nudelbrett                      | `board`, `work: 'roll'`  | `counter_A`, `rollingpin` auf 10 cm                                                                                                                      |
+| `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten             | `crate`                  | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                                                            |
+| `pizza-supply`                   | Pizza-Vorratsbox                | `crate`, gibt `pizza`    | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                                                     |
+| `stove`                          | Herdplatte mit Pfanne           | `stove`, `holds: 'pan'`  | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin      |
+| `stove-pot`                      | Herdplatte mit Topf             | `stove`, `holds: 'pot'`  | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                                                     |
+| `hob`                            | Herdplatte                      | `stove`                  | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                                                               |
+| `sink`                           | Waschbecken                     | `sink`                   | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                                                    |
+| `bin`                            | Mülleimer                       | `bin`                    | `block-bits/trashcan` auf 0,55 m                                                                                                                         |
+| `plate-stack`                    | Tellerstapel                    | `drain`, gibt `plate`    | `counter_A`, `dishrack_plates`                                                                                                                           |
+| `bowl-stack`                     | Schüsselstapel                  | `drain`, gibt `bowl`     | `counter_A`, zwei `bowl`                                                                                                                                 |
+| `pizzabox-stack`                 | Kartonstapel                    | `drain`, gibt `pizzabox` | `counter_A`, `pizzabox_stacked`                                                                                                                          |
+| `ice-stand`                      | Eisstand                        | `drain`, gibt `cone`     | `counter_A`, `icecream_cone_stacked` (0,5 m), `icecream_scoop` (0,3 m, liegend), wie die Eisecke im Laden, nach Süden; ein Vorrat: `A` gibt ein Hörnchen |
+| `ice-tubs`                       | Eiswannen                       | `ice-tubs`               | `counter_A`, zwei `icecream_container` (×0,825), darin Vanille und Erdbeere (`inside`)                                                                   |
+| `belt`                           | Förderband                      | —                        | `platformer/yellow/conveyor_4x4x1_yellow`, halb gedreht; eine Kachel, 0,5 m (der Lader bringt es auf 1 × 1 m)                                            |
+| `table-round`                    | Runder Tisch                    | —                        | `table_round_B_tablecloth_red`; `[2, 2]` Kacheln                                                                                                         |
+| `chair`                          | Stuhl                           | —                        | `chair_A`                                                                                                                                                |
+| `supply-box`                     | Vorratsbox                      | —                        | leere `crate`; was obenauf liegt und was `A` tut, bestimmt die Welt                                                                                      |
+| `pizza-oven`                     | Pizzaofen                       | —                        | `pizza_oven`, zum Ansehen                                                                                                                                |
 
 **Das Band ist eine Kachel** (September 2026): _„Statt 2x1 conveyers will ich
 1x1 conveyer belts haben. In der Restaurant Test Welt und in der normalen
@@ -278,9 +278,39 @@ Möbelkatalog gibt **Spielelemente** her.
   der leere Herd für den Topf) und Waschbecken (`sink`) — dazu, als Vorräte
   (_„die Arbeitsplatte mit dem scoop und cones und die Platte mit ice trays
   als Vorräte"_), der Eisstand mit Hörnchen und Portionierer (`ice-stand`)
-  und die Eiswannen (`ice-tubs`). Jedes
+  und die Eiswannen (`ice-tubs`). Dahinter die **Vorräte** (gewünscht:
+  _„vorratskisten: Salat, Käse, Wurst, Steak, Tomaten, Teller, Schüssel,
+  Zwiebel, …"_): Salat, Käse, Schinken (die Wurst), Fleisch (das Steak, gibt
+  das Patty), Tomaten, Teller- und Schüsselstapel, Zwiebeln, dann Brötchen,
+  Teig, Karotten, Kartoffeln, Pizza-Vorratsbox, Kartonstapel, Nudelbrett und
+  Mülleimer. Salami und Pilze fehlen mit Absicht: Sie sind noch keine Zutat
+  (`SHOW_ONLY_GIVES`), und der Test verbietet sie hier. Jedes
   belegt eine Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was
   es in der Küche tut.
+- **Unterordner je Gericht** (`FURNITURE_FOLDERS`, gewünscht: _„einige Möbel
+  doppelt gelistet … unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_):
+  Sie stehen als Ordner vor der ganzen Liste und enthalten, was man für das
+  Gericht hinstellt (die Möbel, mit denen `elementFlows.test.ts` es kocht).
+  **Doppelt ist nur die Kachel**: Dasselbe Element steht in mehreren Ordnern
+  und in der ganzen Liste, hingestellt wird jedes Mal dasselbe. Die Menü-Ids
+  tragen deshalb den Ort (`elements:board`, `elements/burger:board`), denn
+  Ids im Menü sind Adressen. Eine Welt gibt ihre Ordner über
+  `PortalWorld.elementFolders` her.
+- **Das ⓘ jeder Kachel** (gewünscht: _„wie im Model Regal noch die Details
+  sehen, aus welchen Modellen das besteht und auch wie das Grid bzw die
+  Position ist von dem ganzen (Grid Flächen Belegung)"_) schlägt dieselbe
+  Detailseite auf wie im Modellregal. Im Bild steht das ganze Element und
+  darunter seine **gesperrten Zellen in Rot** (`elementView.elementCellsOverlay`,
+  gerechnet über `spotCells`, also genau die, die das Gitter sperrt), mit
+  einer Kachel Zell- und Kachelgitter ringsum und einem grünen Pfeil an der
+  Vorderseite; die Umrisse der Zellen sieht man durch das Möbel hindurch. Die
+  Anzeige zählt nicht zu Maßen, Hülle und Gitterboden der Seite
+  (`previewGrid.DETAIL_OVERLAY`). Der Steckbrief (`elementFacts.ts`, rein):
+  Id zum Kopieren, Grundfläche, Zellen, die **Belegung** als kleines Bild aus
+  `■` (Norden oben, vorn unten), Körperhöhe, Zweck, was es hergibt oder
+  trägt, und dann **jedes Teil** mit seiner Adresse im Regal (zum Kopieren)
+  und seiner Lage (_auf dem Boden_, _obenauf auf Teil 1_, Versatz, Höhe,
+  umgelegt, gedreht, Ablage).
 - **Wie:** Getragen wird das **Bodenstück** des Elements wie ein Modell aus
   dem Regal (`takeElement` → `conjureModel`): in die Hand, an den Kran, `R`
   dreht, `E`/`A`/Loslassen stellt hin. Beim Hinstellen geht das getragene
@@ -314,7 +344,7 @@ Möbelkatalog gibt **Spielelemente** her.
   Bodenstück weg —, und sein Bodenstück hängt am Kran. Hingestellt wird es
   wie aus dem Katalog, unter **derselben** Stelle (Id, Beschriftung, `gives`
   bleiben) und **samt dem, was darauf lag** (`StationLayer.add(placed,
-  keep)`): Der Topf bleibt auf dem Herd, die Tomate auf dem Brett, die Uhren
+keep)`): Der Topf bleibt auf dem Herd, die Tomate auf dem Brett, die Uhren
   laufen weiter. Ist am Ziel kein Platz, steht es wieder, wo es stand
   (`furnishBack`). In der Liste der Weltänderungen ändert das Umstellen
   dieselbe Zeile (`elementKeys`). Mit der Pipette (_Kopieren_) gibt `E` über
@@ -543,9 +573,10 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 
 | Datei                                 | Was darin steht                                                                                                                                                                                                                        |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`. Kein three.js, kein Laden                                                                                                            |
+| `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`, `FURNITURE_CATALOGUE`/`FURNITURE_FOLDERS`. Kein three.js, kein Laden                                                                 |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |
+| `worlds/elements/elementFacts.ts`     | **Rein**: der Steckbrief hinter dem ⓘ im Möbelkatalog — `elementFacts`, `footprintRows` (die Belegung aus `■`), `partPlace` (wo ein Teil sitzt)                                                                                        |
 | `worlds/elements/stationLayer.ts`     | `stationKind`, `elementStations`, `slotStates` (**rein**), `StationLayer`, `StationHost`, `StationOverride`: was `A` an einem hingestellten Element tut                                                                                |
 | `worlds/elements/furnish.ts`          | `furnish`: Stellen hinstellen und jedes Element mit Stationsart zur Station machen — der eine Weg für jede Welt                                                                                                                        |
 | `worlds/elements/dishView.ts`         | `KaykitDishView` (ein Gericht als Bild aus dem Regal), `dishLayout` (**rein**: wie hoch jedes Stück auf Teller, in Schüssel und Karton liegt)                                                                                          |

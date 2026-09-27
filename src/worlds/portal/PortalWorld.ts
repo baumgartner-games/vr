@@ -45,8 +45,9 @@ import {
   type ModelChange,
   type NoteChange,
 } from '../../core/worldChanges';
-import { elementById, hasElement } from '../elements/elementCatalog';
-import { elementModel } from '../elements/elementView';
+import { elementById, hasElement, type FurnitureFolder } from '../elements/elementCatalog';
+import { elementFacts } from '../elements/elementFacts';
+import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { KaykitDishView } from '../elements/dishView';
 import { dish } from '../test/zones/kitchenRecipes';
 import { loadItemModel } from '../elements/itemTemplate';
@@ -1081,6 +1082,12 @@ interface NearGrab {
 const ELEMENT_PREVIEW = 'element:';
 
 /**
+ * Die Vorschau-Id der **Detailseite** eines Spielelements: das Element und
+ * darunter seine gesperrten Zellen (`elementView.elementCellsOverlay`).
+ */
+const ELEMENT_CELLS = 'element-cells:';
+
+/**
  * **Wie ein Spielelement in den Händen liegt**: mit der Vorderseite **von der
  * Figur weg**, wie jedes Möbel der Sandbox-Küche (`kitchen.Furnish.hold`, 0 —
  * _„wer nach Süden schaut und absetzt, stellt es nach Süden hin"_). Ein Modell
@@ -1408,6 +1415,8 @@ export class PortalWorld implements World {
   private readonly elementPreviews = new Map<string, THREE.Group | null>();
   /** Was auf den Kacheln obenauf steht — Topf, Pfanne (`elementModel`, `holds`). */
   private elementDishes: KaykitDishView | null = null;
+  /** Die Zellen unter dem Element auf seiner Detailseite, je Element einmal gebaut. */
+  private readonly elementCells = new Map<string, THREE.Group>();
   /** Wie jedes Modell aus dem Regal steht (`modelStance.ts`) — nur Modelle stehen hier. */
   private readonly stances = new WeakMap<PhysicsBody, ModelStance>();
   /**
@@ -3812,6 +3821,15 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Die Unterordner des Möbelkatalogs** — je Gericht die Möbel dafür, dieselben
+   * Elemente wie in der ganzen Liste (`elementCatalog.FURNITURE_FOLDERS`). Hier
+   * keine.
+   */
+  protected elementFolders(): readonly FurnitureFolder[] {
+    return [];
+  }
+
+  /**
    * **Ein Spielelement an der Stelle um diesen Punkt hinstellen** — mit
    * gesperrten Zellen und, wo es einen Zweck hat, als Station. Die Antwort
    * hier ist `null` (keine Welt dafür); wer `elementCatalogue` füllt, stellt
@@ -3868,6 +3886,50 @@ export class PortalWorld implements World {
     const ids = this.elementCatalogue().filter(hasElement);
     if (ids.length === 0) return [];
     const accent = 0xe0914a;
+    // **Eine Kachel je Element und Ort** — die Id sagt beides, denn Ids im
+    // Menü sind Adressen (`menuNav.findStep` sucht den Steckbrief im ganzen
+    // Baum), und dasselbe Element steht in mehreren Ordnern.
+    const tile = (id: string, at: string): MenuEntry => {
+      const element = elementById(id);
+      const [w, d] = element.tiles;
+      return {
+        id: `${at}:${id}`,
+        label: element.label,
+        caption: `${w} × ${d} Kachel · ${2 * w} × ${2 * d} Zellen gesperrt`,
+        accent,
+        preview: `${ELEMENT_PREVIEW}${id}`,
+        // **Die Detailseite hinter dem ⓘ**, wie im Modellregal: das ganze
+        // Element mit seinen gesperrten Zellen darunter, und im Steckbrief
+        // Grundfläche, Belegung, Zweck und jedes Teil mit Adresse und Lage.
+        full: true,
+        detail: { preview: `${ELEMENT_CELLS}${id}`, facts: elementFacts(id) },
+        run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
+      };
+    };
+    // **Unterordner je Gericht** — gewünscht: _„einige Möbel doppelt gelistet
+    // … Pizza, Burger, Eis, Waffeln, Suppe"_. Doppelt ist nur die Kachel;
+    // genommen wird dasselbe Element.
+    const folders = this.elementFolders().flatMap((folder): MenuEntry[] => {
+      const inside = folder.elements.filter(hasElement);
+      if (inside.length === 0) return [];
+      const at = `elements/${folder.id}`;
+      const count = inside.length === 1 ? '1 Möbel' : `${inside.length} Möbel`;
+      return [
+        {
+          id: at,
+          label: folder.label,
+          sub: count,
+          caption: count,
+          icon: 'folder',
+          accent,
+          grid: true,
+          cols: SHELF_COLS,
+          full: true,
+          take: true,
+          children: inside.map((id) => tile(id, at)),
+        },
+      ];
+    });
     return [
       {
         id: 'elements',
@@ -3877,19 +3939,9 @@ export class PortalWorld implements World {
         accent,
         grid: true,
         cols: SHELF_COLS,
+        full: true,
         take: true,
-        children: ids.map((id) => {
-          const element = elementById(id);
-          const [w, d] = element.tiles;
-          return {
-            id: `elements:${id}`,
-            label: element.label,
-            caption: `${w} × ${d} Kachel · ${2 * w} × ${2 * d} Zellen gesperrt`,
-            accent,
-            preview: `${ELEMENT_PREVIEW}${id}`,
-            run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
-          };
-        }),
+        children: [...folders, ...ids.map((id) => tile(id, 'elements'))],
       },
     ];
   }
@@ -12331,7 +12383,26 @@ export class PortalWorld implements World {
     if (path !== null) return kaykitModelNow(path);
     if (id.startsWith(ELEMENT_PREVIEW))
       return this.elementPreview(id.slice(ELEMENT_PREVIEW.length));
+    if (id.startsWith(ELEMENT_CELLS)) return this.elementWithCells(id.slice(ELEMENT_CELLS.length));
     return this.tool(id);
+  }
+
+  /**
+   * **Das Element mit seinen gesperrten Zellen darunter** — für die
+   * Detailseite im Möbelkatalog. Die Zellen werden je Element einmal gebaut
+   * und danach nur geklont: Geometrie und Material teilen sich die Kopien.
+   */
+  private elementWithCells(id: string): THREE.Object3D | null {
+    if (!hasElement(id)) return null;
+    const model = this.elementPreview(id);
+    if (!model) return null;
+    let cells = this.elementCells.get(id);
+    if (!cells) {
+      cells = elementCellsOverlay(id);
+      this.elementCells.set(id, cells);
+    }
+    model.add(cells.clone(true));
+    return model;
   }
 
   /**

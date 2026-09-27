@@ -6,6 +6,7 @@ import { ITEM_LABELS } from '../test/zones/kitchenRecipes';
 import {
   ELEMENTS,
   FURNITURE_CATALOGUE,
+  FURNITURE_FOLDERS,
   SHOW_ONLY_GIVES,
   elementById,
   hasElement,
@@ -165,7 +166,54 @@ describe('der Möbelkatalog im Menü', () => {
       'Waschbecken',
       'Eisstand',
       'Eiswannen',
+      'Salatkiste',
+      'Käsekiste',
+      'Schinkenkiste',
+      'Fleischkiste',
+      'Tomatenkiste',
+      'Tellerstapel',
+      'Schüsselstapel',
+      'Zwiebelkiste',
+      'Brötchenkiste',
+      'Teigkiste',
+      'Karottenkiste',
+      'Kartoffelkiste',
+      'Pizza-Vorratsbox',
+      'Kartonstapel',
+      'Nudelbrett',
+      'Mülleimer',
     ]);
+  });
+
+  it('führt jedes Element nur einmal und keine Kiste, die nichts hergibt, was die Küche kennt', () => {
+    expect(new Set(FURNITURE_CATALOGUE).size).toBe(FURNITURE_CATALOGUE.length);
+    for (const id of FURNITURE_CATALOGUE) {
+      const gives = elementById(id).gives;
+      if (gives) expect(SHOW_ONLY_GIVES.has(gives)).toBe(false);
+    }
+  });
+
+  it('hat die Unterordner Pizza, Burger, Eis, Waffeln, Suppe — mit Möbeln aus der ganzen Liste', () => {
+    expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
+      'Pizza',
+      'Burger',
+      'Eis',
+      'Waffeln',
+      'Suppe',
+    ]);
+    expect(new Set(FURNITURE_FOLDERS.map((folder) => folder.id)).size).toBe(
+      FURNITURE_FOLDERS.length,
+    );
+    for (const folder of FURNITURE_FOLDERS) {
+      expect(folder.elements.length).toBeGreaterThan(0);
+      expect(new Set(folder.elements).size).toBe(folder.elements.length);
+      for (const id of folder.elements) expect(FURNITURE_CATALOGUE).toContain(id);
+    }
+  });
+
+  it('listet dasselbe Element in mehreren Ordnern — das Brett bei Pizza, Burger und Suppe', () => {
+    const holding = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('board'));
+    expect(holding.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'soup']);
   });
 
   it('sperrt mit jedem eine ganze Kachel — 2 × 2 Zellen — und jedes tut etwas auf A', () => {

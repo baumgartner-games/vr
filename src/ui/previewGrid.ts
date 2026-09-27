@@ -312,6 +312,16 @@ export interface DetailRequest {
   onFacts(facts: DetailFacts): void;
 }
 
+/**
+ * **Eine Anzeige neben dem Ding und kein Teil davon** — mit diesem Schlüssel
+ * in `userData` zählt ein Kind nicht zu Maßen, Hülle und Gitterboden, wohl
+ * aber zum Bildausschnitt. Gesetzt von den gesperrten Zellen unter einem
+ * Spielelement (`worlds/elements/elementView.elementCellsOverlay`): Ein Rand
+ * von einer Kachel ringsum machte aus einer Arbeitsplatte von 1 m sonst eine
+ * von 3 m.
+ */
+export const DETAIL_OVERLAY = 'detailOverlay';
+
 /** Was die Vorschau am Modell selbst abliest. */
 export interface DetailFacts {
   /** Die Kantenlängen in **Metern** — so groß wird das Ding in der Welt. */

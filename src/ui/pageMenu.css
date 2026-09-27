@@ -472,7 +472,7 @@
 /* Der Wert selbst — er darf umbrechen, der Knopf daneben nicht. Die Adresse
    eines Modells ist lang, und eine Zeile, die sie abschneidet, ist genau die
    Zeile, für die man hergekommen ist. */
-.pmenu__factval { min-width: 0; }
+.pmenu__factval { min-width: 0; white-space: pre-line; }
 
 /* *Kopieren* neben einer Zeile, die man mitnehmen darf (`ui/menu.MenuFact`).
    Klein und still: Er steht neben jeder solchen Zeile und soll sie nicht

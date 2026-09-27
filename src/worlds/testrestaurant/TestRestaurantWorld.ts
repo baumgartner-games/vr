@@ -8,7 +8,12 @@ import type { Handedness } from '../../core/XRInput';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { KaykitDishView, dishKey } from '../elements/dishView';
-import { FURNITURE_CATALOGUE, hasElement } from '../elements/elementCatalog';
+import {
+  FURNITURE_CATALOGUE,
+  FURNITURE_FOLDERS,
+  hasElement,
+  type FurnitureFolder,
+} from '../elements/elementCatalog';
 import {
   spotAround,
   spotCells,
@@ -166,11 +171,16 @@ export class TestRestaurantWorld extends GridWorld {
 
   /**
    * **Der Möbelkatalog im Menü** (`PortalWorld.elementMenu`): Arbeitsplatte,
-   * Schneidebrett, Herdplatte mit Pfanne, mit Topf und blank, Waschbecken —
-   * hingestellt wie jede Stelle aus `SPOTS`.
+   * Schneidebrett, Herdplatte mit Pfanne, mit Topf und blank, Waschbecken,
+   * Eis und die Vorräte — hingestellt wie jede Stelle aus `SPOTS`.
    */
   protected override elementCatalogue(): readonly string[] {
     return FURNITURE_CATALOGUE;
+  }
+
+  /** Dazu die Unterordner je Gericht: Pizza, Burger, Eis, Waffeln, Suppe. */
+  protected override elementFolders(): readonly FurnitureFolder[] {
+    return FURNITURE_FOLDERS;
   }
 
   /**
