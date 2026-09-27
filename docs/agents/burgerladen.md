@@ -302,9 +302,9 @@ Stellung als Parameter, `new IceCorner(place = PLATEUP_ICE)` mit
 `IceCornerPlace = { stand, tubs, face, flavors?, furnish? }`, gedreht über
 `iceYaw(face)`. Mit `furnish: false` stellt sie keine Möbel hin und übernimmt
 mit `adopt(top, cones, scoop)` Platte, Stapel und Portionierer der
-Spielelemente `ice-stand` und `ice-tubs`. So steht sie in der Eis-Küche des
-[Test Restaurants](./testrestaurant.md) (`restaurantIce.ts`). Der Laden hier
-ruft sie unverändert.
+Spielelemente `ice-stand` und `ice-tubs`. So stand sie in der Eis-Küche des
+[Test Restaurants](./testrestaurant.md) (`restaurantIce.ts`, seit dem Leeren
+der Welt nur noch in der Geschichte). Der Laden hier ruft sie unverändert.
 
 **Warum dort und nicht mehr an der Westwand.** Zuerst stand die Eisecke auf
 0 | 1 und 0 | 2, südlich des Kühlschranks — und kam so an: _„ich sehe den

@@ -554,6 +554,7 @@ export function kitchenHandles(
     case 'onion':
     case 'onion-cut':
     case 'stew':
+    case 'fries':
     case 'ice-vanilla':
     case 'ice-strawberry':
       return [];

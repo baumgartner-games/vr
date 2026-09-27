@@ -35,14 +35,20 @@ export interface DishPiece {
 
 /**
  * **Wie weit ein Stück im vorigen steckt** — Brötchen haben eine Mulde, ein
- * Patty liegt darin und nicht darauf. Derselbe Anteil wie auf dem Band
- * (`TestRestaurantWorld.dressBurger`).
+ * Patty liegt darin und nicht darauf. Derselbe Anteil hatte das Burgerband des
+ * ersten Test Restaurants.
  */
 export const NEST = 0.7;
 /** Wie tief das Erste auf dem Teller liegt, als Anteil der Tellerhöhe (ein Teller ist flach gewölbt). */
 export const ON_PLATE = 0.6;
 /** Wie tief die Pizza im offenen Karton liegt, als Anteil seiner Höhe. */
 export const IN_BOX = 0.25;
+/**
+ * **Wie tief der Inhalt im Topf liegt**, als Anteil seiner Höhe — knapp unter
+ * dem Rand, damit man von oben sieht, was darin kocht. Ohne das säße die
+ * Kartoffel auf dem Rand (`NEST` ist für Brötchen gedacht).
+ */
+export const IN_POT = 0.45;
 /**
  * **Jede weitere Füllung einer Schüssel sitzt etwas höher** — als Anteil
  * ihrer eigenen Höhe. Zwei Kugeln mit demselben Ursprung lägen sonst
@@ -57,6 +63,7 @@ export const SECOND_SCOOP = 0.35;
  * - **Schüssel**: alles Weitere darin (`inside`), jede Füllung nach der
  *   ersten etwas höher (`SECOND_SCOOP`).
  * - **Pizzakarton**: die Pizza liegt im Karton, knapp über seinem Boden.
+ * - **Topf**: was darin kocht, liegt knapp unter dem Rand (`IN_POT`).
  * - **Teller**: das Erste liegt in seiner Mulde, alles Weitere ineinander.
  * - **Sonst** (ein Brötchen mit Belag): eines im anderen (`NEST`).
  */
@@ -74,6 +81,10 @@ export function dishLayout(carrier: KitchenItem, heights: readonly number[]): Di
     }
     if (carrier === 'pizzabox') {
       out.push({ y: heights[0]! * IN_BOX, inside: false });
+      return;
+    }
+    if (carrier === 'pot') {
+      out.push({ y: heights[0]! * IN_POT, inside: false });
       return;
     }
     const below = heights[i - 1]!;

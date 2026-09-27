@@ -21,6 +21,7 @@ import {
   burnStage,
   cookStage,
   isBurnt,
+  potCooks,
   rollStage,
   type Dish,
   type KitchenItem,
@@ -602,9 +603,11 @@ describe('die zweite Speisekarte', () => {
     expect(rollStage('dough')).toBe('dough-flat');
     expect(rollStage('dough-flat')).toBeNull();
     expect(rollStage('cheese')).toBeNull();
-    for (const item of ['carrot-cut', 'potato-cut', 'onion-cut'] as const) {
+    for (const item of ['carrot-cut', 'onion-cut'] as const) {
       expect({ item, next: cookStage(item) }).toEqual({ item, next: 'stew' });
     }
+    // Aus der Kartoffel werden Pommes, nicht Suppe (die Pommes-Kette).
+    expect(cookStage('potato-cut')).toBe('fries');
     expect(cookStage('carrot')).toBeNull();
     expect(cookStage('stew')).toBeNull();
   });
@@ -701,5 +704,77 @@ describe('die zweite Speisekarte', () => {
         carrier: true,
       });
     }
+  });
+});
+
+/**
+ * **Der Topf mit Wasser** — die Pommes-Kette der Spielelemente: Wasser aus
+ * der Spüle, eine geschnittene Kartoffel hinein, gekocht auf dem Herd, und
+ * die Pommes kommen auf den Teller.
+ */
+describe('der Topf mit Wasser', () => {
+  it('nimmt eine geschnittene Kartoffel — nur mit Wasser, nur eine, nur geschnitten', () => {
+    expect(combine(d('potato-cut'), d('pot', 'water'))).toEqual({
+      ok: true,
+      held: null,
+      target: d('pot', 'water', 'potato-cut'),
+      moved: ['potato-cut'],
+    });
+    // Auch andersherum: den Topf an die Kartoffel auf dem Brett.
+    expect(combine(d('pot', 'water'), d('potato-cut'))).toMatchObject({
+      ok: true,
+      held: d('pot', 'water', 'potato-cut'),
+      target: null,
+    });
+    expect(combine(d('potato-cut'), d('pot'))).toEqual({
+      ok: false,
+      why: 'Im Topf ist kein Wasser — erst an der Spüle füllen',
+    });
+    expect(combine(d('carrot-cut'), d('pot', 'water', 'potato-cut'))).toEqual({
+      ok: false,
+      why: 'Im Topf ist schon Geschnittene Kartoffel',
+    });
+    expect(combine(d('potato'), d('pot', 'water'))).toEqual({
+      ok: false,
+      why: 'Kartoffel muss erst geschnitten werden',
+    });
+  });
+
+  it('sagt, was darin kocht', () => {
+    expect(potCooks(d('pot', 'water', 'potato-cut'))).toBe('potato-cut');
+    expect(potCooks(d('pot', 'water', 'carrot-cut'))).toBe('carrot-cut');
+    expect(potCooks(d('pot', 'water'))).toBeNull();
+    expect(potCooks(d('pot', 'fries'))).toBeNull();
+    expect(potCooks(d('pan', 'water', 'potato-cut'))).toBeNull();
+  });
+
+  it('gibt die Pommes auf den Teller und bleibt leer zurück', () => {
+    expect(combine(d('plate'), d('pot', 'fries'))).toEqual({
+      ok: true,
+      held: d('plate', 'fries'),
+      target: d('pot'),
+      moved: ['fries'],
+    });
+    expect(combine(d('pot', 'fries'), d('plate'))).toEqual({
+      ok: true,
+      held: d('pot'),
+      target: d('plate', 'fries'),
+      moved: ['fries'],
+    });
+    expect(isFood('fries')).toBe(true);
+    expect(carries('plate', 'fries')).toBe(true);
+    expect(carries('bun', 'fries')).toBe(false);
+    expect(ITEM_LABELS.fries).toBe('Pommes');
+  });
+
+  it('lässt den Topf mit bloßem Wasser, wie er in der Testküche war', () => {
+    // Kein Träger, kein Essen darin: Er wandert wie bisher selbst.
+    expect(isCarrier('pot')).toBe(false);
+    const both = combine(d('pot', 'water'), d('plate'));
+    expect(both.ok).toBe(false);
+    expect(combine(d('tomato-cut'), d('pot', 'water'))).toEqual({
+      ok: false,
+      why: 'Tomatenscheibe und Topf halten nicht zusammen — es braucht ein Brötchen oder einen Teller darunter',
+    });
   });
 });

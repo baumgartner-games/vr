@@ -125,6 +125,18 @@ export const KAYKIT_FILE_SCALE: readonly (readonly [RegExp, KaykitScale3])[] = [
   [/^prototype-bits\/Door[^/]*\.glb$/, [KAYKIT_SCALE, 0.75, KAYKIT_SCALE]],
   [/^prototype-bits\/(?:Primitive_)?Floor[^/]*\.glb$/, [KAYKIT_SCALE, KAYKIT_SCALE, KAYKIT_SCALE]],
   [/^prototype-bits\/Empty\.glb$/, [KAYKIT_SCALE, KAYKIT_SCALE, KAYKIT_SCALE]],
+  // **Das Förderband ist eine Kachel** (September 2026): _„Statt 2x1
+  // conveyers will ich 1x1 conveyer belts haben. In der Restaurant Test Welt
+  // und in der normalen Restaurant Welt."_ Das quadratische Band des
+  // _Platformer_-Pakets (`conveyor_4x4x1_<Farbe>`, in jeder der vier Farben)
+  // misst in der Quelle 4,2 × 1,0 × 4,0 — nachgemessen an den Grenzen seiner
+  // Knoten, die Seitenleisten stehen links und rechts je 0,1 über. Mit der
+  // Vorgabe 0,5 wären das 2,1 × 0,5 × 2,0 m, zwei mal zwei Kacheln. Also in der
+  // Breite 1 / 4,2 und in der Tiefe 1 / 4 — genau 1 × 1 m samt Leisten — und
+  // in die Höhe bei 0,5 m, so hoch wie eine Arbeitsplatte. Die schmalen
+  // Bänder (`conveyor_2x4x1`, 1,1 × 2,0 m) bleiben, wie sie sind: auf eine
+  // Kachel gestaucht, wären ihre Pfeile halb so lang wie breit.
+  [/^platformer\/[^/]+\/conveyor_4x4x1_[^/]*\.glb$/, [1 / 4.2, KAYKIT_SCALE, 1 / 4]],
 ];
 
 /** Ein Maßstab je Achse — Breite, Höhe, Tiefe. */

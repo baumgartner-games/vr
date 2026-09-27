@@ -59,12 +59,12 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'test-restaurant',
     title: 'Test Restaurant',
-    tagline: 'Mini-Küchen, ein Förderband und Gäste mit Wünschen',
+    tagline: 'Leer — bereit für den Neuaufbau aus dem Modellregal',
     description:
-      'Für jedes Gericht eine kleine Küche aus dem Regal, das Rezept auf der Tafel darüber: Burger, Eis, Pizza, Pizza to Go, Suppe, Waffeln und Nachtisch, Steak, Schinken und Pommes. Daneben ein Förderband, das Burger ganz von allein baut, und Gäste an zwei Tischen, die in einer Blase zeigen, was sie wollen — aus der Vorratsbox holen und auf ihren Tisch legen.',
+      'Eine leere Fläche aus Prototyp-Boden. Hier entsteht das Test Restaurant neu, Stück für Stück aus Spielelementen des Modellregals: Kisten, Brett, Herd mit Topf, Spüle, Förderband — jedes sperrt seine Kacheln und tut auf A, was es in der Küche tut.',
     accent: 0xf2a33a,
     preview: 'worlds/test-restaurant.webp',
-    // Alle Küchen von oben, Rand bis Rand.
+    // Der ganze Boden von oben, Rand bis Rand.
     topDownSpan: 40,
     roles: ['vr', 'desktop', 'handheld'],
     test: true,

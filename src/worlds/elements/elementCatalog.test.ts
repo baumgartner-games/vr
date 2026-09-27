@@ -99,6 +99,7 @@ describe('Spielelemente — der Katalog', () => {
       'pizza-supply',
       'stove',
       'stove-pot',
+      'sink',
       'bin',
       'plate-stack',
       'bowl-stack',
@@ -114,7 +115,17 @@ describe('Spielelemente — der Katalog', () => {
       expect(hasElement(id)).toBe(true);
     expect(elementById('board').work).toBe('chop');
     expect(elementById('rolling-board').work).toBe('roll');
-    expect(elementById('belt').tiles).toEqual([1, 2]);
+    // Das Band ist eine Kachel (`core/kaykitFit.KAYKIT_FILE_SCALE` bringt das
+    // quadratische Band auf 1 × 1 m), und flach.
+    expect(elementById('belt').tiles).toEqual([1, 1]);
+    expect(elementById('belt').height).toBe(0.5);
+    expect(elementById('belt').parts[0]!.model).toMatch(/conveyor_4x4x1_/);
+    // Herd und Topf wie im Restaurant: einflammig, der Topf steht darauf und geht mit.
+    expect(elementById('stove-pot')).toMatchObject({ kind: 'stove', holds: 'pot' });
+    expect(elementById('stove-pot').parts.map((part) => part.model)).toEqual([
+      'restaurant-bits/stove_single.glb',
+    ]);
+    expect(elementById('sink')).toMatchObject({ kind: 'sink', tiles: [1, 1], height: 1.4 });
     expect(elementById('table-round').tiles).toEqual([2, 2]);
     expect(elementById('pizza-supply').gives).toBe('pizza');
   });

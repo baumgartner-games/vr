@@ -406,8 +406,9 @@ describe('ausrollen und kochen', () => {
   it('kocht Gemüse allein zu Suppe, und die Suppe bleibt im Topf', () => {
     expect(workStage('cook', 'carrot-cut')).toBe('stew');
     expect(workStage('cook', 'carrot')).toBeNull();
-    const run = frames(onWork('cook', 'potato-cut'), WORK_SECONDS.cook + 0.1, false, true);
+    const run = frames(onWork('cook', 'onion-cut'), WORK_SECONDS.cook + 0.1, false, true);
     expect(run.done).toBe('stew');
+    expect(workStage('cook', 'potato-cut')).toBe('fries');
     expect(run.toHand).toBe(false);
     expect(WORK_TO_HAND.cook).toBe(false);
   });

@@ -1,4 +1,5 @@
 import { cellKey } from '../nav/cellGrid';
+import * as catalog from './elementCatalog';
 import {
   FACES,
   faceYaw,
@@ -22,6 +23,22 @@ const counter = (x: number, z: number, face?: ElementSpot['face']): ElementSpot 
   ...(face ? { face } : {}),
 });
 
+/**
+ * **Ein Element, das länger als breit ist** — für die Drehung der Grundfläche.
+ * Der Katalog hat heute keines mehr (das Band ist seit dem Wunsch nach
+ * _„1x1 conveyer belts"_ eine Kachel), also wird eines untergeschoben.
+ */
+beforeAll(() => {
+  const real = catalog.elementById;
+  jest
+    .spyOn(catalog, 'elementById')
+    .mockImplementation((id) =>
+      id === 'long' ? { ...real('belt'), id: 'long', tiles: [1, 2] } : real(id),
+    );
+});
+
+afterAll(() => jest.restoreAllMocks());
+
 describe('Spielelemente — wo sie stehen', () => {
   it('belegt mit einer Kachel genau ihre vier Zellen', () => {
     const spot = counter(3, 2);
@@ -32,8 +49,8 @@ describe('Spielelemente — wo sie stehen', () => {
     );
   });
 
-  it('legt ein Band nach Osten quer: zwei Kacheln breit, acht Zellen in einer Reihe', () => {
-    const belt: ElementSpot = { id: 'b', element: 'belt', x: 4, z: 1, face: 'E' };
+  it('legt ein langes Element nach Osten quer: zwei Kacheln breit, acht Zellen in einer Reihe', () => {
+    const belt: ElementSpot = { id: 'b', element: 'long', x: 4, z: 1, face: 'E' };
     expect(spotSize(belt)).toEqual([2, 1]);
     expect(spotTiles(belt)).toEqual(['4,1', '5,1']);
     expect(spotCentre(belt)).toEqual({ x: 5, z: 1.5 });
@@ -44,6 +61,14 @@ describe('Spielelemente — wo sie stehen', () => {
     // Nach Süden steht es längs.
     expect(spotSize({ ...belt, face: 'S' })).toEqual([1, 2]);
     expect(spotTiles({ ...belt, face: 'N' })).toEqual(['4,1', '4,2']);
+  });
+
+  it('belegt mit einem Band genau eine Kachel, wohin es auch läuft', () => {
+    for (const face of FACES) {
+      const belt: ElementSpot = { id: 'b', element: 'belt', x: 4, z: 1, face };
+      expect(spotTiles(belt)).toEqual(['4,1']);
+      expect(spotCells(belt)).toHaveLength(4);
+    }
   });
 
   it('belegt mit einem Tisch 2 × 2 Kacheln und sechzehn Zellen', () => {
@@ -75,8 +100,8 @@ describe('Spielelemente — wo sie stehen', () => {
     expect(spotFront(counter(3, 2, 'N'))).toEqual({ x: 3.5, z: 2 });
     expect(spotFront(counter(3, 2, 'E'))).toEqual({ x: 4, z: 2.5 });
     expect(spotFront(counter(3, 2, 'W'))).toEqual({ x: 3, z: 2.5 });
-    // Beim Band ist die Vorderseite das Ende, zu dem es läuft.
-    expect(spotFront({ id: 'b', element: 'belt', x: 4, z: 1, face: 'E' })).toEqual({
+    // Bei einem langen Element ist die Vorderseite die schmale Seite, zu der es schaut.
+    expect(spotFront({ id: 'b', element: 'long', x: 4, z: 1, face: 'E' })).toEqual({
       x: 6,
       z: 1.5,
     });
@@ -94,7 +119,7 @@ describe('Spielelemente — wo sie stehen', () => {
     const spots: ElementSpot[] = [
       counter(0, 0),
       counter(1, 0),
-      { id: 'b', element: 'belt', x: 1, z: 0 },
+      { id: 'b', element: 'long', x: 1, z: 0 },
       { id: 't', element: 'table-round', x: 4, z: 4 },
       counter(5, 5),
     ];

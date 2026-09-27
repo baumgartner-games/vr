@@ -128,6 +128,17 @@ export type KitchenItem =
   | 'onion-cut'
   | 'stew'
   /**
+   * **Pommes** — die geschnittene Kartoffel, im Topf gekocht (`COOKS`).
+   *
+   * Gewünscht war die Kette dazu: _„Die Kartoffeln Vorräte sollen auch
+   * gehighlighted werden und interagierbar sein … ich will darauf z.B. auch
+   * Kartoffeln schneiden können … Es fehlt noch ein Waschbecken wo ich den
+   * Topf vollmachen kann."_ Kartoffel aus der Kiste, auf dem Brett schneiden,
+   * den Topf an der Spüle füllen, auf den Herd, die Kartoffel hinein — und
+   * heraus kommen Pommes, die ein Teller nimmt.
+   */
+  | 'fries'
+  /**
    * **Eiskugeln** — aus der Eiswanne direkt in die Schüssel.
    *
    * Sie gibt es nie für sich in der Hand: Die Wanne gibt eine Kugel nur in
@@ -193,6 +204,8 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   // **„Gemüsesuppe" und nicht „Suppe"**: Die Tomatensuppe gibt es schon, und
   // zwei Dinge, die in einem Satz gleich heißen, sind im Satz ein Ding.
   stew: 'Gemüsesuppe',
+  // „Pommes" ist im Deutschen schon Einzahl genug für jeden Satz hier.
+  fries: 'Pommes',
   'ice-vanilla': 'Vanilleeis',
   'ice-strawberry': 'Erdbeereis',
 };
@@ -301,6 +314,7 @@ const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
     'tomato-soup',
     'cheese-cut',
     'ham-cooked',
+    'fries',
   ],
   bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup', 'cheese-cut'],
   pan: ['patty', 'patty-cooked', 'patty-burnt'],
@@ -450,12 +464,32 @@ export function rollStage(item: KitchenItem): KitchenItem | null {
  */
 const COOKS: Partial<Record<KitchenItem, KitchenItem>> = {
   'carrot-cut': 'stew',
-  'potato-cut': 'stew',
+  // **Aus der Kartoffel werden Pommes** und keine Suppe mehr — gewünscht war
+  // die Pommes-Kette (`fries`). Suppe gibt es weiter aus Karotte und Zwiebel.
+  'potato-cut': 'fries',
   'onion-cut': 'stew',
 };
 
 export function cookStage(item: KitchenItem): KitchenItem | null {
   return COOKS[item] ?? null;
+}
+
+/**
+ * **Was im Topf mit Wasser gerade kocht** — die eine Zutat neben dem Wasser,
+ * wenn der Topf sie kochen kann (`COOKS`), sonst `null`.
+ *
+ * Das ist der Topf, den man in die Hand nimmt (`'pot'`), und nicht der
+ * eingebaute Suppentopf (`kitchenCarry.StationKind` `'pot'`): Er steht auf
+ * einem Herd, bekommt am Spülbecken Wasser (`kitchenCarry.atSink`) und dann
+ * eine geschnittene Zutat dazu (`pour`). Was daraus wird, ist dieselbe
+ * Tabelle wie im Suppentopf — ein Topf kocht, was im Topf kocht. Die Uhr
+ * dazu läuft an der Station (`plateup/plateUpStations.tickStation`), und
+ * danach liegt im Topf nur noch das Gekochte: Das Wasser ist verkocht.
+ */
+export function potCooks(d: Dish): KitchenItem | null {
+  if (d.item !== 'pot' || d.on.length !== 2 || !d.on.includes('water')) return null;
+  const item = d.on.find((one) => one !== 'water') ?? null;
+  return item && cookStage(item) ? item : null;
 }
 
 /**
@@ -532,6 +566,7 @@ const FOOD: readonly KitchenItem[] = [
   'onion',
   'onion-cut',
   'stew',
+  'fries',
   'ice-vanilla',
   'ice-strawberry',
 ];
@@ -566,6 +601,7 @@ export const STACK_ORDER: readonly KitchenItem[] = [
   'pizza-cut',
   'waffle',
   'stew',
+  'fries',
   'ice-vanilla',
   'ice-strawberry',
 ];
@@ -618,7 +654,41 @@ type Pour =
  */
 function offer(d: Dish): { what: readonly KitchenItem[]; rest: Dish | null } {
   if (d.item === 'pan') return { what: d.on, rest: dish('pan') };
+  // **Der Topf gibt her, was in ihm gekocht ist**, wie die Pfanne ihr Patty,
+  // und bleibt leer zurück: Die Pommes kommen auf den Teller, nicht der Topf.
+  // Nur, wenn alles darin Essen ist — ein Topf mit Wasser (in der Küche der
+  // Testwelt der einzige Inhalt, den er je hat) wandert wie bisher selbst.
+  if (d.item === 'pot' && d.on.length && d.on.every(isFood)) {
+    return { what: d.on, rest: dish('pot') };
+  }
   return { what: [d.item, ...d.on], rest: null };
+}
+
+/**
+ * **Etwas in den Topf mit Wasser** — `null`, wenn es nicht um den Topf und
+ * eine Zutat geht, die darin kocht (`cookStage`); dann gilt der Rest von
+ * `pour` wie immer.
+ *
+ * Der Topf ist kein Träger (`TAKES`, dort steht warum), und er wird hier auch
+ * keiner: Er nimmt **genau eine** kochbare Zutat, und nur, wenn schon Wasser
+ * darin ist. Die Küche der Testwelt hat keine solche Zutat — dort ändert
+ * diese Zeile nichts.
+ */
+function intoPot(giver: Dish, taker: Dish): Pour | null {
+  if (taker.item !== 'pot' || giver.on.length || !cookStage(giver.item)) return null;
+  if (!taker.on.includes('water')) {
+    return { ok: false, why: 'Im Topf ist kein Wasser — erst an der Spüle füllen', sure: true };
+  }
+  if (taker.on.length > 1) {
+    const inside = taker.on.find((item) => item !== 'water')!;
+    return { ok: false, why: `Im Topf ist schon ${ITEM_LABELS[inside]}`, sure: true };
+  }
+  return {
+    ok: true,
+    give: null,
+    take: dish('pot', [...taker.on, giver.item]),
+    moved: [giver.item],
+  };
 }
 
 /**
@@ -649,6 +719,8 @@ function whyNot(carrier: KitchenItem, item: KitchenItem): string {
 
 /** Ein Versuch: `giver` kippt in `taker`. */
 function pour(giver: Dish, taker: Dish): Pour {
+  const pot = intoPot(giver, taker);
+  if (pot) return pot;
   if (!isCarrier(taker.item)) {
     return {
       ok: false,

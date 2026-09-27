@@ -487,6 +487,7 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   onion: 0,
   'onion-cut': 0,
   stew: 0,
+  fries: 0,
   'ice-vanilla': 0,
   'ice-strawberry': 0,
 };
@@ -520,6 +521,7 @@ export const ELSEWHERE: readonly KitchenItem[] = [
   'onion',
   'onion-cut',
   'stew',
+  'fries',
   'ice-vanilla',
   'ice-strawberry',
 ];
