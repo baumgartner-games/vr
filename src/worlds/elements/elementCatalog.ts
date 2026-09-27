@@ -128,6 +128,31 @@ export interface GameElement {
    * nimmt, nimmt es mit — zur Spüle etwa, um es zu füllen.
    */
   readonly holds?: KitchenItem;
+  /**
+   * **Der Saum umfasst das Möbel selbst** — nicht nur das, was darauf liegt.
+   *
+   * Der gelbe Saum für `A` (`core/highlight.ts`) umrandet, was unter dem
+   * Anker der Station hängt: die Pfanne auf dem Herd, der Teller auf der
+   * Platte. Eine Vorratskiste hat nichts darauf liegen — ihr Inhalt ist Teil
+   * ihres Modells —, und so leuchtete an ihr nur ein Ring auf dem Boden.
+   * Gewünscht: _„Die vorratskisten mit den Gemüse müssen alle noch
+   * Highlighting bekommen, wie bei der Pfanne, also Kiste und das Gemüse
+   * darin"_ und _„Der Mülleimer soll auch gehighlighted werden können"_.
+   *
+   * Mit `lit` steht auch das erste Teil nur als Bild da (nicht als Stück der
+   * Welt, den Körper hat ohnehin der Kasten), und die Stationsschicht hängt
+   * alle Teile unter den Anker ihrer Station (`StationLayer.add`). Nur bei
+   * einem Element mit genau einer Station.
+   */
+  readonly lit?: boolean;
+  /**
+   * **Ein Abtropfgitter wie in der Sandbox** — höchstens vier Teller
+   * (`kitchenCarry.CLEAN_STACK_MAX`), zu Beginn voll, und wer einen
+   * zurückstellt, stellt ihn in ein freies Fach. Die Station zeigt die Teller
+   * einzeln in den Fächern (`core/kitchenFit.RACK_SLOTS`); das Modell ist das
+   * leere Gitter. Ohne Angabe wird ein Stapel nie leer (`stock: Infinity`).
+   */
+  readonly rack?: boolean;
   /** Die Modelle, das erste steht auf dem Boden. */
   readonly parts: readonly ElementPart[];
 }
@@ -155,7 +180,9 @@ function piece(
   label: string,
   kind: ElementKind | null,
   parts: readonly ElementPart[],
-  extra: Partial<Pick<GameElement, 'work' | 'gives' | 'holds' | 'tiles' | 'height'>> = {},
+  extra: Partial<
+    Pick<GameElement, 'work' | 'gives' | 'holds' | 'tiles' | 'height' | 'lit' | 'rack'>
+  > = {},
 ): GameElement {
   return { id, label, tiles: [1, 1], height: BODY, kind, parts, ...extra };
 }
@@ -168,10 +195,13 @@ function piece(
  * `crate_lid` hinzuschreiben hieße zwei Deckel, und die Kiste stünde zehn
  * Zentimeter über der Zeile daneben.
  *
+ * **Und sie leuchtet ganz** (`lit`): Kiste und Inhalt bekommen den Saum, wie
+ * die Pfanne auf dem Herd.
+ *
  * @param file der Dateiname ohne Paket und Endung, etwa `'crate_buns'`
  */
 export function crate(id: string, file: string, gives: string, label: string): GameElement {
-  return piece(id, label, 'crate', [{ model: bits(file) }], { gives });
+  return piece(id, label, 'crate', [{ model: bits(file) }], { gives, lit: true });
 }
 
 /**
@@ -198,6 +228,19 @@ const CRATES: readonly GameElement[] = [
   crate('crate-onions', 'crate_onions', 'onion', 'Zwiebelkiste'),
   crate('crate-pepperoni', 'crate_pepperoni', 'pepperoni', 'Salamikiste'),
   crate('crate-mushrooms', 'crate_mushrooms', 'mushroom', 'Pilzkiste'),
+  // **Die Tellerkiste** — gewünscht: _„Es fehlt mir noch das Möbel Stück
+  // vorratskiste mit Tellern (aus der unendlich viele kommen können)"_. Wie
+  // die Tellerkiste der Sandbox (`core/kitchenFit`, `plate-counter`): eine
+  // Kiste, aus der Teller kommen und die nie leer wird — anders als das
+  // Abtropfgitter (`plate-stack`), das höchstens vier hält. Die leere Kiste
+  // und obenauf ein Teller, damit man sieht, was darin ist.
+  piece(
+    'crate-plates',
+    'Tellerkiste',
+    'crate',
+    [{ model: bits('crate') }, { model: bits('plate'), stack: true }],
+    { gives: 'plate', lit: true },
+  ),
 ];
 
 /**
@@ -249,7 +292,7 @@ export const ELEMENTS: readonly GameElement[] = [
       { model: bits('crate') },
       { model: bits('food_pizza_pepperoni_plated'), stack: true, height: 0.12 },
     ],
-    { gives: 'pizza' },
+    { gives: 'pizza', lit: true },
   ),
   // **Der Herd mit Pfanne, wie in der Küche der Sandbox** (`kitchenFit`,
   // `stove-pan`): Die Pfanne ist **kein Teil**, sondern steht zu Beginn darauf
@@ -292,13 +335,24 @@ export const ELEMENTS: readonly GameElement[] = [
   }),
   // So hoch wie im Burgerladen (`PlateUpWorld.addBinProp`): Der Eimer aus
   // _Block Bits_ ist 1,17 m, neben einer Platte von 0,50 m ein Silo.
-  piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }]),
+  // Er leuchtet ganz (`lit`) — gewünscht: _„Der Mülleimer soll auch
+  // gehighlighted werden können."_
+  piece('bin', 'Mülleimer', 'bin', [{ model: 'block-bits/trashcan.glb', height: 0.55 }], {
+    lit: true,
+  }),
+  // **Die Arbeitsplatte mit Tellern ist ein Abtropfgitter wie in der Sandbox**
+  // (`rack`, `core/kitchenFit`, `sink-drain`) — gewünscht: _„Die aktuelle
+  // Arbeitsplatte mit Tellern soll hoffentlich genauso klappen wie in der
+  // sandbox Welt dort, dass maximal 4 Teller darin gepackt werden können."_
+  // Das leere Gitter (`dishrack`); die Teller darin zeigt die Station, einen
+  // je Fach, so viele, wie gerade drinstehen. Nie leer wird die Tellerkiste
+  // (`crate-plates`).
   piece(
     'plate-stack',
     'Tellerstapel',
     'drain',
-    [{ model: COUNTER }, { model: bits('dishrack_plates'), stack: true }],
-    { gives: 'plate' },
+    [{ model: COUNTER }, { model: bits('dishrack'), stack: true }],
+    { gives: 'plate', rack: true },
   ),
   piece(
     'bowl-stack',
@@ -422,6 +476,7 @@ export const FURNITURE_CATALOGUE: readonly string[] = [
   'crate-steak',
   'crate-tomatoes',
   'plate-stack',
+  'crate-plates',
   'bowl-stack',
   'crate-onions',
   'crate-buns',
@@ -475,7 +530,15 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   {
     id: 'pizza',
     label: 'Pizza',
-    elements: ['counter', 'pizza-supply', 'board', 'pizzabox-stack', 'plate-stack', 'bin'],
+    elements: [
+      'counter',
+      'pizza-supply',
+      'board',
+      'pizzabox-stack',
+      'plate-stack',
+      'crate-plates',
+      'bin',
+    ],
   },
   {
     id: 'burger',
@@ -491,6 +554,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'board',
       'stove',
       'plate-stack',
+      'crate-plates',
       'bin',
     ],
   },

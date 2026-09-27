@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Handedness } from '../../core/XRInput';
+import { RACK_SLOTS, SINK_TRAY } from '../../core/kitchenFit';
 import type { Usable, UseSource } from '../../core/usable';
 import type { StationSpot } from '../plateup/plateUpPlan';
 import {
@@ -15,6 +16,7 @@ import {
 import { DIR_S } from '../nav/navTile';
 import type { KitchenGauges } from '../test/zones/kitchenGauge';
 import {
+  CLEAN_STACK_MAX,
   ITEM_LABELS,
   kitchenInteractionSpec,
   kitchenPrompt,
@@ -58,6 +60,18 @@ export const NEAR_STATION = 1.3;
  * Stationen rechnete sonst jedes Bild jede Tat neu aus.
  */
 export const REFRESH_RANGE = 3;
+
+/**
+ * **Wie hoch die Mitte eines Tellers im Abtropfgitter über der Platte liegt**,
+ * in Metern — aus den Zahlen der Sandbox (`core/kitchenFit.RACK_SLOTS`): Dort
+ * steht das Gitter auf einer Zeile von 0,50 m (`sink-drain`), und die Mitte
+ * eines Tellers liegt `RACK_SLOTS.lift` über der Ablage des Gitters
+ * (`SINK_TRAY.floor`). Hier steht dasselbe Gitter auf derselben Platte.
+ */
+export const RACK_PLATE_LIFT = SINK_TRAY.floor - 0.5 + RACK_SLOTS.lift;
+
+/** Wie dick ein Teller ist, in Metern (`kitchenCarry.CLEAN_STACK_MAX`: 0,05 m flach). */
+const PLATE_THICK = 0.05;
 
 /** Eine Station eines Elements: die Stelle der Regel und wo ihr Anker sitzt. */
 export interface StationSlot {
@@ -119,8 +133,10 @@ function isKitchenItem(name: string): name is KitchenItem {
  * das Element zeigt.
  *
  * Stapel werden nie leer (`stock: Infinity`): Kein Gast bringt dreckiges
- * Geschirr zurück, und Schüsseln, Kartons und Teller gehen nicht zurück. Die
- * Spüle (`sink`) füllt hier den Topf.
+ * Geschirr zurück, und Schüsseln und Kartons gehen nicht zurück. **Außer dem
+ * Abtropfgitter** (`GameElement.rack`): Es hält höchstens vier Teller, wie in
+ * der Sandbox, und nie leer wird dafür die Tellerkiste. Die Spüle (`sink`)
+ * füllt hier den Topf.
  *
  * **Jedes Element mit einer Stationsart wird eine Station** — hier, an einer
  * Stelle, und nicht über eine zweite Liste im Plan einer Welt. Im ersten Test
@@ -162,7 +178,8 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
         id: spot.id,
         kind,
         ...(gives ? { gives } : {}),
-        ...(kind === 'drain' ? { stock: Infinity } : {}),
+        ...(kind === 'drain' ? { stock: element.rack ? CLEAN_STACK_MAX : Infinity } : {}),
+        ...(kind === 'drain' && element.rack ? { rack: true } : {}),
       },
       shift: 0,
       ...(element.holds ? { holds: dish(element.holds) } : {}),
@@ -301,6 +318,13 @@ export class StationLayer {
         dist2: Infinity,
         holds: slot.holds ?? null,
       });
+      // **Das ganze Möbel unter den Anker** (`GameElement.lit`): Der Saum
+      // umrandet, was dort hängt — dann die Kiste samt Inhalt und nicht nur
+      // einen Ring auf dem Boden. `attach` lässt jedes Teil stehen, wo es
+      // steht.
+      if (placed.element.lit && slots.length === 1) {
+        for (const part of placed.parts) if (part) anchor.attach(part);
+      }
       const [fresh] = slotStates([slot]);
       const was = keep.find((one) => one.spot.id === slot.spot.id);
       this.stations.push(
@@ -413,12 +437,18 @@ export class StationLayer {
    * und einmal weggeräumt, wenn es aufhört.
    */
   private show(view: StationView, state: StationState): void {
-    const key = state.on ? dishKey(state.on) : '';
+    const rack = view.spot.rack === true;
+    const key = rack ? `rack:${state.stock}` : state.on ? dishKey(state.on) : '';
     if (key !== view.shown) {
       view.shown = key;
       view.content?.removeFromParent();
       view.content = null;
-      if (state.on) {
+      if (rack) {
+        const shown = this.rackPlates(state.stock);
+        shown.position.set(0, view.top, 0);
+        view.surface.add(shown);
+        view.content = shown;
+      } else if (state.on) {
         const shown = this.host.dishView(state.on);
         shown.position.set(0, view.top, 0);
         view.surface.add(shown);
@@ -454,6 +484,30 @@ export class StationLayer {
       gauges.flame(`flame:${view.spot.id}`, state.work.working ? base : null);
       gauges.warn(`warn:${view.spot.id}`, heat > 0.5 ? base : null);
     }
+  }
+
+  /**
+   * **Die Teller im Abtropfgitter** — `count` Stück hochkant in seinen Fächern,
+   * wie in der Sandbox (`test/zones/kitchenProps.FoodKit.rackPlates`, dieselben
+   * Zahlen aus `core/kitchenFit.RACK_SLOTS`). Der Ursprung ist die Mitte der
+   * Platte auf ihrer Oberkante.
+   */
+  private rackPlates(count: number): THREE.Group {
+    const rack = new THREE.Group();
+    rack.name = 'rack-plates';
+    const plates = Math.max(0, Math.min(RACK_SLOTS.count, Math.round(count)));
+    for (let i = 0; i < plates; i++) {
+      const slot = new THREE.Group();
+      slot.rotation.x = RACK_SLOTS.tilt;
+      slot.position.set(0, RACK_PLATE_LIFT, RACK_SLOTS.first + i * RACK_SLOTS.step);
+      // Der Ursprung eines Tellers ist seine Unterseite; eine halbe Dicke
+      // tiefer gehängt, dreht er sich um seine Mitte.
+      const plate = this.host.dishView(dish('plate'));
+      plate.position.y = -PLATE_THICK / 2;
+      slot.add(plate);
+      rack.add(slot);
+    }
+    return rack;
   }
 
   /**

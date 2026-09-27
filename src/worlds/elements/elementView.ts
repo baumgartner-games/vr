@@ -108,8 +108,8 @@ interface Laid {
  * durchsichtig wie jede Wand, gebündelt gezeichnet), alles darauf nur als
  * Bild, gemessen und mit der Unterseite auf der Oberkante dessen, worauf es
  * steht. Braucht schon das erste Teil einen eigenen Maßstab oder ein
- * Umlegen, steht es ebenfalls nur als Bild da — den Körper hat ohnehin der
- * Kasten.
+ * Umlegen — oder leuchtet das Element ganz (`GameElement.lit`) —, steht es
+ * ebenfalls nur als Bild da; den Körper hat ohnehin der Kasten.
  */
 export async function placeElement(host: ElementHost, spot: ElementSpot): Promise<PlacedElement> {
   const element = spotElement(spot);
@@ -147,7 +147,10 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
     );
 
   const [first] = element.parts;
-  const fixed = !!first && plainFloor(first);
+  // Ein Element, das ganz leuchtet (`GameElement.lit`), braucht auch sein
+  // erstes Teil als Bild: Nur ein Bild lässt sich unter den Anker der Station
+  // hängen, und nur was dort hängt, bekommt den Saum.
+  const fixed = !!first && plainFloor(first) && !element.lit;
   // Alles auf einmal holen, gestellt wird danach der Reihe nach: Was obenauf
   // liegt, braucht die Oberkante dessen, worauf es liegt.
   const [size, ...models] = await Promise.all([

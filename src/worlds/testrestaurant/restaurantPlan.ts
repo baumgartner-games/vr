@@ -3,12 +3,12 @@ import { GridPlan } from '../grid/gridPlan';
 
 /**
  * **Test Restaurant** — die zweite Welt im Ordner _Test_, neben der Test
- * Navigation. **Leer, mit Absicht.**
+ * Navigation. Neu aufgebaut aus dem Möbelkatalog.
  *
  * Gewünscht, im September 2026: _„Also wir sollten die Restaurant Test Welt
  * komplett neu aufbauen. Mach die bitte einmal komplett leer. Ich will diese
- * aus dem Model Regal selbst aufbauen und schicke dir dann das dazu."_ Übrig
- * sind der Boden und der Ankunftsort. Die Küchen, das Burgerband, die Gäste,
+ * aus dem Model Regal selbst aufbauen und schicke dir dann das dazu."_ Danach
+ * kam die Liste: eine Burgerküche (`SPOTS`). Die alten Küchen, das Burgerband, die Gäste,
  * die Vorratsboxen und die Eisecke stehen in der Geschichte des Repositorys
  * (`docs/agents/testrestaurant.md` nennt den Commit).
  *
@@ -26,15 +26,40 @@ import { GridPlan } from '../grid/gridPlan';
  */
 
 /**
- * **Die Möbel der Welt** — heute keines.
+ * **Die Möbel der Welt** — die Burgerküche, wie der Besitzer sie im Spiel aus
+ * dem Möbelkatalog zusammengestellt hat (September 2026, die Liste der
+ * _Weltänderungen_).
  *
- * Eine Zeile je Element, etwa
- * `{ id: 'kartoffeln', element: 'crate-potatoes', x: 4, z: 2, face: 'N' }`
- * (`x`/`z` die Nordwestecke in Kacheln, `face` die Vorderseite). Mehr braucht
- * es nicht: Hinstellen, Sperren und — wo das Element einen Zweck hat — die
- * Station erledigt die Welt für jede Zeile gleich.
+ * Zwei Reihen mit einem Gang dazwischen (z = 13, dort kommt man auch an):
+ * im Norden die sechs Vorratskisten und der Herd mit Pfanne, im Süden
+ * Mülleimer, Arbeitsplatten, das Schneidebrett und der Tellerstapel.
+ * **Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist
+ * bei allen Süden, bitte anpassen."_ (In der Liste standen die Kisten noch
+ * nach Norden.)
+ *
+ * Eine Zeile je Element (`x`/`z` die Nordwestecke in Kacheln, `face` die
+ * Vorderseite). Mehr braucht es nicht: Hinstellen, Sperren und — wo das
+ * Element einen Zweck hat — die Station erledigt die Welt für jede Zeile
+ * gleich.
  */
-export const SPOTS: readonly ElementSpot[] = [];
+export const SPOTS: readonly ElementSpot[] = [
+  // Die Nordreihe: Vorräte von West nach Ost, dann der Herd.
+  { id: 'schinken', element: 'crate-ham', x: 11, z: 12, face: 'S' },
+  { id: 'kaese', element: 'crate-cheese', x: 12, z: 12, face: 'S' },
+  { id: 'tomaten', element: 'crate-tomatoes', x: 13, z: 12, face: 'S' },
+  { id: 'salat', element: 'crate-lettuce', x: 14, z: 12, face: 'S' },
+  { id: 'broetchen', element: 'crate-buns', x: 15, z: 12, face: 'S' },
+  { id: 'fleisch', element: 'crate-steak', x: 16, z: 12, face: 'S' },
+  { id: 'herd', element: 'stove', x: 17, z: 12, face: 'S' },
+  // Die Südreihe: Müll, Platte, Brett, drei Platten, Teller.
+  { id: 'muell', element: 'bin', x: 11, z: 14, face: 'S' },
+  { id: 'platte-1', element: 'counter', x: 12, z: 14, face: 'S' },
+  { id: 'brett', element: 'board', x: 13, z: 14, face: 'S' },
+  { id: 'platte-2', element: 'counter', x: 14, z: 14, face: 'S' },
+  { id: 'platte-3', element: 'counter', x: 15, z: 14, face: 'S' },
+  { id: 'platte-4', element: 'counter', x: 16, z: 14, face: 'S' },
+  { id: 'teller', element: 'plate-stack', x: 17, z: 14, face: 'S' },
+];
 
 /**
  * **Der Boden**, in Kacheln — 40 × 32, so groß wie zuletzt mit allen Küchen,

@@ -64,17 +64,19 @@ eigentlich sowieso bereits von Haus aus 2x2 undurchgehbar sein."_
 
 Ein Eintrag `GameElement` in `ELEMENTS`:
 
-| Feld     | Was es sagt                                                                                                                                        |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`     | Der Name, unter dem ein Plan es bestellt (`ElementSpot.element`), etwa `'board'`                                                                   |
-| `label`  | Der deutsche Name                                                                                                                                  |
-| `tiles`  | **Grundfläche in Kacheln**, Breite × Tiefe, für ein Element, das nach Süden schaut. Der runde Tisch `[2, 2]`, alles andere `[1, 1]`, auch das Band |
-| `height` | **Wie hoch der Körper ist**, nicht das Modell: 1,40 m für jedes Möbel mit Zweck, 0,5 m für das flache Band                                         |
-| `kind`   | Was man damit tut, eine Stationsart der Küche (`kitchenCarry.StationKind`) oder `'ice-tubs'`; `null` für etwas, das nur im Weg steht               |
-| `work`   | Bei einem Brett: `'chop'` (schneiden) oder `'roll'` (ausrollen)                                                                                    |
-| `gives`  | Was eine Kiste oder ein Stapel hergibt, als Vorschlag. Die Stelle im Plan gewinnt (`ElementSpot.gives`)                                            |
-| `holds`  | Was zu Beginn **auf** der Station steht und mitgenommen werden kann, als `KitchenItem`: der Topf auf dem Herd (`stove-pot`). Kein Teil des Bilds   |
-| `parts`  | Die Rohmodelle, aus denen es besteht. Das erste steht auf dem Boden                                                                                |
+| Feld     | Was es sagt                                                                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`     | Der Name, unter dem ein Plan es bestellt (`ElementSpot.element`), etwa `'board'`                                                                       |
+| `label`  | Der deutsche Name                                                                                                                                      |
+| `tiles`  | **Grundfläche in Kacheln**, Breite × Tiefe, für ein Element, das nach Süden schaut. Der runde Tisch `[2, 2]`, alles andere `[1, 1]`, auch das Band     |
+| `height` | **Wie hoch der Körper ist**, nicht das Modell: 1,40 m für jedes Möbel mit Zweck, 0,5 m für das flache Band                                             |
+| `kind`   | Was man damit tut, eine Stationsart der Küche (`kitchenCarry.StationKind`) oder `'ice-tubs'`; `null` für etwas, das nur im Weg steht                   |
+| `work`   | Bei einem Brett: `'chop'` (schneiden) oder `'roll'` (ausrollen)                                                                                        |
+| `gives`  | Was eine Kiste oder ein Stapel hergibt, als Vorschlag. Die Stelle im Plan gewinnt (`ElementSpot.gives`)                                                |
+| `holds`  | Was zu Beginn **auf** der Station steht und mitgenommen werden kann, als `KitchenItem`: der Topf auf dem Herd (`stove-pot`). Kein Teil des Bilds       |
+| `lit`    | **Der Saum umfasst das Möbel selbst**: alle Teile hängen unter dem Anker der Station, auch das erste nur als Bild. Jede Vorratskiste und der Mülleimer |
+| `rack`   | **Ein Abtropfgitter wie in der Sandbox**: höchstens vier Teller, zu Beginn voll, einzeln in den Fächern gezeigt. Nur beim Tellerstapel                 |
+| `parts`  | Die Rohmodelle, aus denen es besteht. Das erste steht auf dem Boden                                                                                    |
 
 **Die Grundfläche wird ganz gesperrt.** Eine Kachel ist ein Meter und
 2 × 2 Zellen, und ein Element auf einer Kachel sperrt alle vier. Ein Tisch auf
@@ -123,15 +125,16 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | `counter`                        | Arbeitsplatte                   | `top`                          | `counter_A`                                                                                                                                              |
 | `board`                          | Arbeitsplatte mit Schneidebrett | `board`, `work: 'chop'`        | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                                                             |
 | `rolling-board`                  | Nudelbrett                      | `board`, `work: 'roll'`        | `counter_A`, `rollingpin` auf 10 cm                                                                                                                      |
-| `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten             | `crate`                        | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                                                            |
-| `pizza-supply`                   | Pizza-Vorratsbox                | `crate`, gibt `pizza`          | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                                                     |
+| `crate-buns` … `crate-mushrooms` | zwölf Vorratskisten             | `crate`, `lit`                 | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie                                                                            |
+| `crate-plates`                   | Tellerkiste                     | `crate`, gibt `plate`, `lit`   | leere `crate`, obenauf ein `plate`; gibt Teller, so viele man will, und nimmt einen leeren zurück                                                        |
+| `pizza-supply`                   | Pizza-Vorratsbox                | `crate`, gibt `pizza`, `lit`   | leere `crate`, obenauf `food_pizza_pepperoni_plated`                                                                                                     |
 | `stove`                          | Herdplatte mit Pfanne           | `stove`, `holds: 'pan'`        | `stove_single`; die Pfanne der Sandbox-Küche (`itemModels.KITCHEN_PAN`, aus `kitchen.glb`) steht als Ding der Küche darauf, geht mit und brät darin      |
 | `stove-pot`                      | Herdplatte mit Topf             | `stove`, `holds: 'pot'`        | `stove_single`; der Topf `pot_A` ist kein Teil, sondern steht als Ding der Küche darauf und geht mit                                                     |
 | `hob`                            | Herdplatte                      | `stove`                        | `stove_single`, leer; ein Topf mit Wasser darauf kocht wie auf `stove-pot`                                                                               |
 | `sink`                           | Waschbecken                     | `sink`                         | `kitchencounter_sink` (Platte mit Becken und Hahn); füllt den Topf, den man davorhält                                                                    |
 | `extinguisher`                   | Feuerlöscher                    | `top`, `holds: 'extinguisher'` | `counter_A`; der Löscher (`mixed-bag/fire_extinguisher`) steht als Ding der Küche darauf und geht mit                                                    |
-| `bin`                            | Mülleimer                       | `bin`                          | `block-bits/trashcan` auf 0,55 m                                                                                                                         |
-| `plate-stack`                    | Tellerstapel                    | `drain`, gibt `plate`          | `counter_A`, `dishrack_plates`                                                                                                                           |
+| `bin`                            | Mülleimer                       | `bin`, `lit`                   | `block-bits/trashcan` auf 0,55 m                                                                                                                         |
+| `plate-stack`                    | Tellerstapel                    | `drain`, gibt `plate`, `rack`  | `counter_A`, das leere `dishrack`; die Teller (höchstens vier) zeigt die Station einzeln in den Fächern                                                  |
 | `bowl-stack`                     | Schüsselstapel                  | `drain`, gibt `bowl`           | `counter_A`, zwei `bowl`                                                                                                                                 |
 | `pizzabox-stack`                 | Kartonstapel                    | `drain`, gibt `pizzabox`       | `counter_A`, `pizzabox_stacked`                                                                                                                          |
 | `ice-stand`                      | Eisstand                        | `drain`, gibt `cone`           | `counter_A`, `icecream_cone_stacked` (0,5 m), `icecream_scoop` (0,3 m, liegend), wie die Eisecke im Laden, nach Süden; ein Vorrat: `A` gibt ein Hörnchen |
@@ -282,7 +285,7 @@ Möbelkatalog gibt **Spielelemente** her.
   und die Eiswannen (`ice-tubs`). Dahinter die **Vorräte** (gewünscht:
   _„vorratskisten: Salat, Käse, Wurst, Steak, Tomaten, Teller, Schüssel,
   Zwiebel, …"_): Salat, Käse, Schinken (die Wurst), Fleisch (das Steak, gibt
-  das Patty), Tomaten, Teller- und Schüsselstapel, Zwiebeln, dann Brötchen,
+  das Patty), Tomaten, Tellerstapel, Tellerkiste, Schüsselstapel, Zwiebeln, dann Brötchen,
   Teig, Karotten, Kartoffeln, Pizza-Vorratsbox, Kartonstapel, Nudelbrett und
   Mülleimer. Salami und Pilze fehlen mit Absicht: Sie sind noch keine Zutat
   (`SHOW_ONLY_GIVES`), und der Test verbietet sie hier. Jedes
@@ -292,7 +295,7 @@ Möbelkatalog gibt **Spielelemente** her.
   (Arbeitsplatte, Waschbecken, Mülleimer, Feuerlöscher auf Arbeitsplatte),
   je Gericht **Pizza, Burger, Eis, Waffeln, Suppe** — jeder mit der
   Arbeitsplatte vorn und den Möbeln, mit denen `elementFlows.test.ts` das
-  Gericht kocht, Burger und Pizza mit dem Tellerstapel — und **Alles** mit
+  Gericht kocht, Burger und Pizza mit Tellerstapel und Tellerkiste — und **Alles** mit
   der ganzen Liste. Gewünscht zuerst: _„einige Möbel doppelt gelistet …
   unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_, dann: _„bei den unter
   Ordner die Arbeitsplatte jeweils rein. Und die Möbel aus dem Restaurant
@@ -380,7 +383,13 @@ drittes Mal ab. Der Burgerladen selbst bleibt, wie er ist.
   `StationSpot` der Regel, `shift` längs der Vorderkante und `holds`, was zu
   Beginn darauf steht). `slotStates(slots)` macht daraus den frischen Stand,
   mit dem Topf auf dem Herd. **Stapel gehen nie aus** (`stock: Infinity`):
-  Kein Gast bringt Geschirr zurück. Ein `gives`, das kein `KitchenItem` ist
+  Kein Gast bringt Geschirr zurück. **Außer dem Tellerstapel** (`rack`): Er
+  ist ein Abtropfgitter wie in der Sandbox, hält höchstens vier Teller
+  (`kitchenCarry.CLEAN_STACK_MAX`, `StationSpot.rack`), sagt beim fünften
+  _„Im Abtropfgitter stehen schon 4 Teller"_ und leer _„Im Abtropfgitter steht
+  kein Teller mehr"_; die Station zeigt die Teller einzeln in den Fächern
+  (`RACK_SLOTS`, `RACK_PLATE_LIFT`). Nie leer wird die Tellerkiste
+  (`crate-plates`). Ein `gives`, das kein `KitchenItem` ist
   (`SHOW_ONLY_GIVES`), wird **keine** Station, sondern bleibt ein Möbel, mit
   einer Warnung in der Konsole. Die Welt stirbt nicht an einer Kiste, und
   `furnish` fängt auch sonst jeden Fehler beim Hinstellen eines Elements ab.
@@ -403,7 +412,14 @@ DEFAULT_BURN)`, dann `add(placed)` je hingestelltem Element und jedes Bild
   14 s, wie am ersten Tag im Restaurant.
 - **Wo was hängt:** Die Anmeldung (`Usable`, der Saum für `A`) hängt an
   einem Kind des Ankers an der Vorderkante, und das Liegende auf einem Kind
-  in der Mitte der Platte, auf `top`.
+  in der Mitte der Platte, auf `top`. Der Saum umrandet alles, was unter
+  diesem Kind hängt: die Pfanne auf dem Herd, den Teller auf der Platte. Bei
+  einem Element mit `lit` hängt `add` dort auch **alle Teile** des Elements
+  hin (`attach`, sie bleiben stehen, wo sie stehen), damit Kiste samt Inhalt
+  und Mülleimer leuchten und nicht nur ein Ring auf dem Boden. Gewünscht:
+  _„Die vorratskisten mit den Gemüse müssen alle noch Highlighting bekommen,
+  wie bei der Pfanne, also Kiste und das Gemüse darin"_ und _„Der Mülleimer
+  soll auch gehighlighted werden können"_.
 - **Was die Welt reicht** (`StationHost`): `addUsable`, `removeUsable`,
   `announce` (die Ablehnungen als Zeile unten im Bild), `held`, `heldHand`,
   `setHeld`, `busy()` (volle Hände mit etwas, das kein Ding der Küche ist,

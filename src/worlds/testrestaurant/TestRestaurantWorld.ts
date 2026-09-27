@@ -38,13 +38,11 @@ import { SPOTS, ground, restaurantPlan, spawn } from './restaurantPlan';
 const HAND_FOOD_SCALE = 0.5;
 
 /**
- * **Test Restaurant** — die zweite Welt im Ordner _Test_, und im Moment
- * **leer**: der Boden, der Ankunftsort, sonst nichts (`restaurantPlan.ts`).
+ * **Test Restaurant** — die zweite Welt im Ordner _Test_: Boden, Ankunftsort
+ * und die Burgerküche, die der Besitzer aus dem Möbelkatalog zusammengestellt
+ * hat (`restaurantPlan.SPOTS`).
  *
- * Gewünscht: _„Mach die bitte einmal komplett leer. Ich will diese aus dem
- * Model Regal selbst aufbauen und schicke dir dann das dazu."_
- *
- * Was bleibt, ist die Fähigkeit, Spielelemente aufzunehmen: Jede Stelle in
+ * Jede Stelle in
  * `SPOTS` wird hingestellt (`elements/furnish.ts` → `placeElement`), und
  * jedes Element mit einer Stationsart antwortet auf `A` nach der Regel der
  * Küche (`elements/stationLayer.ts`). Was man dabei in der Hand hat, trägt
@@ -101,7 +99,7 @@ export class TestRestaurantWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Test Restaurant · leer, bereit für den Neuaufbau aus dem Modellregal';
+    return 'Test Restaurant · die Burgerküche aus dem Möbelkatalog';
   }
 
   /** Leere Hände: Getragen wird hier nur, was eine Station hergibt. */
