@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
 import { dirX, dirZ, TILE, type Dir } from '../../nav/navTile';
+import { CELL } from '../../nav/cellGrid';
 import { doorEdges, doorMiddle } from '../house';
 
 /**
@@ -77,6 +78,8 @@ export function doorButtonSpots(door: ButtonDoor): { x: number; z: number }[] {
 export function buttonPressed(
   door: ButtonDoor,
   occupants: readonly { x: number; z: number }[],
+  /** Wie weit vor und hinter der Kante das zählt, in Metern — voreingestellt die Kachel des Knopfs. */
+  depth = TILE,
 ): boolean {
   const middle = doorMiddle(door);
   const along = dirX(door.dir) === 0;
@@ -86,9 +89,24 @@ export function buttonPressed(
     const dz = one.z - middle.z;
     const wide = along ? Math.abs(dx) : Math.abs(dz);
     const deep = along ? Math.abs(dz) : Math.abs(dx);
-    return wide <= half && deep <= TILE;
+    return wide <= half && deep <= depth;
   });
 }
+
+/**
+ * **Wie weit vor der Tür die Blätter schon auffahren** — in Metern, von der
+ * Kante bis zur Mitte der Figur.
+ *
+ * Gewünscht: _„Bei haunting map müssen sich die Türen nicht ein Feld davor
+ * öffnen, sondern 2 Felder."_ Ein Feld ist eine halbe Kachel (`CELL`), und die
+ * Figur steht auf 2 × 2 Feldern — ihre Mitte liegt ein Feld hinter ihrer
+ * Spitze. Mit der Kachel des Knopfs (`TILE`) als Grenze ging die Tür also auf,
+ * wenn zwischen Figur und Kante noch **ein** Feld frei war; jetzt sind es
+ * **zwei**. Der Knopf selbst sinkt weiter erst ein, wenn jemand auf ihm steht
+ * (`buttonPressed` ohne `depth`); die Automatik, die durchlässt
+ * (`automaticDoors.ts`), reicht ohnehin weiter.
+ */
+export const DOOR_OPEN_DEPTH = 2 * CELL + CELL;
 
 /** Was ein Knopf gerade zeigt. */
 export interface ButtonState {

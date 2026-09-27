@@ -139,6 +139,74 @@ export function runPieces(run: WallRun): WallPiece[] {
 }
 
 /**
+ * **Kurze Läufe zu langen zusammenlegen** — für einen Grundriss, der jede
+ * Kachelkante als eigenen Quader baut (der Bauplatz, `levelBuild.planSolids`).
+ *
+ * Die Station legt ihre Wände schon selbst zu Läufen zusammen
+ * (`StationPlan.solids`); ein gemalter Grundriss nicht. Ohne das stünde auf
+ * jeder Kante ein halbes Stück, um `WALL_REACH` über beide Enden gestreckt —
+ * und wo zwei davon überlappen, flimmern ihre Flächen gegeneinander. Also
+ * wird zusammengelegt, was auf derselben Fuge in derselben Höhe lückenlos
+ * aneinanderstößt; die Schlüssel (die Quader) wandern mit, damit das Ghosting
+ * von oben weiter je Quader fragen kann. Schrägen bleiben, wie sie sind.
+ */
+export function joinRuns<T>(
+  runs: readonly { key: T; run: WallRun }[],
+): { keys: T[]; run: WallRun }[] {
+  const out: { keys: T[]; run: WallRun }[] = [];
+  const lines = new Map<string, { key: T; run: WallRun }[]>();
+  for (const one of runs) {
+    if (one.run.yaw) {
+      out.push({ keys: [one.key], run: one.run });
+      continue;
+    }
+    const { alongX, base, height } = one.run;
+    const line = alongX ? one.run.z : one.run.x;
+    const id = `${alongX ? 'x' : 'z'}:${line.toFixed(3)}:${base.toFixed(3)}:${height.toFixed(3)}`;
+    const list = lines.get(id) ?? [];
+    list.push(one);
+    lines.set(id, list);
+  }
+  for (const list of lines.values()) {
+    const along = (run: WallRun): number => (run.alongX ? run.x : run.z);
+    list.sort((a, b) => along(a.run) - along(b.run));
+    let keys: T[] = [];
+    let from = 0;
+    let to = 0;
+    let first: WallRun | null = null;
+    const flush = (): void => {
+      if (!first) return;
+      const middle = (from + to) / 2;
+      out.push({
+        keys,
+        run: {
+          ...first,
+          x: first.alongX ? middle : first.x,
+          z: first.alongX ? first.z : middle,
+          length: to - from,
+        },
+      });
+    };
+    for (const { key, run } of list) {
+      const start = along(run) - run.length / 2;
+      const end = along(run) + run.length / 2;
+      if (first && Math.abs(start - to) < 1e-6) {
+        keys.push(key);
+        to = end;
+        continue;
+      }
+      flush();
+      first = run;
+      keys = [key];
+      from = start;
+      to = end;
+    }
+    flush();
+  }
+  return out;
+}
+
+/**
  * **Ein Durchgang oder ein Fenster aus dem Regal** an einer Stelle der Station
  * — in seiner eigenen Größe (`kaykitFit.KAYKIT_FILE_SCALE`), mit der Mitte auf
  * der Kante, längs der Wand gedreht. `solids` sind die Quader des Grundrisses,
@@ -199,7 +267,7 @@ export class StationWalls {
    */
   constructor(
     root: THREE.Object3D,
-    private readonly runs: readonly { solid: THREE.Object3D; run: WallRun }[],
+    private readonly runs: readonly { solids: readonly THREE.Object3D[]; run: WallRun }[],
     private readonly features: readonly StationFeature[],
     private readonly ready: () => void,
   ) {
@@ -287,12 +355,12 @@ export class StationWalls {
       const cell = `${Math.floor(x / CELL)}:${Math.floor(z / CELL)}`;
       cells.set(cell, [...(cells.get(cell) ?? []), ...parts]);
     };
-    for (const { solid, run } of this.runs) {
+    for (const { solids, run } of this.runs) {
       const parts = runPieces(run).flatMap((piece) => {
         const unit = piece.half ? short : wall;
         return placedParts(unit, pieceMatrix(run, piece, unit));
       });
-      place([solid], parts, run.x, run.z);
+      place(solids, parts, run.x, run.z);
     }
     for (const feature of this.features) {
       const unit = units.get(feature.path);

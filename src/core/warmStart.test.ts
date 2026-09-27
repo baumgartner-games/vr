@@ -159,6 +159,19 @@ describe('startButton', () => {
     expect(state.busy).toBe(false);
   });
 
+  // Einmal geladen ist für alle geladen: Wer nach der ersten Welt eine andere
+  // wählt, bekommt keine zweite Prüfung vor den Knopf — die gewählte Welt
+  // kommt im Hintergrund.
+  it('wird beim Wechsel der Welt nicht noch einmal stumpf, wenn schon eine stand', () => {
+    for (const phase of ['lädt', 'ruht'] as const) {
+      expect(startButton(ruhig, phase, true)).toEqual({ disabled: false, note: '', busy: false });
+    }
+    // Beim ersten Mal wartet er wie immer.
+    expect(startButton(ruhig, 'lädt', false).disabled).toBe(true);
+    // Und was schiefging, sagt er weiterhin.
+    expect(startButton(ruhig, 'fehlt', true).note).not.toBe('');
+  });
+
   // Hinter einer Lobby wird nichts vorgewärmt, und der Knopf dort ist ein
   // anderer (`#haunt-enter`). Also ist hier auch nichts zu sagen.
   it('sagt hinter einer Lobby gar nichts', () => {

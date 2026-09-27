@@ -11,7 +11,7 @@ import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
-import { FLOOR_MODEL } from '../testnav/navTestPlan';
+import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import {
   BELT_DONE,
   BELT_PLATE,
@@ -165,7 +165,7 @@ export class TestRestaurantWorld extends GridWorld {
 
   /** Der Boden ist dieselbe Prototyp-Platte wie in der Test Navigation. */
   protected override floorPlate(_tile: PlateTile): string | null {
-    return FLOOR_MODEL;
+    return PLATE_PROTOTYPE;
   }
 
   protected override skyColor(): number {

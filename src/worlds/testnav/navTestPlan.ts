@@ -9,6 +9,8 @@ import {
 import { HAZARD_FIRE } from '../nav/navProfile';
 import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from '../nav/navTile';
 import type { Slope } from '../nav/cellGrid';
+import type { PlateTile } from '../shared/plateField';
+import { PLATE_PROTOTYPE } from '../test/floorPlate';
 
 /**
  * **Test Navigation** — Prüfstände, an denen man einem NPC beim Wegfinden
@@ -170,47 +172,6 @@ export const NAV_TESTS: readonly NavTest[] = [
   },
 ];
 
-/**
- * **Die Böden aus dem Regal** — gewünscht: _„der Boden durch prototype floor
- * ersetzt … Die Lava durch Spike Boden. Der grüne und blaue Boden durch kaykit
- * kitchen Green und Blue"_.
- *
- * Der Boden ist die Platte des Prototyp-Pakets, dieselbe wie draußen in der
- * Sandbox (`test/floorPlate.PLATE_PROTOTYPE`), eine je Kachel
- * (`NavTestWorld.floorPlate`). Lava, Start und Ziel sind Bodenstücke, die die
- * Welt hinstellt (`floorPieces`): eingelassen wie aus der Hand
- * (`PortalWorld.sinkFloor`), und die Platte darunter geht aus dem Bild.
- */
-export const FLOOR_MODEL = 'prototype-bits/Floor_Prototype.glb';
-/** Die Stachelfalle, eine Kachel groß — rot, weil rot dasselbe sagt wie Lava. */
-export const LAVA_MODEL = 'platformer/red/floor_spikes_trap_2x2x1_red.glb';
-/** Die grüne Startplatte: Küchenfliese grün, eine Kachel. */
-export const START_MODEL = 'restaurant-bits/floor_kitchen_small_green.glb';
-/** Die blaue Zielplatte: Küchenfliese blau, eine Kachel. */
-export const GOAL_MODEL = 'restaurant-bits/floor_kitchen_small_blue.glb';
-
-/** Ein Bodenstück, das die Welt hinstellt: Datei und Kachel. */
-export interface FloorPiece {
-  readonly path: string;
-  readonly at: NavSpot;
-}
-
-/**
- * **Die Bodenstücke der Welt** — je Lavakachel eine Stachelfalle, je Test eine
- * grüne und eine blaue Fliese.
- */
-export function floorPieces(): FloorPiece[] {
-  const pieces: FloorPiece[] = [];
-  for (let x = LAVA.x; x < LAVA.x + LAVA.w; x++)
-    for (let z = LAVA.z; z < LAVA.z + LAVA.d; z++)
-      pieces.push({ path: LAVA_MODEL, at: { x, z, level: LAVA.level } });
-  for (const test of NAV_TESTS) {
-    pieces.push({ path: START_MODEL, at: test.start });
-    pieces.push({ path: GOAL_MODEL, at: test.goal });
-  }
-  return pieces;
-}
-
 /** Das Tor aus dem Regal: eine Kachel breit, 2,1 m Öffnung (`props.MODEL_ARCHES`). */
 export const GATE_MODEL = 'prototype-bits/Wall_Doorway.glb';
 
@@ -335,4 +296,51 @@ function wallRing(
 /** Die Mitte einer Kachel in Metern. */
 export function tileCentre(tile: number): number {
   return tile + 0.5;
+}
+
+/**
+ * **Der Boden ist nur aus dem Regal** — gewünscht: _„Bei der Test Welt der
+ * Boden soll bitte nur aus kaykit floor prototype Sachen bestehen außer die
+ * Lava, aber dafür gibt es ja die Spikes. Und als Start und Ziel gibt es die
+ * farbigen kitchen floor Grid Teile."_
+ *
+ * - **Überall der Prototyp-Boden** (`test/floorPlate.PLATE_PROTOTYPE`), wie in
+ *   der Sandbox — auch auf den Podesten und den Treppenstufen.
+ * - **Start grün, Ziel blau**: die kleinen Küchenfliesen aus dem Restaurant
+ *   (`floor_kitchen_small_green` / `…_blue`), eine Kachel groß.
+ * - **Die Lava bekommt keine Platte** (`null`): Dort liegt die Stachelfalle
+ *   als eigener Boden (`NavTestWorld.fillSpikes`), und zwei Böden
+ *   übereinander flimmern.
+ */
+export const START_FLOOR = 'restaurant-bits/floor_kitchen_small_green.glb';
+export const GOAL_FLOOR = 'restaurant-bits/floor_kitchen_small_blue.glb';
+
+/** Ob diese Kachel in der Lava liegt (`LAVA`). */
+export function inLava(col: number, row: number, level: number): boolean {
+  return (
+    level === LAVA.level &&
+    col >= LAVA.x &&
+    col < LAVA.x + LAVA.w &&
+    row >= LAVA.z &&
+    row < LAVA.z + LAVA.d
+  );
+}
+
+/** Die Mitten der Lavakacheln, in Metern — eine Stachelfalle je Kachel. */
+export function lavaSpots(): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  for (let dz = 0; dz < LAVA.d; dz++)
+    for (let dx = 0; dx < LAVA.w; dx++)
+      out.push({ x: tileCentre(LAVA.x + dx), z: tileCentre(LAVA.z + dz) });
+  return out;
+}
+
+/** **Welche Platte auf welcher Kachel liegt** — eine Adresse aus dem Regal, oder `null`. */
+export function navTestPlate(tile: PlateTile): string | null {
+  const at = (spot: NavSpot): boolean =>
+    spot.x === tile.col && spot.z === tile.row && spot.level === tile.level;
+  if (inLava(tile.col, tile.row, tile.level)) return null;
+  if (NAV_TESTS.some((test) => at(test.start))) return START_FLOOR;
+  if (NAV_TESTS.some((test) => at(test.goal))) return GOAL_FLOOR;
+  return PLATE_PROTOTYPE;
 }

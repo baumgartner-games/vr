@@ -8,12 +8,8 @@ import { readNav, writeNav } from '../nav/navSerial';
 import { wallLevel } from '../grid/shelfNav';
 import { clearPlanWalls, SHELF_WALL, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
 import {
-  GOAL_MODEL,
   LAVA,
-  LAVA_MODEL,
   NAV_TESTS,
-  START_MODEL,
-  floorPieces,
   SPAWN,
   STOREY,
   navTestPlan,
@@ -21,9 +17,14 @@ import {
   GATE_MODEL,
   gateDir,
   gateTile,
+  GOAL_FLOOR,
+  lavaSpots,
+  navTestPlate,
+  START_FLOOR,
   tileCentre,
   type NavTest,
 } from './navTestPlan';
+import { PLATE_PROTOTYPE } from '../test/floorPlate';
 
 const plan = navTestPlan();
 const graph = plan.graph;
@@ -285,27 +286,32 @@ describe('Test Navigation — Wände nur aus dem Regal', () => {
   });
 });
 
-describe('Test Navigation — Böden aus dem Regal', () => {
-  const pieces = floorPieces();
-
-  it('legt auf jede Lavakachel eine Stachelfalle', () => {
-    const spikes = pieces.filter((piece) => piece.path === LAVA_MODEL);
-    expect(spikes).toHaveLength(LAVA.w * LAVA.d);
-    for (const { at } of spikes) {
-      const tile = graph.tile(tileKey(at.x, at.z, at.level));
-      expect(tile?.hazard).toBeTruthy();
-    }
+describe('Test Navigation — der Boden nur aus dem Regal', () => {
+  it('legt überall den Prototyp-Boden, auch oben auf dem Podest', () => {
+    expect(navTestPlate({ col: SPAWN.x, row: SPAWN.z, level: 0 })).toBe(PLATE_PROTOTYPE);
+    expect(navTestPlate({ col: LAVA.x - 1, row: LAVA.z, level: 1 })).toBe(PLATE_PROTOTYPE);
+    // Unter der Lava, eine Etage tiefer, ist es wieder der Prototyp-Boden.
+    expect(navTestPlate({ col: LAVA.x, row: LAVA.z, level: 0 })).toBe(PLATE_PROTOTYPE);
   });
 
-  it('legt grüne Fliesen auf die Starts und blaue auf die Ziele', () => {
+  it('legt auf Start und Ziel die grüne und die blaue Küchenfliese', () => {
     for (const one of NAV_TESTS) {
-      expect(pieces).toContainEqual({ path: START_MODEL, at: one.start });
-      expect(pieces).toContainEqual({ path: GOAL_MODEL, at: one.goal });
+      expect(navTestPlate({ col: one.start.x, row: one.start.z, level: one.start.level })).toBe(
+        START_FLOOR,
+      );
+      expect(navTestPlate({ col: one.goal.x, row: one.goal.z, level: one.goal.level })).toBe(
+        GOAL_FLOOR,
+      );
     }
+    expect(START_FLOOR).toMatch(/floor_kitchen_small_green/);
+    expect(GOAL_FLOOR).toMatch(/floor_kitchen_small_blue/);
   });
 
-  it('legt nie zwei Stücke auf dieselbe Kachel', () => {
-    const tiles = new Set(pieces.map(({ at }) => `${at.x},${at.z},${at.level}`));
-    expect(tiles.size).toBe(pieces.length);
+  it('lässt die Lava frei — dort liegen die Stacheln, eine Falle je Kachel', () => {
+    for (let dz = 0; dz < LAVA.d; dz++)
+      for (let dx = 0; dx < LAVA.w; dx++)
+        expect(navTestPlate({ col: LAVA.x + dx, row: LAVA.z + dz, level: LAVA.level })).toBeNull();
+    expect(lavaSpots()).toHaveLength(LAVA.w * LAVA.d);
+    expect(lavaSpots()[0]).toEqual({ x: tileCentre(LAVA.x), z: tileCentre(LAVA.z) });
   });
 });

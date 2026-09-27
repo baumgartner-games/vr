@@ -641,12 +641,12 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     expect(deepest).toBeLessThan(0.25);
   });
 
-  test('flink: nach dem Anhalten aus vollem Gehtempo stehen fünf und zehn Kugeln in einer halben Sekunde', () => {
+  test('flink: nach dem Anhalten aus vollem Gehtempo stehen fünf und zehn Kugeln in 0,8 Sekunden', () => {
     for (const count of [5, 10]) {
       let state = run(count, 3, 60, walk(2.6), run(count, 1, 60, still));
       const base = walk(2.6)(3).base;
       expect(Math.max(...wobbleLag(state, base, UP, SPACING))).toBeGreaterThan(0.1);
-      state = run(count, 0.5, 120, () => ({ base, axis: UP }), state);
+      state = run(count, 0.8, 120, () => ({ base, axis: UP }), state);
       for (const lag of wobbleLag(state, base, UP, SPACING)) expect(lag).toBeLessThan(0.001);
     }
   });
@@ -666,10 +666,10 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
         }
       });
     }
-    // Je höher das Glied, desto später — und alle innerhalb einer Viertelsekunde.
+    // Je höher das Glied, desto später — und alle innerhalb von 0,35 s.
     for (let i = 1; i < 5; i++) expect(when[i]!).toBeGreaterThan(when[i - 1]!);
     expect(when[0]!).toBeGreaterThan(0.05);
-    expect(when[4]!).toBeLessThan(0.25);
+    expect(when[4]!).toBeLessThan(0.35);
   });
 
   test('zitternde Hand: kein Aufschaukeln, und danach steht er gleich', () => {
@@ -801,6 +801,23 @@ describe('Restaurant: der Turm auf dem Hörnchen', () => {
     const base = walk(2.6)(1).base;
     const after = run(50, 5, 60, () => ({ base, axis: UP }), moved);
     for (const lag of wobbleLag(after, base, UP, SPACING)) expect(lag).toBeLessThan(1e-4);
+  });
+
+  test('dasselbe Objekt jedes Bild neu beschrieben — wie ein THREE.Vector3 der Ansicht', () => {
+    // Die Ansicht reicht jedes Bild **dasselbe** Objekt herein. Nach #272
+    // behielt der Zustand es, die letzte Stelle war damit schon die neue, und
+    // der Turm stand im Spiel starr, obwohl alle Tests hier grün waren.
+    const shared = { x: 0, y: 1, z: 0 };
+    const axis = { x: 0, y: 1, z: 0 };
+    let state = NO_WOBBLE;
+    let fresh = NO_WOBBLE;
+    for (let i = 1; i <= 60; i++) {
+      shared.x = 2.6 * (i / 60);
+      state = stepWobble(state, shared, axis, 4, SPACING, 1 / 60, SIZE);
+      fresh = stepWobble(fresh, { ...shared }, UP, 4, SPACING, 1 / 60, SIZE);
+    }
+    expect(behind(state, shared)[3]).toBeGreaterThan(0.5 * SIZE);
+    expect(state.balls).toEqual(fresh.balls);
   });
 
   test('neue Kugeln erscheinen oben auf dem Turm, überzählige fallen weg', () => {

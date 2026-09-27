@@ -209,8 +209,26 @@ export const LOADING_NOTE = 'Die Welt wird geladen …';
  *    Knopf heißt `#haunt-enter` und hat seine eigene Zeile. Hier ist dann
  *    nichts zu sagen und nichts anzuzeigen.
  */
-export function startButton(signals: WarmSignals, world: WorldPhase): StartButton {
+export function startButton(
+  signals: WarmSignals,
+  world: WorldPhase,
+  /**
+   * **Ob in dieser Sitzung schon einmal eine Welt stand.** Dann ist geprüft
+   * und geladen, was alle Welten brauchen (die Hülle, three.js, die Physik,
+   * der Speicher), und eine andere Welt auf der Startseite zu wählen ist keine
+   * zweite Prüfung. Gemeldet: _„Bei der Startseite wird ja der Beitreten
+   * Button einmal geladen, aber anscheinend wenn ich die Welt wechsle bzw.
+   * auswähle fängt er erneut an zu prüfen, ist doch unnötig, er kann es doch
+   * einmal für alle laden."_ Also bleibt der Knopf danach bedienbar und
+   * schweigt, während die gewählte Welt im Hintergrund kommt — wer vorher
+   * drückt, wartet eben beim Hineingehen auf sie.
+   */
+  once = false,
+): StartButton {
   if (signals.lobby === true) return { disabled: false, note: '', busy: false };
+  if (once && (world === 'lädt' || world === 'ruht')) {
+    return { disabled: false, note: '', busy: false };
+  }
   switch (world) {
     case 'steht':
       return { disabled: false, note: '', busy: false };

@@ -1,6 +1,6 @@
 import { housePlan } from '../plan';
 import { generateHouse } from '../house';
-import { runPieces, WALL_REACH, wallRun } from './stationWalls';
+import { joinRuns, runPieces, WALL_REACH, wallRun } from './stationWalls';
 import { PLAN_WALL_H } from '../../editor/levelPlan';
 
 /**
@@ -60,5 +60,44 @@ describe('Schräge Wände der Station', () => {
       expect(pieces[0]!.length).toBeCloseTo(Math.SQRT2 + 2 * WALL_REACH);
       expect(run.height).toBeCloseTo(PLAN_WALL_H);
     }
+  });
+});
+
+/** **Kurze Läufe werden lange** — für den Bauplatz, der je Kante einen Quader baut. */
+describe('joinRuns', () => {
+  const edge = (x: number, z: number, alongX: boolean) => ({
+    x,
+    z,
+    length: 1,
+    alongX,
+    base: 0,
+    height: 2.8,
+  });
+
+  it('legt lückenlos aneinanderstoßende Kanten einer Fuge zu einem Lauf zusammen', () => {
+    const joined = joinRuns([
+      { key: 'b', run: edge(1.5, 0, true) },
+      { key: 'a', run: edge(0.5, 0, true) },
+      { key: 'c', run: edge(2.5, 0, true) },
+    ]);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]!.keys).toEqual(['a', 'b', 'c']);
+    expect(joined[0]!.run).toMatchObject({ x: 1.5, z: 0, length: 3, alongX: true });
+  });
+
+  it('trennt an einer Lücke, an einer anderen Fuge und an einer anderen Etage', () => {
+    const joined = joinRuns([
+      { key: 'a', run: edge(0.5, 0, true) },
+      { key: 'b', run: edge(2.5, 0, true) },
+      { key: 'c', run: edge(1.5, 1, true) },
+      { key: 'd', run: { ...edge(1.5, 0, true), base: 2.8 } },
+      { key: 'e', run: edge(0, 0.5, false) },
+    ]);
+    expect(joined).toHaveLength(5);
+  });
+
+  it('lässt Schrägen, wie sie sind', () => {
+    const slant = { ...edge(0.5, 0.5, true), length: Math.SQRT2, yaw: Math.PI / 4 };
+    expect(joinRuns([{ key: 's', run: slant }])).toEqual([{ keys: ['s'], run: slant }]);
   });
 });

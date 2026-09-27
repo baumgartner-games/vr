@@ -17,17 +17,17 @@ Burger von allein macht, und Gäste, die in einer Blase zeigen, was sie wollen.
 
 ## Was wo liegt
 
-| Datei                                  | Was darin steht                                                                                                                  |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `testrestaurant/restaurantPlan.ts`     | **Rein**: die Küchen (`KITCHENS`, je Gericht Rezept, Fehlendes und eine Reihe Möbel), ihre Reihen, Band, Tische, Vorratsboxen      |
-| `testrestaurant/burgerBelt.ts`         | **Rein**: das Band — aus der vergangenen Zeit, wo jeder Burger steht und welche Schichten er hat (`beltBurgers`)                   |
-| `testrestaurant/guestWishes.ts`        | **Rein**: die Gäste — Wünsche ohne Zufall (`wishOf`), Servieren (`serveTable`), Essen und Bedanken (`stepGuests`)                  |
-| `testrestaurant/TestRestaurantWorld.ts` | Die Darstellung: Möbel, Gelegtes, Tafeln, Band, Figuren, Blasen, das Getragene                                                    |
-| `testrestaurant/*.test.ts`             | Jede Datei liegt im Regal, nichts steht übereinander, das Band baut von unten nach oben, Wünsche wechseln, falsches Essen bleibt in der Hand |
+| Datei                                   | Was darin steht                                                                                                                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `testrestaurant/restaurantPlan.ts`      | **Rein**: die Küchen (`KITCHENS`, je Gericht Rezept, Fehlendes und eine Reihe Möbel), ihre Reihen, Band, Tische, Vorratsboxen                |
+| `testrestaurant/burgerBelt.ts`          | **Rein**: das Band — aus der vergangenen Zeit, wo jeder Burger steht und welche Schichten er hat (`beltBurgers`)                             |
+| `testrestaurant/guestWishes.ts`         | **Rein**: die Gäste — Wünsche ohne Zufall (`wishOf`), Servieren (`serveTable`), Essen und Bedanken (`stepGuests`)                            |
+| `testrestaurant/TestRestaurantWorld.ts` | Die Darstellung: Möbel, Gelegtes, Tafeln, Band, Figuren, Blasen, das Getragene                                                               |
+| `testrestaurant/*.test.ts`              | Jede Datei liegt im Regal, nichts steht übereinander, das Band baut von unten nach oben, Wünsche wechseln, falsches Essen bleibt in der Hand |
 
 Die Welt erbt von `GridWorld`. Im Plan steht **nur der Boden** — dieselbe
 Prototyp-Platte wie in der Test Navigation (`floorPlate` →
-`testnav/navTestPlan.FLOOR_MODEL`). Alles andere sind Stücke aus dem Regal:
+`test/floorPlate.PLATE_PROTOTYPE`). Alles andere sind Stücke aus dem Regal:
 Möbel stehen als feste Stücke der Welt (`placeModel`, ein Körper, von oben
 durchsichtig wie jede Wand), was obenauf liegt, ist nur Bild (`lay`). Gemessen
 wird am geladenen Modell (`measure`), nicht abgeschrieben: Die Oberkante eines

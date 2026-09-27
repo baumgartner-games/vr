@@ -1,4 +1,4 @@
-import { buttonPressed, doorButtonSpots, type ButtonDoor } from './doorButtons';
+import { buttonPressed, DOOR_OPEN_DEPTH, doorButtonSpots, type ButtonDoor } from './doorButtons';
 import { DIR_E, DIR_N } from '../../nav/navTile';
 
 /** **Vor und hinter jeder Tür ein Knopf** — wo sie liegen und wann einer gedrückt ist. */
@@ -27,5 +27,18 @@ describe('Türknöpfe', () => {
     expect(buttonPressed(door, [{ x: 1.5, z: 5.5 }])).toBe(false);
     expect(buttonPressed(door, [{ x: 3.5, z: 6.7 }])).toBe(false);
     expect(buttonPressed(door, [])).toBe(false);
+  });
+
+  it('lassen die Blätter schon zwei Felder vor der Tür auffahren', () => {
+    // Ein Feld ist eine halbe Kachel; die Mitte der Figur liegt eines hinter
+    // ihrer Spitze. Die Tür (Kante x = 4) geht auf, sobald die Figur mit ihrer
+    // Spitze zwei Felder davor steht — also ihre Mitte 1,5 m davor.
+    expect(DOOR_OPEN_DEPTH).toBeCloseTo(1.5);
+    expect(buttonPressed(door, [{ x: 2.6, z: 5.5 }], DOOR_OPEN_DEPTH)).toBe(true);
+    expect(buttonPressed(door, [{ x: 5.4, z: 5.5 }], DOOR_OPEN_DEPTH)).toBe(true);
+    // Auf dem Knopf steht dort noch niemand.
+    expect(buttonPressed(door, [{ x: 2.6, z: 5.5 }])).toBe(false);
+    // Und drei Felder davor bleibt sie zu.
+    expect(buttonPressed(door, [{ x: 2.3, z: 5.5 }], DOOR_OPEN_DEPTH)).toBe(false);
   });
 });

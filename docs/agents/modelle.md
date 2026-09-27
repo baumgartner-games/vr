@@ -678,6 +678,24 @@ voll orange, die gewöhnliche Patrone gedämpft gelb.
   ungefähr" und nicht „diese Laterne" — deshalb zieht der Griff auch dort auf
   das Modell um und bekommt eine echte Hülle.
 
+### Die Planwände von Bauplatz und Hub
+
+Gewünscht: _„In der Bauplatz Welt sollen nur Wände von kaykit genutzt werden.
+Diese einfachen grauen Wände sind doch von uns? Direkt löschen alle überall."_
+In Testwelt, Test Navigation und Haunting waren die Planwände schon weg; übrig
+waren der **Bauplatz** und der **Hub**. Beide sagen jetzt
+`GridWorld.shelfPlanWalls() = true`: Die Wand bleibt im Plan — sie wird im
+Bauplatz gemalt, gespeichert und geplant wie immer —, zu sehen ist an ihrer
+Stelle aber `prototype-bits/Wall.glb` bzw. `Wall_Half.glb`, gezeichnet von
+derselben Klasse wie in der Station (`haunting/world3d/stationWalls.ts`,
+`StationWalls`). Weil der Bauplatz jede Kachelkante als eigenen Quader baut,
+legt `joinRuns` sie vorher zu Läufen zusammen; sonst stünde auf jeder Kante ein
+halbes, über die Enden gestrecktes Stück, und die Überlappungen flimmerten.
+Die Quader werden unsichtbar, sobald die Stücke stehen (ein eigenes Material,
+`shelfSkin`), und bleiben Körper; Türen und Fenster (Pfosten, Sturz, Brüstung)
+sind keine Läufe und bleiben gebaut. Das Bild hängt in der Gruppe des
+Grundrisses und geht beim Bearbeiten (weißer Raum) mit ihr aus.
+
 ## Eine Build-Nummer an jeder Adresse
 
 Modelle und Töne liegen unter **festen** Namen (`models/kitchen.glb`,
