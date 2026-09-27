@@ -187,6 +187,17 @@ den großen Kacheln bleibt.
   `HauntingWorld` die Einrichtung der Station. **Wer eine neue Welt mit
   eigener Einrichtung baut, geht diesen Weg**, nicht über einen Physik-Körper
   allein.
+  - **Und muss ihn nicht mehr selbst pflastern** (September 2026): Die
+    Gitterwelt bringt ihn mit — `GridWorld.blockFootprint(cx, cz, w, d)`
+    trägt die Zellen in `blockedCells` ein, `cellTaken` fragt diese Menge
+    neben `cellBlocked`, und `blockSolid` stellt dazu gleich den
+    unsichtbaren Kasten von 1,40 m (`SOLID_BLOCK_HEIGHT`, wie `addBlock` im
+    Burgerladen); `unblockSolid` nimmt beides wieder weg. Beim Verlassen der
+    Welt wird die Menge geleert. Burgerladen, Hub und Testwelt behalten ihr
+    Überschreiben, beides gilt. Die **Spielelemente** (`worlds/elements/`,
+    `placeElement`) sperren darüber, und zwar bevor ein Modell lädt.
+    Nachgelaufen in `grid/blockFootprint.test.ts`: eine Kachel sperrt genau
+    ihre vier Zellen, und kein 2 × 2-Block kommt von irgendeiner Seite hinein.
   - **Die Küche der Testwelt ebenso** (September 2026, gemeldet: _„ich komme
     als Spieler auf Möbel rauf wie in der Küche, wenn ich nur einfach dagegen
     laufe … auf dem 2D-Grid die Logik behalten"_). Ihre Möbel, Knopfsäulen

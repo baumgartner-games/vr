@@ -1,0 +1,277 @@
+import * as THREE from 'three';
+import { canLoadModels } from '../../core/chefFit';
+import type { SolidBlock } from '../grid/GridWorld';
+import type { ElementPart, GameElement } from './elementCatalog';
+import {
+  rotateOffset,
+  spotCentre,
+  spotElement,
+  spotFace,
+  spotFront,
+  spotSize,
+  spotYaw,
+  type ElementSpot,
+} from './elementPlace';
+
+/**
+ * **Was eine Welt können muss, um Spielelemente hinzustellen** — fünf
+ * Handgriffe, alle schon da (`TestRestaurantWorld.elementHost`).
+ *
+ * Eine Schnittstelle und keine Basisklasse: Die Welt bleibt, was sie ist
+ * (eine `GridWorld`), und reicht nur durch, was sie ohnehin hat. Die Methoden
+ * dort sind geschützt; die Welt baut sich dafür ein Objekt aus Pfeilen,
+ * statt sie öffentlich zu machen.
+ */
+export interface ElementHost {
+  /**
+   * **Zellen sperren und den unsichtbaren Kasten stellen** — sofort
+   * (`GridWorld.blockSolid`). Mitte und Maße in Metern.
+   */
+  blockSolid(cx: number, cz: number, w: number, d: number, height: number): SolidBlock;
+  /**
+   * **Das Bodenstück als festes Stück der Welt** (`PortalWorld.placeModel`):
+   * die Mitte seiner Hülle auf `at`, gedreht um `yaw`.
+   */
+  placeModel(path: string, at: THREE.Vector3, yaw: number): Promise<unknown>;
+  /** Wie groß ein Modell ist, wie es aus dem Regal kommt — `null`, wenn keines kam. */
+  measure(path: string): Promise<THREE.Vector3 | null>;
+  /** Eine eigene Kopie aus dem Regal (`kaykitModel`) — `null`, wenn keine kam. */
+  load(path: string): Promise<THREE.Object3D | null>;
+  /** Ins Bild damit — und merken, damit es beim Aufräumen mitgeht. */
+  add(object: THREE.Object3D): void;
+  /** Ob die Welt noch steht; nach dem Aufräumen wird nichts mehr hingestellt. */
+  alive(): boolean;
+}
+
+/** **Ein hingestelltes Element** — was die Welt danach damit tut. */
+export interface PlacedElement {
+  readonly spot: ElementSpot;
+  readonly element: GameElement;
+  /**
+   * **Der Anker an der Vorderkante** — auf dem Boden, in der Mitte der Seite,
+   * auf die das Element schaut, und mit ihm gedreht (+z zeigt nach draußen,
+   * zu dem, der davorsteht). Er hängt schon im Bild, bevor ein Modell kam:
+   * Wer daran etwas Benutzbares hängt, muss nicht warten.
+   */
+  readonly anchor: THREE.Object3D;
+  /**
+   * **Wo abgelegt wird**, in Metern über dem Boden — die Oberkante des Teils
+   * mit `surface`, sonst die des ersten: die Platte, der Rost, der Rand der
+   * Kiste, das Brett. Gemessen, sobald die Modelle da sind; kam keines, eine
+   * Arbeitsplatte (`FALLBACK_TOP`).
+   */
+  readonly top: number;
+  /** Die gesperrten Zellen (`cellKey`) — dieselben wie `elementPlace.spotCells`. */
+  readonly cells: readonly string[];
+  /** Zellen und Kasten zusammen — für `GridWorld.unblockSolid`. */
+  readonly block: SolidBlock;
+  /** Die Modelle obenauf, je Teil — `null`, wo keines kam oder das Teil als Stück der Welt steht. */
+  readonly parts: readonly (THREE.Object3D | null)[];
+}
+
+/** So hoch ist eine Arbeitsplatte — die Ablage, solange nichts gemessen ist. */
+export const FALLBACK_TOP = 0.5;
+
+/** Ein Teil, wie es hingestellt wurde — für das nächste, das darauf oder darin sitzt. */
+interface Laid {
+  /** Die Hülle im Bild (`null`, wenn das Teil als Stück der Welt steht). */
+  readonly holder: THREE.Object3D | null;
+  /** Oberkante über dem Boden. */
+  readonly top: number;
+  /** Für `inside`: Maßstab, Drehungen und Versatz, die das nächste übernimmt. */
+  readonly scale: number;
+  readonly tilt: readonly [number, number, number];
+  readonly yaw: number;
+  readonly shift: THREE.Vector3;
+}
+
+/**
+ * **Ein Spielelement hinstellen.**
+ *
+ * **Zuerst die Sperre, und zwar noch bevor irgendetwas geladen wird**: Zellen
+ * und Kasten stehen, sobald dieser Aufruf zurückkehrt — auch wenn danach kein
+ * Modell kommt (kein WebGL, keine Leitung, ein falscher Name). Das Gitter ist
+ * die Wahrheit (`docs/agents/zellgitter.md`), und ein Möbel, durch das man
+ * läuft, solange es lädt, ist eines, durch das man läuft.
+ *
+ * Dann die Teile: das erste als festes Stück der Welt (`placeModel` — von oben
+ * durchsichtig wie jede Wand, gebündelt gezeichnet), alles darauf nur als
+ * Bild, gemessen und mit der Unterseite auf der Oberkante dessen, worauf es
+ * steht. Braucht schon das erste Teil einen eigenen Maßstab oder ein
+ * Umlegen, steht es ebenfalls nur als Bild da — den Körper hat ohnehin der
+ * Kasten.
+ */
+export async function placeElement(host: ElementHost, spot: ElementSpot): Promise<PlacedElement> {
+  const element = spotElement(spot);
+  const face = spotFace(spot);
+  const yaw = spotYaw(spot);
+  const centre = spotCentre(spot);
+  const [w, d] = spotSize(spot);
+  const block = host.blockSolid(centre.x, centre.z, w, d, element.height);
+
+  const anchor = new THREE.Group();
+  anchor.name = `element:${spot.id}`;
+  const front = spotFront(spot);
+  anchor.position.set(front.x, 0, front.z);
+  anchor.rotation.y = yaw;
+  host.add(anchor);
+
+  const placed = (top: number, parts: readonly (THREE.Object3D | null)[]): PlacedElement => ({
+    spot,
+    element,
+    anchor,
+    top,
+    cells: block.cells,
+    block,
+    parts,
+  });
+  if (!canLoadModels())
+    return placed(
+      FALLBACK_TOP,
+      element.parts.map(() => null),
+    );
+
+  const [first] = element.parts;
+  const fixed = !!first && plainFloor(first);
+  // Alles auf einmal holen, gestellt wird danach der Reihe nach: Was obenauf
+  // liegt, braucht die Oberkante dessen, worauf es liegt.
+  const [size, ...models] = await Promise.all([
+    fixed && first ? host.measure(first.model) : Promise.resolve(null),
+    ...element.parts.map((part, i) =>
+      i === 0 && fixed ? Promise.resolve(null) : host.load(part.model),
+    ),
+  ]);
+  if (!host.alive())
+    return placed(
+      FALLBACK_TOP,
+      element.parts.map(() => null),
+    );
+
+  const laid: (Laid | null)[] = [];
+  const views: (THREE.Object3D | null)[] = [];
+  element.parts.forEach((part, i) => {
+    const [ox, oz] = rotateOffset(face, part.at ?? [0, 0]);
+    const x = centre.x + ox;
+    const z = centre.z + oz;
+    if (i === 0 && fixed) {
+      if (!size) {
+        laid.push(null);
+        views.push(null);
+        return;
+      }
+      void host.placeModel(part.model, new THREE.Vector3(x, size.y / 2, z), yaw + (part.yaw ?? 0));
+      laid.push({
+        holder: null,
+        top: size.y,
+        scale: 1,
+        tilt: [0, 0, 0],
+        yaw: 0,
+        shift: new THREE.Vector3(),
+      });
+      views.push(null);
+      return;
+    }
+    const model = models[i] ?? null;
+    if (!model) {
+      laid.push(null);
+      views.push(null);
+      return;
+    }
+    const one = part.inside
+      ? layInside(model, laid[i - 1] ?? null)
+      : layOn(model, part, yaw, x, z, baseOf(part, i, laid));
+    if (!one) {
+      laid.push(null);
+      views.push(null);
+      return;
+    }
+    if (one.holder && one.holder.parent === null) host.add(one.holder);
+    laid.push(one);
+    views.push(one.holder);
+  });
+
+  const surface = element.parts.findIndex((part) => part.surface);
+  const top = laid[surface >= 0 ? surface : 0]?.top ?? laid[0]?.top ?? FALLBACK_TOP;
+  return placed(top, views);
+}
+
+/**
+ * **Ob das erste Teil als Stück der Welt stehen kann** — so, wie es aus dem
+ * Regal kommt. `placeModel` kennt weder Maßstab noch Umlegen.
+ */
+function plainFloor(part: ElementPart): boolean {
+  return part.height === undefined && part.scale === undefined && part.tilt === undefined;
+}
+
+/** Worauf ein Teil steht: die Oberkante eines früheren, oder der Boden. */
+function baseOf(part: ElementPart, i: number, laid: readonly (Laid | null)[]): number {
+  const on = part.on ?? (part.stack ? i - 1 : null);
+  if (on === null) return 0;
+  // Kam das Teil darunter nicht, steht dieses auf der Höhe einer Platte —
+  // nicht auf dem Boden, wo es im Kasten verschwände.
+  return laid[on]?.top ?? FALLBACK_TOP;
+}
+
+/**
+ * **Ein Teil hinlegen**: auf Maß bringen, umlegen, drehen, mit der
+ * Unterseite auf `y` und der Mitte seiner Hülle über (`x`, `z`).
+ */
+function layOn(
+  model: THREE.Object3D,
+  part: ElementPart,
+  elementYaw: number,
+  x: number,
+  z: number,
+  y: number,
+): Laid | null {
+  const raw = new THREE.Box3().setFromObject(model);
+  if (raw.isEmpty()) return null;
+  const tall = raw.max.y - raw.min.y;
+  const scale = part.height !== undefined && tall > 1e-6 ? part.height / tall : (part.scale ?? 1);
+  const tilt = part.tilt ?? ([0, 0, 0] as const);
+  const yaw = elementYaw + (part.yaw ?? 0);
+  const spin = pose(model, scale, tilt, yaw);
+  spin.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(spin);
+  if (box.isEmpty()) return null;
+  const shift = new THREE.Vector3(
+    -(box.min.x + box.max.x) / 2,
+    -box.min.y,
+    -(box.min.z + box.max.z) / 2,
+  );
+  spin.position.copy(shift);
+  const holder = new THREE.Group();
+  holder.add(spin);
+  holder.position.set(x, y, z);
+  return { holder, top: y + box.max.y - box.min.y, scale, tilt, yaw, shift };
+}
+
+/**
+ * **Ein Teil in das davor setzen** — mit genau dessen Maßstab, Drehungen und
+ * Versatz, also so, wie beide Dateien zueinander gebaut sind. Das Eis sitzt
+ * so unter dem Rand seiner Wanne und nicht auf ihm.
+ */
+function layInside(model: THREE.Object3D, outer: Laid | null): Laid | null {
+  if (!outer?.holder) return null;
+  const spin = pose(model, outer.scale, outer.tilt, outer.yaw);
+  spin.position.copy(outer.shift);
+  outer.holder.add(spin);
+  return { ...outer };
+}
+
+/** Maßstab und Umlegen innen, die Drehung um die Hochachse außen. */
+function pose(
+  model: THREE.Object3D,
+  scale: number,
+  tilt: readonly [number, number, number],
+  yaw: number,
+): THREE.Group {
+  model.scale.multiplyScalar(scale);
+  const tilted = new THREE.Group();
+  tilted.rotation.set(tilt[0], tilt[1], tilt[2]);
+  tilted.add(model);
+  const spin = new THREE.Group();
+  spin.rotation.y = yaw;
+  spin.add(tilted);
+  return spin;
+}

@@ -1,0 +1,158 @@
+import { STACK_ORDER, layered, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
+
+/**
+ * **Wie die Dinge der Küche im Test Restaurant aussehen** — je `KitchenItem`
+ * ein Stück aus dem Regal (`public/models/kaykit/restaurant-bits`). Ohne
+ * three.js, ohne Laden: nur Pfade.
+ *
+ * Die Küche der Testwelt und der Laden (`worlds/plateup`) zeichnen ihre
+ * Zutaten aus dem Diner-Baukasten (`test/zones/kitchenProps.FoodKit`), und
+ * dabei bleibt es. Das Test Restaurant baut aus dem KayKit-Regal und bekommt
+ * deshalb eine eigene Zuordnung — **dieselben Namen**, andere Netze. Die Regeln
+ * dahinter (`kitchenCarry.kitchenDeed`) sind für beide dieselben; nur das Bild
+ * unterscheidet sich, und das Bild ist diese eine Tabelle.
+ *
+ * **Ein leerer Pfad ist eine Antwort und keine Lücke.** Für den Feuerlöscher,
+ * die Wasserpumpenzange und das Wasser hat das Regal kein Stück; die Welt
+ * zeichnet sie anders oder gar nicht. Ein `''` sagt das ausdrücklich — ein
+ * fehlender Eintrag wäre dagegen ein Übersetzerfehler (`Record` über alle
+ * `KitchenItem`), und genau so soll es sein: Kommt ein Ding dazu, fragt der
+ * Übersetzer hier nach seinem Bild.
+ */
+
+/** Der Ordner im Regal, aus dem fast alles kommt. */
+const BITS = 'restaurant-bits';
+
+/** Ein Stück aus `restaurant-bits`, als Pfad relativ zum Regal. */
+function bit(name: string): string {
+  return `${BITS}/${name}.glb`;
+}
+
+/**
+ * **Das Bild je Ding** — ein Pfad, oder mehrere, die zusammen das Ding sind.
+ *
+ * Mehrere Pfade heißen **übereinander an derselben Stelle** und nicht
+ * nebeneinander: Die Stücke des Regals sind so gebaut, dass ihre Ursprünge
+ * zusammenpassen. `itemModel` nimmt den ersten, `dishModels` alle.
+ */
+export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[]>> = {
+  pot: bit('pot_A'),
+  pan: bit('pan_A'),
+  // Kein Feuerlöscher, keine Zange und kein Wasser im Regal (siehe oben).
+  extinguisher: '',
+  pliers: '',
+  water: '',
+  plate: bit('plate'),
+  'plate-dirty': bit('plate_dirty'),
+  bun: bit('food_ingredient_bun'),
+  patty: bit('food_ingredient_burger_uncooked'),
+  'patty-cooked': bit('food_ingredient_burger_cooked'),
+  'patty-burnt': bit('food_ingredient_burger_trash'),
+  lettuce: bit('food_ingredient_lettuce'),
+  'lettuce-cut': bit('food_ingredient_lettuce_slice'),
+  tomato: bit('food_ingredient_tomato'),
+  'tomato-cut': bit('food_ingredient_tomato_slice'),
+  // Das Regal hat keine Tomatensuppe, aber eine Tomatensoße — flach, rot und
+  // auf einem Burger genau das, was die Suppe dort sein soll.
+  'tomato-soup': bit('food_ingredient_tomato_sauce'),
+  bowl: bit('bowl'),
+  pizzabox: bit('pizzabox_open'),
+  cheese: bit('food_ingredient_cheese'),
+  'cheese-cut': bit('food_ingredient_cheese_slice'),
+  ham: bit('food_ingredient_ham'),
+  'ham-cooked': bit('food_ingredient_ham_cooked'),
+  'ham-burnt': bit('food_ingredient_ham_trash'),
+  // **Eine ganze Pizza gibt es im Regal nur auf ihrem Brett** — ohne Teller
+  // darunter hat sie keine Form. Das Brett ist klein genug, dass sie so auch
+  // im offenen Karton liegt.
+  pizza: bit('food_pizza_pepperoni_plated'),
+  'pizza-cut': bit('food_pizza_pepperoni_slice'),
+  dough: bit('food_ingredient_dough'),
+  'dough-flat': bit('food_ingredient_dough_base'),
+  waffle: bit('icecream_waffle'),
+  carrot: bit('food_ingredient_carrot'),
+  'carrot-cut': bit('food_ingredient_carrot_chopped'),
+  potato: bit('food_ingredient_potato'),
+  'potato-cut': bit('food_ingredient_potato_chopped'),
+  onion: bit('food_ingredient_onion'),
+  'onion-cut': bit('food_ingredient_onion_chopped'),
+  stew: bit('food_stew'),
+  // **Die Kugeln sind die Füllung der Eisschale** — so liegen sie im Regal:
+  // `icecream_bowl_icecream_*` ist der Eisberg, der in die Schale gehört, mit
+  // seinem Ursprung dort, wo die Schale ihn trägt. Eine Kugel für sich gibt
+  // es nicht, und in der Hand kommt sie auch nie vor (`kitchenCarry.atTub`).
+  'ice-vanilla': bit('icecream_bowl_icecream_vanilla'),
+  'ice-strawberry': bit('icecream_bowl_icecream_strawberry'),
+};
+
+/**
+ * **Was in einer Schüssel anders aussieht als für sich.**
+ *
+ * Suppe für sich ist ein ganzer Teller Eintopf (`food_stew`); in der Schüssel
+ * ist sie nur die Füllung (`stew_bowl`), sonst stünde eine Schüssel in der
+ * Schüssel. Dasselbe bei der Waffel: Im Regal gibt es die Waffeln passend für
+ * die Eisschale.
+ */
+const IN_BOWL: Partial<Record<KitchenItem, string>> = {
+  stew: bit('stew_bowl'),
+  waffle: bit('icecream_bowl_waffles'),
+};
+
+/**
+ * **Die beiden Hälften des Brötchens** — sobald etwas darin liegt, ist es
+ * aufgeschnitten: unten der Boden, oben der Deckel, dazwischen der Belag.
+ * Dieselbe Regel wie im Diner-Baukasten (`kitchenProps.FoodKit.pile`).
+ */
+export const BUN_BOTTOM = bit('food_ingredient_bun_bottom');
+export const BUN_TOP = bit('food_ingredient_bun_top');
+
+/** Alle Pfade eines Eintrags, ohne die leeren. */
+function paths(entry: string | readonly string[]): string[] {
+  return (typeof entry === 'string' ? [entry] : [...entry]).filter((path) => path !== '');
+}
+
+/** **Das eine Stück eines Dings** — der erste Pfad, oder `''`, wenn es keines gibt. */
+export function itemModel(item: KitchenItem): string {
+  return paths(ITEM_MODELS[item])[0] ?? '';
+}
+
+/**
+ * **Alle Stücke eines Gerichts**, von unten nach oben: erst der Träger, dann
+ * was darauf oder darin liegt, in der Reihenfolge, in der ein Burger gebaut
+ * ist (`kitchenRecipes.layered`).
+ *
+ * Drei Abweichungen vom bloßen Nachschlagen, und alle drei sind Bild:
+ *
+ * - **Das Brötchen wird aufgeschnitten**, sobald es Belag hat — ob es selbst
+ *   der Träger ist oder auf einem Teller liegt. Ein Brötchen allein bleibt
+ *   ganz.
+ * - **In der Schüssel** gilt `IN_BOWL`: Suppe und Waffel als Füllung.
+ * - **Was kein Bild hat, fällt weg** — der Topf mit Wasser ist ein Topf.
+ *
+ * Die Welt stapelt die Stücke nach ihren gemessenen Höhen; die Liste sagt nur,
+ * welche und in welcher Reihenfolge.
+ */
+export function dishModels(dish: Dish): string[] {
+  const out = paths(ITEM_MODELS[dish.item]);
+  // Was nicht in der Schichtung steht (Wasser), kommt ans Ende — `layered`
+  // sortiert Unbekanntes sonst nach vorn, unter den Belag.
+  const known = layered(dish.on.filter((item) => STACK_ORDER.includes(item)));
+  const rest = dish.on.filter((item) => !STACK_ORDER.includes(item));
+  const on = [...known, ...rest];
+  const inBowl = dish.item === 'bowl';
+  const piece = (item: KitchenItem): string[] => {
+    const special = inBowl ? IN_BOWL[item] : undefined;
+    return special ? [special] : paths(ITEM_MODELS[item]);
+  };
+
+  if (dish.item === 'bun') {
+    if (!on.length) return out;
+    return [BUN_BOTTOM, ...on.flatMap(piece), BUN_TOP];
+  }
+  if (on.includes('bun')) {
+    const filling = on.filter((item) => item !== 'bun');
+    if (!filling.length) return [...out, ...piece('bun')];
+    return [...out, BUN_BOTTOM, ...filling.flatMap(piece), BUN_TOP];
+  }
+  return [...out, ...on.flatMap(piece)];
+}

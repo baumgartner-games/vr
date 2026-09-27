@@ -15,7 +15,7 @@ import {
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
 import { readNav, writeNav } from '../nav/navSerial';
-import { CellGrid, cellKey, navCellSource, type Slope } from '../nav/cellGrid';
+import { CellGrid, cellKey, footprintCellKeys, navCellSource, type Slope } from '../nav/cellGrid';
 import { slideOnCells } from '../nav/planeMove';
 import { wallCells, type DiagonalWall } from '../portal/gridSnap';
 import { MODEL_ARCHES, modelPathOf, type PropKind } from '../portal/props';
@@ -101,6 +101,20 @@ import { GROUP_CELL, GROUP_WORLD, type PhysicsBody } from '../../physics/Physics
 
 /** Die „Datei“, auf die ein Quader unter einem eigenen Belag wartet (`underOwnFloor`). */
 const OWN_FLOOR = 'own-floor';
+
+/**
+ * **Wie hoch der Kasten unter einem Möbel ist** (`GridWorld.blockSolid`) —
+ * 1,40 m wie im Burgerladen und in der Testküche: Darüber springt niemand.
+ */
+export const SOLID_BLOCK_HEIGHT = 1.4;
+
+/** Was `GridWorld.blockSolid` gesperrt und hingestellt hat — zum Wiederfreigeben. */
+export interface SolidBlock {
+  /** Die gesperrten Zellen (`cellKey`). */
+  readonly cells: readonly string[];
+  /** Der unsichtbare Kasten in der Physik. */
+  readonly mesh: THREE.Mesh;
+}
 
 /**
  * **Eine Welt, die auf dem Kachelgitter steht.**
@@ -1075,7 +1089,10 @@ export abstract class GridWorld extends PortalWorld {
   private cellTaken(plan: GridPlan, ix: number, iz: number, level: number): boolean {
     const key = cellKey(ix, iz, level);
     return (
-      plan.furnitureCells().has(key) || this.propCells.has(key) || this.cellBlocked(ix, iz, level)
+      plan.furnitureCells().has(key) ||
+      this.propCells.has(key) ||
+      this.blockedCells.has(key) ||
+      this.cellBlocked(ix, iz, level)
     );
   }
 
@@ -1232,6 +1249,97 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected cellBlocked(_ix: number, _iz: number, _level: number): boolean {
     return false;
+  }
+
+  /**
+   * **Die Zellen, die eine Welt selbst sperrt** — über `blockFootprint`, ohne
+   * eigene Menge und ohne `cellBlocked` zu überschreiben.
+   *
+   * Burgerladen, Hub und Testküche haben je dieselben zwanzig Zeilen
+   * geschrieben: eine Menge aus `footprintCellKeys`, ein Überschreiben von
+   * `cellBlocked`, das sie abfragt. Beim vierten Mal (das Test Restaurant und
+   * seine Spielelemente, `elements/elementView.ts`) gehört das in die Welt
+   * darunter. `cellTaken` fragt diese Menge **neben** `cellBlocked` — wer das
+   * Überschreiben schon hat, behält es, und beides gilt.
+   *
+   * Schlüssel wie `cellKey`: `ix,iz,level`. Eine Menge und kein Zähler: Zwei
+   * Grundflächen, die sich eine Zelle teilen, gibt es nicht (dafür prüft jeder
+   * Plan seine Stellen auf Überlappung, `elementPlace.overlaps`) — wer eine
+   * davon wieder freigibt, gibt die geteilte Zelle mit frei.
+   */
+  protected readonly blockedCells = new Set<string>();
+
+  /** Unsichtbar, und für alle Kästen von `blockSolid` dasselbe. */
+  private readonly blockSkin = new THREE.MeshBasicMaterial({ visible: false });
+
+  /**
+   * **Eine Grundfläche sperren** — jede Zelle, in die sie mindestens 15 cm
+   * hineinragt (`footprintCellKeys`). Eine Kachel von 1 × 1 m mit der Mitte
+   * auf ihrer Mitte sperrt so genau ihre vier Zellen.
+   *
+   * Gilt sofort für den Spieler (`cellGrid`) und für die NPCs
+   * (`NavGraph.cellBlocked`, gesetzt in `navReady`): Beide fragen `cellTaken`,
+   * und das fragt jedes Mal neu.
+   *
+   * @param cx Mitte der Fläche, in Metern
+   * @param w Breite (x) in Metern
+   * @param d Tiefe (z) in Metern
+   * @returns die gesperrten Schlüssel — für `unblockFootprint`
+   */
+  protected blockFootprint(cx: number, cz: number, w: number, d: number, level = 0): string[] {
+    const keys = footprintCellKeys(cx, cz, w, d, level);
+    for (const key of keys) this.blockedCells.add(key);
+    return keys;
+  }
+
+  /** Die Gegenrichtung von `blockFootprint`. */
+  protected unblockFootprint(keys: Iterable<string>): void {
+    for (const key of keys) this.blockedCells.delete(key);
+  }
+
+  /**
+   * **Ein Möbel, gegen das man läuft** — Zellen **und** ein unsichtbarer,
+   * fester Kasten in der Physik, wie im Burgerladen (`PlateUpWorld.addBlock`).
+   *
+   * Das Gitter entscheidet über das Gehen; der Kasten ist für alles, was die
+   * Physik fragt — ein geworfenes Werkzeug, ein Ball, die Abtastung einer
+   * Welt, die ihr Wegnetz nicht aus dem Plan nimmt (er steht in `solids`).
+   * 1,40 m hoch, weil darüber niemand springt: Ein Kasten in Möbelhöhe wäre
+   * eine Stufe, auf die die Physik einen hebt, sobald man an seiner Kante
+   * hochspringt.
+   *
+   * Zuerst die Zellen, dann der Körper — und beides **sofort**, nicht erst,
+   * wenn das Modell da ist: Ein Möbel, durch das man läuft, solange es lädt,
+   * ist eines, durch das man läuft.
+   *
+   * @returns Zellen und Kasten — für `unblockSolid`
+   */
+  protected blockSolid(
+    cx: number,
+    cz: number,
+    w: number,
+    d: number,
+    height = SOLID_BLOCK_HEIGHT,
+    level = 0,
+  ): SolidBlock {
+    const cells = this.blockFootprint(cx, cz, w, d, level);
+    const mesh = this.slab(
+      this.root,
+      this.blockSkin,
+      [w, height, d],
+      [cx, (this.grid?.graph.levelY(level) ?? 0) + height / 2, cz],
+      false,
+      this.physics !== null,
+    );
+    mesh.name = 'grid-block';
+    return { cells, mesh };
+  }
+
+  /** Die Gegenrichtung von `blockSolid`: Zellen frei, Kasten weg. */
+  protected unblockSolid(block: SolidBlock): void {
+    this.unblockFootprint(block.cells);
+    this.dropSlab(block.mesh);
+    block.mesh.removeFromParent();
   }
 
   /**
@@ -3137,6 +3245,11 @@ export abstract class GridWorld extends PortalWorld {
     this.ghostBoxView?.dispose();
     this.ghostBoxView = null;
     this.rigLevel = 0;
+    // Die Kästen selbst gehen mit der Szene und den `solids`; die Zellen
+    // stünden sonst beim nächsten Betreten noch da, wo die Welt sie gar nicht
+    // mehr hinstellt.
+    this.blockedCells.clear();
+    this.blockSkin.dispose();
     this.clearFixtures();
     this.dropBlockModels();
     this.dropFloorPlates();

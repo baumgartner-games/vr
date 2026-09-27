@@ -9,6 +9,7 @@ import type { UseSource } from '../../core/usable';
 import { TextPlane } from '../../ui/TextPlane';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
+import type { ElementHost } from '../elements/elementView';
 import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
@@ -426,6 +427,29 @@ export class TestRestaurantWorld extends GridWorld {
     this.templates.set(path, template);
     const box = new THREE.Box3().setFromObject(template);
     return box.isEmpty() ? null : box.getSize(new THREE.Vector3());
+  }
+
+  /**
+   * **Die Welt als Gastgeber der Spielelemente** (`elements/elementView.ts`,
+   * `placeElement`) — für diese Runde: Was nach dem Aufräumen noch aus dem
+   * Netz kommt, wird nicht mehr hingestellt.
+   *
+   * Die Sperre ist die der Gitterwelt (`GridWorld.blockSolid`), das Bodenstück
+   * steht wie jedes Möbel hier (`placeModel`), was obenauf liegt, geht mit
+   * `decor` weg — samt seiner Materialien.
+   */
+  protected elementHost(round = this.round): ElementHost {
+    return {
+      blockSolid: (cx, cz, w, d, height) => this.blockSolid(cx, cz, w, d, height),
+      placeModel: (path, at, yaw) => this.placeModel(path, at, yaw),
+      measure: (path) => this.measure(path),
+      load: (path) => kaykitModel(path),
+      add: (object) => {
+        this.root.add(object);
+        this.decor.push(object);
+      },
+      alive: () => round === this.round,
+    };
   }
 
   /** Eine Vorlage holen und ihre Höhe merken — für das, was je Bild kopiert wird. */
