@@ -934,8 +934,11 @@ schließen sie, und das Menü geht an derselben Detailseite wieder auf
 
 - das Ding **in der Luft**, so groß wie in der Hand (das Hörnchen mit zwei
   Kugeln), wischen dreht, das Rad zoomt;
-- zwei Häkchen: **Halterzylinder zeigen** (grün, mit dem rosa Pfeil nach vorn)
-  und **VR-Hand am Zylinder zeigen** (die rechte Hand in der Faust des
+- drei Häkchen: **Gegenstand als Geist (durchsichtig)** (das Ding zu einem
+  Drittel sichtbar und ohne Tiefe, damit der Zylinder darin zu sehen ist — die
+  Stoffe der Vorlage bleiben unberührt, getauscht wird am Mesh, `ghostOf`),
+  **Halterzylinder zeigen** (grün, mit dem rosa Pfeil nach vorn) und
+  **VR-Hand am Zylinder zeigen** (die rechte Hand in der Faust des
   Halterzylinders, in der Farbe und dem Modell der Einstellungen);
 - sechs Regler mit − und +: x, y, z in 0,5-cm-Schritten, Pitch, Yaw, Roll in
   **10°-Schritten** (_„gerne einfach in 10° schritten"_). Eine Zahl zwischen

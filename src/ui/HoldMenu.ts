@@ -37,7 +37,12 @@ import './holdMenu.css';
  * seinem rosa Pfeil nach vorn (`grip.createGripShape`); darum die **rechte
  * Hand** in der Faust, mit der sie jeden Zylinder hält (die Haltung des
  * Standardgriffs, `GRIP_POSE_ID`, wie sie unter _Einstellungen → Hände_
- * eingestellt ist). Darunter zwei Häkchen und sechs Regler.
+ * eingestellt ist). Darunter drei Häkchen und sechs Regler.
+ *
+ * **Das Ding als Geist**: Der Zylinder steckt meist _im_ Ding, und ein
+ * Hörnchen verdeckt ihn ganz. Gewünscht: _„checkbox: objekt ghost an/aus"_ —
+ * das Ding wird dann halb durchsichtig gezeichnet, und man sieht, wo der
+ * Zylinder darin sitzt (`HoldScene.set`).
  *
  * **Das Ding steht still, der Zylinder wandert.** Eingestellt wird die Lage
  * des Zylinders **im Ding** (`dishHold.DishHold`); die Hand hängt am Zylinder
@@ -83,6 +88,7 @@ export class HoldMenu {
   private readonly sheet: HTMLElement;
   private readonly title: HTMLElement;
   private readonly stage: HTMLElement;
+  private readonly ghostBox: HTMLInputElement;
   private readonly cylinderBox: HTMLInputElement;
   private readonly handBox: HTMLInputElement;
   private readonly rows: Array<{
@@ -96,6 +102,7 @@ export class HoldMenu {
   private open = false;
   private subject: HoldSubject | null = null;
   private view: HoldScene | null = null;
+  private ghost = false;
   private showCylinder = true;
   private showHand = true;
 
@@ -129,6 +136,7 @@ export class HoldMenu {
 
     const controls = el('div', 'hold__controls');
     const checks = el('div', 'hold__checks');
+    this.ghostBox = check(checks, 'Gegenstand als Geist (durchsichtig)', this.ghost);
     this.cylinderBox = check(checks, 'Halterzylinder zeigen', this.showCylinder);
     this.handBox = check(checks, 'VR-Hand am Zylinder zeigen', this.showHand);
     controls.append(checks);
@@ -191,6 +199,10 @@ export class HoldMenu {
     done.addEventListener('click', () => this.toggle(false));
     reset.addEventListener('click', () => this.reset());
     copy.addEventListener('click', () => this.copy());
+    this.ghostBox.addEventListener('change', () => {
+      this.ghost = this.ghostBox.checked;
+      this.paint();
+    });
     this.cylinderBox.addEventListener('change', () => {
       this.showCylinder = this.cylinderBox.checked;
       this.paint();
@@ -301,7 +313,7 @@ export class HoldMenu {
     }
     const stored = this.subject ? dishHoldStored(this.subject.item) : false;
     this.sheet.classList.toggle('is-custom', stored);
-    this.view?.set(hold, this.showCylinder, this.showHand);
+    this.view?.set(hold, this.showCylinder, this.showHand, this.ghost);
   }
 
   // --- Bühne ------------------------------------------------------------------
@@ -375,6 +387,18 @@ class HoldScene {
   private readonly cylinder = new THREE.Group();
   private readonly shape: THREE.Mesh;
   private readonly hand: GhostHand;
+  /**
+   * Die Stoffe des Dings, wie sie kamen, und ihre durchsichtigen Doppel. Die
+   * Stoffe gehören den Vorlagen der Welt (`KaykitDishView`) und werden deshalb
+   * nie verändert: Getauscht wird am Mesh, und beim Schließen kommt das
+   * Original zurück.
+   */
+  private readonly skins: Array<{
+    mesh: THREE.Mesh;
+    solid: THREE.Material | THREE.Material[];
+    ghost: THREE.Material | THREE.Material[];
+  }> = [];
+  private ghosted = false;
   private readonly box = new THREE.Box3();
   private readonly target = new THREE.Vector3(0, 0.1, 0);
   private yaw = -0.7;
@@ -398,6 +422,13 @@ class HoldScene {
     this.thing.scale.setScalar(HAND_SCALE);
     this.thing.add(subject.model());
     this.scene.add(this.thing);
+    this.thing.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const solid = mesh.material;
+      const ghost = Array.isArray(solid) ? solid.map(ghostOf) : ghostOf(solid);
+      this.skins.push({ mesh, solid, ghost });
+    });
 
     this.shape = createGripShape({ front: true });
     this.cylinder.add(this.shape);
@@ -413,7 +444,11 @@ class HoldScene {
     this.loop();
   }
 
-  set(hold: DishHold, cylinder: boolean, hand: boolean): void {
+  set(hold: DishHold, cylinder: boolean, hand: boolean, ghost: boolean): void {
+    if (ghost !== this.ghosted) {
+      this.ghosted = ghost;
+      for (const skin of this.skins) skin.mesh.material = ghost ? skin.ghost : skin.solid;
+    }
     this.cylinder.position.set(hold.x / 100, hold.y / 100, hold.z / 100);
     this.cylinder.quaternion.setFromEuler(
       _euler.set(hold.pitch * DEG, hold.yaw * DEG, hold.roll * DEG, 'XYZ'),
@@ -456,7 +491,13 @@ class HoldScene {
         (line.material as THREE.Material).dispose();
       }
     });
-    // Das Ding selbst gehört den Vorlagen der Welt (`KaykitDishView`): nur abhängen.
+    // Das Ding selbst gehört den Vorlagen der Welt (`KaykitDishView`): die
+    // eigenen Stoffe zurück, die Geister weg, und dann nur abhängen.
+    for (const skin of this.skins) {
+      skin.mesh.material = skin.solid;
+      for (const ghost of [skin.ghost].flat()) ghost.dispose();
+    }
+    this.skins.length = 0;
     this.thing.removeFromParent();
     this.lighting.removeFromParent();
     this.renderer.domElement.remove();
@@ -535,6 +576,19 @@ const GRIP_INVERSE = new THREE.Matrix4()
     new THREE.Vector3(1, 1, 1),
   )
   .invert();
+
+/**
+ * **Ein Stoff als Geist**: dieselbe Farbe, zu einem Drittel sichtbar, und ohne
+ * Eintrag in die Tiefe — sonst verdeckte die Vorderseite des Dings seine eigene
+ * Rückseite und den Zylinder dahinter trotzdem.
+ */
+function ghostOf(material: THREE.Material): THREE.Material {
+  const ghost = material.clone();
+  ghost.transparent = true;
+  ghost.opacity = 0.3;
+  ghost.depthWrite = false;
+  return ghost;
+}
 
 function round(value: number): string {
   return String(Math.round(value * 10) / 10);
