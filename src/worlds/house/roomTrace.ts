@@ -253,3 +253,65 @@ export function traceRoom(
   walk(hit.unit, start.b, start.a, hit.side === 1 ? -1 : 1);
   return faces;
 }
+
+/** Eine Kachel: Spalte und Reihe (die Kachel von `x` bis `x + 1`). */
+export interface RoomTile {
+  readonly x: number;
+  readonly z: number;
+}
+
+/** Wie viele Kacheln ein Raum für den Boden höchstens hat — sonst ist er keiner. */
+export const ROOM_TILES_MAX = 400;
+
+/**
+ * **Die Kacheln eines Raums** — für den Bodenbelag: von der Kachel unter dem
+ * Spieler aus über jede Kante, auf der keine Wand steht. Türen und Fenster
+ * sind Wände wie bei der Tapete. Eine Kachel, durch die eine Wand unter 45°
+ * geht, gehört dazu, aber über sie hinaus geht es nicht weiter.
+ *
+ * `null`, wenn der Raum nicht zu ist: Wer im Freien steht, bekommt keinen
+ * Boden bis zum Horizont (`ROOM_TILES_MAX`).
+ */
+export function roomTiles(
+  pieces: readonly WallPiece[],
+  x: number,
+  z: number,
+  max = ROOM_TILES_MAX,
+): RoomTile[] | null {
+  const blocked = new Set<string>();
+  const slanted = new Set<string>();
+  for (const unit of unitsOf(pieces)) {
+    const dx = unit.b.x - unit.a.x;
+    const dz = unit.b.z - unit.a.z;
+    const minX = Math.min(unit.a.x, unit.b.x);
+    const minZ = Math.min(unit.a.z, unit.b.z);
+    // Eine Kante heißt nach der Kachel und der Seite, zu der sie gehört:
+    // `h` die Nordkante der Kachel (x, z), `v` die Westkante.
+    if (dz === 0) blocked.add(`h${minX},${unit.a.z}`);
+    else if (dx === 0) blocked.add(`v${unit.a.x},${minZ}`);
+    else slanted.add(`${minX},${minZ}`);
+  }
+  const start = { x: Math.floor(x), z: Math.floor(z) };
+  const seen = new Set<string>([`${start.x},${start.z}`]);
+  const out: RoomTile[] = [];
+  const queue: RoomTile[] = [start];
+  while (queue.length > 0) {
+    const tile = queue.shift()!;
+    out.push(tile);
+    if (out.length > max) return null;
+    if (slanted.has(`${tile.x},${tile.z}`) && out.length > 1) continue;
+    const steps: Array<[RoomTile, string]> = [
+      [{ x: tile.x, z: tile.z - 1 }, `h${tile.x},${tile.z}`],
+      [{ x: tile.x, z: tile.z + 1 }, `h${tile.x},${tile.z + 1}`],
+      [{ x: tile.x - 1, z: tile.z }, `v${tile.x},${tile.z}`],
+      [{ x: tile.x + 1, z: tile.z }, `v${tile.x + 1},${tile.z}`],
+    ];
+    for (const [next, edge] of steps) {
+      const key = `${next.x},${next.z}`;
+      if (blocked.has(edge) || seen.has(key)) continue;
+      seen.add(key);
+      queue.push(next);
+    }
+  }
+  return out;
+}

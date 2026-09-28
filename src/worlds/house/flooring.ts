@@ -1,0 +1,70 @@
+/**
+ * **Die Bodenbeläge** — was man in einem Raum auf den Boden legt.
+ *
+ * Gewünscht (September 2026): _„Ich will nun auch noch neben Tapeten
+ * vorratskisten für Boden Beläge haben wollen für Räume. Z.B. den Küchen
+ * Boden oder prototype floor oder für Gäste. Gleiches Prinzip."_
+ *
+ * Anders als die Tapeten sind die Beläge **Stücke aus dem Regal** — dieselben
+ * Platten, die die Welten ohnehin auf ihre Kacheln legen
+ * (`GridWorld.floorPlate`): die Prototyp-Platte der Testwelten, die
+ * Küchenfliesen und die Dielen des Gastraums aus dem Restaurant, dazu dunkle
+ * Dielen und Steinplatten aus dem Verlies. Keine Ausnahme von der Regel also.
+ */
+
+/** Ein Belag: Id, Name im Katalog, die Platte je Kachel und ein Farbfeld. */
+export interface Flooring {
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly swatch: string;
+}
+
+export const FLOORINGS: readonly Flooring[] = [
+  {
+    id: 'proto',
+    label: 'Prototyp-Boden',
+    path: 'prototype-bits/Floor_Prototype.glb',
+    swatch: '#3493ce',
+  },
+  {
+    id: 'kitchen',
+    label: 'Küchenfliesen',
+    path: 'restaurant-bits/floor_kitchen_small.glb',
+    swatch: '#e6e8ea',
+  },
+  {
+    id: 'kitchen-b',
+    label: 'Küchenfliesen B',
+    path: 'restaurant-bits/floor_kitchen_small_styleB.glb',
+    swatch: '#d9dcdf',
+  },
+  {
+    id: 'wood',
+    label: 'Dielen Gastraum',
+    path: 'dungeon/floor_wood_small.glb',
+    swatch: '#b3664a',
+  },
+  {
+    id: 'wood-dark',
+    label: 'Dielen dunkel',
+    path: 'dungeon/floor_wood_small_dark.glb',
+    swatch: '#6e3f2e',
+  },
+  { id: 'stone', label: 'Steinplatten', path: 'dungeon/floor_tile_small.glb', swatch: '#8f8b85' },
+];
+
+export function flooringById(id: string): Flooring | null {
+  return FLOORINGS.find((one) => one.id === id) ?? null;
+}
+
+/** **Das Ding in der Hand zu einem Belag** — `floor-kitchen` ist `kitchen`. */
+export function flooringItem(id: string): string {
+  return `floor-${id}`;
+}
+
+/** Welcher Belag ein Ding der Küche ist — oder `null`, wenn es keiner ist. */
+export function flooringOfItem(item: string | null | undefined): Flooring | null {
+  if (!item?.startsWith('floor-')) return null;
+  return flooringById(item.slice('floor-'.length));
+}

@@ -75,9 +75,9 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'hausbau',
     title: 'Hausbau',
-    tagline: 'Wände bauen und tapezieren',
+    tagline: 'Wände bauen, tapezieren, Böden legen',
     description:
-      'Ein kleines Haus aus den Wänden des Katalogs: zwei Zimmer, Innentür, Haustür, zwei Fenster. Davor sechs Tapetenkisten — Tapete nehmen, im Raum auf eine Wand zeigen, und die Seiten, die sie bekäme, leuchten; A klebt sie an. Im Baukasten zieht man neue Wände wie in Die Sims.',
+      'Ein kleines Haus aus den Wänden des Katalogs: zwei Zimmer, Innentür, Haustür, zwei Fenster. Davor je sechs Tapeten- und Bodenkisten — Tapete nehmen, im Raum auf eine Wand zeigen, und die Seiten, die sie bekäme, leuchten; A klebt sie an. Ein Bodenbelag legt sich auf die Kacheln des Zimmers, in dem man steht. Im Baukasten zieht man neue Wände wie in Die Sims.',
     accent: 0xc98f4f,
     preview: 'worlds/hausbau.webp',
     // Das Haus mit den Kisten davor, Rand bis Rand.

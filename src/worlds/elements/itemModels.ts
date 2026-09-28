@@ -124,6 +124,13 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   'wallpaper-stripes': 'dungeon/banner_thin_green.glb',
   'wallpaper-wood': 'dungeon/banner_thin_brown.glb',
   'wallpaper-tiles': 'dungeon/banner_thin_blue.glb',
+  // **Die Bodenbeläge** sind die Platte selbst (`house/flooring.ts`).
+  'floor-proto': 'prototype-bits/Floor_Prototype.glb',
+  'floor-kitchen': 'restaurant-bits/floor_kitchen_small.glb',
+  'floor-kitchen-b': 'restaurant-bits/floor_kitchen_small_styleB.glb',
+  'floor-wood': 'dungeon/floor_wood_small.glb',
+  'floor-wood-dark': 'dungeon/floor_wood_small_dark.glb',
+  'floor-stone': 'dungeon/floor_tile_small.glb',
 };
 
 /**

@@ -571,6 +571,16 @@ export abstract class GridWorld extends PortalWorld {
    * steht. Und weil `dropSlab` jeden alten Quader vollständig zurücknimmt —
    * Körper, Portalfläche, Abtastliste —, kann dabei nichts liegenbleiben.
    */
+  /**
+   * **Den Boden neu legen**, nachdem sich `floorPlate` geändert hat — der
+   * Bodenbelag im Hausbau (`house/HausbauWorld`). Welche Platte auf welche
+   * Kachel kommt, fällt beim Bauen der Quader (`build`), also wird der ganze
+   * Grundriss neu gebaut: derselbe Weg wie nach jedem Umbau.
+   */
+  protected rebuildFloor(): void {
+    this.rebuildGrid();
+  }
+
   private rebuildGrid(): void {
     const plan = this.grid;
     const group = this.group;

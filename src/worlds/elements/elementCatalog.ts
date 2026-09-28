@@ -1,6 +1,7 @@
 import { SHELF_WALL, SHELF_WALL_HALF, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
 import type { StationKind } from '../test/zones/kitchenCarry';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
+import { FLOORINGS } from '../house/flooring';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -297,6 +298,20 @@ export const WALLPAPER_CRATES: readonly GameElement[] = (
   ),
 );
 
+/**
+ * **Die Bodenkisten** — je Belag eine (`house/flooring.ts`), unendlich viele
+ * wie bei den Tapeten. Obenauf liegt die Platte selbst.
+ */
+export const FLOORING_CRATES: readonly GameElement[] = FLOORINGS.map((one) =>
+  piece(
+    `crate-floor-${one.id}`,
+    `Bodenkiste ${one.label}`,
+    'crate',
+    [{ model: bits('crate') }, { model: one.path, on: 0, sink: 0.05 }],
+    { gives: `floor-${one.id}` },
+  ),
+);
+
 /** Die Kisten des Pakets, je eine Zutat. */
 const CRATES: readonly GameElement[] = [
   crate('crate-buns', 'crate_buns', 'bun', 'Brötchenkiste'),
@@ -456,6 +471,7 @@ export const ELEMENTS: readonly GameElement[] = [
   ),
   ...CRATES,
   ...WALLPAPER_CRATES,
+  ...FLOORING_CRATES,
   // **Die Pizza-Vorratsbox** — gewünscht: eine Kiste, aus der man eine ganze
   // Pizza nimmt. Die leere Kiste (`crate`, ihr Deckel kommt vom Lader) und
   // die fertige Pizza obenauf, damit man von oben sieht, was drin ist.

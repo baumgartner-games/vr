@@ -114,6 +114,13 @@ export const ITEM_SCALE: Readonly<Partial<Record<KitchenItem, number>>> = {
   'wallpaper-stripes': 0.3,
   'wallpaper-wood': 0.3,
   'wallpaper-tiles': 0.3,
+  // Die Platten der Beläge sind eine ganze Kachel.
+  'floor-proto': 0.35,
+  'floor-kitchen': 0.35,
+  'floor-kitchen-b': 0.35,
+  'floor-wood': 0.35,
+  'floor-wood-dark': 0.35,
+  'floor-stone': 0.35,
 };
 
 /** Was nebeneinander statt aufeinander liegt — die rohen Waffeln. */

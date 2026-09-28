@@ -575,6 +575,12 @@ export function kitchenHandles(
     case 'wallpaper-stripes':
     case 'wallpaper-wood':
     case 'wallpaper-tiles':
+    case 'floor-proto':
+    case 'floor-kitchen':
+    case 'floor-kitchen-b':
+    case 'floor-wood':
+    case 'floor-wood-dark':
+    case 'floor-stone':
       return [];
   }
 }
