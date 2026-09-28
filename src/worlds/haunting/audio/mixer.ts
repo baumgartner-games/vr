@@ -1,4 +1,4 @@
-import { sharedAudio } from '../../../core/Audio';
+import { audioBus, sharedAudio } from '../../../core/Audio';
 import { assets } from '../registry';
 import { AUDIO_CUES, CUE_IDS, cueAssetId, type CueId, type CuePlaceholder } from './cues';
 import type { AudioLevels } from './settings';
@@ -323,7 +323,7 @@ export class Mixer {
     this.context = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = this.enabled ? 0.5 : 0;
-    this.master.connect(ctx.destination);
+    this.master.connect(audioBus(ctx, 'effects'));
     this.effects = ctx.createGain();
     this.effects.gain.value = this.levels.effects;
     this.effects.connect(this.master);

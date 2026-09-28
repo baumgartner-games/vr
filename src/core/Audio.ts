@@ -7,9 +7,19 @@
  * it is still suspended.
  */
 
+import { type AudioSettings, audioLevels, audioSettings } from './audioSettings';
+
 type Ctor = typeof AudioContext;
 
 let context: AudioContext | null = null;
+
+/**
+ * **Die drei Schienen** (`core/audioSettings.ts`): Musik und Effekte hängen an
+ * _Ton_, und _Ton_ hängt am Lautsprecher. Wer etwas hörbar macht, verbindet es
+ * mit einer davon (`audioBus`) und nie mit `ctx.destination` — sonst ließe es
+ * sich im Menü nicht abschalten.
+ */
+let buses: { master: GainNode; music: GainNode; effects: GainNode } | null = null;
 
 function audio(): AudioContext | null {
   if (context) {
@@ -24,7 +34,43 @@ function audio(): AudioContext | null {
   } catch {
     return null;
   }
+  const master = context.createGain();
+  const music = context.createGain();
+  const effects = context.createGain();
+  music.connect(master);
+  effects.connect(master);
+  master.connect(context.destination);
+  buses = { master, music, effects };
+  applyAudioSettings();
   return context;
+}
+
+/**
+ * **Wohin ein Ton geht.** `master` nur für das, was weder Musik noch Effekt
+ * ist — die Stimmen der Mitspieler (`net/Voice.ts`); sie schweigen mit _Ton
+ * aus_, aber nicht mit _Effekte aus_.
+ */
+export type AudioBus = 'master' | 'music' | 'effects';
+
+export function audioBus(ctx: AudioContext, bus: AudioBus): AudioNode {
+  if (ctx !== context || !buses) return ctx.destination;
+  return buses[bus];
+}
+
+/**
+ * **Die Schalter aus dem Menü auf die Schienen legen** — mit einer
+ * Fünfzigstelsekunde Blende, damit das Abschalten nicht knackt. Ohne Kontext
+ * gibt es nichts zu tun: Der nächste, der entsteht, liest selbst nach.
+ */
+export function applyAudioSettings(settings: AudioSettings = audioSettings()): void {
+  if (!context || !buses) return;
+  const levels = audioLevels(settings);
+  const now = context.currentTime;
+  for (const bus of ['master', 'music', 'effects'] as const) {
+    const gain = buses[bus].gain;
+    gain.cancelScheduledValues(now);
+    gain.setTargetAtTime(levels[bus], now, 0.02);
+  }
 }
 
 interface ToneOptions {
@@ -72,7 +118,7 @@ export function playTone(options: ToneOptions): void {
   envelope.gain.exponentialRampToValueAtTime(peak, start + Math.min(0.012, options.duration / 3));
   envelope.gain.exponentialRampToValueAtTime(0.0001, end);
 
-  oscillator.connect(envelope).connect(ctx.destination);
+  oscillator.connect(envelope).connect(audioBus(ctx, 'effects'));
   oscillator.start(start);
   oscillator.stop(end + 0.02);
 }

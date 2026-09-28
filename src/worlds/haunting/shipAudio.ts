@@ -1,4 +1,4 @@
-import { sharedAudio } from '../../core/Audio';
+import { audioBus, sharedAudio } from '../../core/Audio';
 import type { MonsterKind } from './mission';
 import { ENTITY_PROFILES, type SignalPoint } from './threat';
 
@@ -322,7 +322,7 @@ export class ShipAudio {
     this.context = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = this.enabled ? 0.5 : 0;
-    this.master.connect(ctx.destination);
+    this.master.connect(audioBus(ctx, 'effects'));
     for (let i = 0; i < SHIP_AUDIO_VOICES; i++) {
       const gain = ctx.createGain(),
         pan = ctx.createStereoPanner();

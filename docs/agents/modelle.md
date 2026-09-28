@@ -789,6 +789,18 @@ aufzuschließen.
 und wie oft — und genau das steht im Test (`core/audioUnlock.test.ts`, an
 einem nachgebauten Kontext, weil Jest kein Web Audio hat).
 
+### Ton, Musik, Effekte: die Schienen
+
+Unter _Einstellungen → Ton_ stehen drei Schalter (`App.audioMenu`,
+`core/audioSettings.ts`, gespeichert als `bgvr.audio`): **Ton** schaltet
+alles ab, **Musik** nur das Radio der Küche, **Effekte** den ganzen Rest. Der
+gemeinsame Kontext (`core/Audio.ts`) hat dafür drei Gain-Knoten — _Musik_ und
+_Effekte_ hängen an _Ton_, _Ton_ am Lautsprecher —, und wer etwas hörbar
+macht, verbindet es mit `audioBus(ctx, 'music' | 'effects' | 'master')` und
+**nie** mit `ctx.destination`. Sonst lässt es sich im Menü nicht abschalten.
+Die Stimmen der Mitspieler (`net/Voice.ts`) gehen direkt auf _Ton_: kein
+Effekt, aber still, wenn alles still sein soll.
+
 ## Und dann zog die erste Küche in den zweiten Katalog um
 
 Der zweite Baukasten war als **Auslage** gebaut worden — hinstellen, ansehen,

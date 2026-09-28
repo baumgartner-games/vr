@@ -99,7 +99,7 @@ export const MENU_GROUPS: readonly MenuGroup[] = [
   {
     id: 'einstellungen',
     label: 'Einstellungen',
-    sub: 'Bewegung, Grafik, Hände',
+    sub: 'Bewegung, Grafik, Ton, Hände',
     icon: 'settings',
     accent: 0xb28cff,
   },
@@ -193,6 +193,7 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
 
   { match: 'move', group: 'einstellungen' },
   { match: 'gfx', group: 'einstellungen' },
+  { match: 'audio', group: 'einstellungen' },
   { match: 'settings', group: 'einstellungen', label: 'Hände & Greifen' },
 
   { match: 'input', group: 'hilfe' },

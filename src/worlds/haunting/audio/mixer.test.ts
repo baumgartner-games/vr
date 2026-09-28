@@ -15,7 +15,10 @@ import {
 import type { SoundEvent } from './soundscape';
 import { emptySnapshot } from '../map/mapSnapshot';
 
-jest.mock('../../../core/Audio', () => ({ sharedAudio: jest.fn() }));
+jest.mock('../../../core/Audio', () => ({
+  sharedAudio: jest.fn(),
+  audioBus: (ctx: AudioContext) => ctx.destination,
+}));
 
 interface FakeNode {
   onended: (() => void) | null;
