@@ -307,7 +307,7 @@ export const FLOORING_CRATES: readonly GameElement[] = FLOORINGS.map((one) =>
     `crate-floor-${one.id}`,
     `Bodenkiste ${one.label}`,
     'crate',
-    [{ model: bits('crate') }, { model: one.path, on: 0, sink: 0.05 }],
+    [{ model: bits('crate') }, { model: one.path, on: 0, sink: 0.05, scale: 1 / (one.tiles ?? 1) }],
     { gives: `floor-${one.id}` },
   ),
 );
