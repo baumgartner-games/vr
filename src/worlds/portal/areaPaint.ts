@@ -17,6 +17,7 @@
  */
 import { TILE } from '../nav/navTile';
 import {
+  eighthYaw,
   quarterYaw,
   tileSpan,
   turnedHalf,
@@ -288,4 +289,189 @@ export class AreaSelect {
 
 function sameTile(a: AreaTile, b: AreaTile | null): boolean {
   return b !== null && a.col === b.col && a.row === b.row;
+}
+
+/**
+ * **Eine Wand ziehen wie in _Die Sims_** — vom Startpunkt zum Endpunkt, auf
+ * den Fugen.
+ *
+ * Gewünscht: _„man wählt eine Wand aus, und einen Startpunkt und zieht z.B.
+ * mit der linken Maustaste […] und zieht dann die Wand wohin man die haben
+ * will, während man noch nicht den Endpunkt bestätigt hat sieht man eine
+ * Vorschau der ghost Wall."_
+ *
+ * Anders als die Fläche geht es hier nicht um Kacheln, sondern um die
+ * **Ecken dazwischen** (`cornerAt`): Eine Wand steht auf der Fuge, und ihre
+ * Enden liegen dort, wo sich Fugen kreuzen. Die Richtung rastet auf das
+ * nächste Achtel ein — gerade oder unter 45°, wie jede Wand im Gitter
+ * (`gridSnap.eighthYaw`). Wer schräg zieht, bekommt die gerade Wand, der er
+ * am nächsten ist, und keine Treppe.
+ *
+ * Die Ecke hat dieselbe Form wie eine Kachel (`AreaTile`), damit dieselbe
+ * Auswahl (`AreaSelect`) sie führt: `col` und `row` zählen hier Fugen.
+ */
+export type AreaCorner = AreaTile;
+
+/** Die Ecke zwischen den Kacheln, die einem Punkt in Metern am nächsten ist. */
+export function cornerAt(x: number, z: number): AreaCorner | null {
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  return { col: Math.round(x / TILE), row: Math.round(z / TILE) };
+}
+
+/** Ein Stück einer gezogenen Wand: wo, wie gedreht, und ob das halbe Stück. */
+export interface WallLineSlot extends AreaSlot {
+  /** Das halbe Stück am Ende einer Wand ungerader Länge (`wallHalfOf`). */
+  readonly half: boolean;
+  /**
+   * Wie lang das Stück im Bild gegenüber dem Getragenen ist — längs seiner
+   * langen Achse: `0.5` für das halbe, die gekürzte Diagonale unter 45°
+   * (`PortalWorld.fitWall`). Nur für den Geist; gesetzt wird das echte Stück.
+   */
+  readonly stretch: number;
+}
+
+/** Was eine gezogene Wand ergibt. */
+export interface WallLine {
+  readonly slots: WallLineSlot[];
+  /** Die Fugen unter geraden Wänden. */
+  readonly edges: GridEdge[];
+  /** Die Kacheln unter schrägen Wänden. */
+  readonly tiles: GridTile[];
+  /** Wie lang die Wand ist, in Metern — die Zeile an der Leiste. */
+  readonly length: number;
+  /** Ob sie unter 45° steht. */
+  readonly diagonal: boolean;
+  /** Wo sie tatsächlich endet — nach dem Einrasten der Richtung und der Stücke. */
+  readonly end: AreaCorner;
+}
+
+/**
+ * **Die Stücke einer gezogenen Wand** von der Ecke `start` bis zur Ecke
+ * `end`.
+ *
+ * - **Gerade**: ganze Stücke aneinander, so lang wie das Getragene
+ *   (`tileSpan`), und bei ungerader Länge am Ende das halbe, wenn es eines
+ *   gibt (`hasHalf`) — sonst endet die Wand ein Stück früher. Die Drehung
+ *   folgt der des Getragenen wie bei der Fläche (`areaPlan`).
+ * - **Schräg**: je `tileSpan / 2` Kacheln ein ganzes Stück, gekürzt auf die
+ *   Diagonale, wie `gridSnap.diagonalPose` es einzeln tut.
+ *
+ * @param half die halbe Grundfläche des Getragenen (`PhysicsBody.halfExtents`)
+ * @param yaw die Drehung, mit der es gerade getragen wird
+ */
+export function wallLine(
+  start: AreaCorner,
+  end: AreaCorner,
+  half: { readonly x: number; readonly z: number },
+  yaw: number,
+  hasHalf: boolean,
+): WallLine {
+  const empty = (): WallLine => ({
+    slots: [],
+    edges: [],
+    tiles: [],
+    length: 0,
+    diagonal: false,
+    end: start,
+  });
+  const dx = end.col - start.col;
+  const dz = end.row - start.row;
+  if (dx === 0 && dz === 0) return empty();
+
+  const turn = quarterYaw(yaw);
+  const { halfX, halfZ } = turnedHalf(half, turn);
+  const alongXNow = halfX >= halfZ;
+  const long = 2 * Math.max(halfX, halfZ);
+  const span = tileSpan(long);
+  // Die Drehung, in der das Stück von Westen nach Osten läuft, und die quer dazu.
+  const yawX = alongXNow ? turn : quarterYaw(turn + Math.PI / 2);
+  const yawZ = quarterYaw(yawX + Math.PI / 2);
+
+  // Das nächste Achtel: 0 = Ost, 2 = Süd, 4 = West, 6 = Nord (z wächst nach Süden).
+  const eighth = ((Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+  const sx = [1, 1, 0, -1, -1, -1, 0, 1][eighth]!;
+  const sz = [0, 1, 1, 1, 0, -1, -1, -1][eighth]!;
+
+  if (sx !== 0 && sz !== 0) {
+    // **Schräg** — so viele Kacheln, wie die Diagonale dem Zug am nächsten kommt.
+    const steps = Math.round((Math.abs(dx) + Math.abs(dz)) / 2);
+    const per = Math.max(1, Math.round(span / 2));
+    const count = Math.floor(steps / per);
+    if (count === 0) return empty();
+    // „╱" von Südwesten nach Nordosten, wenn x und z gegenläufig wachsen.
+    const slash = sx * sz < 0;
+    const slotYaw = eighthYaw(yawX + (slash ? Math.PI / 4 : -Math.PI / 4));
+    const stretch = (per * Math.SQRT2 * TILE) / long;
+    const slots: WallLineSlot[] = [];
+    const tiles: GridTile[] = [];
+    for (let k = 0; k < count; k++) {
+      const mid = k * per + per / 2;
+      slots.push({
+        x: (start.col + sx * mid) * TILE,
+        z: (start.row + sz * mid) * TILE,
+        yaw: slotYaw,
+        half: false,
+        stretch,
+      });
+      for (let j = 0; j < per; j++) {
+        const step = k * per + j;
+        tiles.push({
+          x: (start.col + sx * step + (sx < 0 ? -1 : 0) + 0.5) * TILE,
+          z: (start.row + sz * step + (sz < 0 ? -1 : 0) + 0.5) * TILE,
+        });
+      }
+    }
+    const reach = count * per;
+    return {
+      slots,
+      edges: [],
+      tiles,
+      length: reach * Math.SQRT2 * TILE,
+      diagonal: true,
+      end: { col: start.col + sx * reach, row: start.row + sz * reach },
+    };
+  }
+
+  // **Gerade** — auf der Fuge durch den Startpunkt.
+  const onX = sx !== 0;
+  const steps = Math.abs(onX ? dx : dz);
+  const dir = onX ? sx : sz;
+  const whole = Math.floor(steps / span);
+  const rest = steps - whole * span;
+  const withHalf = rest > 0 && hasHalf && span === 2;
+  const reach = whole * span + (withHalf ? 1 : 0);
+  if (reach === 0) return empty();
+  const slots: WallLineSlot[] = [];
+  const edges: GridEdge[] = [];
+  const put = (from: number, size: number, isHalf: boolean): void => {
+    // `from` und `size` in Fugen längs der Wand, vom Startpunkt aus in Zugrichtung.
+    const a = (onX ? start.col : start.row) + dir * from;
+    const b = a + dir * size;
+    const mid = ((a + b) / 2) * TILE;
+    slots.push(
+      onX
+        ? { x: mid, z: start.row * TILE, yaw: yawX, half: isHalf, stretch: isHalf ? 0.5 : 1 }
+        : { x: start.col * TILE, z: mid, yaw: yawZ, half: isHalf, stretch: isHalf ? 0.5 : 1 },
+    );
+    for (let k = Math.min(a, b); k < Math.max(a, b); k++) {
+      const at = (k + 0.5) * TILE;
+      edges.push(
+        onX
+          ? { x: at, z: start.row * TILE, alongX: true }
+          : { x: start.col * TILE, z: at, alongX: false },
+      );
+    }
+  };
+  for (let index = 0; index < whole; index++) put(index * span, span, false);
+  if (withHalf) put(whole * span, 1, true);
+  return {
+    slots,
+    edges,
+    tiles: [],
+    length: reach * TILE,
+    diagonal: false,
+    end: onX
+      ? { col: start.col + dir * reach, row: start.row }
+      : { col: start.col, row: start.row + dir * reach },
+  };
 }

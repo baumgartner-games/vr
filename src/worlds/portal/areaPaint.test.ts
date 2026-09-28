@@ -9,8 +9,10 @@ import {
   areaPlan,
   areaRect,
   areaSize,
+  cornerAt,
   needsConfirm,
   tileAt,
+  wallLine,
 } from './areaPaint';
 
 /** Eine Bodenplatte: eine Kachel, flach. */
@@ -145,5 +147,87 @@ describe('AreaSelect', () => {
     expect(select.reset()).toBe(true);
     expect(select.reset()).toBe(false);
     expect(select.rect()).toBeNull();
+  });
+});
+
+describe('wallLine — eine Wand ziehen wie in Die Sims', () => {
+  const HALF_WALL = { x: 0.5, z: 0.125 };
+
+  it('rastet auf die Ecke zwischen den Kacheln', () => {
+    expect(cornerAt(2.4, -0.6)).toEqual({ col: 2, row: -1 });
+    expect(cornerAt(Number.NaN, 0)).toBeNull();
+  });
+
+  it('legt ganze Stücke auf die Fuge und am Ende das halbe', () => {
+    const line = wallLine({ col: 0, row: 0 }, { col: 5, row: 0 }, WALL, 0, true);
+    expect(line.diagonal).toBe(false);
+    expect(line.length).toBe(5);
+    expect(line.end).toEqual({ col: 5, row: 0 });
+    expect(line.slots.map((slot) => [slot.x, slot.z, slot.half])).toEqual([
+      [1, 0, false],
+      [3, 0, false],
+      [4.5, 0, true],
+    ]);
+    expect(line.slots[2]!.stretch).toBe(0.5);
+    expect(line.edges).toHaveLength(5);
+    for (const edge of line.edges) expect(edge).toMatchObject({ z: 0, alongX: true });
+  });
+
+  it('endet ohne halbes Stück eine Kachel früher', () => {
+    const line = wallLine({ col: 0, row: 0 }, { col: 5, row: 0 }, WALL, 0, false);
+    expect(line.slots).toHaveLength(2);
+    expect(line.end).toEqual({ col: 4, row: 0 });
+    expect(wallLine({ col: 0, row: 0 }, { col: 1, row: 0 }, WALL, 0, false).slots).toEqual([]);
+  });
+
+  it('zieht in jede Richtung — nach Westen und nach Norden auch', () => {
+    const west = wallLine({ col: 3, row: 2 }, { col: -1, row: 2 }, WALL, 0, true);
+    expect(west.slots.map((slot) => slot.x)).toEqual([2, 0]);
+    const north = wallLine({ col: 3, row: 2 }, { col: 3, row: -2 }, WALL, 0, true);
+    expect(north.slots.map((slot) => [slot.x, slot.z])).toEqual([
+      [3, 1],
+      [3, -1],
+    ]);
+    // Quer zur Getragenen: eine Vierteldrehung weiter, wie beim Rand der Fläche.
+    expect(Math.abs(north.slots[0]!.yaw)).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('nimmt die gerade Wand, der ein schiefer Zug am nächsten kommt', () => {
+    const line = wallLine({ col: 0, row: 0 }, { col: 6, row: 1 }, WALL, 0, true);
+    expect(line.diagonal).toBe(false);
+    expect(line.end).toEqual({ col: 6, row: 0 });
+  });
+
+  it('legt unter 45° je Kachel ein ganzes Stück, gekürzt auf die Diagonale', () => {
+    // Nach Nordosten: ╱.
+    const line = wallLine({ col: 0, row: 0 }, { col: 3, row: -3 }, WALL, 0, true);
+    expect(line.diagonal).toBe(true);
+    expect(line.slots).toHaveLength(3);
+    expect(line.length).toBeCloseTo(3 * Math.SQRT2);
+    expect(line.slots.map((slot) => [slot.x, slot.z])).toEqual([
+      [0.5, -0.5],
+      [1.5, -1.5],
+      [2.5, -2.5],
+    ]);
+    expect(line.slots[0]!.yaw).toBeCloseTo(Math.PI / 4);
+    expect(line.slots[0]!.stretch).toBeCloseTo(Math.SQRT2 / 2);
+    expect(line.tiles).toEqual([
+      { x: 0.5, z: -0.5 },
+      { x: 1.5, z: -1.5 },
+      { x: 2.5, z: -2.5 },
+    ]);
+    // Nach Südosten: ╲.
+    const back = wallLine({ col: 0, row: 0 }, { col: 2, row: 2 }, WALL, 0, true);
+    expect(back.slots[0]!.yaw).toBeCloseTo(-Math.PI / 4);
+  });
+
+  it('setzt ein halbes Stück Kachel für Kachel', () => {
+    const line = wallLine({ col: 0, row: 0 }, { col: 0, row: 3 }, HALF_WALL, 0, false);
+    expect(line.slots.map((slot) => slot.z)).toEqual([0.5, 1.5, 2.5]);
+    expect(line.slots.every((slot) => !slot.half && slot.stretch === 1)).toBe(true);
+  });
+
+  it('ist leer, solange Start und Ende dieselbe Ecke sind', () => {
+    expect(wallLine({ col: 1, row: 1 }, { col: 1, row: 1 }, WALL, 0, true).slots).toEqual([]);
   });
 });

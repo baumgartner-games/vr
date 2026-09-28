@@ -213,13 +213,16 @@ definiert. und ich konnte die schräg setzen. Also eigentlich das was in
 modellregal wall ist, soll einfach nur nach möbel kommen, aber eben nicht als
 "block""_.
 
-Die Wände sind deshalb **keine Spielelemente**. Der Ordner **Wände** im
-Möbelkatalog (`FURNITURE_FOLDERS`, `id: 'walls'`) führt statt Elementen
-Regalmodelle (`FurnitureFolder.models` = `WALL_MODELS`): die Fensterwand und
-ihre schmale Hälfte (`shelfWalls.SHELF_WINDOW_PIECES`, die Kammern der Test
-Navigation), die graue Prototypwand, mit der die Test Navigation ihre Schrägen
-baut (`SHELF_WALL`), deren Hälfte, den Durchgang (`navTestPlan.GATE_MODEL`)
-und den breiten Durchgang. Jede Kachel ist die des Modellregals
+Die Wände sind deshalb **keine Spielelemente**. Die Baumappen im Katalog
+(`BUILD_FOLDERS`: _Wände_, _Türen_, _Fenster_) führen statt Elementen
+Regalmodelle (`FurnitureFolder.models`, alle aus `WALL_MODELS` und dazu die
+Putzwand): die Fensterwand und ihre schmale Hälfte
+(`shelfWalls.SHELF_WINDOW_PIECES`, die Kammern der Test Navigation), die graue
+Prototypwand, mit der die Test Navigation ihre Schrägen baut (`SHELF_WALL`),
+deren Hälfte, die Putzwand des Restaurants ganz und halb, den Durchgang
+(`navTestPlan.GATE_MODEL`) und den breiten Durchgang. Im _Baukasten_ werden
+sie gezogen wie in _Die Sims_ ([Bauen](./bauen.md#wand-ziehen-wie-in-die-sims)).
+Jede Kachel ist die des Modellregals
 (`kaykitIndex.fileEntry`, mit ⓘ und Steckbrief), nur die Id trägt den Ort,
 und genommen wird wie dort (`PortalWorld.takeModel`): Die Wand rastet **auf
 der Fuge** zwischen zwei Kacheln ein, lässt sich unter 45° setzen und ist für
@@ -300,6 +303,24 @@ Element, das scheitert, fehlt mit einer Warnung, die Welt stirbt nicht daran.
 
 ## Der Möbelkatalog im Menü
 
+**Seit Ende September 2026 heißt er _Katalog_** — gewünscht: _„das Menü
+„Möbel" dahingehend erweitern bzw. auch umbenennen, dass es wie bei Sims der
+Katalog ist für die Sachen die man kaufen kann und einbauen kann."_ Er steht
+unter _Bauen & Gestalten_ gleich hinter dem Spielmodus und hat neben den
+Möbeln die **Baumappen** _Wände_ (Prototypwand und Putzwand, ganz und halb),
+_Türen_ (Durchgang, breiter Durchgang) und _Fenster_ (Fensterwand ganz und
+schmal) — `elementCatalog.BUILD_FOLDERS`. Die Baumappen sind Regalwände und
+keine Spielelemente, und deshalb steht der Katalog mit ihnen in **jeder** Welt
+(`PortalWorld.elementFolders`); die Möbel nur dort, wo eine Welt Stationen
+führt. _Setzen_ ohne Pinsel schlägt den Katalog auf (`catalogueId`).
+
+**Und das Modellregal heißt _Rohmodelle_ und steht in der Werkstatt**
+(`ui/menuGroups.ts`) — gewünscht: _„das modelregal sollten wir dahingehen
+runterstufen bzw umbenennen, dass es nur eher die 3d Modelle ohne Funktion
+sind […] als Hilfestellung, welche Modelle ich später noch nutzen könnte bzw
+als Möbel in den Katalog übernehmen könnte."_ Nehmen kann man daraus weiter;
+gebaut wird aus dem Katalog.
+
 Gewünscht (September 2026): _„Ich brauche bei Möbel Katalog, die Funktion
 Möbel: eine Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit Schneide
 Brett, Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte.
@@ -307,12 +328,12 @@ Waschbecken"_. Das Modellregal gibt nur Bilder her; wer darin eine
 Arbeitsplatte nimmt, stellt ein Fass hin, durch dessen Zellen man läuft. Der
 Möbelkatalog gibt **Spielelemente** her.
 
-- **Wo:** Menü _Bauen & Gestalten_ → **Möbel**, gleich hinter dem Modellregal
-  (`PortalWorld.elementMenu`, Id `elements`, `ui/menuGroups.ts`). Nur in einer
-  Welt, die Stationen führt und es sagt (`elementCatalogue`); heute das
+- **Wo:** Menü _Bauen & Gestalten_ → **Katalog** (`PortalWorld.elementMenu`,
+  Id `elements`, `ui/menuGroups.ts`). Die Möbel nur in einer Welt, die
+  Stationen führt und es sagt (`elementCatalogue`); heute das
   [Test Restaurant](./testrestaurant.md) und das
-  [Restaurant](./burgerladen.md), das von ihm erbt. Anderswo fehlt der
-  Eintrag.
+  [Restaurant](./burgerladen.md), das von ihm erbt. Anderswo stehen darin nur
+  Wände, Türen und Fenster.
 - **Was:** `FURNITURE_CATALOGUE` in `elementCatalog.ts`, in der Reihenfolge
   des Wunsches und mit seinen Worten (die Namen der Elemente selbst):
   Arbeitsplatte

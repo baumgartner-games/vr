@@ -45,7 +45,13 @@ import {
   type ModelChange,
   type NoteChange,
 } from '../../core/worldChanges';
-import { elementById, hasElement, type FurnitureFolder } from '../elements/elementCatalog';
+import {
+  BUILD_FOLDERS,
+  wallHalfOf,
+  elementById,
+  hasElement,
+  type FurnitureFolder,
+} from '../elements/elementCatalog';
 import { elementFacts } from '../elements/elementFacts';
 import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { KaykitDishView } from '../elements/dishView';
@@ -163,6 +169,7 @@ import {
   type GridEdge,
   type GridTile,
   type PlacePose,
+  wallAxis,
   wallCells,
   wallEdges,
   yawOf,
@@ -170,6 +177,16 @@ import {
 
 const _turnScratch = new THREE.Quaternion();
 const _footSpot = new THREE.Vector3();
+
+/** Die vier Kacheln um eine Ecke zwischen den Kacheln — so leuchtet ein Startpunkt. */
+function cornerTiles(col: number, row: number): GridTile[] {
+  return [
+    { x: (col - 0.5) * TILE, z: (row - 0.5) * TILE },
+    { x: (col + 0.5) * TILE, z: (row - 0.5) * TILE },
+    { x: (col - 0.5) * TILE, z: (row + 0.5) * TILE },
+    { x: (col + 0.5) * TILE, z: (row + 0.5) * TILE },
+  ];
+}
 
 /** Wie eine Wand ungekürzt war (`PortalWorld.wallBase`). */
 interface WallBase {
@@ -186,12 +203,15 @@ import {
   areaPlan,
   areaRect,
   areaSize,
+  cornerAt,
   needsConfirm,
   tileAt,
+  wallLine,
   type AreaRect,
   type AreaTile,
+  type WallLine,
 } from './areaPaint';
-import { AreaPad, type AreaEvent } from './areaPad';
+import { AreaPad, type AreaEvent, type AreaShape } from './areaPad';
 import {
   BuildBar,
   HIDDEN_BUILD_BAR,
@@ -239,7 +259,7 @@ import {
   wallSpots,
   type RoomTile,
 } from './surfaceDecor';
-import { PlaceGhost } from './placeGhost';
+import { PlaceGhost, WallGhosts, type GhostSlot } from './placeGhost';
 import {
   KAYKIT_ACCENT,
   SHELF_COLS,
@@ -1668,6 +1688,20 @@ export class PortalWorld implements World {
   private readonly areaSelect = new AreaSelect();
   /** Die Kachel unter der Maus, bevor gedrückt wird — sie leuchtet schon. */
   private areaHover: AreaTile | null = null;
+  /**
+   * **Wie eine Wand gezogen wird** — _Linie_ von Ecke zu Ecke wie in _Die
+   * Sims_ (`areaPaint.wallLine`), oder _Raum_ als Rechteck mit Wand rundum.
+   */
+  private areaShape: AreaShape = 'line';
+  /**
+   * Die Wand in der Hand, für die _Wand ziehen_ schon von selbst anging — ein
+   * zweites Mal nicht: Wer es mit `Esc` beendet, setzt dieselbe Wand danach
+   * wieder einzeln mit dem Kran.
+   */
+  private areaAuto: PhysicsBody | null = null;
+  /** Die Geisterwand der gezogenen Linie (`placeGhost.WallGhosts`). */
+  private lineGhosts: WallGhosts | null = null;
+  private readonly ghostSlots: GhostSlot[] = [];
   private readonly areaRay = new THREE.Raycaster();
   private readonly previousHead = new THREE.Vector3();
   /**
@@ -3855,12 +3889,13 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Die Unterordner des Möbelkatalogs** — je Gericht die Möbel dafür, dieselben
+   * **Die Unterordner des Katalogs** — je Gericht die Möbel dafür, dieselben
    * Elemente wie in der ganzen Liste (`elementCatalog.FURNITURE_FOLDERS`). Hier
-   * keine.
+   * nur die Baumappen Wände, Türen und Fenster (`BUILD_FOLDERS`): Das sind
+   * Regalwände und keine Spielelemente, und die setzt jede Welt.
    */
   protected elementFolders(): readonly FurnitureFolder[] {
-    return [];
+    return BUILD_FOLDERS;
   }
 
   /**
@@ -3907,7 +3942,12 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Das Menü _Möbel_** — der Möbelkatalog: Spielelemente statt Rohmodelle.
+   * **Das Menü _Katalog_** — was man kaufen und einbauen kann, wie der Kauf-
+   * und Baumodus in _Die Sims_: Spielelemente statt Rohmodelle, dazu Wände,
+   * Türen und Fenster. Gewünscht: _„das Menü „Möbel" dahingehend erweitern
+   * bzw. auch umbenennen, dass es wie bei Sims der Katalog ist für die Sachen
+   * die man kaufen kann und einbauen kann."_ Früher hieß es _Möbel_.
+   *
    * Gewünscht: _„Ich brauche bei Möbel Katalog, die Funktion Möbel: eine
    * Arbeitsplatte 2x2 nicht durchlaufen, Arbeitsplatte mit Schneide Brett,
    * Herdplatte mit Pfanne, Herdplatte mit Topf, Herdplatte. Waschbecken"_.
@@ -3918,7 +3958,8 @@ export class PortalWorld implements World {
    */
   private elementMenu(ctx: () => WorldContext): MenuEntry[] {
     const ids = this.elementCatalogue().filter(hasElement);
-    if (ids.length === 0) return [];
+    const hasModels = this.elementFolders().some((folder) => (folder.models?.length ?? 0) > 0);
+    if (ids.length === 0 && !hasModels) return [];
     const accent = 0xe0914a;
     // **Eine Kachel je Element und Ort** — die Id sagt beides, denn Ids im
     // Menü sind Adressen (`menuNav.findStep` sucht den Steckbrief im ganzen
@@ -3973,7 +4014,7 @@ export class PortalWorld implements World {
       if (inside.length + models.length === 0) return [];
       const at = `elements/${folder.id}`;
       const total = inside.length + models.length;
-      const count = total === 1 ? '1 Möbel' : `${total} Möbel`;
+      const count = total === 1 ? '1 Stück' : `${total} Stück`;
       return [
         {
           id: at,
@@ -3993,8 +4034,8 @@ export class PortalWorld implements World {
     return [
       {
         id: 'elements',
-        label: 'Möbel',
-        sub: 'Spielelemente — sperren ihre Kachel und tun etwas auf A',
+        label: 'Katalog',
+        sub: 'Kaufen und bauen: Möbel, Wände, Türen, Fenster',
         icon: 'plank',
         // Die Wände darin sind Regalmodelle; ihre Steckbriefe kommen aus dem
         // Index des Regals, der erst beim Öffnen geholt wird.
@@ -5831,6 +5872,9 @@ export class PortalWorld implements World {
     this.buildBar = null;
     this.placeGhost?.dispose();
     this.placeGhost = null;
+    this.lineGhosts?.dispose();
+    this.lineGhosts = null;
+    this.areaAuto = null;
     if (this.faceMark) {
       this.faceMark.removeFromParent();
       this.faceMark.traverse((part) => {
@@ -11034,9 +11078,9 @@ export class PortalWorld implements World {
     const brush = this.lastBrush;
     if (brush) this.takeModel(ctx, brush.path, side ?? null, brush.yaw);
     else {
-      // Noch nichts gesetzt: Das Regal aufschlagen, dort wird ausgesucht.
+      // Noch nichts gesetzt: Den Katalog aufschlagen, dort wird ausgesucht.
       ctx.menu.toggle(true);
-      ctx.menu.openSubmenu('assets');
+      ctx.menu.openSubmenu(this.catalogueId());
     }
   }
 
@@ -11518,7 +11562,7 @@ export class PortalWorld implements World {
       {
         id: 'build:place',
         label: 'Setzen',
-        sub: 'Den letzten Pinsel in die Hand, sonst das Modellregal',
+        sub: 'Den letzten Pinsel in die Hand, sonst den Katalog',
         icon: 'cube',
         accent,
         run: run((ctx, hand) => {
@@ -11530,7 +11574,7 @@ export class PortalWorld implements World {
           }
           const brush = this.lastBrush;
           if (brush) this.takeModel(ctx, brush.path, hand, brush.yaw);
-          else ctx.menu.openSubmenu('assets');
+          else ctx.menu.openSubmenu(this.catalogueId());
         }),
       },
       {
@@ -11770,9 +11814,11 @@ export class PortalWorld implements World {
    * jede Kachel der Fläche bekommt eine Kopie in genau seiner Drehung.
    */
   private updateAreaPaint(ctx: WorldContext): void {
+    this.lineGhosts?.hide();
     const brush = this.areaBrush(ctx);
     if (!brush) {
       if (this.areaOn) this.endArea();
+      this.areaAuto = null;
       if (this.areaPad) {
         this.areaPad.take();
         this.areaPad.show({ kind: 'hidden' });
@@ -11781,9 +11827,22 @@ export class PortalWorld implements World {
     }
     const pad = (this.areaPad ??= new AreaPad());
     const floor = ctx.rig.getFloorY();
+    const wall = this.brushIsWall(brush.entry);
+    // **Eine Wand aus dem Katalog: gleich ziehen** — wie in _Die Sims_, wo
+    // man die Wand wählt und sofort den Startpunkt setzt. Einmal je Wand in
+    // der Hand; `Esc` beendet es, und dann setzt der Kran sie einzeln.
+    if (wall && !this.areaOn && this.areaAuto !== brush.entry) {
+      this.areaAuto = brush.entry;
+      this.startArea();
+    }
+    const shape = wall ? this.areaShape : undefined;
     for (const event of pad.take()) this.areaEvent(ctx, event, brush, floor);
     if (!this.areaOn) {
-      pad.show({ kind: 'offer' });
+      pad.show({ kind: 'offer', shape });
+      return;
+    }
+    if (wall && this.areaShape === 'line') {
+      this.updateWallLine(ctx, pad, brush, floor);
       return;
     }
 
@@ -11793,7 +11852,7 @@ export class PortalWorld implements World {
     const select = this.areaSelect;
     const hover = this.areaHover;
     const rect = select.rect() ?? (hover ? areaRect(hover, hover) : null);
-    const plan = rect ? areaPlan(rect, entry.halfExtents, yaw) : null;
+    const plan = rect ? areaPlan(rect, this.wallBase(entry).half, yaw) : null;
     const grid = this.placeGrid;
     if (grid) {
       if (!plan) grid.hide();
@@ -11806,6 +11865,7 @@ export class PortalWorld implements World {
       const pieces = plan.slots.length;
       pad.show({
         kind: 'confirm',
+        shape,
         text:
           pieces > AREA_MAX
             ? `${areaSize(rect)} · ${pieces} Stück sind zu viele — höchstens ${AREA_MAX}`
@@ -11815,13 +11875,116 @@ export class PortalWorld implements World {
     }
     pad.show({
       kind: 'active',
+      shape,
       text:
         select.phase === 'second'
           ? 'Erste Ecke steht · jetzt die zweite antippen'
           : select.phase === 'drag' && rect
             ? `${areaSize(rect)} Kacheln`
-            : `${label}: Fläche ziehen oder zwei Ecken antippen`,
+            : wall
+              ? `${label}: Raum aufziehen oder zwei Ecken antippen`
+              : `${label}: Fläche ziehen oder zwei Ecken antippen`,
     });
+  }
+
+  /** Ob das Getragene eine Wand ist — liegt es auf einer Fuge statt auf Kacheln (`wallAxis`). */
+  private brushIsWall(entry: PhysicsBody): boolean {
+    const { half } = this.wallBase(entry);
+    return wallAxis(2 * half.x, 2 * half.z) !== null;
+  }
+
+  /**
+   * **Die gezogene Wand** — die Linie vom Startpunkt bis unter die Maus,
+   * als Geisterwand (`WallGhosts`) und als leuchtende Fugen am Boden, dazu
+   * die Länge an der Leiste.
+   */
+  private updateWallLine(
+    ctx: WorldContext,
+    pad: AreaPad,
+    brush: { entry: PhysicsBody; path: string },
+    floor: number,
+  ): void {
+    const select = this.areaSelect;
+    const label = propLabel(modelKind(brush.path));
+    const line = this.currentWallLine(brush);
+    const grid = this.placeGrid;
+    if (grid) {
+      if (!line || line.slots.length === 0) {
+        // Vor dem ersten Druck leuchten die vier Kacheln um die Ecke, an der
+        // die Wand anfinge.
+        const hover = select.start ?? this.areaHover;
+        if (hover) grid.show(cornerTiles(hover.col, hover.row), floor, AREA_PREVIEW);
+        else grid.hide();
+      } else if (line.edges.length) grid.showEdges(line.edges, floor, AREA_PREVIEW);
+      else grid.show(line.tiles, floor, AREA_PREVIEW);
+    }
+    if (line && line.slots.length > 0) this.showWallGhosts(ctx, brush.entry, line, floor);
+    const length = line ? `${line.length.toFixed(line.diagonal ? 1 : 0)} m` : '';
+    pad.show({
+      kind: 'active',
+      shape: 'line',
+      text:
+        select.phase === 'idle'
+          ? `${label}: vom Startpunkt aus ziehen`
+          : line && line.slots.length > 0
+            ? `${length} · ${line.slots.length}× ${label}` +
+              (select.phase === 'second' ? ' · Endpunkt antippen' : ' · loslassen setzt')
+            : select.phase === 'second'
+              ? 'Startpunkt steht · jetzt den Endpunkt antippen'
+              : 'Zum Endpunkt ziehen',
+    });
+  }
+
+  /** Die Linie zwischen Startpunkt und Maus — `null`, solange es keinen Startpunkt gibt. */
+  private currentWallLine(brush: { entry: PhysicsBody; path: string }): WallLine | null {
+    const select = this.areaSelect;
+    if (!select.start) return null;
+    const { entry, path } = brush;
+    entry.object.getWorldQuaternion(_quaternion);
+    return wallLine(
+      select.start,
+      select.end ?? select.start,
+      this.wallBase(entry).half,
+      yawOf(_quaternion),
+      wallHalfOf(path) !== null,
+    );
+  }
+
+  /**
+   * **Die Geisterwand zeigen** — je Stück eine durchscheinende Kopie des
+   * Getragenen, gestreckt auf das halbe Stück und die gekürzte Schräge.
+   * Gestreckt wird gegen das ungekürzte Maß (`wallBase`), falls das
+   * Getragene gerade selbst schräg gekürzt ist.
+   */
+  private showWallGhosts(
+    ctx: WorldContext,
+    entry: PhysicsBody,
+    line: WallLine,
+    floor: number,
+  ): void {
+    const ghosts = (this.lineGhosts ??= new WallGhosts());
+    if (ghosts.root.parent !== ctx.scene) ctx.scene.add(ghosts.root);
+    const base = this.wallBase(entry);
+    const alongX = base.half.x >= base.half.z;
+    const now = entry.object.scale;
+    const fixX = now.x > 0 ? base.scale.x / now.x : 1;
+    const fixZ = now.z > 0 ? base.scale.z / now.z : 1;
+    const y = floor + base.half.y;
+    const slots = this.ghostSlots;
+    slots.length = 0;
+    for (const slot of line.slots) {
+      slots.push({
+        x: slot.x,
+        y,
+        z: slot.z,
+        yaw: slot.yaw,
+        scale: {
+          x: fixX * (alongX ? slot.stretch : 1),
+          z: fixZ * (alongX ? 1 : slot.stretch),
+        },
+      });
+    }
+    ghosts.show(entry.object, slots, true);
   }
 
   /**
@@ -11850,18 +12013,30 @@ export class PortalWorld implements World {
     floor: number,
   ): void {
     const select = this.areaSelect;
+    const line = this.brushIsWall(brush.entry) && this.areaShape === 'line';
     switch (event.kind) {
       case 'toggle':
         if (this.areaOn) {
           this.endArea();
           return;
         }
-        this.areaOn = true;
+        this.startArea();
+        ctx.notify(
+          line
+            ? 'Wand ziehen: Startpunkt drücken und ziehen · Esc beendet'
+            : 'Fläche: ziehen oder zwei Ecken antippen · Esc beendet',
+        );
+        return;
+      case 'shape':
+        this.areaShape = this.areaShape === 'line' ? 'rect' : 'line';
         select.reset();
-        // **Die Maus muss frei sein**, sonst gibt es keinen Zeiger, mit dem man
-        // zieht — aus den Augen hält die Steuerung sie sonst gefangen.
-        if (document.pointerLockElement) document.exitPointerLock();
-        ctx.notify('Fläche: ziehen oder zwei Ecken antippen · Esc beendet');
+        this.areaHover = null;
+        if (!this.areaOn) this.startArea();
+        ctx.notify(
+          this.areaShape === 'line'
+            ? 'Linie: vom Startpunkt zum Endpunkt ziehen'
+            : 'Raum: ein Rechteck aufziehen, rundum kommt eine Wand',
+        );
         return;
       case 'escape':
         // Erst eine halbe Auswahl zurück, dann den Modus.
@@ -11878,7 +12053,10 @@ export class PortalWorld implements World {
       case 'down':
       case 'move':
       case 'up': {
-        const tile = this.tileUnder(ctx, event.x, event.y, floor);
+        // Eine Wand als Linie läuft von Ecke zu Ecke, alles andere über Kacheln.
+        const tile = line
+          ? this.cornerUnder(ctx, event.x, event.y, floor)
+          : this.tileUnder(ctx, event.x, event.y, floor);
         if (event.kind === 'down') {
           if (tile) select.down(tile);
           return;
@@ -11890,6 +12068,14 @@ export class PortalWorld implements World {
           return;
         }
         if (!select.up(tile)) return;
+        if (line) {
+          // **Loslassen setzt** — ohne Nachfrage, wie in _Die Sims_. Die
+          // nächste Wand fängt gleich wieder mit dem Startpunkt an.
+          const drawn = this.currentWallLine(brush);
+          select.reset();
+          if (drawn && drawn.slots.length > 0) this.commitWallLine(brush, drawn, floor);
+          return;
+        }
         const rect = select.rect();
         if (!rect) return;
         if (needsConfirm(rect)) select.ask();
@@ -11897,6 +12083,53 @@ export class PortalWorld implements World {
         return;
       }
     }
+  }
+
+  /** _Fläche_ oder _Wand ziehen_ an — die Maus muss dafür frei sein. */
+  private startArea(): void {
+    this.areaOn = true;
+    this.areaSelect.reset();
+    this.areaHover = null;
+    // **Die Maus muss frei sein**, sonst gibt es keinen Zeiger, mit dem man
+    // zieht — aus den Augen hält die Steuerung sie sonst gefangen.
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  /**
+   * **Die gezogene Wand setzen** — jedes Stück über denselben Weg wie eine
+   * Fläche (`placeModelAt`): Es rastet auf der Fuge ein, ersetzt eine Wand,
+   * die dort schon stand (`replaceWalls`), wird unter 45° gekürzt
+   * (`fitWall`), und alles zusammen ist **ein** Schritt für _Rückgängig_.
+   */
+  private commitWallLine(
+    brush: { entry: PhysicsBody; path: string },
+    line: WallLine,
+    floor: number,
+  ): void {
+    const { entry, path } = brush;
+    const halfPath = wallHalfOf(path);
+    const y = floor + this.wallBase(entry).half.y + AREA_LIFT;
+    const label = propLabel(modelKind(path));
+    let placed = 0;
+    const done: Promise<void>[] = [];
+    this.buildHistory.begin();
+    for (const slot of line.slots) {
+      const piece = slot.half && halfPath ? halfPath : path;
+      done.push(
+        this.placeModelAt(piece, new THREE.Vector3(slot.x, y, slot.z), slot.yaw).then((one) => {
+          if (one) placed += 1;
+        }),
+      );
+    }
+    this.buildHistory.end();
+    const length = `${line.length.toFixed(line.diagonal ? 1 : 0)} m`;
+    void Promise.all(done).then(() => {
+      const skipped = done.length - placed;
+      this.context?.notify(
+        `Wand gesetzt: ${length} · ${placed}× ${label}` +
+          (skipped ? ` · ${skipped} standen schon` : ''),
+      );
+    });
   }
 
   /**
@@ -11976,6 +12209,18 @@ export class PortalWorld implements World {
    * Horizont oder weiter weg, als eine Fläche sinnvoll ist.
    */
   private tileUnder(ctx: WorldContext, x: number, y: number, floor: number): AreaTile | null {
+    const hit = this.floorUnder(ctx, x, y, floor);
+    return hit ? tileAt(hit.x, hit.z) : null;
+  }
+
+  /** **Die Ecke zwischen den Kacheln unter einem Punkt auf dem Schirm** — für _Wand ziehen_. */
+  private cornerUnder(ctx: WorldContext, x: number, y: number, floor: number): AreaTile | null {
+    const hit = this.floorUnder(ctx, x, y, floor);
+    return hit ? cornerAt(hit.x, hit.z) : null;
+  }
+
+  /** Wo ein Strahl durch diesen Punkt auf dem Schirm den Boden trifft — oder `null`. */
+  private floorUnder(ctx: WorldContext, x: number, y: number, floor: number): THREE.Vector3 | null {
     const box = ctx.renderer.domElement.getBoundingClientRect();
     if (box.width <= 0 || box.height <= 0) return null;
     _areaNdc.set(((x - box.left) / box.width) * 2 - 1, -((y - box.top) / box.height) * 2 + 1);
@@ -11985,7 +12230,7 @@ export class PortalWorld implements World {
     _areaPlane.set(UP, -floor);
     const hit = this.areaRay.ray.intersectPlane(_areaPlane, _areaHit);
     if (!hit || hit.distanceTo(this.areaRay.ray.origin) > AREA_REACH) return null;
-    return tileAt(hit.x, hit.z);
+    return hit;
   }
 
   /**
@@ -12215,11 +12460,20 @@ export class PortalWorld implements World {
    * es ihn nicht gibt, steht dort, dass es ihn nicht gibt. Werfen darf hier
    * nichts: Ein Checkout ohne die gekauften Pakete ist ein normaler Zustand.
    */
+  /**
+   * **Wo _Setzen_ ohne Pinsel aussuchen lässt** — der Katalog, und nur in einer
+   * Welt ohne ihn noch das Regal der Rohmodelle.
+   */
+  private catalogueId(): string {
+    const models = this.elementFolders().some((folder) => (folder.models?.length ?? 0) > 0);
+    return models || this.elementCatalogue().some(hasElement) ? 'elements' : 'assets';
+  }
+
   private assetMenu(ctx: () => WorldContext): MenuEntry {
     return {
       id: 'assets',
-      label: 'Modellregal',
-      sub: 'Rohmodelle — nur das Bild, kein Spielelement',
+      label: 'Rohmodelle',
+      sub: 'Modellregal zum Nachschlagen — 3D-Modelle ohne Funktion, Vorlagen für den Katalog',
       icon: 'folder',
       accent: KAYKIT_ACCENT,
       grid: true,

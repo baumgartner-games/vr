@@ -18,27 +18,36 @@
  *
  * `Esc` nimmt eine halbe Auswahl zurück und beendet sonst den Modus, `Enter`
  * bestätigt eine gefragte Fläche.
+ *
+ * **Mit einer Wand in der Hand** gibt es einen Knopf mehr: _Linie_ zieht eine
+ * Wand von Ecke zu Ecke wie in _Die Sims_ (`areaPaint.wallLine`), _Raum_ zieht
+ * wie bisher ein Rechteck, das rundum eine Wand bekommt.
  */
+
+/** Wie eine Wand gezogen wird: als Linie von Ecke zu Ecke oder als Raum. */
+export type AreaShape = 'line' | 'rect';
 
 /** Was die Leiste und die Zeichenfläche melden. */
 export type AreaEvent =
   | { readonly kind: 'down' | 'move' | 'up'; readonly x: number; readonly y: number }
-  | { readonly kind: 'toggle' | 'confirm' | 'cancel' | 'escape' };
+  | { readonly kind: 'toggle' | 'confirm' | 'cancel' | 'escape' | 'shape' };
 
 /** Was die Leiste gerade zeigt. */
 export type AreaBarState =
   | { readonly kind: 'hidden' }
   /** Der Modus ist aus, kann aber an. */
-  | { readonly kind: 'offer' }
+  | { readonly kind: 'offer'; readonly shape?: AreaShape }
   /** Der Modus ist an; `text` sagt, was als Nächstes kommt. */
-  | { readonly kind: 'active'; readonly text: string }
+  | { readonly kind: 'active'; readonly text: string; readonly shape?: AreaShape }
   /** Eine Fläche steht zur Frage. */
-  | { readonly kind: 'confirm'; readonly text: string };
+  | { readonly kind: 'confirm'; readonly text: string; readonly shape?: AreaShape };
 
 export class AreaPad {
   private readonly bar = document.createElement('div');
   private readonly label = document.createElement('span');
   private readonly toggle = button('▦ Fläche', 'area-bar__btn');
+  /** _Linie_ oder _Raum_ — nur mit einer Wand in der Hand zu sehen. */
+  private readonly shape = button('╱ Linie', 'area-bar__btn');
   private readonly confirm = button('Bestätigen', 'area-bar__btn area-bar__btn--go');
   private readonly cancel = button('Abbrechen', 'area-bar__btn');
   private readonly surface = document.createElement('div');
@@ -50,12 +59,13 @@ export class AreaPad {
     this.bar.className = 'area-bar';
     this.bar.hidden = true;
     this.label.className = 'area-bar__text';
-    this.bar.append(this.label, this.toggle, this.confirm, this.cancel);
+    this.bar.append(this.label, this.shape, this.toggle, this.confirm, this.cancel);
     this.surface.className = 'area-surface';
     this.surface.hidden = true;
     document.body.append(this.surface, this.bar);
 
     this.toggle.addEventListener('click', this.onToggle);
+    this.shape.addEventListener('click', this.onShape);
     this.confirm.addEventListener('click', this.onConfirm);
     this.cancel.addEventListener('click', this.onCancel);
     this.surface.addEventListener('pointerdown', this.onDown);
@@ -74,7 +84,8 @@ export class AreaPad {
 
   /** Die Leiste und die Zeichenfläche auf diesen Stand bringen — geschrieben wird nur, was sich ändert. */
   show(state: AreaBarState): void {
-    const key = state.kind + ('text' in state ? state.text : '');
+    const shape = state.kind === 'hidden' ? undefined : state.shape;
+    const key = state.kind + ('text' in state ? state.text : '') + (shape ?? '');
     if (key === this.shown) return;
     this.shown = key;
     this.bar.hidden = state.kind === 'hidden';
@@ -84,7 +95,15 @@ export class AreaPad {
     this.label.textContent = 'text' in state ? state.text : '';
     this.label.hidden = !('text' in state);
     this.toggle.hidden = state.kind === 'confirm';
-    this.toggle.textContent = state.kind === 'offer' ? '▦ Fläche' : 'Beenden';
+    this.toggle.textContent =
+      state.kind !== 'offer' ? 'Beenden' : shape ? '▦ Wand ziehen' : '▦ Fläche';
+    // Der Knopf zeigt, was gilt; ein Druck schaltet auf das andere.
+    this.shape.hidden = shape === undefined || state.kind === 'confirm';
+    this.shape.textContent = shape === 'rect' ? '▭ Raum' : '╱ Linie';
+    this.shape.title =
+      shape === 'rect'
+        ? 'Raum: ein Rechteck aufziehen, rundum kommt eine Wand · umschalten auf Linie'
+        : 'Linie: vom Startpunkt zum Endpunkt ziehen, wie in Die Sims · umschalten auf Raum';
     this.toggle.setAttribute('aria-pressed', String(active));
     this.confirm.hidden = state.kind !== 'confirm';
     this.cancel.hidden = state.kind !== 'confirm';
@@ -100,6 +119,11 @@ export class AreaPad {
   private readonly onToggle = (event: Event): void => {
     event.stopPropagation();
     this.queue.push({ kind: 'toggle' });
+  };
+
+  private readonly onShape = (event: Event): void => {
+    event.stopPropagation();
+    this.queue.push({ kind: 'shape' });
   };
 
   private readonly onConfirm = (event: Event): void => {

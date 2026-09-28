@@ -39,8 +39,18 @@ export class PlaceGhost {
    * Den Geist von `source` an diese Stelle setzen.
    *
    * @param yaw Drehung um die Hochachse, in Bogenmaß
+   * @param scale gestreckt im eigenen Rahmen — das halbe Stück und die gekürzte
+   *   Schräge einer gezogenen Wand (`WallGhosts`); sonst wie das Original
    */
-  show(source: THREE.Object3D, x: number, y: number, z: number, yaw: number, valid: boolean): void {
+  show(
+    source: THREE.Object3D,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    valid: boolean,
+    scale?: { readonly x: number; readonly z: number },
+  ): void {
     if (source !== this.source) this.rebuild(source);
     if (valid !== this.valid) {
       this.valid = valid;
@@ -52,6 +62,7 @@ export class PlaceGhost {
     }
     this.root.position.set(x, y, z);
     this.root.rotation.set(0, yaw, 0);
+    this.root.scale.set(scale?.x ?? 1, 1, scale?.z ?? 1);
     this.root.visible = true;
   }
 
@@ -109,4 +120,55 @@ function ghostMaterial(color: number): THREE.MeshBasicMaterial {
     // Rahmen des Gitters (`placeGrid.ts`).
     depthTest: false,
   });
+}
+
+/** Ein Stück einer Geisterreihe: Mitte in Metern, Drehung und Streckung im eigenen Rahmen. */
+export interface GhostSlot {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly scale: { readonly x: number; readonly z: number };
+}
+
+/**
+ * **Die Geisterwand** — eine Reihe von Geistern, einer je Stück einer
+ * gezogenen Wand (`areaPaint.wallLine`), solange der Endpunkt noch nicht
+ * bestätigt ist. Gewünscht: _„während man noch nicht den Endpunkt bestätigt
+ * hat sieht man eine Vorschau der ghost Wall."_
+ *
+ * Die Geister werden nicht je Bild neu gebaut, sondern behalten: Eine Wand,
+ * die beim Ziehen um ein Stück wächst, bekommt einen Geist dazu, und die
+ * übrigen bleiben, wie sie sind.
+ */
+export class WallGhosts {
+  readonly root = new THREE.Group();
+  private readonly ghosts: PlaceGhost[] = [];
+
+  constructor() {
+    this.root.name = 'wall-ghosts';
+  }
+
+  show(source: THREE.Object3D, slots: readonly GhostSlot[], valid: boolean): void {
+    while (this.ghosts.length < slots.length) {
+      const ghost = new PlaceGhost();
+      this.ghosts.push(ghost);
+      this.root.add(ghost.root);
+    }
+    this.ghosts.forEach((ghost, index) => {
+      const slot = slots[index];
+      if (!slot) ghost.hide();
+      else ghost.show(source, slot.x, slot.y, slot.z, slot.yaw, valid, slot.scale);
+    });
+  }
+
+  hide(): void {
+    for (const ghost of this.ghosts) ghost.hide();
+  }
+
+  dispose(): void {
+    for (const ghost of this.ghosts) ghost.dispose();
+    this.ghosts.length = 0;
+    this.root.removeFromParent();
+  }
 }

@@ -1241,6 +1241,48 @@ Die Vorschau ist das Gitter unter dem Getragenen (`PlaceGrid`), nur mit
 höherer Grenze (`AREA_PREVIEW`, 1 600 statt 64 Kacheln): leuchtende Kacheln,
 bei Wänden die Kantenstücke.
 
+### Wand ziehen wie in _Die Sims_
+
+Gewünscht (September 2026): _„man wählt eine Wand aus, und einen Startpunkt
+und zieht z.B. mit der linken Maustaste (oder durch links klick den Start
+Punkt bestätigen …) und zieht dann die Wand wohin man die haben will, während
+man noch nicht den Endpunkt bestätigt hat sieht man eine Vorschau der ghost
+Wall."_
+
+- **Von selbst an**: Wer im _Baukasten_ eine Wand in die Bildschirmhand nimmt
+  (Katalog → _Wände_, _Türen_ oder _Fenster_, oder eine Wand aus den
+  Rohmodellen), ist sofort in _Wand ziehen_ (`areaAuto`) — einmal je Wand in
+  der Hand. `Esc` beendet es, und dieselbe Wand setzt der Kran dann wieder
+  einzeln; _▦ Wand ziehen_ an der Leiste schaltet es wieder an.
+- **Linie oder Raum**: Mit einer Wand in der Hand hat die Leiste einen Knopf
+  mehr (`AreaShape`). _╱ Linie_ (vorgegeben) zieht von Ecke zu Ecke, _▭ Raum_
+  zieht wie bisher ein Rechteck mit Wand rundum.
+- **Ecken statt Kacheln** (`areaPaint.cornerAt`, `PortalWorld.cornerUnder`):
+  Eine Wand steht auf der Fuge, ihre Enden liegen dort, wo sich Fugen kreuzen.
+  Vor dem ersten Druck leuchten die vier Kacheln um die Ecke unter der Maus.
+- **Die Richtung rastet auf das nächste Achtel** (`wallLine`): gerade oder
+  unter 45°. Ein schiefer Zug gibt die Wand, der er am nächsten ist, keine
+  Treppe. Gerade kommen ganze Stücke aneinander und bei ungerader Länge am
+  Ende das halbe (`elementCatalog.wallHalfOf`); ohne halbes Stück
+  (Durchgänge) endet die Wand eines früher. Schräg kommt je `tileSpan / 2`
+  Kacheln ein ganzes Stück, gekürzt auf die Diagonale wie einzeln
+  (`fitWall`).
+- **Die Geisterwand** (`placeGhost.WallGhosts`): je Stück eine grüne,
+  durchscheinende Kopie des Getragenen, auf das halbe Stück und die Schräge
+  gestreckt, solange der Endpunkt nicht bestätigt ist. Darunter leuchten die
+  Fugen (gerade) oder die Kacheln (schräg); an der Leiste steht die Länge in
+  Metern und die Zahl der Stücke.
+- **Loslassen setzt**, ohne Nachfrage — oder, getippt, der zweite Tipp. Jedes
+  Stück geht über `placeModelAt`, ersetzt also eine Wand, die auf derselben
+  Fuge schon stand (`replaceWalls`), und die ganze Linie ist **ein** Schritt
+  für _Rückgängig_. Danach fängt die nächste Wand gleich wieder beim
+  Startpunkt an.
+
+**Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
+Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
+alte auf derselben Fuge. In der Brille gibt es _Wand ziehen_ noch nicht (keine
+Leiste, kein Zeiger über dem Bild).
+
 ## Die Werkzeugleiste des Baukastens
 
 **Gespielt, bevor gebaut wurde.** Im September 2026 wurde der _Baukasten_

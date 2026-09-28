@@ -78,7 +78,7 @@ export const MENU_GROUPS: readonly MenuGroup[] = [
   {
     id: 'bauen',
     label: 'Bauen & Gestalten',
-    sub: 'Werkzeuge, Beutel, Modellregal, NPCs',
+    sub: 'Werkzeuge, Katalog, Beutel, NPCs',
     icon: 'hammer',
     accent: 0xffb454,
   },
@@ -175,11 +175,11 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   // bauen darf —, dann, womit.
   { match: 'setting:game-mode', group: 'bauen' },
   { match: 'tools', group: 'bauen' },
-  { match: 'bag', group: 'bauen' },
-  { match: 'assets', group: 'bauen' },
-  // Der Möbelkatalog gleich hinter dem Regal: dort das Bild, hier das Möbel
-  // mit Zweck (`PortalWorld.elementMenu`, nur in Welten mit Stationen).
+  // Der Katalog vor allem anderen, womit man baut: Möbel mit Zweck, Wände,
+  // Türen, Fenster (`PortalWorld.elementMenu`) — wie der Kauf- und Baumodus
+  // in _Die Sims_.
   { match: 'elements', group: 'bauen' },
+  { match: 'bag', group: 'bauen' },
   { match: 'build-tools', group: 'bauen' },
   { match: 'npc', group: 'bauen' },
   { match: 'plan-store', group: 'bauen' },
@@ -201,6 +201,11 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
 
   // Die Werkstatt: Anzeigen zum Prüfen, dann Physik und Messwerte, dann
   // die Werkzeuge zum Mitnehmen und Zurücksetzen.
+  // **Die Rohmodelle** (früher _Modellregal_ unter Bauen): nur Bilder ohne
+  // Funktion, zum Nachschlagen, welche Modelle später in den Katalog kommen
+  // könnten. Gewünscht: _„das modelregal sollten wir dahingehen runterstufen
+  // […] für mich eher als Hilfestellung"_.
+  { match: 'assets', group: 'werkstatt' },
   { match: 'gfx:fps', group: 'werkstatt' },
   { match: 'gfx:fps-hud', group: 'werkstatt' },
   { match: 'gfx:position', group: 'werkstatt' },
