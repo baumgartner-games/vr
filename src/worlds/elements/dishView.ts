@@ -107,6 +107,13 @@ export function dishLayout(carrier: KitchenItem, heights: readonly number[]): Di
  */
 export const ITEM_SCALE: Readonly<Partial<Record<KitchenItem, number>>> = {
   'waffle-raw': 0.5,
+  // Die Bahnen der Tapeten sind Banner für eine ganze Wand.
+  'wallpaper-brick': 0.3,
+  'wallpaper-plaster': 0.3,
+  'wallpaper-beige': 0.3,
+  'wallpaper-stripes': 0.3,
+  'wallpaper-wood': 0.3,
+  'wallpaper-tiles': 0.3,
 };
 
 /** Was nebeneinander statt aufeinander liegt — die rohen Waffeln. */

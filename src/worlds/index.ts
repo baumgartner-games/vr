@@ -73,6 +73,21 @@ export const WORLDS: WorldDefinition[] = [
       new (await import('./testrestaurant/TestRestaurantWorld')).TestRestaurantWorld(),
   },
   {
+    id: 'hausbau',
+    title: 'Hausbau',
+    tagline: 'Wände bauen und tapezieren',
+    description:
+      'Ein kleines Haus aus den Wänden des Katalogs: zwei Zimmer, Innentür, Haustür, zwei Fenster. Davor sechs Tapetenkisten — Tapete nehmen, im Raum auf eine Wand zeigen, und die Seiten, die sie bekäme, leuchten; A klebt sie an. Im Baukasten zieht man neue Wände wie in Die Sims.',
+    accent: 0xc98f4f,
+    preview: 'worlds/hausbau.webp',
+    // Das Haus mit den Kisten davor, Rand bis Rand.
+    topDownSpan: 22,
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./house/HausbauWorld')).HausbauWorld(),
+  },
+  {
     id: 'plateup',
     title: 'Restaurant',
     tagline: 'Küche und Gastraum, neu aus dem Möbelkatalog',

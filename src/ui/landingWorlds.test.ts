@@ -96,9 +96,13 @@ describe('Ordner auf der Startseite', () => {
     expect(folder.classList.contains('is-selected')).toBe(true);
   });
 
-  it('steckt Test Navigation und Test Restaurant in den Ordner „Test"', () => {
+  it('steckt Test Navigation, Test Restaurant und Hausbau in den Ordner „Test"', () => {
     const cards = worldCards(WORLDS, './', WORLD_FOLDERS);
     const folder = cards.find((card) => card.id === 'folder:test')!;
-    expect(folder.children!.map((card) => card.id)).toEqual(['test-navigation', 'test-restaurant']);
+    expect(folder.children!.map((card) => card.id)).toEqual([
+      'test-navigation',
+      'test-restaurant',
+      'hausbau',
+    ]);
   });
 });

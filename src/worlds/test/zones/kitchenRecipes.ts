@@ -191,7 +191,20 @@ export type KitchenItem =
    * Interagiert man nochmal mit einem gefüllten tray wird es zur nächsten
    * Sorte, bis es loopt. Trays werden nicht leer."_
    */
-  | 'tray';
+  | 'tray'
+  /**
+   * **Die Tapeten** (`house/wallpaper.ts`) — kein Essen, aber etwas, das man
+   * aus der Kiste nimmt, in der Hand trägt und aufbraucht: an den Wänden eines
+   * Raums (`HausbauWorld`). Gewünscht: _„es beim Wand Ordner aber Tapeten
+   * Items gibt, die ich z.B. als Spieler in der Hand halten kann."_ Keine
+   * Regel der Küche nimmt sie an.
+   */
+  | 'wallpaper-brick'
+  | 'wallpaper-plaster'
+  | 'wallpaper-beige'
+  | 'wallpaper-stripes'
+  | 'wallpaper-wood'
+  | 'wallpaper-tiles';
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -265,6 +278,12 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   'ice-strawberry': 'Erdbeereis',
   'ice-chocolate': 'Schokoeis',
   tray: 'Eiswanne',
+  'wallpaper-brick': 'Tapete Backstein',
+  'wallpaper-plaster': 'Tapete Putz weiß',
+  'wallpaper-beige': 'Tapete beige',
+  'wallpaper-stripes': 'Tapete grün gestreift',
+  'wallpaper-wood': 'Tapete Holzvertäfelung',
+  'wallpaper-tiles': 'Tapete Fliesen blau',
 };
 
 /**

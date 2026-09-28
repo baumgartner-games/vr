@@ -184,6 +184,9 @@ const BODY = 1.4;
  */
 const TUB_SCALE = 0.66 / 0.8;
 
+/** Wie tief die Bahn einer Tapete in ihrer Kiste steckt, in Metern. */
+const WALLPAPER_SINK = 0.12;
+
 /** Die Arbeitsplatte, auf der fast alles steht. */
 const COUNTER = bits('kitchencounter_straight_A');
 
@@ -257,6 +260,42 @@ function pattyCrate(): ElementPart[] {
 function iceTray(id: string, label: string, flavor: KitchenItem): GameElement {
   return piece(id, label, 'top', [{ model: COUNTER }], { holds: 'tray', holdsOn: [flavor] });
 }
+
+/**
+ * **Die Tapetenkisten** — je Tapete eine Kiste, aus der man sie nimmt, so oft
+ * man will (`kind: 'crate'` ändert sich beim Nehmen nicht). Obenauf steckt
+ * die Bahn der Tapete (`itemModels.ITEM_MODELS`), damit man die Kisten
+ * auseinanderhält. Gewünscht: _„In der Welt können vorratskisten von den
+ * Tapeten sein, sodass man unendlich viele davon hat."_
+ */
+export const WALLPAPER_CRATES: readonly GameElement[] = (
+  [
+    ['brick', 'Backstein', 'red'],
+    ['plaster', 'Putz weiß', 'white'],
+    ['beige', 'Tapete beige', 'yellow'],
+    ['stripes', 'Tapete grün gestreift', 'green'],
+    ['wood', 'Holzvertäfelung', 'brown'],
+    ['tiles', 'Fliesen blau', 'blue'],
+  ] as const
+).map(([id, label, color]) =>
+  piece(
+    `crate-wallpaper-${id}`,
+    `Tapetenkiste ${label}`,
+    'crate',
+    [
+      { model: bits('crate') },
+      // Die Bahn liegt flach in der Kiste — umgelegt vor dem Messen, wie das
+      // Messer auf dem Brett.
+      {
+        model: `dungeon/banner_thin_${color}.glb`,
+        on: 0,
+        sink: WALLPAPER_SINK,
+        tilt: [-Math.PI / 2, 0, 0],
+      },
+    ],
+    { gives: `wallpaper-${id}` },
+  ),
+);
 
 /** Die Kisten des Pakets, je eine Zutat. */
 const CRATES: readonly GameElement[] = [
@@ -416,6 +455,7 @@ export const ELEMENTS: readonly GameElement[] = [
     { work: 'roll' },
   ),
   ...CRATES,
+  ...WALLPAPER_CRATES,
   // **Die Pizza-Vorratsbox** — gewünscht: eine Kiste, aus der man eine ganze
   // Pizza nimmt. Die leere Kiste (`crate`, ihr Deckel kommt vom Lader) und
   // die fertige Pizza obenauf, damit man von oben sieht, was drin ist.
@@ -691,6 +731,13 @@ export interface FurnitureFolder {
    * (die Wände, `WALL_MODELS`).
    */
   readonly models?: readonly string[];
+  /**
+   * **Dinge für die Hand** — Ids aus der Küche (`KitchenItem`), die man aus
+   * dem Katalog direkt in die Hand nimmt, wie aus ihrer Kiste: die Tapeten
+   * (`house/wallpaper.ts`). Nur in einer Welt, die sie tragen kann
+   * (`PortalWorld.catalogItem`).
+   */
+  readonly items?: readonly string[];
 }
 
 /**

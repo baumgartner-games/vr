@@ -569,6 +569,12 @@ export function kitchenHandles(
     case 'mushroom-cut':
     case 'soup-onion':
     case 'soup-mushroom':
+    case 'wallpaper-brick':
+    case 'wallpaper-plaster':
+    case 'wallpaper-beige':
+    case 'wallpaper-stripes':
+    case 'wallpaper-wood':
+    case 'wallpaper-tiles':
       return [];
   }
 }

@@ -115,6 +115,15 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   // **Die Eiswanne** ist der Kasten der Eisecke (`icecream_container`); was
   // darin liegt, ist die Füllung derselben Wanne (`IN_TRAY`).
   tray: bits('icecream_container'),
+  // **Die Tapeten als Bahnen** — die Banner des Verlieses, je Tapete in ihrer
+  // Farbe. Das Regal hat keine Tapetenrolle; eine Bahn Stoff in der Farbe der
+  // Wand sagt am ehesten, was man da trägt (klein gezeigt: `ITEM_SCALE`).
+  'wallpaper-brick': 'dungeon/banner_thin_red.glb',
+  'wallpaper-plaster': 'dungeon/banner_thin_white.glb',
+  'wallpaper-beige': 'dungeon/banner_thin_yellow.glb',
+  'wallpaper-stripes': 'dungeon/banner_thin_green.glb',
+  'wallpaper-wood': 'dungeon/banner_thin_brown.glb',
+  'wallpaper-tiles': 'dungeon/banner_thin_blue.glb',
 };
 
 /**

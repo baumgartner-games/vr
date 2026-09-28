@@ -188,6 +188,21 @@ function cornerTiles(col: number, row: number): GridTile[] {
   ];
 }
 
+/**
+ * **Eine Wand, wie sie steht** (`PortalWorld.standingWalls`) — Enden auf den
+ * Ecken des Gitters, Mitte, Richtung längs und die Vorderseite, alles in
+ * Weltachsen.
+ */
+export interface StandingWall {
+  readonly entry: PhysicsBody;
+  readonly path: string;
+  readonly a: { readonly x: number; readonly z: number };
+  readonly b: { readonly x: number; readonly z: number };
+  readonly centre: THREE.Vector3;
+  readonly along: THREE.Vector3;
+  readonly front: THREE.Vector3;
+}
+
 /** Wie eine Wand ungekürzt war (`PortalWorld.wallBase`). */
 interface WallBase {
   half: THREE.Vector3;
@@ -3833,9 +3848,72 @@ export class PortalWorld implements World {
       entry.carried ||
       this.highlighted.has(entry) ||
       this.flights.has(entry) ||
-      this.replaced.has(entry)
+      this.replaced.has(entry) ||
+      this.looseWalls.has(entry)
     );
   };
+
+  /**
+   * **Wände, die für sich stehen müssen** — tapeziert oder gerade hervorgehoben
+   * (`house/wallpaperSkin.ts`): Sie tragen eigene Materialien, und das Bündel
+   * zeichnete sie mit denen des Regals.
+   */
+  protected readonly looseWalls = new WeakSet<PhysicsBody>();
+
+  /**
+   * **Die Wände, die gerade stehen** — jede mit ihren beiden Enden auf den
+   * Ecken des Kachelgitters, ihrer Vorderseite und ihrer Lage, für die Tapete
+   * (`house/roomTrace.ts`). Gerade oder unter 45°; was an einer Wand hängt,
+   * und was keine Wand ist, fehlt.
+   */
+  protected standingWalls(): StandingWall[] {
+    const out: StandingWall[] = [];
+    for (const entry of this.placedModels([])) {
+      const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
+      if (path === null || mountsOnWall(path)) continue;
+      const base = this.wallBase(entry);
+      if (wallAxis(2 * base.half.x, 2 * base.half.z) === null) continue;
+      const diagonal = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
+      const length = diagonal ? diagonal.length : base.long;
+      const alongLocalX = base.half.x >= base.half.z;
+      entry.object.getWorldPosition(_point);
+      entry.object.getWorldQuaternion(_quaternion);
+      const along = new THREE.Vector3(alongLocalX ? 1 : 0, 0, alongLocalX ? 0 : 1).applyQuaternion(
+        _quaternion,
+      );
+      const front = new THREE.Vector3(alongLocalX ? 0 : 1, 0, alongLocalX ? 1 : 0).applyQuaternion(
+        _quaternion,
+      );
+      const half = length / 2;
+      out.push({
+        entry,
+        path,
+        a: {
+          x: Math.round((_point.x - along.x * half) / TILE),
+          z: Math.round((_point.z - along.z * half) / TILE),
+        },
+        b: {
+          x: Math.round((_point.x + along.x * half) / TILE),
+          z: Math.round((_point.z + along.z * half) / TILE),
+        },
+        centre: _point.clone(),
+        along: along.setY(0).normalize(),
+        front: front.setY(0).normalize(),
+      });
+    }
+    return out;
+  }
+
+  /**
+   * **Ob `A` gerade etwas träfe** — für eine Welt, die vorher selbst
+   * entscheiden will, was ein Druck heißt (die Tapete in der Hand), und dabei
+   * eine Kiste oder Station vor sich nicht überstimmen soll.
+   */
+  protected hasUsePick(ctx: WorldContext): boolean {
+    if (this.usables.length === 0) return false;
+    this.aimUse(ctx);
+    return this.pickBody(ctx) !== null;
+  }
 
   /**
    * **Ein Stück, das der Welt gehört** (`placeModel`) — fest und nur hier.
@@ -4008,12 +4086,31 @@ export class PortalWorld implements World {
           };
       return { ...entry, id: `${at}:${path}` };
     };
+    // **Dinge für die Hand** (die Tapeten, `FurnitureFolder.items`): Genommen
+    // wird nicht ein Möbel, sondern das Ding selbst, wie aus seiner Kiste —
+    // am Schirm wie mit dem Kran (`takeCatalogItem`).
+    const item = (id: string, at: string): MenuEntry => {
+      const facts = this.catalogItem(id)!;
+      return {
+        id: `${at}:item:${id}`,
+        label: facts.label,
+        caption: 'In die Hand',
+        accent,
+        preview: `kaykit:${facts.model}`,
+        full: true,
+        run: (hand: Handedness | null) => {
+          ctx().menu.toggle(false);
+          this.takeCatalogItem(ctx(), id, hand);
+        },
+      };
+    };
     const folders = this.elementFolders().flatMap((folder): MenuEntry[] => {
       const inside = folder.elements.filter(hasElement);
       const models = folder.models ?? [];
-      if (inside.length + models.length === 0) return [];
+      const items = (folder.items ?? []).filter((id) => this.catalogItem(id) !== null);
+      if (inside.length + models.length + items.length === 0) return [];
       const at = `elements/${folder.id}`;
-      const total = inside.length + models.length;
+      const total = inside.length + models.length + items.length;
       const count = total === 1 ? '1 Stück' : `${total} Stück`;
       return [
         {
@@ -4027,7 +4124,11 @@ export class PortalWorld implements World {
           cols: SHELF_COLS,
           full: true,
           take: true,
-          children: [...inside.map((id) => tile(id, at)), ...models.map((path) => model(path, at))],
+          children: [
+            ...items.map((id) => item(id, at)),
+            ...inside.map((id) => tile(id, at)),
+            ...models.map((path) => model(path, at)),
+          ],
         },
       ];
     });
@@ -12460,6 +12561,18 @@ export class PortalWorld implements World {
    * es ihn nicht gibt, steht dort, dass es ihn nicht gibt. Werfen darf hier
    * nichts: Ein Checkout ohne die gekauften Pakete ist ein normaler Zustand.
    */
+  /**
+   * **Ein Ding aus dem Katalog, das man in die Hand nimmt** (die Tapeten) —
+   * Name und Bild, oder `null`, wenn diese Welt es nicht tragen kann. Dann
+   * fehlt die Kachel.
+   */
+  protected catalogItem(_id: string): { label: string; model: string } | null {
+    return null;
+  }
+
+  /** **Das Ding in die Hand** — hier nichts; wer `catalogItem` beantwortet, tut es. */
+  protected takeCatalogItem(_ctx: WorldContext, _id: string, _hand: Handedness | null): void {}
+
   /**
    * **Wo _Setzen_ ohne Pinsel aussuchen lässt** — der Katalog, und nur in einer
    * Welt ohne ihn noch das Regal der Rohmodelle.

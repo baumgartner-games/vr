@@ -80,9 +80,9 @@ export class TestRestaurantWorld extends GridWorld {
   private readonly templates = new Map<string, THREE.Object3D>();
 
   /** Ein Ding der Küche — was eine Kiste, ein Brett, ein Stapel hergegeben hat. */
-  private carried: Dish | null = null;
+  protected carried: Dish | null = null;
   /** Die Hand, in der es liegt. */
-  private carriedHand: Handedness | null = null;
+  protected carriedHand: Handedness | null = null;
   /** Ob die freie Hand im letzten Bild schon am Getragenen stand — für den einen Stups. */
   private passReady = false;
   private carriedView: THREE.Object3D | null = null;
@@ -430,7 +430,7 @@ export class TestRestaurantWorld extends GridWorld {
    * **Ein Ding der Küche in die Hand** — oder aus ihr (`StationLayer`). Das
    * Bild wird nur neu gebaut, wenn sich das Gericht geändert hat.
    */
-  private setCarried(next: Dish | null, hand: Handedness | null): void {
+  protected setCarried(next: Dish | null, hand: Handedness | null): void {
     const before = this.carried ? dishKey(this.carried) : '';
     const after = next ? dishKey(next) : '';
     this.carried = next;
