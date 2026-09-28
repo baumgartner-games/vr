@@ -2396,6 +2396,27 @@ export class App {
             );
           },
         },
+        {
+          // **Die Hilfetipps** — dieselbe Einstellung wie _Steuerung & Hilfe →
+          // Eingaben → Tastenhilfe_ (`hintsOn`), nur noch einmal dort, wo man
+          // nach „was steht da im Bild" sucht. Gewünscht: _„menü einstellungen:
+          // grafik: hilfetipps ausblenden"_. Auch in der Brille: Dort schaltet
+          // sie die Beschriftung am Controller (`ui/XRGuide.ts`).
+          id: 'gfx:hints',
+          label: 'Hilfetipps',
+          sub: this.renderer.xr.isPresenting
+            ? 'Am Controller: die zwei, drei Knöpfe, die hier zählen'
+            : 'Unten im Bild: welcher Knopf gerade was tut',
+          caption: 'Dieselbe Zeile wie Eingaben → Tastenhilfe',
+          icon: 'controller',
+          accent,
+          checked: hintsOn(),
+          run: () => {
+            setHintsOn(!hintsOn());
+            this.notify(`Hilfetipps ${hintsOn() ? 'an' : 'aus'}`);
+            this.menuDirty = true;
+          },
+        },
         // **Nur am Schirm**: Stöcke auf dem Glas und Vollbild gibt es in der
         // Brille nicht — am Handgelenk wären es zwei Zeilen, die nichts tun
         // (beim Prüfen des Handgelenkmenüs aufgefallen, wie die Links in

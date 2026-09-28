@@ -137,7 +137,12 @@ der Kopfzeile und sagt nur, was man den Knöpfen nicht ansieht. Nicht auf der
 Startseite, nicht in Umkleide und Zuschauerkamera — und in der Brille als
 **Beschriftung am Controller** (unten).
 **Abschaltbar**: _Menü → Eingaben → Tastenhilfe_, gemerkt unter `bgvr.hints` —
-dieselbe Zeile schaltet auch die Beschriftung in der Brille.
+dieselbe Zeile schaltet auch die Beschriftung in der Brille. Dieselbe
+Einstellung steht noch einmal als **Hilfetipps** unter _Menü → Einstellungen →
+Grafik_ (`gfx:hints`), gleich über der _Bildschirm-Steuerung_ — gewünscht:
+_„menü einstellungen: grafik: hilfetipps ausblenden / steuerung
+ausblenden/einblenden"_. Beide Zeilen lesen und schreiben `hintsOn`, es gibt
+also nichts abzugleichen.
 
 **In der Brille hängt sie am rechten Controller** (`ui/XRGuide.ts`, gerechnet
 in `core/xrGuide.xrHints`, mit Test): eine kleine Tafel (15 cm) über dem Griff,
