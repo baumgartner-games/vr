@@ -50,13 +50,6 @@ const _ray = new THREE.Ray();
 const HAND_FOOD_SCALE = 0.5;
 
 /**
- * **Das Hörnchen in der Hand dreimal so groß** wie ein anderes Gericht —
- * gewünscht: _„Die Eiswaffel und Kugeln in der Hand sind zu klein, 3x so groß
- * bitte."_ Das Hörnchen ist nur 14 cm hoch (`shared/iceCone.ICE_SIZE`).
- */
-const CONE_HAND = 3;
-
-/**
  * **Test Restaurant** — die zweite Welt im Ordner _Test_: Boden, Ankunftsort
  * und die Burgerküche, die der Besitzer aus dem Möbelkatalog zusammengestellt
  * hat (`restaurantPlan.SPOTS`).
@@ -430,11 +423,12 @@ export class TestRestaurantWorld extends GridWorld {
       ctx.avatar.carry = null;
       return;
     }
-    // Das Hörnchen dreimal so groß, und in der Hand schaukelt sein Turm wie im
-    // Restaurant (`WOBBLE.idle`); nach einem Sprung an einen anderen Platz
-    // fängt er ruhig an (`settle`), statt einmal quer durchs Bild zu schwingen.
+    // In der Hand schaukelt der Turm des Hörnchens wie im Restaurant
+    // (`WOBBLE.idle`); nach einem Sprung an einen anderen Platz fängt er ruhig
+    // an (`settle`), statt einmal quer durchs Bild zu schwingen. Dreimal so
+    // groß ist es schon im Bild selbst (`dishView.CONE_SCALE`), in der Hand
+    // wie abgestellt.
     const cone = iceConeIn(thing);
-    const k = cone ? CONE_HAND : 1;
     if (cone) cone.idle = WOBBLE.idle;
     const hang = (parent: THREE.Object3D): void => {
       if (thing.parent === parent) return;
@@ -446,11 +440,11 @@ export class TestRestaurantWorld extends GridWorld {
       if (controller?.tracked) {
         hang(controller.hold);
         thing.position.set(0, -0.02, -0.08);
-        thing.scale.setScalar(HAND_FOOD_SCALE * k);
+        thing.scale.setScalar(HAND_FOOD_SCALE);
       } else {
         hang(ctx.rig);
         thing.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
-        thing.scale.setScalar(0.8 * k);
+        thing.scale.setScalar(0.8);
       }
       ctx.avatar.carry = null;
       return;
@@ -458,13 +452,13 @@ export class TestRestaurantWorld extends GridWorld {
     hang(ctx.rig);
     if (!ctx.topDown) {
       thing.position.set(0.24, ctx.rig.camera.position.y - 0.4, -0.85);
-      thing.scale.setScalar(0.42 * k);
+      thing.scale.setScalar(0.42);
       ctx.avatar.carry = null;
       return;
     }
     const y = CHEF_CARRY.y * ctx.avatar.stretch + ctx.avatar.bob;
     thing.position.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
-    thing.scale.setScalar(k);
+    thing.scale.setScalar(1);
     ctx.avatar.carry = this.carryPoint.set(CHEF_CARRY.x, y, CHEF_CARRY.z);
   }
 }

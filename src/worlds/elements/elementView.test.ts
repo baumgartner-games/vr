@@ -123,19 +123,6 @@ describe('Spielelemente — hingestellt', () => {
     expect(lying.max.z - lying.min.z).toBeCloseTo(0.575);
   });
 
-  it('setzt das Eis in seine Wanne, mit demselben Maßstab', async () => {
-    const { host: world } = host();
-    const placed = await placeElement(world, { id: 'i', element: 'ice-tubs', x: 0, z: 0 });
-    const [, tub, fill] = placed.parts;
-    // Die Wanne auf 0,66 m Länge gebracht, auf der Platte, links der Mitte.
-    const outer = bounds(tub!);
-    expect(outer.max.z - outer.min.z).toBeCloseTo(0.66);
-    expect(outer.min.y).toBeCloseTo(0.5);
-    expect((outer.min.x + outer.max.x) / 2).toBeCloseTo(0.5 - 0.23);
-    // Das Eis hängt in derselben Hülle wie die Wanne: gleiche Mitte.
-    expect(fill).toBe(tub);
-  });
-
   it('rückt mit einem Versatz das Bild und den Anker, die Sperre nicht', async () => {
     const { host: world, log } = host();
     const placed = await placeElement(world, {

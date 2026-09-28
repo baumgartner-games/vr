@@ -114,7 +114,7 @@ describe('Spielelemente — der Katalog', () => {
       'bowl-stack',
       'pizzabox-stack',
       'ice-stand',
-      'ice-tubs',
+      'ice-tray-vanilla',
       'belt',
       'table-round',
       'chair',
@@ -285,8 +285,12 @@ describe('der Möbelkatalog im Menü', () => {
     });
   });
 
-  it('hat Hörnchen und Eiswannen als Vorräte der Küche', () => {
+  it('hat Hörnchen und Eiswannen als Vorräte der Küche — eine Wanne je Platte', () => {
     expect(elementById('ice-stand')).toMatchObject({ kind: 'drain', gives: 'cone' });
-    expect(elementById('ice-tubs').kind).toBe('ice-tubs');
+    expect(elementById('ice-tray-vanilla')).toMatchObject({
+      holds: 'tray',
+      holdsOn: ['ice-vanilla'],
+    });
+    expect(hasElement('ice-tubs')).toBe(false);
   });
 });
