@@ -1,4 +1,4 @@
-import { SHELF_WALL_Y, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
+import { SHELF_WALL, SHELF_WALL_HALF, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
 import type { StationKind } from '../test/zones/kitchenCarry';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
 
@@ -293,51 +293,30 @@ const CRATES: readonly GameElement[] = [
 ];
 
 /**
- * **Wie dick die Wand der Test Navigation ist**, in Metern — die Fensterwand
- * aus _Prototype Bits_ ist 0,53 Quelleinheiten tief, mit dem Maßstab des
- * Pakets (`core/kaykitFit`, 0,5 in der Waagerechten) gut ein Viertelmeter.
- */
-export const WALL_DEPTH = 0.265;
-
-/**
- * **Eine Wand als Möbel** — die Fensterwand der Test Navigation
- * (`grid/shelfWalls.SHELF_WINDOW_PIECES`), ungestreckt: zwei Meter lang und
- * 2,80 m hoch, die halbe einen Meter.
+ * **Die Wände im Möbelkatalog** — keine Spielelemente, sondern genau die
+ * Regalmodelle, aus denen die Test Navigation ihre Kammern baut
+ * (`grid/shelfWalls.SHELF_WINDOW_PIECES`, die Schräge `SHELF_WALL`, das Tor
+ * `testnav/navTestPlan.GATE_MODEL`), dazu die halbe Prototypwand und der
+ * breite Durchgang. Genommen wird jede wie im Modellregal
+ * (`PortalWorld.takeModel`): Sie rastet **auf der Fuge zwischen zwei
+ * Kacheln** ein, lässt sich unter 45° setzen und ist für das Zellgitter eine
+ * Wand an der Kante (`GridWorld.collectWalls`) und kein Block.
  *
- * Gewünscht: _„die Wand aus Navigation Test als Möbel einrichten, und diese
- * Wand Element aus Möbel dann in Restaurant Welt nutzen"_. In der Test
- * Navigation steht sie über den Plan (Wände auf den Fugen, `planShelfWalls`);
- * als Spielelement bringt sie wie jedes Möbel ihre Grundfläche mit, eine
- * Reihe Kacheln, deren Zellen alle gesperrt sind, bevor etwas lädt.
- *
- * **Sie steht an der Vorderkante ihrer Kacheln** (`at`), bündig und ganz
- * darin: So schließt ein Ring aus Wänden, jede mit der Vorderseite nach
- * innen auf die Kacheln rings um einen Raum gestellt, genau mit dem Rand
- * seines Bodens ab, und der Körper (die ganze Kachel) liegt draußen.
+ * Gewünscht: _„ich hatte in navigation welt die wände nicht als "blöcke"
+ * defineirt, sondern diese waren immer zwischen platten definiert. und ich
+ * konnte die schräg setzen. Also eigentlich das was in modellregal wall ist,
+ * soll einfach nur nach möbel kommen, aber eben nicht als "block""_. Ein
+ * erster Versuch als Spielelement (`wall`, zwei Kacheln gesperrt) ist damit
+ * wieder weg.
  */
-function wall(id: string, label: string, length: 1 | 2, model: string): GameElement {
-  return {
-    id,
-    label,
-    tiles: [length, 1],
-    height: 2 * SHELF_WALL_Y,
-    kind: null,
-    parts: [{ model, at: [0, 0.5 - WALL_DEPTH / 2] }],
-  };
-}
-
-/** Die Wände: die ganze Fensterwand über zwei Kacheln und die halbe über eine. */
-const WALLS: readonly GameElement[] = [
-  wall('wall', 'Wand', 2, SHELF_WINDOW_PIECES.full),
-  wall('wall-half', 'Halbe Wand', 1, SHELF_WINDOW_PIECES.half),
+export const WALL_MODELS: readonly string[] = [
+  SHELF_WINDOW_PIECES.full,
+  SHELF_WINDOW_PIECES.half,
+  SHELF_WALL,
+  SHELF_WALL_HALF,
+  'prototype-bits/Wall_Doorway.glb',
+  'prototype-bits/Wall_Doorway_Wide.glb',
 ];
-
-/**
- * **Die Wände im Möbelkatalog** — ein eigener Ordner (`FURNITURE_FOLDERS`,
- * _Wände_) neben den Möbeln der Küche, und nicht in _Alles_: Dort steht, was
- * zur Küche gehört.
- */
-export const WALL_CATALOGUE: readonly string[] = WALLS.map((one) => one.id);
 
 /**
  * **Der ganze Katalog.** Neue Elemente kommen hierher und nicht in eine Welt:
@@ -576,7 +555,6 @@ export const ELEMENTS: readonly GameElement[] = [
     parts: [{ model: bits('table_round_B_tablecloth_red') }],
   },
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
-  ...WALLS,
 ];
 
 /**
@@ -646,8 +624,13 @@ export interface FurnitureFolder {
   readonly id: string;
   /** Der Name im Menü. */
   readonly label: string;
-  /** Die Elemente darin, jedes auch in `FURNITURE_CATALOGUE` — die Wände in `WALL_CATALOGUE`. */
+  /** Die Elemente darin, jedes auch in `FURNITURE_CATALOGUE`. */
   readonly elements: readonly string[];
+  /**
+   * **Regalmodelle darin** — genommen wie im Modellregal, kein Spielelement
+   * (die Wände, `WALL_MODELS`).
+   */
+  readonly models?: readonly string[];
 }
 
 /**
@@ -758,8 +741,8 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   },
   // **Alles, was zur Küche gehört** — die ganze Liste des Katalogs.
   { id: 'all', label: 'Alles', elements: FURNITURE_CATALOGUE },
-  // **Die Wände** — die Fensterwand der Test Navigation, ganz und halb.
-  { id: 'walls', label: 'Wände', elements: WALL_CATALOGUE },
+  // **Die Wände** — die Regalwände der Test Navigation, auf der Fuge und schräg.
+  { id: 'walls', label: 'Wände', elements: [], models: WALL_MODELS },
 ];
 
 /** Die Elemente nach Namen. */

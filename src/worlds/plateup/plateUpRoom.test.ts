@@ -10,7 +10,9 @@ import {
 } from '../elements/elementPlace';
 import { elementStations, stationKind } from '../elements/stationLayer';
 import { CELL, CellGrid, navCellSource, type CellPos } from '../nav/cellGrid';
-import { tileKey } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey } from '../nav/navTile';
+import { SHELF_WALL_Y } from '../grid/shelfWalls';
+import { WALL_MODELS } from '../elements/elementCatalog';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import { DINING_AREA, DOOR_X, KITCHEN_AREA, RETURN_GATE_TILE, ROOM } from './plateUpPlan';
 import {
@@ -18,10 +20,11 @@ import {
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
   SPOTS,
-  WALL_SPOTS,
+  DOOR_MODEL,
   onFloor,
   plateUpRoomPlan,
   roomFloor,
+  roomWalls,
   spawn,
 } from './plateUpRoom';
 
@@ -30,11 +33,27 @@ import {
  * sonst (`plateUpRoom.ts`).
  */
 
-/** Das Zellgitter der Welt: der Plan, und darin gesperrt, was die Stellen sperren. */
-function roomGrid(): CellGrid {
+/**
+ * **Das Zellgitter der Welt**: der Plan, darin gesperrt, was die Stellen
+ * sperren, und die Wände an den Kanten des Raums — so, wie die Regalwände
+ * einrasten (`GridWorld.collectWalls`). `shut` schließt auch die Tür.
+ */
+function roomGrid(walls = false, shut = false): CellGrid {
+  const plan = plateUpRoomPlan();
+  if (walls) {
+    const south = ROOM.z + ROOM.d - 1;
+    for (let x = ROOM.x; x < ROOM.x + ROOM.w; x++) {
+      plan.wall(x, ROOM.z, DIR_N);
+      if (shut || !DOOR_X.includes(x)) plan.wall(x, south, DIR_S);
+    }
+    for (let z = ROOM.z; z <= south; z++) {
+      plan.wall(ROOM.x, z, DIR_W);
+      plan.wall(ROOM.x + ROOM.w - 1, z, DIR_E);
+    }
+  }
   const blocked = new Set(SPOTS.flatMap(spotCells));
   return new CellGrid(
-    navCellSource(plateUpRoomPlan().graph, () => null, {
+    navCellSource(plan.graph, () => null, {
       voidIsFree: false,
       blocked: (ix, iz, level) => level === 0 && blocked.has(`${ix},${iz},${level}`),
     }),
@@ -126,25 +145,39 @@ describe('Restaurant — was darin steht', () => {
     expect(SPOTS.some((spot) => /table|chair/.test(spot.element))).toBe(false);
   });
 
-  it('umschließt den Raum mit der Wand aus dem Möbelkatalog, bis auf die Tür', () => {
-    expect(WALL_SPOTS.every((spot) => spot.element === 'wall')).toBe(true);
-    // Jede Kachel des Rings außer den Ecken trägt eine Wand — außer der Tür.
-    const walled = new Set(WALL_SPOTS.flatMap(spotTiles));
+  it('umschließt den Raum mit den Regalwänden aus dem Möbelkatalog, auf den Fugen — die Tür als Durchgang', () => {
+    const walls = roomWalls();
     const south = ROOM.z + ROOM.d;
-    for (let x = ROOM.x; x < ROOM.x + ROOM.w; x++) {
-      expect(walled.has(`${x},${ROOM.z - 1}`)).toBe(true);
-      expect(walled.has(`${x},${south}`)).toBe(!DOOR_X.includes(x));
+    const east = ROOM.x + ROOM.w;
+    // Welche Meter jeder Seite ein Stück deckt — gezählt je Kachelkante.
+    const edges = new Set<string>();
+    for (const wall of walls) {
+      expect(WALL_MODELS).toContain(wall.path);
+      expect(wall.y).toBe(SHELF_WALL_Y);
+      const alongX = wall.yaw === 0;
+      const length = /Narrow|Half/.test(wall.path) ? 1 : 2;
+      const line = alongX ? wall.z : wall.x;
+      // Auf einer Fuge, nicht mitten auf einer Kachel.
+      expect(Number.isInteger(line)).toBe(true);
+      const from = (alongX ? wall.x : wall.z) - length / 2;
+      for (let i = 0; i < length; i++) edges.add(`${alongX ? 'x' : 'z'}:${line}:${from + i}`);
+    }
+    for (let x = ROOM.x; x < east; x++) {
+      expect(edges.has(`x:${ROOM.z}:${x}`)).toBe(true);
+      expect(edges.has(`x:${south}:${x}`)).toBe(true);
     }
     for (let z = ROOM.z; z < south; z++) {
-      expect(walled.has(`${ROOM.x - 1},${z}`)).toBe(true);
-      expect(walled.has(`${ROOM.x + ROOM.w},${z}`)).toBe(true);
+      expect(edges.has(`z:${ROOM.x}:${z}`)).toBe(true);
+      expect(edges.has(`z:${east}:${z}`)).toBe(true);
     }
-    // Die Vorderseite nach innen: Dort steht die Wand bündig am Rand des Bodens.
-    for (const spot of WALL_SPOTS) {
-      const [x, z] = tileAhead(spot);
-      const inside = x >= ROOM.x && x < ROOM.x + ROOM.w && z >= ROOM.z && z < south;
-      expect({ id: spot.id, inside }).toEqual({ id: spot.id, inside: true });
-    }
+    // Die Tür ist der breite Durchgang über genau den Türkacheln.
+    const door = walls.filter((wall) => wall.path === DOOR_MODEL);
+    expect(door).toEqual([
+      { path: DOOR_MODEL, x: DOOR_X[0]! + 1, y: SHELF_WALL_Y, z: south, yaw: 0 },
+    ]);
+    // Kein Stück doppelt: 7 + 3 + 3 + 6 + 6 Fensterwände und die Tür.
+    expect(walls).toHaveLength(26);
+    expect(edges.size).toBe(2 * ROOM.w + 2 * ROOM.d);
   });
 });
 
@@ -183,11 +216,12 @@ describe('Restaurant — die Wege', () => {
     expect(can(RETURN_GATE_TILE.x + 1, RETURN_GATE_TILE.z - 1)).toBe(true);
   });
 
-  it('kommt nicht durch die Wände: an keine Kachel des Rings', () => {
-    for (const spot of WALL_SPOTS)
-      for (const tile of spotTiles(spot)) {
-        const [x, z] = tile.split(',').map(Number) as [number, number];
-        expect({ tile, reached: can(x, z) }).toEqual({ tile, reached: false });
-      }
+  it('kommt nur durch die Tür hinaus — mit den Wänden als Kanten, wie sie einrasten', () => {
+    const closed = roomGrid(true, true);
+    const inside = reach(closed, start);
+    const outside = cellOf(RETURN_GATE_TILE.x + 1, RETURN_GATE_TILE.z - 1);
+    expect(inside.has(`${outside.cx},${outside.cz}`)).toBe(false);
+    const open = reach(roomGrid(true), start);
+    expect(open.has(`${outside.cx},${outside.cz}`)).toBe(true);
   });
 });

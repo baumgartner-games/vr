@@ -1,5 +1,6 @@
 import type { ElementSpot, Face } from '../elements/elementPlace';
 import { GridPlan } from '../grid/gridPlan';
+import { SHELF_WALL_Y, SHELF_WINDOW_PIECES, wallRun, type ShelfWall } from '../grid/shelfWalls';
 import type { NavRect } from '../nav/navBuild';
 import { DIR_N } from '../nav/navTile';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
@@ -30,8 +31,9 @@ import {
  * Also stehen hier **dieselben Maße** wie im alten Laden (`plateUpPlan.ts`:
  * 14 × 12 Kacheln, Küche die nördlichen vier Reihen, Gastraum die acht
  * darunter, die Tür in der Südwand, der Gehweg mit dem Tor zurück), aber
- * jedes Möbel und jede Wand ist ein **Spielelement** (`SPOTS`), eine Zeile je
- * Stück, wie im [Test Restaurant](../testrestaurant/restaurantPlan.ts). Kein
+ * jedes Möbel ist ein **Spielelement** (`SPOTS`), eine Zeile je Stück, wie im
+ * [Test Restaurant](../testrestaurant/restaurantPlan.ts), und die Wände sind
+ * die Regalwände der Test Navigation auf den Fugen (`roomWalls`). Kein
  * Tisch, kein Stuhl, keine Deko, keine Gäste — die kommen, wenn der Besitzer
  * sie als Möbel eingerichtet und geprüft hat.
  *
@@ -46,13 +48,6 @@ export const KITCHEN_FLOOR = 'restaurant-bits/floor_kitchen_small.glb';
 /** **Die Dielen des Gastraums** — das kleine Holzstück aus _Dungeon_, eine je Kachel. */
 export const DINING_FLOOR = 'dungeon/floor_wood_small.glb';
 
-/**
- * **Der Boden unter den Wänden** — der Ring aus Kacheln rings um den Raum, auf
- * dem die Wände stehen (`WALL_SPOTS`). Sie stehen bündig an seiner Innenkante,
- * die Kacheln selbst liegen draußen.
- */
-export const RING: NavRect = { x: ROOM.x - 1, z: ROOM.z - 1, w: ROOM.w + 2, d: ROOM.d + 1 };
-
 /** Ob die Kachel (`x`, `z`) in einem Rechteck liegt. */
 function within(rect: NavRect, x: number, z: number): boolean {
   return x >= rect.x && x < rect.x + rect.w && z >= rect.z && z < rect.z + rect.d;
@@ -60,7 +55,8 @@ function within(rect: NavRect, x: number, z: number): boolean {
 
 /**
  * **Welche Platte auf welche Kachel gehört** (`GridWorld.floorPlate`): Fliesen
- * in der Küche, Dielen im Gastraum, draußen der Prototyp-Boden der Testwelten.
+ * in der Küche, Dielen im Gastraum, auf dem Gehweg der Prototyp-Boden der
+ * Testwelten.
  */
 export function roomFloor(x: number, z: number): string {
   if (within(KITCHEN_AREA, x, z)) return KITCHEN_FLOOR;
@@ -113,31 +109,41 @@ export const KITCHEN_SPOTS: readonly ElementSpot[] = [
 ];
 
 /**
- * **Die Wände** — die Fensterwand der Test Navigation als Möbel
- * (`elementCatalog`, `wall`), zwei Kacheln je Stück, auf dem Ring rings um
- * den Raum und mit der Vorderseite nach innen: So steht jede bündig am Rand
- * des Bodens. In der Südwand bleibt die Tür offen (`DOOR_X`), zwei Kacheln
- * breit — dort geht es auf den Gehweg und zum Tor.
+ * **Die Tür**: der breite Durchgang aus demselben Paket
+ * (`Wall_Doorway_Wide`, zwei Meter, im Möbelkatalog unter _Wände_), in der
+ * Südwand über den beiden Türkacheln (`DOOR_X`).
  */
-export const WALL_SPOTS: readonly ElementSpot[] = wallRing();
+export const DOOR_MODEL = 'prototype-bits/Wall_Doorway_Wide.glb';
 
-function wallRing(): ElementSpot[] {
-  const out: ElementSpot[] = [];
+/**
+ * **Die Wände** — die Regalwände der Test Navigation, **auf den Fugen**
+ * rings um den Raum und keine Blöcke: die Fensterwand aus _Prototype Bits_
+ * (`SHELF_WINDOW_PIECES`), zwei Meter je Stück, gelegt wie dort
+ * (`shelfWalls.wallRun`). Die Welt stellt sie mit `placeModel` hin, genau wie
+ * aus der Hand, und für das Zellgitter sind sie Wände an der Kante
+ * (`GridWorld.collectWalls`).
+ *
+ * Gewünscht: _„ich hatte in navigation welt die wände nicht als "blöcke"
+ * defineirt, sondern diese waren immer zwischen platten definiert"_ — der
+ * erste Umbau hatte sie als Spielelement auf einen Ring von Kacheln gestellt.
+ */
+export function roomWalls(): ShelfWall[] {
+  const out: ShelfWall[] = [];
   const east = ROOM.x + ROOM.w;
   const south = ROOM.z + ROOM.d;
-  for (let x = ROOM.x; x < east; x += 2) {
-    out.push(at(`wand-nord-${x}`, 'wall', x, ROOM.z - 1, 'S'));
-    if (!DOOR_X.includes(x)) out.push(at(`wand-sued-${x}`, 'wall', x, south, 'N'));
-  }
-  for (let z = ROOM.z; z < south; z += 2) {
-    out.push(at(`wand-west-${z}`, 'wall', ROOM.x - 1, z, 'E'));
-    out.push(at(`wand-ost-${z}`, 'wall', east, z, 'W'));
-  }
+  const door = Math.min(...DOOR_X);
+  const pieces = SHELF_WINDOW_PIECES;
+  wallRun(out, true, ROOM.z, ROOM.x, ROOM.w, 0, pieces);
+  wallRun(out, true, south, ROOM.x, door - ROOM.x, 0, pieces);
+  out.push({ path: DOOR_MODEL, x: door + DOOR_X.length / 2, y: SHELF_WALL_Y, z: south, yaw: 0 });
+  wallRun(out, true, south, door + DOOR_X.length, east - door - DOOR_X.length, 0, pieces);
+  wallRun(out, false, ROOM.x, ROOM.z, ROOM.d, 0, pieces);
+  wallRun(out, false, east, ROOM.z, ROOM.d, 0, pieces);
   return out;
 }
 
-/** **Alles, was steht** — Küche und Wände, jede Zeile ein Spielelement. */
-export const SPOTS: readonly ElementSpot[] = [...KITCHEN_SPOTS, ...WALL_SPOTS];
+/** **Alles, was als Spielelement steht** — die Küche. Die Wände sind Regalstücke (`roomWalls`). */
+export const SPOTS: readonly ElementSpot[] = KITCHEN_SPOTS;
 
 /** **Wo man ankommt** — in der Küche, wie im alten Laden, auf der Mitte der Kachel. */
 export function spawn(): { x: number; z: number } {
@@ -145,21 +151,21 @@ export function spawn(): { x: number; z: number } {
 }
 
 /**
- * **Ob hier Boden ist** — Raum samt Wandring und Gehweg. Dorthin darf auch,
- * was man aus dem Möbelkatalog hinstellt.
+ * **Ob hier Boden ist** — Raum und Gehweg. Dorthin darf auch, was man aus dem
+ * Möbelkatalog hinstellt.
  */
 export function onFloor(x: number, z: number): boolean {
-  return within(RING, x, z) || within(STREET, x, z);
+  return within(ROOM, x, z) || within(STREET, x, z);
 }
 
 /**
- * **Der Plan der Welt**: Boden (Raum mit Wandring, Gehweg) und das Tor zurück
- * in die Sandbox — Wände und Möbel sind Spielelemente (`SPOTS`) und sperren
- * ihre Zellen selbst.
+ * **Der Plan der Welt**: Boden (Raum, Gehweg) und das Tor zurück in die
+ * Sandbox. Die Möbel sind Spielelemente (`SPOTS`) und sperren ihre Zellen
+ * selbst, die Wände stehen als Regalstücke auf den Fugen (`roomWalls`).
  */
 export function plateUpRoomPlan(): GridPlan {
   const plan = new GridPlan();
-  plan.floor(RING);
+  plan.floor(ROOM);
   plan.floor(STREET);
   // **Das Tor zurück in die Testwelt** — an der Ecke des Gehwegs, mit dem
   // Blick zum Laden, wie bisher (`test/zones/kitchenPlan.BURGER_GATE`).

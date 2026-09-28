@@ -56,12 +56,12 @@ eigentlich sowieso bereits von Haus aus 2x2 undurchgehbar sein."_
   trägt, was eine Station zeigt, was im Menü in der Kachel steht: Dafür nimmt
   man Pfade aus dem Regal, und dafür gibt es `itemModels.ts`. Man steht
   nicht davor und läuft nicht dagegen.
-- Böden, Türen und Treppen sind keine Spielelemente. Sie kommen über den Plan
-  und sperren über den Plan ([Zellgitter](./zellgitter.md)). Wände meistens
-  auch (`grid/shelfWalls.ts`) — seit September 2026 gibt es aber die Wand der
-  Test Navigation auch als Spielelement
-  ([Die Wand](#die-wand-aus-der-test-navigation)), und das Restaurant steht aus
-  ihr.
+- Wände, Böden, Türen und Treppen sind keine Spielelemente. Böden, Türen und
+  Treppen kommen über den Plan und sperren über den Plan
+  ([Zellgitter](./zellgitter.md)), Wände sind Regalstücke auf den Fugen
+  (`grid/shelfWalls.ts`) — auch die aus dem Möbelkatalog: Dort stehen die
+  Regalwände der Test Navigation, aber als Modelle auf der Fuge und nicht als
+  Element ([Die Wand](#die-wand-aus-der-test-navigation)).
 
 ## Was ein Spielelement ist
 
@@ -207,26 +207,28 @@ mehr.
 ### Die Wand aus der Test Navigation
 
 Gewünscht (September 2026): _„die Wand aus Navigation Test als Möbel
-einrichten, und diese Wand Element aus Möbel dann in Restaurant Welt
-nutzen"_. Zwei Elemente ohne Zweck (`kind: null`), aus denselben Dateien wie
-die Kammern der Test Navigation (`shelfWalls.SHELF_WINDOW_PIECES`),
-ungestreckt:
+einrichten"_ — und gleich danach genauer: _„ich hatte in navigation welt die
+wände nicht als "blöcke" defineirt, sondern diese waren immer zwischen platten
+definiert. und ich konnte die schräg setzen. Also eigentlich das was in
+modellregal wall ist, soll einfach nur nach möbel kommen, aber eben nicht als
+"block""_.
 
-- `wall` (_Wand_): `prototype-bits/Wall_Window_Closed.glb`, 2 × 1 Kacheln,
-  2,00 m lang, 2,80 m hoch (`2 · SHELF_WALL_Y`), 0,265 m dick (`WALL_DEPTH`).
-- `wall-half` (_Halbe Wand_): `Wall_Window_Closed_Narrow.glb`, 1 × 1 Kachel.
+Die Wände sind deshalb **keine Spielelemente**. Der Ordner **Wände** im
+Möbelkatalog (`FURNITURE_FOLDERS`, `id: 'walls'`) führt statt Elementen
+Regalmodelle (`FurnitureFolder.models` = `WALL_MODELS`): die Fensterwand und
+ihre schmale Hälfte (`shelfWalls.SHELF_WINDOW_PIECES`, die Kammern der Test
+Navigation), die graue Prototypwand, mit der die Test Navigation ihre Schrägen
+baut (`SHELF_WALL`), deren Hälfte, den Durchgang (`navTestPlan.GATE_MODEL`)
+und den breiten Durchgang. Jede Kachel ist die des Modellregals
+(`kaykitIndex.fileEntry`, mit ⓘ und Steckbrief), nur die Id trägt den Ort,
+und genommen wird wie dort (`PortalWorld.takeModel`): Die Wand rastet **auf
+der Fuge** zwischen zwei Kacheln ein, lässt sich unter 45° setzen und ist für
+das Zellgitter eine Wand an der Kante (`GridWorld.collectWalls`), kein
+gesperrter Block.
 
-**Die Wand steht an der Vorderkante ihrer Kacheln** (`at` = 0,5 − Dicke/2),
-bündig und ganz darin, und gesperrt ist die ganze Grundfläche. Anders als in
-der Test Navigation steht sie also nicht mitten auf einer Fuge: Ein Möbel
-belegt Kacheln, keine Kanten. Für einen Raum stellt man sie auf den Ring von
-Kacheln rings um seinen Boden, mit der Vorderseite nach innen — dann schließt
-sie genau mit dem Rand des Bodens ab, und ihr Körper liegt draußen
-(`plateup/plateUpRoom.WALL_SPOTS`). An den äußeren Ecken bleibt dabei ein
-Viertelmeter offen, den man von innen nicht sieht.
-
-Im Möbelkatalog stehen beide im eigenen Ordner **Wände** (`WALL_CATALOGUE`),
-nicht in _Alles_: Dort steht, was zur Küche gehört.
+Ein erster Umbau hatte die Fensterwand als Element `wall` auf zwei Kacheln
+gestellt, bündig an deren Vorderkante und mit beiden Kacheln gesperrt — genau
+der Block, der nicht gewünscht war. Er ist wieder weg.
 
 ## Hinstellen
 
@@ -333,7 +335,8 @@ Möbelkatalog gibt **Spielelemente** her.
   je Gericht **Pizza, Burger, Eis, Waffeln, Suppe** — jeder mit der
   Arbeitsplatte vorn und den Möbeln, mit denen `elementFlows.test.ts` das
   Gericht kocht, Burger und Pizza mit Tellerstapel und Tellerkiste — und **Alles** mit
-  der ganzen Liste; dahinter **Wände** mit Wand und halber Wand
+  der ganzen Liste; dahinter **Wände** mit den Regalwänden der Test
+  Navigation, genommen wie im Modellregal
   ([Die Wand](#die-wand-aus-der-test-navigation)). Gewünscht zuerst: _„einige Möbel doppelt gelistet …
   unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_, dann: _„bei den unter
   Ordner die Arbeitsplatte jeweils rein. Und die Möbel aus dem Restaurant

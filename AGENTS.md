@@ -154,7 +154,7 @@ Stichpunkten).
 - **[Was drin ist](docs/agents/inhalt.md)** — Die Welten, die Zonen und die Spiele: was es gibt und was es tut.
 - **[Haunting / Orbital](docs/agents/haunting.md)** — Die Raumstation für eine Quest und zwei Mobilgeräte: Runde, Rollen, Karte, Bots. Das längste Kapitel.
 - **[Test Restaurant](docs/agents/testrestaurant.md)** (`#test-restaurant`, Ordner _Test_) — Die Burgerküche, die der Besitzer aus dem Möbelkatalog geschickt hat (sechs Vorratskisten, Herd, Brett, Platten, Tellerstapel, Mülleimer, alle nach Süden): jede Zeile in `SPOTS` ein Spielelement, jedes mit Stationsart auf `A` benutzbar. Darin auch: wo die alten Mini-Küchen, das Burgerband und die Gäste in der Geschichte liegen.
-- **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Küche und Gastraum, im September 2026 neu aus dem Möbelkatalog: Fliesen, Dielen, die Wand der Test Navigation als Möbel, die Küche als Spielelemente, noch ohne Tische und Gäste (`plateup/plateUpRoom.ts`). Darunter das Spiel nach _PlateUp!_, wie es bis dahin war (Commit `56462b6`).
+- **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Küche und Gastraum, im September 2026 neu aus dem Möbelkatalog: Fliesen, Dielen, die Regalwände der Test Navigation auf den Fugen (auch im Möbelkatalog unter _Wände_), die Küche als Spielelemente, noch ohne Tische und Gäste (`plateup/plateUpRoom.ts`). Darunter das Spiel nach _PlateUp!_, wie es bis dahin war (Commit `56462b6`).
   Darin: Neu aus dem Möbelkatalog · Das Spiel bis September 2026 · Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
 ### Steuerung

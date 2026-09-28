@@ -243,6 +243,7 @@ import { PlaceGhost } from './placeGhost';
 import {
   KAYKIT_ACCENT,
   SHELF_COLS,
+  fileEntry,
   humanLabel,
   kaykitFiles,
   kaykitMenu,
@@ -3946,11 +3947,33 @@ export class PortalWorld implements World {
     // **Unterordner** — _Allgemein_, je Gericht einer, und _Alles_
     // (`FURNITURE_FOLDERS`). Doppelt ist nur die Kachel; genommen wird
     // dasselbe Element.
+    // **Regalmodelle in einem Ordner** (die Wände, `WALL_MODELS`): dieselbe
+    // Kachel wie im Modellregal und derselbe Griff (`takeModel`) — die Wand
+    // rastet auf der Fuge ein und lässt sich schräg setzen, statt Kacheln zu
+    // sperren. Nur die Id trägt den Ort, denn Ids im Menü sind Adressen.
+    const model = (path: string, at: string): MenuEntry => {
+      const file = this.shelfFiles.find((one) => one.path === path);
+      const run = (hand: Handedness | null): void => this.takeModel(ctx(), path, hand);
+      const entry: MenuEntry = file
+        ? fileEntry(file, (_path, hand) => run(hand))
+        : {
+            id: '',
+            label: humanLabel(path.slice(path.lastIndexOf('/') + 1)),
+            sub: path,
+            accent,
+            preview: `kaykit:${path}`,
+            full: true,
+            run,
+          };
+      return { ...entry, id: `${at}:${path}` };
+    };
     const folders = this.elementFolders().flatMap((folder): MenuEntry[] => {
       const inside = folder.elements.filter(hasElement);
-      if (inside.length === 0) return [];
+      const models = folder.models ?? [];
+      if (inside.length + models.length === 0) return [];
       const at = `elements/${folder.id}`;
-      const count = inside.length === 1 ? '1 Möbel' : `${inside.length} Möbel`;
+      const total = inside.length + models.length;
+      const count = total === 1 ? '1 Möbel' : `${total} Möbel`;
       return [
         {
           id: at,
@@ -3963,7 +3986,7 @@ export class PortalWorld implements World {
           cols: SHELF_COLS,
           full: true,
           take: true,
-          children: inside.map((id) => tile(id, at)),
+          children: [...inside.map((id) => tile(id, at)), ...models.map((path) => model(path, at))],
         },
       ];
     });
@@ -3973,6 +3996,9 @@ export class PortalWorld implements World {
         label: 'Möbel',
         sub: 'Spielelemente — sperren ihre Kachel und tun etwas auf A',
         icon: 'plank',
+        // Die Wände darin sind Regalmodelle; ihre Steckbriefe kommen aus dem
+        // Index des Regals, der erst beim Öffnen geholt wird.
+        onOpen: () => this.openShelf(),
         accent,
         grid: true,
         cols: SHELF_COLS,
