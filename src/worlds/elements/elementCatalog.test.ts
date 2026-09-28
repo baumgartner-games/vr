@@ -9,8 +9,7 @@ import {
   FURNITURE_CATALOGUE,
   FURNITURE_FOLDERS,
   SHOW_ONLY_GIVES,
-  WALL_CATALOGUE,
-  WALL_DEPTH,
+  WALL_MODELS,
   elementById,
   elementLit,
   hasElement,
@@ -222,10 +221,9 @@ describe('der Möbelkatalog im Menü', () => {
       FURNITURE_FOLDERS.length,
     );
     for (const folder of FURNITURE_FOLDERS) {
-      expect(folder.elements.length).toBeGreaterThan(0);
+      expect(folder.elements.length + (folder.models?.length ?? 0)).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
-      const list = folder.id === 'walls' ? WALL_CATALOGUE : FURNITURE_CATALOGUE;
-      for (const id of folder.elements) expect(list).toContain(id);
+      for (const id of folder.elements) expect(FURNITURE_CATALOGUE).toContain(id);
     }
   });
 
@@ -290,24 +288,23 @@ describe('der Möbelkatalog im Menü', () => {
     });
   });
 
-  it('hat die Fensterwand der Test Navigation als Wand, ganz und halb, bündig an der Vorderkante', () => {
-    expect(WALL_CATALOGUE).toEqual(['wall', 'wall-half']);
-    expect(elementById('wall')).toMatchObject({
-      label: 'Wand',
-      tiles: [2, 1],
-      height: 2.8,
-      kind: null,
-      parts: [{ model: 'prototype-bits/Wall_Window_Closed.glb' }],
-    });
-    expect(elementById('wall-half')).toMatchObject({
-      tiles: [1, 1],
-      parts: [{ model: 'prototype-bits/Wall_Window_Closed_Narrow.glb' }],
-    });
-    // Ganz auf ihrer Kachel und mit der Vorderseite genau auf deren Kante.
-    const [x, z] = elementById('wall').parts[0]!.at!;
-    expect(x).toBe(0);
-    expect(z + WALL_DEPTH / 2).toBeCloseTo(0.5);
-    expect(FURNITURE_CATALOGUE).not.toContain('wall');
+  it('hat im Ordner Wände die Regalwände der Test Navigation — Modelle, keine Blöcke', () => {
+    const walls = FURNITURE_FOLDERS.find((folder) => folder.id === 'walls')!;
+    expect(walls.elements).toEqual([]);
+    expect(walls.models).toEqual(WALL_MODELS);
+    expect(WALL_MODELS).toEqual([
+      'prototype-bits/Wall_Window_Closed.glb',
+      'prototype-bits/Wall_Window_Closed_Narrow.glb',
+      'prototype-bits/Wall.glb',
+      'prototype-bits/Wall_Half.glb',
+      'prototype-bits/Wall_Doorway.glb',
+      'prototype-bits/Wall_Doorway_Wide.glb',
+    ]);
+    // Keine Wand ist ein Spielelement: Die sperrten ganze Kacheln.
+    for (const path of WALL_MODELS)
+      expect(ELEMENTS.some((element) => element.parts[0]!.model === path)).toBe(false);
+    const files = shelf();
+    if (files) for (const path of WALL_MODELS) expect(files.has(path)).toBe(true);
   });
 
   it('hat Hörnchen und Eiswannen als Vorräte der Küche — eine Wanne je Platte', () => {

@@ -27,10 +27,9 @@ Plan, Stellen, Boden und Ankunft. Alles steht in `plateup/plateUpRoom.ts`
   Süden.
 - **Boden** über `floorPlate` (`roomFloor`), eine Platte je Kachel: in der
   Küche `restaurant-bits/floor_kitchen_small.glb`, im Gastraum
-  `dungeon/floor_wood_small.glb`, unter den Wänden und auf dem Gehweg der
-  Prototyp-Boden der Testwelten. Die kleinen Stücke, weil sie schon eine
-  Kachel groß sind; die großen würden auf eine Kachel verkleinert und ihr
-  Muster mit.
+  `dungeon/floor_wood_small.glb`, auf dem Gehweg der Prototyp-Boden der
+  Testwelten. Die kleinen Stücke, weil sie schon eine Kachel groß sind; die
+  großen würden auf eine Kachel verkleinert und ihr Muster mit.
 - **Die Küche** (`KITCHEN_SPOTS`), nur Möbel aus `FURNITURE_CATALOGUE`, jedes
   eine Station: an der Nordwand (nach Süden) Tellerkiste, Brötchen, Pattys,
   Salat, Tomaten, Arbeitsplatte, Brett, Feuerlöscher, zwei Herde mit Pfanne,
@@ -40,11 +39,18 @@ Plan, Stellen, Boden und Ankunft. Alles steht in `plateup/plateUpRoom.ts`
   Kühlschrank stand, steht die Tellerkiste — einen Kühlschrank gibt es als
   Möbel nicht. Die Eisecke stand früher eine Reihe weiter nördlich; als Möbel
   hätte sie dort die Vorderseite der Durchreiche zugestellt.
-- **Die Wände** (`WALL_SPOTS`) sind das neue Element `wall`, die Fensterwand
-  der Test Navigation
-  ([Spielelemente → Die Wand](./spielelemente.md#die-wand-aus-der-test-navigation)):
-  auf dem Ring von Kacheln rings um den Raum, mit der Vorderseite nach innen,
-  also bündig am Rand des Bodens. In der Südwand bleibt die Tür offen.
+- **Die Wände** (`roomWalls`) sind die Regalwände der Test Navigation — die
+  Fensterwand aus _Prototype Bits_ (`SHELF_WINDOW_PIECES`), zwei Meter je
+  Stück, gelegt mit `shelfWalls.wallRun` **auf den Fugen** rings um den Boden
+  und mit `placeModel` hingestellt wie aus der Hand (`PlateUpWorld.buildProps`,
+  wie `NavTestWorld`). Für das Zellgitter sind es Wände an der Kante, keine
+  Blöcke. Die Tür in der Südwand ist der breite Durchgang
+  (`Wall_Doorway_Wide`, zwei Meter über den Türkacheln). Dieselben Stücke gibt
+  der Möbelkatalog im Ordner _Wände_ her
+  ([Spielelemente → Die Wand](./spielelemente.md#die-wand-aus-der-test-navigation)).
+  Ein erster Umbau hatte sie als Spielelement auf einen Ring von Kacheln
+  gestellt; gemeldet: _„ich hatte in navigation welt die wände nicht als
+  "blöcke" defineirt, sondern diese waren immer zwischen platten definiert"_.
 - **Kein Tisch, kein Stuhl, keine Deko, keine Gäste**, und damit auch kein
   Spiel: keine Glocke, keine Tage, keine Kasse, keine Baupläne, keine
   Einsteigerhilfe. Der Möbelkatalog steht im Menü wie im Test Restaurant,

@@ -1109,7 +1109,11 @@ export function kaykitSheets(
   return sheets;
 }
 
-function fileEntry(
+/**
+ * **Die Kachel einer Datei**, wie im Regal — auch für den Möbelkatalog, der
+ * die Regalwände in seinem Ordner _Wände_ führt (`PortalWorld.elementMenu`).
+ */
+export function fileEntry(
   file: KaykitFileRef,
   pick: (path: string, hand: Handedness | null) => void,
 ): MenuEntry {

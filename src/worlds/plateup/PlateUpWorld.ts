@@ -3,7 +3,7 @@ import type { ElementSpot } from '../elements/elementPlace';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlateTile } from '../shared/plateField';
 import { TestRestaurantWorld } from '../testrestaurant/TestRestaurantWorld';
-import { SPOTS, onFloor, plateUpRoomPlan, roomFloor, spawn } from './plateUpRoom';
+import { SPOTS, onFloor, plateUpRoomPlan, roomFloor, roomWalls, spawn } from './plateUpRoom';
 
 /**
  * **Das Restaurant** — Küche und Gastraum, neu aus dem Möbelkatalog.
@@ -13,8 +13,9 @@ import { SPOTS, onFloor, plateUpRoomPlan, roomFloor, spawn } from './plateUpRoom
  * Holz für den Gast Raum einsetzen. Dann die Küchen Elemente aus Möbel
  * einbauen."_ — und die Wände als Möbel, _„keine weiteren Gegenstände wie
  * Tische oder Stühle"_. Im Plan (`plateUpRoom.ts`) stehen Boden, Tor und die
- * Stellen; jede Stelle ist ein Spielelement, Küche wie Wand, und sperrt ihre
- * Zellen selbst.
+ * Stellen; jede Stelle ist ein Spielelement und sperrt ihre Zellen selbst.
+ * Die Wände sind die Regalwände der Test Navigation, auf den Fugen
+ * (`roomWalls`) — hingestellt wie aus der Hand, keine Blöcke.
  *
  * Gebaut wird auf demselben Weg wie im Test Restaurant (`TestRestaurantWorld`):
  * `furnish` stellt jede Stelle hin, jede mit Stationsart antwortet auf `A`
@@ -35,6 +36,19 @@ export class PlateUpWorld extends TestRestaurantWorld {
 
   protected override layout(): GridPlan {
     return plateUpRoomPlan();
+  }
+
+  /**
+   * **Die Wände aus dem Regal**, eingerastet wie aus der Hand — wie in der
+   * Test Navigation (`NavTestWorld.buildProps`): für das Zellgitter Wände an
+   * der Kante (`GridWorld.collectWalls`). Steht schon ein Stück an seiner
+   * Stelle, kommt kein zweites (`placeModel`).
+   */
+  protected override buildProps(): void {
+    super.buildProps();
+    if (!this.context) return;
+    for (const wall of roomWalls())
+      void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
   }
 
   protected override spots(): readonly ElementSpot[] {
