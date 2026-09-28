@@ -165,7 +165,7 @@ Stichpunkten).
 - **[Die Waffe und die Kartzone](docs/agents/waffe-und-kart.md)** — Zwei Zonen, die ihre eigene Steuerung mitbringen.
   Darin: Die Waffe · Die Kartzone.
 - **[Hände, Controller und Griffe](docs/agents/haende.md)** — Controller-Modelle, Handhaltung, Handmodell — und die eingemessenen Griffe der Werkzeuge.
-  Darin: Controller-Modelle · Handhaltung · Handmodell: Boxhand oder weißer Handschuh · Eingemessene Griffe · Eine Faust, und sie ist gerechnet · Ein Griff für alle Werkzeuge · Und jetzt hängt ein gekauftes Netz am Halterzylinder.
+  Darin: Controller-Modelle · Handhaltung · Handmodell: Boxhand oder weißer Handschuh · Eingemessene Griffe · Eine Faust, und sie ist gerechnet · Ein Griff für alle Werkzeuge · Und jetzt hängt ein gekauftes Netz am Halterzylinder · Und was die Küche in die Hand gibt, hängt auch am Halterzylinder (_Halten einstellen_ auf der Detailseite im Möbelkatalog).
 - **[Konfig-Code](docs/agents/konfig-code.md)** — Alle Einstellungen als eine Zeichenkette: teilen, einlesen, zurücksetzen.
   Darin: Der Kurzcode · Über die Leitung · Live auf die Werkzeugseite.
 

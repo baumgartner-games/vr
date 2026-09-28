@@ -22,6 +22,7 @@ import { hintDevice } from './controlHints';
 import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
+import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
 import { topDownFit } from './topDownPose';
 import { isCrane, screenTopDown } from './crane';
@@ -254,6 +255,15 @@ export class App {
    * (`WorldContext.openWardrobe`) und weiß sonst nichts von ihr.
    */
   readonly wardrobe: WardrobeMenu;
+  /**
+   * **_Halten einstellen_** (`ui/HoldMenu.ts`) — aufgeschlagen von der
+   * Detailseite eines Möbels (`WorldContext.openHoldEditor`). Solange sie offen
+   * ist, ist das Menü zu, und beim Schließen geht es an derselben Stelle wieder
+   * auf.
+   */
+  readonly holdMenu: HoldMenu;
+  /** Ob das Menü beim Schließen von _Halten einstellen_ wieder aufgehen soll. */
+  private holdReopens = false;
   /** Der runde Knopf unten rechts (`index.html`, `#hud-tool`). */
   private readonly toolButton: ToolButton | null;
   /**
@@ -452,6 +462,13 @@ export class App {
       onToggle: (open) => this.toolButton?.setOpen(open),
     });
     this.wardrobe = new WardrobeMenu();
+    this.holdMenu = new HoldMenu({
+      onToggle: (open) => {
+        if (open || !this.holdReopens) return;
+        this.holdReopens = false;
+        this.pageMenu.toggle(true);
+      },
+    });
     const toolEl =
       typeof document === 'undefined'
         ? null
@@ -482,6 +499,12 @@ export class App {
         close: () => this.pageMenu.toggle(false),
         initial: () => this.pageMenu.padStart(),
         page: () => this.pageMenu.pageId,
+      }),
+      padNav.addScope({
+        priority: 25,
+        active: () => this.holdMenu.isOpen,
+        root: () => this.holdMenu.element,
+        close: () => this.holdMenu.toggle(false),
       }),
       padNav.addScope({
         priority: 20,
@@ -613,6 +636,7 @@ export class App {
       wear: (kind) => this.wear(kind),
       dress: (figure) => this.dress(figure),
       openWardrobe: () => this.openWardrobe(),
+      openHoldEditor: (subject) => this.openHoldEditor(subject),
     };
   }
 
@@ -973,6 +997,7 @@ export class App {
       !this.world ||
       this.spectating ||
       this.wardrobe.isOpen ||
+      this.holdMenu.isOpen ||
       (landing !== null && !landing.hidden);
     if (this.loader?.open) {
       if (presenting) this.loader.cancel();
@@ -1183,6 +1208,7 @@ export class App {
     this.pageMenu.dispose();
     this.toolMenu.dispose();
     this.wardrobe.dispose();
+    this.holdMenu.dispose();
     this.toolButton?.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
@@ -1983,6 +2009,19 @@ export class App {
       return;
     }
     this.wardrobe.toggle(true);
+  }
+
+  /**
+   * **_Halten einstellen_ aufmachen** (`ui/HoldMenu.ts`) — nur am Schirm; in
+   * der Brille gibt es die Detailseite, von der aus man hierher kommt, gar
+   * nicht. Das Menü geht dafür zu (seine Detailseite hält sonst einen zweiten
+   * WebGL-Kontext offen) und beim Schließen an derselben Stelle wieder auf.
+   */
+  private openHoldEditor(subject: HoldSubject): void {
+    if (this.renderer.xr.isPresenting) return;
+    this.holdReopens = this.pageMenu.isOpen;
+    this.pageMenu.toggle(false);
+    this.holdMenu.show(subject);
   }
 
   private wear(kind: HeadgearKind | null): void {
@@ -3004,7 +3043,8 @@ export class App {
     // wer darin mit den Pfeiltasten blättert, soll nicht nebenbei durch die
     // Wand laufen — die Seite fängt Finger und Maus ohnehin ab, die Tastatur
     // hört aber am Fenster mit (`FlatControls`).
-    this.flat.enabled = !presenting && !this.spectating && !this.wardrobe.isOpen;
+    this.flat.enabled =
+      !presenting && !this.spectating && !this.wardrobe.isOpen && !this.holdMenu.isOpen;
     if (!presenting) this.flat.update(dt);
     this.updateHints(presenting || this.xrPreview);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick

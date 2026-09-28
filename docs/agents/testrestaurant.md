@@ -30,7 +30,10 @@ Hörnchen oder Schüssel daraus, und sie wird nicht leer. Hörnchen, mit oder
 ohne Eis, legt man auf Platten ab wie jede Zutat; ihr Turm schaukelt auch
 dort. Das Hörnchen liegt in der Hand dreimal so groß wie
 ein anderes Gericht (`CONE_HAND`), und sein Turm wackelt wie im Restaurant
-(`shared/iceCone.stepIceCones`).
+(`shared/iceCone.stepIceCones`). In der Brille steht es **senkrecht in der
+Faust**, am Halterzylinder wie jedes Getragene; einstellen lässt sich das über
+_Halten einstellen_ auf der Detailseite des Möbels
+([Hände → Und was die Küche in die Hand gibt](haende.md#und-was-die-küche-in-die-hand-gibt-hängt-auch-am-halterzylinder)).
 
 Feuerlöscher und Tellerkiste kamen mit der zweiten Liste dazu.
 

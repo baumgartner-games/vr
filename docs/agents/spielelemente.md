@@ -331,7 +331,11 @@ Möbelkatalog gibt **Spielelemente** her.
   `■` (Norden oben, vorn unten), Körperhöhe, Zweck, was es hergibt oder
   trägt, und dann **jedes Teil** mit seiner Adresse im Regal (zum Kopieren)
   und seiner Lage (_auf dem Boden_, _obenauf auf Teil 1_, Versatz, Höhe,
-  umgelegt, gedreht, Ablage).
+  umgelegt, gedreht, Ablage). Gibt das Möbel etwas in die Hand (Hörnchen,
+  Teller, Pfanne …), steht darunter der Knopf **_Halten einstellen_**: eine
+  Seite mit dem Ding in der Luft, dem Halterzylinder darin und der VR-Hand
+  daran, sechs Regler für den Zylinder
+  ([Hände → Und was die Küche in die Hand gibt](haende.md#und-was-die-küche-in-die-hand-gibt-hängt-auch-am-halterzylinder)).
 - **Wie:** Getragen wird das **Bodenstück** des Elements wie ein Modell aus
   dem Regal (`takeElement` → `conjureModel`): in die Hand, an den Kran, `R`
   dreht, `E`/`A`/Loslassen stellt hin. Beim Hinstellen geht das getragene

@@ -883,3 +883,75 @@ Faust betreffen:
 einem Checkout ohne die gekauften Pakete steht sie da und tut, was sie immer
 tat — der normale Ausgang und keine Notlösung. Wer am Griffstand nachmisst,
 misst weiter gegen den Zylinder und nicht gegen ein Netz.
+
+## Und was die Küche in die Hand gibt, hängt auch am Halterzylinder
+
+Gewünscht (September 2026): _„bei den gegenständen die man halten kann müssen
+wir noch etwas anpassen für vr. bei der test welt restaurant müssen wir z. B.
+bei den eis kugeln bzw. cones diese anders halten in der hand. Nutze ja dafür
+am besten den haltezylinder als beispiel für die orientierung"_ — und dazu eine
+Seite, auf der man es einstellt.
+
+Bis dahin hing im [Test Restaurant](testrestaurant.md) alles, was man trägt,
+**ungedreht 8 cm vor dem Griffpunkt** (`TestRestaurantWorld.carryInHands`),
+ein Teller wie ein Hörnchen wie ein Topf, und die Hand blieb dabei offen. Das
+Hörnchen lag damit vor der Faust statt in ihr.
+
+**Dieselbe Umkehrung wie bei den Werkzeugen, eine Ebene weiter**
+(`elements/dishHold.ts`, rein, mit Test): Nicht das Ding bekommt eine Lage in
+der Hand, sondern **der Halterzylinder bekommt eine Lage im Ding** — sechs
+Zahlen (`DishHold`: x, y, z in cm, Pitch, Yaw, Roll in Grad, `XYZ`), gemessen im
+Ding, so groß, wie es in der Hand liegt (`HAND_SCALE` 0,5). Die Hand hält den
+Zylinder, wie sie jeden Zylinder hält: im Standardgriff
+(`STANDARD_GRIP_IN_HAND`), mit der Faust des Halterzylinders (`GRIP_POSE_ID`,
+also auch mit dem, was unter _Einstellungen → Hände_ für ihn eingestellt ist).
+Wo das Ding dann hängt, ist Rechnung:
+
+```
+Ding in der Hand = Standardgriff · (Zylinder im Ding)⁻¹      (dishInHand)
+```
+
+Links wird die Lage gespiegelt (`holdForOtherHand`), wie bei jedem Werkzeug.
+Ohne Drehung steht der Zylinder **senkrecht** im Ding (sein +Y ist das des
+Dings), und genau das ist das **Hörnchen** (`DISH_HOLDS.cone`: 5 cm über der
+Spitze, ungedreht — _„beim cone halten müsste der haltzylinder vermutlich
+vertikal stehen"_). Es lehnt damit in der Hand wie ein Pistolengriff. Die
+Mitte sitzt tief, weil das Hörnchen in der Hand 21 cm hoch und oben gut 9 cm
+breit ist; bei 8 cm verschwanden die Finger im Waffelrand. Alles andere hat
+noch keine eigene Haltung und bekommt `LEGACY_HOLD`: genau die alte Lage vor
+der Faust, als Zylinder im Ding ausgedrückt (Pitch −43°), damit ein Teller
+hängt, wo er immer hing — nur hält die Hand ihn jetzt mit der Faust
+(`PortalWorld.carriesInHand`).
+
+**_Halten einstellen_** (`ui/HoldMenu.ts`) ist die Seite dazu: Im Möbelkatalog
+hat die Detailseite (ⓘ) jedes Möbels, das etwas in die Hand gibt
+(`heldItemOf`: was eine Kiste oder ein Stapel hergibt, sonst was darauf steht —
+Hörnchen am Eisstand, Pfanne am Herd, die Wanne auf ihrer Platte), einen Knopf
+_Halten einstellen_. Er macht das Menü zu (seine Detailseite hält sonst einen
+zweiten WebGL-Kontext) und diese Seite auf; _Zurück_, _Fertig_ und `Esc`
+schließen sie, und das Menü geht an derselben Detailseite wieder auf
+(`App.openHoldEditor`). Darauf:
+
+- das Ding **in der Luft**, so groß wie in der Hand (das Hörnchen mit zwei
+  Kugeln), wischen dreht, das Rad zoomt;
+- zwei Häkchen: **Halterzylinder zeigen** (grün, mit dem rosa Pfeil nach vorn)
+  und **VR-Hand am Zylinder zeigen** (die rechte Hand in der Faust des
+  Halterzylinders, in der Farbe und dem Modell der Einstellungen);
+- sechs Regler mit − und +: x, y, z in 0,5-cm-Schritten, Pitch, Yaw, Roll in
+  **10°-Schritten** (_„gerne einfach in 10° schritten"_). Eine Zahl zwischen
+  zwei Rasten springt zuerst auf die nächste (`stepHold`) — `LEGACY_HOLD` steht
+  auf −43°.
+- _Zurücksetzen_ (die Haltung aus dem Code), _Kopieren_ (die Zeile für
+  `DISH_HOLDS`, `holdLine`), _Fertig_.
+
+Gespeichert wird **sofort**, im Browser (`bgvr.dishHolds`), und die Welt liest
+es im nächsten Bild. Das heißt auch: Was am Telefon eingestellt ist, gilt nicht
+in der Brille — dort den Browser der Quest nehmen, oder die kopierte Zeile in
+`DISH_HOLDS` eintragen lassen, dann gilt sie für alle. Im Konfig-Code steht es
+(noch) nicht. Die Seite gibt es nur am Schirm: Die Detailseite, von der aus man
+hinkommt, gibt es in der Brille nicht.
+
+**Nachgesehen** auf der Seite selbst (Chromium, ohne Brille): die Faust
+schließt sich um den Zylinder, der Zeigefinger liegt am rosa Pfeil. In der
+Brille ist es nicht probiert, und der Portionierer des Eisstands wird nie
+getragen und hat deshalb keine Haltung.
