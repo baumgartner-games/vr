@@ -1455,7 +1455,14 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   20 cm echter Augenhöhe fünf Zentimeter **unter** den Estrich gezogen, und
   die Hände lange davor (`core/posture.kitchenEyeScale`, mit Test).
 
-  **Nur in der Brille, nur in der Küche.** Am Bildschirm — von oben wie aus den
+  **Seit September 2026 in jeder Welt** — gewünscht: _„die vr kamera höhe
+  default auf allen welten soll so sein wie in der welt restaurant"_. Die
+  Stauchung setzt jetzt die App vor dem Rig (`App.fitEyes`), in der Brille
+  und nicht von oben, überall mit derselben Zahl (`EyeHeights.kitchen`, im
+  Menü _Augenhöhe → In der Brille_). Küche und Restaurant setzen sie nicht
+  mehr selbst; was hier über das Küchenrechteck steht, ist die Geschichte.
+
+  **Nur in der Brille, nur in der Küche** (bis September 2026). Am Bildschirm — von oben wie aus den
   Augen — setzt das Spiel die Kamera selbst, dort gibt es keine echte
   Augenhöhe, die danebenliegen könnte; die Ansicht von oben ändert sich um
   keinen Millimeter. Und „Küche" ist genau ein Rechteck, `layout.KITCHEN` mit

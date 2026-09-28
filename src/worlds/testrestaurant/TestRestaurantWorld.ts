@@ -39,10 +39,13 @@ import { iceConeIn, stepIceCones } from '../shared/iceCone';
 import { WOBBLE } from '../shared/iceWobble';
 import type { Dish } from '../test/zones/kitchenRecipes';
 import { SPOTS, ground, restaurantPlan, spawn } from './restaurantPlan';
+import { atHandGrip } from '../portal/grabReach';
 
 const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
 const _aim = new THREE.Vector3();
+const _giverHand = new THREE.Vector3();
+const _takerHand = new THREE.Vector3();
 const _nozzle = new THREE.Vector3();
 const _turn = new THREE.Quaternion();
 const _ray = new THREE.Ray();
@@ -80,6 +83,8 @@ export class TestRestaurantWorld extends GridWorld {
   private carried: Dish | null = null;
   /** Die Hand, in der es liegt. */
   private carriedHand: Handedness | null = null;
+  /** Ob die freie Hand im letzten Bild schon am Getragenen stand — für den einen Stups. */
+  private passReady = false;
   private carriedView: THREE.Object3D | null = null;
   /**
    * Wie das Bild des Getragenen für sich gedreht ist — die Eiswanne liegt quer
@@ -160,6 +165,7 @@ export class TestRestaurantWorld extends GridWorld {
     this.spray(dt, ctx);
     const leaking = this.stations?.leakingAt(this.leakAt) ?? null;
     if (leaking || this.leak) (this.leak ??= new LeakJet(this.root)).update(dt, leaking);
+    this.passHands(ctx);
     this.carryInHands(ctx);
     // Erst hängt das Getragene, dann wackelt der Turm (`shared/iceCone`).
     stepIceCones(dt);
@@ -417,6 +423,57 @@ export class TestRestaurantWorld extends GridWorld {
     this.carriedView?.removeFromParent();
     this.carriedView = next ? (this.dishes?.view(next) ?? null) : null;
     if (this.carriedView) this.carriedTurn.copy(this.carriedView.quaternion);
+  }
+
+  /**
+   * **Von Hand zu Hand** — wie bei der Pistole (`PortalWorld.handoverTool`):
+   * Die freie Hand kommt an den Griff der Hand, die etwas trägt, leuchtet und
+   * stupst einmal; ein Druck auf ihren Griffknopf, und das Gemüse, der Teller
+   * oder das Hörnchen hängt in ihr. Gewünscht: _„mit der anderen hand
+   * gegenstände wie z. B. gemüse in der welt test restaurant auch wechseln
+   * können mit der anderen hand (wie bei der pistole)"_.
+   *
+   * Dieselbe Reichweite wie bei den Werkzeugen (`grabReach.atHandGrip`,
+   * gemessen am Griffpunkt beider Hände), und nur mit einer Hand, die wirklich
+   * frei ist (`handFree`) — eine Hand mit Werkzeug nimmt nichts entgegen. Eine
+   * Faust, die schon zu ist, auch nicht: Der Druck zählt erst ab dem Bild, in
+   * dem er beginnt (`squeeze.justPressed`).
+   */
+  private passHands(ctx: WorldContext): void {
+    const from = this.carriedHand;
+    const to: Handedness | null = from === 'left' ? 'right' : from === 'right' ? 'left' : null;
+    const giver = from ? ctx.input.get(from) : null;
+    const taker = to ? ctx.input.get(to) : null;
+    const near =
+      ctx.renderer.xr.isPresenting &&
+      this.carried !== null &&
+      to !== null &&
+      this.handFree(to) &&
+      Boolean(giver?.tracked && taker?.tracked) &&
+      !taker!.squeeze.pressed &&
+      atHandGrip(
+        giver!.hold.getWorldPosition(_giverHand),
+        taker!.hold.getWorldPosition(_takerHand),
+      );
+    const taking =
+      ctx.renderer.xr.isPresenting &&
+      this.carried !== null &&
+      to !== null &&
+      this.passReady &&
+      this.handFree(to) &&
+      Boolean(taker?.squeeze.justPressed);
+    if (taking && to) {
+      this.setCarried(this.carried, to);
+      taker!.pulse(0.4, 30);
+      playPick(true);
+      this.passReady = false;
+      return;
+    }
+    if (near && to) {
+      if (!this.passReady) taker!.pulse(0.2, 12);
+      ctx.hands.setGlow(to, true);
+    }
+    this.passReady = near;
   }
 
   /** Die Hand, die ein Ding der Küche trägt, schließt sich darum (`PortalWorld.carriesInHand`). */

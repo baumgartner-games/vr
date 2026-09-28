@@ -6,7 +6,6 @@ import type { Handedness } from '../../core/XRInput';
 import type { Usable, UseSource } from '../../core/usable';
 import type { KaykitFigure } from '../../core/kaykitFigure';
 import { CHEF_CARRY, canLoadModels } from '../../core/chefFit';
-import { kitchenEyeScale } from '../../core/posture';
 import { playPick, playTone } from '../../core/Audio';
 import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import type { MenuEntry } from '../../ui/menu';
@@ -249,7 +248,6 @@ export class PlateUpWorld extends GridWorld {
   private readonly hidden = new THREE.MeshBasicMaterial({ visible: false });
   private readonly effects: Effect[] = [];
   private sitClip: THREE.AnimationClip | null = null;
-  private eyeScale = kitchenEyeScale();
   private building = 0;
   private readonly carryPoint = new THREE.Vector3();
   /**
@@ -418,7 +416,6 @@ export class PlateUpWorld extends GridWorld {
     super.update(dt, ctx);
     const feet = ctx.rig.position;
     const inside = inKitchen(feet.x, feet.z);
-    ctx.rig.eyeScale = inside && ctx.renderer.xr.isPresenting && !ctx.topDown ? this.eyeScale : 1;
     ctx.rig.jumpLock = inside;
 
     const step = dt * this.shopSpeed;
@@ -512,7 +509,6 @@ export class PlateUpWorld extends GridWorld {
     this.building++;
     this.decor?.dispose();
     this.decor = null;
-    ctx.rig.eyeScale = 1;
     ctx.rig.jumpLock = false;
     ctx.avatar.carry = null;
     this.dropBlueprintView();
