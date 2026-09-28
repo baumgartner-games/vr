@@ -3,6 +3,7 @@ import { join } from 'path';
 import { CRATE_LID_PATH, kaykitPlinth } from '../../core/kaykitCrate';
 import { kaykitFiles, type KaykitIndex } from '../../core/kaykitIndex';
 import { ITEM_LABELS } from '../test/zones/kitchenRecipes';
+import { SHELF_WALL, SHELF_WALL_HALF } from '../grid/shelfWalls';
 import {
   DECOR,
   ELEMENTS,
@@ -10,6 +11,10 @@ import {
   FURNITURE_FOLDERS,
   SHOW_ONLY_GIVES,
   WALL_MODELS,
+  BUILD_FOLDERS,
+  PLASTER_WALL,
+  PLASTER_WALL_HALF,
+  wallHalfOf,
   elementById,
   elementLit,
   hasElement,
@@ -206,7 +211,7 @@ describe('der Möbelkatalog im Menü', () => {
     }
   });
 
-  it('hat die Unterordner Allgemein, Pizza, Burger, Eis, Waffeln, Suppe, Alles, Wände — aus der ganzen Liste', () => {
+  it('hat die Unterordner Allgemein, Pizza, Burger, Eis, Waffeln, Suppe, Alles, Wände, Türen, Fenster', () => {
     expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
       'Allgemein',
       'Pizza',
@@ -216,6 +221,8 @@ describe('der Möbelkatalog im Menü', () => {
       'Suppe',
       'Alles',
       'Wände',
+      'Türen',
+      'Fenster',
     ]);
     expect(new Set(FURNITURE_FOLDERS.map((folder) => folder.id)).size).toBe(
       FURNITURE_FOLDERS.length,
@@ -228,7 +235,8 @@ describe('der Möbelkatalog im Menü', () => {
   });
 
   it('hat die Arbeitsplatte in jedem Ordner der Küche, den Tellerstapel bei Burger und Pizza', () => {
-    for (const folder of FURNITURE_FOLDERS.filter((one) => one.id !== 'walls'))
+    const build = new Set(BUILD_FOLDERS.map((one) => one.id));
+    for (const folder of FURNITURE_FOLDERS.filter((one) => !build.has(one.id)))
       expect(folder.elements).toContain('counter');
     const plates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('plate-stack'));
     expect(plates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
@@ -288,10 +296,22 @@ describe('der Möbelkatalog im Menü', () => {
     });
   });
 
-  it('hat im Ordner Wände die Regalwände der Test Navigation — Modelle, keine Blöcke', () => {
-    const walls = FURNITURE_FOLDERS.find((folder) => folder.id === 'walls')!;
-    expect(walls.elements).toEqual([]);
-    expect(walls.models).toEqual(WALL_MODELS);
+  it('hat Wände, Türen und Fenster als Regalwände — Modelle, keine Blöcke', () => {
+    const models = (id: string) => BUILD_FOLDERS.find((folder) => folder.id === id)!.models;
+    for (const folder of BUILD_FOLDERS) expect(folder.elements).toEqual([]);
+    expect(models('walls')).toEqual([SHELF_WALL, SHELF_WALL_HALF, PLASTER_WALL, PLASTER_WALL_HALF]);
+    expect(models('doors')).toEqual([
+      'prototype-bits/Wall_Doorway.glb',
+      'prototype-bits/Wall_Doorway_Wide.glb',
+    ]);
+    expect(models('windows')).toEqual([
+      'prototype-bits/Wall_Window_Closed.glb',
+      'prototype-bits/Wall_Window_Closed_Narrow.glb',
+    ]);
+    // Jede Regalwand der Test Navigation steht in einer der Mappen.
+    const all = BUILD_FOLDERS.flatMap((folder) => folder.models ?? []);
+    for (const path of WALL_MODELS) expect(all).toContain(path);
+    for (const folder of BUILD_FOLDERS) expect(FURNITURE_FOLDERS).toContain(folder);
     expect(WALL_MODELS).toEqual([
       'prototype-bits/Wall_Window_Closed.glb',
       'prototype-bits/Wall_Window_Closed_Narrow.glb',
@@ -301,10 +321,19 @@ describe('der Möbelkatalog im Menü', () => {
       'prototype-bits/Wall_Doorway_Wide.glb',
     ]);
     // Keine Wand ist ein Spielelement: Die sperrten ganze Kacheln.
-    for (const path of WALL_MODELS)
+    for (const path of all)
       expect(ELEMENTS.some((element) => element.parts[0]!.model === path)).toBe(false);
     const files = shelf();
-    if (files) for (const path of WALL_MODELS) expect(files.has(path)).toBe(true);
+    if (files) for (const path of all) expect(files.has(path)).toBe(true);
+  });
+
+  it('kennt zu jeder ganzen Wand das halbe Stück — Durchgänge haben keines', () => {
+    expect(wallHalfOf(SHELF_WALL)).toBe(SHELF_WALL_HALF);
+    expect(wallHalfOf(PLASTER_WALL)).toBe(PLASTER_WALL_HALF);
+    expect(wallHalfOf('prototype-bits/Wall_Window_Closed.glb')).toBe(
+      'prototype-bits/Wall_Window_Closed_Narrow.glb',
+    );
+    expect(wallHalfOf('prototype-bits/Wall_Doorway.glb')).toBeNull();
   });
 
   it('hat Hörnchen und Eiswannen als Vorräte der Küche — eine Wanne je Platte', () => {

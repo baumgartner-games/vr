@@ -319,6 +319,66 @@ export const WALL_MODELS: readonly string[] = [
 ];
 
 /**
+ * **Die Putzwand des Restaurants** — dieselbe Wand wie `surfaceDecor.WALL_STYLES`
+ * _Putzwand_, ganz und halb. Sie steht im Katalog neben der Prototypwand, damit
+ * es mehr als eine Wand zur Wahl gibt: Alle Wände sperren gleich, sie sehen
+ * nur anders aus.
+ */
+export const PLASTER_WALL = 'restaurant-bits/wall.glb';
+export const PLASTER_WALL_HALF = 'restaurant-bits/wall_half.glb';
+
+/**
+ * **Die Baumappen des Katalogs** — wie der Baumodus in _Die Sims_: Wände,
+ * Türen, Fenster. Gewünscht: _„Alle Wände sind an sich erstmal gleich, dass
+ * man nicht durch kann. Nur Türen und Fenster Wand Elemente sind besonders.
+ * Fenster kann man durch blicken und Türen kann man durch gehen."_
+ *
+ * Alles darin sind Regalwände (`WALL_MODELS`, dazu die Putzwand) und keine
+ * Spielelemente: Sie rasten auf der Fuge ein, lassen sich schräg setzen und
+ * im Baukasten **ziehen** (`areaPaint.wallLine`). Die Mappen stehen in jeder
+ * Welt im Katalog (`PortalWorld.elementFolders`), nicht nur im Restaurant.
+ */
+export const BUILD_FOLDERS: readonly FurnitureFolder[] = [
+  {
+    id: 'walls',
+    label: 'Wände',
+    elements: [],
+    models: [SHELF_WALL, SHELF_WALL_HALF, PLASTER_WALL, PLASTER_WALL_HALF],
+  },
+  {
+    id: 'doors',
+    label: 'Türen',
+    elements: [],
+    models: ['prototype-bits/Wall_Doorway.glb', 'prototype-bits/Wall_Doorway_Wide.glb'],
+  },
+  {
+    id: 'windows',
+    label: 'Fenster',
+    elements: [],
+    models: [SHELF_WINDOW_PIECES.full, SHELF_WINDOW_PIECES.half],
+  },
+];
+
+/**
+ * **Das halbe Stück zu einer ganzen Wand** — damit eine gezogene Wand
+ * ungerader Länge am Ende ein halbes Stück bekommt, wie `shelfWalls.wallRun`.
+ * `null`, wenn es keines gibt (Durchgänge): Dann endet die Wand ein Stück
+ * früher.
+ */
+export function wallHalfOf(path: string): string | null {
+  switch (path) {
+    case SHELF_WALL:
+      return SHELF_WALL_HALF;
+    case SHELF_WINDOW_PIECES.full:
+      return SHELF_WINDOW_PIECES.half;
+    case PLASTER_WALL:
+      return PLASTER_WALL_HALF;
+    default:
+      return null;
+  }
+}
+
+/**
  * **Der ganze Katalog.** Neue Elemente kommen hierher und nicht in eine Welt:
  * Was zwei Welten gleich hinstellen, soll gleich aussehen.
  */
@@ -741,8 +801,8 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   },
   // **Alles, was zur Küche gehört** — die ganze Liste des Katalogs.
   { id: 'all', label: 'Alles', elements: FURNITURE_CATALOGUE },
-  // **Die Wände** — die Regalwände der Test Navigation, auf der Fuge und schräg.
-  { id: 'walls', label: 'Wände', elements: [], models: WALL_MODELS },
+  // **Wände, Türen, Fenster** — die Baumappen, in jeder Welt (`BUILD_FOLDERS`).
+  ...BUILD_FOLDERS,
 ];
 
 /** Die Elemente nach Namen. */
