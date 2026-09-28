@@ -579,7 +579,9 @@ describe('die zweite Speisekarte', () => {
     expect(chopStage('carrot')).toBe('carrot-cut');
     expect(chopStage('potato')).toBe('potato-cut');
     expect(chopStage('onion')).toBe('onion-cut');
-    for (const item of ['cheese-cut', 'pizza-cut', 'carrot-cut', 'dough'] as const) {
+    // Der Teig wird zu Teigstücken, den rohen Waffeln.
+    expect(chopStage('dough')).toBe('waffle-raw');
+    for (const item of ['cheese-cut', 'pizza-cut', 'carrot-cut', 'dough-flat'] as const) {
       expect({ item, next: chopStage(item) }).toEqual({ item, next: null });
     }
   });
@@ -602,10 +604,9 @@ describe('die zweite Speisekarte', () => {
     expect(isBurnt('ham-cooked')).toBe(false);
   });
 
-  it('rollt nur Teig aus (und teilt ihn in Waffeln) und kocht nur geschnittenes Gemüse', () => {
+  it('rollt nur Teig aus und kocht nur geschnittenes Gemüse', () => {
     expect(rollStage('dough')).toBe('dough-flat');
-    expect(rollStage('dough-flat')).toBe('waffle-raw');
-    expect(rollStage('waffle-raw')).toBeNull();
+    expect(rollStage('dough-flat')).toBeNull();
     expect(rollStage('cheese')).toBeNull();
     // Jede Suppe ihre Sorte: Karotte, Zwiebel, Pilz, Tomatenscheibe.
     expect(cookStage('carrot-cut')).toBe('stew');

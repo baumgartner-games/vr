@@ -483,17 +483,23 @@ schneller, dann brennt es."_ Die Stufen in der Pfanne auf dem Herd
 4. **`fire`** (`StationState.fire`): große Flamme, _„Der Herd brennt —
    Feuerlöscher holen!"_, der Herd lehnt alles ab (`kitchenCarry`, `fire`).
 
-**Waffeln sind ein Stapel** (`kitchenRecipes.stackOf`, `isStack`): Der
-flache Teig wird auf Nudel- oder Schneidebrett in **vier rohe Waffeln**
-geteilt (`PIECES`), die als ein `Dish` gleicher Dinge liegen und zusammen in
-die Hand und in die Pfanne gehen (bis `PAN_MAX` = 4 gleiche Waffeln,
-`panFits`). In der Pfanne braten, verkohlen und brennen alle zugleich
-(`plateUpStations.panOnStove` nimmt jede Pfanne mit lauter gleichen Dingen).
-Die volle Pfanne auf einer leeren Platte wird ausgekippt
-(`kitchenCarry`, Fall `top`); von einem fertigen Stapel nimmt die leere Hand
-oder die Schüssel **eine** (`servesOne`, `offer`), Rohes und Verbranntes geht
-ganz. Rohe und verbrannte Waffel sind das Waffelmodell, gefärbt
-(`dishView.SOUP_TINT`).
+**Waffeln sind ein Stapel** (`kitchenRecipes.stackOf`, `isStack`): Der Teig
+wird auf dem Schneidebrett in **vier Teigstücke** geschnitten, die rohen
+Waffeln (`CHOPS`, `PIECES`) — ausgerollt wird nur der Pizzaboden (`ROLLS`).
+Sie liegen als ein `Dish` gleicher Dinge und gehen zusammen in die Hand und in
+die Pfanne (bis `PAN_MAX` = 4 gleiche Waffeln, `panFits`). In der Pfanne
+braten, verkohlen und brennen alle zugleich (`plateUpStations.panOnStove`
+nimmt jede Pfanne mit lauter gleichen Dingen). Die volle Pfanne auf einer
+leeren Platte wird ausgekippt (`kitchenCarry`, Fall `top`); von einem fertigen
+Stapel nimmt die leere Hand oder die Schüssel **eine** (`servesOne`, `offer`),
+Rohes und Verbranntes geht ganz.
+
+Im Bild ist die rohe Waffel die Teigkugel auf halbe Größe
+(`dishView.ITEM_SCALE`), und die vier liegen **nebeneinander**, zwei mal zwei
+— auf der Platte wie in der Pfanne, wo auch gebratene nebeneinander liegen,
+kleiner, damit vier hineinpassen (`dishSpread`, `PAN_FILL`). Der Stapel
+gebratener Waffeln auf der Platte bleibt ein Turm. Die verbrannte Waffel ist
+die Waffel, fast schwarz gefärbt (`dishView.SOUP_TINT`).
 
 Blinken kann jedes Dreieck für sich (`KitchenGauges.warn(key, at, blink)`),
 gepiept wird einmal für alle Herde, im Takt des dringendsten. Die Grillplatte
@@ -539,8 +545,12 @@ Schneidebrett stehe"_.
   mehr, und nur die **Rohrzange** (`pliers`, neues Element „Rohrzange" auf
   einer Arbeitsplatte, Bild `rpg-tools-bits/wrench_A`) dichtet sie ab:
   ansetzen, `REPAIR_SECONDS` davorstehen (`StationState.leak`).
-- **Der Topf ist doppelt so groß** (`dishView.POT_SCALE`), und **Wasser darin
-  ist zu sehen** (`KaykitDishView.pourWater`, die Farbe der Sandbox).
+- **Der Topf ist anderthalbmal so groß** (`dishView.POT_SCALE`, erst doppelt,
+  dann ein Viertel kleiner), und **Wasser darin ist zu sehen**
+  (`KaykitDishView.pourWater`, die Farbe der Sandbox). Die Scheibe misst sich
+  an der **Vorlage** des Topfs, nicht an seiner Kopie in der Welt — deren
+  Hülle trug Station und Hand mit, und das Wasser war eine Pfütze am Boden.
+  Die Anteile (`POT_WATER`) sind im Bild nachgesehen.
 
 Gewünscht, für die Pommes: _„Die Kartoffeln Vorräte sollen auch
 gehighlighted werden und interagierbar sein. Das Schneidebrett daneben soll

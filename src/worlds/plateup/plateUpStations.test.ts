@@ -283,15 +283,13 @@ describe('Die Pfanne auf dem Herd: gebraten, verkohlt, Feuer', () => {
   });
 });
 
-describe('Waffeln: ausrollen, in vier schneiden, braten, einzeln nehmen', () => {
+describe('Waffeln: Teig in vier schneiden, braten, einzeln nehmen', () => {
   const four = (item: KitchenItem) => d(item, item, item, item);
 
-  it('rollt den Teig aus und schneidet ihn beim zweiten Auflegen in vier rohe Waffeln', () => {
+  it('schneidet den Teig auf dem Brett in vier rohe Waffeln — ausgerollt wird nur der Pizzaboden', () => {
     const flat = wait(useStation(d('dough'), station('roller')).station, WORK_SECONDS.roll + 0.2);
     expect(flat.station.on).toEqual(d('dough-flat'));
-    const taken = useStation(null, flat.station);
-    expect(taken.held).toEqual(d('dough-flat'));
-    const cut = wait(useStation(taken.held, taken.station).station, WORK_SECONDS.roll + 0.2);
+    const cut = wait(useStation(d('dough'), station('board')).station, WORK_SECONDS.chop + 0.2);
     expect(cut.station.on).toEqual(four('waffle-raw'));
     // Die rohen gehen alle zusammen in die Hand.
     const all = useStation(null, cut.station);

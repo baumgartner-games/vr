@@ -43,16 +43,18 @@ Pilz- und Kartoffelkiste standen als rohe Modelle in der Liste und sind hier
 die Spielelemente dazu.
 
 Östlich davon die **Waffelecke** (sechste Liste): bei z = 9 nach Norden
-Teigkiste, Nudelbrett, Platte, Schüsselstapel (20…23), bei z = 7 nach Süden
-Herd mit Pfanne, Platte, Eiswannen (21…23). Der Ablauf, gewünscht: _„Teig mit
-Nudelholz ausrollen, dann Teig schneiden, man hat vier rohe Waffeln dann
-liegen, die man alle in die Hand nehmen kann. Und alle braten kann."_ — Teig
-aufs Nudelbrett (flach), noch einmal auflegen (vier rohe Waffeln,
-`kitchenRecipes.PIECES`), alle vier in die Pfanne, gebraten die Pfanne auf
-einer leeren Platte auskippen, dort nimmt man einzeln (mit der Schüssel eine
-hinein). Zurück in die Pfanne gelegt, brät eine gebratene Waffel mit Warnung
-weiter, verkohlt und fängt Feuer wie Patty, Steak und Schinken. Das Nudelholz
-ist dafür 2,5-mal so groß geworden (Katalog, `rolling-board`).
+Teigkiste, Schneidebrett, Platte, Schüsselstapel (20…23), bei z = 7 nach Süden
+Herd mit Pfanne, Platte, Eiswannen (21…23). In der Liste stand statt des
+Bretts das Nudelbrett: **Waffeln werden geschnitten, nicht ausgerollt** —
+ausgerollt wird der Pizzaboden, und so unterscheiden sich beide am ersten
+Möbel (gefragt war: _„Teig erst schneiden dann braten oder erst ausrollen dann
+schneiden dann braten? Der Unterschied muss ja zur Pizza da sein."_). Der
+Ablauf: Teig aufs Brett, geschnitten liegen vier Teigstücke nebeneinander (die
+rohen Waffeln, `kitchenRecipes.PIECES`), alle vier in die Hand und in die
+Pfanne, gebraten die Pfanne auf einer leeren Platte auskippen, dort nimmt man
+einzeln (mit der Schüssel eine hinein). Zurück in die Pfanne gelegt, brät eine
+gebratene Waffel mit Warnung weiter, verkohlt und fängt Feuer wie Patty, Steak
+und Schinken.
 
 **Alle schauen nach Süden** — gewünscht: _„Diese Ausrichtung der Möbel ist
 bei allen Süden, bitte anpassen."_ In der Liste standen die sechs Kisten noch

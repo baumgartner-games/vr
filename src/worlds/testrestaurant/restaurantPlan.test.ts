@@ -65,7 +65,7 @@ describe('Test Restaurant — der Plan', () => {
       'suppe-platte-2': 'N',
       'suppe-muell': 'N',
       'waffel-teig': 'N',
-      'waffel-nudelbrett': 'N',
+      'waffel-brett': 'N',
       'waffel-platte-1': 'N',
       'waffel-schuesseln': 'N',
     };

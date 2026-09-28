@@ -89,10 +89,12 @@ export const SPOTS: readonly ElementSpot[] = [
   { id: 'suppe-platte-1', element: 'counter', x: 13, z: 9, face: 'N' },
   { id: 'suppe-platte-2', element: 'counter', x: 14, z: 9, face: 'N' },
   { id: 'suppe-muell', element: 'bin', x: 15, z: 9, face: 'N' },
-  // Die Waffelecke: Teig ausrollen und in vier rohe Waffeln teilen, in der
-  // Pfanne braten, auf der Platte einzeln nehmen, Eis darauf.
+  // Die Waffelecke: Teig in vier Teigstücke schneiden, in der Pfanne braten,
+  // auf der Platte einzeln nehmen, Eis darauf.
   { id: 'waffel-teig', element: 'crate-dough', x: 20, z: 9, face: 'N' },
-  { id: 'waffel-nudelbrett', element: 'rolling-board', x: 21, z: 9, face: 'N' },
+  // In der Liste stand hier das Nudelbrett; die Waffel wird aber geschnitten
+  // und nicht ausgerollt (`kitchenRecipes.CHOPS`), also das Schneidebrett.
+  { id: 'waffel-brett', element: 'board', x: 21, z: 9, face: 'N' },
   { id: 'waffel-platte-1', element: 'counter', x: 22, z: 9, face: 'N' },
   { id: 'waffel-schuesseln', element: 'bowl-stack', x: 23, z: 9, face: 'N' },
   { id: 'waffel-herd', element: 'stove', x: 21, z: 7, face: 'S' },
