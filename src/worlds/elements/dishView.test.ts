@@ -7,6 +7,7 @@ import {
   SECOND_SCOOP,
   dishKey,
   dishLayout,
+  dishSpread,
 } from './dishView';
 import { dish } from '../test/zones/kitchenRecipes';
 
@@ -57,5 +58,14 @@ describe('Gerichte als Bild aus dem Regal', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(group.children).toHaveLength(0);
+  });
+
+  it('legt die rohen Waffeln nebeneinander, in der Pfanne alles Mehrfache, gebratene gestapelt', () => {
+    const raw = dish('waffle-raw', ['waffle-raw', 'waffle-raw', 'waffle-raw']);
+    expect(dishSpread(raw)).toHaveLength(4);
+    expect(dishSpread(dish('pan', ['waffle', 'waffle']))).toHaveLength(2);
+    expect(dishSpread(dish('pan', ['patty']))).toBeNull();
+    expect(dishSpread(dish('waffle', ['waffle', 'waffle']))).toBeNull();
+    expect(dishSpread(dish('waffle-raw'))).toBeNull();
   });
 });

@@ -690,7 +690,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
     elements: [
       'counter',
       'crate-dough',
-      'rolling-board',
+      'board',
       'stove',
       'griddle',
       'bowl-stack',

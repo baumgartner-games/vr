@@ -135,7 +135,7 @@ export type KitchenItem =
   | 'dough'
   | 'dough-flat'
   /**
-   * **Die rohe Waffel** — aus dem ausgerollten Teig geschnitten, vier auf
+   * **Die rohe Waffel** — ein Teigstück, aus dem Teig geschnitten, vier auf
    * einmal (`PIECES`), und in der Pfanne zur Waffel gebraten; die gebratene
    * verbrennt, wenn sie liegen bleibt (`waffle-burnt`).
    */
@@ -464,8 +464,13 @@ const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   potato: 'potato-cut',
   onion: 'onion-cut',
   mushroom: 'mushroom-cut',
-  // Der ausgerollte Teig wird in vier rohe Waffeln geschnitten (`PIECES`).
-  'dough-flat': 'waffle-raw',
+  // **Der Teig wird in vier Teigstücke geschnitten** — die rohen Waffeln
+  // (`PIECES`), die in der Pfanne zu Waffeln braten. Nicht ausgerollt: Das
+  // Ausrollen gehört dem Pizzaboden (`ROLLS`), und so unterscheiden sich die
+  // beiden schon am ersten Möbel. Entschieden, gefragt war: _„Teig erst
+  // schneiden dann braten, oder erst ausrollen dann schneiden dann braten?
+  // Der Unterschied muss ja zur Pizza da sein."_
+  dough: 'waffle-raw',
   // Das rohe Steak wird auf dem Brett zum rohen Patty — Hackfleisch.
   steak: 'patty',
 };
@@ -547,14 +552,11 @@ export function burnStage(item: KitchenItem): KitchenItem | null {
  */
 const ROLLS: Partial<Record<KitchenItem, KitchenItem>> = {
   dough: 'dough-flat',
-  // **Und auf dem Nudelbrett gleich weiter**: Der flache Teig, noch einmal
-  // aufgelegt, wird dort in vier Waffeln geteilt — wer kein Schneidebrett
-  // daneben hat, braucht keines.
-  'dough-flat': 'waffle-raw',
 };
 
 /**
- * **Was beim Schneiden in Stücken herauskommt** — die rohe Waffel viermal.
+ * **Was beim Schneiden in Stücken herauskommt** — die rohe Waffel viermal:
+ * ein Teig, vier Teigstücke.
  * Gewünscht: _„dann Teig schneiden, man hat vier rohe Waffeln dann liegen,
  * die man alle in die Hand nehmen kann. Und alle braten kann."_ Ein Stapel
  * gleicher Dinge ist ein `Dish` mit sich selbst darauf (`stackOf`).
@@ -690,8 +692,7 @@ const RAW: Partial<Record<KitchenItem, string>> = {
   cheese: 'geschnitten',
   ham: 'gebraten',
   steak: 'gebraten',
-  dough: 'ausgerollt',
-  'dough-flat': 'geschnitten',
+  dough: 'geschnitten',
   'waffle-raw': 'gebacken',
   carrot: 'geschnitten',
   potato: 'geschnitten',

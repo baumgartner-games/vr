@@ -4,7 +4,7 @@ import type { IceFlavor } from '../plateup/plateUpIce';
 import { BallKit, IceConeView } from '../shared/iceCone';
 import { WOBBLE } from '../shared/iceWobble';
 import { WATER_LOOK } from '../test/zones/kitchenProps';
-import type { Dish, KitchenItem } from '../test/zones/kitchenRecipes';
+import { isStack, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
 import { dishModels } from './itemModels';
 
 /**
@@ -100,6 +100,47 @@ export function dishLayout(carrier: KitchenItem, heights: readonly number[]): Di
   return out;
 }
 
+/**
+ * **Was kleiner gezeigt wird als im Regal** — das Teigstück der rohen Waffel
+ * ist die Teigkugel, auf ein Viertel geteilt: Sie hat die Größe der Waffel,
+ * nicht die des ganzen Teigs.
+ */
+export const ITEM_SCALE: Readonly<Partial<Record<KitchenItem, number>>> = {
+  'waffle-raw': 0.5,
+};
+
+/** Was nebeneinander statt aufeinander liegt — die rohen Waffeln. */
+const SPREAD_ITEMS: ReadonlySet<KitchenItem> = new Set<KitchenItem>(['waffle-raw']);
+
+/**
+ * **Wo die Stücke nebeneinander liegen**, in Stückbreiten um die Mitte — zwei
+ * mal zwei. Gewünscht: _„man hat vier rohe Waffeln dann liegen"_: Die
+ * Teigstücke liegen **neben**einander auf der Platte, und in der Pfanne liegt
+ * alles, was mehrfach darin brät, nebeneinander (gebraten wird nicht im Turm).
+ * `null`: wie immer übereinander (`dishLayout`) — auch der Stapel gebratener
+ * Waffeln auf der Platte.
+ */
+export function dishSpread(d: Dish): readonly (readonly [x: number, z: number])[] | null {
+  const many = d.item === 'pan' ? d.on.length > 1 : isStack(d) && SPREAD_ITEMS.has(d.item);
+  if (!many) return null;
+  const count = d.item === 'pan' ? d.on.length : d.on.length + 1;
+  const slots: (readonly [number, number])[] = [
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [-0.5, 0.5],
+    [0.5, 0.5],
+  ];
+  return slots.slice(0, count);
+}
+
+/** Welcher Anteil der Pfanne (ohne Stiel) für das Nebeneinander da ist. */
+const PAN_FILL = 0.8;
+
+/** Wie breit die Pfanne ist, ohne ihren Stiel — die schmalere Seite der Hülle. */
+function panWidth(box: THREE.Box3): number {
+  return Math.min(box.max.x - box.min.x, box.max.z - box.min.z);
+}
+
 /** Holt die Vorlage einer Datei — geteilt, nie verändert; `null`, wenn keine kam. */
 export type TemplateSource = (path: string) => Promise<THREE.Object3D | null>;
 
@@ -160,9 +201,9 @@ export class KaykitDishView {
     }
     const done = Promise.all(paths.map((path) => this.template(path))).then((templates) => {
       if (!this.alive) return;
-      lay(inner, dish.item, templates);
+      lay(inner, dish, templates);
       tintSoup(inner, dish, paths);
-      if (dish.item === 'pot' && dish.on.includes('water')) this.pourWater(inner);
+      if (dish.item === 'pot' && dish.on.includes('water')) this.pourWater(inner, templates[0]);
     });
     return { group, done };
   }
@@ -174,20 +215,26 @@ export class KaykitDishView {
    * **Wasser im Topf, sichtbar** — gewünscht: _„nur muss das Wasser im Topf
    * sichtbar sein"_. Eine Scheibe in der Farbe der Sandbox
    * (`kitchenProps.WATER_LOOK`, dort `FoodKit.water`), so breit wie die
-   * Öffnung und knapp unter dem Rand, gemessen am Topf.
+   * Öffnung innen, vom Boden bis knapp unter den Rand (`POT_WATER`).
+   *
+   * **Gemessen an der Vorlage, nicht am Topf in der Welt** — gemeldet: _„der
+   * Wasser Kreis im Topf passt null"_. Die Kopie hängt schon in der Station
+   * (Maßstab von Topf, Station und Hand), ihre Hülle in Weltmaßen war zu
+   * klein, und die Scheibe saß als Pfütze am Boden. Die Vorlage hängt an
+   * nichts: Ihre Hülle ist die des Topfs in seinen eigenen Maßen, dieselben,
+   * in denen die Scheibe neben ihm liegt (`lay` stellt ihn mittig auf 0).
    */
-  private pourWater(inner: THREE.Group): void {
-    const pot = inner.children[0];
-    if (!pot) return;
-    const box = new THREE.Box3().setFromObject(pot);
+  private pourWater(inner: THREE.Group, template: THREE.Object3D | null | undefined): void {
+    if (!template) return;
+    const box = new THREE.Box3().setFromObject(template);
     if (box.isEmpty()) return;
     const size = box.getSize(new THREE.Vector3());
     this.water ??= new THREE.MeshStandardMaterial({ ...WATER_LOOK, transparent: true });
-    const radius = Math.min(size.x, size.z) * 0.36;
-    const deep = size.y * 0.35;
-    const water = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, deep, 18), this.water);
+    const radius = Math.min(size.x, size.z) * POT_WATER.radius;
+    const deep = size.y * POT_WATER.deep;
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, deep, 24), this.water);
     water.name = 'dish-pot-water';
-    water.position.y = size.y * 0.25 + deep / 2;
+    water.position.y = size.y * POT_WATER.bottom + deep / 2;
     inner.add(water);
   }
 
@@ -201,22 +248,33 @@ export class KaykitDishView {
   }
 }
 
-/** Wie groß der Topf gezeigt wird — doppelt so groß wie im Regal. */
-export const POT_SCALE = 2;
+/**
+ * **Wie groß der Topf gezeigt wird** — anderthalbmal so groß wie im Regal.
+ * Erst doppelt (_„doppelt so groß, dass man auch sieht was drin ist"_), dann
+ * ein Viertel kleiner: _„Der Kochtopf ist zu groß, ggf. 25% kleiner bitte."_
+ */
+export const POT_SCALE = 1.5;
+
+/**
+ * **Wo das Wasser im Topf steht**, als Anteil am Topf (`pot_A`): Halbmesser
+ * der Öffnung innen (an der schmaleren Seite, ohne Henkel), Boden und Tiefe.
+ * Im Bild nachgesehen, von schräg oben und von oben — die Scheibe füllt die
+ * Öffnung bis an die Wand und steht knapp unter dem Rand.
+ */
+export const POT_WATER = { radius: 0.42, bottom: 0.12, deep: 0.6 } as const;
 
 /**
  * **Die Farben der Suppen** — das Regal hat nur einen Eintopf, und jede Suppe
  * bekommt ihn in ihrer Farbe: Karotte orange, Tomate rot, Zwiebel goldgelb,
- * Pilz braun. Dazu rohe und verbrannte Waffel.
+ * Pilz braun. Dazu die verbrannte Waffel.
  */
 export const SOUP_TINT: Readonly<Partial<Record<KitchenItem, number>>> = {
   stew: 0xe8872e,
   'tomato-soup': 0xc9352a,
   'soup-onion': 0xe0c065,
   'soup-mushroom': 0x8a6547,
-  // **Die Waffel in ihren Stufen** — auch für sie gibt es nur ein Modell: roh
-  // blass, verbrannt fast schwarz, die gebratene ungefärbt.
-  'waffle-raw': 0xf3dfa8,
+  // **Die verbrannte Waffel** ist die Waffel, fast schwarz — die rohe ist
+  // ein Teigstück (`itemModels`) und braucht keine Farbe.
   'waffle-burnt': 0x3a2a1c,
 };
 
@@ -258,12 +316,17 @@ function flavorOf(item: KitchenItem): IceFlavor | null {
 }
 
 /** Die Stücke kopieren, messen und nach `dishLayout` in die Gruppe legen. */
-function lay(
-  group: THREE.Group,
-  carrier: KitchenItem,
-  templates: readonly (THREE.Object3D | null)[],
-): void {
-  const pieces = templates.map((template) => (template ? template.clone(true) : null));
+function lay(group: THREE.Group, dish: Dish, templates: readonly (THREE.Object3D | null)[]): void {
+  const carrier = dish.item;
+  const items = [dish.item, ...dish.on];
+  const pieces = templates.map((template, i) => {
+    if (!template) return null;
+    const piece = template.clone(true);
+    // Nur, wo Bild und Ding eins zu eins sind (der Stapel, die Pfanne).
+    const scale = templates.length === items.length ? ITEM_SCALE[items[i]!] : undefined;
+    if (scale) piece.scale.multiplyScalar(scale);
+    return piece;
+  });
   const boxes = pieces.map((piece) => {
     if (!piece) return null;
     const box = new THREE.Box3().setFromObject(piece);
@@ -271,6 +334,7 @@ function lay(
   });
   const heights = boxes.map((box) => (box ? box.max.y - box.min.y : 0));
   const layout = dishLayout(carrier, heights);
+  const spread = templates.length === items.length ? dishSpread(dish) : null;
   const base = boxes[0];
   const shift = base
     ? new THREE.Vector3(-(base.min.x + base.max.x) / 2, -base.min.y, -(base.min.z + base.max.z) / 2)
@@ -283,6 +347,29 @@ function lay(
     // Mitte seiner Hülle — bei der Pfanne gehört der Stiel zur Hülle
     // (`kitchenFit.kitchenHub`, dieselbe Zahl wie in der Sandbox-Küche).
     const [hx, hz] = i === 0 ? kitchenHub(carrier) : [0, 0];
+    // **Nebeneinander** (`dishSpread`): alle auf der Höhe des ersten Stücks,
+    // je eine Stückbreite versetzt.
+    const first = carrier === 'pan' ? 1 : 0;
+    const slot = spread && i >= first ? spread[i - first] : undefined;
+    if (slot) {
+      // In der Pfanne passen vier nur hinein, wenn sie kleiner werden: jedes
+      // höchstens so breit wie ein Viertel der Pfanne (`PAN_FILL`).
+      const bowl = carrier === 'pan' && base ? panWidth(base) * PAN_FILL : Infinity;
+      const own = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+      if (own > bowl / 2) {
+        piece.scale.multiplyScalar(bowl / 2 / own);
+        box.setFromObject(piece);
+      }
+      const wide = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+      const y = carrier === 'pan' ? layout[1]!.y : 0;
+      piece.position.set(
+        -(box.min.x + box.max.x) / 2 + slot[0] * wide,
+        y - box.min.y,
+        -(box.min.z + box.max.z) / 2 + slot[1] * wide,
+      );
+      group.add(piece);
+      return;
+    }
     if (where.inside) piece.position.copy(shift).add(new THREE.Vector3(0, where.y, 0));
     else
       piece.position.set(

@@ -1597,7 +1597,12 @@ describe('Nudelholz, Suppentopf, Eiswanne', () => {
     });
     // Käse gehört aufs Brett — auf dem Nudelholz bleibt er bloß liegen.
     expect(press(d('cheese'), { kind: 'roller' })).toEqual({ do: 'place', dish: d('cheese') });
-    expect(press(d('dough'), { kind: 'board' })).toEqual({ do: 'place', dish: d('dough') });
+    // Auf dem Brett wird der Teig dagegen geschnitten — in Teigstücke für Waffeln.
+    expect(press(d('dough'), { kind: 'board' })).toEqual({
+      do: 'work',
+      kind: 'chop',
+      dish: d('dough'),
+    });
     expect(kitchenPrompt(press(d('dough'), { kind: 'roller' }), 'Nudelholz')).toBe(
       'Teig ausrollen',
     );
