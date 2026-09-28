@@ -49,7 +49,8 @@ import { elementById, hasElement, type FurnitureFolder } from '../elements/eleme
 import { elementFacts } from '../elements/elementFacts';
 import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { KaykitDishView } from '../elements/dishView';
-import { dish } from '../test/zones/kitchenRecipes';
+import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipes';
+import { heldItemOf } from '../elements/dishHold';
 import { loadItemModel } from '../elements/itemTemplate';
 
 import {
@@ -114,6 +115,7 @@ import { KeyPanel, type KeyPanelRequest } from '../../ui/KeyPanel';
 import { isTyping } from '../../core/textEntry';
 import {
   GRAB_POSE_ID,
+  GRIP_POSE_ID,
   HAND_FIELDS,
   HOLD_HAND_POSE,
   defaultIdlePose,
@@ -3933,7 +3935,11 @@ export class PortalWorld implements World {
         // Element mit seinen gesperrten Zellen darunter, und im Steckbrief
         // Grundfläche, Belegung, Zweck und jedes Teil mit Adresse und Lage.
         full: true,
-        detail: { preview: `${ELEMENT_CELLS}${id}`, facts: elementFacts(id) },
+        detail: {
+          preview: `${ELEMENT_CELLS}${id}`,
+          facts: elementFacts(id),
+          ...this.holdAction(ctx, id),
+        },
         run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
       };
     };
@@ -12044,6 +12050,16 @@ export class PortalWorld implements World {
     this.highlighted = reachable;
   }
 
+  /**
+   * **Ob die Welt selbst etwas in dieser Hand trägt** — kein Werkzeug und kein
+   * Gegenstand der Portalwelt, sondern etwa ein Teller der Küche
+   * (`TestRestaurantWorld`). Dann schließt sich die Hand darum, mit der Faust
+   * des Halterzylinders.
+   */
+  protected carriesInHand(_hand: Handedness): boolean {
+    return false;
+  }
+
   private updateHandGestures(ctx: WorldContext, reachable: Set<PhysicsBody>): void {
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
@@ -12051,13 +12067,17 @@ export class PortalWorld implements World {
       // A tool in the hand brings its own grip, dialled in under
       // *Einstellungen → Hände*. A hand around a prop gets one too — that is
       // what `grab` is — and an empty hand goes back to the idle pose.
+      // Und ein Ding der Küche, das die Welt selbst in dieser Hand trägt
+      // (`carriesInHand`), hängt am Halterzylinder (`elements/dishHold.ts`) —
+      // also hält die Hand es mit der Faust des Standardgriffs.
+      const carried = !this.held.has(hand) && !this.grabs.has(hand) && this.carriesInHand(hand);
       ctx.hands.setHeldTool(
         hand,
         this.held.get(hand)?.toolId ??
           this.grabs.get(hand)?.poseId ??
-          (this.grabs.has(hand) ? GRAB_POSE_ID : null),
+          (this.grabs.has(hand) ? GRAB_POSE_ID : carried ? GRIP_POSE_ID : null),
       );
-      if (this.held.has(hand) || this.grabs.has(hand) || this.links.has(hand)) {
+      if (this.held.has(hand) || this.grabs.has(hand) || this.links.has(hand) || carried) {
         ctx.hands.setGestureOverride(hand, 'grip');
         continue;
       }
@@ -12470,6 +12490,51 @@ export class PortalWorld implements World {
       const element = id.slice(ELEMENT_PREVIEW.length);
       if (this.elementPreviews.get(element)) this.elementPreviews.delete(element);
     }
+  }
+
+  /**
+   * **_Halten einstellen_ auf der Detailseite eines Möbels** — gewünscht:
+   * _„bei z. B. möbeln wie scoop & cones, also damit wo ich interagieren würde
+   * in der detail seite einen button haben wollen, wo ich auf ein menü
+   * komme"_. Nur bei einem Möbel, das etwas in die Hand gibt
+   * (`dishHold.heldItemOf`: Hörnchen, Teller, Pfanne …), und nur, wo die App
+   * die Seite aufmachen kann.
+   */
+  private holdAction(
+    ctx: () => WorldContext,
+    id: string,
+  ): { action?: { label: string; sub: string; run(): void } } {
+    const element = elementById(id);
+    const item = heldItemOf(element);
+    if (!item) return {};
+    const label = ITEM_LABELS[item];
+    return {
+      action: {
+        label: 'Halten einstellen',
+        sub: `Wie die Hand ${label} am Halterzylinder hält — Lage, Drehung, Vorschau`,
+        run: () => this.openHold(ctx(), item, element.holdsOn),
+      },
+    };
+  }
+
+  /**
+   * Die Seite aufschlagen: das Ding so, wie es in der Hand hängt — das
+   * Hörnchen mit zwei Kugeln, damit man sieht, wo der Turm steht.
+   */
+  private openHold(
+    ctx: WorldContext,
+    item: KitchenItem,
+    on: readonly KitchenItem[] | undefined,
+  ): void {
+    if (!ctx.openHoldEditor) return;
+    this.elementDishes ??= new KaykitDishView(loadItemModel);
+    const dishes = this.elementDishes;
+    const inside = on ?? (item === 'cone' ? (['ice-vanilla', 'ice-strawberry'] as const) : []);
+    ctx.openHoldEditor({
+      item,
+      label: ITEM_LABELS[item],
+      model: () => dishes.view(dish(item, inside)),
+    });
   }
 
   /**

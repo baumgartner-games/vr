@@ -9,6 +9,7 @@ import type { Handedness } from '../../core/XRInput';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { KaykitDishView, dishKey } from '../elements/dishView';
+import { HAND_SCALE, dishHold, dishInHand } from '../elements/dishHold';
 import {
   FURNITURE_CATALOGUE,
   FURNITURE_FOLDERS,
@@ -46,9 +47,6 @@ const _nozzle = new THREE.Vector3();
 const _turn = new THREE.Quaternion();
 const _ray = new THREE.Ray();
 
-/** Wie groß das Getragene in der Brille in der Hand liegt (`kitchenGrab.HAND_FOOD_SCALE`). */
-const HAND_FOOD_SCALE = 0.5;
-
 /**
  * **Test Restaurant** — die zweite Welt im Ordner _Test_: Boden, Ankunftsort
  * und die Burgerküche, die der Besitzer aus dem Möbelkatalog zusammengestellt
@@ -83,6 +81,14 @@ export class TestRestaurantWorld extends GridWorld {
   /** Die Hand, in der es liegt. */
   private carriedHand: Handedness | null = null;
   private carriedView: THREE.Object3D | null = null;
+  /**
+   * Wie das Bild des Getragenen für sich gedreht ist — die Eiswanne liegt quer
+   * (`dishView`). Die Lage in der Hand kommt obendrauf und nicht an ihre
+   * Stelle.
+   */
+  private readonly carriedTurn = new THREE.Quaternion();
+  /** Welche Hand es gerade wirklich umschließt — nur in der Brille, am Controller. */
+  private gripped: Handedness | null = null;
   private readonly carryPoint = new THREE.Vector3();
   /** Hochgezählt je Möbel aus dem Katalog — für eindeutige Stellen. */
   private furnished = 0;
@@ -410,6 +416,12 @@ export class TestRestaurantWorld extends GridWorld {
     if (before === after && (this.carriedView || !next)) return;
     this.carriedView?.removeFromParent();
     this.carriedView = next ? (this.dishes?.view(next) ?? null) : null;
+    if (this.carriedView) this.carriedTurn.copy(this.carriedView.quaternion);
+  }
+
+  /** Die Hand, die ein Ding der Küche trägt, schließt sich darum (`PortalWorld.carriesInHand`). */
+  protected override carriesInHand(hand: Handedness): boolean {
+    return this.gripped === hand;
   }
 
   /**
@@ -419,6 +431,7 @@ export class TestRestaurantWorld extends GridWorld {
    */
   private carryInHands(ctx: WorldContext): void {
     const thing = this.carriedView;
+    this.gripped = null;
     if (!thing) {
       ctx.avatar.carry = null;
       return;
@@ -437,19 +450,30 @@ export class TestRestaurantWorld extends GridWorld {
     };
     if (ctx.renderer.xr.isPresenting) {
       const controller = this.carriedHand ? ctx.input.get(this.carriedHand) : null;
-      if (controller?.tracked) {
+      if (controller?.tracked && this.carried && this.carriedHand) {
+        // **Am Halterzylinder** (`elements/dishHold.ts`): Das Ding liegt so in
+        // der Hand, dass der Zylinder, den man auf der Seite _Halten
+        // einstellen_ hineingesetzt hat, im Standardgriff der Faust liegt —
+        // das Hörnchen senkrecht darin statt 8 cm davor.
         hang(controller.hold);
-        thing.position.set(0, -0.02, -0.08);
-        thing.scale.setScalar(HAND_FOOD_SCALE);
+        const at = dishInHand(dishHold(this.carried.item), this.carriedHand);
+        thing.position.set(at.position.x, at.position.y, at.position.z);
+        thing.quaternion
+          .set(at.rotation.x, at.rotation.y, at.rotation.z, at.rotation.w)
+          .multiply(this.carriedTurn);
+        thing.scale.setScalar(HAND_SCALE);
+        this.gripped = this.carriedHand;
       } else {
         hang(ctx.rig);
         thing.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
+        thing.quaternion.copy(this.carriedTurn);
         thing.scale.setScalar(0.8);
       }
       ctx.avatar.carry = null;
       return;
     }
     hang(ctx.rig);
+    thing.quaternion.copy(this.carriedTurn);
     if (!ctx.topDown) {
       thing.position.set(0.24, ctx.rig.camera.position.y - 0.4, -0.85);
       thing.scale.setScalar(0.42);

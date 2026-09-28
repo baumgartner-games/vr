@@ -10,6 +10,7 @@ import type { PlayerAvatar } from './PlayerAvatar';
 import type { HandVisuals } from './HandVisuals';
 import type { WristMenus } from '../ui/WristMenus';
 import type { MenuEntry, MenuIcon } from '../ui/menu';
+import type { HoldSubject } from '../ui/HoldMenu';
 import type { NetSession } from '../net/NetSession';
 import type { RemoteAvatars } from '../net/RemoteAvatars';
 import type { LivePreview } from '../worlds/shared/livePreview';
@@ -161,6 +162,13 @@ export interface WorldContext {
    * Handgelenk — dort steht die Figur ja schon im Spiegel am Schrank.
    */
   openWardrobe(): void;
+  /**
+   * **_Halten einstellen_ aufmachen** (`ui/HoldMenu.ts`) — die Seite hinter
+   * dem Knopf auf der Detailseite eines Möbels: das Ding in der Luft, der
+   * Halterzylinder darin, die Hand daran. Nur am Schirm und nur in der App
+   * (die Werkzeugseite hat keine), deshalb optional.
+   */
+  openHoldEditor?(subject: HoldSubject): void;
 }
 
 /**
