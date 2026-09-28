@@ -109,6 +109,8 @@ import {
   nextXrScale,
   saveGraphics,
 } from './graphicsSettings';
+import { applyAudioSettings } from './Audio';
+import { audioSettings, audioSummary, saveAudioSettings } from './audioSettings';
 import {
   fullscreenActive,
   fullscreenSupported,
@@ -1319,6 +1321,7 @@ export class App {
       this.inputsMenu(),
       this.appearanceMenu(),
       this.graphicsMenu(),
+      this.audioMenu(),
       ...this.helpLinks(),
       ...this.worldMenu,
     ];
@@ -2051,6 +2054,63 @@ export class App {
     // Das Aussehen steht in der Vorstellung und nicht in der Pose: einmal
     // ansagen reicht, zwanzigmal in der Sekunde wäre Unfug.
     this.net.announce();
+  }
+
+  /**
+   * **Ton** — drei Schalter unter _Einstellungen_: alles, nur die Musik, nur
+   * die Effekte (`core/audioSettings.ts`). Sie wirken sofort auf die Schienen
+   * des gemeinsamen Kontexts (`Audio.applyAudioSettings`) und gelten, wie die
+   * Grafik, für das Gerät und nicht für die Welt.
+   */
+  private audioMenu(): MenuEntry {
+    const accent = 0xff8fb8;
+    const settings = audioSettings();
+    const toggle = (key: 'sound' | 'music' | 'effects', on: string, off: string): (() => void) => {
+      return () => {
+        const next = saveAudioSettings({ [key]: !audioSettings()[key] });
+        applyAudioSettings(next);
+        this.notify(next[key] ? on : off);
+        this.menuDirty = true;
+      };
+    };
+    return {
+      id: 'audio',
+      label: 'Ton',
+      sub: audioSummary(settings),
+      icon: 'settings',
+      accent,
+      children: [
+        {
+          id: 'audio:sound',
+          label: 'Ton',
+          sub: 'Alles, was klingt — auch die Stimmen der anderen',
+          icon: 'settings',
+          accent,
+          checked: settings.sound,
+          run: toggle('sound', 'Ton an', 'Ton aus'),
+        },
+        {
+          id: 'audio:music',
+          label: 'Musik',
+          sub: 'Das Radio und alles, was sonst Musik ist',
+          ...(settings.sound ? {} : { caption: 'Solange der Ton aus ist, bleibt es still' }),
+          icon: 'settings',
+          accent,
+          checked: settings.music,
+          run: toggle('music', 'Musik an', 'Musik aus'),
+        },
+        {
+          id: 'audio:effects',
+          label: 'Effekte',
+          sub: 'Schüsse, Schritte, Küche, Türen, Knöpfe',
+          ...(settings.sound ? {} : { caption: 'Solange der Ton aus ist, bleibt es still' }),
+          icon: 'settings',
+          accent,
+          checked: settings.effects,
+          run: toggle('effects', 'Effekte an', 'Effekte aus'),
+        },
+      ],
+    };
   }
 
   /**

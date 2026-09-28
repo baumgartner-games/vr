@@ -1,7 +1,10 @@
 import { sharedAudio } from '../../core/Audio';
 import { ShipAudio, SHIP_AUDIO_VOICES, spatialMix } from './shipAudio';
 
-jest.mock('../../core/Audio', () => ({ sharedAudio: jest.fn() }));
+jest.mock('../../core/Audio', () => ({
+  sharedAudio: jest.fn(),
+  audioBus: (ctx: AudioContext) => ctx.destination,
+}));
 
 function fakeAudio(): {
   context: AudioContext;

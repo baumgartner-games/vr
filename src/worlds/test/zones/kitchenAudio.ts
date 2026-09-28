@@ -1,4 +1,4 @@
-import { sharedAudio } from '../../../core/Audio';
+import { audioBus, sharedAudio } from '../../../core/Audio';
 import { versioned } from '../../../core/assetVersion';
 import {
   KITCHEN_CUES,
@@ -53,6 +53,12 @@ interface Loop {
 export class KitchenAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  /**
+   * **Das Radio geht auf die Schiene _Musik_** (`core/Audio.audioBus`), alles
+   * andere auf _Effekte_ — so schaltet _Musik aus_ im Menü das Radio ab und
+   * lässt die Pfannen brutzeln.
+   */
+  private music: GainNode | null = null;
   private readonly voices: Voice[] = [];
   private readonly loops = new Map<KitchenCue, Loop>();
   /** Entpackte Aufnahmen je Datei — `water.ogg` gehört zu zwei Tönen. */
@@ -190,7 +196,10 @@ export class KitchenAudio {
     gain.gain.setTargetAtTime(level, ctx.currentTime, FADE / 3);
     const pan = ctx.createStereoPanner();
     pan.pan.setValueAtTime(heard.pan, ctx.currentTime);
-    source.connect(gain).connect(pan).connect(this.master!);
+    source
+      .connect(gain)
+      .connect(pan)
+      .connect(cue === 'radio' ? this.music! : this.master!);
     source.start();
     this.loops.set(cue, { source, gain, pan, variant });
   }
@@ -242,6 +251,8 @@ export class KitchenAudio {
     this.voices.length = 0;
     this.master?.disconnect();
     this.master = null;
+    this.music?.disconnect();
+    this.music = null;
     this.buffers.clear();
     this.pending.clear();
     this.chosen.clear();
@@ -314,7 +325,9 @@ export class KitchenAudio {
     this.context = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = 1;
-    this.master.connect(ctx.destination);
+    this.master.connect(audioBus(ctx, 'effects'));
+    this.music = ctx.createGain();
+    this.music.connect(audioBus(ctx, 'music'));
     for (let i = 0; i < KITCHEN_VOICES; i++) {
       const gain = ctx.createGain();
       const pan = ctx.createStereoPanner();

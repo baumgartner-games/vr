@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { sharedAudio } from '../core/Audio';
+import { audioBus, sharedAudio } from '../core/Audio';
 import type { NetSession } from './NetSession';
 import type { RemoteAvatars } from './RemoteAvatars';
 
@@ -217,7 +217,7 @@ export class Voice {
       const source = ctx.createMediaStreamSource(stream);
       source.connect(analyser);
       analyser.connect(panner);
-      panner.connect(ctx.destination);
+      panner.connect(audioBus(ctx, 'master'));
       voice.source = source;
       voice.panner = panner;
       voice.analyser = analyser;
