@@ -934,20 +934,34 @@ schließen sie, und das Menü geht an derselben Detailseite wieder auf
 
 - das Ding **in der Luft**, so groß wie in der Hand (das Hörnchen mit zwei
   Kugeln), wischen dreht, das Rad zoomt;
-- drei Häkchen: **Gegenstand als Geist (durchsichtig)** (das Ding zu einem
+- vier Häkchen: **Gegenstand als Geist (durchsichtig)** (das Ding zu einem
   Drittel sichtbar und ohne Tiefe, damit der Zylinder darin zu sehen ist — die
   Stoffe der Vorlage bleiben unberührt, getauscht wird am Mesh, `ghostOf`; in
   jedem Bild nachgesehen, weil das Hörnchen sein Modell erst nach dem Öffnen
   lädt und sonst nur die Kugeln durchsichtig wurden),
-  **Halterzylinder zeigen** (grün, mit dem rosa Pfeil nach vorn) und
-  **VR-Hand am Zylinder zeigen** (die rechte Hand in der Faust des
-  Halterzylinders, in der Farbe und dem Modell der Einstellungen);
-- sechs Regler mit − und +: x, y, z in 0,5-cm-Schritten, Pitch, Yaw, Roll in
-  **10°-Schritten** (_„gerne einfach in 10° schritten"_). Eine Zahl zwischen
-  zwei Rasten springt zuerst auf die nächste (`stepHold`) — `LEGACY_HOLD` steht
-  auf −43°.
-- _Zurücksetzen_ (die Haltung aus dem Code), _Kopieren_ (die Zeile für
-  `DISH_HOLDS`, `holdLine`), _Fertig_.
+  **Halterzylinder zeigen** (grün, mit dem rosa Pfeil nach vorn),
+  **Controller zeigen (Geist)** (der rechte Controller durchsichtig im
+  Griffraum `C · G⁻¹`, also dort, wo er in der Brille säße — er zeigt die
+  Richtung des Zylinders; erst der gebaute, dann das echte Modell) und
+  **VR-Hand zeigen (nur optisch)** (die rechte Hand bei `Controller · H`, in
+  der Farbe und dem Modell der Einstellungen);
+- **VR-Hand zum Controller zurücksetzen**: nimmt die eingestellte Faust des
+  Standardgriffs weg (`clearHoldHandPose`, beide Hände) — dann hält die Hand
+  wieder den Zylinder;
+- ein Umschalter **Halterzylinder | VR-Hand** vor den Reglern: was sie
+  verschieben. _Halterzylinder_ ist die Lage im Ding (`DishHold`), _VR-Hand_
+  die Faust am Controller (`GRIP_POSE_ID`, rechts gespeichert, links
+  gespiegelt). Die Hand ist **nur Bild** — Ding und Zylinder bleiben stehen —
+  und gilt für **jeden** Standardgriff, denn in der Brille hält dieselbe
+  Faust auch Pistole und Messer;
+- sechs Regler mit − und +: x, y, z in 0,5-cm-Schritten, Pitch, Yaw, Roll am
+  Zylinder in **10°-Schritten** (_„gerne einfach in 10° schritten"_), an der
+  Hand in 1°-Schritten (`HAND_HOLD_FIELDS` — die Faust ab Werk steht auf
+  −43°/−17°/−90°). Eine Zahl zwischen zwei Rasten springt zuerst auf die
+  nächste (`stepHold`) — `LEGACY_HOLD` steht auf −43°.
+- _Zylinder zurücksetzen_ (die Haltung aus dem Code), _Kopieren_ (zwei
+  Zeilen: die für `DISH_HOLDS`, `holdLine`, und die Hand, `gripHandLine`),
+  _Fertig_.
 
 Gespeichert wird **sofort**, im Browser (`bgvr.dishHolds`), und die Welt liest
 es im nächsten Bild. Das heißt auch: Was am Telefon eingestellt ist, gilt nicht

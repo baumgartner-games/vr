@@ -1,13 +1,21 @@
 import * as THREE from 'three';
 import { GhostHand, handColor, styleOfSetting } from '../core/HandVisuals';
-import { GRIP_POSE_ID } from '../core/handPose';
-import { holdHandPose } from '../core/handPoseStore';
+import { buildControllerShape, controllerShape, ownMaterials } from '../core/ControllerModels';
+import { GRIP_POSE_ID, mirrorHandPose, setHandPoseField, type HandPose } from '../core/handPose';
+import {
+  clearHoldHandPose,
+  hasHandPose,
+  holdHandPose,
+  saveHoldHandPose,
+} from '../core/handPoseStore';
 import { createLighting } from '../worlds/shared/environment';
 import { createGripShape } from '../worlds/portal/tools/grip';
 import { STANDARD_GRIP_IN_HAND } from '../worlds/portal/tools/gripFit';
 import {
+  HAND_HOLD_FIELDS,
   HAND_SCALE,
   HOLD_FIELDS,
+  gripHandLine,
   defaultDishHold,
   dishHold,
   dishHoldStored,
@@ -43,6 +51,20 @@ import './holdMenu.css';
  * Hörnchen verdeckt ihn ganz. Gewünscht: _„checkbox: objekt ghost an/aus"_ —
  * das Ding wird dann halb durchsichtig gezeichnet, und man sieht, wo der
  * Zylinder darin sitzt (`HoldScene.set`).
+ *
+ * **Controller und Hand, jedes für sich** — gewünscht: _„bei der VR-Hand am
+ * Zylinder anzeigen, meine ich dass die hand anzeige losgelöst sein kann von
+ * dem zylinder (nur optisch die hand)"_, dazu ein **Geist des Controllers**
+ * als Richtung des Zylinders. Die Kette ist dieselbe wie in der Brille: Der
+ * Controller sitzt bei `C · G⁻¹` (der Griffraum, in dem der Zylinder im
+ * Standardgriff liegt), die Hand bei `Controller · H`. Über den Reglern wählt
+ * man, **was** sie verschieben: den Zylinder im Ding (`DishHold`) oder die
+ * Hand am Controller (`H`, die Faust des Standardgriffs, `GRIP_POSE_ID`,
+ * rechts eingestellt und links gespiegelt). Die Hand ist nur Bild — sie
+ * verschiebt weder Ding noch Zylinder — und gilt für **jeden** Standardgriff,
+ * denn in der Brille hält dieselbe Faust auch Pistole und Messer.
+ * _VR-Hand zum Controller zurück_ nimmt die eingestellte Faust weg; _Kopieren_
+ * gibt beide Zeilen, Zylinder und Hand.
  *
  * **Das Ding steht still, der Zylinder wandert.** Eingestellt wird die Lage
  * des Zylinders **im Ding** (`dishHold.DishHold`); die Hand hängt am Zylinder
@@ -90,10 +112,14 @@ export class HoldMenu {
   private readonly stage: HTMLElement;
   private readonly ghostBox: HTMLInputElement;
   private readonly cylinderBox: HTMLInputElement;
+  private readonly controllerBox: HTMLInputElement;
   private readonly handBox: HTMLInputElement;
+  private readonly targetButtons: Record<HoldTarget, HTMLButtonElement>;
   private readonly rows: Array<{
     key: keyof DishHold;
     range: HTMLInputElement;
+    minus: HTMLButtonElement;
+    plus: HTMLButtonElement;
     value: HTMLElement;
   }> = [];
   private readonly noteEl: HTMLElement;
@@ -104,7 +130,10 @@ export class HoldMenu {
   private view: HoldScene | null = null;
   private ghost = false;
   private showCylinder = true;
+  private showController = true;
   private showHand = true;
+  /** Was die Regler gerade verschieben. */
+  private target: HoldTarget = 'cylinder';
 
   constructor(options: HoldMenuOptions = {}) {
     this.onToggle = options.onToggle ?? null;
@@ -138,36 +167,64 @@ export class HoldMenu {
     const checks = el('div', 'hold__checks');
     this.ghostBox = check(checks, 'Gegenstand als Geist (durchsichtig)', this.ghost);
     this.cylinderBox = check(checks, 'Halterzylinder zeigen', this.showCylinder);
-    this.handBox = check(checks, 'VR-Hand am Zylinder zeigen', this.showHand);
-    controls.append(checks);
+    this.controllerBox = check(checks, 'Controller zeigen (Geist)', this.showController);
+    this.handBox = check(checks, 'VR-Hand zeigen (nur optisch)', this.showHand);
+    const handReset = el(
+      'button',
+      'hold__button hold__wide',
+      'VR-Hand zum Controller zurücksetzen',
+    );
+    handReset.type = 'button';
+    handReset.title = 'Die eingestellte Faust wegnehmen — die Hand hält wieder den Zylinder';
+    controls.append(checks, handReset);
+
+    // **Was die Regler verschieben** — der Zylinder im Ding oder die Hand am
+    // Controller. Zwei Knöpfe nebeneinander, der gewählte in der Farbe.
+    const targets = el('div', 'hold__targets');
+    targets.setAttribute('role', 'radiogroup');
+    targets.setAttribute('aria-label', 'Regler verschieben');
+    const targetButton = (target: HoldTarget, text: string): HTMLButtonElement => {
+      const button = el('button', 'hold__target', text);
+      button.type = 'button';
+      button.setAttribute('role', 'radio');
+      button.addEventListener('click', () => {
+        this.target = target;
+        this.paint();
+      });
+      targets.append(button);
+      return button;
+    };
+    this.targetButtons = {
+      cylinder: targetButton('cylinder', 'Halterzylinder'),
+      hand: targetButton('hand', 'VR-Hand'),
+    };
+    controls.append(targets);
 
     for (const field of HOLD_FIELDS) {
       const row = el('div', 'hold__row');
       const name = el('span', 'hold__name', field.label);
       const minus = el('button', 'hold__step', '−');
       minus.type = 'button';
-      minus.title = `${field.label} − ${field.step} ${field.unit}`;
       const range = document.createElement('input');
       range.type = 'range';
       range.className = 'hold__range';
       range.min = String(field.min);
       range.max = String(field.max);
-      range.step = String(field.step);
       range.setAttribute('aria-label', `${field.label} in ${field.unit}`);
       const plus = el('button', 'hold__step', '+');
       plus.type = 'button';
-      plus.title = `${field.label} + ${field.step} ${field.unit}`;
       const value = el('span', 'hold__value');
       row.append(name, minus, range, plus, value);
       controls.append(row);
-      this.rows.push({ key: field.key, range, value });
+      this.rows.push({ key: field.key, range, minus, plus, value });
 
       const angle = field.unit === '°';
+      const step = (): number => fieldsOf(this.target).find((one) => one.key === field.key)!.step;
       minus.addEventListener('click', () =>
-        this.change(field.key, (now) => stepHold(now, field.step, -1, angle)),
+        this.change(field.key, (now) => stepHold(now, step(), -1, angle)),
       );
       plus.addEventListener('click', () =>
-        this.change(field.key, (now) => stepHold(now, field.step, 1, angle)),
+        this.change(field.key, (now) => stepHold(now, step(), 1, angle)),
       );
       range.addEventListener('input', () => this.change(field.key, () => Number(range.value)));
     }
@@ -178,12 +235,12 @@ export class HoldMenu {
     body.append(this.stage, controls);
 
     const foot = el('div', 'hold__foot');
-    const reset = el('button', 'hold__button', 'Zurücksetzen');
+    const reset = el('button', 'hold__button', 'Zylinder zurücksetzen');
     reset.type = 'button';
-    reset.title = 'Die Haltung aus dem Code';
+    reset.title = 'Die Haltung des Zylinders aus dem Code';
     const copy = el('button', 'hold__button', 'Kopieren');
     copy.type = 'button';
-    copy.title = 'Die Zeile für DISH_HOLDS in die Zwischenablage';
+    copy.title = 'Zylinder und Hand als zwei Zeilen in die Zwischenablage';
     const done = el('button', 'hold__done', 'Fertig');
     done.type = 'button';
     foot.append(reset, copy, done);
@@ -207,10 +264,15 @@ export class HoldMenu {
       this.showCylinder = this.cylinderBox.checked;
       this.paint();
     });
+    this.controllerBox.addEventListener('change', () => {
+      this.showController = this.controllerBox.checked;
+      this.paint();
+    });
     this.handBox.addEventListener('change', () => {
       this.showHand = this.handBox.checked;
       this.paint();
     });
+    handReset.addEventListener('click', () => this.resetHand());
     this.stage.addEventListener('pointerdown', this.onPointerDown);
     this.stage.addEventListener('wheel', this.onWheel, { passive: false });
     window.addEventListener('keydown', this.onKeyDown);
@@ -265,11 +327,26 @@ export class HoldMenu {
   private change(key: keyof DishHold, next: (now: number) => number): void {
     const subject = this.subject;
     if (!subject) return;
-    const hold = this.hold();
-    const value = next(hold[key]);
-    if (!Number.isFinite(value)) return;
-    saveDishHold(subject.item, { ...hold, [key]: value });
+    if (this.target === 'hand') {
+      const pose = holdHandPose('right', GRIP_POSE_ID);
+      const value = next(pose[key]);
+      if (!Number.isFinite(value)) return;
+      saveGripHand(setHandPoseField(pose, key, value));
+    } else {
+      const hold = this.hold();
+      const value = next(hold[key]);
+      if (!Number.isFinite(value)) return;
+      saveDishHold(subject.item, { ...hold, [key]: value });
+    }
     this.setNote('');
+    this.paint();
+  }
+
+  /** Die Faust des Standardgriffs vergessen — an beiden Händen, wie sie gespeichert wird. */
+  private resetHand(): void {
+    clearHoldHandPose('right', GRIP_POSE_ID);
+    clearHoldHandPose('left', GRIP_POSE_ID);
+    this.setNote('VR-Hand wieder am Controller — die Faust aus dem Code.');
     this.paint();
   }
 
@@ -284,7 +361,10 @@ export class HoldMenu {
   private copy(): void {
     const subject = this.subject;
     if (!subject) return;
-    const line = holdLine(subject.item, this.hold());
+    const line = `${holdLine(subject.item, this.hold())}\n${gripHandLine(
+      holdHandPose('right', GRIP_POSE_ID),
+      hasHandPose('right', GRIP_POSE_ID),
+    )}`;
     const clipboard = globalThis.navigator?.clipboard;
     if (!clipboard) {
       this.setNote(line);
@@ -303,17 +383,33 @@ export class HoldMenu {
   /** Zahlen, Regler und Bild auf den Stand der gespeicherten Haltung. */
   private paint(): void {
     const hold = this.hold();
+    const hand = holdHandPose('right', GRIP_POSE_ID);
+    const shown: Readonly<Record<keyof DishHold, number>> = this.target === 'hand' ? hand : hold;
+    const fields = fieldsOf(this.target);
+    for (const [target, button] of Object.entries(this.targetButtons)) {
+      const on = target === this.target;
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-checked', String(on));
+    }
     for (const row of this.rows) {
-      const value = hold[row.key];
+      const value = shown[row.key];
+      const field = fields.find((one) => one.key === row.key)!;
+      row.range.step = String(field.step);
+      row.minus.title = `${field.label} − ${field.step} ${field.unit}`;
+      row.plus.title = `${field.label} + ${field.step} ${field.unit}`;
       // Ein Regler, an dem gerade gezogen wird, bekommt seine Zahl nicht
       // zurückgeschrieben — sonst springt er unter dem Finger auf die Raste.
       if (document.activeElement !== row.range) row.range.value = String(value);
-      const field = HOLD_FIELDS.find((one) => one.key === row.key)!;
       row.value.textContent = `${round(value)} ${field.unit}`;
     }
     const stored = this.subject ? dishHoldStored(this.subject.item) : false;
     this.sheet.classList.toggle('is-custom', stored);
-    this.view?.set(hold, this.showCylinder, this.showHand, this.ghost);
+    this.view?.set(hold, hand, {
+      cylinder: this.showCylinder,
+      controller: this.showController,
+      hand: this.showHand,
+      ghost: this.ghost,
+    });
   }
 
   // --- Bühne ------------------------------------------------------------------
@@ -388,6 +484,17 @@ class HoldScene {
   private readonly shape: THREE.Mesh;
   private readonly hand: GhostHand;
   /**
+   * **Der Controller als Geist** — dort, wo er in der Brille säße: im
+   * Griffraum, also bei `C · G⁻¹`. Erst der selbst gebaute, dann, sobald die
+   * Datei da ist, das echte Modell (`ControllerModels.controllerShape`).
+   * Durchsichtig und ohne Tiefe, damit er Zylinder und Hand nicht verdeckt.
+   */
+  private readonly controller = new THREE.Group();
+  private readonly controllerStuff: THREE.Material[] = [];
+  private readonly controllerMeshes: THREE.Mesh[] = [];
+  private real: THREE.Object3D | null = null;
+  private disposed = false;
+  /**
    * Die Stoffe des Dings, wie sie kamen, und ihre durchsichtigen Doppel. Die
    * Stoffe gehören den Vorlagen der Welt (`KaykitDishView`) und werden deshalb
    * nie verändert: Getauscht wird am Mesh, und beim Schließen kommt das
@@ -438,30 +545,70 @@ class HoldScene {
     });
     this.scene.add(this.hand);
 
+    const shell = this.ghostStuff(0x9aa6bd);
+    const built = buildControllerShape('right', shell, (_key, color) =>
+      this.ghostStuff(color),
+    ).root;
+    built.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (mesh.isMesh) this.controllerMeshes.push(mesh);
+    });
+    this.controller.add(built);
+    this.scene.add(this.controller);
+    void controllerShape('right').then((shape) => {
+      if (!shape || this.disposed) return;
+      for (const material of ownMaterials(shape)) {
+        material.transparent = true;
+        material.opacity = CONTROLLER_OPACITY;
+        material.depthWrite = false;
+        this.controllerStuff.push(material);
+      }
+      this.real = shape;
+      built.visible = false;
+      this.controller.add(shape);
+    });
+
     this.loop();
   }
 
-  set(hold: DishHold, cylinder: boolean, hand: boolean, ghost: boolean): void {
-    this.ghosted = ghost;
+  private ghostStuff(color: number): THREE.MeshStandardMaterial {
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.6,
+      transparent: true,
+      opacity: CONTROLLER_OPACITY,
+      depthWrite: false,
+    });
+    this.controllerStuff.push(material);
+    return material;
+  }
+
+  set(hold: DishHold, pose: HandPose, show: SceneShow): void {
+    this.ghosted = show.ghost;
     this.dress();
     this.cylinder.position.set(hold.x / 100, hold.y / 100, hold.z / 100);
     this.cylinder.quaternion.setFromEuler(
       _euler.set(hold.pitch * DEG, hold.yaw * DEG, hold.roll * DEG, 'XYZ'),
     );
-    this.cylinder.visible = cylinder;
+    this.cylinder.visible = show.cylinder;
 
-    const pose = holdHandPose('right', GRIP_POSE_ID);
+    // Der Controller: der Griffraum, in dem der Zylinder im Standardgriff liegt.
     this.cylinder.updateMatrix();
+    _c.multiplyMatrices(this.cylinder.matrix, GRIP_INVERSE);
+    _c.decompose(this.controller.position, this.controller.quaternion, _s);
+    this.controller.visible = show.controller;
+
+    // Die Hand: am Controller, wo ihre Faust sie hinsetzt.
     _h.compose(
       _p.set(pose.x / 100, pose.y / 100, pose.z / 100),
       _q.setFromEuler(_euler.set(pose.pitch * DEG, pose.yaw * DEG, pose.roll * DEG, 'XYZ')),
       _one,
     );
-    _m.multiplyMatrices(this.cylinder.matrix, GRIP_INVERSE).multiply(_h);
+    _m.multiplyMatrices(_c, _h);
     _m.decompose(this.hand.position, this.hand.quaternion, _s);
     this.hand.setPose(pose);
     this.hand.update(1);
-    this.hand.visible = hand;
+    this.hand.visible = show.hand;
   }
 
   /**
@@ -499,7 +646,14 @@ class HoldScene {
   dispose(): void {
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
+    this.disposed = true;
     this.hand.dispose();
+    // Das echte Modell teilt seine Geometrie mit allen Controllern: nur
+    // aushängen. Die eigenen Kästen und alle Stoffe gehören dieser Szene.
+    this.real?.removeFromParent();
+    this.real = null;
+    for (const mesh of this.controllerMeshes) mesh.geometry.dispose();
+    for (const material of this.controllerStuff) material.dispose();
     this.shape.geometry.dispose();
     this.shape.traverse((node) => {
       const line = node as THREE.LineSegments;
@@ -576,6 +730,34 @@ const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
 const _one = new THREE.Vector3(1, 1, 1);
 const _h = new THREE.Matrix4();
+const _c = new THREE.Matrix4();
+/** Wie viel vom Controller-Geist zu sehen ist. */
+const CONTROLLER_OPACITY = 0.45;
+
+/** Was die Regler verschieben. */
+type HoldTarget = 'cylinder' | 'hand';
+
+interface SceneShow {
+  readonly cylinder: boolean;
+  readonly controller: boolean;
+  readonly hand: boolean;
+  readonly ghost: boolean;
+}
+
+function fieldsOf(target: HoldTarget): typeof HOLD_FIELDS | typeof HAND_HOLD_FIELDS {
+  return target === 'hand' ? HAND_HOLD_FIELDS : HOLD_FIELDS;
+}
+
+/**
+ * **Die Faust des Standardgriffs speichern** — rechts, wie sie hier gezeigt
+ * wird, und links gespiegelt, wie es die Seite _Hände_ auch tut
+ * (`mirrorHandPose`). Sonst hielte die linke Hand in der Brille das Hörnchen
+ * anders als die rechte.
+ */
+function saveGripHand(pose: HandPose): void {
+  saveHoldHandPose('right', GRIP_POSE_ID, pose);
+  saveHoldHandPose('left', GRIP_POSE_ID, mirrorHandPose(pose));
+}
 const _m = new THREE.Matrix4();
 /** Der Standardgriff in der Hand, umgekehrt: vom Zylinder zurück in den Griffraum. */
 const GRIP_INVERSE = new THREE.Matrix4()

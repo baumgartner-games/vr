@@ -182,6 +182,28 @@ export const HOLD_FIELDS = [
 }>;
 
 /**
+ * **Die sechs Zahlen der Hand am Controller** — dieselben Namen wie beim
+ * Zylinder, aber feiner: Die Faust ab Werk steht bei −43°/−17°/−90°
+ * (`handPose.GRIP_HAND_POSE`), und auf 10°-Rasten ließe sie sich nicht
+ * zurückstellen.
+ */
+export const HAND_HOLD_FIELDS = [
+  { key: 'x', label: 'x', unit: 'cm', step: 0.5, min: -30, max: 30 },
+  { key: 'y', label: 'y', unit: 'cm', step: 0.5, min: -30, max: 30 },
+  { key: 'z', label: 'z', unit: 'cm', step: 0.5, min: -30, max: 30 },
+  { key: 'pitch', label: 'Pitch', unit: '°', step: 1, min: -180, max: 180 },
+  { key: 'yaw', label: 'Yaw', unit: '°', step: 1, min: -180, max: 180 },
+  { key: 'roll', label: 'Roll', unit: '°', step: 1, min: -180, max: 180 },
+] as const satisfies ReadonlyArray<{
+  key: keyof DishHold;
+  label: string;
+  unit: string;
+  step: number;
+  min: number;
+  max: number;
+}>;
+
+/**
  * **Einen Schritt weiter, auf der Raste** — gewünscht: _„gerne einfach in 10°
  * schritten"_. Eine Zahl, die zwischen zwei Rasten steht (die bisherige Lage
  * vor der Faust ist um −43° geneigt), springt zuerst auf die nächste Raste in
@@ -208,6 +230,20 @@ export function holdLine(item: KitchenItem, hold: DishHold): string {
   const { x, y, z, pitch, yaw, roll } = hold;
   const key = /^[a-z]+$/.test(item) ? item : `'${item}'`;
   return `${key}: { x: ${x}, y: ${y}, z: ${z}, pitch: ${pitch}, yaw: ${yaw}, roll: ${roll} },`;
+}
+
+/**
+ * **Die zweite Zeile zum Mitnehmen: die Hand am Controller** — die sechs
+ * Zahlen der Faust des Standardgriffs (`handPose.GRIP_HAND_POSE`, rechte
+ * Hand), mit dem Vermerk, ob sie eingestellt ist oder aus dem Code kommt.
+ */
+export function gripHandLine(
+  pose: Pick<DishHold, 'x' | 'y' | 'z' | 'pitch' | 'yaw' | 'roll'>,
+  stored: boolean,
+): string {
+  const { x, y, z, pitch, yaw, roll } = pose;
+  const from = stored ? 'eingestellt' : 'aus dem Code';
+  return `GRIP_HAND_POSE (rechts, ${from}): { x: ${x}, y: ${y}, z: ${z}, pitch: ${pitch}, yaw: ${yaw}, roll: ${roll} },`;
 }
 
 // --- Speicher ---------------------------------------------------------------
