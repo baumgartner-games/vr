@@ -948,20 +948,30 @@ schließen sie, und das Menü geht an derselben Detailseite wieder auf
 - **VR-Hand zum Controller zurücksetzen**: nimmt die eingestellte Faust des
   Standardgriffs weg (`clearHoldHandPose`, beide Hände) — dann hält die Hand
   wieder den Zylinder;
-- ein Umschalter **Halterzylinder | VR-Hand** vor den Reglern: was sie
-  verschieben. _Halterzylinder_ ist die Lage im Ding (`DishHold`), _VR-Hand_
+- ein Umschalter **Halterzylinder | VR-Hand | Neigung (alle)** vor den
+  Reglern: was sie verschieben. _Halterzylinder_ ist die Lage im Ding (`DishHold`), _VR-Hand_
   die Faust am Controller (`GRIP_POSE_ID`, rechts gespeichert, links
   gespiegelt). Die Hand ist **nur Bild** — Ding und Zylinder bleiben stehen —
   und gilt für **jeden** Standardgriff, denn in der Brille hält dieselbe
-  Faust auch Pistole und Messer;
+  Faust auch Pistole und Messer. _Neigung (alle)_ ist die Lage des Zylinders
+  selbst im Standardgriff (`DISH_GRIP`, gespeichert unter `*` in
+  `bgvr.dishHolds`, `dishGripInHand`) — Roll dreht ihn um seinen Pfeil. Sie
+  gilt für **jedes** Ding der Küche und für kein Werkzeug; auf der Seite
+  drehen Controller und Hand um den stillstehenden Zylinder;
 - sechs Regler mit − und +: x, y, z in 0,5-cm-Schritten, Pitch, Yaw, Roll am
   Zylinder in **10°-Schritten** (_„gerne einfach in 10° schritten"_), an der
   Hand in 1°-Schritten (`HAND_HOLD_FIELDS` — die Faust ab Werk steht auf
   −43°/−17°/−90°). Eine Zahl zwischen zwei Rasten springt zuerst auf die
   nächste (`stepHold`) — `LEGACY_HOLD` steht auf −43°.
-- _Zylinder zurücksetzen_ (die Haltung aus dem Code), _Kopieren_ (zwei
-  Zeilen: die für `DISH_HOLDS`, `holdLine`, und die Hand, `gripHandLine`),
-  _Fertig_.
+- _Zurücksetzen_ (was gewählt ist, zurück auf den Code), _Kopieren_ (drei
+  Zeilen: die für `DISH_HOLDS`, `holdLine`, die Hand, `gripHandLine`, und die
+  Neigung, `dishGripLine`), _Fertig_.
+- Die Seite steht **im Vollbild** wie die Seiten des Menüs (_„bitte das hand
+  einstellung menü wie die anderen menüs in fullscreen anzeigen"_): breit das
+  Bild links und die Regler rechts in einer eigenen Rollspalte.
+
+Eingestellt und in den Code übernommen (September 2026): Hörnchen
+`pitch: 40`, Pfanne `y: 4, z: 27, pitch: -40` (`DISH_HOLDS`).
 
 Gespeichert wird **sofort**, im Browser (`bgvr.dishHolds`), und die Welt liest
 es im nächsten Bild. Das heißt auch: Was am Telefon eingestellt ist, gilt nicht

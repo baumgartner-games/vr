@@ -95,8 +95,27 @@ export const LEGACY_HOLD: DishHold = readPose(cylinderInDish(LEGACY_IN_HAND));
  *   wie ein Pistolengriff.
  */
 export const DISH_HOLDS: Readonly<Partial<Record<KitchenItem, DishHold>>> = {
-  cone: { x: 0, y: 5, z: 0, pitch: 0, yaw: 0, roll: 0 },
+  // Auf der Seite eingestellt und geschickt (September 2026): der Zylinder
+  // 40° nach vorn gekippt, der Pfeil zeigt weiter richtig.
+  cone: { x: 0, y: 5, z: 0, pitch: 40, yaw: 0, roll: 0 },
+  // Die Pfanne am Stiel: 27 cm hinter der Mitte, 40° zurückgekippt.
+  pan: { x: 0, y: 4, z: 27, pitch: -40, yaw: 0, roll: 0 },
 };
+
+/**
+ * **Wie der Halterzylinder selbst in der Hand sitzt — für alle Dinge der
+ * Küche.** Gewünscht: _„ich will noch eine möglichkeit haben (allgemein für
+ * alle) die roll des haltezylinder einstellen zu können, da der haltezylinder
+ * zwar in die richtige richtung den pfeil zeigt, aber dennoch leicht gekippt
+ * sein muss"_.
+ *
+ * Eine Lage **des Zylinders im Standardgriff** (`STANDARD_GRIP_IN_HAND`),
+ * im Rahmen des Zylinders: Roll dreht ihn um seinen Pfeil (-Z), der Pfeil
+ * zeigt danach weiter dorthin, wo er hinzeigte. Null heißt: genau der
+ * Standardgriff, wie bisher. Sie gilt für jedes Ding der Küche und für keines
+ * der Werkzeuge — die tragen ihren Griff selbst.
+ */
+export const DISH_GRIP: DishHold = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
 
 /** Die Haltung aus dem Code — ohne das, was jemand eingestellt hat. */
 export function defaultDishHold(item: KitchenItem): DishHold {
@@ -130,10 +149,14 @@ export function cylinderInDish(inHand: HoldPose): HoldPose {
  * Standardgriff selbst ist symmetrisch, also hält die linke Faust den
  * gespiegelten Zylinder genau so wie die rechte den ihren.
  */
-export function dishInHand(hold: DishHold, hand: Handedness = 'right'): HoldPose {
+export function dishInHand(
+  hold: DishHold,
+  hand: Handedness = 'right',
+  tilt: DishHold = dishGrip(),
+): HoldPose {
   const cylinder = poseFromReadout(hold);
   const inverse = conjugate(cylinder.rotation, { x: 0, y: 0, z: 0, w: 1 });
-  const grip = STANDARD_GRIP_IN_HAND;
+  const grip = dishGripInHand(tilt);
   const rotation = multiplyQuat(grip.rotation, inverse, { x: 0, y: 0, z: 0, w: 1 });
   const offset = rotateVec(cylinder.position, rotation, { x: 0, y: 0, z: 0 });
   const pose: HoldPose = {
@@ -145,6 +168,25 @@ export function dishInHand(hold: DishHold, hand: Handedness = 'right'): HoldPose
     rotation: normalize(rotation),
   };
   return hand === 'left' ? holdForOtherHand(pose) : pose;
+}
+
+/**
+ * **Der Halterzylinder in der Hand** — der Standardgriff, um `DISH_GRIP`
+ * (oder das Eingestellte) weitergedreht und verschoben:
+ * `Standardgriff · Neigung`. Ohne Neigung genau `STANDARD_GRIP_IN_HAND`.
+ */
+export function dishGripInHand(tilt: DishHold = dishGrip()): HoldPose {
+  const grip = STANDARD_GRIP_IN_HAND;
+  const extra = poseFromReadout(tilt);
+  const offset = rotateVec(extra.position, grip.rotation, { x: 0, y: 0, z: 0 });
+  return {
+    position: {
+      x: grip.position.x + offset.x,
+      y: grip.position.y + offset.y,
+      z: grip.position.z + offset.z,
+    },
+    rotation: normalize(multiplyQuat(grip.rotation, extra.rotation, { x: 0, y: 0, z: 0, w: 1 })),
+  };
 }
 
 /**
@@ -232,6 +274,12 @@ export function holdLine(item: KitchenItem, hold: DishHold): string {
   return `${key}: { x: ${x}, y: ${y}, z: ${z}, pitch: ${pitch}, yaw: ${yaw}, roll: ${roll} },`;
 }
 
+/** **Die dritte Zeile zum Mitnehmen**: die Neigung des Zylinders für alle (`DISH_GRIP`). */
+export function dishGripLine(tilt: DishHold): string {
+  const { x, y, z, pitch, yaw, roll } = tilt;
+  return `DISH_GRIP: { x: ${x}, y: ${y}, z: ${z}, pitch: ${pitch}, yaw: ${yaw}, roll: ${roll} },`;
+}
+
 /**
  * **Die zweite Zeile zum Mitnehmen: die Hand am Controller** — die sechs
  * Zahlen der Faust des Standardgriffs (`handPose.GRIP_HAND_POSE`, rechte
@@ -295,6 +343,29 @@ export function saveDishHold(item: KitchenItem, hold: DishHold | null): void {
   const all = { ...read() };
   if (hold === null) delete all[item];
   else all[item] = readoutToArray(hold);
+  write(all);
+}
+
+/**
+ * **Die Neigung, die gilt** — unter einem eigenen Schlüssel im selben
+ * Speicher (`*`, kein Ding der Küche heißt so), sonst `DISH_GRIP`.
+ */
+const GRIP_KEY = '*';
+
+export function dishGrip(): DishHold {
+  const stored = read()[GRIP_KEY];
+  return stored ? readoutFromArray(stored) : DISH_GRIP;
+}
+
+export function dishGripStored(): boolean {
+  return read()[GRIP_KEY] !== undefined;
+}
+
+/** Die Neigung für alle einstellen — `null` nimmt sie zurück, dann gilt `DISH_GRIP`. */
+export function saveDishGrip(tilt: DishHold | null): void {
+  const all = { ...read() };
+  if (tilt === null) delete all[GRIP_KEY];
+  else all[GRIP_KEY] = readoutToArray(tilt);
   write(all);
 }
 

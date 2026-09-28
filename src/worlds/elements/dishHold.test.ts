@@ -21,7 +21,10 @@ import { conjugate, multiplyQuat, rotateVec, type Quat, type Vec3 } from '../por
 import { STANDARD_GRIP_IN_HAND } from '../portal/tools/gripFit';
 import { poseFromReadout } from '../portal/tools/toolPose';
 import {
+  DISH_GRIP,
   DISH_HOLDS,
+  dishGripInHand,
+  dishGripLine,
   LEGACY_HOLD,
   defaultDishHold,
   dishHold,
@@ -88,13 +91,12 @@ describe('das Ding in der Hand', () => {
     expect(angle(plate.rotation, ONE)).toBeLessThan(1);
   });
 
-  it('stellt das Hörnchen senkrecht in die Faust: seine Achse ist die des Zylinders', () => {
+  it('kippt das Hörnchen um die eingestellten 40° gegen die Achse des Zylinders', () => {
     const cone = dishInHand(defaultDishHold('cone'));
     const axis = rotateVec({ x: 0, y: 1, z: 0 }, cone.rotation, { ...ZERO });
     const grip = rotateVec({ x: 0, y: 1, z: 0 }, STANDARD_GRIP_IN_HAND.rotation, { ...ZERO });
-    expect(axis.x).toBeCloseTo(grip.x, 9);
-    expect(axis.y).toBeCloseTo(grip.y, 9);
-    expect(axis.z).toBeCloseTo(grip.z, 9);
+    const cos = axis.x * grip.x + axis.y * grip.y + axis.z * grip.z;
+    expect((Math.acos(cos) * 180) / Math.PI).toBeCloseTo(40, 6);
     // Die Spitze sitzt unter der Faust, 5 cm die Achse hinunter.
     const tip = cone.position;
     const fist = STANDARD_GRIP_IN_HAND.position;
@@ -137,7 +139,7 @@ describe('die Knöpfe der Seite', () => {
 
   it('schreiben eine Zeile, die so in DISH_HOLDS stehen kann', () => {
     expect(holdLine('cone', DISH_HOLDS.cone!)).toBe(
-      'cone: { x: 0, y: 5, z: 0, pitch: 0, yaw: 0, roll: 0 },',
+      'cone: { x: 0, y: 5, z: 0, pitch: 40, yaw: 0, roll: 0 },',
     );
     expect(holdLine('plate-dirty', DISH_HOLDS.cone!)).toMatch(/^'plate-dirty': /);
   });
@@ -169,5 +171,47 @@ describe('gripHandLine', () => {
       'GRIP_HAND_POSE (rechts, aus dem Code): { x: 1.7, y: 2.4, z: 2.7, pitch: -43, yaw: -17, roll: -90 },',
     );
     expect(gripHandLine(pose, true)).toMatch(/^GRIP_HAND_POSE \(rechts, eingestellt\)/);
+  });
+});
+
+describe('die Neigung des Zylinders für alle', () => {
+  it('ist ohne Einstellung genau der Standardgriff', () => {
+    const grip = dishGripInHand(DISH_GRIP);
+    expect(grip.position.x).toBeCloseTo(STANDARD_GRIP_IN_HAND.position.x, 9);
+    expect(grip.position.y).toBeCloseTo(STANDARD_GRIP_IN_HAND.position.y, 9);
+    expect(grip.position.z).toBeCloseTo(STANDARD_GRIP_IN_HAND.position.z, 9);
+    expect(angle(grip.rotation, STANDARD_GRIP_IN_HAND.rotation)).toBeLessThan(1e-4);
+  });
+
+  it('dreht mit Roll um den Pfeil: der Pfeil bleibt, die Achse kippt', () => {
+    const tilt: DishHold = { ...DISH_GRIP, roll: 40 };
+    const grip = dishGripInHand(tilt);
+    const arrow = rotateVec({ x: 0, y: 0, z: -1 }, grip.rotation, { ...ZERO });
+    const before = rotateVec({ x: 0, y: 0, z: -1 }, STANDARD_GRIP_IN_HAND.rotation, { ...ZERO });
+    expect(arrow.x).toBeCloseTo(before.x, 9);
+    expect(arrow.y).toBeCloseTo(before.y, 9);
+    expect(arrow.z).toBeCloseTo(before.z, 9);
+    expect(angle(grip.rotation, STANDARD_GRIP_IN_HAND.rotation)).toBeCloseTo(40, 6);
+  });
+
+  it('legt den Zylinder jedes Dings in den geneigten Griff', () => {
+    const tilt: DishHold = { x: 1, y: -2, z: 0.5, pitch: 10, yaw: 0, roll: 30 };
+    const hold = DISH_HOLDS.pan!;
+    const dish = dishInHand(hold, 'right', tilt);
+    const cylinder = poseFromReadout(hold);
+    const offset = rotateVec(cylinder.position, dish.rotation, { ...ZERO });
+    const want = dishGripInHand(tilt);
+    expect(dish.position.x + offset.x).toBeCloseTo(want.position.x, 9);
+    expect(dish.position.y + offset.y).toBeCloseTo(want.position.y, 9);
+    expect(dish.position.z + offset.z).toBeCloseTo(want.position.z, 9);
+    expect(
+      angle(multiplyQuat(dish.rotation, cylinder.rotation, { ...ONE }), want.rotation),
+    ).toBeLessThan(1e-4);
+  });
+
+  it('schreibt eine Zeile für DISH_GRIP', () => {
+    expect(dishGripLine({ ...DISH_GRIP, roll: 40 })).toBe(
+      'DISH_GRIP: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 40 },',
+    );
   });
 });

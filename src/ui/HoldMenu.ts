@@ -10,12 +10,16 @@ import {
 } from '../core/handPoseStore';
 import { createLighting } from '../worlds/shared/environment';
 import { createGripShape } from '../worlds/portal/tools/grip';
-import { STANDARD_GRIP_IN_HAND } from '../worlds/portal/tools/gripFit';
 import {
   HAND_HOLD_FIELDS,
   HAND_SCALE,
   HOLD_FIELDS,
+  dishGrip,
+  dishGripInHand,
+  dishGripLine,
+  dishGripStored,
   gripHandLine,
+  saveDishGrip,
   defaultDishHold,
   dishHold,
   dishHoldStored,
@@ -63,8 +67,13 @@ import './holdMenu.css';
  * rechts eingestellt und links gespiegelt). Die Hand ist nur Bild — sie
  * verschiebt weder Ding noch Zylinder — und gilt für **jeden** Standardgriff,
  * denn in der Brille hält dieselbe Faust auch Pistole und Messer.
- * _VR-Hand zum Controller zurück_ nimmt die eingestellte Faust weg; _Kopieren_
- * gibt beide Zeilen, Zylinder und Hand.
+ * _VR-Hand zum Controller zurück_ nimmt die eingestellte Faust weg.
+ *
+ * **Die Neigung für alle** (`dishHold.DISH_GRIP`) ist die dritte Wahl über den
+ * Reglern: wie der Zylinder selbst im Standardgriff sitzt — Roll dreht ihn
+ * um seinen Pfeil. Sie gilt für jedes Ding der Küche; auf der Seite dreht sie
+ * Controller und Hand um den Zylinder, denn hier steht das Ding still.
+ * _Kopieren_ gibt drei Zeilen: Zylinder, Hand, Neigung.
  *
  * **Das Ding steht still, der Zylinder wandert.** Eingestellt wird die Lage
  * des Zylinders **im Ding** (`dishHold.DishHold`); die Hand hängt am Zylinder
@@ -123,6 +132,7 @@ export class HoldMenu {
     value: HTMLElement;
   }> = [];
   private readonly noteEl: HTMLElement;
+  private readonly resetButton: HTMLButtonElement;
   private readonly onToggle: ((open: boolean) => void) | null;
 
   private open = false;
@@ -146,7 +156,7 @@ export class HoldMenu {
 
     this.sheet = el('div', 'hold__sheet');
     this.sheet.tabIndex = -1;
-    keepSafe(this.sheet, 'bottom', 'left', 'right');
+    keepSafe(this.sheet, 'top', 'bottom', 'left', 'right');
     this.sheet.style.setProperty('--accent', cssColor(ACCENT));
 
     const head = el('header', 'hold__head');
@@ -197,6 +207,7 @@ export class HoldMenu {
     this.targetButtons = {
       cylinder: targetButton('cylinder', 'Halterzylinder'),
       hand: targetButton('hand', 'VR-Hand'),
+      grip: targetButton('grip', 'Neigung (alle)'),
     };
     controls.append(targets);
 
@@ -237,7 +248,8 @@ export class HoldMenu {
     const foot = el('div', 'hold__foot');
     const reset = el('button', 'hold__button', 'Zylinder zurücksetzen');
     reset.type = 'button';
-    reset.title = 'Die Haltung des Zylinders aus dem Code';
+    reset.title = 'Was über den Reglern gewählt ist, zurück auf den Code';
+    this.resetButton = reset;
     const copy = el('button', 'hold__button', 'Kopieren');
     copy.type = 'button';
     copy.title = 'Zylinder und Hand als zwei Zeilen in die Zwischenablage';
@@ -332,6 +344,11 @@ export class HoldMenu {
       const value = next(pose[key]);
       if (!Number.isFinite(value)) return;
       saveGripHand(setHandPoseField(pose, key, value));
+    } else if (this.target === 'grip') {
+      const tilt = dishGrip();
+      const value = next(tilt[key]);
+      if (!Number.isFinite(value)) return;
+      saveDishGrip({ ...tilt, [key]: value });
     } else {
       const hold = this.hold();
       const value = next(hold[key]);
@@ -350,21 +367,32 @@ export class HoldMenu {
     this.paint();
   }
 
+  /** Was gerade gewählt ist, zurück auf den Code. */
   private reset(): void {
     const subject = this.subject;
     if (!subject) return;
-    saveDishHold(subject.item, null);
-    this.setNote('Zurück auf die Haltung aus dem Code.');
+    if (this.target === 'hand') {
+      this.resetHand();
+      return;
+    }
+    if (this.target === 'grip') {
+      saveDishGrip(null);
+      this.setNote('Neigung für alle zurück auf den Code.');
+    } else {
+      saveDishHold(subject.item, null);
+      this.setNote('Zylinder zurück auf die Haltung aus dem Code.');
+    }
     this.paint();
   }
 
   private copy(): void {
     const subject = this.subject;
     if (!subject) return;
-    const line = `${holdLine(subject.item, this.hold())}\n${gripHandLine(
-      holdHandPose('right', GRIP_POSE_ID),
-      hasHandPose('right', GRIP_POSE_ID),
-    )}`;
+    const line = [
+      holdLine(subject.item, this.hold()),
+      gripHandLine(holdHandPose('right', GRIP_POSE_ID), hasHandPose('right', GRIP_POSE_ID)),
+      dishGripLine(dishGrip()),
+    ].join('\n');
     const clipboard = globalThis.navigator?.clipboard;
     if (!clipboard) {
       this.setNote(line);
@@ -384,7 +412,9 @@ export class HoldMenu {
   private paint(): void {
     const hold = this.hold();
     const hand = holdHandPose('right', GRIP_POSE_ID);
-    const shown: Readonly<Record<keyof DishHold, number>> = this.target === 'hand' ? hand : hold;
+    const tilt = dishGrip();
+    const shown: Readonly<Record<keyof DishHold, number>> =
+      this.target === 'hand' ? hand : this.target === 'grip' ? tilt : hold;
     const fields = fieldsOf(this.target);
     for (const [target, button] of Object.entries(this.targetButtons)) {
       const on = target === this.target;
@@ -403,8 +433,14 @@ export class HoldMenu {
       row.value.textContent = `${round(value)} ${field.unit}`;
     }
     const stored = this.subject ? dishHoldStored(this.subject.item) : false;
-    this.sheet.classList.toggle('is-custom', stored);
-    this.view?.set(hold, hand, {
+    this.sheet.classList.toggle('is-custom', stored || dishGripStored());
+    this.resetButton.textContent =
+      this.target === 'hand'
+        ? 'Hand zurücksetzen'
+        : this.target === 'grip'
+          ? 'Neigung zurücksetzen'
+          : 'Zylinder zurücksetzen';
+    this.view?.set(hold, hand, tilt, {
       cylinder: this.showCylinder,
       controller: this.showController,
       hand: this.showHand,
@@ -583,7 +619,7 @@ class HoldScene {
     return material;
   }
 
-  set(hold: DishHold, pose: HandPose, show: SceneShow): void {
+  set(hold: DishHold, pose: HandPose, tilt: DishHold, show: SceneShow): void {
     this.ghosted = show.ghost;
     this.dress();
     this.cylinder.position.set(hold.x / 100, hold.y / 100, hold.z / 100);
@@ -594,7 +630,15 @@ class HoldScene {
 
     // Der Controller: der Griffraum, in dem der Zylinder im Standardgriff liegt.
     this.cylinder.updateMatrix();
-    _c.multiplyMatrices(this.cylinder.matrix, GRIP_INVERSE);
+    // Mit der Neigung für alle (`dishGripInHand`): Der Zylinder steht still,
+    // also drehen Controller und Hand um ihn.
+    const grip = dishGripInHand(tilt);
+    _g.compose(
+      _p.set(grip.position.x, grip.position.y, grip.position.z),
+      _q.set(grip.rotation.x, grip.rotation.y, grip.rotation.z, grip.rotation.w),
+      _one,
+    ).invert();
+    _c.multiplyMatrices(this.cylinder.matrix, _g);
     _c.decompose(this.controller.position, this.controller.quaternion, _s);
     this.controller.visible = show.controller;
 
@@ -731,11 +775,13 @@ const _s = new THREE.Vector3();
 const _one = new THREE.Vector3(1, 1, 1);
 const _h = new THREE.Matrix4();
 const _c = new THREE.Matrix4();
+const _g = new THREE.Matrix4();
+const _m = new THREE.Matrix4();
 /** Wie viel vom Controller-Geist zu sehen ist. */
 const CONTROLLER_OPACITY = 0.45;
 
 /** Was die Regler verschieben. */
-type HoldTarget = 'cylinder' | 'hand';
+type HoldTarget = 'cylinder' | 'hand' | 'grip';
 
 interface SceneShow {
   readonly cylinder: boolean;
@@ -758,24 +804,6 @@ function saveGripHand(pose: HandPose): void {
   saveHoldHandPose('right', GRIP_POSE_ID, pose);
   saveHoldHandPose('left', GRIP_POSE_ID, mirrorHandPose(pose));
 }
-const _m = new THREE.Matrix4();
-/** Der Standardgriff in der Hand, umgekehrt: vom Zylinder zurück in den Griffraum. */
-const GRIP_INVERSE = new THREE.Matrix4()
-  .compose(
-    new THREE.Vector3(
-      STANDARD_GRIP_IN_HAND.position.x,
-      STANDARD_GRIP_IN_HAND.position.y,
-      STANDARD_GRIP_IN_HAND.position.z,
-    ),
-    new THREE.Quaternion(
-      STANDARD_GRIP_IN_HAND.rotation.x,
-      STANDARD_GRIP_IN_HAND.rotation.y,
-      STANDARD_GRIP_IN_HAND.rotation.z,
-      STANDARD_GRIP_IN_HAND.rotation.w,
-    ),
-    new THREE.Vector3(1, 1, 1),
-  )
-  .invert();
 
 /**
  * **Ein Stoff als Geist**: dieselbe Farbe, zu einem Drittel sichtbar, und ohne
