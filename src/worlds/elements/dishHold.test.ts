@@ -29,6 +29,7 @@ import {
   dishInHand,
   forgetDishHolds,
   heldItemOf,
+  gripHandLine,
   holdLine,
   saveDishHold,
   stepHold,
@@ -158,5 +159,15 @@ describe('der Speicher', () => {
     expect(dishHoldStored('cone')).toBe(true);
     saveDishHold('cone', null);
     expect(dishHold('cone')).toEqual(DISH_HOLDS.cone);
+  });
+});
+
+describe('gripHandLine', () => {
+  it('gibt die sechs Zahlen der Hand und sagt, woher sie kommen', () => {
+    const pose = { x: 1.7, y: 2.4, z: 2.7, pitch: -43, yaw: -17, roll: -90 };
+    expect(gripHandLine(pose, false)).toBe(
+      'GRIP_HAND_POSE (rechts, aus dem Code): { x: 1.7, y: 2.4, z: 2.7, pitch: -43, yaw: -17, roll: -90 },',
+    );
+    expect(gripHandLine(pose, true)).toMatch(/^GRIP_HAND_POSE \(rechts, eingestellt\)/);
   });
 });

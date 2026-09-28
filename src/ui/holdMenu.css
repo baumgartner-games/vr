@@ -149,3 +149,9 @@
   .hold__body { flex-direction: row; align-items: stretch; }
   .hold__stage { flex: 0 0 50%; height: auto; min-height: 380px; }
 }
+
+/* Was die Regler verschieben: zwei Knöpfe, der gewählte in der Farbe. */
+.hold__targets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0; }
+.hold__target { min-height: 36px; font: inherit; font-size: 14px; font-weight: 600; color: var(--fg); background: rgba(140, 170, 230, 0.1); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.hold__target.is-on { color: #061018; background: var(--accent); border-color: transparent; }
+.hold__wide { width: 100%; padding: 8px 12px; font-size: 14px; }
