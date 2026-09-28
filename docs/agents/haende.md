@@ -936,7 +936,9 @@ schließen sie, und das Menü geht an derselben Detailseite wieder auf
   Kugeln), wischen dreht, das Rad zoomt;
 - drei Häkchen: **Gegenstand als Geist (durchsichtig)** (das Ding zu einem
   Drittel sichtbar und ohne Tiefe, damit der Zylinder darin zu sehen ist — die
-  Stoffe der Vorlage bleiben unberührt, getauscht wird am Mesh, `ghostOf`),
+  Stoffe der Vorlage bleiben unberührt, getauscht wird am Mesh, `ghostOf`; in
+  jedem Bild nachgesehen, weil das Hörnchen sein Modell erst nach dem Öffnen
+  lädt und sonst nur die Kugeln durchsichtig wurden),
   **Halterzylinder zeigen** (grün, mit dem rosa Pfeil nach vorn) und
   **VR-Hand am Zylinder zeigen** (die rechte Hand in der Faust des
   Halterzylinders, in der Farbe und dem Modell der Einstellungen);
