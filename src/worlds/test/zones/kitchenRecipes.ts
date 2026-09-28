@@ -215,7 +215,12 @@ export type KitchenItem =
   | 'floor-kitchen-b'
   | 'floor-wood'
   | 'floor-wood-dark'
-  | 'floor-stone';
+  | 'floor-stone'
+  /**
+   * **Die Treppe** (`house/stairPlan.ts`) — aus der Kiste oder dem Katalog in
+   * die Hand, im Haus vor sich hingestellt; sie legt die Etage darüber an.
+   */
+  | 'stair';
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -301,6 +306,7 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   'floor-wood': 'Boden Dielen Gastraum',
   'floor-wood-dark': 'Boden Dielen dunkel',
   'floor-stone': 'Boden Steinplatten',
+  stair: 'Treppe',
 };
 
 /**

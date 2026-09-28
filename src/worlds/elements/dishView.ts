@@ -117,6 +117,7 @@ export const ITEM_SCALE: Readonly<Partial<Record<KitchenItem, number>>> = {
   // Die Platten der Beläge sind eine ganze Kachel.
   // Die Prototyp-Platte ist zwei Kacheln breit (`house/flooring.ts`).
   'floor-proto': 0.175,
+  stair: 0.25,
   'floor-kitchen': 0.35,
   'floor-kitchen-b': 0.35,
   'floor-wood': 0.35,

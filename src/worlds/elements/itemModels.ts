@@ -131,6 +131,9 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   'floor-wood': 'dungeon/floor_wood_small.glb',
   'floor-wood-dark': 'dungeon/floor_wood_small_dark.glb',
   'floor-stone': 'dungeon/floor_tile_small.glb',
+  // **Die Treppe**: dieselbe Stufenfolge, mit der der Plan jede Treppe zeigt
+  // (`grid/blocks.BLOCK_MODELS.stairs`).
+  stair: 'prototype-bits/Primitive_Stairs_Half.glb',
 };
 
 /**

@@ -312,6 +312,21 @@ export const FLOORING_CRATES: readonly GameElement[] = FLOORINGS.map((one) =>
   ),
 );
 
+/**
+ * **Die Treppenkiste** — eine Treppe nach der anderen (`house/stairPlan.ts`),
+ * obenauf klein die Stufen selbst.
+ */
+export const STAIR_CRATE: GameElement = piece(
+  'crate-stair',
+  'Treppenkiste',
+  'crate',
+  [
+    { model: bits('crate') },
+    { model: 'prototype-bits/Primitive_Stairs_Half.glb', on: 0, sink: 0.05, scale: 0.25 },
+  ],
+  { gives: 'stair' },
+);
+
 /** Die Kisten des Pakets, je eine Zutat. */
 const CRATES: readonly GameElement[] = [
   crate('crate-buns', 'crate_buns', 'bun', 'Brötchenkiste'),
@@ -472,6 +487,7 @@ export const ELEMENTS: readonly GameElement[] = [
   ...CRATES,
   ...WALLPAPER_CRATES,
   ...FLOORING_CRATES,
+  STAIR_CRATE,
   // **Die Pizza-Vorratsbox** — gewünscht: eine Kiste, aus der man eine ganze
   // Pizza nimmt. Die leere Kiste (`crate`, ihr Deckel kommt vom Lader) und
   // die fertige Pizza obenauf, damit man von oben sieht, was drin ist.

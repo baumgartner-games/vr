@@ -6,6 +6,7 @@ import type { ElementSpot } from '../elements/elementPlace';
 import {
   BUILD_FOLDERS,
   FLOORING_CRATES,
+  STAIR_CRATE,
   WALLPAPER_CRATES,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
@@ -21,6 +22,10 @@ import { PLATE_PROTOTYPE } from '../test/floorPlate';
 import { FLOORINGS, flooringItem, flooringOfItem, type Flooring } from './flooring';
 import { HOUSE_SPOTS, houseSpawn, housePlan, houseWalls, onHouseGround } from './housePlan';
 import { roomTiles, traceRoom, type PieceFace, type RoomTile, type WallPiece } from './roomTrace';
+import { STAIR_STEPS, STOREY, houseTiles, stairDir, stairFits, stairTiles } from './stairPlan';
+import { bringBack, cutAway, type ViewLevel } from '../../core/cutaway';
+import { SHELF_WALL_Y } from '../grid/shelfWalls';
+import { tileKey, type Dir } from '../nav/navTile';
 import { WALLPAPERS, wallpaperItem, wallpaperOfItem, type Wallpaper } from './wallpaper';
 import { BARE_WALL, skinWall, stepWallpaperGlow, type WallSkin } from './wallpaperSkin';
 
@@ -79,6 +84,18 @@ export class HausbauWorld extends TestRestaurantWorld {
   private floorRoom: RoomTile[] | null = null;
   /** Das Leuchten über diesen Kacheln (`portal/placeGrid.ts`). */
   private floorGlow: PlaceGrid | null = null;
+  /** Wohin die Treppe in der Hand käme — und ob sie dort passt. */
+  private stairAim: {
+    tiles: RoomTile[];
+    dir: Dir;
+    level: number;
+    house: RoomTile[] | null;
+    fits: boolean;
+  } | null = null;
+  /** Was aus den Augen gerade ausgeblendet ist — die Etagen über einem (`cutAway`). */
+  private readonly cut: THREE.Object3D[] = [];
+  /** Für welchen Stand das gilt: Etage, Fassung des Plans, drinnen. */
+  private cutFor = '';
 
   protected override worldId(): string {
     return 'hausbau';
@@ -120,7 +137,7 @@ export class HausbauWorld extends TestRestaurantWorld {
 
   /** Der gelegte Belag, sonst der Prototyp-Boden der Testwelten. */
   protected override floorPlate(tile: PlateTile): string | null {
-    return this.floors.get(`${tile.col},${tile.row}`) ?? PLATE_PROTOTYPE;
+    return this.floors.get(`${tile.col},${tile.row},${tile.level}`) ?? PLATE_PROTOTYPE;
   }
 
   /** **Das Haus**: die Wände aus dem Katalog, hingestellt wie aus der Hand. */
@@ -135,7 +152,7 @@ export class HausbauWorld extends TestRestaurantWorld {
 
   /** Im Katalog: die Tapetenkisten zum Hinstellen. */
   protected override elementCatalogue(): readonly string[] {
-    return [...WALLPAPER_CRATES, ...FLOORING_CRATES].map((crate) => crate.id);
+    return [...WALLPAPER_CRATES, ...FLOORING_CRATES, STAIR_CRATE].map((crate) => crate.id);
   }
 
   /**
@@ -156,6 +173,8 @@ export class HausbauWorld extends TestRestaurantWorld {
         elements: [],
         items: FLOORINGS.map((one) => flooringItem(one.id)),
       },
+      // **Die Treppe** — zum Nehmen, und ihre Kiste daneben.
+      { id: 'stairs', label: 'Treppen', elements: [STAIR_CRATE.id], items: ['stair'] },
       {
         id: 'wallpaper-crates',
         label: 'Tapetenkisten',
@@ -170,7 +189,7 @@ export class HausbauWorld extends TestRestaurantWorld {
   }
 
   protected override catalogItem(id: string): { label: string; model: string } | null {
-    if (!wallpaperOfItem(id) && !flooringOfItem(id)) return null;
+    if (!wallpaperOfItem(id) && !flooringOfItem(id) && id !== 'stair') return null;
     const model = ITEM_MODELS[id as KitchenItem];
     return { label: ITEM_LABELS[id as KitchenItem], model: typeof model === 'string' ? model : '' };
   }
@@ -178,12 +197,15 @@ export class HausbauWorld extends TestRestaurantWorld {
   protected override takeCatalogItem(ctx: WorldContext, id: string, hand: Handedness | null): void {
     const paper = wallpaperOfItem(id);
     const flooring = flooringOfItem(id);
-    if (!paper && !flooring) return;
+    const stair = id === 'stair';
+    if (!paper && !flooring && !stair) return;
     this.setCarried(dish(id as KitchenItem), hand ?? this.carriedHand);
     ctx.notify(
       paper
         ? `${paper.label} in der Hand · auf eine Wand im Raum zeigen, A klebt`
-        : `${flooring!.label} in der Hand · im Raum stehen, A legt den Boden`,
+        : flooring
+          ? `${flooring.label} in der Hand · im Raum stehen, A legt den Boden`
+          : 'Treppe in der Hand · im Haus in Laufrichtung zeigen, A stellt sie hin',
     );
   }
 
@@ -198,6 +220,9 @@ export class HausbauWorld extends TestRestaurantWorld {
     this.floorRoom = flooring ? this.roomUnder(ctx) : null;
     if (flooring && this.floorRoom && !this.hasUsePick(ctx) && ctx.rig.takeUse())
       this.lay(ctx, flooring);
+    const stair = this.carried?.item === 'stair';
+    this.stairAim = stair ? this.stairAhead(ctx) : null;
+    if (stair && this.stairAim && !this.hasUsePick(ctx) && ctx.rig.takeUse()) this.placeStair(ctx);
     // **Vor allem anderen**: Mit der Tapete in der Hand und einem Raum vor
     // sich heißt `A` kleben — außer, eine Kiste oder Station steht davor.
     // Vor `super.update`, damit der Kran den Druck nicht als Anheben liest.
@@ -206,15 +231,201 @@ export class HausbauWorld extends TestRestaurantWorld {
     }
     super.update(dt, ctx);
     const ready = paper !== null && this.room !== null && this.room.faces.length > 0;
-    if (ready || (flooring && this.floorRoom)) ctx.rig.useCandidate = true;
+    if (ready || (flooring && this.floorRoom) || this.stairAim) ctx.rig.useCandidate = true;
+    this.markWallLevels();
     this.paintWalls();
     this.showFloorRoom(ctx, flooring);
+    this.showStair(ctx);
+    this.cutAbove(ctx);
   }
 
   override dispose(ctx: WorldContext): void {
     this.floorGlow?.dispose();
     this.floorGlow = null;
+    this.cut.length = 0;
+    this.cutFor = '';
     super.dispose(ctx);
+  }
+
+  // --- Etagen ----------------------------------------------------------------
+
+  /** **Auf welcher Etage man steht** (`GridWorld.viewLevel`), sonst die unterste. */
+  private level(): number {
+    return super.viewLevel()?.level ?? 0;
+  }
+
+  /** Auf welcher Etage etwas mit dieser Unterkante steht. */
+  private levelOfY(y: number): number {
+    const levels = this.grid?.graph.levels ?? [0];
+    let level = 0;
+    for (let i = 1; i < levels.length; i++) if (y >= levels[i]! - 0.5) level = i;
+    return level;
+  }
+
+  /** Die stehenden Wände einer Etage, als Stücke für `roomTrace`, und welche davon Türen sind. */
+  private wallsOn(level: number): {
+    walls: StandingWall[];
+    pieces: WallPiece[];
+    doors: Set<string>;
+  } {
+    const walls = this.standingWalls().filter(
+      (wall) => this.levelOfY(wall.centre.y - SHELF_WALL_Y) === level,
+    );
+    const pieces: WallPiece[] = walls.map((wall, index) => ({
+      id: String(index),
+      a: wall.a,
+      b: wall.b,
+      front: { x: wall.front.x, z: wall.front.z },
+    }));
+    const doors = new Set(
+      walls.flatMap((wall, index) => (wall.path.includes('Doorway') ? [String(index)] : [])),
+    );
+    return { walls, pieces, doors };
+  }
+
+  /**
+   * **Ob man unter einem Boden steht** — im Haus, unter der Etage darüber.
+   * Dann ist sie beim Hineinsehen im Weg; draußen gehört sie zum Haus, das man
+   * ansieht.
+   */
+  private underRoof(ctx: WorldContext): boolean {
+    const graph = this.grid?.graph;
+    if (!graph) return false;
+    const level = this.level();
+    if (level + 1 >= graph.levels.length) return false;
+    return graph.has(
+      tileKey(Math.floor(ctx.rig.position.x), Math.floor(ctx.rig.position.z), level + 1),
+    );
+  }
+
+  /**
+   * **Von oben: im Haus aufgeschnitten, draußen ganz** (`core/cutaway.ts`).
+   * Gewünscht: _„auch wenn ich das Dach aus vr/First Person und von oben nicht
+   * sehe, die oberen Ebenen, wenn ich im Haus bin. Von außen sehe ich dann die
+   * Ebene des Hauses komplett."_ Draußen meldet die Welt die oberste Etage als
+   * die, auf der man steht — dann ist keine darüber, die weg müsste.
+   */
+  override viewLevel(): ViewLevel | null {
+    const view = super.viewLevel();
+    const ctx = this.context;
+    const graph = this.grid?.graph;
+    if (!view || !ctx || !graph || this.underRoof(ctx)) return view;
+    return { level: graph.levels.length - 1, floorY: view.floorY };
+  }
+
+  /**
+   * **Aus den Augen und in der Brille dasselbe** — die Kamera von oben
+   * schneidet selbst (`TopDownCamera`); hier wird ausgeblendet, was über der
+   * eigenen Etage liegt, solange man darunter steht. Neu nur, wenn sich etwas
+   * geändert hat: Etage, Plan oder drinnen/draußen.
+   */
+  private cutAbove(ctx: WorldContext): void {
+    const graph = this.grid?.graph;
+    const inside = !ctx.topDown && this.underRoof(ctx);
+    const level = this.level();
+    const key = inside && graph ? `${level}|${graph.version}|${this.skinned.size}` : '';
+    if (key === this.cutFor) return;
+    bringBack(this.cut);
+    this.cutFor = key;
+    if (inside) cutAway(this.root, level, this.cut);
+  }
+
+  /**
+   * **Wände oben gehören ihrer Etage** — damit sie mit ihr verschwinden
+   * (`userData.level`, `core/cutaway.ts`), und sie stehen für sich, damit das
+   * Bündel aus den Augen sie nicht weiter zeigt (`looseWalls`).
+   */
+  private markWallLevels(): void {
+    const graph = this.grid?.graph;
+    if (!graph || graph.levels.length < 2) return;
+    for (const wall of this.standingWalls()) {
+      const level = this.levelOfY(wall.centre.y - SHELF_WALL_Y);
+      const data = wall.entry.object.userData as { level?: number };
+      if (level === 0) continue;
+      if (data.level !== level) {
+        data.level = level;
+        this.cutFor = '';
+      }
+      this.looseWalls.add(wall.entry);
+    }
+  }
+
+  // --- Treppe ----------------------------------------------------------------
+
+  /**
+   * **Wohin die Treppe käme** — auf die Kachel vor einem und drei weiter, in
+   * Blickrichtung, auf ein Viertel gerundet (`stairPlan.stairTiles`). Sie passt,
+   * wenn alle vier im Zimmer liegen, in dem man steht; das Haus dazu sind alle
+   * Zimmer, die man durch Türen erreicht (`houseTiles`).
+   */
+  private stairAhead(ctx: WorldContext): typeof this.stairAim {
+    const level = this.level();
+    const { pieces, doors } = this.wallsOn(level);
+    _rigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_turn));
+    ctx.rig.getHeadForward(_headAhead);
+    aimForward(ctx.topDown, _rigAhead, _headAhead, _aim);
+    ctx.rig.getHeadPosition(_at);
+    const dir = stairDir(_aim.x, _aim.z);
+    const tiles = stairTiles(_at.x, _at.z, dir);
+    const room = roomTiles(pieces, _at.x, _at.z);
+    const house = room ? houseTiles(pieces, doors, _at.x, _at.z) : null;
+    const graph = this.grid?.graph;
+    const free =
+      !graph ||
+      tiles.every((tile) => {
+        const here = tileKey(tile.x, tile.z, level);
+        return graph.has(here) && !this.grid!.flightOn(here);
+      });
+    return { tiles, dir, level, house, fits: !!room && free && stairFits(room, tiles) };
+  }
+
+  /** Das Gitter unter der Treppe: grün, wo sie passt, rot, wo nicht. */
+  private showStair(ctx: WorldContext): void {
+    const aim = this.stairAim;
+    if (!aim) {
+      if (!this.floorRoom) this.floorGlow?.hide();
+      return;
+    }
+    const glow = (this.floorGlow ??= new PlaceGrid(ctx.scene));
+    glow.tint(aim.fits ? 0x4fe08a : 0xff4d4d);
+    glow.show(
+      aim.tiles.map((tile) => ({ x: tile.x + 0.5, z: tile.z + 0.5 })),
+      ctx.rig.getFloorY(),
+    );
+  }
+
+  /**
+   * **Die Treppe hinstellen** — und mit ihr die Etage darüber.
+   *
+   * - Gibt es die Etage noch nicht, kommt sie dazu, eine Etagenhöhe
+   *   (`STOREY`) über dieser. So entstehen so viele, wie man Treppen stellt.
+   * - Über dem ganzen Haus (`houseTiles`) liegt dann ihr Boden — wo schon
+   *   einer ist, bleibt er.
+   * - Die Treppe selbst baut der Plan (`GridPlan.stairs`): drei Kacheln
+   *   Stufen, das Loch darüber, und der Stand oben ist Boden der neuen Etage.
+   */
+  private placeStair(ctx: WorldContext): void {
+    const aim = this.stairAim;
+    const plan = this.grid;
+    if (!aim || !plan) return;
+    if (!aim.fits || !aim.house) {
+      ctx.notify('Die Treppe passt hier nicht — sie braucht vier Kacheln im Zimmer vor dir');
+      return;
+    }
+    const graph = plan.graph;
+    const up = aim.level + 1;
+    while (graph.levels.length <= up) {
+      graph.levels.push(graph.levelY(graph.levels.length - 1) + STOREY);
+    }
+    for (const tile of aim.house) {
+      if (!graph.has(tileKey(tile.x, tile.z, up)))
+        plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level: up });
+    }
+    const first = aim.tiles[0]!;
+    plan.stairs(first.x, first.z, aim.dir, aim.level, STAIR_STEPS);
+    this.setCarried(null, null);
+    this.stairAim = null;
+    ctx.notify(`Treppe steht · Etage ${up} über ${aim.house.length} Kacheln`);
   }
 
   // --- Bodenbeläge -----------------------------------------------------------
@@ -224,21 +435,16 @@ export class HausbauWorld extends TestRestaurantWorld {
    */
   private roomUnder(ctx: WorldContext): RoomTile[] | null {
     ctx.rig.getHeadPosition(_at);
-    const pieces: WallPiece[] = this.standingWalls().map((wall, index) => ({
-      id: String(index),
-      a: wall.a,
-      b: wall.b,
-      front: { x: wall.front.x, z: wall.front.z },
-    }));
-    return roomTiles(pieces, _at.x, _at.z);
+    return roomTiles(this.wallsOn(this.level()).pieces, _at.x, _at.z);
   }
 
   /** **Den Belag legen** — auf jede Kachel des Raums, und aus der Hand. */
   private lay(ctx: WorldContext, flooring: Flooring): void {
     const tiles = this.floorRoom;
     if (!tiles) return;
+    const level = this.level();
     for (const tile of tiles) {
-      const key = `${tile.x},${tile.z}`;
+      const key = `${tile.x},${tile.z},${level}`;
       if (flooring.path === PLATE_PROTOTYPE) this.floors.delete(key);
       else this.floors.set(key, flooring.path);
     }
@@ -269,18 +475,12 @@ export class HausbauWorld extends TestRestaurantWorld {
 
   /** Der Raum vor einem, in Blickrichtung (`traceRoom`) — oder `null`. */
   private roomAhead(ctx: WorldContext): { walls: StandingWall[]; faces: PieceFace[] } | null {
-    const walls = this.standingWalls();
+    const { walls, pieces } = this.wallsOn(this.level());
     if (walls.length === 0) return null;
     _rigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_turn));
     ctx.rig.getHeadForward(_headAhead);
     aimForward(ctx.topDown, _rigAhead, _headAhead, _aim);
     ctx.rig.getHeadPosition(_at);
-    const pieces: WallPiece[] = walls.map((wall, index) => ({
-      id: String(index),
-      a: wall.a,
-      b: wall.b,
-      front: { x: wall.front.x, z: wall.front.z },
-    }));
     const faces = traceRoom(pieces, _at.x, _at.z, _aim.x, _aim.z);
     return faces.length > 0 ? { walls, faces } : null;
   }
@@ -312,9 +512,9 @@ export class HausbauWorld extends TestRestaurantWorld {
     if (!this.room && this.skinned.size === 0) return;
     const held = wallpaperOfItem(this.carried?.item)?.id ?? null;
     const glow = new Map<PhysicsBody, { front: boolean; back: boolean }>();
-    const walls = this.room?.walls ?? this.standingWalls();
+    const walls = this.standingWalls();
     for (const face of this.room?.faces ?? []) {
-      const wall = walls[Number(face.id)];
+      const wall = this.room!.walls[Number(face.id)];
       if (!wall) continue;
       const one = glow.get(wall.entry) ?? { front: false, back: false };
       if (face.front) one.front = true;

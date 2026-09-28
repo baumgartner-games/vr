@@ -1,5 +1,5 @@
 import type { ElementSpot } from '../elements/elementPlace';
-import { FLOORING_CRATES, WALLPAPER_CRATES } from '../elements/elementCatalog';
+import { FLOORING_CRATES, STAIR_CRATE, WALLPAPER_CRATES } from '../elements/elementCatalog';
 import { GridPlan } from '../grid/gridPlan';
 import {
   SHELF_WALL_PIECES,
@@ -22,8 +22,8 @@ import { DIR_N } from '../nav/navTile';
  * Auf einer Wiese aus Prototyp-Boden steht ein kleines Haus aus den Wänden des
  * Katalogs: zwei Zimmer, dazwischen eine Innentür, vorn eine breite Haustür,
  * in der Nordwand zwei Fenster. Davor, vor der Haustür, die sechs
- * Tapetenkisten (`WALLPAPER_CRATES`) und die sechs Bodenkisten
- * (`FLOORING_CRATES`). Alles andere baut man selbst — Wände
+ * Tapetenkisten (`WALLPAPER_CRATES`), die sechs Bodenkisten
+ * (`FLOORING_CRATES`) und die Treppenkiste (`STAIR_CRATE`). Alles andere baut man selbst — Wände
  * zieht man im _Baukasten_ aus dem Katalog.
  *
  * Reine Rechnung, ohne Szene; die Welt dazu ist `HausbauWorld`.
@@ -114,6 +114,8 @@ export const HOUSE_SPOTS: readonly ElementSpot[] = [
     z: 11,
     face: 'N',
   })),
+  // **Die Treppenkiste** — eine Kachel Lücke weiter.
+  { id: 'treppe', element: STAIR_CRATE.id, x: 17, z: 11, face: 'N' },
 ];
 
 /** Ob die Kachel (`x`, `z`) auf dem Boden liegt. */
