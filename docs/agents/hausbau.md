@@ -22,6 +22,9 @@ unendlich viele davon hat."_
   Tapete grün gestreift, Holzvertäfelung, Fliesen blau. Eine Kiste ist eine
   Station der Art `crate` und wird nie leer; wer mit derselben Tapete davor
   steht, legt sie zurück. Obenauf liegt die Bahn in ihrer Farbe.
+- **Sechs Bodenkisten** rechts daneben (`elementCatalog.FLOORING_CRATES`,
+  `house/flooring.ts`): Prototyp-Boden, Küchenfliesen, Küchenfliesen B,
+  Dielen Gastraum, Dielen dunkel, Steinplatten — obenauf die Platte selbst.
 - **Das Tor zurück** in die Sandbox, links vorn.
 
 `HausbauWorld` erbt vom [Test Restaurant](./testrestaurant.md): Kisten,
@@ -65,6 +68,29 @@ nicht auf die Rückseite gesprungen."_
 - Schließt sich der Kreis, ist der Raum fertig; eine Wand ohne Nachbarn beendet
   diese Richtung.
 
+## Bodenbeläge
+
+Gewünscht: _„Ich will nun auch noch neben Tapeten vorratskisten für Boden
+Beläge haben wollen für Räume. Z.B. den Küchen Boden oder prototype floor oder
+für Gäste. Gleiches Prinzip."_
+
+- **Dasselbe Prinzip wie die Tapete**: aus der Kiste oder aus dem Katalog
+  (Ordner _Böden_, `FurnitureFolder.items`) in die Hand (`KitchenItem`
+  `floor-*`), im Raum leuchten die Kacheln, `A` legt den Belag, und der in
+  der Hand ist aufgebraucht.
+- **Keine Ausnahme von der Regel**: Die Beläge sind die Platten aus dem Regal,
+  die die Welten ohnehin legen. Gelegt wird über `GridWorld.floorPlate` — die
+  Welt merkt sich je Kachel die Platte (`HausbauWorld.floors`, sonst der
+  Prototyp-Boden) und baut den Boden neu (`GridWorld.rebuildFloor`, derselbe
+  Weg wie nach jedem Umbau).
+- **Welche Kacheln zum Raum gehören** (`roomTrace.roomTiles`): von der Kachel
+  unter dem Spieler über jede Kante ohne Wand. Türen und Fenster sind auch
+  hier Wände, der Boden bleibt also im Zimmer. Eine Kachel mit einer Wand unter
+  45° gehört dazu, darüber hinaus geht es nicht. Mehr als 400 Kacheln sind kein
+  Raum (`ROOM_TILES_MAX`): Im Freien leuchtet nichts, und `A` legt nichts.
+- **Das Leuchten** ist das Gitter des Bauens (`portal/placeGrid.ts`) über den
+  Kacheln des Raums.
+
 ## Die Tapete auf der Wand
 
 **Die Ausnahme von „nur Modelle aus dem Regal"** ist ausdrücklich gewünscht:
@@ -88,8 +114,8 @@ mit den Materialien des Regals.
 
 ## Offen
 
-- **Gespeichert wird die Tapete noch nicht** und geht auch nicht übers Netz:
-  Nach dem Neuladen sind die Wände nackt. Sie hängt am Stück — reißt man es ab
+- **Gespeichert werden Tapete und Boden noch nicht** und gehen auch nicht übers
+  Netz: Nach dem Neuladen sind die Wände nackt und der Boden ist Prototyp. Sie hängt am Stück — reißt man es ab
   oder ersetzt es, ist sie weg.
 - Von oben blendet die Welt Wände vor der Figur durchsichtig
   (`grid/modelGhost.ts`); der durchsichtige Zwilling kennt die Tapete nicht.
@@ -105,5 +131,6 @@ mit den Materialien des Regals.
 | `worlds/house/roomTrace.ts` | welche Wandseiten zu einem Raum gehören |
 | `worlds/house/wallpaper.ts` | die Tapeten und ihre Muster |
 | `worlds/house/wallpaperSkin.ts` | das Muster auf einer Seite des Modells, das Leuchten |
-| `elements/elementCatalog.ts` | `WALLPAPER_CRATES`, `FurnitureFolder.items` |
-| `test/zones/kitchenRecipes.ts` | die Dinge `wallpaper-*` |
+| `worlds/house/flooring.ts` | die Bodenbeläge (Platten aus dem Regal) |
+| `elements/elementCatalog.ts` | `WALLPAPER_CRATES`, `FLOORING_CRATES`, `FurnitureFolder.items` |
+| `test/zones/kitchenRecipes.ts` | die Dinge `wallpaper-*` und `floor-*` |

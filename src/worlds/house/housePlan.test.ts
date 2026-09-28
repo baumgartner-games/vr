@@ -19,7 +19,7 @@ import {
   houseWalls,
   onHouseGround,
 } from './housePlan';
-import { traceRoom, type WallPiece } from './roomTrace';
+import { roomTiles, traceRoom, type WallPiece } from './roomTrace';
 
 /** Wie viele Kacheln jedes Stück lang ist. */
 const SPAN: Record<string, number> = {
@@ -91,8 +91,9 @@ describe('Hausbau', () => {
     for (const face of kitchen) expect(living).not.toContain(face);
   });
 
-  it('stellt die sechs Tapetenkisten auf den Boden, vor das Haus', () => {
-    expect(HOUSE_SPOTS).toHaveLength(6);
+  it('stellt sechs Tapeten- und sechs Bodenkisten auf den Boden, vor das Haus', () => {
+    expect(HOUSE_SPOTS).toHaveLength(12);
+    expect(new Set(HOUSE_SPOTS.map((spot) => `${spot.x},${spot.z}`)).size).toBe(12);
     for (const spot of HOUSE_SPOTS) {
       expect(ELEMENTS.some((element) => element.id === spot.element)).toBe(true);
       expect(onHouseGround(spot.x, spot.z)).toBe(true);
@@ -100,5 +101,15 @@ describe('Hausbau', () => {
     }
     const at = houseSpawn();
     expect(onHouseGround(Math.floor(at.x), Math.floor(at.z))).toBe(true);
+  });
+
+  it('findet für den Boden die Kacheln jedes Zimmers — die Türen halten ihn drinnen', () => {
+    const living = roomTiles(pieces, 6.5, 6.5)!;
+    expect(living).toHaveLength((PARTITION_X - HOUSE.x) * HOUSE.d);
+    for (const tile of living) expect(tile.x).toBeLessThan(PARTITION_X);
+    const kitchen = roomTiles(pieces, 12.5, 6.5)!;
+    expect(kitchen).toHaveLength((HOUSE.x + HOUSE.w - PARTITION_X) * HOUSE.d);
+    // Draußen ist kein Raum.
+    expect(roomTiles(pieces, 9.5, 14.5)).toBeNull();
   });
 });

@@ -2,7 +2,7 @@
  * **Welche Wände zu einem Raum gehören** (`roomTrace.ts`) — vom Blick auf die
  * erste Wand, an ihr entlang in beide Richtungen.
  */
-import { firstWall, traceRoom, type WallPiece } from './roomTrace';
+import { firstWall, roomTiles, traceRoom, type WallPiece } from './roomTrace';
 
 /** Ein Stück von (ax, az) nach (bx, bz), Vorderseite links der Richtung. */
 function piece(id: string, ax: number, az: number, bx: number, bz: number): WallPiece {
@@ -80,5 +80,34 @@ describe('traceRoom', () => {
   it('findet nichts, wenn keine Wand im Blick ist', () => {
     expect(traceRoom(square(), 2, 2, 0, 0)).toEqual([]);
     expect(traceRoom(square(), 50, 50, 1, 0)).toEqual([]);
+  });
+});
+
+describe('roomTiles', () => {
+  it('füllt einen geschlossenen Raum, Kachel für Kachel', () => {
+    const tiles = roomTiles(square(), 1.5, 2.5)!;
+    expect(tiles).toHaveLength(16);
+    for (const tile of tiles) {
+      expect(tile.x).toBeGreaterThanOrEqual(0);
+      expect(tile.x).toBeLessThan(4);
+      expect(tile.z).toBeGreaterThanOrEqual(0);
+      expect(tile.z).toBeLessThan(4);
+    }
+  });
+
+  it('gibt im Freien keinen Raum — der Boden liefe bis zum Horizont', () => {
+    expect(roomTiles(square(), 10, 10)).toBeNull();
+    const open = square().filter((one) => one.id !== 's1');
+    expect(roomTiles(open, 1.5, 1.5)).toBeNull();
+  });
+
+  it('hört an einer Schräge auf und nimmt ihre Kachel mit', () => {
+    // Dreieck aus Nord- und Westwand und der Schräge von (3,0) nach (0,3).
+    const walls = [piece('n', 0, 0, 3, 0), piece('d', 3, 0, 0, 3), piece('w', 0, 3, 0, 0)];
+    const tiles = roomTiles(walls, 0.5, 0.5, 50)!;
+    const keys = new Set(tiles.map((tile) => `${tile.x},${tile.z}`));
+    expect(keys.has('0,0')).toBe(true);
+    expect(keys.has('1,1')).toBe(true);
+    expect(keys.has('3,3')).toBe(false);
   });
 });

@@ -204,7 +204,18 @@ export type KitchenItem =
   | 'wallpaper-beige'
   | 'wallpaper-stripes'
   | 'wallpaper-wood'
-  | 'wallpaper-tiles';
+  | 'wallpaper-tiles'
+  /**
+   * **Die Bodenbeläge** (`house/flooring.ts`) — wie die Tapeten: aus der
+   * Kiste in die Hand, im Raum auf den Boden gelegt und aufgebraucht
+   * (`HausbauWorld`).
+   */
+  | 'floor-proto'
+  | 'floor-kitchen'
+  | 'floor-kitchen-b'
+  | 'floor-wood'
+  | 'floor-wood-dark'
+  | 'floor-stone';
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -284,6 +295,12 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   'wallpaper-stripes': 'Tapete grün gestreift',
   'wallpaper-wood': 'Tapete Holzvertäfelung',
   'wallpaper-tiles': 'Tapete Fliesen blau',
+  'floor-proto': 'Boden Prototyp',
+  'floor-kitchen': 'Boden Küchenfliesen',
+  'floor-kitchen-b': 'Boden Küchenfliesen B',
+  'floor-wood': 'Boden Dielen Gastraum',
+  'floor-wood-dark': 'Boden Dielen dunkel',
+  'floor-stone': 'Boden Steinplatten',
 };
 
 /**

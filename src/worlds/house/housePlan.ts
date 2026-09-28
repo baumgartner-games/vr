@@ -1,5 +1,5 @@
 import type { ElementSpot } from '../elements/elementPlace';
-import { WALLPAPER_CRATES } from '../elements/elementCatalog';
+import { FLOORING_CRATES, WALLPAPER_CRATES } from '../elements/elementCatalog';
 import { GridPlan } from '../grid/gridPlan';
 import {
   SHELF_WALL_PIECES,
@@ -22,7 +22,8 @@ import { DIR_N } from '../nav/navTile';
  * Auf einer Wiese aus Prototyp-Boden steht ein kleines Haus aus den Wänden des
  * Katalogs: zwei Zimmer, dazwischen eine Innentür, vorn eine breite Haustür,
  * in der Nordwand zwei Fenster. Davor, vor der Haustür, die sechs
- * Tapetenkisten (`WALLPAPER_CRATES`). Alles andere baut man selbst — Wände
+ * Tapetenkisten (`WALLPAPER_CRATES`) und die sechs Bodenkisten
+ * (`FLOORING_CRATES`). Alles andere baut man selbst — Wände
  * zieht man im _Baukasten_ aus dem Katalog.
  *
  * Reine Rechnung, ohne Szene; die Welt dazu ist `HausbauWorld`.
@@ -94,14 +95,26 @@ export function houseWalls(): ShelfWall[] {
   return out;
 }
 
-/** **Die Tapetenkisten** — vor dem Haus, eine Reihe mit Blick nach Norden. */
-export const HOUSE_SPOTS: readonly ElementSpot[] = WALLPAPER_CRATES.map((crate, index) => ({
-  id: `tapete-${index}`,
-  element: crate.id,
-  x: 5 + index,
-  z: 11,
-  face: 'N',
-}));
+/**
+ * **Die Kisten** — vor dem Haus, eine Reihe mit Blick nach Norden: links die
+ * sechs Tapeten, eine Kachel Lücke, rechts die sechs Bodenbeläge.
+ */
+export const HOUSE_SPOTS: readonly ElementSpot[] = [
+  ...WALLPAPER_CRATES.map((crate, index): ElementSpot => ({
+    id: `tapete-${index}`,
+    element: crate.id,
+    x: 3 + index,
+    z: 11,
+    face: 'N',
+  })),
+  ...FLOORING_CRATES.map((crate, index): ElementSpot => ({
+    id: `boden-${index}`,
+    element: crate.id,
+    x: 10 + index,
+    z: 11,
+    face: 'N',
+  })),
+];
 
 /** Ob die Kachel (`x`, `z`) auf dem Boden liegt. */
 export function onHouseGround(x: number, z: number): boolean {
