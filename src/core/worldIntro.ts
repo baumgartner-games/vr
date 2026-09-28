@@ -109,6 +109,15 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
       { action: 'menu', label: 'Menü' },
     ],
   },
+  hausbau: {
+    goal: 'Ein kleines Haus zum Umbauen und Tapezieren — die Tapeten liegen in den Kisten vor der Tür.',
+    first: 'Tapete aus einer Kiste nehmen, im Raum auf eine Wand zeigen: Was sie bekäme, leuchtet.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'use', label: 'Nehmen / Tapezieren' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
 };
 
 /** Die Karte zu einer Welt — `null`, wenn sie keine hat. */
