@@ -55,8 +55,8 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
     ],
   },
   plateup: {
-    goal: 'Bediene die Gäste: Brötchen, Patty vom Grill, Salat vom Brett — auf einen Teller und an den Tisch.',
-    first: 'Die Glocke an der Durchreiche startet den Tag.',
+    goal: 'Küche und Gastraum, neu aus dem Möbelkatalog: Fliesen, Dielen, Wände und die Küche — noch ohne Tische und Gäste.',
+    first: 'Jedes Möbel der Küche tut auf „Benutzen", was es in der Küche tut.',
     tips: [
       { action: 'move', label: 'Gehen' },
       { action: 'use', label: 'Nehmen & Benutzen' },

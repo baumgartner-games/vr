@@ -156,7 +156,24 @@ export class TestRestaurantWorld extends GridWorld {
     this.stations = new StationLayer(this.stationHost(), this.gauges, null, DEFAULT_BURN);
     // Jede Stelle sperrt ihre Zellen, sobald `placeElement` aufgerufen ist,
     // und jedes Element mit einer Stationsart wird Station — ohne zweite Liste.
-    void furnish(this.elementHost(), SPOTS, this.stations, (placed) => this.placed.push(placed));
+    void furnish(this.elementHost(), this.spots(), this.stations, (placed) =>
+      this.placed.push(placed),
+    );
+  }
+
+  /**
+   * **Was diese Welt hinstellt** — hier die Burgerküche (`SPOTS`). Das
+   * Restaurant (`plateup/PlateUpWorld`) baut auf demselben Weg und nennt seine
+   * eigenen Stellen.
+   */
+  protected spots(): readonly ElementSpot[] {
+    return SPOTS;
+  }
+
+  /** **Ob die Kachel auf dem Boden liegt** — nur dorthin stellt der Möbelkatalog. */
+  protected onGround(tx: number, tz: number): boolean {
+    const g = ground();
+    return tx >= g.x && tx < g.x + g.w && tz >= g.z && tz < g.z + g.d;
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -285,10 +302,9 @@ export class TestRestaurantWorld extends GridWorld {
    */
   protected override furnishSpot(spot: ElementSpot, keep: readonly StationState[] = []): boolean {
     if (!this.stations || !hasElement(spot.element)) return false;
-    const g = ground();
     const inside = spotTiles(spot).every((tile) => {
       const [tx, tz] = tile.split(',').map(Number);
-      return tx! >= g.x && tx! < g.x + g.w && tz! >= g.z && tz! < g.z + g.d;
+      return this.onGround(tx!, tz!);
     });
     if (!inside || !this.cellsFree(spotCells(spot))) return false;
     void furnish(

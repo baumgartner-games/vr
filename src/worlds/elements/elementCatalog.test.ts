@@ -9,6 +9,8 @@ import {
   FURNITURE_CATALOGUE,
   FURNITURE_FOLDERS,
   SHOW_ONLY_GIVES,
+  WALL_CATALOGUE,
+  WALL_DEPTH,
   elementById,
   elementLit,
   hasElement,
@@ -205,7 +207,7 @@ describe('der Möbelkatalog im Menü', () => {
     }
   });
 
-  it('hat die Unterordner Allgemein, Pizza, Burger, Eis, Waffeln, Suppe, Alles — aus der ganzen Liste', () => {
+  it('hat die Unterordner Allgemein, Pizza, Burger, Eis, Waffeln, Suppe, Alles, Wände — aus der ganzen Liste', () => {
     expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
       'Allgemein',
       'Pizza',
@@ -214,6 +216,7 @@ describe('der Möbelkatalog im Menü', () => {
       'Waffeln',
       'Suppe',
       'Alles',
+      'Wände',
     ]);
     expect(new Set(FURNITURE_FOLDERS.map((folder) => folder.id)).size).toBe(
       FURNITURE_FOLDERS.length,
@@ -221,12 +224,14 @@ describe('der Möbelkatalog im Menü', () => {
     for (const folder of FURNITURE_FOLDERS) {
       expect(folder.elements.length).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
-      for (const id of folder.elements) expect(FURNITURE_CATALOGUE).toContain(id);
+      const list = folder.id === 'walls' ? WALL_CATALOGUE : FURNITURE_CATALOGUE;
+      for (const id of folder.elements) expect(list).toContain(id);
     }
   });
 
-  it('hat die Arbeitsplatte in jedem Ordner, den Tellerstapel bei Burger und Pizza', () => {
-    for (const folder of FURNITURE_FOLDERS) expect(folder.elements).toContain('counter');
+  it('hat die Arbeitsplatte in jedem Ordner der Küche, den Tellerstapel bei Burger und Pizza', () => {
+    for (const folder of FURNITURE_FOLDERS.filter((one) => one.id !== 'walls'))
+      expect(folder.elements).toContain('counter');
     const plates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('plate-stack'));
     expect(plates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
   });
@@ -283,6 +288,26 @@ describe('der Möbelkatalog im Menü', () => {
         { model: 'restaurant-bits/dishrack.glb', stack: true },
       ],
     });
+  });
+
+  it('hat die Fensterwand der Test Navigation als Wand, ganz und halb, bündig an der Vorderkante', () => {
+    expect(WALL_CATALOGUE).toEqual(['wall', 'wall-half']);
+    expect(elementById('wall')).toMatchObject({
+      label: 'Wand',
+      tiles: [2, 1],
+      height: 2.8,
+      kind: null,
+      parts: [{ model: 'prototype-bits/Wall_Window_Closed.glb' }],
+    });
+    expect(elementById('wall-half')).toMatchObject({
+      tiles: [1, 1],
+      parts: [{ model: 'prototype-bits/Wall_Window_Closed_Narrow.glb' }],
+    });
+    // Ganz auf ihrer Kachel und mit der Vorderseite genau auf deren Kante.
+    const [x, z] = elementById('wall').parts[0]!.at!;
+    expect(x).toBe(0);
+    expect(z + WALL_DEPTH / 2).toBeCloseTo(0.5);
+    expect(FURNITURE_CATALOGUE).not.toContain('wall');
   });
 
   it('hat Hörnchen und Eiswannen als Vorräte der Küche — eine Wanne je Platte', () => {

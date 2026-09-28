@@ -56,9 +56,12 @@ eigentlich sowieso bereits von Haus aus 2x2 undurchgehbar sein."_
   trägt, was eine Station zeigt, was im Menü in der Kachel steht: Dafür nimmt
   man Pfade aus dem Regal, und dafür gibt es `itemModels.ts`. Man steht
   nicht davor und läuft nicht dagegen.
-- Wände, Böden, Türen und Treppen sind keine Spielelemente. Sie kommen über
-  den Plan und `grid/shelfWalls.ts` und sperren über den Plan
-  ([Zellgitter](./zellgitter.md)).
+- Böden, Türen und Treppen sind keine Spielelemente. Sie kommen über den Plan
+  und sperren über den Plan ([Zellgitter](./zellgitter.md)). Wände meistens
+  auch (`grid/shelfWalls.ts`) — seit September 2026 gibt es aber die Wand der
+  Test Navigation auch als Spielelement
+  ([Die Wand](#die-wand-aus-der-test-navigation)), und das Restaurant steht aus
+  ihr.
 
 ## Was ein Spielelement ist
 
@@ -201,6 +204,30 @@ ihrer eigenen Platte (`ice-tray-*`). Die Mechanik mehrerer Stationen je
 Element (`StationSlot.shift`, `partSlot`) ist geblieben, trägt aber nichts
 mehr.
 
+### Die Wand aus der Test Navigation
+
+Gewünscht (September 2026): _„die Wand aus Navigation Test als Möbel
+einrichten, und diese Wand Element aus Möbel dann in Restaurant Welt
+nutzen"_. Zwei Elemente ohne Zweck (`kind: null`), aus denselben Dateien wie
+die Kammern der Test Navigation (`shelfWalls.SHELF_WINDOW_PIECES`),
+ungestreckt:
+
+- `wall` (_Wand_): `prototype-bits/Wall_Window_Closed.glb`, 2 × 1 Kacheln,
+  2,00 m lang, 2,80 m hoch (`2 · SHELF_WALL_Y`), 0,265 m dick (`WALL_DEPTH`).
+- `wall-half` (_Halbe Wand_): `Wall_Window_Closed_Narrow.glb`, 1 × 1 Kachel.
+
+**Die Wand steht an der Vorderkante ihrer Kacheln** (`at` = 0,5 − Dicke/2),
+bündig und ganz darin, und gesperrt ist die ganze Grundfläche. Anders als in
+der Test Navigation steht sie also nicht mitten auf einer Fuge: Ein Möbel
+belegt Kacheln, keine Kanten. Für einen Raum stellt man sie auf den Ring von
+Kacheln rings um seinen Boden, mit der Vorderseite nach innen — dann schließt
+sie genau mit dem Rand des Bodens ab, und ihr Körper liegt draußen
+(`plateup/plateUpRoom.WALL_SPOTS`). An den äußeren Ecken bleibt dabei ein
+Viertelmeter offen, den man von innen nicht sieht.
+
+Im Möbelkatalog stehen beide im eigenen Ordner **Wände** (`WALL_CATALOGUE`),
+nicht in _Alles_: Dort steht, was zur Küche gehört.
+
 ## Hinstellen
 
 **Eine Stelle (`ElementSpot`, `elementPlace.ts`)** ist, was ein Plan über ein
@@ -281,7 +308,9 @@ Möbelkatalog gibt **Spielelemente** her.
 - **Wo:** Menü _Bauen & Gestalten_ → **Möbel**, gleich hinter dem Modellregal
   (`PortalWorld.elementMenu`, Id `elements`, `ui/menuGroups.ts`). Nur in einer
   Welt, die Stationen führt und es sagt (`elementCatalogue`); heute das
-  [Test Restaurant](./testrestaurant.md). Anderswo fehlt der Eintrag.
+  [Test Restaurant](./testrestaurant.md) und das
+  [Restaurant](./burgerladen.md), das von ihm erbt. Anderswo fehlt der
+  Eintrag.
 - **Was:** `FURNITURE_CATALOGUE` in `elementCatalog.ts`, in der Reihenfolge
   des Wunsches und mit seinen Worten (die Namen der Elemente selbst):
   Arbeitsplatte
@@ -304,7 +333,8 @@ Möbelkatalog gibt **Spielelemente** her.
   je Gericht **Pizza, Burger, Eis, Waffeln, Suppe** — jeder mit der
   Arbeitsplatte vorn und den Möbeln, mit denen `elementFlows.test.ts` das
   Gericht kocht, Burger und Pizza mit Tellerstapel und Tellerkiste — und **Alles** mit
-  der ganzen Liste. Gewünscht zuerst: _„einige Möbel doppelt gelistet …
+  der ganzen Liste; dahinter **Wände** mit Wand und halber Wand
+  ([Die Wand](#die-wand-aus-der-test-navigation)). Gewünscht zuerst: _„einige Möbel doppelt gelistet …
   unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_, dann: _„bei den unter
   Ordner die Arbeitsplatte jeweils rein. Und die Möbel aus dem Restaurant
   Ordner dafür raus. Dafür einen Ordner allgemein … Im Restaurant Ordner noch

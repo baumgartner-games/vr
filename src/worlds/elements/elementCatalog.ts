@@ -1,3 +1,4 @@
+import { SHELF_WALL_Y, SHELF_WINDOW_PIECES } from '../grid/shelfWalls';
 import type { StationKind } from '../test/zones/kitchenCarry';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
 
@@ -292,6 +293,53 @@ const CRATES: readonly GameElement[] = [
 ];
 
 /**
+ * **Wie dick die Wand der Test Navigation ist**, in Metern — die Fensterwand
+ * aus _Prototype Bits_ ist 0,53 Quelleinheiten tief, mit dem Maßstab des
+ * Pakets (`core/kaykitFit`, 0,5 in der Waagerechten) gut ein Viertelmeter.
+ */
+export const WALL_DEPTH = 0.265;
+
+/**
+ * **Eine Wand als Möbel** — die Fensterwand der Test Navigation
+ * (`grid/shelfWalls.SHELF_WINDOW_PIECES`), ungestreckt: zwei Meter lang und
+ * 2,80 m hoch, die halbe einen Meter.
+ *
+ * Gewünscht: _„die Wand aus Navigation Test als Möbel einrichten, und diese
+ * Wand Element aus Möbel dann in Restaurant Welt nutzen"_. In der Test
+ * Navigation steht sie über den Plan (Wände auf den Fugen, `planShelfWalls`);
+ * als Spielelement bringt sie wie jedes Möbel ihre Grundfläche mit, eine
+ * Reihe Kacheln, deren Zellen alle gesperrt sind, bevor etwas lädt.
+ *
+ * **Sie steht an der Vorderkante ihrer Kacheln** (`at`), bündig und ganz
+ * darin: So schließt ein Ring aus Wänden, jede mit der Vorderseite nach
+ * innen auf die Kacheln rings um einen Raum gestellt, genau mit dem Rand
+ * seines Bodens ab, und der Körper (die ganze Kachel) liegt draußen.
+ */
+function wall(id: string, label: string, length: 1 | 2, model: string): GameElement {
+  return {
+    id,
+    label,
+    tiles: [length, 1],
+    height: 2 * SHELF_WALL_Y,
+    kind: null,
+    parts: [{ model, at: [0, 0.5 - WALL_DEPTH / 2] }],
+  };
+}
+
+/** Die Wände: die ganze Fensterwand über zwei Kacheln und die halbe über eine. */
+const WALLS: readonly GameElement[] = [
+  wall('wall', 'Wand', 2, SHELF_WINDOW_PIECES.full),
+  wall('wall-half', 'Halbe Wand', 1, SHELF_WINDOW_PIECES.half),
+];
+
+/**
+ * **Die Wände im Möbelkatalog** — ein eigener Ordner (`FURNITURE_FOLDERS`,
+ * _Wände_) neben den Möbeln der Küche, und nicht in _Alles_: Dort steht, was
+ * zur Küche gehört.
+ */
+export const WALL_CATALOGUE: readonly string[] = WALLS.map((one) => one.id);
+
+/**
  * **Der ganze Katalog.** Neue Elemente kommen hierher und nicht in eine Welt:
  * Was zwei Welten gleich hinstellen, soll gleich aussehen.
  */
@@ -528,6 +576,7 @@ export const ELEMENTS: readonly GameElement[] = [
     parts: [{ model: bits('table_round_B_tablecloth_red') }],
   },
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
+  ...WALLS,
 ];
 
 /**
@@ -597,7 +646,7 @@ export interface FurnitureFolder {
   readonly id: string;
   /** Der Name im Menü. */
   readonly label: string;
-  /** Die Elemente darin, jedes auch in `FURNITURE_CATALOGUE`. */
+  /** Die Elemente darin, jedes auch in `FURNITURE_CATALOGUE` — die Wände in `WALL_CATALOGUE`. */
   readonly elements: readonly string[];
 }
 
@@ -709,6 +758,8 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   },
   // **Alles, was zur Küche gehört** — die ganze Liste des Katalogs.
   { id: 'all', label: 'Alles', elements: FURNITURE_CATALOGUE },
+  // **Die Wände** — die Fensterwand der Test Navigation, ganz und halb.
+  { id: 'walls', label: 'Wände', elements: WALL_CATALOGUE },
 ];
 
 /** Die Elemente nach Namen. */
