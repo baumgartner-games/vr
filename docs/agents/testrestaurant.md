@@ -201,6 +201,14 @@ und ihre Tests. Was davon allgemein war, lebt weiter:
   Element des Katalogs für sich, in jeder Drehung
   (`elements/elementFeet.test.ts`).
 
+## Von Hand zu Hand
+
+Was man trägt — Gemüse, Teller, Hörnchen, Pfanne —, geht in der Brille an die
+andere Hand wie die Pistole: die freie Hand an den Griff der tragenden führen
+(`grabReach.atHandGrip`, 16 cm), sie leuchtet und stupst einmal, dann ihr
+Griffknopf (`TestRestaurantWorld.passHands`). Eine Hand mit Werkzeug nimmt
+nichts entgegen (`handFree`), und eine schon geschlossene Faust auch nicht.
+
 ## Zum Prüfen
 
 Die reine Rechnung prüft `npm test` (`testrestaurant/*.test.ts`,

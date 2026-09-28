@@ -123,6 +123,8 @@ import {
   EYE_RANGE,
   KITCHEN_EYE_RANGE,
   eyeHeights,
+  kitchenEyeScale,
+  onPostureChange,
   saveEyeHeights,
   savePlayerPosture,
   seatedLift,
@@ -279,6 +281,15 @@ export class App {
    * `topDown`.
    */
   private readonly topDownCamera: TopDownCamera;
+  /**
+   * **Die Augenhöhe in der Brille, für jede Welt** (`posture.kitchenEyeScale`)
+   * — einmal gerechnet und danach nur, wenn jemand sie verstellt: Sie liest
+   * den `localStorage`, und das je Bild wäre ein Dateizugriff für eine Zahl.
+   */
+  private xrEyeScale = kitchenEyeScale();
+  private readonly offEyes = onPostureChange(() => {
+    this.xrEyeScale = kitchenEyeScale();
+  });
   readonly net = new NetSession();
   readonly spectator: SpectatorCamera;
 
@@ -1200,6 +1211,7 @@ export class App {
     this.keys.dispose();
     this.flat.dispose();
     this.topDownCamera.dispose();
+    this.offEyes();
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.hints?.dispose();
@@ -1828,6 +1840,22 @@ export class App {
   }
 
   /**
+   * **Wie hoch man in der Brille schaut — in jeder Welt gleich.**
+   *
+   * Gewünscht: _„die vr kamera höhe default auf allen welten soll so sein wie
+   * in der welt restaurant"_. Das Restaurant (und die Küche der Testwelt)
+   * stauchten den Spieler bisher als einzige auf die eingestellte Augenhöhe
+   * (`EyeHeights.kitchen`, voreingestellt 115 cm, `PlayerRig.eyeScale`); jetzt
+   * tut es die App für jede Welt, vor dem Rig und damit noch in diesem Bild.
+   *
+   * Nur **in der Brille** und **nicht von oben**: Am Bildschirm setzt das Spiel
+   * die Kamera selbst, und die Ansicht von oben hängt an keiner Kopfhöhe.
+   */
+  private fitEyes(presenting: boolean): void {
+    this.rig.eyeScale = presenting && !this.topDown ? this.xrEyeScale : 1;
+  }
+
+  /**
    * Wie hoch der Spieler steht und wie hoch er sitzt.
    *
    * Der Ausgleich für den Sessel hing lange an einer einzigen getippten Zahl —
@@ -1904,13 +1932,18 @@ export class App {
     return {
       id: 'move:eyes',
       label: 'Augenhöhe',
-      sub: `Stehend ${eyeHeights().stand} cm · sitzend ${eyeHeights().sit} cm · Küche ${eyeHeights().kitchen} cm`,
+      sub: `Stehend ${eyeHeights().stand} cm · sitzend ${eyeHeights().sit} cm · Brille ${eyeHeights().kitchen} cm`,
       icon: 'settings',
       accent,
       children: [
         ...step('stand', 'Stehend', 'Augen über dem Zimmerboden, aufrecht'),
         ...step('sit', 'Sitzend', 'Dasselbe im Sessel'),
-        knob('kitchen', 'In der Küche', 'Nur in der Brille, nur in der Küche', KITCHEN_EYE_RANGE),
+        knob(
+          'kitchen',
+          'In der Brille',
+          'Worauf die Sicht in jeder Welt gestaucht wird',
+          KITCHEN_EYE_RANGE,
+        ),
         {
           id: 'move:eye-reset',
           label: 'Augenhöhen zurücksetzen',
@@ -3131,6 +3164,7 @@ export class App {
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.wristMenu.scrollHand;
+    this.fitEyes(presenting);
     this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
     const context = this.context;
