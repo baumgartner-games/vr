@@ -18,6 +18,13 @@ export interface Flooring {
   readonly label: string;
   readonly path: string;
   readonly swatch: string;
+  /**
+   * **Wie viele Kacheln die Platte aus dem Regal breit ist** — die Prototyp-
+   * Platte ist doppelt so groß wie die anderen (gemeldet: _„Prototype floor ist
+   * zu groß als item"_). Auf dem Boden legt die Welt sie ohnehin auf eine
+   * Kachel; in der Kiste und in der Hand wird sie darum kleiner gezeigt.
+   */
+  readonly tiles?: number;
 }
 
 export const FLOORINGS: readonly Flooring[] = [
@@ -26,6 +33,7 @@ export const FLOORINGS: readonly Flooring[] = [
     label: 'Prototyp-Boden',
     path: 'prototype-bits/Floor_Prototype.glb',
     swatch: '#3493ce',
+    tiles: 2,
   },
   {
     id: 'kitchen',

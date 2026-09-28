@@ -111,6 +111,15 @@ export class PlaceGrid {
   }
 
   /**
+   * **Die Farbe des Gitters** — grün, wo etwas passt, rot, wo nicht (die
+   * Treppe im Hausbau). Ohne Angabe die Farbe des Regals.
+   */
+  tint(color: number = KAYKIT_ACCENT): void {
+    this.fillSkin.color.setHex(color);
+    this.frameSkin.color.setHex(color);
+  }
+
+  /**
    * **Die Kacheln zeigen.** Eine leere Liste macht das Gitter unsichtbar —
    * dasselbe wie `hide`, nur ohne dass der Aufrufer sich das merken muss.
    *

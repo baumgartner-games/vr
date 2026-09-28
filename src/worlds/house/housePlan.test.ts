@@ -91,9 +91,9 @@ describe('Hausbau', () => {
     for (const face of kitchen) expect(living).not.toContain(face);
   });
 
-  it('stellt sechs Tapeten- und sechs Bodenkisten auf den Boden, vor das Haus', () => {
-    expect(HOUSE_SPOTS).toHaveLength(12);
-    expect(new Set(HOUSE_SPOTS.map((spot) => `${spot.x},${spot.z}`)).size).toBe(12);
+  it('stellt Tapeten-, Boden- und Treppenkisten auf den Boden, vor das Haus', () => {
+    expect(HOUSE_SPOTS).toHaveLength(13);
+    expect(new Set(HOUSE_SPOTS.map((spot) => `${spot.x},${spot.z}`)).size).toBe(13);
     for (const spot of HOUSE_SPOTS) {
       expect(ELEMENTS.some((element) => element.id === spot.element)).toBe(true);
       expect(onHouseGround(spot.x, spot.z)).toBe(true);
