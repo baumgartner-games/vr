@@ -392,12 +392,16 @@ class HoldScene {
    * Stoffe gehören den Vorlagen der Welt (`KaykitDishView`) und werden deshalb
    * nie verändert: Getauscht wird am Mesh, und beim Schließen kommt das
    * Original zurück.
+   *
+   * **Nachgesehen wird in jedem Bild** (`dress`), nicht nur beim Öffnen: Das
+   * Hörnchen lädt sein Modell erst hinterher (`IceConeView`), und beim
+   * Aufschlagen hingen nur die Kugeln schon daran — gemeldet: _„anscheinend
+   * sind nur die eis kugeln hier durchsichtig"_.
    */
-  private readonly skins: Array<{
-    mesh: THREE.Mesh;
-    solid: THREE.Material | THREE.Material[];
-    ghost: THREE.Material | THREE.Material[];
-  }> = [];
+  private readonly skins = new Map<
+    THREE.Mesh,
+    { solid: THREE.Material | THREE.Material[]; ghost: THREE.Material | THREE.Material[] }
+  >();
   private ghosted = false;
   private readonly box = new THREE.Box3();
   private readonly target = new THREE.Vector3(0, 0.1, 0);
@@ -422,13 +426,6 @@ class HoldScene {
     this.thing.scale.setScalar(HAND_SCALE);
     this.thing.add(subject.model());
     this.scene.add(this.thing);
-    this.thing.traverse((node) => {
-      const mesh = node as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const solid = mesh.material;
-      const ghost = Array.isArray(solid) ? solid.map(ghostOf) : ghostOf(solid);
-      this.skins.push({ mesh, solid, ghost });
-    });
 
     this.shape = createGripShape({ front: true });
     this.cylinder.add(this.shape);
@@ -445,10 +442,8 @@ class HoldScene {
   }
 
   set(hold: DishHold, cylinder: boolean, hand: boolean, ghost: boolean): void {
-    if (ghost !== this.ghosted) {
-      this.ghosted = ghost;
-      for (const skin of this.skins) skin.mesh.material = ghost ? skin.ghost : skin.solid;
-    }
+    this.ghosted = ghost;
+    this.dress();
     this.cylinder.position.set(hold.x / 100, hold.y / 100, hold.z / 100);
     this.cylinder.quaternion.setFromEuler(
       _euler.set(hold.pitch * DEG, hold.yaw * DEG, hold.roll * DEG, 'XYZ'),
@@ -467,6 +462,28 @@ class HoldScene {
     this.hand.setPose(pose);
     this.hand.update(1);
     this.hand.visible = hand;
+  }
+
+  /**
+   * **Jedes Mesh des Dings im richtigen Stoff** — als Geist oder, wie es kam,
+   * fest. Was seit dem letzten Bild dazugekommen ist, bekommt hier sein
+   * durchsichtiges Doppel; alles, was nicht Hand und nicht Zylinder ist, hängt
+   * unter `thing` und wird damit erfasst.
+   */
+  private dress(): void {
+    this.thing.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      let skin = this.skins.get(mesh);
+      if (!skin || (mesh.material !== skin.solid && mesh.material !== skin.ghost)) {
+        if (skin) for (const ghost of [skin.ghost].flat()) ghost.dispose();
+        const solid = mesh.material;
+        skin = { solid, ghost: Array.isArray(solid) ? solid.map(ghostOf) : ghostOf(solid) };
+        this.skins.set(mesh, skin);
+      }
+      const want = this.ghosted ? skin.ghost : skin.solid;
+      if (mesh.material !== want) mesh.material = want;
+    });
   }
 
   /** Um das Ding herum: waagerecht eine Umdrehung über die Breite, senkrecht gedeckelt. */
@@ -493,11 +510,11 @@ class HoldScene {
     });
     // Das Ding selbst gehört den Vorlagen der Welt (`KaykitDishView`): die
     // eigenen Stoffe zurück, die Geister weg, und dann nur abhängen.
-    for (const skin of this.skins) {
-      skin.mesh.material = skin.solid;
+    for (const [mesh, skin] of this.skins) {
+      mesh.material = skin.solid;
       for (const ghost of [skin.ghost].flat()) ghost.dispose();
     }
-    this.skins.length = 0;
+    this.skins.clear();
     this.thing.removeFromParent();
     this.lighting.removeFromParent();
     this.renderer.domElement.remove();
@@ -508,6 +525,7 @@ class HoldScene {
   private readonly loop = (): void => {
     this.frame = requestAnimationFrame(this.loop);
     if (!this.fit()) return;
+    this.dress();
     this.aim();
     this.renderer.render(this.scene, this.camera);
   };
