@@ -29,10 +29,12 @@ import type { KitchenItem } from '../test/zones/kitchenRecipes';
 
 /**
  * **Was man mit einem Element tut** — die Stationsarten der Küche
- * (`kitchenCarry.StationKind`) und `'ice-tubs'`: zwei Wannen auf einer
- * Platte, also zwei Stationen (`stationLayer.elementStations`).
+ * (`kitchenCarry.StationKind`). Die Eiswannen zu zweit auf einer Platte
+ * (`'ice-tubs'`) sind weg — gemeldet: _„Bei den Waffeln gibt es anscheinend
+ * Elemente mit zwei Eis trays auf einer Arbeitsplatte, bitte fixen."_ Eine
+ * Wanne je Platte (`ice-tray-*`).
  */
-export type ElementKind = StationKind | 'ice-tubs';
+export type ElementKind = StationKind;
 
 /** Was auf einem Brett passiert — Schneiden oder Ausrollen. */
 export type ElementWork = 'chop' | 'roll';
@@ -458,17 +460,6 @@ export const ELEMENTS: readonly GameElement[] = [
     ],
     { gives: 'cone' },
   ),
-  // Zwei Wannen nebeneinander, quer zur Platte (von vorn nach hinten), je
-  // 0,66 m lang wie im Burgerladen (`CORNER_SIZE.tub`): Der Kasten ist im
-  // Paket 0,80 m lang, also 0,825 — und das Eis darin mit demselben Faktor,
-  // sonst sitzt es nicht mehr darin.
-  piece('ice-tubs', 'Eiswannen', 'ice-tubs', [
-    { model: COUNTER },
-    { model: bits('icecream_container'), on: 0, at: [-0.23, 0], scale: TUB_SCALE },
-    { model: bits('icecream_container_icecream_vanilla'), inside: true },
-    { model: bits('icecream_container'), on: 0, at: [0.23, 0], scale: TUB_SCALE },
-    { model: bits('icecream_container_icecream_strawberry'), inside: true },
-  ]),
   // **Die Eismaschine auf der Arbeitsplatte** — erst Deko, jetzt die Stelle,
   // an der eine Eiswanne gefüllt wird (`icemachine`, `kitchenCarry.atMachine`):
   // leer mit Vanille, danach jedes Mal die nächste Sorte.

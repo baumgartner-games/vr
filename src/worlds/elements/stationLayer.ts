@@ -56,9 +56,6 @@ import type { PlacedElement } from './elementView';
  * selbst bleibt, wie er ist.
  */
 
-/** **Wie weit eine Wanne neben der Mitte der Vorderkante liegt**, in Metern. */
-export const TUB_SHIFT = 0.25;
-
 /**
  * **Wie nah man an einer Station stehen muss**, damit an ihr gearbeitet wird —
  * die Füße höchstens so weit von der **Mitte der Platte**, gleich von welcher
@@ -103,7 +100,7 @@ export const RACK_PLATE_LIFT = SINK_TRAY.floor - 0.5 + RACK_SLOTS.lift;
  */
 export const STATION_REACH = 0.55;
 
-/** Und bei zwei Stationen auf einer Platte (die Eiswannen) je Wanne. */
+/** Und bei mehreren Stationen auf einer Platte je Station (so gab es früher die Eiswannen zu zweit). */
 const TUB_REACH = 0.3;
 
 /**
@@ -145,7 +142,7 @@ export interface StationSlot {
   /**
    * Wie weit der Anker längs der Vorderkante neben ihrer Mitte sitzt, in
    * Metern — im Maß des Elements, das nach Süden schaut (x Osten, wie
-   * `ElementPart.at`). Die Eiswannen tragen zwei Stationen nebeneinander.
+   * `ElementPart.at`). 0 bei einer Station je Element — heute alle.
    */
   readonly shift: number;
   /**
@@ -171,16 +168,13 @@ export function slotStates(slots: readonly StationSlot[]): StationState[] {
  * **Welche Stationsart ein Element ist** — `null` für eines ohne Zweck
  * (Tisch, Stuhl, Band).
  *
- * Zwei Übersetzungen, sonst gilt die Art des Elements: Ein Brett, auf dem
- * ausgerollt wird, ist für die Regel das Nudelholz (`roller`), und die
- * Eiswannen sind zwei Wannen (`tub`).
+ * Eine Übersetzung, sonst gilt die Art des Elements: Ein Brett, auf dem
+ * ausgerollt wird, ist für die Regel das Nudelholz (`roller`).
  */
 export function stationKind(element: GameElement): StationKind | null {
   switch (element.kind) {
     case null:
       return null;
-    case 'ice-tubs':
-      return 'tub';
     case 'board':
       return element.work === 'roll' ? 'roller' : 'board';
     default:
@@ -194,9 +188,9 @@ function isKitchenItem(name: string): name is KitchenItem {
 }
 
 /**
- * **Die Stationen eines Elements** — keine, eine, oder bei den Eiswannen zwei:
- * links (von vorn gesehen, `-TUB_SHIFT`) Vanille, rechts Erdbeere, so wie sie
- * das Element zeigt.
+ * **Die Stationen eines Elements** — keine oder eine. (Die Eiswannen zu
+ * zweit auf einer Platte gaben einmal zwei; sie sind weg, eine Wanne steht
+ * auf ihrer eigenen Platte, `ice-tray-*`.)
  *
  * Stapel werden nie leer (`stock: Infinity`): Kein Gast bringt dreckiges
  * Geschirr zurück, und Schüsseln und Kartons gehen nicht zurück. **Außer dem
@@ -222,16 +216,6 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
   if (!kind) return [];
   const label = spot.label ?? element.label;
   const base = { x: spot.x, z: spot.z, label, model: '', face: DIR_S } as const;
-  if (element.kind === 'ice-tubs') {
-    const tub = (flavor: 'vanilla' | 'strawberry', shift: number): StationSlot => {
-      const gives: KitchenItem = `ice-${flavor}`;
-      return {
-        spot: { ...base, id: `${spot.id}:${flavor}`, kind, gives, label: ITEM_LABELS[gives] },
-        shift,
-      };
-    };
-    return [tub('vanilla', -TUB_SHIFT), tub('strawberry', TUB_SHIFT)];
-  }
   const gives = spotGives(spot);
   if (gives !== null && !isKitchenItem(gives)) {
     console.warn(`Spielelement ${spot.id} (${element.id}): „${gives}" ist kein Ding der Küche`);
@@ -254,8 +238,8 @@ export function elementStations(spot: ElementSpot): StationSlot[] {
 }
 
 /**
- * **Zu welcher Station ein Teil gehört** — bei einer Station alle, bei zweien
- * (die Eiswannen) das Teil, das auf ihrer Seite der Platte steht, samt dem,
+ * **Zu welcher Station ein Teil gehört** — bei einer Station alle, bei mehreren
+ * (einst die Eiswannen zu zweit) das Teil, das auf ihrer Seite der Platte steht, samt dem,
  * was darin sitzt (`ElementPart.inside`). Die Platte darunter gehört keiner:
  * Sie liegt in der Mitte, und ein Saum um sie sagte nicht, welche Wanne
  * gemeint ist. Gemeldet: _„Die Eis trays werden nicht gehighlithed welches

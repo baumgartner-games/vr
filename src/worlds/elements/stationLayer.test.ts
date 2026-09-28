@@ -5,7 +5,7 @@ import type { Dish } from '../test/zones/kitchenRecipes';
 import { elementById } from './elementCatalog';
 import type { ElementSpot } from './elementPlace';
 import type { PlacedElement } from './elementView';
-import { REFRESH_RANGE, StationLayer, TUB_SHIFT, type StationHost } from './stationLayer';
+import { REFRESH_RANGE, StationLayer, type StationHost } from './stationLayer';
 
 /** Ein hingestelltes Element ohne Modelle — nur, was die Stationen davon brauchen. */
 function placed(spot: ElementSpot): PlacedElement {
@@ -115,15 +115,6 @@ describe('Stationen auf Spielelementen', () => {
     } finally {
       warn.mockRestore();
     }
-  });
-
-  it('hängt die beiden Wannen nebeneinander an die Vorderkante', () => {
-    const { host } = world();
-    const layer = new StationLayer(host);
-    const tubs = placed({ id: 'wannen', element: 'ice-tubs', x: 0, z: 0 });
-    expect(layer.add(tubs)).toBe(2);
-    expect(tubs.anchor.children.map((child) => child.position.x)).toEqual([-TUB_SHIFT, TUB_SHIFT]);
-    expect(layer.place('wannen:vanilla')?.anchor.parent).toBe(tubs.anchor.children[0]);
   });
 
   it('lässt Gebratenes am ersten Tag verbrennen und sagt es', () => {
@@ -339,21 +330,6 @@ describe('Stationen auf Spielelementen', () => {
     for (let i = 0; i < 600; i++) layer.step(0.1, FAR);
     expect(layer.states[0]!.on).toEqual({ item: 'patty-cooked', on: [] });
     expect(layer.states[0]!.fire).toBeFalsy();
-  });
-
-  it('lässt bei den Eiswannen nur die gemeinte Wanne samt Eis leuchten', () => {
-    const { host } = world();
-    const layer = new StationLayer(host);
-    const parts = [0, 1, 2, 3, 4].map(() => new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2)));
-    const tubs = { ...placed({ id: 'wannen', element: 'ice-tubs', x: 0, z: 0 }), parts };
-    expect(layer.add(tubs)).toBe(2);
-    const [vanilla, strawberry] = tubs.anchor.children;
-    // Die Platte gehört keiner, Kasten und Eis links der Vanille, rechts der Erdbeere.
-    expect(parts[0]!.parent).toBeNull();
-    expect(parts[1]!.parent?.parent).toBe(vanilla);
-    expect(parts[2]!.parent?.parent).toBe(vanilla);
-    expect(parts[3]!.parent?.parent).toBe(strawberry);
-    expect(parts[4]!.parent?.parent).toBe(strawberry);
   });
 
   it('lässt die Spüle beim Füllen kaputtgehen — die Rohrzange dichtet sie ab', () => {

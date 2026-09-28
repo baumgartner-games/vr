@@ -1646,14 +1646,16 @@ describe('Nudelholz, Suppentopf, Eiswanne', () => {
       target: null,
       moved: ['ice-vanilla'],
     });
-    const two = press(d('bowl', 'waffle', 'ice-vanilla'), strawberry);
-    expect(two).toEqual({
-      do: 'combine',
-      held: d('bowl', 'waffle', 'ice-vanilla', 'ice-strawberry'),
-      target: null,
-      moved: ['ice-strawberry'],
-    });
-    expect(why(press(d('bowl', 'ice-vanilla'), vanilla))).toBe('Vanilleeis liegt schon drauf');
+    // Eine Kugel je Schüssel, für jede Sorte gleich: nichts wird überschrieben.
+    expect(why(press(d('bowl', 'waffle', 'ice-vanilla'), strawberry))).toBe(
+      'In der Schüssel ist schon Vanilleeis',
+    );
+    expect(why(press(d('bowl', 'ice-strawberry'), vanilla))).toBe(
+      'In der Schüssel ist schon Erdbeereis',
+    );
+    expect(why(press(d('bowl', 'ice-vanilla'), vanilla))).toBe(
+      'In der Schüssel ist schon Vanilleeis',
+    );
     expect(press(null, { kind: 'tub' })).toEqual({ do: 'nothing' });
   });
 

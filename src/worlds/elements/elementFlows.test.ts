@@ -15,7 +15,6 @@ import { furnish } from './furnish';
 import { dishModels } from './itemModels';
 import {
   StationLayer,
-  TUB_SHIFT,
   elementStations,
   slotStates,
   stationKind,
@@ -106,7 +105,6 @@ describe('Spielelemente — was aus ihnen für Stationen werden', () => {
     expect(stationKind(elementById('stove'))).toBe('stove');
     expect(stationKind(elementById('stove-pot'))).toBe('stove');
     expect(stationKind(elementById('sink'))).toBe('sink');
-    expect(stationKind(elementById('ice-tubs'))).toBe('tub');
     expect(stationKind(elementById('ice-stand'))).toBe('drain');
     expect(stationKind(elementById('table-round'))).toBeNull();
     expect(stationKind(elementById('belt'))).toBeNull();
@@ -123,14 +121,6 @@ describe('Spielelemente — was aus ihnen für Stationen werden', () => {
     ]);
     const [board] = elementStations({ id: 'b', element: 'board', x: 0, z: 0 });
     expect(slotStates([board!])[0]!.on).toBeNull();
-  });
-
-  it('gibt den Eiswannen zwei Stationen, Vanille links, Erdbeere rechts', () => {
-    const slots = elementStations({ id: 'w', element: 'ice-tubs', x: 0, z: 0 });
-    expect(slots.map((slot) => [slot.spot.id, slot.spot.gives, slot.shift])).toEqual([
-      ['w:vanilla', 'ice-vanilla', -TUB_SHIFT],
-      ['w:strawberry', 'ice-strawberry', TUB_SHIFT],
-    ]);
   });
 
   it('nimmt, was die Stelle hergibt, vor dem Element — und Stapel werden nie leer', () => {
@@ -263,7 +253,15 @@ describe('Spielelemente — jede Küche kocht', () => {
   });
 
   it('Waffeln: Teig in vier schneiden, alle braten, auf der Platte einzeln nehmen', () => {
-    const cook = new Cook(['crate-dough', 'board', 'stove', 'counter', 'bowl-stack', 'ice-tubs']);
+    const cook = new Cook([
+      'crate-dough',
+      'board',
+      'stove',
+      'counter',
+      'bowl-stack',
+      'ice-tray-vanilla',
+      'ice-tray-strawberry',
+    ]);
     const raw = ['waffle-raw', 'waffle-raw', 'waffle-raw'];
     expect(cook.press('crate-dough').do).toBe('take');
     // Auf dem Brett wird der Teig in vier Teigstücke geschnitten, die rohen Waffeln.
@@ -283,21 +281,16 @@ describe('Spielelemente — jede Küche kocht', () => {
     expect(cook.held).toEqual({ item: 'pan', on: [] });
     expect(cook.on('counter')).toEqual({ item: 'waffle', on: ['waffle', 'waffle', 'waffle'] });
     expect(cook.press('stove').do).toBe('place');
-    // Mit der Schüssel eine Waffel vom Stapel, dann zwei Kugeln darauf.
+    // Mit der Schüssel eine Waffel vom Stapel, dann eine Kugel darauf — eine
+    // zweite Sorte überschreibt sie nicht.
     expect(cook.press('bowl-stack').do).toBe('take');
     expect(cook.press('counter').do).toBe('combine');
     expect(cook.held).toEqual({ item: 'bowl', on: ['waffle'] });
     expect(cook.on('counter')).toEqual({ item: 'waffle', on: ['waffle', 'waffle'] });
-    expect(cook.press('ice-tubs:vanilla').do).toBe('combine');
-    expect(cook.press('ice-tubs:vanilla').do).toBe('refuse');
-    expect(cook.press('ice-tubs:strawberry').do).toBe('combine');
-    expect(cook.held).toEqual({ item: 'bowl', on: ['waffle', 'ice-vanilla', 'ice-strawberry'] });
-  });
-
-  it('Waffeln: ohne Schüssel gibt die Wanne nichts her', () => {
-    const cook = new Cook(['ice-tubs']);
-    expect(cook.press('ice-tubs:strawberry').do).toBe('refuse');
-    expect(cook.held).toBeNull();
+    expect(cook.press('ice-tray-vanilla').do).toBe('combine');
+    expect(cook.press('ice-tray-vanilla').do).toBe('refuse');
+    expect(cook.press('ice-tray-strawberry').do).toBe('refuse');
+    expect(cook.held).toEqual({ item: 'bowl', on: ['waffle', 'ice-vanilla'] });
   });
 });
 
@@ -558,11 +551,11 @@ describe('Spielelemente — hingestellt heißt benutzbar', () => {
 
 describe('Spielelemente — Hörnchen und Eiswannen als Vorräte', () => {
   it('gibt am Eisstand ein Hörnchen, und die Wannen türmen Kugeln darauf wie im Restaurant', () => {
-    const cook = new Cook(['ice-stand', 'ice-tubs', 'bin']);
+    const cook = new Cook(['ice-stand', 'ice-tray-vanilla', 'ice-tray-strawberry', 'bin']);
     expect(cook.press('ice-stand')).toMatchObject({ do: 'take' });
     expect(cook.held).toEqual({ item: 'cone', on: [] });
     for (const tub of ['strawberry', 'vanilla', 'vanilla', 'strawberry', 'vanilla']) {
-      expect(cook.press(`ice-tubs:${tub}`).do).toBe('combine');
+      expect(cook.press(`ice-tray-${tub}`).do).toBe('combine');
     }
     expect(cook.held).toEqual({
       item: 'cone',
@@ -574,13 +567,5 @@ describe('Spielelemente — Hörnchen und Eiswannen als Vorräte', () => {
       expect(cook.press('ice-stand').do).toBe('take');
       cook.held = null;
     }
-  });
-
-  it('ohne Hörnchen oder Schüssel gibt die Wanne nichts her', () => {
-    const cook = new Cook(['ice-tubs']);
-    expect(cook.press('ice-tubs:vanilla')).toEqual({
-      do: 'refuse',
-      why: 'Vanilleeis braucht eine Schüssel oder ein Hörnchen',
-    });
   });
 });

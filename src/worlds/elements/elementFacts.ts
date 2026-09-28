@@ -35,7 +35,6 @@ const KIND_WORDS: Partial<Record<ElementKind, string>> = {
   stove: 'Herd — brät in der Pfanne, kocht im Topf mit Wasser',
   sink: 'Waschbecken — füllt den Topf, den man davorhält',
   drain: 'Stapel — gibt aus und wird nie leer',
-  'ice-tubs': 'Zwei Eiswannen — Vanille links, Erdbeere rechts',
 };
 
 /** Ein Maß, wie man es liest: zwei Nachkommastellen und ein Komma. */

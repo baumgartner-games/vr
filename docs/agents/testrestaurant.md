@@ -44,7 +44,8 @@ die Spielelemente dazu.
 
 Östlich davon die **Waffelecke** (sechste Liste): bei z = 9 nach Norden
 Teigkiste, Schneidebrett, Platte, Schüsselstapel (20…23), bei z = 7 nach Süden
-Herd mit Pfanne, Platte, Eiswannen (21…23). In der Liste stand statt des
+Herd mit Pfanne, Platte, Vanille-Eiswanne (21…23; in der Liste standen die alten
+Eiswannen zu zweit auf einer Platte, die es nicht mehr gibt). In der Liste stand statt des
 Bretts das Nudelbrett: **Waffeln werden geschnitten, nicht ausgerollt** —
 ausgerollt wird der Pizzaboden, und so unterscheiden sich beide am ersten
 Möbel (gefragt war: _„Teig erst schneiden dann braten oder erst ausrollen dann

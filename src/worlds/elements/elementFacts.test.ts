@@ -25,7 +25,6 @@ describe('der Steckbrief eines Möbels', () => {
     expect(fact('board', 'Teil 3 · Lage')).toBe(
       'obenauf auf Teil 2 · 0,12 m nach vorn · umgelegt · um 90° gedreht',
     );
-    expect(fact('ice-tubs', 'Teil 3 · Lage')).toBe('in Teil 2');
     expect(fact('ice-stand', 'Teil 2 · Lage')).toBe(
       'auf Teil 1 · 0,22 m nach Osten, 0,05 m nach vorn · auf 0,50 m gebracht',
     );

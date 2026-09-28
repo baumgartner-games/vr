@@ -187,7 +187,13 @@ export class KaykitDishView {
       // da auch im idle"_.
       const cone = new IceConeView((this.balls ??= new BallKit()), WOBBLE.idle, true);
       cone.set({ balls: dish.on.map(flavorOf).filter((one) => one !== null) });
-      group.add(cone.root);
+      // **Dreimal so groß, überall** — in der Hand wie abgestellt. Gemeldet:
+      // _„Abgestelltes Eis ist leider kleiner als in der Hand"_ — der Faktor
+      // stand nur in der Hand der Welt (`TestRestaurantWorld`), jetzt hier.
+      const big = new THREE.Group();
+      big.scale.setScalar(CONE_SCALE);
+      big.add(cone.root);
+      group.add(big);
       return { group, done: Promise.resolve() };
     }
     const paths = dishModels(dish);
@@ -247,6 +253,13 @@ export class KaykitDishView {
     this.balls = null;
   }
 }
+
+/**
+ * **Das Hörnchen dreimal so groß** wie ein anderes Gericht — gewünscht:
+ * _„Die Eiswaffel und Kugeln in der Hand sind zu klein, 3x so groß bitte."_
+ * Das Hörnchen ist nur 14 cm hoch (`shared/iceCone.ICE_SIZE`).
+ */
+export const CONE_SCALE = 3;
 
 /**
  * **Wie groß der Topf gezeigt wird** — anderthalbmal so groß wie im Regal.

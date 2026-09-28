@@ -153,8 +153,10 @@ describe('Waffeln mit Eis', () => {
     expect(one.station).toBe(vanilla);
 
     const strawberry = station('tub', { gives: 'ice-strawberry' });
+    // Eine Kugel je Schüssel — die zweite Sorte überschreibt die erste nicht.
     const two = useStation(one.held, strawberry);
-    expect(two.held).toEqual(d('bowl', 'waffle', 'ice-vanilla', 'ice-strawberry'));
+    expect(two.deed.do).toBe('refuse');
+    expect(two.held).toEqual(d('bowl', 'waffle', 'ice-vanilla'));
 
     // Mit leerer Hand gibt die Wanne nichts.
     expect(useStation(null, vanilla).deed).toEqual({

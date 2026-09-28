@@ -964,12 +964,25 @@ function pour(giver: Dish, taker: Dish): Pour {
     if (!carries(taker.item, item)) return { ok: false, why: whyNot(taker.item, item), sure: true };
     // Aufs Hörnchen kommt ein Turm wie im Restaurant (`plateUpIce`): dieselbe
     // Sorte so oft man will.
+    // **Eine Kugel je Schüssel** — die zweite Sorte legte sich über die erste
+    // und sah aus, als hätte sie sie ersetzt; gemeldet: _„bei Eis in einer
+    // Schüssel [können] erdbeer und Schoko Vanille überschreiben, aber nicht
+    // anders herum … Ich wäre dafür, dass man das nicht überschreiben kann."_
+    // Also für alle Sorten gleich: Ist schon Eis darin, kommt keines mehr
+    // dazu. Die Waffel bleibt, wie sie war: eine je Schüssel, und Eis darauf.
+    if (taker.item === 'bowl' && ICE.includes(item) && taker.on.some((one) => ICE.includes(one))) {
+      const inside = taker.on.find((one) => ICE.includes(one))!;
+      return { ok: false, why: `In der Schüssel ist schon ${ITEM_LABELS[inside]}`, sure: true };
+    }
     if (taker.on.includes(item) && taker.item !== 'cone' && taker.item !== 'pan') {
       return { ok: false, why: `${ITEM_LABELS[item]} liegt schon drauf`, sure: true };
     }
   }
   return { ok: true, give: rest, take: dish(taker.item, [...taker.on, ...what]), moved: what };
 }
+
+/** Die Eissorten — eine je Schüssel, beliebig viele aufs Hörnchen. */
+const ICE: readonly KitchenItem[] = ['ice-vanilla', 'ice-strawberry', 'ice-chocolate'];
 
 /** Wenn keiner von beiden ein Träger ist: der hilfreichste Satz dazu. */
 function nothingHolds(a: Dish, b: Dish): string {
