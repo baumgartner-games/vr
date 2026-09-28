@@ -16,8 +16,8 @@ describe('worldIntro — die Willkommens-Karte je Welt', () => {
     for (const world of WORLDS) expect(worldIntro(world.id)).not.toBeNull();
   });
 
-  it('nennt im Restaurant die Glocke', () => {
-    expect(worldIntro('plateup')!.first).toMatch(/Glocke/);
+  it('nennt im Restaurant die Möbel der Küche', () => {
+    expect(worldIntro('plateup')!.first).toMatch(/Möbel/);
   });
 
   it('liest dieselbe Belegung wie die Tastenhilfe', () => {

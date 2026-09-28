@@ -75,9 +75,9 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'plateup',
     title: 'Restaurant',
-    tagline: 'Küche, Gastraum und ein Tag voller Gäste',
+    tagline: 'Küche und Gastraum, neu aus dem Möbelkatalog',
     description:
-      'Eine eingerichtete Spielküche mit Gastraum: Gäste kommen herein, setzen sich und bestellen. Brötchen, Patty von der Grillplatte, Salat vom Brett — auf einen Teller und an den Tisch, bevor die Geduld reißt. Jeden Tag mehr Gäste und eine längere Karte.',
+      'Küche mit Fliesen, Gastraum mit Dielen, ringsum Wände — alles Spielelemente aus dem Möbelkatalog. In der Küche Vorratskisten, Brett, Herde, Spüle, Teller und die Eisecke; jedes Möbel sperrt seine Kachel und tut auf A, was es in der Küche tut. Tische, Stühle und Gäste kommen, sobald sie als Möbel eingerichtet sind.',
     accent: 0xf2a33a,
     preview: 'worlds/plateup.webp',
     roles: ['vr', 'desktop', 'handheld'],

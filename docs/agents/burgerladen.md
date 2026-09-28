@@ -1,10 +1,82 @@
 # Das Restaurant
 
 Eine eigene kleine Welt (`#plateup`, Menü → _Restaurant_, Tor im Hub und im
-Gang südlich der Testküche): eine eingerichtete **Spielküche mit Gastraum**
-und ein Spiel nach dem Vorbild von _PlateUp!_. Gäste kommen herein, setzen
-sich an einen freien Tisch und bestellen einen Burger; man brät, schneidet,
-legt auf einen Teller und bringt ihn hin, bevor die Geduld reißt.
+Gang südlich der Testküche): **Küche und Gastraum, neu aus dem
+Möbelkatalog** — Fliesen, Dielen, Wände und die Küche, sonst nichts.
+
+## Neu aus dem Möbelkatalog (September 2026)
+
+Gewünscht: _„Alle Dinge/Gegenstände in Restaurant sollen nur aus die in Möbel
+befindlichen Elemente getauscht werden. Also zunächst Restaurant Welt komplett
+leer machen, dann die Boden floor Platten für die Küche einbauen und die floor
+Holz für den Gast Raum einsetzen. Dann die Küchen Elemente aus Möbel einbauen.
+Dann die Wand aus Navigation Test als Möbel einrichten, und diese Wand Element
+aus Möbel dann in Restaurant Welt nutzen. Bitte keine weiteren Gegenstände wie
+Tische oder Stühle einrichten, da diese noch nicht von mir als Möbel korrekt
+eingerichtet und geprüft worden sind."_
+
+Seitdem baut die Welt wie das [Test Restaurant](./testrestaurant.md):
+`PlateUpWorld` ist eine Unterklasse von `TestRestaurantWorld` und nennt nur
+Plan, Stellen, Boden und Ankunft. Alles steht in `plateup/plateUpRoom.ts`
+(rein, geprüft in `plateUpRoom.test.ts`):
+
+- **Dieselben Maße wie der alte Laden** (aus `plateUpPlan.ts`): 14 × 12
+  Kacheln, die Küche die nördlichen vier Reihen, der Gastraum die acht
+  darunter, die Tür (x = 6, 7) in der Südwand, davor der Gehweg mit dem Tor
+  zurück in die Sandbox. Man kommt wie früher bei (7,5 | 2,5) an, Blick nach
+  Süden.
+- **Boden** über `floorPlate` (`roomFloor`), eine Platte je Kachel: in der
+  Küche `restaurant-bits/floor_kitchen_small.glb`, im Gastraum
+  `dungeon/floor_wood_small.glb`, unter den Wänden und auf dem Gehweg der
+  Prototyp-Boden der Testwelten. Die kleinen Stücke, weil sie schon eine
+  Kachel groß sind; die großen würden auf eine Kachel verkleinert und ihr
+  Muster mit.
+- **Die Küche** (`KITCHEN_SPOTS`), nur Möbel aus `FURNITURE_CATALOGUE`, jedes
+  eine Station: an der Nordwand (nach Süden) Tellerkiste, Brötchen, Pattys,
+  Salat, Tomaten, Arbeitsplatte, Brett, Feuerlöscher, zwei Herde mit Pfanne,
+  Rohrzange, Spüle, Tellerstapel, Mülleimer; bei z = 3 (nach Norden) acht
+  Arbeitsplatten als Durchreiche und in derselben Reihe die Eisecke
+  (Eisstand, Vanille, Erdbeere). Östlich davon der Durchgang. Wo der
+  Kühlschrank stand, steht die Tellerkiste — einen Kühlschrank gibt es als
+  Möbel nicht. Die Eisecke stand früher eine Reihe weiter nördlich; als Möbel
+  hätte sie dort die Vorderseite der Durchreiche zugestellt.
+- **Die Wände** (`WALL_SPOTS`) sind das neue Element `wall`, die Fensterwand
+  der Test Navigation
+  ([Spielelemente → Die Wand](./spielelemente.md#die-wand-aus-der-test-navigation)):
+  auf dem Ring von Kacheln rings um den Raum, mit der Vorderseite nach innen,
+  also bündig am Rand des Bodens. In der Südwand bleibt die Tür offen.
+- **Kein Tisch, kein Stuhl, keine Deko, keine Gäste**, und damit auch kein
+  Spiel: keine Glocke, keine Tage, keine Kasse, keine Baupläne, keine
+  Einsteigerhilfe. Der Möbelkatalog steht im Menü wie im Test Restaurant,
+  auch mit dem neuen Ordner _Wände_.
+
+**Was vom Spiel noch im Ordner liegt.** Die Session, die umbaute, durfte keine
+Dateien löschen. Die reinen Teile des alten Spiels liegen deshalb noch in
+`worlds/plateup/` und laufen mit ihren Tests weiter, ohne dass die Welt sie
+aufruft: `plateUpGame.ts`, `plateUpShop.ts`, `plateUpTutorial.ts`,
+`plateUpHints.ts`, `plateUpDecor.ts`, `plateUpIceView.ts` und der alte
+Grundriss `plateUpPlan.ts` (aus dem der neue seine Maße nimmt). Gebraucht
+werden weiter `plateUpStations.ts` (die Regel an der Station, auch für die
+Stationsschicht) und `plateUpIce.ts` (Sorten und Farben des Eises). Wer
+aufräumt, löscht die übrigen samt `plateUp.test.ts`, `plateUpShop.test.ts`,
+`plateUpHints.test.ts`, `plateUpIceView.test.ts` und dem Block _die Eisecke
+im Grundriss_ in `plateUpIce.test.ts`.
+
+Alles darunter beschreibt **das Spiel, wie es bis zum Umbau war** — der
+letzte Stand mit Gästen, Tischen und Kasse ist **Commit `56462b6`** auf
+`main`:
+
+```
+git show 56462b6:src/worlds/plateup/PlateUpWorld.ts
+git show 56462b6:docs/agents/burgerladen.md
+```
+
+## Das Spiel bis September 2026
+
+Eine eingerichtete **Spielküche mit Gastraum** und ein Spiel nach dem Vorbild
+von _PlateUp!_. Gäste kamen herein, setzten sich an einen freien Tisch und
+bestellten einen Burger; man briet, schnitt, legte auf einen Teller und
+brachte ihn hin, bevor die Geduld riss.
 
 Die Küche der Testwelt ist ein **Prüfstand** — Bänder, Baumodus, Kopierer,
 Werkhalle. Dieser Laden ist das Gegenteil: ein fertiger Raum, in dem genau

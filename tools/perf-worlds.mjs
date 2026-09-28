@@ -83,20 +83,12 @@ const SCENARIOS = [
   { id: 'hub', title: 'Hub (Lobby-Deko)', hash: 'hub', sim: 1 },
   {
     id: 'plateup',
-    title: 'Restaurant, Tag läuft, Gäste da',
+    // Seit September 2026 aus dem Möbelkatalog: Böden, Wände, Küche — ohne
+    // Gäste und ohne Spiel, also gibt es nichts vorzubereiten.
+    title: 'Restaurant, Küche aus dem Möbelkatalog',
     hash: 'plateup',
-    // Der Laden öffnet ohne den Gang zur Glocke, und die Uhr läuft schneller:
-    // Im Browser ohne Grafikkarte kämen sonst kaum Gäste an.
-    setup: () => {
-      const world = globalThis.bgvr.world;
-      world.debugSpeed?.(4);
-      world.debugOpen?.();
-      return 'Laden offen, Uhr ×4';
-    },
-    // Nach 48 s Ladenzeit sitzen die ersten Gäste; bei ×20 war der Tag schon
-    // vorbei, bevor gezählt wurde.
-    sim: 12,
-    after: () => `${globalThis.bgvr.world.state?.guests?.length ?? '?'} Gäste im Laden`,
+    setup: () => 'Küche und Gastraum',
+    sim: 2,
     yaw: 180,
   },
   {
