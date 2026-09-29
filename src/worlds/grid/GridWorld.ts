@@ -428,7 +428,8 @@ export abstract class GridWorld extends PortalWorld {
   private rigLevel = 0;
   /**
    * **Die Ebenen des Baukastens** (`levelBar.ts`) — senkrecht am rechten Rand,
-   * neben der Werkzeugleiste, solange es mehr als eine Etage gibt
+   * neben der Werkzeugleiste, immer, wenn sie zu sehen ist — auch mit nur
+   * einer Etage
    * (`stepLevelBar`).
    */
   private levelBar: LevelBar | null = null;
@@ -3394,7 +3395,9 @@ export abstract class GridWorld extends PortalWorld {
   private stepLevelBar(ctx: WorldContext): void {
     const graph = this.grid?.graph;
     const count = graph?.levels.length ?? 0;
-    this.levelBarOn = this.buildBarShown && count > 1;
+    // Auch mit einer Etage — gewünscht: _„im baumodus kann das ebenen ui immer
+    // angezeigt werden, von von oben gespielt wird"_. Hoch und runter sind dann aus.
+    this.levelBarOn = this.buildBarShown && count > 0;
     if (!this.levelBarOn || !graph) {
       if (this.levelBar) {
         this.levelBar.take();

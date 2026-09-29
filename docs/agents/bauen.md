@@ -1430,9 +1430,11 @@ der jeweiligen ebene sichtbar sein."_ Welche Etage galt, hing daran, wo der
 Kran gerade schwebte — hinauf kam er nur über die Treppe.
 
 **Die Leiste** (`worlds/grid/levelBar.ts`, DOM) steht senkrecht am rechten
-Rand, solange die Werkzeugleiste zu sehen ist (`PortalWorld.buildBarShown`)
-und die Gitterwelt mehr als eine Etage hat (`NavGraph.levels`, im _Hausbau_
-also ab der ersten Treppe). Von oben nach unten:
+Rand, sobald die Werkzeugleiste zu sehen ist (`PortalWorld.buildBarShown`) —
+in jeder Gitterwelt, auch mit nur einer Etage (dann sind _Hoch_ und _Runter_
+aus; neue Etagen legt die Treppe an). Zuerst kam sie erst ab der zweiten
+Etage; gewünscht: _„im baumodus kann das ebenen ui immer angezeigt werden"_.
+Von oben nach unten:
 
 - **⌂ Außen** (an/aus): alle Etagen zu sehen, wie von jemandem, der vor dem
   Haus steht (`viewLevel` meldet die oberste). Gebaut wird trotzdem auf der
