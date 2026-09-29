@@ -21,10 +21,18 @@ import type { ViewLevel } from './cutaway';
  * Stockwerk darunter.
  *
  * **Wann.** Nur von oben, nur am Schirm (die Brille zeichnet ohne Umweg), nur
- * mit Häkchen (`GraphicsSettings.levelBlur`), und nur, wenn es ein Darunter
- * gibt: ab Etage 1 und nicht in der Ansicht _von außen_ (`ViewLevel.whole`),
- * in der man das ganze Haus sehen will und nicht ein Stockwerk. Eine Welt
- * ohne Etagen (`viewLevel` fehlt) zahlt nichts.
+ * mit Häkchen, und nur, wenn es etwas zu verwischen gibt (`levelBlurPlan`):
+ *
+ * - **Unten** (`GraphicsSettings.levelBlur`, ab Werk an) — ab Etage 1 und nicht
+ *   in der Ansicht _von außen_ (`ViewLevel.whole`), in der man das ganze Haus
+ *   sehen will und nicht ein Stockwerk.
+ * - **Oben** (`GraphicsSettings.levelBlurAbove`, ab Werk aus) — sobald es über
+ *   der eigenen eine Etage gibt (`ViewLevel.aboveY`). Zu sehen ist sie von
+ *   oben nur, wo nicht aufgeschnitten wird: draußen im Hausbau oder mit
+ *   _⌂ Außen_ in der Ebenen-Leiste. Gewünscht: _„optional als weitere Checkbox
+ *   im Grafik-Menü, dass obere Stockwerke auch blurry sein können"_.
+ *
+ * Eine Welt ohne Etagen (`viewLevel` fehlt) zahlt nichts.
  *
  * Getönt wird im Durchgang und nicht in der Textur: three.js zeichnet in ein
  * Ziel linear und ohne Tone Mapping, und die Textur hat halbe Fließkommazahlen,
@@ -35,6 +43,13 @@ import type { ViewLevel } from './cutaway';
 export const LEVEL_BLUR_START = 0.25;
 /** Wie tief unter dem Boden die volle Unschärfe erreicht ist — ein Stockwerk (`STOREY`). */
 export const LEVEL_BLUR_FULL = 2.8;
+/**
+ * **Oben** fängt es 0,6 m unter dem Boden der Etage darüber an —
+ * damit ihre Decke schon weich ist — und ist 0,8 m darüber voll: Was oben
+ * steht, verdeckt, und soll deshalb schnell zurücktreten.
+ */
+export const LEVEL_BLUR_ABOVE_START = -0.6;
+export const LEVEL_BLUR_ABOVE_FULL = 0.8;
 /** Der größte Halbmesser der Unschärfe, als Anteil der Bildhöhe. */
 export const LEVEL_BLUR_RADIUS = 0.009;
 
@@ -51,18 +66,39 @@ export function levelBlurAmount(floorY: number, y: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** **Wie unscharf ein Punkt auf Höhe `y` ist**, wenn darüber bei `aboveY` die nächste Etage anfängt. */
+export function levelBlurAboveAmount(aboveY: number, y: number): number {
+  const t = Math.min(
+    1,
+    Math.max(
+      0,
+      (y - aboveY - LEVEL_BLUR_ABOVE_START) / (LEVEL_BLUR_ABOVE_FULL - LEVEL_BLUR_ABOVE_START),
+    ),
+  );
+  return t * t * (3 - 2 * t);
+}
+
+/** Was in diesem Bild verwischt wird — unten ab `floorY`, oben ab `aboveY`, je `null` für nichts. */
+export interface LevelBlurPlan {
+  floorY: number | null;
+  aboveY: number | null;
+}
+
 /**
- * **Ob in diesem Bild geblurrt wird** — und wenn ja, über welchem Boden.
- * `null` heißt: zeichnen wie immer.
+ * **Ob in diesem Bild geblurrt wird** — und wenn ja, wo. `null` heißt:
+ * zeichnen wie immer.
  */
-export function levelBlurFloor(
-  on: boolean,
+export function levelBlurPlan(
+  below: boolean,
+  above: boolean,
   topDown: boolean,
   presenting: boolean,
   view: ViewLevel | null,
-): number | null {
-  if (!on || !topDown || presenting || !view || view.whole) return null;
-  return view.level > 0 ? view.floorY : null;
+): LevelBlurPlan | null {
+  if (!topDown || presenting || !view) return null;
+  const floorY = below && !view.whole && view.level > 0 ? view.floorY : null;
+  const aboveY = above && view.aboveY !== undefined ? view.aboveY : null;
+  return floorY === null && aboveY === null ? null : { floorY, aboveY };
 }
 
 /** Wie viele Nachbarn je Bildpunkt gemischt werden. */
@@ -82,6 +118,9 @@ uniform sampler2D tDepth;
 uniform mat4 projectionInverse;
 uniform mat4 cameraWorld;
 uniform float floorY;
+uniform float aboveY;
+uniform float below;
+uniform float above;
 uniform vec2 radius;
 varying vec2 vUv;
 
@@ -94,7 +133,10 @@ float heightAt(vec2 uv) {
 }
 
 float blurAt(vec2 uv) {
-  return smoothstep(${LEVEL_BLUR_START.toFixed(3)}, ${LEVEL_BLUR_FULL.toFixed(3)}, floorY - heightAt(uv));
+  float y = heightAt(uv);
+  float down = below * smoothstep(${LEVEL_BLUR_START.toFixed(3)}, ${LEVEL_BLUR_FULL.toFixed(3)}, floorY - y);
+  float up = above * smoothstep(${LEVEL_BLUR_ABOVE_START.toFixed(3)}, ${LEVEL_BLUR_ABOVE_FULL.toFixed(3)}, y - aboveY);
+  return max(down, up);
 }
 
 void main() {
@@ -131,6 +173,9 @@ export class LevelBlur {
       projectionInverse: { value: new THREE.Matrix4() },
       cameraWorld: { value: new THREE.Matrix4() },
       floorY: { value: 0 },
+      aboveY: { value: 0 },
+      below: { value: 0 },
+      above: { value: 0 },
       radius: { value: new THREE.Vector2() },
     },
     vertexShader,
@@ -173,8 +218,8 @@ export class LevelBlur {
     this.active = true;
   }
 
-  /** **Und durch den Durchgang auf den Schirm** — `floorY` ist der Boden der eigenen Etage. */
-  end(camera: THREE.Camera, floorY: number): void {
+  /** **Und durch den Durchgang auf den Schirm** — was verwischt wird, sagt `plan`. */
+  end(camera: THREE.Camera, plan: LevelBlurPlan): void {
     if (!this.active || !this.target) return;
     this.active = false;
     const renderer = this.renderer;
@@ -184,7 +229,10 @@ export class LevelBlur {
     uniforms['tDepth']!.value = this.target.depthTexture;
     (uniforms['projectionInverse']!.value as THREE.Matrix4).copy(camera.projectionMatrixInverse);
     (uniforms['cameraWorld']!.value as THREE.Matrix4).copy(camera.matrixWorld);
-    uniforms['floorY']!.value = floorY;
+    uniforms['floorY']!.value = plan.floorY ?? 0;
+    uniforms['below']!.value = plan.floorY === null ? 0 : 1;
+    uniforms['aboveY']!.value = plan.aboveY ?? 0;
+    uniforms['above']!.value = plan.aboveY === null ? 0 : 1;
     const aspect = this.target.width / Math.max(1, this.target.height);
     (uniforms['radius']!.value as THREE.Vector2).set(LEVEL_BLUR_RADIUS / aspect, LEVEL_BLUR_RADIUS);
     renderer.render(this.quad, this.quadCamera);

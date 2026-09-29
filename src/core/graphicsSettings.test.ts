@@ -49,6 +49,8 @@ describe('Grafikeinstellungen', () => {
       shadows: 'simple',
       // Von oben die Etagen darunter unscharf — gewünscht, also ab Werk an.
       levelBlur: true,
+      // Oben ist die Unschärfe ein Angebot und keine Vorgabe.
+      levelBlurAbove: false,
       // Die Animationen sind ab Werk aus — nachgerechnet wird die Kurve
       // dahinter in `squish.test.ts`.
       squish: false,
@@ -75,6 +77,11 @@ describe('Grafikeinstellungen', () => {
     expect(graphicsSummary({ ...DEFAULT_GRAPHICS })).not.toContain('scharf');
     expect(graphicsSummary({ ...DEFAULT_GRAPHICS, levelBlur: false })).toContain(
       'Etagen darunter scharf',
+    );
+    expect(clampGraphics({}).levelBlurAbove).toBe(false);
+    expect(clampGraphics({ levelBlurAbove: true }).levelBlurAbove).toBe(true);
+    expect(graphicsSummary({ ...DEFAULT_GRAPHICS, levelBlurAbove: true })).toContain(
+      'Etagen darüber unscharf',
     );
   });
 
