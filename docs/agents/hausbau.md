@@ -110,7 +110,11 @@ Ebene anlegen durch eine 2x8 Treppe."_
   Stand oben — Boden der Etage darüber. Die Stufen sperrt der Plan von der Seite
   wie jede Treppe (`planeMove.flightSides`): hinauf nur von unten.
 - **Nehmen** wie Tapete und Boden: aus der Treppenkiste oder dem Katalog
-  (Ordner _Treppen_, Item `stair`).
+  (Ordner _Treppen_, Item `stair`). In der Hand liegt sie **mit Süden zu
+  einem** — der Fuß bei einem, sie steigt von einem weg, wie sie hingestellt
+  wird. Das ist die Vorgabe für alles Getragene (ungedreht, +z zur Figur);
+  nur wessen Modell anders gezeichnet ist, steht in `dishView.ITEM_YAW` — die
+  Treppe steigt im Modell nach −x und bekommt −90°.
 - **Zeigen**: Die vier Kacheln vor einem, in Blickrichtung auf ein Viertel
   gerundet (`stairTiles`, `stairDir`), leuchten **grün**, wenn alle Boden sind
   und keine Treppe tragen, sonst **rot** (`PlaceGrid.tint`). Steht man in
@@ -207,14 +211,14 @@ mit den Materialien des Regals.
 
 ## Was wo liegt
 
-| Datei | Was |
-| --- | --- |
-| `worlds/house/HausbauWorld.ts` | die Welt: Katalog, Raum suchen, kleben, Wände bemalen |
-| `worlds/house/housePlan.ts` | Boden, Haus, Kisten, Tor, Ankunft |
-| `worlds/house/roomTrace.ts` | welche Wandseiten zu einem Raum gehören |
-| `worlds/house/wallpaper.ts` | die Tapeten und ihre Muster |
-| `worlds/house/wallpaperSkin.ts` | das Muster auf einer Seite des Modells, das Leuchten |
-| `worlds/house/flooring.ts` | die Bodenbeläge (Platten aus dem Regal) |
-| `worlds/house/stairPlan.ts` | die Treppe: Kacheln, Richtung, das Haus durch die Türen |
-| `elements/elementCatalog.ts` | `WALLPAPER_CRATES`, `FLOORING_CRATES`, `FurnitureFolder.items` |
-| `test/zones/kitchenRecipes.ts` | die Dinge `wallpaper-*` und `floor-*` |
+| Datei                           | Was                                                            |
+| ------------------------------- | -------------------------------------------------------------- |
+| `worlds/house/HausbauWorld.ts`  | die Welt: Katalog, Raum suchen, kleben, Wände bemalen          |
+| `worlds/house/housePlan.ts`     | Boden, Haus, Kisten, Tor, Ankunft                              |
+| `worlds/house/roomTrace.ts`     | welche Wandseiten zu einem Raum gehören                        |
+| `worlds/house/wallpaper.ts`     | die Tapeten und ihre Muster                                    |
+| `worlds/house/wallpaperSkin.ts` | das Muster auf einer Seite des Modells, das Leuchten           |
+| `worlds/house/flooring.ts`      | die Bodenbeläge (Platten aus dem Regal)                        |
+| `worlds/house/stairPlan.ts`     | die Treppe: Kacheln, Richtung, das Haus durch die Türen        |
+| `elements/elementCatalog.ts`    | `WALLPAPER_CRATES`, `FLOORING_CRATES`, `FurnitureFolder.items` |
+| `test/zones/kitchenRecipes.ts`  | die Dinge `wallpaper-*` und `floor-*`                          |
