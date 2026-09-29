@@ -287,7 +287,7 @@ und wahlweise `gives`, `label` und `offset`.
 `placeModel`, `measure`, `load`, `add`, `alive`, fünf Handgriffe, die eine
 `GridWorld` ohnehin hat. Sie sind dort geschützt. Die Welt baut sich deshalb
 ein Objekt aus Pfeilen und macht sie nicht öffentlich
-(`TestRestaurantWorld.elementHost`). `alive` sorgt dafür, dass nach dem
+(`FurnishedWorld.elementHost`). `alive` sorgt dafür, dass nach dem
 Verlassen nichts mehr hingestellt wird, was noch aus dem Netz kam.
 
 **Hingestellt wird über `furnish(host, spots, stations, then?)`**
@@ -311,8 +311,24 @@ Möbeln die **Baumappen** _Wände_ (Prototypwand und Putzwand, ganz und halb),
 _Türen_ (Durchgang, breiter Durchgang) und _Fenster_ (Fensterwand ganz und
 schmal) — `elementCatalog.BUILD_FOLDERS`. Die Baumappen sind Regalwände und
 keine Spielelemente, und deshalb steht der Katalog mit ihnen in **jeder** Welt
-(`PortalWorld.elementFolders`); die Möbel nur dort, wo eine Welt Stationen
-führt. _Setzen_ ohne Pinsel schlägt den Katalog auf (`catalogueId`).
+(`PortalWorld.elementFolders`). _Setzen_ ohne Pinsel schlägt den Katalog auf
+(`catalogueId`).
+
+**Ein Katalog für alle Welten** (Ende September 2026). Gewünscht: _„mir fehlen
+im Katalog die anderen Sachen wie Burger, Eis, etc.? Die sollen bitte nicht pro
+Welt gelten, sondern im Katalog soll es für alle Welten einen Katalog
+geben."_ Was vorher nur das Test Restaurant konnte — Möbel hinstellen,
+umstellen, Stationen auf `A`, das Getragene in der Hand —, steht deshalb in
+`grid/FurnishedWorld.ts`, und darauf stehen **alle Gitterwelten**: Sandbox,
+Test Navigation, Bauplatz, Hub, Test Restaurant, Restaurant und Hausbau. Jede
+zeigt dieselben Ordner (`FURNITURE_FOLDERS`); der Hausbau legt Böden, Treppen
+und seine Kisten dazu (`super.elementFolders()`), weil nur er Tapete, Belag
+und Etagen versteht. Eine Welt sagt nur noch, was sie von selbst hinstellt
+(`spots`, ab Werk nichts) und wohin der Katalog darf (`onGround`, ab Werk jede
+Kachel des Erdgeschosses). Die Stationen entstehen erst mit dem ersten Möbel
+(`furnishing`). Ohne Katalogmöbel bleiben Haunting (ein eigenes Spiel) und die
+Welten ohne Gitter (Portal-Labor, Interaktionslabor, Alpen) — dort gibt es
+keine Zellen, die ein Möbel sperren könnte.
 
 **Und das Modellregal heißt _Rohmodelle_ und steht in der Werkstatt**
 (`ui/menuGroups.ts`) — gewünscht: _„das modelregal sollten wir dahingehen
@@ -329,10 +345,8 @@ Arbeitsplatte nimmt, stellt ein Fass hin, durch dessen Zellen man läuft. Der
 Möbelkatalog gibt **Spielelemente** her.
 
 - **Wo:** Menü _Bauen & Gestalten_ → **Katalog** (`PortalWorld.elementMenu`,
-  Id `elements`, `ui/menuGroups.ts`). Die Möbel nur in einer Welt, die
-  Stationen führt und es sagt (`elementCatalogue`); heute das
-  [Test Restaurant](./testrestaurant.md) und das
-  [Restaurant](./burgerladen.md), das von ihm erbt. Anderswo stehen darin nur
+  Id `elements`, `ui/menuGroups.ts`). Die Möbel in jeder Gitterwelt
+  (`FurnishedWorld.elementCatalogue`); in Welten ohne Gitter stehen darin nur
   Wände, Türen und Fenster.
 - **Was:** `FURNITURE_CATALOGUE` in `elementCatalog.ts`, in der Reihenfolge
   des Wunsches und mit seinen Worten (die Namen der Elemente selbst):

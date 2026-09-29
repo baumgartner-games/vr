@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GridWorld } from '../grid/GridWorld';
+import { FurnishedWorld } from '../grid/FurnishedWorld';
 import { TextPlane } from '../../ui/TextPlane';
 import { createGround, createSky, disposeTree } from '../shared/environment';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
@@ -47,7 +47,7 @@ import { DIR_W } from '../nav/navTile';
  *   man nach ihnen greift. Wer anderswo nur wissen will, wo er gerade ist,
  *   nimmt die Karte aus dem Werkzeugregal (`portal/tools/MapTool.ts`).
  */
-export class EditorWorld extends GridWorld {
+export class EditorWorld extends FurnishedWorld {
   /** Die Kulisse, die es zweimal gibt: das Level, und der weiße Raum darum. */
   private darkGround: THREE.Object3D | null = null;
   private darkSky: THREE.Object3D | null = null;

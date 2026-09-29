@@ -893,7 +893,7 @@ am besten den haltezylinder als beispiel für die orientierung"_ — und dazu ei
 Seite, auf der man es einstellt.
 
 Bis dahin hing im [Test Restaurant](testrestaurant.md) alles, was man trägt,
-**ungedreht 8 cm vor dem Griffpunkt** (`TestRestaurantWorld.carryInHands`),
+**ungedreht 8 cm vor dem Griffpunkt** (`FurnishedWorld.carryInHands`),
 ein Teller wie ein Hörnchen wie ein Topf, und die Hand blieb dabei offen. Das
 Hörnchen lag damit vor der Faust statt in ihr.
 

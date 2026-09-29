@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import { TextPlane } from '../../ui/TextPlane';
-import { GridWorld } from '../grid/GridWorld';
+import { FurnishedWorld } from '../grid/FurnishedWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import { clearPlanWalls } from '../grid/shelfWalls';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
@@ -87,7 +87,7 @@ interface Bench {
  * wer auf ihr steht (`burn`); geplant wird um sie herum, weil sie im Graphen
  * steht (`TileFacts.hazard`).
  */
-export class NavTestWorld extends GridWorld {
+export class NavTestWorld extends FurnishedWorld {
   private readonly benches: Bench[] = [];
   private readonly shapes: THREE.BufferGeometry[] = [];
   private readonly skins: THREE.Material[] = [];
