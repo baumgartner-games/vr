@@ -75,6 +75,18 @@ export function refillsCatalogue(mode: GameMode): boolean {
   return mode === 'creative';
 }
 
+/**
+ * **Ob eine Wand aus dem Katalog ohne Leiste gezogen wird** — beim _Spielen_
+ * und _Einrichten_. Gezielt wird mit dem Getragenen, und Interagieren setzt
+ * erst den Startpunkt, dann den Endpunkt (`PortalWorld.pressCarryLine`); Maus
+ * und Blick bleiben dabei, wie sie sind. Danach ist die Hand leer, denn
+ * nachgelegt wird nur im _Baukasten_ (`refillsCatalogue`), und dort zieht die
+ * Leiste mit dem Zeiger. Flächen setzen bleibt dem _Baukasten_.
+ */
+export function wallDrawOnly(mode: GameMode): boolean {
+  return !refillsCatalogue(mode);
+}
+
 let current: GameMode = 'play';
 const listeners = new Set<(mode: GameMode) => void>();
 

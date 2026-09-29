@@ -1249,7 +1249,8 @@ Punkt bestätigen …) und zieht dann die Wand wohin man die haben will, währen
 man noch nicht den Endpunkt bestätigt hat sieht man eine Vorschau der ghost
 Wall."_
 
-- **Von selbst an**: Wer im _Baukasten_ eine Wand in die Bildschirmhand nimmt
+- **Von selbst an**: Wer im _Baukasten_ (und mit einer Wand aus dem Katalog
+  auch beim _Spielen_ und _Einrichten_, siehe unten) eine Wand in die Bildschirmhand nimmt
   (Katalog → _Wände_, _Türen_ oder _Fenster_, oder eine Wand aus den
   Rohmodellen), ist sofort in _Wand ziehen_ (`areaAuto`) — einmal je Wand in
   der Hand. `Esc` beendet es, und dieselbe Wand setzt der Kran dann wieder
@@ -1294,6 +1295,29 @@ Wall."_
 - **Eine Tür trägt man mit der Vorderseite zu sich** (`isDoorModel`), wie ein
   Möbel im Spielmodus: _„Wenn ich eine Tür halte soll die bei mir in Richtung
   south immer ausgerichtet sein."_
+
+- **Auch beim _Spielen_ und _Einrichten_** (September 2026, gewünscht:
+  _„Beim spielmodus als auch einrichtungs modus will ich es bei "Wand"
+  platzierungen so handhaben, dass im katalog es funktioniert wie im
+  baumodus."_), aber **ohne Leiste und ohne Zeiger**
+  (`gameMode.wallDrawOnly`, `PortalWorld.carryLineBrush`): _„mit der maus
+  bzw. aus den augen kann ich mich aber normal weiterbewegen und co, mit dem
+  wand gegenstand setze ich ja nur sogesehen start und endpunkte."_ Eine Wand
+  **frisch aus dem Katalog** (`shelfFresh`) bleibt sichtbar in der Hand und
+  zielt: Die Ecke unter ihr (`carriedCorner`) ist der Punkt. Interagieren
+  (Klick, `E`, `A`) setzt den Startpunkt, danach zieht die Geisterwand vom
+  Startpunkt bis zur Ecke unter dem Getragenen über die Fugen, und der
+  zweite Druck setzt sie (`pressCarryLine` → `commitWallLine`). Zweimal
+  dieselbe Ecke nimmt den Startpunkt zurück. Danach ist die Hand **leer**
+  (`spendBrush`, verschwindet wie beim Wechseln über `letGo`) — _„nur im
+  baukasten modus erhalte ich dann erneut eine wand in der "hand"“_. Die
+  Maus bleibt gefangen, Blick und Laufen gehen weiter; der gewöhnliche Geist
+  des Einzelstücks bleibt dabei weg.
+- **Der Startpunkt ist ein Block** (`showStartPost`, `START_POST`): Solange
+  noch keine Linie steht, zeigt ein Geist des Getragenen, auf eine Zelle im
+  Quadrat gestaucht (volle Höhe), die Ecke zwischen den Kacheln, an der die
+  Wand anfinge — _„die wand ist in dem moment ein 1x1 block zwischen den
+  blöcken"_. Darunter leuchten weiter die vier Kacheln um die Ecke.
 
 **Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
 Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
