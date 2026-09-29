@@ -710,11 +710,12 @@ three.js zeichnet in ein Ziel linear und ungetönt.
 
 **Wann** (`levelBlurPlan`): nur von oben, nur am Schirm (in der Brille nie),
 nur mit Häkchen, und nur ab Etage 1 — eine Welt ohne `viewLevel` oder auf dem
-Erdgeschoss zahlt nichts. **Von außen** (`ViewLevel.whole`: Ebenen-Leiste
-_⌂ Außen_, oder draußen im _Hausbau_) bleibt alles scharf; dort will man das
-ganze Haus sehen — aber nur, solange es über einem noch eine Etage gibt: Wer
-auf der obersten steht, gilt im Hausbau als „draußen", und dort blieb zuerst
-alles scharf (gemeldet mit einem Bild vom Obergeschoss). `App.frame` setzt das Ziel nach den Spiegeln und vor
+Erdgeschoss zahlt nichts. Maßgeblich ist die Etage, auf der man **steht**
+(`ViewLevel.stand`), auch **von außen** (`ViewLevel.whole`: Ebenen-Leiste
+_⌂ Außen_, oder draußen im _Hausbau_). Von außen blieb unten erst alles scharf;
+gemeldet, sobald oben verschwamm: _„blur untere stockwerke klappt anscheinend
+wieder nicht … Ich will beide seperat ein und ausstellen können"_. Seitdem
+schaltet jedes Häkchen nur seine Seite. `App.frame` setzt das Ziel nach den Spiegeln und vor
 `World.render` — Portalsichten und Werkzeugbilder merken sich das Ziel
 (`getRenderTarget`) und setzen es danach zurück —, und nimmt es in einem
 `finally` wieder weg. Wer ausschaltet, gibt die Textur frei (`release`).
@@ -732,7 +733,7 @@ ab 0,6 m unter dem Boden der Etage darüber steht, voll 0,8 m über ihm
 Den Boden darüber meldet die Welt (`ViewLevel.aboveY`, `GridWorld.viewLevel`);
 ohne Etage darüber gibt es oben nichts zu tun. Zu sehen ist es nur, wo von
 oben nicht aufgeschnitten wird: draußen im Hausbau und mit _⌂ Außen_ in der
-Ebenen-Leiste. Dort bleibt unten scharf (`whole`), oben aber verschwimmt es.
+Ebenen-Leiste; unten verschwimmt es dort ebenso, wenn das andere Häkchen sitzt.
 Beides zusammen ist ein Durchgang (`levelBlurPlan`), nicht zwei.
 
 ## Was die Kamera ansieht
