@@ -44,9 +44,15 @@ export interface ViewLevel {
   /**
    * **Das ganze Haus auf einmal** — die Ansicht _von außen_ (Ebenen-Leiste,
    * oder draußen im Hausbau). Dann ist `level` die oberste Etage und keine
-   * davon die, auf der man steht; die unteren bleiben scharf (`levelBlur.ts`).
+   * davon die, auf der man steht — die steht dann in `stand`.
    */
   whole?: boolean;
+  /**
+   * **Die Etage, auf der man selbst steht**, wenn `level` eine andere ist
+   * (von außen). Darunter wird es unscharf (`levelBlur.ts`, _Blur: untere
+   * Stockwerke_); fehlt es, gilt `level`.
+   */
+  stand?: number;
   /**
    * **Der Boden der Etage darüber** — fehlt, wenn es keine gibt. Von dort an
    * kann es oben unscharf werden (`levelBlur.ts`, _Blur: obere Stockwerke_).

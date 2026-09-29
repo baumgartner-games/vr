@@ -347,10 +347,10 @@ export class HausbauWorld extends TestRestaurantWorld {
     // gewählte Etage, oder _von außen_ alle — und nicht, wo der Kran schwebt.
     if (this.levelBarOn) return view;
     if (!view || !ctx || !graph || this.underRoof(ctx)) return view;
-    // Ganz ist das Haus nur, wenn es über einem noch etwas gibt: Wer draußen
-    // auf der obersten Etage steht, sieht die Etagen darunter unscharf.
+    // Ganz ist das Haus nur, wenn es über einem noch etwas gibt. Unscharf wird
+    // es trotzdem unter der Etage, auf der man steht (`stand`).
     const top = graph.levels.length - 1;
-    return { ...view, level: top, whole: view.level < top };
+    return { ...view, level: top, whole: view.level < top, stand: view.stand ?? view.level };
   }
 
   /**

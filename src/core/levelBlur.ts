@@ -23,9 +23,11 @@ import type { ViewLevel } from './cutaway';
  * **Wann.** Nur von oben, nur am Schirm (die Brille zeichnet ohne Umweg), nur
  * mit Häkchen, und nur, wenn es etwas zu verwischen gibt (`levelBlurPlan`):
  *
- * - **Unten** (`GraphicsSettings.levelBlur`, ab Werk an) — ab Etage 1 und nicht
- *   in der Ansicht _von außen_ (`ViewLevel.whole`), in der man das ganze Haus
- *   sehen will und nicht ein Stockwerk.
+ * - **Unten** (`GraphicsSettings.levelBlur`, ab Werk an) — sobald man auf
+ *   Etage 1 oder höher steht (`ViewLevel.stand`), auch _von außen_
+ *   (`ViewLevel.whole`). Die beiden Häkchen sind unabhängig: Gemeldet war
+ *   _„blur untere stockwerke klappt anscheinend wieder nicht"_ — von außen, wo
+ *   oben verschwamm, blieb unten alles scharf.
  * - **Oben** (`GraphicsSettings.levelBlurAbove`, ab Werk aus) — sobald es über
  *   der eigenen eine Etage gibt (`ViewLevel.aboveY`). Zu sehen ist sie von
  *   oben nur, wo nicht aufgeschnitten wird: draußen im Hausbau oder mit
@@ -96,7 +98,8 @@ export function levelBlurPlan(
   view: ViewLevel | null,
 ): LevelBlurPlan | null {
   if (!topDown || presenting || !view) return null;
-  const floorY = below && !view.whole && view.level > 0 ? view.floorY : null;
+  const stand = view.stand ?? view.level;
+  const floorY = below && stand > 0 ? view.floorY : null;
   const aboveY = above && view.aboveY !== undefined ? view.aboveY : null;
   return floorY === null && aboveY === null ? null : { floorY, aboveY };
 }
