@@ -685,6 +685,41 @@ Zwei Dinge daran sind Absicht:
   Mitspieler mit, den hier niemand neu baut (`net/RemoteAvatars.ts`) — und ein
   Test oder eine Vorschau ohne Menü setzt die Zahl einfach selbst.
 
+## Untere Ebenen unscharf
+
+Gewünscht: _„Wenn der Spieler auf einer höheren Ebene steht, dann sieht er ja
+die unteren Ebenen. Ich denke es wäre gut (bei Ansicht von oben), wenn dann die
+unteren Ebenen etwas blurry gerendert werden, um den Höhen/Ebenen-Effekt besser
+zu zeigen. Sollte im Menü Grafik checkbox ein und ausschaltbar sein."_
+
+_Menü → Grafik → Untere Ebenen unscharf_ (`gfx:level-blur`,
+`GraphicsSettings.levelBlur`), **ab Werk an**; ein gespeicherter Stand, der das
+Feld nicht kennt, bekommt es an (`raw.levelBlur !== false`). Abgestellt steht
+es als „Etagen darunter scharf" unter der Überschrift.
+
+**Wie** (`core/levelBlur.ts`): Das Bild geht nicht auf den Schirm, sondern in
+eine Textur mit Tiefenpuffer (`HalfFloat`, 4× MSAA, so groß wie der
+Zeichenpuffer), und ein Durchgang über den ganzen Schirm rechnet je Bildpunkt
+aus der Tiefe die **Höhe in der Welt** zurück. Ab 0,25 m unter dem Boden der
+eigenen Etage wird mit Nachbarn aus einer Scheibe (20 Abtastungen im goldenen
+Winkel) gemischt, die bis 2,8 m darunter (ein `STOREY`) auf 0,9 % der Bildhöhe
+wächst (`levelBlurAmount`, `smoothstep`). Nachbarn, die selbst scharf sind,
+zählen nicht mit — sonst zöge die Kante des oberen Bodens einen Schleier über
+das Stockwerk darunter. Tone Mapping und sRGB passieren erst im Durchgang:
+three.js zeichnet in ein Ziel linear und ungetönt.
+
+**Wann** (`levelBlurFloor`): nur von oben, nur am Schirm (in der Brille nie),
+nur mit Häkchen, und nur ab Etage 1 — eine Welt ohne `viewLevel` oder auf dem
+Erdgeschoss zahlt nichts. **Von außen** (`ViewLevel.whole`: Ebenen-Leiste
+_⌂ Außen_, oder draußen im _Hausbau_) bleibt alles scharf; dort will man das
+ganze Haus sehen. `App.frame` setzt das Ziel nach den Spiegeln und vor
+`World.render` — Portalsichten und Werkzeugbilder merken sich das Ziel
+(`getRenderTarget`) und setzen es danach zurück —, und nimmt es in einem
+`finally` wieder weg. Wer ausschaltet, gibt die Textur frei (`release`).
+
+Zum Ansehen: `/?at=18,-16,1#sandbox`, _Von oben_ — das Podest ist scharf, der
+Küchenboden darunter verschwimmt.
+
 ## Was die Kamera ansieht
 
 Ein Schild, ein Fortschrittsbalken, ein Warndreieck: Alles, was Auskunft gibt,

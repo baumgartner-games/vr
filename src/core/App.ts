@@ -107,8 +107,10 @@ import {
   nextSquishScale,
   nextSquishSpeed,
   nextXrScale,
+  onGraphicsChange,
   saveGraphics,
 } from './graphicsSettings';
+import { LevelBlur, levelBlurFloor } from './levelBlur';
 import { applyAudioSettings } from './Audio';
 import { audioSettings, audioSummary, saveAudioSettings } from './audioSettings';
 import {
@@ -320,6 +322,14 @@ export class App {
    */
   private readonly mirrors: MirrorRenderer;
   /**
+   * **Von oben die Etagen darunter unscharf** (`core/levelBlur.ts`) — das
+   * Häkchen unter _Grafik_, gemerkt, damit das Bild nicht je Frame den
+   * Speicher liest.
+   */
+  private readonly levelBlur: LevelBlur;
+  private levelBlurOn = graphics().levelBlur;
+  private readonly stopLevelBlur: () => void;
+  /**
    * Wie schön es aussieht — bei der App, weil ein Schatten keine Eigenschaft
    * einer Welt ist (`core/GraphicsQuality.ts`).
    */
@@ -419,6 +429,11 @@ export class App {
       700,
     );
     this.mirrors = new MirrorRenderer(this.renderer);
+    this.levelBlur = new LevelBlur(this.renderer);
+    this.stopLevelBlur = onGraphicsChange(() => {
+      this.levelBlurOn = graphics().levelBlur;
+      if (!this.levelBlurOn) this.levelBlur.release();
+    });
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
     // Das Feld unten rechts hängt am Häkchen im Grafik-Menü — und F3 schaltet
@@ -1229,6 +1244,8 @@ export class App {
     this.voice.dispose();
     this.spectator.dispose();
     this.mirrors.dispose();
+    this.stopLevelBlur();
+    this.levelBlur.dispose();
     this.quality.dispose();
     this.frameStats.dispose();
     this.positionHud.dispose();
@@ -2399,6 +2416,22 @@ export class App {
             this.notify(`Schatten: ${SHADOW_MODE_LABELS[next.shadows]}`);
           },
         },
+        {
+          // **Die Etagen darunter unscharf** — `core/levelBlur.ts`. Gewünscht,
+          // _„um den Höhen-/Ebenen-Effekt besser zu zeigen"_.
+          id: 'gfx:level-blur',
+          label: 'Untere Ebenen unscharf',
+          sub: 'Von oben: was unter deiner Etage liegt, verschwimmt mit der Tiefe',
+          caption: 'Nur in der Ansicht von oben und ab der ersten Etage · kostet einen Durchgang',
+          icon: 'settings',
+          accent,
+          checked: settings.levelBlur,
+          run: () => {
+            const next = saveGraphics({ levelBlur: !graphics().levelBlur });
+            this.menuDirty = true;
+            this.notify(next.levelBlur ? 'Untere Ebenen unscharf' : 'Untere Ebenen scharf');
+          },
+        },
         this.animationMenu(accent),
         {
           id: 'gfx:mode',
@@ -3234,7 +3267,8 @@ export class App {
     // Werkzeugbildern), soll **diese** Kamera zeichnen und nicht die erste
     // Person. Sonst stünde von oben ein Portal voller Aussicht aus einem
     // Blickwinkel, den gerade niemand hat.
-    if (this.topDown) this.topDownCamera.update(dt, this.rig, this.world?.viewLevel?.() ?? null);
+    const viewLevel = this.world?.viewLevel?.() ?? null;
+    if (this.topDown) this.topDownCamera.update(dt, this.rig, viewLevel);
     const view = this.topDown ? this.topDownCamera.camera : this.camera;
     const viewContext = this.topDown ? { ...context, camera: view } : context;
     // **Und von oben wird aufgeschnitten** (`core/cutaway.ts`, Plan E8): Was
@@ -3246,15 +3280,26 @@ export class App {
     // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
     // sich die Welt gleich selbst zeichnet.
     this.mirrors.render(this.scene, view);
-    const rendered = this.world?.render?.(viewContext) ?? false;
-    if (!rendered) this.renderer.render(this.scene, view);
+    // **Und die Etagen darunter unscharf** (`core/levelBlur.ts`): Das Bild
+    // geht dann erst in eine Textur und von dort durch einen Durchgang, der
+    // alles unter dem eigenen Boden verwischt. Nach den Spiegeln, die ihre
+    // eigenen Ziele haben; vor den Portalsichten, die das Ziel zurücksetzen.
+    const blurFloor = levelBlurFloor(this.levelBlurOn, this.topDown, presenting, viewLevel);
+    if (blurFloor !== null) this.levelBlur.begin();
+    try {
+      const rendered = this.world?.render?.(viewContext) ?? false;
+      if (!rendered) this.renderer.render(this.scene, view);
+    } finally {
+      // Auch nach einem Fehler im Bild: Ein Ziel, das stehen bleibt, ist ein schwarzer Schirm.
+      if (blurFloor !== null) this.levelBlur.end(view, blurFloor);
+    }
     this.topDownCamera.uncut();
     this.positionHud.update(
       dt,
       this.rig.position.x,
       this.rig.position.y,
       this.rig.position.z,
-      this.world?.viewLevel?.()?.level ?? null,
+      viewLevel?.level ?? null,
     );
     const sample = this.frameStats.update(
       time,

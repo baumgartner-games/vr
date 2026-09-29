@@ -239,6 +239,16 @@ export interface GraphicsSettings {
    */
   shadows: ShadowMode;
   /**
+   * **Die Etagen darunter unscharf** — von oben, sobald man über einer steht
+   * (`core/levelBlur.ts`). Gewünscht, _„um den Höhen-/Ebenen-Effekt besser zu
+   * zeigen"_: scharf ist die eigene Etage, was tiefer liegt, verschwimmt.
+   *
+   * Ab Werk **an**, weil es der Wunsch war und nur dort etwas kostet, wo es
+   * wirkt: von oben, am Schirm, ab der ersten Etage — dann ein Durchgang über
+   * den ganzen Schirm. In der Brille nie.
+   */
+  levelBlur: boolean;
+  /**
    * **Ob sich die Figur beim Laufen staucht und streckt** — _squishy
    * movement_ (`core/squish.ts`, angewendet in `core/AvatarBody.ts`).
    *
@@ -510,6 +520,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   showVrFrustum: false,
   showBodyModel: false,
   shadows: 'simple',
+  levelBlur: true,
   squish: false,
   squishScale: 1,
   squishSpeed: 0.5,
@@ -687,6 +698,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   // hier noch den alten Schalter stehen haben: `false` wird Aus, `true` wird
   // der Kreis (`readShadowMode`) — nicht die teure Karte.
   const shadows = readShadowMode(raw.shadows ?? DEFAULT_GRAPHICS.shadows);
+  // Ab Werk an: „kenne ich nicht" heißt hier an, nur ein ausdrückliches Aus ist aus.
+  const levelBlur = raw.levelBlur !== false;
   // Und hier wieder `=== true`: Die Stauchung ist ab Werk aus, ein alter
   // Speicher kennt sie nicht, und „kenne ich nicht" heißt dann auch aus.
   const squish = raw.squish === true;
@@ -732,6 +745,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     showVrFrustum,
     showBodyModel,
     shadows,
+    levelBlur,
     squish,
     squishScale,
     squishSpeed,
@@ -877,6 +891,7 @@ export function graphicsSummary(
         | 'ghostBoxes'
         | 'showHandles'
         | 'shadows'
+        | 'levelBlur'
         | 'squish'
         | 'squishScale'
         | 'idleSquish'
@@ -898,6 +913,8 @@ export function graphicsSummary(
   // die teure Karte.
   const mode = readShadowMode(settings.shadows ?? DEFAULT_GRAPHICS.shadows);
   const shade = mode === 'off' ? ' · ohne Schatten' : mode === 'full' ? ' · Schatten voll' : '';
+  // Die Unschärfe ist ab Werk an; genannt wird, wer sie abgestellt hat.
+  const blur = settings.levelBlur === false ? ' · Etagen darunter scharf' : '';
   // Und ebenso: Genannt wird die Stauchung nur, wenn es sie gibt — samt
   // Faktor, denn zwischen ×0,5 und ×2 liegt der ganze Unterschied.
   const squishy = settings.squish
@@ -915,7 +932,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${grips}${shade}${squishy}${breath}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${grips}${shade}${blur}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

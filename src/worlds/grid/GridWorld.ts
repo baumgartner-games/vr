@@ -3375,7 +3375,8 @@ export abstract class GridWorld extends PortalWorld {
     const floorY = graph.levelY(this.rigLevel);
     // **Von außen** (`levelBar.ts`): keine Etage darüber, die weg müsste —
     // gebaut wird trotzdem auf der gewählten, und auf die sieht die Kamera.
-    if (this.levelBarOn && this.levelOutside) return { level: graph.levels.length - 1, floorY };
+    if (this.levelBarOn && this.levelOutside)
+      return { level: graph.levels.length - 1, floorY, whole: true };
     return { level: this.rigLevel, floorY };
   }
 
