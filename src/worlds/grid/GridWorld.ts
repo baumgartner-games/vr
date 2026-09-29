@@ -1407,6 +1407,8 @@ export abstract class GridWorld extends PortalWorld {
         return slideOnCells(grid, x, z, dx, dz, level);
       },
       flightFloor: (x, z, footY) => this.grid?.flightFloor(x, z, footY) ?? null,
+      stepOff: (fromX, fromZ, x, z, footY) =>
+        this.grid?.stepOffFlight(fromX, fromZ, x, z, footY) ?? null,
     };
   }
 
@@ -3348,6 +3350,25 @@ export abstract class GridWorld extends PortalWorld {
     const graph = this.grid?.graph;
     if (!graph) return null;
     return { level: this.rigLevel, floorY: graph.levelY(this.rigLevel) };
+  }
+
+  /**
+   * **Gebaut wird auf der Etage, auf der man steht** — auf ihrem Boden, auch
+   * wenn man gerade auf der Treppe steht oder unter einem das Loch der Treppe
+   * ist (`PortalWorld.commitWallLine`).
+   */
+  protected override buildFloorY(ctx: WorldContext): number {
+    const plan = this.grid;
+    const graph = plan?.graph;
+    if (!plan || !graph || graph.levels.length < 2) return super.buildFloorY(ctx);
+    const key = tileKey(
+      tileIndexAt(ctx.rig.position.x),
+      tileIndexAt(ctx.rig.position.z),
+      this.rigLevel,
+    );
+    // Die Feinhöhe der Kachel (ein Podest) zählt, die einer Stufe nicht.
+    const rise = plan.flightOn(key) ? 0 : (graph.tile(key)?.rise ?? 0);
+    return graph.levelY(this.rigLevel) + rise;
   }
 
   /**

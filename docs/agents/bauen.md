@@ -1278,6 +1278,23 @@ Wall."_
   für _Rückgängig_. Danach fängt die nächste Wand gleich wieder beim
   Startpunkt an.
 
+- **Im Katalog nur kurze Stücke** (September 2026): _Wände_ hat die halbe
+  Prototyp- und Putzwand, _Fenster_ das schmale Fenster — _„Im Wand zieh
+  Modus werden wir eh lange Wände ziehen."_ Gezogen wird trotzdem mit dem
+  langen Stück dazu (`elementCatalog.wallFullOf`, `PortalWorld.drawnWall`):
+  lange Stücke aneinander, am ungeraden Ende das kurze.
+- **Eine lange Wand wird geteilt, wenn ein kürzeres Stück einen Teil von ihr
+  ersetzt** (`wallRests`, `restoreWallRests`): Ein schmales Fenster in einer
+  langen Wand nimmt nur seine Fuge, auf der anderen bleibt ein halbes Stück
+  stehen — im selben Schritt für _Rückgängig_. Ein Teilstück mit der
+  Abrissbombe entfernen geht noch nicht: Sie reißt das ganze Stück ab.
+- **Fest auf der Etage, auf der man steht** (`buildFloorY`) — gezogene Wände
+  und die Wand rundum fallen nicht, sondern stehen, wo der Geist stand, auch
+  über einem Loch ([Hausbau](./hausbau.md#treppen-und-etagen)).
+- **Eine Tür trägt man mit der Vorderseite zu sich** (`isDoorModel`), wie ein
+  Möbel im Spielmodus: _„Wenn ich eine Tür halte soll die bei mir in Richtung
+  south immer ausgerichtet sein."_
+
 **Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
 Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
 alte auf derselben Fuge. In der Brille gibt es _Wand ziehen_ noch nicht (keine

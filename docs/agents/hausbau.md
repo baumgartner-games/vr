@@ -134,6 +134,21 @@ Ebene anlegen durch eine 2x8 Treppe."_
     stehen für sich (`looseWalls`), damit sie mit ihr verschwinden.
 - Tapete und Boden gelten auf der Etage, auf der man steht (`wallsOn`, der
   Belag je Kachel **und** Etage).
+- **Wände gehören der Etage, auf der man steht** — gemeldet nach dem ersten
+  Obergeschoss: _„Wände werden immer auf der Etage gesetzt wo wir uns
+  befinden"_ und _„einfach so tun, als wenn wir in der Luft bauen könnten"_.
+  Gezogene Wände stehen deshalb **fest** auf dem Boden der Etage
+  (`PortalWorld.buildFloorY`, in der Gitterwelt die Höhe von `rigLevel`, auch
+  mitten auf der Treppe) und fallen nicht mehr: Vorher fielen sie über dem
+  Loch der Treppe auf die Stufen (`y` 4,16 statt 4,2 in der Liste). Und eine
+  Wand oben ersetzt nicht mehr die darunter auf derselben Fuge
+  (`wallsUnder`, `WALL_STOREY_GAP`).
+- **Seitlich von der Treppe** (`GridPlan.stepOffFlight`,
+  `PhysicsLocomotion.walkDrop`): Aus der Mitte des Laufs fällt man nach dem
+  Gitter auf die Etage der Treppe — vorher steckte die Kapsel mit dem Kopf im
+  Boden der Etage darüber fest (`stuckAtStep`). Von der **letzten** Kachel
+  Stufen geht es nach beiden Seiten auf die Etage darüber
+  (`physics/stairStepOff.test.ts`).
 
 ## Die Tapete auf der Wand
 
