@@ -4,6 +4,7 @@ import {
   gameMode,
   movesFurniture,
   movesStructure,
+  wallDrawOnly,
   nextGameMode,
   onGameMode,
   refillsCatalogue,
@@ -35,6 +36,10 @@ describe('gameMode', () => {
 
   it('moves walls only in Baukasten — Einrichten richtet ein und baut nicht um', () => {
     expect(GAME_MODES.map(movesStructure)).toEqual([false, false, true]);
+  });
+
+  it('draws catalogue walls in every mode — outside Baukasten only walls, and the hand empties', () => {
+    expect(GAME_MODES.map(wallDrawOnly)).toEqual([true, true, false]);
   });
 
   it('tells its listeners once per real change — not on the same mode again', () => {

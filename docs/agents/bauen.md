@@ -1249,7 +1249,8 @@ Punkt bestätigen …) und zieht dann die Wand wohin man die haben will, währen
 man noch nicht den Endpunkt bestätigt hat sieht man eine Vorschau der ghost
 Wall."_
 
-- **Von selbst an**: Wer im _Baukasten_ eine Wand in die Bildschirmhand nimmt
+- **Von selbst an**: Wer im _Baukasten_ (und mit einer Wand aus dem Katalog
+  auch beim _Spielen_ und _Einrichten_, siehe unten) eine Wand in die Bildschirmhand nimmt
   (Katalog → _Wände_, _Türen_ oder _Fenster_, oder eine Wand aus den
   Rohmodellen), ist sofort in _Wand ziehen_ (`areaAuto`) — einmal je Wand in
   der Hand. `Esc` beendet es, und dieselbe Wand setzt der Kran dann wieder
@@ -1294,6 +1295,22 @@ Wall."_
 - **Eine Tür trägt man mit der Vorderseite zu sich** (`isDoorModel`), wie ein
   Möbel im Spielmodus: _„Wenn ich eine Tür halte soll die bei mir in Richtung
   south immer ausgerichtet sein."_
+
+- **Auch beim _Spielen_ und _Einrichten_** (September 2026, gewünscht:
+  _„Beim spielmodus als auch einrichtungs modus will ich es bei "Wand"
+  platzierungen so handhaben, dass im katalog es funktioniert wie im
+  baumodus."_): Eine Wand **frisch aus dem Katalog** (`shelfFresh`) schaltet
+  dort genauso _Wand ziehen_ an (`areaBrush`, `gameMode.wallDrawOnly`) —
+  Linie oder Raum, Geisterwand, Loslassen setzt. Anders als im _Baukasten_
+  ist die Hand danach **leer** (`spendBrush`, verschwindet wie beim Wechseln
+  über `letGo`): Ein Griff in den Katalog ist dort eine Wand, nachgelegt wird
+  nur im _Baukasten_. Anderes aus dem Regal bekommt dort keine Leiste; eine
+  Fläche voller Fässer bleibt dem _Baukasten_.
+- **Der Startpunkt ist ein Block** (`showStartPost`, `START_POST`): Solange
+  noch keine Linie steht, zeigt ein Geist des Getragenen, auf eine Zelle im
+  Quadrat gestaucht (volle Höhe), die Ecke zwischen den Kacheln, an der die
+  Wand anfinge — _„die wand ist in dem moment ein 1x1 block zwischen den
+  blöcken"_. Darunter leuchten weiter die vier Kacheln um die Ecke.
 
 **Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
 Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die

@@ -75,6 +75,17 @@ export function refillsCatalogue(mode: GameMode): boolean {
   return mode === 'creative';
 }
 
+/**
+ * **Ob _Wand ziehen_ das Einzige ist, was die Leiste hier anbietet** — beim
+ * _Spielen_ und _Einrichten_. Eine Wand frisch aus dem Katalog wird dort
+ * gezogen wie im _Baukasten_ (Startpunkt, ziehen, loslassen); ist sie
+ * gesetzt, ist die Hand leer, denn nachgelegt wird nur im _Baukasten_
+ * (`refillsCatalogue`). Flächen setzen bleibt dem _Baukasten_.
+ */
+export function wallDrawOnly(mode: GameMode): boolean {
+  return !refillsCatalogue(mode);
+}
+
 let current: GameMode = 'play';
 const listeners = new Set<(mode: GameMode) => void>();
 

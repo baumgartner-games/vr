@@ -20,6 +20,7 @@ import {
   gameMode,
   movesFurniture,
   movesStructure,
+  wallDrawOnly,
   nextGameMode,
   onGameMode,
   refillsCatalogue,
@@ -614,6 +615,11 @@ const NOTE_INTERACTION: InteractionSpec = {
 };
 /** Wie viele Kacheln die Vorschau einer Fläche höchstens zeigt (`PlaceGrid.show`). */
 const AREA_PREVIEW = 1600;
+/**
+ * **Wie breit der Startpunkt einer gezogenen Wand ist**, in Metern — eine Zelle
+ * im Quadrat (`showStartPost`), der „1x1 block zwischen den blöcken".
+ */
+const START_POST = TILE / 2;
 /** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
 const AREA_LIFT = 0.01;
 /**
@@ -12130,6 +12136,10 @@ export class PortalWorld implements World {
     }
     if (line && line.slots.length > 0)
       this.showWallGhosts(ctx, brush.entry, line, floor, this.drawnWall(brush).factor);
+    else {
+      const corner = select.start ?? this.areaHover;
+      if (corner) this.showStartPost(ctx, brush.entry, corner, floor);
+    }
     const length = line ? `${line.length.toFixed(line.diagonal ? 1 : 0)} m` : '';
     pad.show({
       kind: 'active',
@@ -12227,6 +12237,57 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Der Startpunkt als Block** — gewünscht: _„es wird nur angezeigt, auf
+   * welchem startpunkt ich die erste wand platzieren will (die wand ist in dem
+   * moment ein 1x1 block zwischen den blöcken)"_. Solange noch keine Linie
+   * steht, ist der Geist des Getragenen auf eine Zelle im Quadrat gestaucht
+   * (`START_POST`, volle Höhe) und steht auf der Ecke zwischen den Kacheln,
+   * an der die Wand anfinge. Eine Kopie des Modells und kein gebauter Klotz.
+   */
+  private showStartPost(
+    ctx: WorldContext,
+    entry: PhysicsBody,
+    corner: AreaTile,
+    floor: number,
+  ): void {
+    const ghosts = (this.lineGhosts ??= new WallGhosts());
+    if (ghosts.root.parent !== ctx.scene) ctx.scene.add(ghosts.root);
+    const base = this.wallBase(entry);
+    const now = entry.object.scale;
+    const fixX = now.x > 0 ? base.scale.x / now.x : 1;
+    const fixZ = now.z > 0 ? base.scale.z / now.z : 1;
+    const slots = this.ghostSlots;
+    slots.length = 0;
+    slots.push({
+      x: corner.col * TILE,
+      y: floor + base.half.y,
+      z: corner.row * TILE,
+      yaw: 0,
+      scale: {
+        x: base.half.x > 0 ? (fixX * START_POST) / (2 * base.half.x) : fixX,
+        z: base.half.z > 0 ? (fixZ * START_POST) / (2 * base.half.z) : fixZ,
+      },
+    });
+    ghosts.show(entry.object, slots, true);
+  }
+
+  /**
+   * **Eine Wand aus dem Katalog ist gezogen** — beim _Spielen_ und
+   * _Einrichten_ ist die Hand danach leer (`wallDrawOnly`): Ein Griff in den
+   * Katalog ist eine Wand, wie ein Möbel dort eines ist. Das Getragene war
+   * nur der Pinsel und stand nie; es verschwindet wie beim Wechseln
+   * (`letGo`, `shelfSwap`). Im _Baukasten_ bleibt es für die nächste Wand.
+   */
+  private spendBrush(ctx: WorldContext, brush: { entry: PhysicsBody }): void {
+    if (!wallDrawOnly(gameMode())) return;
+    const side = this.screenCarrySide();
+    const grab = side ? this.grabs.get(side) : undefined;
+    if (!side || !grab || grab.entry !== brush.entry) return;
+    this.endArea();
+    this.letGo(ctx, side, grab);
+  }
+
+  /**
    * **Womit gerade eine Fläche gesetzt werden kann** — das Modell in der
    * Bildschirmhand und seine Adresse im Regal, oder `null`.
    *
@@ -12235,11 +12296,16 @@ export class PortalWorld implements World {
    */
   private areaBrush(ctx: WorldContext): { entry: PhysicsBody; path: string } | null {
     if (ctx.renderer.xr.isPresenting) return null;
-    if (!refillsCatalogue(gameMode())) return null;
     const side = this.screenCarrySide();
     const entry = side ? this.grabs.get(side)?.entry : undefined;
     // Ein Zettel ist kein Pinsel: Eine Fläche voller Zettel sagt nichts.
     if (!entry || this.notes.has(entry) || this.elementBodies.has(entry)) return null;
+    // **Beim _Spielen_ und _Einrichten_ nur eine Wand frisch aus dem Katalog**
+    // (`wallDrawOnly`) — gewünscht: _„bei Wand platzierungen so handhaben,
+    // dass im katalog es funktioniert wie im baumodus"_. Eine Fläche voller
+    // Fässer bleibt dem _Baukasten_.
+    if (wallDrawOnly(gameMode()) && !(this.shelfFresh.has(entry) && this.brushIsWall(entry)))
+      return null;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     return path === null ? null : { entry, path };
   }
@@ -12312,7 +12378,10 @@ export class PortalWorld implements World {
           // nächste Wand fängt gleich wieder mit dem Startpunkt an.
           const drawn = this.currentWallLine(brush);
           select.reset();
-          if (drawn && drawn.slots.length > 0) this.commitWallLine(brush, drawn, floor);
+          if (drawn && drawn.slots.length > 0) {
+            this.commitWallLine(brush, drawn, floor);
+            this.spendBrush(ctx, brush);
+          }
           return;
         }
         const rect = select.rect();
@@ -12434,6 +12503,7 @@ export class PortalWorld implements World {
       },
     );
     this.buildHistory.end();
+    this.spendBrush(ctx, brush);
     void Promise.all(done).then(() => {
       const skipped = done.length - placed;
       this.context?.notify(
