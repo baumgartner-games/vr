@@ -103,7 +103,8 @@ export interface CellSource {
    * **Ob man seitlich auf eine Hälfte der Treppenkachel kommt** — von der
    * Kachel in Richtung `side` aus; `part` 0 ist die Hälfte am Fuß des Laufs,
    * 1 die obere (`GridPlan.flightSideOpen`). Dort ist ihre Seite keine Wand.
-   * Ohne diese Frage ist keine offen.
+   * `side` in Steigrichtung fragt nach dem Kopf des Laufs. Ohne diese Frage
+   * ist keine offen — auch der Kopf nicht, außer dahinter geht ein Lauf weiter.
    */
   flightSide?(tx: number, tz: number, side: Dir, part: 0 | 1, level: number): boolean;
 }

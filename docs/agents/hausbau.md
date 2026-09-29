@@ -113,7 +113,9 @@ Ebene anlegen durch eine 2x8 Treppe."_
   breit und vier lang (`stairPlan.STAIR_TILES`). Drei Kacheln Stufen
   (`STAIR_STEPS`, 0,93 m je Kachel bei 2,8 m Etagenhöhe), die vierte ist der
   Stand oben — Boden der Etage darüber. Die Stufen sperrt der Plan von der Seite
-  wie jede Treppe (`planeMove.flightSides`): hinauf nur von unten.
+  wie jede Treppe (`planeMove.flightSides`): hinauf nur von unten. Ebenso
+  ihren Kopf von hinten — unter die Stufen läuft man auf der Etage darunter
+  nicht ([Zellgitter](zellgitter.md)).
 - **Nehmen** wie Tapete und Boden: aus der Treppenkiste oder dem Katalog
   (Ordner _Treppen_, Item `stair`). In der Hand liegt sie **mit Süden zu
   einem** — der Fuß bei einem, sie steigt von einem weg, wie sie hingestellt
