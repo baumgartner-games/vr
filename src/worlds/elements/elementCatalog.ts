@@ -95,6 +95,19 @@ export interface ElementPart {
   /** Oder um diesen Faktor, zusätzlich zum Maßstab des Regals. `height` geht vor. */
   readonly scale?: number;
   /**
+   * **Auf diese Breite gebracht**, in Metern — gleichmäßig, und zwar die
+   * längere der beiden Seiten von oben gesehen, **nach** `tilt`. Für das, was in
+   * einer Kiste liegt und nicht über ihren Rand hinausragen soll: die Bahn der
+   * Tapete, die Platte eines Bodens.
+   */
+  readonly fit?: number;
+  /**
+   * **Die Oberkante so tief unter der Oberkante dessen, worauf es liegt**, in
+   * Metern — statt `sink`, das die Unterkante setzt. So liegen verschieden
+   * dicke Platten in ihren Kisten alle bündig.
+   */
+  readonly flush?: number;
+  /**
    * **Hier wird abgelegt** — die Oberkante dieses Teils ist `PlacedElement.top`.
    * Ohne Angabe ist es das erste Teil: die Platte, der Herd, die Kiste.
    */
@@ -185,8 +198,13 @@ const BODY = 1.4;
  */
 const TUB_SCALE = 0.66 / 0.8;
 
-/** Wie tief die Bahn einer Tapete in ihrer Kiste steckt, in Metern. */
-const WALLPAPER_SINK = 0.12;
+/**
+ * **Was in einer Kiste von oben liegt** (Tapete, Boden): so breit, dass rundum
+ * der Rand der Kiste (1 m) zu sehen bleibt, und die Oberkante so tief unter
+ * ihrem Rand — bei allen gleich, egal wie dick das Modell ist.
+ */
+const CRATE_FILL = 0.8;
+const CRATE_FLUSH = 0.03;
 
 /** Die Arbeitsplatte, auf der fast alles steht. */
 const COUNTER = bits('kitchencounter_straight_A');
@@ -290,8 +308,10 @@ export const WALLPAPER_CRATES: readonly GameElement[] = (
       {
         model: `dungeon/banner_thin_${color}.glb`,
         on: 0,
-        sink: WALLPAPER_SINK,
         tilt: [-Math.PI / 2, 0, 0],
+        // Die Bahn ist 1,6 m lang und lag über die Kiste hinaus.
+        fit: CRATE_FILL,
+        flush: CRATE_FLUSH,
       },
     ],
     { gives: `wallpaper-${id}` },
@@ -300,14 +320,18 @@ export const WALLPAPER_CRATES: readonly GameElement[] = (
 
 /**
  * **Die Bodenkisten** — je Belag eine (`house/flooring.ts`), unendlich viele
- * wie bei den Tapeten. Obenauf liegt die Platte selbst.
+ * wie bei den Tapeten. Darin liegt die Platte selbst, verkleinert und bündig
+ * (`fit`, `flush`).
  */
 export const FLOORING_CRATES: readonly GameElement[] = FLOORINGS.map((one) =>
   piece(
     `crate-floor-${one.id}`,
     `Bodenkiste ${one.label}`,
     'crate',
-    [{ model: bits('crate') }, { model: one.path, on: 0, sink: 0.05, scale: 1 / (one.tiles ?? 1) }],
+    // Kleiner als die Kiste, damit ihr Rand zu sehen ist, und oben bündig: Die
+    // Platten sind verschieden dick (Fliesen 25 cm, Dielen 7,5 cm), und
+    // gelegt sieht man davon ohnehin nur die Oberseite.
+    [{ model: bits('crate') }, { model: one.path, on: 0, fit: CRATE_FILL, flush: CRATE_FLUSH }],
     { gives: `floor-${one.id}` },
   ),
 );

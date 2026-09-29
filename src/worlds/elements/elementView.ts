@@ -256,13 +256,24 @@ function layOn(
   const raw = new THREE.Box3().setFromObject(model);
   if (raw.isEmpty()) return null;
   const tall = raw.max.y - raw.min.y;
-  const scale = part.height !== undefined && tall > 1e-6 ? part.height / tall : (part.scale ?? 1);
+  let scale = part.height !== undefined && tall > 1e-6 ? part.height / tall : (part.scale ?? 1);
   const tilt = part.tilt ?? ([0, 0, 0] as const);
   const yaw = elementYaw + (part.yaw ?? 0);
   const spin = pose(model, scale, tilt, yaw);
   spin.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(spin);
+  let box = new THREE.Box3().setFromObject(spin);
   if (box.isEmpty()) return null;
+  // **Auf Breite** (`fit`): erst umgelegt messen, dann gleichmäßig nachziehen.
+  const wide = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+  if (part.fit !== undefined && wide > 1e-6) {
+    const more = part.fit / wide;
+    model.scale.multiplyScalar(more);
+    scale *= more;
+    spin.updateMatrixWorld(true);
+    box = new THREE.Box3().setFromObject(spin);
+  }
+  // **Bündig** (`flush`): Die Oberkante liegt fest, die Unterkante folgt der Dicke.
+  if (part.flush !== undefined) y -= part.flush + (box.max.y - box.min.y);
   const shift = new THREE.Vector3(
     -(box.min.x + box.max.x) / 2,
     -box.min.y,

@@ -1,8 +1,8 @@
 /**
  * **Die Ebenen des _Baukastens_** — eine senkrechte Leiste am rechten Rand, wie
  * in _Die Sims_. DOM, am Schirm und auf dem Telefon, neben der Werkzeugleiste
- * (`portal/buildBar.ts`) und nur, solange die zu sehen ist und die Welt mehr
- * als eine Etage hat. Rechnen tut hier nichts: Gesammelt wird, was gedrückt
+ * (`portal/buildBar.ts`), immer, wenn die zu sehen ist — auch mit nur einer
+ * Etage (dann sind hoch und runter aus). Rechnen tut hier nichts: Gesammelt wird, was gedrückt
  * wurde, und die Welt holt es je Bild ab (`take`, `GridWorld.stepLevelBar`).
  *
  * Gewünscht: _„im baukasten modus habe ich noch ein problem mit dem platzieren
