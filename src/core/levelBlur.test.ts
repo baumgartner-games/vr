@@ -1,4 +1,12 @@
-import { LEVEL_BLUR_FULL, LEVEL_BLUR_START, levelBlurAmount, levelBlurFloor } from './levelBlur';
+import {
+  LEVEL_BLUR_ABOVE_FULL,
+  LEVEL_BLUR_ABOVE_START,
+  LEVEL_BLUR_FULL,
+  LEVEL_BLUR_START,
+  levelBlurAboveAmount,
+  levelBlurAmount,
+  levelBlurPlan,
+} from './levelBlur';
 
 describe('Etagen darunter unscharf', () => {
   it('bleibt auf der eigenen Etage scharf und verschwimmt ein Stockwerk tiefer ganz', () => {
@@ -13,15 +21,36 @@ describe('Etagen darunter unscharf', () => {
 
   it('wirkt nur von oben, am Schirm, mit Häkchen und ab der ersten Etage', () => {
     const upstairs = { level: 1, floorY: 2.8 };
-    expect(levelBlurFloor(true, true, false, upstairs)).toBe(2.8);
-    expect(levelBlurFloor(false, true, false, upstairs)).toBeNull();
-    expect(levelBlurFloor(true, false, false, upstairs)).toBeNull();
-    expect(levelBlurFloor(true, true, true, upstairs)).toBeNull();
-    expect(levelBlurFloor(true, true, false, null)).toBeNull();
-    expect(levelBlurFloor(true, true, false, { level: 0, floorY: 0 })).toBeNull();
+    expect(levelBlurPlan(true, false, true, false, upstairs)).toEqual({
+      floorY: 2.8,
+      aboveY: null,
+    });
+    expect(levelBlurPlan(false, false, true, false, upstairs)).toBeNull();
+    expect(levelBlurPlan(true, false, false, false, upstairs)).toBeNull();
+    expect(levelBlurPlan(true, false, true, true, upstairs)).toBeNull();
+    expect(levelBlurPlan(true, false, true, false, null)).toBeNull();
+    expect(levelBlurPlan(true, false, true, false, { level: 0, floorY: 0 })).toBeNull();
   });
 
-  it('lässt das ganze Haus von außen scharf', () => {
-    expect(levelBlurFloor(true, true, false, { level: 2, floorY: 0, whole: true })).toBeNull();
+  it('lässt das ganze Haus von außen unten scharf', () => {
+    const whole = { level: 2, floorY: 0, whole: true, aboveY: 2.8 };
+    expect(levelBlurPlan(true, false, true, false, whole)).toBeNull();
+    // Oben aber, wenn es gewünscht ist: dort sieht man die Etagen darüber.
+    expect(levelBlurPlan(true, true, true, false, whole)).toEqual({ floorY: null, aboveY: 2.8 });
+  });
+
+  it('verwischt oben nur mit Häkchen und nur, wo es eine Etage darüber gibt', () => {
+    const middle = { level: 1, floorY: 2.8, aboveY: 5.6 };
+    expect(levelBlurPlan(false, true, true, false, middle)).toEqual({ floorY: null, aboveY: 5.6 });
+    expect(levelBlurPlan(true, true, true, false, middle)).toEqual({ floorY: 2.8, aboveY: 5.6 });
+    expect(levelBlurPlan(false, true, true, false, { level: 0, floorY: 0 })).toBeNull();
+    expect(levelBlurPlan(false, false, true, false, middle)).toBeNull();
+  });
+
+  it('lässt oben die eigene Etage scharf und die darüber schnell verschwimmen', () => {
+    expect(levelBlurAboveAmount(5.6, 2.8)).toBe(0);
+    expect(levelBlurAboveAmount(5.6, 5.6 + LEVEL_BLUR_ABOVE_START)).toBeCloseTo(0, 9);
+    expect(levelBlurAboveAmount(5.6, 5.6 + LEVEL_BLUR_ABOVE_FULL)).toBeCloseTo(1, 9);
+    expect(levelBlurAboveAmount(5.6, 5.6)).toBeGreaterThan(0);
   });
 });

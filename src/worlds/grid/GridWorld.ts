@@ -3378,9 +3378,10 @@ export abstract class GridWorld extends PortalWorld {
     // Auf der obersten Etage ist „von außen" dasselbe Bild wie drinnen — dann
     // bleibt das Darunter unscharf (`core/levelBlur.ts`).
     const top = graph.levels.length - 1;
+    const above = this.rigLevel < top ? { aboveY: graph.levelY(this.rigLevel + 1) } : {};
     if (this.levelBarOn && this.levelOutside)
-      return { level: top, floorY, whole: this.rigLevel < top };
-    return { level: this.rigLevel, floorY };
+      return { level: top, floorY, whole: this.rigLevel < top, ...above };
+    return { level: this.rigLevel, floorY, ...above };
   }
 
   /** **Die Etage, auf der man steht** — oder die, die der Kran in der Ebenen-Leiste gewählt hat. */

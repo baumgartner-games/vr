@@ -323,7 +323,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     // Ganz ist das Haus nur, wenn es über einem noch etwas gibt: Wer draußen
     // auf der obersten Etage steht, sieht die Etagen darunter unscharf.
     const top = graph.levels.length - 1;
-    return { level: top, floorY: view.floorY, whole: view.level < top };
+    return { ...view, level: top, whole: view.level < top };
   }
 
   /**
