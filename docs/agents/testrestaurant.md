@@ -133,10 +133,10 @@ Die Welt selbst blieb leer, bis der Besitzer die Liste schickte — heute die
 | Datei                                   | Was darin steht                                                                                                                                                                                                                                                  |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `testrestaurant/restaurantPlan.ts`      | **Rein**: `SPOTS` (die Burgerküche), `ground()` (40 × 32 Kacheln ab (−3 \| −3), dieselbe Fläche wie zuletzt), `spawn()` (Mitte), `restaurantPlan()`                                                                                                              |
-| `testrestaurant/TestRestaurantWorld.ts` | Die Welt: Prototyp-Boden, Himmel, `elementHost`, eine `StationLayer`, das Getragene in der Hand (`carryInHands`)                                                                                                                                                 |
+| `testrestaurant/TestRestaurantWorld.ts` | Die Welt: Prototyp-Boden, Himmel, Küche (`spots`), Boden (`onGround`); `elementHost`, `StationLayer` und das Getragene (`carryInHands`) stehen in `grid/FurnishedWorld.ts`                                                                                       |
 | `testrestaurant/restaurantPlan.test.ts` | Boden 40 × 32, Ankunft auf dem Boden und mitten auf einer Kachel; jede Stelle auf dem Boden, ohne Überlappen, nicht auf dem Ankunftsort; jede Stelle mit Stationsart wird Station; alle nach Süden; ein Burger mit Salat und Tomate, geschnitten, auf dem Teller |
 
-Die Welt erbt von `GridWorld`. Im Plan steht **nur der Boden**, dieselbe
+Die Welt erbt von `FurnishedWorld` (und die von `GridWorld`). Im Plan steht **nur der Boden**, dieselbe
 Prototyp-Platte wie in der Test Navigation (`floorPlate` →
 `test/floorPlate.PLATE_PROTOTYPE`). Man kommt bei (17,5 | 13,5) an, mit Blick
 nach Norden.
@@ -206,7 +206,7 @@ und ihre Tests. Was davon allgemein war, lebt weiter:
 Was man trägt — Gemüse, Teller, Hörnchen, Pfanne —, geht in der Brille an die
 andere Hand wie die Pistole: die freie Hand an den Griff der tragenden führen
 (`grabReach.atHandGrip`, 16 cm), sie leuchtet und stupst einmal, dann ihr
-Griffknopf (`TestRestaurantWorld.passHands`). Eine Hand mit Werkzeug nimmt
+Griffknopf (`FurnishedWorld.passHands`). Eine Hand mit Werkzeug nimmt
 nichts entgegen (`handFree`), und eine schon geschlossene Faust auch nicht.
 
 ## Zum Prüfen

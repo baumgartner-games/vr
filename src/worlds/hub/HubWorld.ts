@@ -6,7 +6,7 @@ import { turnWithView } from '../../ui/billboard';
 import { createSky } from '../shared/environment';
 import { StaticDecor } from '../shared/staticDecor';
 import { cellKey, footprintCellKeys } from '../nav/cellGrid';
-import { GridWorld } from '../grid/GridWorld';
+import { FurnishedWorld } from '../grid/FurnishedWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import type { Props } from '../grid/fixtures/index';
@@ -56,7 +56,7 @@ import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
  * dem Hallenboden, die Lichtbänder in den Gängen und die beiden Tafeln. Das
  * ist der Teil, der eine Halle von einem Grundriss unterscheidet.
  */
-export class HubWorld extends GridWorld {
+export class HubWorld extends FurnishedWorld {
   /** Die Welten hinter den Toren — dieselbe Liste, aus der `layout()` baut. */
   private readonly targets: WorldDefinition[] = hubTargets();
   /** Die Tafeln in der Halle: eigene Textur, also eigenes Aufräumen. */

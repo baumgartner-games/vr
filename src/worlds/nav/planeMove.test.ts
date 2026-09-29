@@ -139,11 +139,21 @@ describe('Die Treppe als Gang mit Einbahnwänden', () => {
     return field(8, 8, new Map(), flights);
   }
 
-  it('hat Seiten, aber keine Wand quer über den Lauf', () => {
+  it('hat Seiten, aber keine Wand quer über den Lauf — nur oben am Kopf', () => {
     const walls = cellPlaneWalls(stairs(), 2, 2, 4, 7);
     const sides = walls.filter((one) => one.outside);
-    expect(sides).toHaveLength(8);
-    for (const one of sides) expect(one.ax).toBe(one.bx);
+    expect(sides).toHaveLength(9);
+    const across = sides.filter((one) => one.az === one.bz);
+    expect(across).toEqual([{ ax: 3, az: 3, bx: 4, bz: 3, outside: { x: 0, z: -1 } }]);
+  });
+
+  it('lässt nicht von hinten unter die Treppe, aber oben hinaus', () => {
+    // Gemeldet: _„Aktuell kann ich von hinten leider reinlaufen"_.
+    const grid = stairs();
+    const under = walk(grid, { x: 3.5, z: 1.5 }, 0, 0.04, 100).at(-1)!;
+    expect(under.z).toBeCloseTo(3 - R, 5);
+    const out = walk(grid, { x: 3.5, z: 3.5 }, 0, -0.04, 50).at(-1)!;
+    expect(out.z).toBeLessThan(2);
   });
 
   it('lässt nicht seitlich hinauf, aber seitlich herunter', () => {
@@ -178,8 +188,8 @@ describe('Die unterste Treppenkachel von der Seite', () => {
 
   it('lässt nur die obere Hälfte der Seite als Wand stehen', () => {
     const sides = cellPlaneWalls(stairs(), 2, 2, 4, 7).filter((one) => one.outside);
-    // Drei Kacheln mit zwei ganzen Seiten, und unten je eine halbe.
-    expect(sides).toHaveLength(8);
+    // Drei Kacheln mit zwei ganzen Seiten, unten je eine halbe, oben der Kopf.
+    expect(sides).toHaveLength(9);
     const foot = sides.filter((one) => Math.max(one.az, one.bz) > 6);
     expect(foot).toHaveLength(2);
     for (const one of foot) {

@@ -4,7 +4,6 @@ import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { ElementSpot } from '../elements/elementPlace';
 import {
-  BUILD_FOLDERS,
   FLOORING_CRATES,
   STAIR_CRATE,
   WALLPAPER_CRATES,
@@ -150,22 +149,30 @@ export class HausbauWorld extends TestRestaurantWorld {
 
   // --- Katalog ---------------------------------------------------------------
 
-  /** Im Katalog: die Tapetenkisten zum Hinstellen. */
+  /**
+   * **Der Katalog aller Welten** (`FurnishedWorld`) — und dazu die Kisten
+   * für Tapete, Boden und Treppe, die nur hier etwas bewirken.
+   */
   protected override elementCatalogue(): readonly string[] {
-    return [...WALLPAPER_CRATES, ...FLOORING_CRATES, STAIR_CRATE].map((crate) => crate.id);
+    return [
+      ...super.elementCatalogue(),
+      ...[...WALLPAPER_CRATES, ...FLOORING_CRATES, STAIR_CRATE].map((crate) => crate.id),
+    ];
   }
 
   /**
-   * **Wände, Türen, Fenster — und in _Wände_ die Tapeten** zum Nehmen, dazu
-   * die Kisten in einem eigenen Ordner.
+   * **Die Ordner aller Welten — und in _Wände_ die Tapeten** zum Nehmen, dazu
+   * Böden, Treppen und die Kisten in eigenen Ordnern.
    */
   protected override elementFolders(): readonly FurnitureFolder[] {
     return [
-      ...BUILD_FOLDERS.map((folder) =>
-        folder.id === 'walls'
-          ? { ...folder, items: WALLPAPERS.map((one) => wallpaperItem(one.id)) }
-          : folder,
-      ),
+      ...super
+        .elementFolders()
+        .map((folder) =>
+          folder.id === 'walls'
+            ? { ...folder, items: WALLPAPERS.map((one) => wallpaperItem(one.id)) }
+            : folder,
+        ),
       // **Die Böden** — die Beläge zum Nehmen, wie die Tapeten unter _Wände_.
       {
         id: 'floors',
@@ -340,7 +347,10 @@ export class HausbauWorld extends TestRestaurantWorld {
     // gewählte Etage, oder _von außen_ alle — und nicht, wo der Kran schwebt.
     if (this.levelBarOn) return view;
     if (!view || !ctx || !graph || this.underRoof(ctx)) return view;
-    return { level: graph.levels.length - 1, floorY: view.floorY, whole: true };
+    // Ganz ist das Haus nur, wenn es über einem noch etwas gibt: Wer draußen
+    // auf der obersten Etage steht, sieht die Etagen darunter unscharf.
+    const top = graph.levels.length - 1;
+    return { ...view, level: top, whole: view.level < top };
   }
 
   /**

@@ -692,7 +692,7 @@ die unteren Ebenen. Ich denke es wäre gut (bei Ansicht von oben), wenn dann die
 unteren Ebenen etwas blurry gerendert werden, um den Höhen/Ebenen-Effekt besser
 zu zeigen. Sollte im Menü Grafik checkbox ein und ausschaltbar sein."_
 
-_Menü → Grafik → Untere Ebenen unscharf_ (`gfx:level-blur`,
+_Menü → Grafik → Blur: untere Stockwerke_ (`gfx:level-blur`,
 `GraphicsSettings.levelBlur`), **ab Werk an**; ein gespeicherter Stand, der das
 Feld nicht kennt, bekommt es an (`raw.levelBlur !== false`). Abgestellt steht
 es als „Etagen darunter scharf" unter der Überschrift.
@@ -708,17 +708,32 @@ zählen nicht mit — sonst zöge die Kante des oberen Bodens einen Schleier üb
 das Stockwerk darunter. Tone Mapping und sRGB passieren erst im Durchgang:
 three.js zeichnet in ein Ziel linear und ungetönt.
 
-**Wann** (`levelBlurFloor`): nur von oben, nur am Schirm (in der Brille nie),
+**Wann** (`levelBlurPlan`): nur von oben, nur am Schirm (in der Brille nie),
 nur mit Häkchen, und nur ab Etage 1 — eine Welt ohne `viewLevel` oder auf dem
 Erdgeschoss zahlt nichts. **Von außen** (`ViewLevel.whole`: Ebenen-Leiste
 _⌂ Außen_, oder draußen im _Hausbau_) bleibt alles scharf; dort will man das
-ganze Haus sehen. `App.frame` setzt das Ziel nach den Spiegeln und vor
+ganze Haus sehen — aber nur, solange es über einem noch eine Etage gibt: Wer
+auf der obersten steht, gilt im Hausbau als „draußen", und dort blieb zuerst
+alles scharf (gemeldet mit einem Bild vom Obergeschoss). `App.frame` setzt das Ziel nach den Spiegeln und vor
 `World.render` — Portalsichten und Werkzeugbilder merken sich das Ziel
 (`getRenderTarget`) und setzen es danach zurück —, und nimmt es in einem
 `finally` wieder weg. Wer ausschaltet, gibt die Textur frei (`release`).
 
 Zum Ansehen: `/?at=18,-16,1#sandbox`, _Von oben_ — das Podest ist scharf, der
 Küchenboden darunter verschwimmt.
+
+**Und oben auch, wenn man will.** Gewünscht: _„optional als weitere Checkbox im
+Grafik-Menü, dass obere Stockwerke auch blurry sein können"_. Die beiden
+Zeilen heißen seitdem **Blur: untere Stockwerke** (`gfx:level-blur`,
+`levelBlur`, ab Werk an) und **Blur: obere Stockwerke**
+(`gfx:level-blur-above`, `levelBlurAbove`, ab Werk aus). Oben verschwimmt, was
+ab 0,6 m unter dem Boden der Etage darüber steht, voll 0,8 m über ihm
+(`levelBlurAboveAmount`) — schneller als unten, denn was oben steht, verdeckt.
+Den Boden darüber meldet die Welt (`ViewLevel.aboveY`, `GridWorld.viewLevel`);
+ohne Etage darüber gibt es oben nichts zu tun. Zu sehen ist es nur, wo von
+oben nicht aufgeschnitten wird: draußen im Hausbau und mit _⌂ Außen_ in der
+Ebenen-Leiste. Dort bleibt unten scharf (`whole`), oben aber verschwimmt es.
+Beides zusammen ist ein Durchgang (`levelBlurPlan`), nicht zwei.
 
 ## Was die Kamera ansieht
 

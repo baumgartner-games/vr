@@ -110,7 +110,7 @@ import {
   onGraphicsChange,
   saveGraphics,
 } from './graphicsSettings';
-import { LevelBlur, levelBlurFloor } from './levelBlur';
+import { LevelBlur, levelBlurPlan } from './levelBlur';
 import { applyAudioSettings } from './Audio';
 import { audioSettings, audioSummary, saveAudioSettings } from './audioSettings';
 import {
@@ -330,6 +330,7 @@ export class App {
    */
   private readonly levelBlur: LevelBlur;
   private levelBlurOn = graphics().levelBlur;
+  private levelBlurAboveOn = graphics().levelBlurAbove;
   private readonly stopLevelBlur: () => void;
   /**
    * Wie schön es aussieht — bei der App, weil ein Schatten keine Eigenschaft
@@ -433,8 +434,10 @@ export class App {
     this.mirrors = new MirrorRenderer(this.renderer);
     this.levelBlur = new LevelBlur(this.renderer);
     this.stopLevelBlur = onGraphicsChange(() => {
-      this.levelBlurOn = graphics().levelBlur;
-      if (!this.levelBlurOn) this.levelBlur.release();
+      const now = graphics();
+      this.levelBlurOn = now.levelBlur;
+      this.levelBlurAboveOn = now.levelBlurAbove;
+      if (!this.levelBlurOn && !this.levelBlurAboveOn) this.levelBlur.release();
     });
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
@@ -2474,7 +2477,7 @@ export class App {
           // **Die Etagen darunter unscharf** — `core/levelBlur.ts`. Gewünscht,
           // _„um den Höhen-/Ebenen-Effekt besser zu zeigen"_.
           id: 'gfx:level-blur',
-          label: 'Untere Ebenen unscharf',
+          label: 'Blur: untere Stockwerke',
           sub: 'Von oben: was unter deiner Etage liegt, verschwimmt mit der Tiefe',
           caption: 'Nur in der Ansicht von oben und ab der ersten Etage · kostet einen Durchgang',
           icon: 'settings',
@@ -2483,7 +2486,25 @@ export class App {
           run: () => {
             const next = saveGraphics({ levelBlur: !graphics().levelBlur });
             this.menuDirty = true;
-            this.notify(next.levelBlur ? 'Untere Ebenen unscharf' : 'Untere Ebenen scharf');
+            this.notify(next.levelBlur ? 'Untere Stockwerke unscharf' : 'Untere Stockwerke scharf');
+          },
+        },
+        {
+          // **Und die Etagen darüber** — dasselbe Bild, nach oben gespiegelt.
+          // Von oben sieht man sie nur, wo nicht aufgeschnitten wird.
+          id: 'gfx:level-blur-above',
+          label: 'Blur: obere Stockwerke',
+          sub: 'Von oben: was über deiner Etage steht, verschwimmt',
+          caption: 'Zu sehen draußen im Hausbau oder mit ⌂ Außen in der Ebenen-Leiste',
+          icon: 'settings',
+          accent,
+          checked: settings.levelBlurAbove,
+          run: () => {
+            const next = saveGraphics({ levelBlurAbove: !graphics().levelBlurAbove });
+            this.menuDirty = true;
+            this.notify(
+              next.levelBlurAbove ? 'Obere Stockwerke unscharf' : 'Obere Stockwerke scharf',
+            );
           },
         },
         this.animationMenu(accent),
@@ -3338,14 +3359,20 @@ export class App {
     // geht dann erst in eine Textur und von dort durch einen Durchgang, der
     // alles unter dem eigenen Boden verwischt. Nach den Spiegeln, die ihre
     // eigenen Ziele haben; vor den Portalsichten, die das Ziel zurücksetzen.
-    const blurFloor = levelBlurFloor(this.levelBlurOn, this.topDown, presenting, viewLevel);
-    if (blurFloor !== null) this.levelBlur.begin();
+    const blur = levelBlurPlan(
+      this.levelBlurOn,
+      this.levelBlurAboveOn,
+      this.topDown,
+      presenting,
+      viewLevel,
+    );
+    if (blur) this.levelBlur.begin();
     try {
       const rendered = this.world?.render?.(viewContext) ?? false;
       if (!rendered) this.renderer.render(this.scene, view);
     } finally {
       // Auch nach einem Fehler im Bild: Ein Ziel, das stehen bleibt, ist ein schwarzer Schirm.
-      if (blurFloor !== null) this.levelBlur.end(view, blurFloor);
+      if (blur) this.levelBlur.end(view, blur);
     }
     this.topDownCamera.uncut();
     this.positionHud.update(

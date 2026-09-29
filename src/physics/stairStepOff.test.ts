@@ -42,7 +42,7 @@ const STOREY = 2.8;
 /** Die Treppe des Hausbaus: Spalte 3, drei Kacheln Stufen von z = 6 nach Norden, oben der Stand. */
 const STAIR_X = 3;
 
-async function stage(): Promise<{
+async function stage(start = { x: STAIR_X + 0.5, z: 7.5 }): Promise<{
   rig: TestRig;
   walk: (seconds: number, vx: number, vz: number) => void;
   climbTo: (z: number) => void;
@@ -81,7 +81,7 @@ async function stage(): Promise<{
   };
 
   const rig = new TestRig();
-  rig.position.set(STAIR_X + 0.5, 0, 7.5);
+  rig.position.set(start.x, 0, start.z);
   const asRig = rig as unknown as PlayerRig;
   const loco = new PhysicsLocomotion(physics, asRig);
   loco.plane = plane;
@@ -121,5 +121,27 @@ describe('Seitlich von der Treppe unter der Etage darüber', () => {
       expect(Math.abs(rig.position.x - (STAIR_X + 0.5))).toBeGreaterThan(2);
       expect(rig.position.y).toBeCloseTo(STOREY, 1);
     }
+  });
+});
+
+describe('Hinter der Treppe, auf der Etage darunter', () => {
+  // Gemeldet: _„als spieler will ich bei einer treppe nicht unter die treppe
+  // laufen können. Aktuell kann ich von hinten leider reinlaufen"_. Hinter dem
+  // Kopf des Laufs (z = 3, unter dem Stand der Etage darüber) ist Boden der
+  // Etage 0; von dort ging es nach Süden unter die Stufen.
+  it('hält am Kopf des Laufs — man kommt nicht unter die Treppe', async () => {
+    const { rig, walk } = await stage({ x: STAIR_X + 0.5, z: 2.5 });
+    walk(3, 0, 1.2);
+    expect(rig.position.z).toBeLessThan(3.9);
+    expect(Math.abs(rig.position.y)).toBeLessThan(0.1);
+  });
+
+  it('läuft oben weiter vom Lauf auf den Stand und von dort wieder hinunter', async () => {
+    const { rig, walk, climbTo } = await stage();
+    climbTo(3.5);
+    expect(rig.position.y).toBeCloseTo(STOREY, 1);
+    walk(4, 0, 1.2);
+    expect(rig.position.z).toBeGreaterThan(7);
+    expect(Math.abs(rig.position.y)).toBeLessThan(0.1);
   });
 });

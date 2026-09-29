@@ -47,6 +47,11 @@ export interface ViewLevel {
    * davon die, auf der man steht; die unteren bleiben scharf (`levelBlur.ts`).
    */
   whole?: boolean;
+  /**
+   * **Der Boden der Etage darüber** — fehlt, wenn es keine gibt. Von dort an
+   * kann es oben unscharf werden (`levelBlur.ts`, _Blur: obere Stockwerke_).
+   */
+  aboveY?: number;
 }
 
 /**

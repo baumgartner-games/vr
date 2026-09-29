@@ -3375,9 +3375,13 @@ export abstract class GridWorld extends PortalWorld {
     const floorY = graph.levelY(this.rigLevel);
     // **Von außen** (`levelBar.ts`): keine Etage darüber, die weg müsste —
     // gebaut wird trotzdem auf der gewählten, und auf die sieht die Kamera.
+    // Auf der obersten Etage ist „von außen" dasselbe Bild wie drinnen — dann
+    // bleibt das Darunter unscharf (`core/levelBlur.ts`).
+    const top = graph.levels.length - 1;
+    const above = this.rigLevel < top ? { aboveY: graph.levelY(this.rigLevel + 1) } : {};
     if (this.levelBarOn && this.levelOutside)
-      return { level: graph.levels.length - 1, floorY, whole: true };
-    return { level: this.rigLevel, floorY };
+      return { level: top, floorY, whole: this.rigLevel < top, ...above };
+    return { level: this.rigLevel, floorY, ...above };
   }
 
   /** **Die Etage, auf der man steht** — oder die, die der Kran in der Ebenen-Leiste gewählt hat. */

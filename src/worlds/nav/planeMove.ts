@@ -283,7 +283,8 @@ function diagonal(tx: number, tz: number, slope: Slope): PlaneWall {
 }
 
 /**
- * **Die beiden Seiten einer Treppenkachel als Einbahnwände nach außen** — je
+ * **Die beiden Seiten einer Treppenkachel als Einbahnwände nach außen**, dazu
+ * ihr Kopf, wenn es oben nicht weitergeht — je
  * Seite zwei Hälften zu einer Zelle, und jede, auf die man von daneben
  * hinaufkommt (`CellGrid.flightSideOpen`), fehlt: Eine Treppe, die auf einer
  * Etage anfängt, betritt man über die untere Hälfte ihrer untersten Kachel
@@ -327,6 +328,18 @@ function flightSides(
     if (!lowOpen) out.push(low);
     if (!highOpen) out.push(high);
   }
+  // Der Kopf des Laufs: Wo oben kein Podest und kein Lauf weitergeht, liegt
+  // hinter ihm Boden unter der obersten Stufe — von dort ginge es unter die
+  // Treppe (`CellGrid.flightSideOpen` mit der Steigrichtung).
+  const ux = dirX(climb),
+    uz = dirZ(climb);
+  if (grid.flightAt(tx + ux, tz + uz, level) !== null) return;
+  if (grid.flightSideOpen(tx, tz, climb, 1, level)) return;
+  const outside = { x: ux, z: uz };
+  if (climb === DIR_N) out.push({ ax: x, az: z, bx: x + TILE, bz: z, outside });
+  else if (climb === DIR_S) out.push({ ax: x, az: z + TILE, bx: x + TILE, bz: z + TILE, outside });
+  else if (climb === DIR_W) out.push({ ax: x, az: z, bx: x, bz: z + TILE, outside });
+  else out.push({ ax: x + TILE, az: z, bx: x + TILE, bz: z + TILE, outside });
 }
 
 /**

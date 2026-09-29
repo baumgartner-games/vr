@@ -249,6 +249,13 @@ export interface GraphicsSettings {
    */
   levelBlur: boolean;
   /**
+   * **Und die Etagen darüber unscharf** (`core/levelBlur.ts`) — zu sehen nur,
+   * wo von oben nicht aufgeschnitten wird: draußen im Hausbau, oder mit
+   * _⌂ Außen_ in der Ebenen-Leiste. Gewünscht als zweites Häkchen neben dem
+   * unteren, _„optional"_ — also ab Werk **aus**.
+   */
+  levelBlurAbove: boolean;
+  /**
    * **Ob sich die Figur beim Laufen staucht und streckt** — _squishy
    * movement_ (`core/squish.ts`, angewendet in `core/AvatarBody.ts`).
    *
@@ -521,6 +528,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   showBodyModel: false,
   shadows: 'simple',
   levelBlur: true,
+  levelBlurAbove: false,
   squish: false,
   squishScale: 1,
   squishSpeed: 0.5,
@@ -700,6 +708,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const shadows = readShadowMode(raw.shadows ?? DEFAULT_GRAPHICS.shadows);
   // Ab Werk an: „kenne ich nicht" heißt hier an, nur ein ausdrückliches Aus ist aus.
   const levelBlur = raw.levelBlur !== false;
+  const levelBlurAbove = raw.levelBlurAbove === true;
   // Und hier wieder `=== true`: Die Stauchung ist ab Werk aus, ein alter
   // Speicher kennt sie nicht, und „kenne ich nicht" heißt dann auch aus.
   const squish = raw.squish === true;
@@ -746,6 +755,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     showBodyModel,
     shadows,
     levelBlur,
+    levelBlurAbove,
     squish,
     squishScale,
     squishSpeed,
@@ -892,6 +902,7 @@ export function graphicsSummary(
         | 'showHandles'
         | 'shadows'
         | 'levelBlur'
+        | 'levelBlurAbove'
         | 'squish'
         | 'squishScale'
         | 'idleSquish'
@@ -914,7 +925,9 @@ export function graphicsSummary(
   const mode = readShadowMode(settings.shadows ?? DEFAULT_GRAPHICS.shadows);
   const shade = mode === 'off' ? ' · ohne Schatten' : mode === 'full' ? ' · Schatten voll' : '';
   // Die Unschärfe ist ab Werk an; genannt wird, wer sie abgestellt hat.
-  const blur = settings.levelBlur === false ? ' · Etagen darunter scharf' : '';
+  const blur =
+    (settings.levelBlur === false ? ' · Etagen darunter scharf' : '') +
+    (settings.levelBlurAbove ? ' · Etagen darüber unscharf' : '');
   // Und ebenso: Genannt wird die Stauchung nur, wenn es sie gibt — samt
   // Faktor, denn zwischen ×0,5 und ×2 liegt der ganze Unterschied.
   const squishy = settings.squish
