@@ -181,16 +181,6 @@ import {
 const _turnScratch = new THREE.Quaternion();
 const _footSpot = new THREE.Vector3();
 
-/** Die vier Kacheln um eine Ecke zwischen den Kacheln — so leuchtet ein Startpunkt. */
-function cornerTiles(col: number, row: number): GridTile[] {
-  return [
-    { x: (col - 0.5) * TILE, z: (row - 0.5) * TILE },
-    { x: (col + 0.5) * TILE, z: (row - 0.5) * TILE },
-    { x: (col - 0.5) * TILE, z: (row + 0.5) * TILE },
-    { x: (col + 0.5) * TILE, z: (row + 0.5) * TILE },
-  ];
-}
-
 /**
  * **Eine Wand, wie sie steht** (`PortalWorld.standingWalls`) — Enden auf den
  * Ecken des Gitters, Mitte, Richtung längs und die Vorderseite, alles in
@@ -617,9 +607,14 @@ const NOTE_INTERACTION: InteractionSpec = {
 const AREA_PREVIEW = 1600;
 /**
  * **Wie breit der Startpunkt einer gezogenen Wand ist**, in Metern — eine Zelle
- * im Quadrat (`showStartPost`), der „1x1 block zwischen den blöcken".
+ * im Quadrat (`postGhostSlot`), der „1x1 block zwischen den blöcken".
  */
 const START_POST = TILE / 2;
+/** Wie breit der Pfeiler in der Hand ist, in Metern (`handPost`) — klein. */
+const HAND_POST = TILE / 4;
+/** Wie hoch er gegenüber der Wand ist — halb. */
+const HAND_POST_HEIGHT = 0.5;
+const _handPost = new THREE.Vector3();
 /** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
 const AREA_LIFT = 0.01;
 /**
@@ -12034,7 +12029,12 @@ export class PortalWorld implements World {
       this.areaAuto = null;
       const carry = this.carryLineBrush(ctx);
       if (carry) this.showCarryLine(ctx, carry);
-      else this.carryLine = null;
+      else {
+        this.carryLine = null;
+        // In der Brille zeichnet niemand sonst das Getragene klein — der
+        // Pfeiler geht hier wieder zur Wand (`handPost`).
+        if (ctx.renderer.xr.isPresenting && this.shrunk) this.unshrinkScreenCarry();
+      }
       if (this.areaPad) {
         this.areaPad.take();
         this.areaPad.show({ kind: 'hidden' });
@@ -12132,23 +12132,12 @@ export class PortalWorld implements World {
     const select = this.areaSelect;
     const label = propLabel(modelKind(brush.path));
     const line = this.currentWallLine(brush);
-    const grid = this.placeGrid;
-    if (grid) {
-      if (!line || line.slots.length === 0) {
-        // Vor dem ersten Druck leuchten die vier Kacheln um die Ecke, an der
-        // die Wand anfinge.
-        const hover = select.start ?? this.areaHover;
-        if (hover) grid.show(cornerTiles(hover.col, hover.row), floor, AREA_PREVIEW);
-        else grid.hide();
-      } else if (line.edges.length) grid.showEdges(line.edges, floor, AREA_PREVIEW);
-      else grid.show(line.tiles, floor, AREA_PREVIEW);
-    }
-    if (line && line.slots.length > 0)
-      this.showWallGhosts(ctx, brush.entry, line, floor, this.drawnWall(brush).factor);
-    else {
-      const corner = select.start ?? this.areaHover;
-      if (corner) this.showStartPost(ctx, brush.entry, corner, floor);
-    }
+    const drawing = line !== null && line.slots.length > 0;
+    this.showLineGrid(drawing ? line : null, floor);
+    // Der Pfeiler steht dort, wo die Wand gerade anfinge oder enden würde —
+    // vor dem Startpunkt unter der Maus, danach am Ende der Linie.
+    const post = drawing ? line.end : (select.end ?? select.start ?? this.areaHover);
+    this.showLinePreview(ctx, brush, drawing ? line : null, post, floor);
     const length = line ? `${line.length.toFixed(line.diagonal ? 1 : 0)} m` : '';
     pad.show({
       kind: 'active',
@@ -12207,77 +12196,69 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Die Geisterwand zeigen** — je Stück eine durchscheinende Kopie des
-   * Getragenen, gestreckt auf das halbe Stück und die gekürzte Schräge.
-   * Gestreckt wird gegen das ungekürzte Maß (`wallBase`), falls das
-   * Getragene gerade selbst schräg gekürzt ist.
+   * **Die Geisterwand** — je Stück eine durchscheinende Kopie des Getragenen,
+   * gestreckt auf das halbe Stück und die gekürzte Schräge. Gestreckt wird
+   * gegen das ungekürzte Maß (`wallBase`, `ghostFix`), falls das Getragene
+   * gerade selbst schräg gekürzt oder in der Hand kleiner gezeichnet ist.
    */
-  private showWallGhosts(
-    ctx: WorldContext,
+  private wallGhostSlots(
     entry: PhysicsBody,
     line: WallLine,
     floor: number,
     /** Wie viel länger ein ganzes Stück der Linie ist als das Getragene (`drawnWall`). */
-    factor = 1,
+    factor: number,
+    into: GhostSlot[],
   ): void {
-    const ghosts = (this.lineGhosts ??= new WallGhosts());
-    if (ghosts.root.parent !== ctx.scene) ctx.scene.add(ghosts.root);
     const base = this.wallBase(entry);
     const alongX = base.half.x >= base.half.z;
-    const now = entry.object.scale;
-    const fixX = now.x > 0 ? base.scale.x / now.x : 1;
-    const fixZ = now.z > 0 ? base.scale.z / now.z : 1;
+    const fix = this.ghostFix(entry);
     const y = floor + base.half.y;
-    const slots = this.ghostSlots;
-    slots.length = 0;
     for (const slot of line.slots) {
-      slots.push({
+      into.push({
         x: slot.x,
         y,
         z: slot.z,
         yaw: slot.yaw,
         scale: {
-          x: fixX * (alongX ? slot.stretch * factor : 1),
-          z: fixZ * (alongX ? 1 : slot.stretch * factor),
+          x: fix.x * (alongX ? slot.stretch * factor : 1),
+          z: fix.z * (alongX ? 1 : slot.stretch * factor),
         },
       });
     }
-    ghosts.show(entry.object, slots, true);
   }
 
   /**
-   * **Der Startpunkt als Block** — gewünscht: _„es wird nur angezeigt, auf
-   * welchem startpunkt ich die erste wand platzieren will (die wand ist in dem
-   * moment ein 1x1 block zwischen den blöcken)"_. Solange noch keine Linie
-   * steht, ist der Geist des Getragenen auf eine Zelle im Quadrat gestaucht
-   * (`START_POST`, volle Höhe) und steht auf der Ecke zwischen den Kacheln,
-   * an der die Wand anfinge. Eine Kopie des Modells und kein gebauter Klotz.
+   * **Der Pfeiler** — der Geist des Getragenen, auf eine Zelle im Quadrat
+   * gestaucht (`START_POST`, volle Höhe), auf der Ecke zwischen den Kacheln.
+   * Eine Kopie des Modells und kein gebauter Klotz.
    */
-  private showStartPost(
-    ctx: WorldContext,
-    entry: PhysicsBody,
-    corner: AreaTile,
-    floor: number,
-  ): void {
-    const ghosts = (this.lineGhosts ??= new WallGhosts());
-    if (ghosts.root.parent !== ctx.scene) ctx.scene.add(ghosts.root);
+  private postGhostSlot(entry: PhysicsBody, corner: AreaTile, floor: number): GhostSlot {
     const base = this.wallBase(entry);
-    const now = entry.object.scale;
-    const fixX = now.x > 0 ? base.scale.x / now.x : 1;
-    const fixZ = now.z > 0 ? base.scale.z / now.z : 1;
-    const slots = this.ghostSlots;
-    slots.length = 0;
-    slots.push({
+    const fix = this.ghostFix(entry);
+    return {
       x: corner.col * TILE,
       y: floor + base.half.y,
       z: corner.row * TILE,
       yaw: 0,
       scale: {
-        x: base.half.x > 0 ? (fixX * START_POST) / (2 * base.half.x) : fixX,
-        z: base.half.z > 0 ? (fixZ * START_POST) / (2 * base.half.z) : fixZ,
+        x: base.half.x > 0 ? (fix.x * START_POST) / (2 * base.half.x) : fix.x,
+        z: base.half.z > 0 ? (fix.z * START_POST) / (2 * base.half.z) : fix.z,
       },
-    });
-    ghosts.show(entry.object, slots, true);
+    };
+  }
+
+  /**
+   * **Womit der Geist sein Bild zurückrechnet** — das Maß, das das Stück im
+   * Raum hätte, geteilt durch das, mit dem es gerade gezeichnet wird. In der
+   * Hand ist es kleiner (`shrinkScreenCarry`: aus den Augen halb so groß, als
+   * Pfeiler gestaucht), und der Geist soll trotzdem die echte Wand zeigen.
+   */
+  private ghostFix(entry: PhysicsBody): { x: number; z: number } {
+    const stored = (entry.object.userData as { wallBase?: WallBase }).wallBase;
+    const real = stored?.scale ?? (this.shrunk?.entry === entry ? this.shrunk.scale : null);
+    const now = entry.object.scale;
+    if (!real) return { x: 1, z: 1 };
+    return { x: now.x > 0 ? real.x / now.x : 1, z: now.z > 0 ? real.z / now.z : 1 };
   }
 
   /**
@@ -12287,12 +12268,13 @@ export class PortalWorld implements World {
    * nur der Pinsel und stand nie; es verschwindet wie beim Wechseln
    * (`letGo`, `shelfSwap`). Im _Baukasten_ bleibt es für die nächste Wand.
    */
-  private spendBrush(ctx: WorldContext, brush: { entry: PhysicsBody }): void {
+  private spendBrush(ctx: WorldContext, brush: { entry: PhysicsBody; hand?: Handedness }): void {
     if (!wallDrawOnly(gameMode())) return;
-    const side = this.screenCarrySide();
+    const side = brush.hand ?? this.screenCarrySide();
     const grab = side ? this.grabs.get(side) : undefined;
     if (!side || !grab || grab.entry !== brush.entry) return;
     this.endArea();
+    if (this.shrunk?.entry === grab.entry) this.unshrinkScreenCarry();
     this.letGo(ctx, side, grab);
   }
 
@@ -12327,11 +12309,28 @@ export class PortalWorld implements World {
    * gezielt wird mit dem Getragenen, gesetzt mit Interagieren
    * (`pressCarryLine`).
    */
-  private carryLineBrush(ctx: WorldContext): { entry: PhysicsBody; path: string } | null {
+  private carryLineBrush(
+    ctx: WorldContext,
+  ): { entry: PhysicsBody; path: string; hand: Handedness } | null {
+    // **In der Brille in jedem Modus** — dort gibt es keine Leiste und keinen
+    // Zeiger, also auch im _Baukasten_ nur diesen Weg. Die Wand liegt in der
+    // Faust (Greif-Taste gehalten), `A`/`X` dieser Hand setzt die Punkte.
+    if (ctx.renderer.xr.isPresenting) {
+      for (const [hand, grab] of this.grabs) {
+        const path = this.modelPath(grab.entry);
+        if (path === null || this.notes.has(grab.entry) || this.elementBodies.has(grab.entry))
+          continue;
+        if (this.shelfFresh.has(grab.entry) && this.brushIsWall(grab.entry))
+          return { entry: grab.entry, path, hand };
+      }
+      return null;
+    }
     if (!wallDrawOnly(gameMode())) return null;
     const brush = this.heldModelBrush(ctx);
-    if (!brush || !this.shelfFresh.has(brush.entry) || !this.brushIsWall(brush.entry)) return null;
-    return brush;
+    const hand = this.screenCarrySide();
+    if (!brush || !hand || !this.shelfFresh.has(brush.entry) || !this.brushIsWall(brush.entry))
+      return null;
+    return { ...brush, hand };
   }
 
   /**
@@ -12360,7 +12359,10 @@ export class PortalWorld implements World {
    * leer (`spendBrush`). Wer zweimal auf dieselbe Ecke drückt, nimmt den
    * Startpunkt zurück.
    */
-  private pressCarryLine(ctx: WorldContext, brush: { entry: PhysicsBody; path: string }): void {
+  private pressCarryLine(
+    ctx: WorldContext,
+    brush: { entry: PhysicsBody; path: string; hand: Handedness },
+  ): void {
     const state = this.carryLine;
     if (!state || state.entry !== brush.entry || !state.start) {
       const start = this.carriedCorner(brush.entry);
@@ -12381,34 +12383,90 @@ export class PortalWorld implements World {
 
   /**
    * **Die Vorschau dazu** — vor dem Startpunkt der Block auf der Ecke
-   * (`showStartPost`), danach die Geisterwand bis zur Ecke unter dem
+   * (`postGhostSlot`), danach die Geisterwand bis zur Ecke unter dem
    * Getragenen, darunter die Fugen oder Kacheln wie beim Ziehen im
    * _Baukasten_ (`updateWallLine`).
    */
-  private showCarryLine(ctx: WorldContext, brush: { entry: PhysicsBody; path: string }): void {
+  private showCarryLine(
+    ctx: WorldContext,
+    brush: { entry: PhysicsBody; path: string; hand: Handedness },
+  ): void {
+    const presenting = ctx.renderer.xr.isPresenting;
     if (this.carryLine?.entry !== brush.entry) {
       this.carryLine = { entry: brush.entry, start: null };
-      ctx.notify('Wand: auf den Startpunkt zielen und interagieren');
+      ctx.notify(
+        presenting
+          ? 'Wand: festhalten, auf den Startpunkt halten und A drücken'
+          : 'Wand: auf den Startpunkt zielen und interagieren',
+      );
+    }
+    if (presenting) {
+      // **In der Brille**: `A`/`X` der Faust, die die Wand hält — der Knopf
+      // der Figur wird gleich mit abgeholt, sonst spränge sie oder benutzte,
+      // was vor ihr steht. Der Pfeiler in der Faust wie am Schirm (`handPost`).
+      this.shrinkScreenCarry(brush.entry, 1, this.handPost(ctx, brush.entry));
+      ctx.rig.useCandidate = true;
+      if (ctx.input.get(brush.hand)?.primary.justPressed) {
+        ctx.rig.takeUse();
+        this.pressCarryLine(ctx, brush);
+        if (this.grabs.get(brush.hand)?.entry !== brush.entry) return;
+      }
     }
     const floor = this.buildFloorY(ctx);
-    const grid = this.placeGrid;
     this.markReplaced([]);
     const line = this.carryLineNow(brush);
-    if (line && line.slots.length > 0) {
-      this.showWallGhosts(ctx, brush.entry, line, floor, this.drawnWall(brush).factor);
-      if (grid) {
-        if (line.edges.length) grid.showEdges(line.edges, floor, AREA_PREVIEW);
-        else grid.show(line.tiles, floor, AREA_PREVIEW);
-      }
-      return;
-    }
-    const corner = this.carryLine.start ?? this.carriedCorner(brush.entry);
-    if (!corner) {
-      grid?.hide();
-      return;
-    }
-    this.showStartPost(ctx, brush.entry, corner, floor);
-    grid?.show(cornerTiles(corner.col, corner.row), floor, AREA_PREVIEW);
+    const drawing = line !== null && line.slots.length > 0;
+    this.showLineGrid(drawing ? line : null, floor);
+    this.showLinePreview(
+      ctx,
+      brush,
+      drawing ? line : null,
+      drawing ? line.end : this.carriedCorner(brush.entry),
+      floor,
+    );
+  }
+
+  /**
+   * **Was unter einer gezogenen Wand leuchtet** — die Fugen unter geraden
+   * Stücken, der Strich quer durch jede Kachel unter schrägen
+   * (`PlaceGrid.showSlants`, gewünscht: _„bei den diagonalen ghost wänden
+   * brauche ich keine ganze kacheln … oder alternativ eine linie wie bei den
+   * horizontal/vertikalen"_). Ohne Linie nichts — um den Pfeiler herum
+   * leuchtet kein Boden (_„Das boden gitter um den ghost pfeiler brauche ich
+   * nicht"_).
+   */
+  private showLineGrid(line: WallLine | null, floor: number): void {
+    const grid = this.placeGrid;
+    if (!grid) return;
+    if (!line) grid.hide();
+    else if (line.edges.length) grid.showEdges(line.edges, floor, AREA_PREVIEW);
+    else grid.showSlants(line.slants, floor, AREA_PREVIEW);
+  }
+
+  /**
+   * **Die Geisterwand samt Pfeiler** — gewünscht: _„Ich habe vor dem setzen
+   * einen pfeiler in der hand (klein) und ich sehe den ghost pfeiler wo er
+   * hinkommen würde. Beim platzieren des startpunktes, will ich dann keinen
+   * ghost pfeiler mehr sehen, sondern nur noch die ghost wand (ausgehend von
+   * dem startpunkt) … und ich sehe einen ghost pfeiler wo es aktuell enden
+   * würde."_ Der Pfeiler kommt also immer dorthin, wo gerade der nächste
+   * Punkt landen würde, und die Wand dazu, sobald es eine gibt.
+   */
+  private showLinePreview(
+    ctx: WorldContext,
+    brush: { entry: PhysicsBody; path: string },
+    line: WallLine | null,
+    post: AreaTile | null,
+    floor: number,
+  ): void {
+    const ghosts = (this.lineGhosts ??= new WallGhosts());
+    if (ghosts.root.parent !== ctx.scene) ctx.scene.add(ghosts.root);
+    const slots = this.ghostSlots;
+    slots.length = 0;
+    if (line) this.wallGhostSlots(brush.entry, line, floor, this.drawnWall(brush).factor, slots);
+    if (post) slots.push(this.postGhostSlot(brush.entry, post, floor));
+    if (slots.length === 0) ghosts.hide();
+    else ghosts.show(brush.entry.object, slots, true);
   }
 
   /** Ein Knopf oder ein Druck von der Leiste (`AreaPad`). */
@@ -14362,7 +14420,7 @@ export class PortalWorld implements World {
     // und der Anker rückt dafür so nah, wie es der gezeichneten Größe
     // entspricht, sonst schwebte eine halbe Tomate einen Meter vor einem her.
     const shrink = ctx.topDown ? 1 : EYE_SCALE;
-    this.shrinkScreenCarry(grab.entry, shrink);
+    this.shrinkScreenCarry(grab.entry, shrink, this.handPost(ctx, grab.entry));
     _screenSpanShown.radius = this.screenSpan.radius * shrink;
     _screenSpanShown.half = this.screenSpan.half * shrink;
     hand.placeCarry(screenCarryView(ctx), _screenSpanShown, ctx.avatar.bob, ctx.avatar.stretch);
@@ -14462,14 +14520,41 @@ export class PortalWorld implements World {
    * (`release` → `unshrinkScreenCarry`). Die Größe davor wird gemerkt, nicht
    * angenommen: Modelle aus dem Regal tragen einen Maßstab je Paket.
    */
-  private shrinkScreenCarry(entry: PhysicsBody, factor: number): void {
+  private shrinkScreenCarry(
+    entry: PhysicsBody,
+    factor: number,
+    /** Je Achse obendrauf — der Pfeiler einer gezogenen Wand (`handPost`). */
+    axes: THREE.Vector3 | null = null,
+  ): void {
     if (this.shrunk && this.shrunk.entry !== entry) this.unshrinkScreenCarry();
-    if (factor === 1) {
+    if (factor === 1 && !axes) {
       this.unshrinkScreenCarry();
       return;
     }
     if (!this.shrunk) this.shrunk = { entry, scale: entry.object.scale.clone() };
     entry.object.scale.copy(this.shrunk.scale).multiplyScalar(factor);
+    if (axes) entry.object.scale.multiply(axes);
+  }
+
+  /**
+   * **Eine Wand, die gezogen wird, ist in der Hand ein kleiner Pfeiler** —
+   * gewünscht: _„Ich habe vor dem setzen einen pfeiler in der hand (klein)"_.
+   * Gezeichnet wird das Getragene auf `HAND_POST` im Quadrat und halbe Höhe
+   * gestaucht; Körper und Geist bleiben beim echten Maß. `null`, wenn nicht
+   * gezogen wird — beim _Spielen_ und _Einrichten_ mit einer Katalogwand
+   * (`carryLineBrush`), im _Baukasten_, solange _Wand ziehen_ als Linie an ist.
+   */
+  private handPost(ctx: WorldContext, entry: PhysicsBody): THREE.Vector3 | null {
+    const drawing =
+      this.carryLineBrush(ctx)?.entry === entry ||
+      (this.areaOn && this.areaShape === 'line' && this.areaBrush(ctx)?.entry === entry);
+    if (!drawing || !this.brushIsWall(entry)) return null;
+    const { half } = this.wallBase(entry);
+    return _handPost.set(
+      half.x > 0 ? HAND_POST / (2 * half.x) : 1,
+      HAND_POST_HEIGHT,
+      half.z > 0 ? HAND_POST / (2 * half.z) : 1,
+    );
   }
 
   /** Das Getragene wieder in seiner echten Größe. */

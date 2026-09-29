@@ -316,7 +316,7 @@ async function startApp(): Promise<App | null> {
         hud.hidden = presenting;
         inSession = presenting;
         showPads();
-        hudVr.textContent = presenting ? 'VR beenden' : 'VR';
+        paintHudVr(presenting);
         if (presenting) {
           netPanel?.toggle(false);
           hideLanding();
@@ -357,6 +357,7 @@ async function startApp(): Promise<App | null> {
         recoverFromStaleBuild(id, error);
       },
     });
+    app.setXrReady(headset);
   } catch (error) {
     const webgl = /webgl|graphics context/i.test(String(error));
     setXrStatus(
@@ -471,6 +472,8 @@ let headset = false;
 
 void detectXRSupport().then((support) => {
   headset = support.immersiveVR;
+  app?.setXrReady(headset);
+  paintHudVr(app?.renderer.xr.isPresenting ?? false);
   showStart();
   setXrStatus(
     support.immersiveVR ? 'VR-Gerät erkannt.' : (support.reason ?? 'Kein VR-Gerät gefunden.'),
@@ -1208,10 +1211,31 @@ hudMenu.addEventListener('click', () => withApp((ready) => ready.toggleMenu()));
 // `void (async () => …)()` statt eines `async`-Handlers: Ein Klick-Handler, der
 // eine Promise zurückgibt, wird von niemandem abgewartet — was darin schiefgeht,
 // fällt sonst still auf den Boden.
+/**
+ * **Der Knopf oben rechts** — mit Brille _VR_ (und _VR beenden_), ohne sagt er
+ * die Sicht, in der man gerade ist, und öffnet das Menü _Spiel-Sicht_
+ * (`App.openViewMenu`): VR, aus den Augen, von oben. Gewünscht: _„der VR
+ * button oben rechts im web lieber zu einem "von oben" und "aus den
+ * augen" button zu wechseln, wenn der browser/gerät kein VR unterstützt"_.
+ */
+function paintHudVr(presenting: boolean): void {
+  hudVr.textContent = presenting
+    ? 'VR beenden'
+    : headset
+      ? 'VR'
+      : SCREEN_VIEW_LABELS[screenView(detectFlatRole())];
+}
+onScreenViewChange(() => paintHudVr(app?.renderer.xr.isPresenting ?? false));
+paintHudVr(false);
+
 hudVr.addEventListener('click', () => {
   void (async () => {
     const ready = await ensureApp();
     if (!ready) return;
+    if (!headset && !ready.renderer.xr.isPresenting) {
+      ready.openViewMenu();
+      return;
+    }
     if (ready.renderer.xr.isPresenting) {
       await ready.endVR();
       return;

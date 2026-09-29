@@ -216,9 +216,18 @@ describe('wallLine — eine Wand ziehen wie in Die Sims', () => {
       { x: 1.5, z: -1.5 },
       { x: 2.5, z: -2.5 },
     ]);
+    // Und dieselben Kacheln als Striche quer durch (`PlaceGrid.showSlants`).
+    expect(line.slants).toEqual([
+      { x: 0, z: -1, slope: 'slash' },
+      { x: 1, z: -2, slope: 'slash' },
+      { x: 2, z: -3, slope: 'slash' },
+    ]);
     // Nach Südosten: ╲.
     const back = wallLine({ col: 0, row: 0 }, { col: 2, row: 2 }, WALL, 0, true);
     expect(back.slots[0]!.yaw).toBeCloseTo(-Math.PI / 4);
+    expect(back.slants.map((slant) => slant.slope)).toEqual(['backslash', 'backslash']);
+    // Gerade Wände haben Fugen und keine Striche.
+    expect(wallLine({ col: 0, row: 0 }, { col: 4, row: 0 }, WALL, 0, true).slants).toEqual([]);
   });
 
   it('setzt ein halbes Stück Kachel für Kachel', () => {

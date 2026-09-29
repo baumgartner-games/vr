@@ -127,6 +127,12 @@ Ebene anlegen durch eine 2x8 Treppe."_
   sie nicht** — gewünscht: _„Ich würde Treppen gerne setzen wollen, auch ohne
   einen Raum dafür haben zu müssen. Die sollen nur dafür da sein um die Ebenen
   zu wechseln."_
+- **In der Brille zählt `A`/`X` der Hand, die sie trägt**
+  (`HausbauWorld.carryingHandPressed`, `usePressed`, September 2026 —
+  gemeldet: _„das ablegen einer treppe geht da nicht mit A"_). Über
+  `rig.takeUse` kam nur das `A` der rechten Hand an, ein Bild verspätet und
+  nur ohne Kiste oder Station vor dem Kopf; der Trigger legte sie derweil in
+  eine Station, statt sie zu bauen. Dasselbe gilt für Tapete und Boden.
 - **Stellen** (`A`, `HausbauWorld.placeStair`):
   - Gibt es die Etage darüber noch nicht, kommt sie dazu, eine Etagenhöhe
     (`STOREY`, 2,8 m) höher (`graph.levels`). Eine Treppe oben legt die nächste
