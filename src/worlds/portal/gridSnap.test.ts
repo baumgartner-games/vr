@@ -8,6 +8,8 @@
  */
 import * as THREE from 'three';
 import { TILE } from '../nav/navTile';
+import { houseWalls, NARROW_DOOR, WIDE_DOOR } from '../house/housePlan';
+import { MODEL_ARCHES } from './props';
 import {
   PLACE_SPEED,
   eighthYaw,
@@ -17,6 +19,7 @@ import {
   placesOnGrid,
   quarterYaw,
   snapAxis,
+  standsOnGrid,
   tileCentre,
   tileSpan,
   tilesCovered,
@@ -381,5 +384,48 @@ describe('Möbel in 45° (gridPose mit fine)', () => {
     const { halfX, halfZ } = turnedHalf(CHAIR, Math.PI / 4);
     expect(halfX).toBeCloseTo((0.3 + 0.25) * Math.SQRT1_2);
     expect(halfZ).toBeCloseTo(halfX);
+  });
+});
+
+describe('Durchgänge aus dem Regal', () => {
+  /** Die halben Grundflächen: eine bzw. zwei Kacheln lang, 0,27 m dick. */
+  const HALVES: Record<string, { x: number; z: number }> = {
+    [NARROW_DOOR]: { x: 0.5, z: 0.135 },
+    [WIDE_DOOR]: { x: 1, z: 0.135 },
+  };
+
+  it('stehen auf dem Gitter, auch wenn ihre Pfosten keine Zelle sperren', () => {
+    const doors = houseWalls().filter((wall) => wall.path in HALVES);
+    expect(doors).toHaveLength(2);
+    for (const door of doors) {
+      const arch = MODEL_ARCHES[door.path];
+      const cells = wallCells(
+        door.x,
+        door.z,
+        turned(door.yaw),
+        HALVES[door.path]!,
+        undefined,
+        arch,
+      );
+      // Die Pfosten sind je 0,1 m breit — keine Zelle, keine Kante.
+      expect({ path: door.path, edges: cells?.edges, cells: cells?.cells }).toEqual({
+        path: door.path,
+        edges: [],
+        cells: [],
+      });
+      // Und trotzdem eine Wand des Gitters: Sonst hält ihr Körper die Kapsel
+      // auf, und der Wurf nach unten hebt sie auf die Wand.
+      expect({ path: door.path, stands: standsOnGrid(cells, arch) }).toEqual({
+        path: door.path,
+        stands: true,
+      });
+    }
+  });
+
+  it('zählen nicht, wenn sie schief stehen, und eine Wand ohne Kante zählt nie', () => {
+    const arch = MODEL_ARCHES[NARROW_DOOR];
+    const off = wallCells(3.3, 2.5, turned(0.3), HALVES[NARROW_DOOR]!, undefined, arch);
+    expect(standsOnGrid(off, arch)).toBe(false);
+    expect(standsOnGrid({ edges: [], slopes: [], cells: [] })).toBe(false);
   });
 });

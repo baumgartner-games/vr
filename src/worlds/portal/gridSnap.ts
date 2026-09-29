@@ -557,3 +557,23 @@ export function wallCells(
     cells: [],
   };
 }
+
+/**
+ * **Ob eine hingestellte Wand aus dem Regal auf dem Gitter steht** — und damit
+ * die Spielerkapsel nicht mehr mit ihrem Körper aufhält (`GridWorld.collectWalls`,
+ * `PhysicsBody.gridWall`).
+ *
+ * Eine gerade Wand zählt, wenn sie mindestens eine Kante sperrt. **Ein
+ * Durchgang zählt immer, sobald er eingerastet ist** — auch wenn seine Pfosten
+ * keine Zelle sperren: Beim `Wall_Doorway` (0,8 m offen auf 1 m) und beim
+ * `Wall_Doorway_Wide` (1,8 m auf 2 m) sind sie je 0,1 m breit, schmaler als
+ * `POST_OVERLAP`. Vorher fiel so ein Durchgang durch, und Pfosten und Sturz
+ * blieben feste Körper: Der Formwurf nach unten (`PhysicsLocomotion.walkPlane`)
+ * nahm sie als Stufe und hob die Figur Bild für Bild bis auf die Oberkante der
+ * Wand. Gemeldet im Hausbau: _„In der Nähe einer Tür kann sich die Spieler
+ * Figur hochbuggen."_
+ */
+export function standsOnGrid(cells: WallCells | null, arch?: { readonly open: number }): boolean {
+  if (!cells) return false;
+  return arch !== undefined || cells.edges.length + cells.cells.length > 0;
+}

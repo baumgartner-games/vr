@@ -17,7 +17,7 @@ import type { NavGraph } from '../nav/navGraph';
 import { readNav, writeNav } from '../nav/navSerial';
 import { CellGrid, cellKey, footprintCellKeys, navCellSource, type Slope } from '../nav/cellGrid';
 import { slideOnCells } from '../nav/planeMove';
-import { wallCells, type DiagonalWall } from '../portal/gridSnap';
+import { standsOnGrid, wallCells, type DiagonalWall } from '../portal/gridSnap';
 import { MODEL_ARCHES, modelPathOf, type PropKind } from '../portal/props';
 import { markRole } from './fixtures/mark';
 import { checkMarks, markSummary, type Mark, type Verdict } from './markCheck';
@@ -1232,7 +1232,7 @@ export abstract class GridWorld extends PortalWorld {
       const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind);
       const arch = path === null ? undefined : MODEL_ARCHES[path];
       const cells = wallCells(_spot.x, _spot.z, _turn, entry.halfExtents, undefined, arch);
-      if (!cells || cells.edges.length + cells.cells.length === 0) continue;
+      if (!cells || !standsOnGrid(cells, arch)) continue;
       for (const edge of cells.edges)
         this.propEdges.add(edgeId(edge.x, edge.z, edge.dir === 'n' ? DIR_N : DIR_W, level));
       for (const cell of cells.cells) this.propCells.add(cellKey(cell.ix, cell.iz, level));

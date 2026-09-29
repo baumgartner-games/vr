@@ -376,6 +376,17 @@ den großen Kacheln bleibt.
     ihr teilt, leuchtet beim Darüberhalten rot (`PortalWorld.markReplaced`) und
     verschwindet beim Loslassen (`replaceWalls`). Durchgang und Fenster zählen
     dabei in voller Länge.
+  - **Ein eingerasteter Durchgang ist immer eine Wand des Gitters**, auch wenn
+    seine Pfosten keine Zelle sperren (`gridSnap.standsOnGrid`, September
+    2026). Bei `prototype-bits/Wall_Doorway` (1 m, 0,8 m offen) und
+    `Wall_Doorway_Wide` (2 m, 1,8 m offen) sind sie je 0,1 m breit, schmaler
+    als `POST_OVERLAP` (0,15 m) — `collectWalls` ließ solche Durchgänge
+    aus, und Pfosten und Sturz blieben feste Körper für die Kapsel. Der Wurf
+    nach unten (`walkPlane`) nahm sie als Stufe und hob die Figur Bild für
+    Bild bis auf die Oberkante der Wand (2,80 m). Gemeldet im
+    Hausbau: _„In der Nähe einer Tür kann sich die Spieler Figur hochbuggen.
+    Aber wohl nur optisch aber er wechselt zum Glück nicht die Ebene."_
+    Nachgemessen mit echtem Rapier in `physics/doorwayPlane.test.ts`.
   - **Außerhalb des Grundrisses** fragt die Zellsperre des Spielers auf
     Etage 0 weiter. Vorher schwieg sie dort, und eine Wand auf dem Gelände
     hielt nur von innen.
