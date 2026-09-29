@@ -712,7 +712,9 @@ three.js zeichnet in ein Ziel linear und ungetönt.
 nur mit Häkchen, und nur ab Etage 1 — eine Welt ohne `viewLevel` oder auf dem
 Erdgeschoss zahlt nichts. **Von außen** (`ViewLevel.whole`: Ebenen-Leiste
 _⌂ Außen_, oder draußen im _Hausbau_) bleibt alles scharf; dort will man das
-ganze Haus sehen. `App.frame` setzt das Ziel nach den Spiegeln und vor
+ganze Haus sehen — aber nur, solange es über einem noch eine Etage gibt: Wer
+auf der obersten steht, gilt im Hausbau als „draußen", und dort blieb zuerst
+alles scharf (gemeldet mit einem Bild vom Obergeschoss). `App.frame` setzt das Ziel nach den Spiegeln und vor
 `World.render` — Portalsichten und Werkzeugbilder merken sich das Ziel
 (`getRenderTarget`) und setzen es danach zurück —, und nimmt es in einem
 `finally` wieder weg. Wer ausschaltet, gibt die Textur frei (`release`).

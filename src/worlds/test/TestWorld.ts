@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GridWorld } from '../grid/GridWorld';
+import { FurnishedWorld } from '../grid/FurnishedWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
@@ -61,7 +61,7 @@ import type { TestZone, ZoneHost } from './zones/zone';
  * sonst nichts. Sechs von neun haben überhaupt Leben darin; die anderen drei
  * sind ein Stempel auf dem Grundriss und fertig.
  */
-export class TestWorld extends GridWorld {
+export class TestWorld extends FurnishedWorld {
   /** Die Zonen mit Leben darin — in der Reihenfolge, in der sie gebaut werden. */
   private readonly interact = new InteractZone();
   private readonly navigation = new NavigationZone();
