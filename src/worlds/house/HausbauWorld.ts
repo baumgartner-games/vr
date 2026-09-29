@@ -18,7 +18,14 @@ import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipe
 import { PlaceGrid } from '../portal/placeGrid';
 import type { PlateTile } from '../shared/plateField';
 import { PLATE_PROTOTYPE } from '../test/floorPlate';
-import { FLOORINGS, flooringItem, flooringOfItem, type Flooring } from './flooring';
+import {
+  FLOORINGS,
+  flooringAim,
+  flooringItem,
+  flooringOfItem,
+  type Flooring,
+  type FlooringAim,
+} from './flooring';
 import { HOUSE_SPOTS, houseSpawn, housePlan, houseWalls, onHouseGround } from './housePlan';
 import { roomTiles, traceRoom, type PieceFace, type RoomTile, type WallPiece } from './roomTrace';
 import { STAIR_STEPS, STOREY, houseTiles, stairDir, stairFits, stairTiles } from './stairPlan';
@@ -79,8 +86,8 @@ export class HausbauWorld extends TestRestaurantWorld {
   private clock = 0;
   /** **Der Bodenbelag je Kachel** (`x,z` → Platte), wo er vom Prototyp-Boden abweicht. */
   private readonly floors = new Map<string, string>();
-  /** Die Kacheln, die der Belag in der Hand gerade bekäme. */
-  private floorRoom: RoomTile[] | null = null;
+  /** Die Kacheln, die der Belag in der Hand gerade bekäme — der Raum oder die Kachel vor einem. */
+  private floorRoom: FlooringAim | null = null;
   /** Das Leuchten über diesen Kacheln (`portal/placeGrid.ts`). */
   private floorGlow: PlaceGrid | null = null;
   /** Wohin die Treppe in der Hand käme — und ob sie dort passt. */
@@ -211,7 +218,7 @@ export class HausbauWorld extends TestRestaurantWorld {
       paper
         ? `${paper.label} in der Hand · auf eine Wand im Raum zeigen, A klebt`
         : flooring
-          ? `${flooring.label} in der Hand · im Raum stehen, A legt den Boden`
+          ? `${flooring.label} in der Hand · im Raum stehen oder auf eine Kachel zeigen, A legt den Boden`
           : 'Treppe in der Hand · im Haus in Laufrichtung zeigen, A stellt sie hin',
     );
   }
@@ -224,7 +231,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     const paper = wallpaperOfItem(this.carried?.item);
     this.room = paper ? this.roomAhead(ctx) : null;
     const flooring = flooringOfItem(this.carried?.item);
-    this.floorRoom = flooring ? this.roomUnder(ctx) : null;
+    this.floorRoom = flooring ? this.flooringAhead(ctx) : null;
     const direct = this.carryingHandPressed(ctx);
     if (flooring && this.floorRoom && this.usePressed(ctx, direct)) this.lay(ctx, flooring);
     const stair = this.carried?.item === 'stair';
@@ -483,48 +490,75 @@ export class HausbauWorld extends TestRestaurantWorld {
   // --- Bodenbeläge -----------------------------------------------------------
 
   /**
-   * **Der Raum, in dem man steht** (`roomTiles`) — oder `null` im Freien.
+   * **Wohin der Belag käme** (`flooring.flooringAim`): der Raum, in dem man
+   * steht (`roomTiles`), sonst die Kachel vor einem, in Blickrichtung auf ein
+   * Viertel gerundet — wie der Fuß der Treppe (`stairTiles`).
+   *
+   * Boden darf überall hin, außer auf leeren Boden über einer Treppe
+   * (`GridPlan.emptyAt`) — und unten nicht über den Rand der Welt. Auf einer
+   * Etage darüber darf er auch dahin, wo noch keiner liegt: Dort gab es nach
+   * einer Treppe im Freien nur ihren Stand.
    */
-  private roomUnder(ctx: WorldContext): RoomTile[] | null {
+  private flooringAhead(ctx: WorldContext): FlooringAim | null {
+    const level = this.level();
+    const graph = this.grid?.graph;
+    _rigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_turn));
+    ctx.rig.getHeadForward(_headAhead);
+    aimForward(ctx.topDown, _rigAhead, _headAhead, _aim);
     ctx.rig.getHeadPosition(_at);
-    return roomTiles(this.wallsOn(this.level()).pieces, _at.x, _at.z);
+    const ahead = stairTiles(_at.x, _at.z, stairDir(_aim.x, _aim.z))[0]!;
+    const room = roomTiles(this.wallsOn(level).pieces, _at.x, _at.z);
+    return flooringAim(room, ahead, (tile) => {
+      const key = tileKey(tile.x, tile.z, level);
+      if (this.grid?.emptyAt(key)) return false;
+      return level > 0 || (graph?.has(key) ?? false);
+    });
   }
 
-  /** **Den Belag legen** — auf jede Kachel des Raums, und aus der Hand. */
+  /**
+   * **Den Belag legen** — auf jede Kachel des Raums oder die vor einem. Wo auf
+   * der Etage noch kein Boden liegt, kommt er dazu (`GridPlan.floor`). Im Raum
+   * ist der Belag danach aufgebraucht; Kachel für Kachel bleibt er in der Hand,
+   * sonst ginge es oben nach jeder Kachel die Treppe hinunter zur Kiste.
+   */
   private lay(ctx: WorldContext, flooring: Flooring): void {
-    const tiles = this.floorRoom;
-    if (!tiles) return;
+    const aim = this.floorRoom;
+    const plan = this.grid;
+    if (!aim || !plan) return;
     const level = this.level();
-    for (const tile of tiles) {
+    for (const tile of aim.tiles) {
+      const here = tileKey(tile.x, tile.z, level);
       // Leerer Boden über einer Treppe bleibt leer — und behält den Belag,
       // den er vorher hatte (`GridPlan.emptyAt`).
-      if (this.grid?.emptyAt(tileKey(tile.x, tile.z, level))) continue;
+      if (plan.emptyAt(here)) continue;
+      if (!plan.graph.has(here)) plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level });
       const key = `${tile.x},${tile.z},${level}`;
       if (flooring.path === PLATE_PROTOTYPE) this.floors.delete(key);
       else this.floors.set(key, flooring.path);
     }
     this.rebuildFloor();
-    this.setCarried(null, null);
     this.floorRoom = null;
-    ctx.notify(`${flooring.label}: ${tiles.length} Kacheln gelegt`);
+    if (!aim.room) return;
+    this.setCarried(null, null);
+    ctx.notify(`${flooring.label}: ${aim.tiles.length} Kacheln gelegt`);
   }
 
   /**
-   * **Was der Belag bekäme, leuchtet** — die Kacheln des Raums, wie beim
-   * Setzen einer Fläche (`portal/placeGrid.ts`). Im Freien leuchtet nichts:
-   * Dort ist kein Raum, und `A` legt nichts.
+   * **Was der Belag bekäme, leuchtet** — die Kacheln des Raums oder die eine
+   * vor einem, wie beim Setzen einer Fläche (`portal/placeGrid.ts`).
    */
   private showFloorRoom(ctx: WorldContext, flooring: Flooring | null): void {
-    const tiles = this.floorRoom;
-    if (!flooring || !tiles) {
-      this.floorGlow?.hide();
+    const aim = this.floorRoom;
+    if (!flooring || !aim) {
+      if (!this.stairAim) this.floorGlow?.hide();
       return;
     }
     const glow = (this.floorGlow ??= new PlaceGrid(ctx.scene));
+    glow.tint();
     glow.show(
-      tiles.map((tile) => ({ x: tile.x + 0.5, z: tile.z + 0.5 })),
+      aim.tiles.map((tile) => ({ x: tile.x + 0.5, z: tile.z + 0.5 })),
       ctx.rig.getFloorY(),
-      tiles.length,
+      aim.tiles.length,
     );
   }
 

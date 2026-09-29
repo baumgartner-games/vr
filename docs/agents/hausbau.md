@@ -93,7 +93,19 @@ für Gäste. Gleiches Prinzip."_
   unter dem Spieler über jede Kante ohne Wand. Türen und Fenster sind auch
   hier Wände, der Boden bleibt also im Zimmer. Eine Kachel mit einer Wand unter
   45° gehört dazu, darüber hinaus geht es nicht. Mehr als 400 Kacheln sind kein
-  Raum (`ROOM_TILES_MAX`): Im Freien leuchtet nichts, und `A` legt nichts.
+  Raum (`ROOM_TILES_MAX`).
+- **Auch ohne Wände und auch, wo noch kein Boden liegt**
+  (`flooring.flooringAim`, `HausbauWorld.flooringAhead`) — gemeldet: _„Ich will
+  den Boden legen können, auch wenn noch keine Wände gesetzt sind. Wenn ich
+  erst eine Treppe setze und dann die Wände, fehlt mir der floor."_ Eine Treppe
+  im Freien legt oben nur ihren Stand; die Wände, die man danach zieht, machen
+  keinen Boden. Deshalb legt der Belag im Raum auch auf Kacheln, auf denen der
+  Etage noch keiner liegt (`GridPlan.floor`), und ohne Raum leuchtet die
+  **Kachel vor einem** (in Blickrichtung auf ein Viertel gerundet, wie der Fuß
+  der Treppe). `A` legt sie, und der Belag **bleibt in der Hand** — Kachel für
+  Kachel, sonst ginge es oben nach jeder die Treppe hinunter zur Kiste. Im Raum
+  ist er wie bisher aufgebraucht. Nicht belegt werden leerer Boden über einer
+  Treppe und, auf der untersten Etage, alles jenseits des Grundstücks.
 - **Das Leuchten** ist das Gitter des Bauens (`portal/placeGrid.ts`) über den
   Kacheln des Raums.
 
@@ -218,8 +230,9 @@ mit den Materialien des Regals.
   nicht übers Netz: Nach dem Neuladen sind die Wände nackt, der Boden ist
   Prototyp, und Treppen und Etagen sind weg.
 - Eine Treppe lässt sich noch nicht wieder abbauen.
-- Oben gibt es erst Wände, wenn man sie zieht; über den Rand der Etage fällt
-  man hinunter. Sie hängt am Stück — reißt man es ab
+- Oben gibt es erst Wände, wenn man sie zieht, und Boden über den Stand der
+  Treppe hinaus erst, wenn man ihn legt; über den Rand der Etage fällt man
+  hinunter. Sie hängt am Stück — reißt man es ab
   oder ersetzt es, ist sie weg.
 - Von oben blendet die Welt Wände vor der Figur durchsichtig
   (`grid/modelGhost.ts`); der durchsichtige Zwilling kennt die Tapete nicht.

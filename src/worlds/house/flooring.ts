@@ -76,3 +76,42 @@ export function flooringOfItem(item: string | null | undefined): Flooring | null
   if (!item?.startsWith('floor-')) return null;
   return flooringById(item.slice('floor-'.length));
 }
+
+/** Eine Kachel: Spalte und Reihe. */
+interface FloorTile {
+  readonly x: number;
+  readonly z: number;
+}
+
+/** Wohin der Belag in der Hand käme — und ob er dabei in der Hand bleibt. */
+export interface FlooringAim {
+  readonly tiles: FloorTile[];
+  /** `true` im geschlossenen Raum: dann ist der Belag danach aufgebraucht. */
+  readonly room: boolean;
+}
+
+/**
+ * **Wohin der Belag kommt** — gemeldet: _„Ich will den Boden legen können,
+ * auch wenn noch keine Wände gesetzt sind. Wenn ich erst eine Treppe setze und
+ * dann die Wände, fehlt mir der floor."_
+ *
+ * - **Im geschlossenen Raum** (`room`) jede Kachel davon, auf die Boden darf —
+ *   auch wo noch keiner liegt: Oben über einer Treppe im Freien gibt es anfangs
+ *   nur den Stand, und die Wände drumherum machen noch keinen Boden.
+ * - **Ohne Raum** die Kachel vor einem (`ahead`) — eine nach der anderen,
+ *   solange man den Belag trägt.
+ *
+ * @param layable ob auf diese Kachel Boden darf (kein Loch über einer Treppe,
+ *   unten nicht über den Rand der Welt)
+ */
+export function flooringAim(
+  room: readonly FloorTile[] | null,
+  ahead: FloorTile,
+  layable: (tile: FloorTile) => boolean,
+): FlooringAim | null {
+  if (room) {
+    const tiles = room.filter(layable);
+    return tiles.length > 0 ? { tiles, room: true } : null;
+  }
+  return layable(ahead) ? { tiles: [ahead], room: false } : null;
+}
