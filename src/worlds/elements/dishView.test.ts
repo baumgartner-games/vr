@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   IN_BOX,
+  ITEM_YAW,
   KaykitDishView,
   NEST,
   ON_PLATE,
@@ -28,6 +29,17 @@ describe('Gerichte als Bild aus dem Regal', () => {
 
   it('legt die Pizza in den Karton, knapp über den Boden', () => {
     expect(dishLayout('pizzabox', [0.08, 0.05])[1]).toEqual({ y: 0.08 * IN_BOX, inside: false });
+  });
+
+  it('zeigt ein Getragenes ungedreht mit Süden zu einem, die Treppe steigt von einem weg', () => {
+    const views = new KaykitDishView(() => Promise.resolve(null));
+    expect(views.view(dish('plate')).rotation.y).toBe(0);
+    const stair = views.view(dish('stair'));
+    expect(stair.rotation.y).toBe(ITEM_YAW.stair);
+    // Das Modell steigt nach −x; gedreht muss das nach vorn zeigen (−z).
+    const rise = new THREE.Vector3(-1, 0, 0).applyQuaternion(stair.quaternion);
+    expect(rise.z).toBeCloseTo(-1);
+    expect(views.view(dish('tray')).rotation.y).toBeCloseTo(Math.PI / 2);
   });
 
   it('baut das Bild aus Kopien der Vorlagen, sobald sie da sind', async () => {
