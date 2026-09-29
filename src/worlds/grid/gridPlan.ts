@@ -565,19 +565,35 @@ export class GridPlan {
    *
    * Zu bleibt sie auch neben einem Lauf in eine andere Richtung und neben
    * einer Kachel, die nicht begehbar ist.
+   *
+   * `side` in Steigrichtung fragt nach dem **Kopf** des Laufs (`part` zählt
+   * dort nicht): offen, wo es oben weitergeht — auf einen Lauf oder auf Boden
+   * höchstens eine Stufe neben der Höhe der obersten Stufe. Der Fuß ist keine
+   * Seite und hält nie (`false`).
    */
   flightSideOpen(tile: TileKey, side: Dir, part: 0 | 1): boolean {
     const flight = this.flightOn(tile);
     if (!flight) return false;
-    // Nur die beiden Seiten — Fuß und Kopf des Laufs sind ohnehin offen.
-    if (side === flight.dir || side === (((flight.dir + 2) % 4) as Dir)) return false;
+    // Der Fuß ist keine Seite; der Kopf fragt nach seiner Höhe (unten).
+    if (side === (((flight.dir + 2) % 4) as Dir)) return false;
     const level = keyLevel(tile);
     const beside = tileKey(keyX(tile) + dirX(side), keyZ(tile) + dirZ(side), level);
-    if (this.flightOn(beside)) return false;
+    const next = this.flightOn(beside);
+    // Geht es dahinter auf einen Lauf weiter, halten dessen Seiten.
+    if (side === flight.dir && next) return true;
+    if (next) return false;
     // Neben dem Grundriss trägt das Gelände, und das liegt auf der Etage.
     const facts = this.graph.tile(beside);
     if (facts && !this.graph.walkable(beside)) return false;
     const floor = this.graph.levelY(level) + (facts?.rise ?? 0);
+    // **Der Kopf des Laufs** ist offen, wo dahinter Boden auf der Höhe der
+    // obersten Stufe liegt — ein Podest, der Stand auf derselben Etage. Liegt
+    // dort der Boden der Etage selbst (im Hausbau unter dem Stand der Etage
+    // darüber), käme man von hinten unter die Treppe. Gemeldet: _„als spieler
+    // will ich bei einer treppe nicht unter die treppe laufen können. Aktuell
+    // kann ich von hinten leider reinlaufen"_.
+    if (side === flight.dir)
+      return Math.abs(this.flightY(tile, flight, 1) - floor) <= FLIGHT_SIDE_STEP + 1e-6;
     const low = this.flightY(tile, flight, part * 0.5);
     const high = this.flightY(tile, flight, part * 0.5 + 0.5);
     return low <= floor + FLIGHT_SIDE_STEP + 1e-6 && high >= floor - FLIGHT_SIDE_STEP - 1e-6;

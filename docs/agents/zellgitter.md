@@ -120,6 +120,17 @@ den großen Kacheln bleibt.
     unverändert: Hinter der offenen Hälfte fängt der Schritt die Füße wie am
     Fuß des Laufs. Der Graph (Bots, NPCs) verband die Treppenkacheln seitlich
     schon immer; Haunting hat keine Treppen und fragt nicht.
+  - **Der Kopf des Laufs hält ebenso von außen**, wenn es oben nicht
+    weitergeht (`flightSideOpen` mit der Steigrichtung, `planeMove.flightSides`):
+    Offen ist er nur, wo dahinter ein Lauf anschließt oder Boden höchstens eine
+    Stufe neben der obersten Stufe liegt — ein Podest, der Stand. Im Hausbau
+    liegt hinter der obersten Kachel auf der Etage der Treppe aber der
+    gewöhnliche Boden, 2,8 m tiefer, und von dort lief man nach Süden unter
+    die Stufen. Gemeldet: _„als spieler will ich bei einer treppe nicht unter
+    die treppe laufen können. Aktuell kann ich von hinten leider
+    reinlaufen"_. Wer oben vom Lauf auf den Stand geht, steht innen und kommt
+    hinaus; wer vom Stand hinuntergeht, steht schon auf der Etage darüber, wo
+    der Lauf nicht liegt (`physics/stairStepOff.test.ts`).
   - **Auf der Treppe wird nur die Höhe bewegt** (`GridPlan.flightFloor`): Kein
     Controller klettert Stufe für Stufe, die Höhe folgt einer Linie über die
     Vorderkanten der Stufen — unten die erste Stufe, oben die letzte, nie in

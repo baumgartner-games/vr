@@ -449,9 +449,13 @@ describe('Treppen über mehrere Kacheln', () => {
         for (const side of [DIR_W, DIR_E] as const)
           for (const part of [0, 1] as const)
             expect(plan.flightSideOpen(tileKey(1, z, 0), side, part)).toBe(false);
-      // Fuß und Kopf sind keine Seiten.
+      // Der Fuß ist keine Seite.
       expect(plan.flightSideOpen(foot, DIR_S, 0)).toBe(false);
-      expect(plan.flightSideOpen(foot, DIR_N, 0)).toBe(false);
+      // Der Kopf einer Kachel führt auf die nächste — offen; der der obersten
+      // auf den Boden der Etage darunter, 2,8 m unter ihrer letzten Stufe: zu,
+      // sonst ginge man von hinten unter die Treppe.
+      expect(plan.flightSideOpen(foot, DIR_N, 1)).toBe(true);
+      expect(plan.flightSideOpen(tileKey(1, 2, 0), DIR_N, 1)).toBe(false);
     });
 
     it('lässt eine Rampe über ihre ganze unterste Kachel auf', () => {
