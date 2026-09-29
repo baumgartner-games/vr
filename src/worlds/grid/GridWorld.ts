@@ -73,7 +73,7 @@ import type {
 } from './fixtures/index';
 import { Burst } from '../effects/Burst';
 import { findEffect, scaleEffect } from '../effects/effectKinds';
-import { levelStep, type ViewLevel } from '../../core/cutaway';
+import { levelOfBottom, levelStep, type ViewLevel } from '../../core/cutaway';
 import { canLoadModels } from '../../core/chefFit';
 import { denyOutline } from '../../core/outlineShell';
 import { graphics } from '../../core/graphicsSettings';
@@ -98,6 +98,7 @@ import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
 import { GROUP_CELL, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
+import { HIDDEN_LEVEL_BAR, LevelBar, stepLevel } from './levelBar';
 
 /** Die „Datei“, auf die ein Quader unter einem eigenen Belag wartet (`underOwnFloor`). */
 const OWN_FLOOR = 'own-floor';
@@ -425,6 +426,22 @@ export abstract class GridWorld extends PortalWorld {
    * darüber beim Hin- und Hertreten.
    */
   private rigLevel = 0;
+  /**
+   * **Die Ebenen des Baukastens** (`levelBar.ts`) — senkrecht am rechten Rand,
+   * neben der Werkzeugleiste, solange es mehr als eine Etage gibt
+   * (`stepLevelBar`).
+   */
+  private levelBar: LevelBar | null = null;
+  /** Ob die Ebenen-Leiste gerade zu sehen ist — dann entscheidet sie, was man von oben sieht. */
+  protected levelBarOn = false;
+  /** **Von außen**: Mit der Leiste zu sehen sind alle Etagen und nicht nur die gewählte. */
+  private levelOutside = false;
+  /**
+   * Wie oft sich die Ebenenmarke eines hingestellten Modells geändert hat
+   * (`markModelLevels`) — für Welten, die selbst aufschneiden (`HausbauWorld`).
+   */
+  protected levelMarks = 0;
+  private readonly levelScratch: PhysicsBody[] = [];
 
   /**
    * **Der Konstrukt-Raum dieser Welt** (`shared/construct.ts`) — und es gibt
@@ -3025,7 +3042,9 @@ export abstract class GridWorld extends PortalWorld {
     this.construct?.update(dt);
     this.syncConstructBody();
     this.stepBursts(dt);
+    this.stepLevelBar(ctx);
     this.trackLevel(ctx);
+    this.markModelLevels();
     this.showGridLines();
     this.refreshWallSlopes();
     this.refreshMarks(dt, ctx);
@@ -3272,6 +3291,9 @@ export abstract class GridWorld extends PortalWorld {
     this.ghostBoxView?.dispose();
     this.ghostBoxView = null;
     this.rigLevel = 0;
+    this.levelBar?.dispose();
+    this.levelBar = null;
+    this.levelBarOn = false;
     // Die Kästen selbst gehen mit der Szene und den `solids`; die Zellen
     // stünden sonst beim nächsten Betreten noch da, wo die Welt sie gar nicht
     // mehr hinstellt.
@@ -3349,7 +3371,89 @@ export abstract class GridWorld extends PortalWorld {
   viewLevel(): ViewLevel | null {
     const graph = this.grid?.graph;
     if (!graph) return null;
-    return { level: this.rigLevel, floorY: graph.levelY(this.rigLevel) };
+    const floorY = graph.levelY(this.rigLevel);
+    // **Von außen** (`levelBar.ts`): keine Etage darüber, die weg müsste —
+    // gebaut wird trotzdem auf der gewählten, und auf die sieht die Kamera.
+    if (this.levelBarOn && this.levelOutside) return { level: graph.levels.length - 1, floorY };
+    return { level: this.rigLevel, floorY };
+  }
+
+  /** **Die Etage, auf der man steht** — oder die, die der Kran in der Ebenen-Leiste gewählt hat. */
+  protected get standLevel(): number {
+    return this.rigLevel;
+  }
+
+  /**
+   * **Die Ebenen-Leiste des Baukastens** (`levelBar.ts`) — je Bild einmal,
+   * nach der Werkzeugleiste (`PortalWorld.updateBuild`), neben der sie steht.
+   *
+   * Gemeldet: _„im baukasten modus habe ich noch ein problem mit dem
+   * platzieren von dingen auf der korrekten ebene"_. Welche Etage galt, hing
+   * daran, wo der Kran gerade war — und hinauf kam er nur über die Treppe.
+   */
+  private stepLevelBar(ctx: WorldContext): void {
+    const graph = this.grid?.graph;
+    const count = graph?.levels.length ?? 0;
+    this.levelBarOn = this.buildBarShown && count > 1;
+    if (!this.levelBarOn || !graph) {
+      if (this.levelBar) {
+        this.levelBar.take();
+        this.levelBar.show(HIDDEN_LEVEL_BAR);
+      }
+      return;
+    }
+    const bar = (this.levelBar ??= new LevelBar());
+    for (const event of bar.take()) {
+      if (event.kind === 'outside') this.levelOutside = !this.levelOutside;
+      else if (event.kind === 'pick') this.goToLevel(ctx, event.level);
+      else this.goToLevel(ctx, stepLevel(this.rigLevel, event.step, count));
+    }
+    bar.show({ visible: true, level: this.rigLevel, count, outside: this.levelOutside });
+  }
+
+  /**
+   * **Den Kran auf eine andere Etage heben.**
+   *
+   * Er fliegt ohnehin ohne Schwerkraft und durch Wände
+   * (`PortalWorld.updateCraneFlight`, `PhysicsLocomotion.ghost`), also genügt
+   * es, das Rig auf den Boden der Etage zu setzen: Alles, was nach dem Boden
+   * unter dem Kran fragt — Geist, Gitter, Wand ziehen, Boden legen —, fragt
+   * danach auf dieser Etage, auch dort, wo sie noch keinen Boden hat. Und die
+   * Kamera schneidet über ihr ab (`viewLevel`).
+   */
+  private goToLevel(ctx: WorldContext, level: number): void {
+    const graph = this.grid?.graph;
+    if (!graph || !ctx.crane) return;
+    const to = Math.max(0, Math.min(graph.levels.length - 1, level));
+    if (to === this.rigLevel) return;
+    ctx.rig.position.y += graph.levelY(to) - ctx.rig.getFloorY();
+    ctx.rig.updateMatrixWorld(true);
+    this.rigLevel = to;
+  }
+
+  /**
+   * **Jedes hingestellte Modell trägt seine Etage** (`userData.level`) — damit
+   * es mit ihr verschwindet, wenn von oben aufgeschnitten wird
+   * (`core/cutaway.ts`), und nicht über dem Loch der Etage darunter schwebt.
+   * Was getragen wird, trägt keine: Wer mit einem Stück von oben eine Etage
+   * hinuntergeht, soll es weiter sehen.
+   */
+  private markModelLevels(): void {
+    const graph = this.grid?.graph;
+    if (!graph || graph.levels.length < 2) return;
+    for (const entry of this.placedModels(this.levelScratch)) {
+      entry.object.getWorldPosition(_spot);
+      const level = levelOfBottom(graph.levels, _spot.y - entry.halfExtents.y);
+      const data = entry.object.userData as { level?: number };
+      if (data.level === level) continue;
+      data.level = level;
+      this.levelMarks++;
+    }
+    const carried = this.carriedModel()?.object.userData as { level?: number } | undefined;
+    if (carried?.level !== undefined) {
+      delete carried.level;
+      this.levelMarks++;
+    }
   }
 
   /**

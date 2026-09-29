@@ -1421,6 +1421,43 @@ was an der Wand hängt oder auf etwas steht. Ob ein Stück fest stand, merkt
 sich auch der Stapel (`BuildPose.fixed`), damit ein Nachspielen es wieder so
 hinstellt.
 
+### Ebenen wie in _Die Sims_
+
+Gemeldet: _„im baukasten modus habe ich noch ein problem mit dem platzieren
+von dingen auf der korrekten ebene. Ich brauche ein UI button um durch die
+jeweiligen ebenen durchzuschalten. Zudem sollen dann auch nur die Wände/dinge
+der jeweiligen ebene sichtbar sein."_ Welche Etage galt, hing daran, wo der
+Kran gerade schwebte — hinauf kam er nur über die Treppe.
+
+**Die Leiste** (`worlds/grid/levelBar.ts`, DOM) steht senkrecht am rechten
+Rand, solange die Werkzeugleiste zu sehen ist (`PortalWorld.buildBarShown`)
+und die Gitterwelt mehr als eine Etage hat (`NavGraph.levels`, im _Hausbau_
+also ab der ersten Treppe). Von oben nach unten:
+
+- **⌂ Außen** (an/aus): alle Etagen zu sehen, wie von jemandem, der vor dem
+  Haus steht (`viewLevel` meldet die oberste). Gebaut wird trotzdem auf der
+  gewählten, und auf die zielt die Kamera.
+- **▲ Hoch**, **▼ Runter** — auch `Bild↑`/`Bild↓`, solange die Leiste da ist.
+- **☰ Ebene N** öffnet die Liste aller Etagen, die oberste oben; auf dem
+  Telefon ist das die einzige beschriftete Taste.
+
+**Gewechselt wird, indem der Kran die Etage wechselt** (`GridWorld.goToLevel`):
+Er fliegt ohnehin ohne Schwerkraft und durch Wände (`updateCraneFlight`,
+`PhysicsLocomotion.ghost`), also genügt es, das Rig auf den Boden der Etage zu
+setzen und `rigLevel` mitzunehmen. Alles, was nach dem Boden unter dem Kran
+fragt — Geist, Gitter, Wand ziehen, Boden legen, Treppe —, fragt danach auf
+dieser Etage, auch dort, wo sie noch keinen Boden hat. Wer den Baukasten
+verlässt, landet wie immer (`PhysicsLocomotion.land`).
+
+**Sichtbar ist die gewählte Etage und was darunter liegt** — darüber schneidet
+die Kamera weg (`core/cutaway.ts`). Damit das auch für Möbel gilt und nicht
+nur für Wände, trägt jedes hingestellte Modell seine Etage
+(`GridWorld.markModelLevels`, `cutaway.levelOfBottom`: ab einem halben Meter
+unter ihrem Boden, damit ein Bild auf anderthalb Metern unten bleibt); was
+getragen wird, trägt keine. Mit der Leiste entscheidet sie allein, was man
+sieht — die Regel des _Hausbaus_ „draußen das ganze Haus" (`underRoof`) gilt
+dann nicht.
+
 ## Räume dekorieren
 
 **Stücke aus dem KayKit-Regal an Wände hängen und auf Tische stellen**

@@ -147,11 +147,15 @@ Ebene anlegen durch eine 2x8 Treppe."_
   - Von oben schneidet die Kamera (`TopDownCamera`, `core/cutaway.ts`) — die
     Welt meldet draußen die oberste Etage als die, auf der man steht
     (`HausbauWorld.viewLevel`), dann ist nichts darüber.
+  - Im _Baukasten_ wählt man die Etage an der Ebenen-Leiste rechts
+    (`grid/levelBar.ts`, [Bauen](bauen.md#ebenen-wie-in-die-sims)); dann gilt
+    sie und nicht drinnen/draußen, und _⌂ Außen_ zeigt das ganze Haus.
   - Aus den Augen und in der Brille schneidet die Welt selbst (`cutAbove`),
     solange über der eigenen Kachel die Etage darüber Boden hat
     (`underRoof`).
-  - Wände oben tragen ihre Etage (`userData.level`, `markWallLevels`) und
-    stehen für sich (`looseWalls`), damit sie mit ihr verschwinden.
+  - Wände und Möbel oben tragen ihre Etage (`userData.level`,
+    `GridWorld.markModelLevels`), Wände stehen für sich (`looseWalls`,
+    `markWallLevels`), damit sie mit ihr verschwinden.
 - Tapete und Boden gelten auf der Etage, auf der man steht (`wallsOn`, der
   Belag je Kachel **und** Etage).
 - **Wände gehören der Etage, auf der man steht** — gemeldet nach dem ersten

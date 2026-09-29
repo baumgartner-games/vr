@@ -3,6 +3,7 @@ import {
   bringBack,
   cutAway,
   hiddenLevels,
+  levelOfBottom,
   hidesLevel,
   levelAtHeight,
   levelOf,
@@ -169,5 +170,26 @@ describe('Ausblenden und wieder einblenden', () => {
     dressing.add(upper);
     scene.add(dressing);
     expect(cutAway(scene, 1)).toEqual([upper]);
+  });
+});
+
+/** Welche Etage ein hingestelltes Stück trägt (`GridWorld.markModelLevels`). */
+describe('Etage eines Stücks', () => {
+  const levels = [0, 2.8, 5.6];
+
+  it('gehört zum Stockwerk, auf dessen Boden es steht', () => {
+    expect(levelOfBottom(levels, 0)).toBe(0);
+    expect(levelOfBottom(levels, 2.8)).toBe(1);
+    expect(levelOfBottom(levels, 5.6)).toBe(2);
+  });
+
+  it('auch ein Bild auf anderthalb Metern und eine Tasse auf dem Tisch', () => {
+    expect(levelOfBottom(levels, 1.5)).toBe(0);
+    expect(levelOfBottom(levels, 2.8 + 0.8)).toBe(1);
+  });
+
+  it('knapp unter dem Boden der Etage darüber zählt schon die', () => {
+    expect(levelOfBottom(levels, 2.4)).toBe(1);
+    expect(levelOfBottom([0], 3)).toBe(0);
   });
 });

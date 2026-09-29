@@ -143,6 +143,23 @@ html, body {
   .build-bar__label { display: none; }
 }
 
+/* Die Ebenen des Baukastens (`worlds/grid/levelBar.ts`): senkrecht am rechten Rand, wie in
+   Die Sims — Von außen, Hoch, Ebene wählen, Runter. Die Knöpfe sind die der Werkzeugleiste. */
+.level-bar { position: fixed; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); z-index: 6; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg); color: var(--hud-ink); font: 12px/1.2 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
+.level-bar[hidden] { display: none; }
+.level-bar__btn:nth-child(2) { margin-top: 4px; }
+.level-bar__list { position: absolute; right: calc(100% + 6px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 3px; min-width: 170px; max-height: 70vh; overflow-y: auto; padding: 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
+.level-bar__list[hidden] { display: none; }
+.level-bar__item { min-height: 36px; padding: 6px 10px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-sm); background: var(--hud-raise); color: inherit; font: inherit; font-weight: 600; text-align: left; white-space: nowrap; cursor: pointer; }
+.level-bar__item:hover { background: var(--hud-raise-hi); }
+.level-bar__item--on { border-color: var(--hud-on); background: rgba(255, 195, 77, 0.18); box-shadow: inset 0 0 0 1px var(--hud-on); }
+@media (max-width: 600px) {
+  .level-bar { right: max(6px, env(safe-area-inset-right)); top: 42%; padding: 4px; gap: 3px; }
+  .level-bar .build-bar__btn { min-width: 44px; }
+  /* Ohne Beschriftung bis auf die eine, auf die es ankommt: welche Ebene gilt. */
+  .level-bar__pick .build-bar__label { display: block; }
+}
+
 /*
   **Die Zeile und die Karte des Burgerladens** (`plateup/PlateUpWorld.ts`) —
   derselbe Stil wie die übrigen Leisten, mit dem Orange der Welt als Rand.

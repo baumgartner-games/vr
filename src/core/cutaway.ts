@@ -128,6 +128,17 @@ export function levelStep(
   return y <= middle ? wanted : current;
 }
 
+/**
+ * **Auf welcher Etage ein Stück mit dieser Unterkante steht** — ab einem halben
+ * Meter unter ihrem Boden. Nicht die nächste Etage: Ein Bild hängt auf
+ * anderthalb Metern und gehört trotzdem zum Stockwerk, an dessen Wand es hängt.
+ */
+export function levelOfBottom(levels: readonly number[], bottom: number): number {
+  let level = 0;
+  for (let i = 1; i < levels.length; i++) if (bottom >= levels[i]! - 0.5) level = i;
+  return level;
+}
+
 /** Die Bodenhöhe einer Etage, auch wenn der Index danebenliegt. */
 export function floorAt(levels: readonly number[], level: number): number {
   if (levels.length === 0) return 0;
