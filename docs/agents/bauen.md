@@ -833,7 +833,7 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
 - **Am Schirm heißt Kran: von oben** (`screenTopDown`, `App.topDown`). Wer
   _Aus den Augen_ gewählt hat, behält die Wahl; sie gilt nur nicht, solange
   eingerichtet wird, und kommt mit _Spielen_ von selbst zurück. Das Menü
-  _Ansicht_ sagt es dazu (`… · als Kran von oben`). Gespeichert wird nichts —
+  _Spiel-Sicht_ sagt es dazu (`… · als Kran von oben`). Gespeichert wird nichts —
   der Modus nicht, und die Wahl der Startseite wird nicht überschrieben.
   Umgeschaltet wird über `onGameMode` im `App`: Der Modus sagt es, die
   Ansicht folgt.
@@ -1313,12 +1313,28 @@ Wall."_
   baukasten modus erhalte ich dann erneut eine wand in der "hand"“_. Die
   Maus bleibt gefangen, Blick und Laufen gehen weiter; der gewöhnliche Geist
   des Einzelstücks bleibt dabei weg.
-- **Der Startpunkt ist ein Block** (`showStartPost`, `START_POST`): Solange
-  noch keine Linie steht, zeigt ein Geist des Getragenen, auf eine Zelle im
-  Quadrat gestaucht (volle Höhe), die Ecke zwischen den Kacheln, an der die
-  Wand anfinge — _„die wand ist in dem moment ein 1x1 block zwischen den
-  blöcken"_. Darunter leuchten weiter die vier Kacheln um die Ecke.
-
+- **Pfeiler statt Block, und der Pfeiler wandert mit** (September 2026,
+  gewünscht: _„Ich habe vor dem setzen einen pfeiler in der hand (klein) und
+  ich sehe den ghost pfeiler wo er hinkommen würde. Beim platzieren des
+  startpunktes, will ich dann keinen ghost pfeiler mehr sehen, sondern nur
+  noch die ghost wand … und ich sehe einen ghost pfeiler wo es aktuell enden
+  würde."_): In der Hand ist die gezogene Wand ein kleiner Pfeiler
+  (`handPost`, `HAND_POST` im Quadrat, halbe Höhe, nur das Bild —
+  `shrinkScreenCarry` mit Achsen). Ein Geist-Pfeiler (`postGhostSlot`,
+  `START_POST`, volle Höhe) steht immer dort, wo der nächste Punkt landen
+  würde: vor dem Startpunkt auf der Ecke unter dem Getragenen, danach am
+  Ende der Linie (`WallLine.end`), und dazwischen die Geisterwand
+  (`showLinePreview`). **Kein Bodengitter um den Pfeiler**; unter der Linie
+  leuchten die Fugen, unter einer schrägen der Strich quer durch jede Kachel
+  (`WallLine.slants` → `PlaceGrid.showSlants`, `showLineGrid`) statt ganzer
+  Kacheln. Gilt für alle drei Modi. Der Geist rechnet das kleinere Bild in
+  der Hand zurück (`ghostFix`).
+- **In der Brille** (`carryLineBrush` in jedem Modus, auch im _Baukasten_,
+  weil es dort keine Leiste gibt): Die Wand mit der Greif-Taste festhalten,
+  `A`/`X` **der Faust, die sie hält**, setzt Start- und Endpunkt
+  (`showCarryLine`); der Knopf der Figur wird dabei abgeholt, damit sie
+  weder springt noch benutzt, was vor ihr steht. Loslassen der Greif-Taste
+  stellt die Wand einzeln hin wie bisher.
 **Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
 Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
 alte auf derselben Fuge. In der Brille gibt es _Wand ziehen_ noch nicht (keine

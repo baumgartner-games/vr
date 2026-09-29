@@ -304,6 +304,8 @@ export class App {
   private worn: HeadgearKind | null = null;
   /** Die Figur, die eine Welt dem Spieler gerade geliehen hat (`WorldContext.dress`). */
   private dressed: string | null = null;
+  /** Ob das Gerät eine VR-Sitzung anbietet (`setXrReady`). */
+  private xrReady = false;
   /** 2D oder 3D am Bildschirm (`core/screenView.ts`). */
   private view: ScreenView = '3d';
   readonly avatars: RemoteAvatars;
@@ -1008,6 +1010,24 @@ export class App {
   }
 
   /**
+   * **Die Spiel-Sicht als Menü öffnen** — der Knopf oben rechts, wo es keine
+   * Brille gibt (`main.ts`, `#hud-vr`), und die Zeile im Grafik-Menü.
+   */
+  openViewMenu(): void {
+    this.wristMenu.openSubmenu('view');
+  }
+
+  /**
+   * **Ob dieses Gerät eine VR-Sitzung anbietet** — gesetzt von der Seite,
+   * sobald `detectXRSupport` geantwortet hat (`main.ts`); bis dahin nein.
+   */
+  setXrReady(ready: boolean): void {
+    if (this.xrReady === ready) return;
+    this.xrReady = ready;
+    this.menuDirty = true;
+  }
+
+  /**
    * **2D oder 3D am Bildschirm** — die Wahl der Startseite
    * (`core/screenView.ts`), hier als Zustand.
    */
@@ -1448,10 +1468,15 @@ export class App {
    */
   private viewMenu(): MenuEntry {
     const flat = this.view === '2d';
-    const available = !this.renderer.xr.isPresenting && !this.world?.ownsFlat;
+    const presenting = this.renderer.xr.isPresenting;
+    const available = !presenting && !this.world?.ownsFlat;
     return {
       id: 'view',
-      label: 'Ansicht',
+      // **Spiel-Sicht** — gewünscht: _„Spiel Sicht einstellung: VR, Aus den
+      // Augen, Von Oben"_. Dieselbe Seite öffnet der Knopf oben rechts, wo
+      // es keine Brille gibt (`openViewMenu`), und das Grafik-Menü verweist
+      // hierher.
+      label: 'Spiel-Sicht',
       // Die Wahl bleibt, auch wenn sie gerade nicht gilt: Der Kran sieht von
       // oben (`core/crane.ts`), und das soll hier stehen und nicht verwundern.
       sub: !available
@@ -1463,12 +1488,32 @@ export class App {
       accent: 0x9fe3ff,
       children: [
         {
+          id: 'view:vr',
+          label: 'VR',
+          sub: presenting
+            ? 'Du bist in der Brille · antippen beendet VR'
+            : this.xrReady
+              ? 'In die Brille — die Welt um dich herum'
+              : 'Dieses Gerät meldet keine VR-Brille',
+          icon: 'worlds',
+          accent: 0xffb347,
+          selected: presenting,
+          run: () => {
+            if (presenting) void this.endVR();
+            else if (this.xrReady)
+              this.enterVR().catch((error: unknown) =>
+                console.warn('[xr] Sitzung konnte nicht gestartet werden', error),
+              );
+            else this.notify('Dieses Gerät meldet keine VR-Brille');
+          },
+        },
+        {
           id: 'view:3d',
           label: SCREEN_VIEW_LABELS['3d'],
           sub: SCREEN_VIEW_SUBS['3d'],
           icon: 'worlds',
           accent: 0x4aa8ff,
-          selected: !flat,
+          selected: !presenting && !flat,
           run: () => this.setScreenView('3d'),
         },
         {
@@ -1479,7 +1524,7 @@ export class App {
             : 'Hier nicht: die Brille ist auf, oder die Welt hat eine eigene',
           icon: 'worlds',
           accent: 0x5ee0a0,
-          selected: flat,
+          selected: !presenting && flat,
           run: () => this.setScreenView('2d'),
         },
       ],
@@ -2203,6 +2248,15 @@ export class App {
       // und was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
       badge: 'EXP',
       children: [
+        {
+          id: 'gfx:view',
+          label: 'Spiel-Sicht',
+          sub: this.renderer.xr.isPresenting ? 'VR' : SCREEN_VIEW_LABELS[this.view],
+          caption: 'VR, aus den Augen oder von oben',
+          icon: 'worlds',
+          accent: 0x9fe3ff,
+          run: () => this.openViewMenu(),
+        },
         this.fpsEntry,
         {
           id: 'gfx:fps-hud',

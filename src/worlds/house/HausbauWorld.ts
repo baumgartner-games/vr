@@ -225,17 +225,16 @@ export class HausbauWorld extends TestRestaurantWorld {
     this.room = paper ? this.roomAhead(ctx) : null;
     const flooring = flooringOfItem(this.carried?.item);
     this.floorRoom = flooring ? this.roomUnder(ctx) : null;
-    if (flooring && this.floorRoom && !this.hasUsePick(ctx) && ctx.rig.takeUse())
-      this.lay(ctx, flooring);
+    const direct = this.carryingHandPressed(ctx);
+    if (flooring && this.floorRoom && this.usePressed(ctx, direct)) this.lay(ctx, flooring);
     const stair = this.carried?.item === 'stair';
     this.stairAim = stair ? this.stairAhead(ctx) : null;
-    if (stair && this.stairAim && !this.hasUsePick(ctx) && ctx.rig.takeUse()) this.placeStair(ctx);
+    if (stair && this.stairAim && this.usePressed(ctx, direct)) this.placeStair(ctx);
     // **Vor allem anderen**: Mit der Tapete in der Hand und einem Raum vor
     // sich heißt `A` kleben — außer, eine Kiste oder Station steht davor.
     // Vor `super.update`, damit der Kran den Druck nicht als Anheben liest.
-    if (paper && this.room && this.room.faces.length > 0 && !this.hasUsePick(ctx)) {
-      if (ctx.rig.takeUse()) this.paste(ctx, paper);
-    }
+    if (paper && this.room && this.room.faces.length > 0 && this.usePressed(ctx, direct))
+      this.paste(ctx, paper);
     super.update(dt, ctx);
     const ready = paper !== null && this.room !== null && this.room.faces.length > 0;
     if (ready || (flooring && this.floorRoom) || this.stairAim) ctx.rig.useCandidate = true;
@@ -244,6 +243,34 @@ export class HausbauWorld extends TestRestaurantWorld {
     this.showFloorRoom(ctx, flooring);
     this.showStair(ctx);
     this.cutAbove(ctx);
+  }
+
+  /**
+   * **In der Brille zählt `A` (oder `X`) der Hand, die trägt** — gemeldet war,
+   * dass sich die Treppe in VR nicht mit `A` hinstellen ließ. Über
+   * `rig.takeUse` kommt nur das `A` der rechten Hand an, ein Bild verspätet,
+   * und nur, solange keine Kiste oder Station vor dem Kopf steht; mit der
+   * Treppe links oder vor der Treppenkiste tat der Knopf nichts oder das
+   * Falsche. Der Druck auf dem Controller, der das Ding hält, meint das Ding.
+   */
+  private carryingHandPressed(ctx: WorldContext): boolean {
+    const hand = this.carriedHand;
+    if (!hand || !ctx.renderer.xr.isPresenting) return false;
+    return ctx.input.get(hand)?.primary.justPressed ?? false;
+  }
+
+  /**
+   * Ob der Druck dem Getragenen gilt: in der Brille direkt vom tragenden
+   * Controller (dann wird der Druck der Figur gleich mit abgeholt, damit er
+   * nicht noch eine Station benutzt), sonst `A` wie bisher, wenn nichts
+   * anderes davor steht.
+   */
+  private usePressed(ctx: WorldContext, direct: boolean): boolean {
+    if (direct) {
+      ctx.rig.takeUse();
+      return true;
+    }
+    return !this.hasUsePick(ctx) && ctx.rig.takeUse();
   }
 
   override dispose(ctx: WorldContext): void {

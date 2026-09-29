@@ -337,12 +337,24 @@ export interface WallLine {
   readonly edges: GridEdge[];
   /** Die Kacheln unter schrägen Wänden. */
   readonly tiles: GridTile[];
+  /**
+   * Dieselben Kacheln als Kachelnummern mit der Richtung der Schräge — für den
+   * Strich quer durch jede (`PlaceGrid.showSlants`) statt ganzer Kacheln.
+   */
+  readonly slants: WallSlant[];
   /** Wie lang die Wand ist, in Metern — die Zeile an der Leiste. */
   readonly length: number;
   /** Ob sie unter 45° steht. */
   readonly diagonal: boolean;
   /** Wo sie tatsächlich endet — nach dem Einrasten der Richtung und der Stücke. */
   readonly end: AreaCorner;
+}
+
+/** Eine Kachel unter einer schrägen Wand: Kachelnummer und Richtung der Schräge. */
+export interface WallSlant {
+  readonly x: number;
+  readonly z: number;
+  readonly slope: 'slash' | 'backslash';
 }
 
 /**
@@ -370,6 +382,7 @@ export function wallLine(
     slots: [],
     edges: [],
     tiles: [],
+    slants: [],
     length: 0,
     diagonal: false,
     end: start,
@@ -404,6 +417,8 @@ export function wallLine(
     const stretch = (per * Math.SQRT2 * TILE) / long;
     const slots: WallLineSlot[] = [];
     const tiles: GridTile[] = [];
+    const slants: WallSlant[] = [];
+    const slope = slash ? 'slash' : 'backslash';
     for (let k = 0; k < count; k++) {
       const mid = k * per + per / 2;
       slots.push({
@@ -415,10 +430,10 @@ export function wallLine(
       });
       for (let j = 0; j < per; j++) {
         const step = k * per + j;
-        tiles.push({
-          x: (start.col + sx * step + (sx < 0 ? -1 : 0) + 0.5) * TILE,
-          z: (start.row + sz * step + (sz < 0 ? -1 : 0) + 0.5) * TILE,
-        });
+        const col = start.col + sx * step + (sx < 0 ? -1 : 0);
+        const row = start.row + sz * step + (sz < 0 ? -1 : 0);
+        tiles.push({ x: (col + 0.5) * TILE, z: (row + 0.5) * TILE });
+        slants.push({ x: col, z: row, slope });
       }
     }
     const reach = count * per;
@@ -426,6 +441,7 @@ export function wallLine(
       slots,
       edges: [],
       tiles,
+      slants,
       length: reach * Math.SQRT2 * TILE,
       diagonal: true,
       end: { col: start.col + sx * reach, row: start.row + sz * reach },
@@ -468,6 +484,7 @@ export function wallLine(
     slots,
     edges,
     tiles: [],
+    slants: [],
     length: reach * TILE,
     diagonal: false,
     end: onX

@@ -160,6 +160,22 @@ Für die Spielwiese heißt das: Auf einer PS5 spielt man **mit dem Zeiger**, und
 genau dafür ist die Ansicht _Von oben_ ohnehin gebaut (Maus zielt, Klick
 schießt). Der Vollbildknopf ist dort besonders viel wert.
 
+## Der Knopf oben rechts: VR oder Spiel-Sicht
+
+Mit Brille steht dort _VR_ (in der Sitzung _VR beenden_). **Ohne Brille**
+(`detectXRSupport` sagt nein) steht dort die Sicht, in der man gerade ist —
+_Von oben_ oder _Aus den Augen_ —, und ein Druck öffnet das Menü
+**_Spiel-Sicht_** (`App.openViewMenu`, `main.paintHudVr`). Gewünscht: _„der
+VR button oben rechts im web lieber zu einem "von oben" und "aus den
+augen" button zu wechseln, wenn der browser/gerät kein VR unterstützt …
+Spiel Sicht einstellung: VR, Aus den Augen, Von Oben. Dieses menü könnte dann
+im grafik menü als punkt: Spiel Sicht Einstellung ebenfalls verlinkt sein."_
+
+_Spiel-Sicht_ (`App.viewMenu`, Id `view`, vormals _Ansicht_) hat drei
+Zeilen: **VR** (betritt oder beendet die Sitzung; ohne Brille nur ein
+Hinweis, `App.setXrReady`), **Aus den Augen**, **Von oben**. Im Grafik-Menü
+steht die Zeile _Spiel-Sicht_ (`gfx:view`) und öffnet dieselbe Seite.
+
 ## Das Menü: acht Bereiche und eine Tabelle
 
 Gemeldet war: „Die Menüführung ist verbesserungswürdig — wie die Menüs
@@ -177,7 +193,7 @@ lesen:
 | Bereich | Was darin steht (Id) |
 | ------- | -------------------- |
 | _Weiterspielen_ | steht über allem — das Häufigste, was man mit einem offenen Menü tut |
-| **Spielen** | die Welten (`world:*`, Spiele zuerst, `WIP`/`TEST` hinten) und _Ansicht_ (`view`) |
+| **Spielen** | die Welten (`world:*`, Spiele zuerst, `WIP`/`TEST` hinten) und _Spiel-Sicht_ (`view`) |
 | **_Name der Welt_** (`welt`) | was diese Welt anbietet — in der Testwelt _Zu einer Zone_, _Karts in die Box_, _Zeiten löschen_, in Haunting Runde, Plätze, Ton; _Zurücksetzen_ ganz unten (`tail`). Name, Zeile, Farbe und Schildchen kommen von der Welt (`GroupOptions.overrides`) |
 | **Bauen & Gestalten** | _Spielmodus_ (aus `settings` herausgezogen), _Werkzeuge_, _Magischer Beutel_, _Modellregal_, _NPC_, _Welt sichern_ |
 | **Zusammen** | die Verbindung (`net`): Raum, Name, Chat, Stimme, Zuschauen |
