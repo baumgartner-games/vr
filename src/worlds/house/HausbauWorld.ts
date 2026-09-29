@@ -251,7 +251,7 @@ export class HausbauWorld extends TestRestaurantWorld {
 
   /** **Auf welcher Etage man steht** (`GridWorld.viewLevel`), sonst die unterste. */
   private level(): number {
-    return super.viewLevel()?.level ?? 0;
+    return this.standLevel;
   }
 
   /** Auf welcher Etage etwas mit dieser Unterkante steht. */
@@ -309,6 +309,9 @@ export class HausbauWorld extends TestRestaurantWorld {
     const view = super.viewLevel();
     const ctx = this.context;
     const graph = this.grid?.graph;
+    // **Mit der Ebenen-Leiste entscheidet sie** (`grid/levelBar.ts`): die
+    // gewählte Etage, oder _von außen_ alle — und nicht, wo der Kran schwebt.
+    if (this.levelBarOn) return view;
     if (!view || !ctx || !graph || this.underRoof(ctx)) return view;
     return { level: graph.levels.length - 1, floorY: view.floorY };
   }
@@ -323,7 +326,8 @@ export class HausbauWorld extends TestRestaurantWorld {
     const graph = this.grid?.graph;
     const inside = !ctx.topDown && this.underRoof(ctx);
     const level = this.level();
-    const key = inside && graph ? `${level}|${graph.version}|${this.skinned.size}` : '';
+    const key =
+      inside && graph ? `${level}|${graph.version}|${this.skinned.size}|${this.levelMarks}` : '';
     if (key === this.cutFor) return;
     bringBack(this.cut);
     this.cutFor = key;
@@ -338,15 +342,10 @@ export class HausbauWorld extends TestRestaurantWorld {
   private markWallLevels(): void {
     const graph = this.grid?.graph;
     if (!graph || graph.levels.length < 2) return;
+    // Die Marke selbst setzt die Gitterwelt, an jedem Modell
+    // (`GridWorld.markModelLevels`); hier bleibt, dass eine Wand oben für sich steht.
     for (const wall of this.standingWalls()) {
-      const level = this.levelOfY(wall.centre.y - SHELF_WALL_Y);
-      const data = wall.entry.object.userData as { level?: number };
-      if (level === 0) continue;
-      if (data.level !== level) {
-        data.level = level;
-        this.cutFor = '';
-      }
-      this.looseWalls.add(wall.entry);
+      if (this.levelOfY(wall.centre.y - SHELF_WALL_Y) > 0) this.looseWalls.add(wall.entry);
     }
   }
 

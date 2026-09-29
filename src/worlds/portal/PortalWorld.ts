@@ -1668,6 +1668,10 @@ export class PortalWorld implements World {
    * Tastenhilfe (`hintZone`).
    */
   private buildShown: BuildTool | null = null;
+  /** **Ob die Werkzeugleiste gerade zu sehen ist** — dann auch die Ebenen daneben (`GridWorld`). */
+  protected get buildBarShown(): boolean {
+    return this.buildShown !== null;
+  }
   private readonly buildHistory = new BuildHistory();
   private placeGhost: PlaceGhost | null = null;
   /** Solange ein Schritt nachgespielt wird, kommt nichts auf den Stapel. */
@@ -10803,7 +10807,7 @@ export class PortalWorld implements World {
    * jemand zwei Möbel, gewinnt das erste: Ein Gitter kann nur eine Antwort
    * geben, und zwei übereinander wären keine.
    */
-  private carriedModel(): PhysicsBody | null {
+  protected carriedModel(): PhysicsBody | null {
     for (const grab of this.grabs.values()) {
       const kind = (grab.entry.object.userData as { propKind?: PropKind }).propKind ?? null;
       if (modelPathOf(kind) !== null) return grab.entry;
