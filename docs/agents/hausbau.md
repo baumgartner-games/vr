@@ -112,8 +112,12 @@ Ebene anlegen durch eine 2x8 Treppe."_
 - **Nehmen** wie Tapete und Boden: aus der Treppenkiste oder dem Katalog
   (Ordner _Treppen_, Item `stair`).
 - **Zeigen**: Die vier Kacheln vor einem, in Blickrichtung auf ein Viertel
-  gerundet (`stairTiles`, `stairDir`), leuchten **grün**, wenn alle im Zimmer
-  liegen, in dem man steht (`stairFits`), sonst **rot** (`PlaceGrid.tint`).
+  gerundet (`stairTiles`, `stairDir`), leuchten **grün**, wenn alle Boden sind
+  und keine Treppe tragen, sonst **rot** (`PlaceGrid.tint`). Steht man in
+  einem Zimmer, müssen sie darin liegen (`stairFits`). **Einen Raum braucht
+  sie nicht** — gewünscht: _„Ich würde Treppen gerne setzen wollen, auch ohne
+  einen Raum dafür haben zu müssen. Die sollen nur dafür da sein um die Ebenen
+  zu wechseln."_
 - **Stellen** (`A`, `HausbauWorld.placeStair`):
   - Gibt es die Etage darüber noch nicht, kommt sie dazu, eine Etagenhöhe
     (`STOREY`, 2,8 m) höher (`graph.levels`). Eine Treppe oben legt die nächste
@@ -121,6 +125,8 @@ Ebene anlegen durch eine 2x8 Treppe."_
   - Ihr Boden liegt über dem **ganzen Haus** (`houseTiles`): dem Zimmer der
     Treppe und jedem, in das man durch eine Tür kommt, solange es geschlossen
     ist. Die Haustür führt ins Freie, und das Freie ist kein Zimmer.
+  - Steht sie nicht in einem Zimmer (im Freien, oben ohne Wände), kommt auf
+    der Etage darüber nur ihr Stand dazu.
   - Die Treppe baut der Plan (`GridPlan.stairs`, drei Kacheln): Stufen, das
     Loch darüber und die Verbindung für die Wege.
 - **Im Haus sieht man die Etage darüber nicht**, draußen das ganze Haus:
