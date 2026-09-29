@@ -156,6 +156,12 @@ Ebene anlegen durch eine 2x8 Treppe."_
     ist. Die Haustür führt ins Freie, und das Freie ist kein Zimmer.
   - Steht sie nicht in einem Zimmer (im Freien, oben ohne Wände), kommt auf
     der Etage darüber nur ihr Stand dazu.
+  - **Wände danach ziehen reicht auch** (`HausbauWorld.coverStairs`) —
+    gemeldet: _„Wenn ich erst eine Treppe setze und dann die Wände, fehlt mir
+    der floor."_ Die Welt merkt sich jede Treppe (`stairs`) und legt, sobald
+    sich die Wände ändern, über ihrem Haus (`houseTiles` ab ihrer untersten
+    Kachel) den Boden der Etage darüber nach — wie beim Stellen im fertigen
+    Haus. Was schon liegt, bleibt; das Loch bleibt leer.
   - Die Treppe baut der Plan (`GridPlan.stairs`, drei Kacheln): Stufen, das
     Loch darüber und die Verbindung für die Wege.
   - **Das Loch ist leerer Boden** (`GridPlan.setEmpty`, `emptyAt`,

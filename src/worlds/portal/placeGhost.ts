@@ -40,7 +40,10 @@ export class PlaceGhost {
    *
    * @param yaw Drehung um die Hochachse, in Bogenmaß
    * @param scale gestreckt im eigenen Rahmen — das halbe Stück und die gekürzte
-   *   Schräge einer gezogenen Wand (`WallGhosts`); sonst wie das Original
+   *   Schräge einer gezogenen Wand (`WallGhosts`); sonst wie das Original.
+   *   `y` holt die Höhe zurück, wenn das Original gerade gestaucht gezeichnet
+   *   wird (der Pfeiler in der Hand) — sonst stünde der Geist halb so hoch
+   *   um seine Mitte und schwebte über dem Boden.
    */
   show(
     source: THREE.Object3D,
@@ -49,9 +52,13 @@ export class PlaceGhost {
     z: number,
     yaw: number,
     valid: boolean,
-    scale?: { readonly x: number; readonly z: number },
+    scale?: { readonly x: number; readonly y?: number; readonly z: number },
   ): void {
     if (source !== this.source) this.rebuild(source);
+    // **Das Maß von jetzt**: Die Kopie entstand mit dem Maß, das das Original
+    // da gerade hatte — in der Hand wechselt es (aus den Augen halb so groß,
+    // als Pfeiler gestaucht), und `scale` rechnet gegen das aktuelle zurück.
+    if (scale) this.copy?.scale.copy(source.scale);
     if (valid !== this.valid) {
       this.valid = valid;
       const skin = valid ? this.ok : this.bad;
@@ -62,7 +69,7 @@ export class PlaceGhost {
     }
     this.root.position.set(x, y, z);
     this.root.rotation.set(0, yaw, 0);
-    this.root.scale.set(scale?.x ?? 1, 1, scale?.z ?? 1);
+    this.root.scale.set(scale?.x ?? 1, scale?.y ?? 1, scale?.z ?? 1);
     this.root.visible = true;
   }
 
@@ -128,7 +135,7 @@ export interface GhostSlot {
   readonly y: number;
   readonly z: number;
   readonly yaw: number;
-  readonly scale: { readonly x: number; readonly z: number };
+  readonly scale: { readonly x: number; readonly y?: number; readonly z: number };
 }
 
 /**

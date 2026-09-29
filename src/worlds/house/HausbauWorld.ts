@@ -98,6 +98,10 @@ export class HausbauWorld extends TestRestaurantWorld {
     house: RoomTile[] | null;
     fits: boolean;
   } | null = null;
+  /** **Die gestellten Treppen** — ihre unterste Kachel und die Etage, auf der sie steht. */
+  private readonly stairs: Array<{ x: number; z: number; level: number }> = [];
+  /** Für welche Wände die Etagen über den Treppen zuletzt gelegt wurden (`coverStairs`). */
+  private stairWallsFor = '';
   /** Was aus den Augen gerade ausgeblendet ist — die Etagen über einem (`cutAway`). */
   private readonly cut: THREE.Object3D[] = [];
   /** Für welchen Stand das gilt: Etage, Fassung des Plans, drinnen. */
@@ -246,6 +250,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     const ready = paper !== null && this.room !== null && this.room.faces.length > 0;
     if (ready || (flooring && this.floorRoom) || this.stairAim) ctx.rig.useCandidate = true;
     this.markWallLevels();
+    this.coverStairs();
     this.paintWalls();
     this.showFloorRoom(ctx, flooring);
     this.showStair(ctx);
@@ -478,6 +483,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     }
     const first = aim.tiles[0]!;
     plan.stairs(first.x, first.z, aim.dir, aim.level, STAIR_STEPS);
+    this.stairs.push({ x: first.x, z: first.z, level: aim.level });
     this.setCarried(null, null);
     this.stairAim = null;
     ctx.notify(
@@ -485,6 +491,38 @@ export class HausbauWorld extends TestRestaurantWorld {
         ? `Treppe steht · Etage ${up} über ${aim.house.length} Kacheln`
         : `Treppe steht · hinauf auf Etage ${up}`,
     );
+  }
+
+  /**
+   * **Die Etage über einer Treppe wächst mit dem Haus** — gemeldet: _„Wenn ich
+   * erst eine Treppe setze und dann die Wände, fehlt mir der floor."_ Beim
+   * Stellen legt die Treppe den Boden darüber nur über das Haus, das es da
+   * schon gibt, im Freien also nur ihren Stand. Schließen die Wände danach
+   * einen Raum um sie, kommt der Boden jetzt dazu — derselbe wie beim Stellen
+   * im fertigen Haus (`houseTiles`). Neu gerechnet wird nur, wenn sich die
+   * Wände geändert haben; Boden, der schon liegt, bleibt, und das Loch über
+   * einer Treppe bleibt leer (`GridPlan.floor`).
+   */
+  private coverStairs(): void {
+    const plan = this.grid;
+    if (!plan || this.stairs.length === 0) return;
+    const walls = this.standingWalls();
+    const key = walls
+      .map((wall) => `${wall.a.x},${wall.a.z},${wall.b.x},${wall.b.z},${wall.centre.y.toFixed(1)}`)
+      .join('|');
+    if (key === this.stairWallsFor) return;
+    this.stairWallsFor = key;
+    const graph = plan.graph;
+    for (const stair of this.stairs) {
+      const { pieces, doors } = this.wallsOn(stair.level);
+      const house = houseTiles(pieces, doors, stair.x + 0.5, stair.z + 0.5);
+      if (!house) continue;
+      const up = stair.level + 1;
+      for (const tile of house) {
+        if (!graph.has(tileKey(tile.x, tile.z, up)))
+          plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level: up });
+      }
+    }
   }
 
   // --- Bodenbeläge -----------------------------------------------------------

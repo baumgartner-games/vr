@@ -12221,6 +12221,7 @@ export class PortalWorld implements World {
         yaw: slot.yaw,
         scale: {
           x: fix.x * (alongX ? slot.stretch * factor : 1),
+          y: fix.y,
           z: fix.z * (alongX ? 1 : slot.stretch * factor),
         },
       });
@@ -12242,6 +12243,7 @@ export class PortalWorld implements World {
       yaw: 0,
       scale: {
         x: base.half.x > 0 ? (fix.x * START_POST) / (2 * base.half.x) : fix.x,
+        y: fix.y,
         z: base.half.z > 0 ? (fix.z * START_POST) / (2 * base.half.z) : fix.z,
       },
     };
@@ -12251,14 +12253,21 @@ export class PortalWorld implements World {
    * **Womit der Geist sein Bild zurückrechnet** — das Maß, das das Stück im
    * Raum hätte, geteilt durch das, mit dem es gerade gezeichnet wird. In der
    * Hand ist es kleiner (`shrinkScreenCarry`: aus den Augen halb so groß, als
-   * Pfeiler gestaucht), und der Geist soll trotzdem die echte Wand zeigen.
+   * Pfeiler gestaucht), und der Geist soll trotzdem die echte Wand zeigen —
+   * auch in der Höhe: Gemeldet waren Geist-Pfeiler, die _„in der Mitte der
+   * Luft"_ schwebten, halb so hoch wie der Pfeiler in der Hand, um die Mitte
+   * der echten Wand.
    */
-  private ghostFix(entry: PhysicsBody): { x: number; z: number } {
+  private ghostFix(entry: PhysicsBody): { x: number; y: number; z: number } {
     const stored = (entry.object.userData as { wallBase?: WallBase }).wallBase;
     const real = stored?.scale ?? (this.shrunk?.entry === entry ? this.shrunk.scale : null);
     const now = entry.object.scale;
-    if (!real) return { x: 1, z: 1 };
-    return { x: now.x > 0 ? real.x / now.x : 1, z: now.z > 0 ? real.z / now.z : 1 };
+    if (!real) return { x: 1, y: 1, z: 1 };
+    return {
+      x: now.x > 0 ? real.x / now.x : 1,
+      y: now.y > 0 ? real.y / now.y : 1,
+      z: now.z > 0 ? real.z / now.z : 1,
+    };
   }
 
   /**

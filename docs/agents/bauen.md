@@ -1328,7 +1328,11 @@ Wall."_
   leuchten die Fugen, unter einer schrägen der Strich quer durch jede Kachel
   (`WallLine.slants` → `PlaceGrid.showSlants`, `showLineGrid`) statt ganzer
   Kacheln. Gilt für alle drei Modi. Der Geist rechnet das kleinere Bild in
-  der Hand zurück (`ghostFix`).
+  der Hand zurück (`ghostFix`) — **auch in der Höhe**: Vorher übernahm er die
+  halbe Höhe des Pfeilers in der Hand und stand um die Mitte der echten Wand,
+  also in der Luft (gemeldet: _„die ghost pillars … schweben in der Mitte der
+  Luft"_). Und er rechnet gegen das Maß von **jetzt** (`PlaceGhost.show`
+  übernimmt es in die Kopie), nicht gegen das beim ersten Zeigen.
 - **In der Brille** (`carryLineBrush` in jedem Modus, auch im _Baukasten_,
   weil es dort keine Leiste gibt): Die Wand mit der Greif-Taste festhalten,
   `A`/`X` **der Faust, die sie hält**, setzt Start- und Endpunkt
