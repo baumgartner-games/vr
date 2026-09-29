@@ -424,7 +424,9 @@ export class HausbauWorld extends TestRestaurantWorld {
       graph.levels.push(graph.levelY(graph.levels.length - 1) + STOREY);
     }
     // Im Haus liegt der Boden über dem ganzen Haus; im Freien nur der Stand
-    // oben — mehr braucht es nicht, um die Etage zu wechseln.
+    // oben — mehr braucht es nicht, um die Etage zu wechseln. Über einer
+    // anderen Treppe bleibt das Loch (`GridPlan.floor` lässt leeren Boden
+    // liegen) — vorher füllte die zweite Treppe das Loch der ersten wieder zu.
     const landing = aim.tiles[aim.tiles.length - 1]!;
     const cover = aim.house ?? [landing];
     for (const tile of cover) {
@@ -458,6 +460,9 @@ export class HausbauWorld extends TestRestaurantWorld {
     if (!tiles) return;
     const level = this.level();
     for (const tile of tiles) {
+      // Leerer Boden über einer Treppe bleibt leer — und behält den Belag,
+      // den er vorher hatte (`GridPlan.emptyAt`).
+      if (this.grid?.emptyAt(tileKey(tile.x, tile.z, level))) continue;
       const key = `${tile.x},${tile.z},${level}`;
       if (flooring.path === PLATE_PROTOTYPE) this.floors.delete(key);
       else this.floors.set(key, flooring.path);

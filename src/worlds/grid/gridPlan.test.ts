@@ -486,3 +486,46 @@ describe('Treppen über mehrere Kacheln', () => {
     expect(rampe.blocks().length).toBeGreaterThan(treppe.blocks().length);
   });
 });
+
+describe('Leerer Boden über einer Treppe', () => {
+  /** Ein Haus 6 × 6 mit Etage darüber und einer Treppe in Spalte 1 nach Norden. */
+  function house(): GridPlan {
+    const plan = new GridPlan([0, 2.8]);
+    plan.floor({ x: 0, z: 0, w: 6, d: 6 });
+    plan.floor({ x: 0, z: 0, w: 6, d: 6, level: 1 });
+    plan.stairs(1, 4, DIR_N, 0, 3);
+    return plan;
+  }
+
+  it('bleibt leer, wenn danach Boden über das ganze Haus gelegt wird', () => {
+    const plan = house();
+    // Die zweite Treppe legt den Boden über dem Haus noch einmal.
+    plan.floor({ x: 0, z: 0, w: 6, d: 6, level: 1 });
+    plan.stairs(3, 5, DIR_E, 0, 2);
+    for (const z of [4, 3, 2]) {
+      expect(plan.emptyAt(tileKey(1, z, 1))).toBe(true);
+      expect(plan.graph.has(tileKey(1, z, 1))).toBe(false);
+    }
+    // Der Stand oben ist Boden.
+    expect(plan.graph.has(tileKey(1, 1, 1))).toBe(true);
+  });
+
+  it('legt den gemerkten Boden zurück, wenn der leere geht', () => {
+    const plan = house();
+    const key = tileKey(1, 3, 1);
+    plan.fillEmpty(key);
+    expect(plan.emptyAt(key)).toBe(false);
+    expect(plan.graph.has(key)).toBe(true);
+  });
+
+  it('legt die Platte unter der Treppe auf die Etage und nicht auf die Stufe', () => {
+    const plan = house();
+    const floors = plan
+      .solids()
+      .filter((one) => one.kind === 'floor' && (one.level ?? 0) === 0 && one.x === 1.5 * TILE);
+    for (const z of [2.5, 3.5, 4.5]) {
+      const one = floors.find((solid) => solid.z === z * TILE)!;
+      expect(one.y + one.h / 2).toBeCloseTo(0, 5);
+    }
+  });
+});

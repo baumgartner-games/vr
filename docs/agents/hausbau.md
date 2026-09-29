@@ -129,6 +129,20 @@ Ebene anlegen durch eine 2x8 Treppe."_
     der Etage darüber nur ihr Stand dazu.
   - Die Treppe baut der Plan (`GridPlan.stairs`, drei Kacheln): Stufen, das
     Loch darüber und die Verbindung für die Wege.
+  - **Das Loch ist leerer Boden** (`GridPlan.setEmpty`, `emptyAt`,
+    `fillEmpty`). Gemeldet: Zwei Treppen, und das Loch der ersten war zu —
+    die zweite legte den Boden über dem Haus noch einmal. Gewünscht: _„Wenn
+    ich eine Treppe platziere soll in der Ebene darüber über der Treppe die
+    „empty" floor Teile gesetzt werden als Boden (und die werden auch erstmal
+    nicht überschrieben wenn ich neuen Boden lege)."_ `GridPlan.floor` lässt
+    leeren Boden liegen und merkt sich nur, was dort gelegt würde; der Boden
+    von vorher bleibt als Auskunft, zählt aber für Wege und Stehen nicht, bis
+    `fillEmpty` ihn zurücklegt (für das Abbauen einer Treppe). Ein Bodenbelag
+    lässt leeren Boden ebenso aus und behält dort den alten.
+  - **Unter der Treppe bleibt der Boden** (`editor/levelBuild.planSolids`):
+    Die Platte einer Stufenkachel lag auf der Höhe ihres Fußes, unter der
+    zweiten und dritten Kachel also in der Luft, und darunter war es dunkel.
+    Jetzt liegt sie auf der Etage.
 - **Im Haus sieht man die Etage darüber nicht**, draußen das ganze Haus:
   - Von oben schneidet die Kamera (`TopDownCamera`, `core/cutaway.ts`) — die
     Welt meldet draußen die oberste Etage als die, auf der man steht
