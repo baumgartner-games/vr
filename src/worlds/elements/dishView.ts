@@ -125,6 +125,28 @@ export const ITEM_SCALE: Readonly<Partial<Record<KitchenItem, number>>> = {
   'floor-stone': 0.35,
 };
 
+/**
+ * **Wie ein Ding gedreht im Bild liegt** — in der Hand, auf der Platte, im
+ * Menü. Die Vorgabe ist **keine Drehung**: Ein Modell aus dem Regal schaut mit
+ * seiner Vorderseite nach +z, also nach Süden, und getragen zeigt +z zur
+ * Figur (sie schaut nach −z). Gewünscht: _„gegenstände die in der hand
+ * gehalten werden, default mit south zu einem gerichtet … das kann sein, dass
+ * es bei einigen überschrieben wird, aber z. B. bei der treppe passt es noch
+ * nicht."_ Hier stehen nur die, deren Modell anders herum gezeichnet ist.
+ *
+ * - **Die Eiswanne liegt quer** — um 90° gedreht gegen die Eisecke, längs der
+ *   Platte: _„Ich glaube ich möchte Eis trays auf der Arbeitsplatte um 90°
+ *   gedreht haben und nur eines pro Arbeitsplatte."_
+ * - **Die Treppe** steigt im Modell nach −x (`grid/blocks.BlockModelFit`);
+ *   −90° bilden −x auf −z ab. Dann liegt ihr Fuß — ihr Süden — bei einem, und
+ *   sie steigt von einem weg, genau so, wie sie in Laufrichtung hingestellt
+ *   wird (`house/stairPlan.stairTiles`).
+ */
+export const ITEM_YAW: Readonly<Partial<Record<KitchenItem, number>>> = {
+  tray: Math.PI / 2,
+  stair: -Math.PI / 2,
+};
+
 /** Was nebeneinander statt aufeinander liegt — die rohen Waffeln. */
 const SPREAD_ITEMS: ReadonlySet<KitchenItem> = new Set<KitchenItem>(['waffle-raw']);
 
@@ -191,10 +213,7 @@ export class KaykitDishView {
   private build(dish: Dish): { group: THREE.Group; done: Promise<void> } {
     const group = new THREE.Group();
     group.name = `dish:${dishKey(dish)}`;
-    // **Die Eiswanne liegt quer** — um 90° gedreht gegen die Eisecke, längs
-    // der Platte: _„Ich glaube ich möchte Eis trays auf der Arbeitsplatte um
-    // 90° gedreht haben und nur eines pro Arbeitsplatte."_
-    if (dish.item === 'tray') group.rotation.y = Math.PI / 2;
+    group.rotation.y = ITEM_YAW[dish.item] ?? 0;
     // **Das Hörnchen ist das des Restaurants** (`IceConeView`): Hörnchen und
     // ein Turm aus Kugeln, so viele es sind — dasselbe Bild wie im Laden.
     if (dish.item === 'cone') {
