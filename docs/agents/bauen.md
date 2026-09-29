@@ -1299,13 +1299,20 @@ Wall."_
 - **Auch beim _Spielen_ und _Einrichten_** (September 2026, gewünscht:
   _„Beim spielmodus als auch einrichtungs modus will ich es bei "Wand"
   platzierungen so handhaben, dass im katalog es funktioniert wie im
-  baumodus."_): Eine Wand **frisch aus dem Katalog** (`shelfFresh`) schaltet
-  dort genauso _Wand ziehen_ an (`areaBrush`, `gameMode.wallDrawOnly`) —
-  Linie oder Raum, Geisterwand, Loslassen setzt. Anders als im _Baukasten_
-  ist die Hand danach **leer** (`spendBrush`, verschwindet wie beim Wechseln
-  über `letGo`): Ein Griff in den Katalog ist dort eine Wand, nachgelegt wird
-  nur im _Baukasten_. Anderes aus dem Regal bekommt dort keine Leiste; eine
-  Fläche voller Fässer bleibt dem _Baukasten_.
+  baumodus."_), aber **ohne Leiste und ohne Zeiger**
+  (`gameMode.wallDrawOnly`, `PortalWorld.carryLineBrush`): _„mit der maus
+  bzw. aus den augen kann ich mich aber normal weiterbewegen und co, mit dem
+  wand gegenstand setze ich ja nur sogesehen start und endpunkte."_ Eine Wand
+  **frisch aus dem Katalog** (`shelfFresh`) bleibt sichtbar in der Hand und
+  zielt: Die Ecke unter ihr (`carriedCorner`) ist der Punkt. Interagieren
+  (Klick, `E`, `A`) setzt den Startpunkt, danach zieht die Geisterwand vom
+  Startpunkt bis zur Ecke unter dem Getragenen über die Fugen, und der
+  zweite Druck setzt sie (`pressCarryLine` → `commitWallLine`). Zweimal
+  dieselbe Ecke nimmt den Startpunkt zurück. Danach ist die Hand **leer**
+  (`spendBrush`, verschwindet wie beim Wechseln über `letGo`) — _„nur im
+  baukasten modus erhalte ich dann erneut eine wand in der "hand"“_. Die
+  Maus bleibt gefangen, Blick und Laufen gehen weiter; der gewöhnliche Geist
+  des Einzelstücks bleibt dabei weg.
 - **Der Startpunkt ist ein Block** (`showStartPost`, `START_POST`): Solange
   noch keine Linie steht, zeigt ein Geist des Getragenen, auf eine Zelle im
   Quadrat gestaucht (volle Höhe), die Ecke zwischen den Kacheln, an der die

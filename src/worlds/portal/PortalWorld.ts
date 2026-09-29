@@ -1743,6 +1743,11 @@ export class PortalWorld implements World {
   private areaAuto: PhysicsBody | null = null;
   /** Die Geisterwand der gezogenen Linie (`placeGhost.WallGhosts`). */
   private lineGhosts: WallGhosts | null = null;
+  /**
+   * **Die Wand, die beim _Spielen_ und _Einrichten_ gerade gezogen wird**
+   * (`pressCarryLine`) — das Getragene und der Startpunkt, solange einer steht.
+   */
+  private carryLine: { entry: PhysicsBody; start: AreaTile | null } | null = null;
   private readonly ghostSlots: GhostSlot[] = [];
   private readonly areaRay = new THREE.Raycaster();
   private readonly previousHead = new THREE.Vector3();
@@ -11027,7 +11032,8 @@ export class PortalWorld implements World {
     // kein ghost des Objektes zu sehen wo es stehen würde, sondern lediglich
     // das floor tile gehighlithed."_ Die Kachel zeigt `updatePlaceGrid`.
     const plain = carried !== null && this.elementBodies.has(carried) && gameMode() === 'play';
-    if (carried && target && !this.areaOn && !plain) {
+    const drawing = this.carryLine !== null && this.carryLine.entry === carried;
+    if (carried && target && !this.areaOn && !plain && !drawing) {
       const ghost = (this.placeGhost ??= new PlaceGhost());
       if (ghost.root.parent !== ctx.scene) ctx.scene.add(ghost.root);
       ghost.show(carried.object, target.x, target.y, target.z, target.yaw, target.valid);
@@ -12026,6 +12032,9 @@ export class PortalWorld implements World {
     if (!brush) {
       if (this.areaOn) this.endArea();
       this.areaAuto = null;
+      const carry = this.carryLineBrush(ctx);
+      if (carry) this.showCarryLine(ctx, carry);
+      else this.carryLine = null;
       if (this.areaPad) {
         this.areaPad.take();
         this.areaPad.show({ kind: 'hidden' });
@@ -12295,19 +12304,111 @@ export class PortalWorld implements World {
    * Leiste wäre DOM, das niemand sieht.
    */
   private areaBrush(ctx: WorldContext): { entry: PhysicsBody; path: string } | null {
+    if (!refillsCatalogue(gameMode())) return null;
+    return this.heldModelBrush(ctx);
+  }
+
+  /** Das Modell in der Bildschirmhand samt Adresse im Regal — kein Zettel, kein Spielelement. */
+  private heldModelBrush(ctx: WorldContext): { entry: PhysicsBody; path: string } | null {
     if (ctx.renderer.xr.isPresenting) return null;
     const side = this.screenCarrySide();
     const entry = side ? this.grabs.get(side)?.entry : undefined;
     // Ein Zettel ist kein Pinsel: Eine Fläche voller Zettel sagt nichts.
     if (!entry || this.notes.has(entry) || this.elementBodies.has(entry)) return null;
-    // **Beim _Spielen_ und _Einrichten_ nur eine Wand frisch aus dem Katalog**
-    // (`wallDrawOnly`) — gewünscht: _„bei Wand platzierungen so handhaben,
-    // dass im katalog es funktioniert wie im baumodus"_. Eine Fläche voller
-    // Fässer bleibt dem _Baukasten_.
-    if (wallDrawOnly(gameMode()) && !(this.shelfFresh.has(entry) && this.brushIsWall(entry)))
-      return null;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     return path === null ? null : { entry, path };
+  }
+
+  /**
+   * **Womit beim _Spielen_ und _Einrichten_ eine Wand gezogen wird** — eine
+   * Wand frisch aus dem Katalog in der Bildschirmhand (`wallDrawOnly`), sonst
+   * `null`. Gewünscht: _„bei "Wand" platzierungen so handhaben, dass im
+   * katalog es funktioniert wie im baumodus"_ — nur ohne Leiste und Maus:
+   * gezielt wird mit dem Getragenen, gesetzt mit Interagieren
+   * (`pressCarryLine`).
+   */
+  private carryLineBrush(ctx: WorldContext): { entry: PhysicsBody; path: string } | null {
+    if (!wallDrawOnly(gameMode())) return null;
+    const brush = this.heldModelBrush(ctx);
+    if (!brush || !this.shelfFresh.has(brush.entry) || !this.brushIsWall(brush.entry)) return null;
+    return brush;
+  }
+
+  /**
+   * **Die Ecke, auf die das Getragene zielt** — die Kreuzung der Fugen unter
+   * ihm (`cornerAt`), dieselbe Stelle, die sonst das Gitter unter ihm nimmt.
+   */
+  private carriedCorner(entry: PhysicsBody): AreaTile | null {
+    const [x, z] = this.carriedSpot(entry);
+    return cornerAt(x, z);
+  }
+
+  /** Die Linie vom gesetzten Startpunkt bis zur Ecke unter dem Getragenen — oder `null`. */
+  private carryLineNow(brush: { entry: PhysicsBody; path: string }): WallLine | null {
+    const start = this.carryLine?.entry === brush.entry ? this.carryLine.start : null;
+    const end = this.carriedCorner(brush.entry);
+    if (!start || !end) return null;
+    const drawn = this.drawnWall(brush);
+    brush.entry.object.getWorldQuaternion(_quaternion);
+    return wallLine(start, end, drawn.half, yawOf(_quaternion), drawn.halfPath !== null);
+  }
+
+  /**
+   * **Interagieren mit einer Wand in der Hand** (`E`, Klick, `A`) — der erste
+   * Druck setzt den Startpunkt auf die Ecke unter dem Getragenen, der zweite
+   * setzt die Wand bis zur Ecke, auf die es jetzt zielt, und die Hand ist
+   * leer (`spendBrush`). Wer zweimal auf dieselbe Ecke drückt, nimmt den
+   * Startpunkt zurück.
+   */
+  private pressCarryLine(ctx: WorldContext, brush: { entry: PhysicsBody; path: string }): void {
+    const state = this.carryLine;
+    if (!state || state.entry !== brush.entry || !state.start) {
+      const start = this.carriedCorner(brush.entry);
+      if (!start) return;
+      this.carryLine = { entry: brush.entry, start };
+      ctx.notify('Startpunkt steht · zum Endpunkt zielen, noch einmal interagieren setzt die Wand');
+      return;
+    }
+    const line = this.carryLineNow(brush);
+    this.carryLine = { entry: brush.entry, start: null };
+    if (!line || line.slots.length === 0) {
+      ctx.notify('Startpunkt zurückgenommen');
+      return;
+    }
+    this.commitWallLine(brush, line, this.buildFloorY(ctx));
+    this.spendBrush(ctx, brush);
+  }
+
+  /**
+   * **Die Vorschau dazu** — vor dem Startpunkt der Block auf der Ecke
+   * (`showStartPost`), danach die Geisterwand bis zur Ecke unter dem
+   * Getragenen, darunter die Fugen oder Kacheln wie beim Ziehen im
+   * _Baukasten_ (`updateWallLine`).
+   */
+  private showCarryLine(ctx: WorldContext, brush: { entry: PhysicsBody; path: string }): void {
+    if (this.carryLine?.entry !== brush.entry) {
+      this.carryLine = { entry: brush.entry, start: null };
+      ctx.notify('Wand: auf den Startpunkt zielen und interagieren');
+    }
+    const floor = this.buildFloorY(ctx);
+    const grid = this.placeGrid;
+    this.markReplaced([]);
+    const line = this.carryLineNow(brush);
+    if (line && line.slots.length > 0) {
+      this.showWallGhosts(ctx, brush.entry, line, floor, this.drawnWall(brush).factor);
+      if (grid) {
+        if (line.edges.length) grid.showEdges(line.edges, floor, AREA_PREVIEW);
+        else grid.show(line.tiles, floor, AREA_PREVIEW);
+      }
+      return;
+    }
+    const corner = this.carryLine.start ?? this.carriedCorner(brush.entry);
+    if (!corner) {
+      grid?.hide();
+      return;
+    }
+    this.showStartPost(ctx, brush.entry, corner, floor);
+    grid?.show(cornerTiles(corner.col, corner.row), floor, AREA_PREVIEW);
   }
 
   /** Ein Knopf oder ein Druck von der Leiste (`AreaPad`). */
@@ -14270,6 +14371,23 @@ export class PortalWorld implements World {
     // nur dort sieht man sie (`PlayerAvatar.carry`).
     ctx.avatar.carry = ctx.topDown ? _screenCarryHands.copy(hand.carry.position) : null;
     this.screenClaim = true;
+
+    // **Eine Wand aus dem Katalog wird gezogen und nicht abgelegt**
+    // (`pressCarryLine`): Jeder Druck — Klick, `E`, der Knopf — ist ein Punkt
+    // der Wand, Halten oder Tippen spielt keine Rolle.
+    const drawBrush = this.carryLineBrush(ctx);
+    if (drawBrush && drawBrush.entry === grab.entry) {
+      const heldNow = ctx.rig.useHeld;
+      const clicked = ctx.rig.takeDrop();
+      const used = ctx.rig.takeUse() || (heldNow && !this.screenUseWas);
+      this.screenUseWas = heldNow;
+      this.screenPress = null;
+      if (clicked || used) this.pressCarryLine(ctx, drawBrush);
+      if (this.grabs.get(side) !== grab) return;
+      this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
+      _screenReach.clear();
+      return;
+    }
 
     // **Die linke Maustaste legt sofort ab** (`FlatControls.pressMouseUse`) —
     // ein Klick ist kein Tippen, das behält, sondern ein Hinstellen.
