@@ -41,6 +41,12 @@ export interface ViewLevel {
   level: number;
   /** Ihre Bodenhöhe in Metern (`NavGraph.levelY`) — die Zielhöhe der Kamera. */
   floorY: number;
+  /**
+   * **Das ganze Haus auf einmal** — die Ansicht _von außen_ (Ebenen-Leiste,
+   * oder draußen im Hausbau). Dann ist `level` die oberste Etage und keine
+   * davon die, auf der man steht; die unteren bleiben scharf (`levelBlur.ts`).
+   */
+  whole?: boolean;
 }
 
 /**

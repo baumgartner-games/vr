@@ -313,7 +313,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     // gewählte Etage, oder _von außen_ alle — und nicht, wo der Kran schwebt.
     if (this.levelBarOn) return view;
     if (!view || !ctx || !graph || this.underRoof(ctx)) return view;
-    return { level: graph.levels.length - 1, floorY: view.floorY };
+    return { level: graph.levels.length - 1, floorY: view.floorY, whole: true };
   }
 
   /**

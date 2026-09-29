@@ -47,6 +47,8 @@ describe('Grafikeinstellungen', () => {
       showBodyModel: false,
       // Ab Werk der weiche Kreis unter den Figuren, keine Schattenkarte.
       shadows: 'simple',
+      // Von oben die Etagen darunter unscharf — gewünscht, also ab Werk an.
+      levelBlur: true,
       // Die Animationen sind ab Werk aus — nachgerechnet wird die Kurve
       // dahinter in `squish.test.ts`.
       squish: false,
@@ -64,6 +66,16 @@ describe('Grafikeinstellungen', () => {
       // Links unten der Stock — das Steuerkreuz ist die Wahl im Menü.
       movePad: 'stick',
     });
+  });
+
+  it('lässt die Unschärfe darunter an, bis jemand sie ausdrücklich abstellt', () => {
+    expect(clampGraphics({}).levelBlur).toBe(true);
+    expect(clampGraphics({ levelBlur: 'nein' as never }).levelBlur).toBe(true);
+    expect(clampGraphics({ levelBlur: false }).levelBlur).toBe(false);
+    expect(graphicsSummary({ ...DEFAULT_GRAPHICS })).not.toContain('scharf');
+    expect(graphicsSummary({ ...DEFAULT_GRAPHICS, levelBlur: false })).toContain(
+      'Etagen darunter scharf',
+    );
   });
 
   it('merkt sich Stock oder Steuerkreuz und liest Unbekanntes als Stock', () => {
