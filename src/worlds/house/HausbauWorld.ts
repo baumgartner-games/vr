@@ -355,8 +355,9 @@ export class HausbauWorld extends TestRestaurantWorld {
   /**
    * **Wohin die Treppe käme** — auf die Kachel vor einem und drei weiter, in
    * Blickrichtung, auf ein Viertel gerundet (`stairPlan.stairTiles`). Sie passt,
-   * wenn alle vier im Zimmer liegen, in dem man steht; das Haus dazu sind alle
-   * Zimmer, die man durch Türen erreicht (`houseTiles`).
+   * wo alle vier Boden sind und keine Treppe tragen — steht man in einem
+   * Zimmer, müssen sie darin liegen; das Haus dazu sind alle Zimmer, die man
+   * durch Türen erreicht (`houseTiles`).
    */
   private stairAhead(ctx: WorldContext): typeof this.stairAim {
     const level = this.level();
@@ -376,7 +377,12 @@ export class HausbauWorld extends TestRestaurantWorld {
         const here = tileKey(tile.x, tile.z, level);
         return graph.has(here) && !this.grid!.flightOn(here);
       });
-    return { tiles, dir, level, house, fits: !!room && free && stairFits(room, tiles) };
+    // **Auch ohne Raum** — gewünscht: _„Ich würde Treppen gerne setzen wollen,
+    // auch ohne einen Raum dafür haben zu müssen. Die sollen nur dafür da sein
+    // um die Ebenen zu wechseln."_ Es genügt Boden unter allen vier Kacheln
+    // und keine Treppe darauf. Im Raum muss sie ganz darin stehen, sonst ginge
+    // sie durch seine Wand.
+    return { tiles, dir, level, house, fits: free && (!room || stairFits(room, tiles)) };
   }
 
   /** Das Gitter unter der Treppe: grün, wo sie passt, rot, wo nicht. */
@@ -408,8 +414,8 @@ export class HausbauWorld extends TestRestaurantWorld {
     const aim = this.stairAim;
     const plan = this.grid;
     if (!aim || !plan) return;
-    if (!aim.fits || !aim.house) {
-      ctx.notify('Die Treppe passt hier nicht — sie braucht vier Kacheln im Zimmer vor dir');
+    if (!aim.fits) {
+      ctx.notify('Die Treppe passt hier nicht — sie braucht vier freie Kacheln Boden vor dir');
       return;
     }
     const graph = plan.graph;
@@ -417,7 +423,13 @@ export class HausbauWorld extends TestRestaurantWorld {
     while (graph.levels.length <= up) {
       graph.levels.push(graph.levelY(graph.levels.length - 1) + STOREY);
     }
-    for (const tile of aim.house) {
+    // Im Haus liegt der Boden über dem ganzen Haus; im Freien nur der Stand
+    // oben — mehr braucht es nicht, um die Etage zu wechseln. Über einer
+    // anderen Treppe bleibt das Loch (`GridPlan.floor` lässt leeren Boden
+    // liegen) — vorher füllte die zweite Treppe das Loch der ersten wieder zu.
+    const landing = aim.tiles[aim.tiles.length - 1]!;
+    const cover = aim.house ?? [landing];
+    for (const tile of cover) {
       if (!graph.has(tileKey(tile.x, tile.z, up)))
         plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level: up });
     }
@@ -425,7 +437,11 @@ export class HausbauWorld extends TestRestaurantWorld {
     plan.stairs(first.x, first.z, aim.dir, aim.level, STAIR_STEPS);
     this.setCarried(null, null);
     this.stairAim = null;
-    ctx.notify(`Treppe steht · Etage ${up} über ${aim.house.length} Kacheln`);
+    ctx.notify(
+      aim.house
+        ? `Treppe steht · Etage ${up} über ${aim.house.length} Kacheln`
+        : `Treppe steht · hinauf auf Etage ${up}`,
+    );
   }
 
   // --- Bodenbeläge -----------------------------------------------------------
@@ -444,6 +460,9 @@ export class HausbauWorld extends TestRestaurantWorld {
     if (!tiles) return;
     const level = this.level();
     for (const tile of tiles) {
+      // Leerer Boden über einer Treppe bleibt leer — und behält den Belag,
+      // den er vorher hatte (`GridPlan.emptyAt`).
+      if (this.grid?.emptyAt(tileKey(tile.x, tile.z, level))) continue;
       const key = `${tile.x},${tile.z},${level}`;
       if (flooring.path === PLATE_PROTOTYPE) this.floors.delete(key);
       else this.floors.set(key, flooring.path);

@@ -51,7 +51,12 @@ export function planSolids(plan: NavGraph, doorWidth = PLAN_DOOR_W): PlanSolid[]
   const out: PlanSolid[] = [];
   for (const key of plan.tileKeys()) {
     const facts = plan.tile(key);
-    const top = plan.levelY(keyLevel(key)) + (facts?.rise ?? 0);
+    // **Unter einer Treppe liegt der Boden auf der Etage** und nicht auf der
+    // Höhe ihrer Stufe (`rise` ist dort der Fuß des Laufs): Sonst schwebte
+    // die Platte unter der zweiten und dritten Kachel in der Treppe, und
+    // darunter sah man ins Leere.
+    const rise = plan.flightAt(key) !== null ? 0 : (facts?.rise ?? 0);
+    const top = plan.levelY(keyLevel(key)) + rise;
     out.push({
       kind: 'floor',
       x: tileCentreX(key),

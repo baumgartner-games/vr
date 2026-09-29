@@ -112,8 +112,12 @@ Ebene anlegen durch eine 2x8 Treppe."_
 - **Nehmen** wie Tapete und Boden: aus der Treppenkiste oder dem Katalog
   (Ordner _Treppen_, Item `stair`).
 - **Zeigen**: Die vier Kacheln vor einem, in Blickrichtung auf ein Viertel
-  gerundet (`stairTiles`, `stairDir`), leuchten **grün**, wenn alle im Zimmer
-  liegen, in dem man steht (`stairFits`), sonst **rot** (`PlaceGrid.tint`).
+  gerundet (`stairTiles`, `stairDir`), leuchten **grün**, wenn alle Boden sind
+  und keine Treppe tragen, sonst **rot** (`PlaceGrid.tint`). Steht man in
+  einem Zimmer, müssen sie darin liegen (`stairFits`). **Einen Raum braucht
+  sie nicht** — gewünscht: _„Ich würde Treppen gerne setzen wollen, auch ohne
+  einen Raum dafür haben zu müssen. Die sollen nur dafür da sein um die Ebenen
+  zu wechseln."_
 - **Stellen** (`A`, `HausbauWorld.placeStair`):
   - Gibt es die Etage darüber noch nicht, kommt sie dazu, eine Etagenhöhe
     (`STOREY`, 2,8 m) höher (`graph.levels`). Eine Treppe oben legt die nächste
@@ -121,8 +125,24 @@ Ebene anlegen durch eine 2x8 Treppe."_
   - Ihr Boden liegt über dem **ganzen Haus** (`houseTiles`): dem Zimmer der
     Treppe und jedem, in das man durch eine Tür kommt, solange es geschlossen
     ist. Die Haustür führt ins Freie, und das Freie ist kein Zimmer.
+  - Steht sie nicht in einem Zimmer (im Freien, oben ohne Wände), kommt auf
+    der Etage darüber nur ihr Stand dazu.
   - Die Treppe baut der Plan (`GridPlan.stairs`, drei Kacheln): Stufen, das
     Loch darüber und die Verbindung für die Wege.
+  - **Das Loch ist leerer Boden** (`GridPlan.setEmpty`, `emptyAt`,
+    `fillEmpty`). Gemeldet: Zwei Treppen, und das Loch der ersten war zu —
+    die zweite legte den Boden über dem Haus noch einmal. Gewünscht: _„Wenn
+    ich eine Treppe platziere soll in der Ebene darüber über der Treppe die
+    „empty" floor Teile gesetzt werden als Boden (und die werden auch erstmal
+    nicht überschrieben wenn ich neuen Boden lege)."_ `GridPlan.floor` lässt
+    leeren Boden liegen und merkt sich nur, was dort gelegt würde; der Boden
+    von vorher bleibt als Auskunft, zählt aber für Wege und Stehen nicht, bis
+    `fillEmpty` ihn zurücklegt (für das Abbauen einer Treppe). Ein Bodenbelag
+    lässt leeren Boden ebenso aus und behält dort den alten.
+  - **Unter der Treppe bleibt der Boden** (`editor/levelBuild.planSolids`):
+    Die Platte einer Stufenkachel lag auf der Höhe ihres Fußes, unter der
+    zweiten und dritten Kachel also in der Luft, und darunter war es dunkel.
+    Jetzt liegt sie auf der Etage.
 - **Im Haus sieht man die Etage darüber nicht**, draußen das ganze Haus:
   - Von oben schneidet die Kamera (`TopDownCamera`, `core/cutaway.ts`) — die
     Welt meldet draußen die oberste Etage als die, auf der man steht

@@ -222,17 +222,72 @@ export class GridPlan {
 
   // --- der Grundriss ------------------------------------------------------
 
-  /** Boden über ein Rechteck. */
+  /**
+   * Boden über ein Rechteck — außer über einem **leeren Boden** (`emptyAt`):
+   * Das Loch über einer Treppe bleibt ein Loch, auch wenn danach jemand Boden
+   * über das ganze Haus legt. Was dort gelegt würde, merkt sich das Loch als
+   * den Boden, der wiederkommt, wenn es geht (`fillEmpty`).
+   */
   floor(rect: NavRect, facts: Partial<TileFacts> = {}): this {
-    fillRect(this.graph, rect, facts);
     const level = rect.level ?? 0;
     for (let dz = 0; dz < rect.d; dz++) {
       for (let dx = 0; dx < rect.w; dx++) {
         const key = tileKey(rect.x + dx, rect.z + dz, level);
-        this.base.set(key, { cost: facts.cost ?? 1, rise: facts.rise ?? 0 });
+        const one = { cost: facts.cost ?? 1, rise: facts.rise ?? 0 };
+        if (this.empties.has(key)) {
+          this.empties.set(key, one);
+          continue;
+        }
+        fillRect(this.graph, { x: rect.x + dx, z: rect.z + dz, w: 1, d: 1, level }, facts);
+        this.base.set(key, one);
         this.refresh(key);
       }
     }
+    return this;
+  }
+
+  /**
+   * **Leerer Boden** — gewünscht: _„Wenn ich eine Treppe platziere soll in
+   * der Ebene darüber über der Treppe die „empty" floor Teile gesetzt werden
+   * als Boden (und die werden auch erstmal nicht überschrieben wenn ich neuen
+   * Boden lege). Das mit dem empty floor Typ kann zusätzlich auf ein Feld
+   * gesetzt werden, wobei der alte floor noch als Information erhalten bleibt
+   * (wenn die Treppe entfernt wird). Der alte floor davor wird aber nicht bei
+   * routing oder co beachtet."_
+   *
+   * Die Kachel geht aus dem Graphen (kein Weg, kein Stehen, keine Platte);
+   * ihr Boden von vorher — oder `null`, wenn dort keiner lag — bleibt hier
+   * stehen, bis `fillEmpty` ihn zurücklegt.
+   */
+  private readonly empties = new Map<TileKey, { cost: number; rise: number } | null>();
+
+  /** Eine Kachel leer machen (`empties`) — der Boden darauf bleibt gemerkt. */
+  setEmpty(key: TileKey): this {
+    if (this.empties.has(key)) return this;
+    const was = this.graph.has(key) ? (this.base.get(key) ?? { cost: 1, rise: 0 }) : null;
+    this.empties.set(key, was);
+    this.graph.removeTile(key);
+    this.base.delete(key);
+    this.edits++;
+    return this;
+  }
+
+  /** Ob auf dieser Kachel leerer Boden liegt. */
+  emptyAt(key: TileKey): boolean {
+    return this.empties.has(key);
+  }
+
+  /** Den leeren Boden wieder wegnehmen — und den gemerkten Boden zurücklegen. */
+  fillEmpty(key: TileKey): this {
+    if (!this.empties.has(key)) return this;
+    const was = this.empties.get(key) ?? null;
+    this.empties.delete(key);
+    if (was)
+      this.floor(
+        { x: keyX(key), z: keyZ(key), w: 1, d: 1, level: keyLevel(key) },
+        { cost: was.cost, rise: was.rise },
+      );
+    else this.edits++;
     return this;
   }
 
@@ -937,7 +992,7 @@ export class GridPlan {
       // hinaufgeht, stößt sonst auf halber Höhe mit dem Kopf an den Boden des
       // Stockwerks darüber — und ein Boden, unter dem eine Treppe durchführt,
       // ist genau der, den es dort nicht geben darf.
-      this.graph.removeTile(tileKey(tx, tz, level + 1));
+      this.setEmpty(tileKey(tx, tz, level + 1));
     }
     const landing = tileKey(x + dirX(dir) * steps, z + dirZ(dir) * steps, level + 1);
     connect(this.graph, `treppe:${last}`, last, landing, 'stairs', { cost: rise * 1.6 });
