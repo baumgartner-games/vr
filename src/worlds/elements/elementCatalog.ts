@@ -387,6 +387,17 @@ export const WALL_MODELS: readonly string[] = [
   'prototype-bits/Wall_Doorway_Wide.glb',
 ];
 
+/** Die Türen unter den Regalwänden — die Mappe _Türen_ im Katalog. */
+export const DOOR_MODELS: readonly string[] = [
+  'prototype-bits/Wall_Doorway.glb',
+  'prototype-bits/Wall_Doorway_Wide.glb',
+];
+
+/** Ob dieses Modell aus dem Regal eine Tür ist (`DOOR_MODELS`). */
+export function isDoorModel(path: string | null): boolean {
+  return path !== null && DOOR_MODELS.includes(path);
+}
+
 /**
  * **Die Putzwand des Restaurants** — dieselbe Wand wie `surfaceDecor.WALL_STYLES`
  * _Putzwand_, ganz und halb. Sie steht im Katalog neben der Prototypwand, damit
@@ -406,25 +417,30 @@ export const PLASTER_WALL_HALF = 'restaurant-bits/wall_half.glb';
  * Spielelemente: Sie rasten auf der Fuge ein, lassen sich schräg setzen und
  * im Baukasten **ziehen** (`areaPaint.wallLine`). Die Mappen stehen in jeder
  * Welt im Katalog (`PortalWorld.elementFolders`), nicht nur im Restaurant.
+ *
+ * **Nur die kurzen Stücke** (eine Kachel, 2 × 1 Zellen) bei Wänden und
+ * Fenstern — gewünscht: _„Es wäre sinnvoll wenn im Katalog nur die 2x1 Wände,
+ * also die kurzen angeboten werden. Im Wand zieh Modus werden wir eh lange
+ * Wände ziehen."_ Gezogen wird trotzdem mit den langen (`wallFullOf`).
  */
 export const BUILD_FOLDERS: readonly FurnitureFolder[] = [
   {
     id: 'walls',
     label: 'Wände',
     elements: [],
-    models: [SHELF_WALL, SHELF_WALL_HALF, PLASTER_WALL, PLASTER_WALL_HALF],
+    models: [SHELF_WALL_HALF, PLASTER_WALL_HALF],
   },
   {
     id: 'doors',
     label: 'Türen',
     elements: [],
-    models: ['prototype-bits/Wall_Doorway.glb', 'prototype-bits/Wall_Doorway_Wide.glb'],
+    models: DOOR_MODELS,
   },
   {
     id: 'windows',
     label: 'Fenster',
     elements: [],
-    models: [SHELF_WINDOW_PIECES.full, SHELF_WINDOW_PIECES.half],
+    models: [SHELF_WINDOW_PIECES.half],
   },
 ];
 
@@ -442,6 +458,26 @@ export function wallHalfOf(path: string): string | null {
       return SHELF_WINDOW_PIECES.half;
     case PLASTER_WALL:
       return PLASTER_WALL_HALF;
+    default:
+      return null;
+  }
+}
+
+/**
+ * **Die ganze Wand zu einem halben Stück** — das Gegenstück zu `wallHalfOf`.
+ * Im Katalog liegen nur noch die kurzen Stücke (`BUILD_FOLDERS`); wer mit
+ * einem davon eine Wand zieht, bekommt trotzdem lange Stücke aneinander und
+ * nur am ungeraden Ende ein kurzes (`PortalWorld.drawnWall`). `null`, wenn es
+ * kein längeres gibt.
+ */
+export function wallFullOf(path: string): string | null {
+  switch (path) {
+    case SHELF_WALL_HALF:
+      return SHELF_WALL;
+    case SHELF_WINDOW_PIECES.half:
+      return SHELF_WINDOW_PIECES.full;
+    case PLASTER_WALL_HALF:
+      return PLASTER_WALL;
     default:
       return null;
   }

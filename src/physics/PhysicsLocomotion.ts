@@ -212,6 +212,12 @@ export interface PlayerPlane {
    * nur die Höhe folgt dem Lauf.
    */
   flightFloor(x: number, z: number, footY: number): number | null;
+  /**
+   * **Wo man landet, wer seitlich von einer Treppe tritt** — von (`fromX`,
+   * `fromZ`) nach (`x`, `z`), der Boden des Gitters dort
+   * (`GridPlan.stepOffFlight`); `null` außerhalb des Grundrisses.
+   */
+  stepOff?(fromX: number, fromZ: number, x: number, z: number, footY: number): number | null;
 }
 
 /**
@@ -301,6 +307,10 @@ export class PhysicsLocomotion implements Locomotion {
    * an — die Begrenzung gilt nur für ein Herausarbeiten in einem Zug.
    */
   private recovered = 0;
+  /** Ob das letzte Bild auf einer Treppe ging (`walkFlight`). */
+  private onFlight = false;
+  /** Ob die Figur gerade seitlich von einer Treppe fällt (`walkDrop`). */
+  private dropping = false;
   /** Wie lange der Sprungwunsch noch gilt (`JUMP_BUFFER`). */
   private jumpWish = 0;
   /** Wie lange noch abgesprungen werden darf (`COYOTE_TIME`). */
@@ -503,9 +513,19 @@ export class PhysicsLocomotion implements Locomotion {
       plane && !this.flight && this.velocity.y <= 0
         ? plane.flightFloor(from.x + _ask.x, from.z + _ask.z, foot)
         : null;
+    const drop =
+      plane && !this.flight && stair === null && (this.onFlight || this.dropping)
+        ? (plane.stepOff?.(from.x, from.z, from.x + _ask.x, from.z + _ask.z, foot) ?? null)
+        : null;
+    this.onFlight = false;
     if (stair !== null && Math.abs(stair - foot) <= FLIGHT_CATCH) {
+      this.dropping = false;
+      this.onFlight = true;
       this.walkFlight(stair - foot);
+    } else if (drop !== null && Math.abs(drop - foot) > CHARACTER_SKIN) {
+      this.walkDrop(drop - foot);
     } else {
+      this.dropping = false;
       if (plane && !this.flight) this.walkPlane();
       else this.walkPhysics();
       // Was die Physik noch dazutut (ein Stoß, eine Rutsche), bleibt
@@ -566,6 +586,35 @@ export class PhysicsLocomotion implements Locomotion {
     _applied.set(_ask.x, lift, _ask.z);
     this.grounded = true;
     this.velocity.y = 0;
+    this.recovered = 0;
+  }
+
+  /**
+   * **Seitlich von der Treppe herunter** — nach dem Gitter und nicht nach der
+   * Physik. Gemeldet: _„wenn ich in der Treppen Mitte seitlich gegangen bin
+   * sollte ich eigentlich auf die untere Etage gehen (kein 3d hitbox Check
+   * sondern ja nur die 2d Prüfung. Aber hier steckte ich irgendwie im Boden
+   * fest?)"_ Neben der Treppe liegt der Boden der Etage darüber, und auf halber
+   * Höhe steckt die Kapsel mit dem Kopf in ihm: Der Controller gab keinen
+   * Schritt mehr her, und der Wurf nach unten hielt die Decke für eine Wand, in
+   * der man steht (`stuckAtStep`). Wer von einem Lauf tritt, fällt deshalb
+   * ohne Physik auf den Boden des Gitters darunter (`PlayerPlane.floorAt`) —
+   * so weit, wie die Schwerkraft in diesem Bild trägt. Von der letzten Kachel
+   * des Laufs liegt dieser Boden auf der Etage darüber, und man steht gleich
+   * auf ihr.
+   */
+  private walkDrop(gap: number): void {
+    const fall = Math.min(_ask.y, 0);
+    if (gap >= 0 || fall <= gap) {
+      _applied.set(_ask.x, gap, _ask.z);
+      this.grounded = true;
+      this.velocity.y = 0;
+      this.dropping = false;
+    } else {
+      _applied.set(_ask.x, fall, _ask.z);
+      this.grounded = false;
+      this.dropping = true;
+    }
     this.recovered = 0;
   }
 
@@ -772,6 +821,8 @@ export class PhysicsLocomotion implements Locomotion {
   resync(rig: PlayerRig): void {
     this.velocity.set(0, 0, 0);
     this.flight = null;
+    this.onFlight = false;
+    this.dropping = false;
     // Ein `resync` ist immer die Ansage „das Rig steht jetzt woanders" — und
     // wer durch Wände geht, hört damit auf, sobald ihn jemand versetzt. Wer
     // weiter schweben will, sagt es danach noch einmal.

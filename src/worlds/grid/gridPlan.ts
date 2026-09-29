@@ -16,6 +16,7 @@ import {
   keyZ,
   tileCentreX,
   tileCentreZ,
+  tileIndexAt,
   tileKey,
   type Dir,
   type TileKey,
@@ -428,6 +429,44 @@ export class GridPlan {
     const along =
       flight.dir === DIR_N ? 1 - v : flight.dir === DIR_S ? v : flight.dir === DIR_E ? u : 1 - u;
     return this.flightY(key, flight, along);
+  }
+
+  /**
+   * **Wo man landet, wer seitlich von einer Treppe tritt** — von (`fromX`,
+   * `fromZ`) nach (`x`, `z`), die Füße auf `footY`. `null`, wenn dort kein
+   * Boden des Plans liegt.
+   *
+   * Gewünscht: _„wenn ich in der Treppen Mitte seitlich gegangen bin sollte
+   * ich eigentlich auf die untere Etage gehen … Nur bei der letzten Treppen
+   * Stufe kann ich wenn ich bereits seitlich gehe auf die nächste Etage gehen
+   * von beiden Seiten."_ Also: Von der **letzten** Kachel eines Laufs geht es
+   * seitlich auf die Etage darüber, wo sie dort Boden hat; von jeder anderen
+   * auf die Etage, auf der die Treppe steht. Kam man nicht von einem Lauf (man
+   * fällt schon), zählt die Kachel unter den Füßen (`NavGraph.at`).
+   */
+  stepOffFlight(fromX: number, fromZ: number, x: number, z: number, footY: number): number | null {
+    const from = this.graph.at(fromX, fromZ, footY);
+    const flight = from === NO_TILE ? null : this.flightOn(from);
+    const tx = tileIndexAt(x),
+      tz = tileIndexAt(z);
+    const floorOf = (key: TileKey): number | null =>
+      this.graph.has(key) && this.graph.walkable(key)
+        ? this.graph.levelY(keyLevel(key)) + (this.graph.tile(key)?.rise ?? 0)
+        : null;
+    if (!flight) {
+      const here = this.graph.at(x, z, footY);
+      return here === NO_TILE ? null : floorOf(here);
+    }
+    const level = keyLevel(from);
+    const next = this.flightOn(
+      tileKey(keyX(from) + dirX(flight.dir), keyZ(from) + dirZ(flight.dir), level),
+    );
+    const last = !next || next.dir !== flight.dir;
+    if (last && level + 1 < this.graph.levels.length) {
+      const up = floorOf(tileKey(tx, tz, level + 1));
+      if (up !== null) return up;
+    }
+    return floorOf(tileKey(tx, tz, level));
   }
 
   /**

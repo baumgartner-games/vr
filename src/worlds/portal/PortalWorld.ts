@@ -47,6 +47,8 @@ import {
 } from '../../core/worldChanges';
 import {
   BUILD_FOLDERS,
+  isDoorModel,
+  wallFullOf,
   wallHalfOf,
   elementById,
   hasElement,
@@ -614,6 +616,21 @@ const NOTE_INTERACTION: InteractionSpec = {
 const AREA_PREVIEW = 1600;
 /** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
 const AREA_LIFT = 0.01;
+/**
+ * **Wie weit zwei Wände in der Höhe auseinander sein dürfen**, damit die eine
+ * die andere auf derselben Fuge ersetzt (`wallsUnder`), in Metern — eine halbe
+ * Etage. Die Wand oben ersetzt nicht die darunter.
+ */
+const WALL_STOREY_GAP = 1.4;
+
+/** Ein halbes Stück, das von einer langen Wand stehen bleibt (`PortalWorld.wallRests`). */
+interface WallRest {
+  readonly path: string;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+}
 /**
  * Wie weit ein Bodenstück aus dem Regal über dem Boden darunter liegt, in
  * Metern (`sinkFloor`) — genug gegen Z-Fighting auch von oben aus zwanzig
@@ -9998,10 +10015,15 @@ export class PortalWorld implements World {
       // Anker, und die Vorderseite (+z) zeigt zur Figur. Abgestellt wird mit
       // eben dieser Drehung (`placedElement`): Das Möbel schaut dorthin, von
       // wo man es hingestellt hat.
-      if (this.elementBodies.has(entry) && gameMode() === 'play') {
+      // **Eine Tür ebenso** — gewünscht: _„Wenn ich eine Tür halte soll die
+      // bei mir in Richtung south immer ausgerichtet sein."_ Ihre Vorderseite
+      // (+z) zeigt zur Figur, egal wie sie vorher stand; `R` dreht sie danach
+      // wie jedes Stück am Kran.
+      const door = isDoorModel(modelPathOf(kind)) && !controller;
+      if (door || (this.elementBodies.has(entry) && gameMode() === 'play')) {
         const scale = new THREE.Vector3();
         offset.decompose(_point, _quaternion, scale);
-        _quaternion.setFromAxisAngle(UP, -ELEMENT_HOLD);
+        _quaternion.setFromAxisAngle(UP, door ? 0 : -ELEMENT_HOLD);
         offset.compose(_point, _quaternion, scale);
         entry.object.getWorldPosition(_point);
       }
@@ -10279,7 +10301,7 @@ export class PortalWorld implements World {
       if (paint.done.has(spot)) return;
       paint.done.add(spot);
     }
-    const y = decor ? decor.y : ctx.rig.getFloorY() + entry.halfExtents.y + AREA_LIFT;
+    const y = decor ? decor.y : this.buildFloorY(ctx) + entry.halfExtents.y + AREA_LIFT;
     paint.count += 1;
     void this.placeModelAt(
       paint.path,
@@ -10337,8 +10359,12 @@ export class PortalWorld implements World {
     const mine = this.wallFootprint(entry, pose);
     if (!mine) return [];
     const out: PhysicsBody[] = [];
+    const y = entry.object.getWorldPosition(_footSpot).y;
     for (const other of this.placedModels(this.replaceScratch)) {
       if (other === entry) continue;
+      // **Nur auf derselben Etage**: Die Wand oben ersetzt nicht die darunter,
+      // die auf derselben Fuge steht.
+      if (Math.abs(other.object.getWorldPosition(_footSpot).y - y) > WALL_STOREY_GAP) continue;
       const theirs = this.wallFootprint(other);
       if (!theirs) continue;
       for (const key of theirs)
@@ -10365,8 +10391,11 @@ export class PortalWorld implements World {
     const gone = this.wallsUnder(entry, pose);
     if (!gone.length) return;
     this.markReplaced([]);
+    const mine = this.wallFootprint(entry, pose);
+    const rests: WallRest[] = [];
     for (const old of gone) {
       const path = this.modelPath(old);
+      if (mine && path !== null) rests.push(...this.wallRests(old, path, mine));
       if (record && !this.replaying && path !== null)
         this.replacedSteps.push({ kind: 'remove', item: { path, pose: this.buildPoseOf(old) } });
       const key = this.changeKeys.get(old);
@@ -10376,6 +10405,73 @@ export class PortalWorld implements World {
       }
       this.removeProp(old, true);
     }
+    this.restoreWallRests(rests, record);
+  }
+
+  /**
+   * **Was von einer langen Wand stehen bleibt**, wenn ein kürzeres Stück einen
+   * Teil von ihr ersetzt — je Fuge, die das neue nicht deckt, ein halbes Stück
+   * (`wallHalfOf`). Gewünscht: _„wenn die Wand unterbrochen wird (Fenster oder
+   * entfernen eines Teilstücks), dass dann die lange Wand in kleinere Elemente
+   * geteilt wird."_ Ein Fenster mitten in einer gezogenen Wand nimmt also nur
+   * seine Fuge, und nicht die ganzen zwei.
+   */
+  private wallRests(old: PhysicsBody, path: string, mine: ReadonlySet<string>): WallRest[] {
+    const half = wallHalfOf(path);
+    if (!half) return [];
+    if ((old.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall) return [];
+    const theirs = this.wallFootprint(old);
+    if (!theirs || theirs.size < 2) return [];
+    old.object.getWorldPosition(_footSpot);
+    old.object.getWorldQuaternion(_turnScratch);
+    const y = _footSpot.y;
+    const yaw = yawOf(_turnScratch);
+    const out: WallRest[] = [];
+    for (const key of theirs) {
+      if (mine.has(key)) continue;
+      const [x, z, dir] = key.slice(2).split(',') as [string, string, string];
+      const tx = Number(x),
+        tz = Number(z);
+      out.push(
+        dir === 'n'
+          ? { path: half, x: (tx + 0.5) * TILE, y, z: tz * TILE, yaw }
+          : { path: half, x: tx * TILE, y, z: (tz + 0.5) * TILE, yaw },
+      );
+    }
+    return out;
+  }
+
+  /**
+   * **Die Reste wieder hinstellen** (`wallRests`) — fest, wo die lange Wand
+   * stand, und im selben Schritt für _Rückgängig_ wie das Ersetzen: Was
+   * geladen ist, entsteht noch in dieser Zeile (`placeModelAt`) und geht als
+   * _Hinstellen_ zu den wartenden Schritten (`replacedSteps`). Was erst
+   * geladen werden muss, kommt danach als eigener Schritt.
+   */
+  private restoreWallRests(rests: readonly WallRest[], record: boolean): void {
+    if (!rests.length) return;
+    const pending = this.replacedSteps.splice(0);
+    const was = this.replaying;
+    for (const rest of rests) {
+      const at = new THREE.Vector3(rest.x, rest.y, rest.z);
+      if (!kaykitModelNow(rest.path)) {
+        void this.placeModelAt(rest.path, at, rest.yaw, record, true);
+        continue;
+      }
+      this.replaying = true;
+      void this.placeModelAt(rest.path, at, rest.yaw, record, true);
+      this.replaying = was;
+      if (record && !was)
+        pending.push({
+          kind: 'add',
+          item: {
+            path: rest.path,
+            pose: { x: rest.x, y: rest.y, z: rest.z, yaw: rest.yaw, fixed: true },
+          },
+        });
+    }
+    this.replacedSteps.length = 0;
+    this.replacedSteps.push(...pending);
   }
 
   /** Rot zeigen, was beim Loslassen ersetzt wird — mit dem Geist der Abrissbombe. */
@@ -11927,7 +12023,7 @@ export class PortalWorld implements World {
       return;
     }
     const pad = (this.areaPad ??= new AreaPad());
-    const floor = ctx.rig.getFloorY();
+    const floor = this.buildFloorY(ctx);
     const wall = this.brushIsWall(brush.entry);
     // **Eine Wand aus dem Katalog: gleich ziehen** — wie in _Die Sims_, wo
     // man die Wand wählt und sofort den Startpunkt setzt. Einmal je Wand in
@@ -11988,6 +12084,15 @@ export class PortalWorld implements World {
     });
   }
 
+  /**
+   * **Auf welcher Höhe Flächen und Wände gesetzt werden** — der Boden, auf dem
+   * man steht. Eine Welt mit Etagen sagt hier den Boden der Etage
+   * (`GridWorld`), auch mitten auf der Treppe.
+   */
+  protected buildFloorY(ctx: WorldContext): number {
+    return ctx.rig.getFloorY();
+  }
+
   /** Ob das Getragene eine Wand ist — liegt es auf einer Fuge statt auf Kacheln (`wallAxis`). */
   private brushIsWall(entry: PhysicsBody): boolean {
     const { half } = this.wallBase(entry);
@@ -12019,7 +12124,8 @@ export class PortalWorld implements World {
       } else if (line.edges.length) grid.showEdges(line.edges, floor, AREA_PREVIEW);
       else grid.show(line.tiles, floor, AREA_PREVIEW);
     }
-    if (line && line.slots.length > 0) this.showWallGhosts(ctx, brush.entry, line, floor);
+    if (line && line.slots.length > 0)
+      this.showWallGhosts(ctx, brush.entry, line, floor, this.drawnWall(brush).factor);
     const length = line ? `${line.length.toFixed(line.diagonal ? 1 : 0)} m` : '';
     pad.show({
       kind: 'active',
@@ -12040,15 +12146,41 @@ export class PortalWorld implements World {
   private currentWallLine(brush: { entry: PhysicsBody; path: string }): WallLine | null {
     const select = this.areaSelect;
     if (!select.start) return null;
-    const { entry, path } = brush;
-    entry.object.getWorldQuaternion(_quaternion);
+    const drawn = this.drawnWall(brush);
+    brush.entry.object.getWorldQuaternion(_quaternion);
     return wallLine(
       select.start,
       select.end ?? select.start,
-      this.wallBase(entry).half,
+      drawn.half,
       yawOf(_quaternion),
-      wallHalfOf(path) !== null,
+      drawn.halfPath !== null,
     );
+  }
+
+  /**
+   * **Womit eine Wand gezogen wird** — mit dem kurzen Stück in der Hand die
+   * lange Wand dazu (`wallFullOf`): Gezogen kommen lange Stücke aneinander,
+   * nur am ungeraden Ende das kurze. Gewünscht: _„wenn eine lange Wand steht
+   * diese im Nachhinein zu einer längeren einheitlichen Wand ersetzt"_ — hier
+   * gleich beim Ziehen. Das Getragene bleibt, was es ist; `factor` sagt, wie
+   * viel länger das gezogene Stück ist (für den Geist).
+   */
+  private drawnWall(brush: { entry: PhysicsBody; path: string }): {
+    path: string;
+    halfPath: string | null;
+    half: { x: number; z: number };
+    factor: number;
+  } {
+    const base = this.wallBase(brush.entry).half;
+    const full = wallFullOf(brush.path);
+    if (!full) return { path: brush.path, halfPath: wallHalfOf(brush.path), half: base, factor: 1 };
+    const alongX = base.x >= base.z;
+    return {
+      path: full,
+      halfPath: brush.path,
+      half: { x: alongX ? 2 * base.x : base.x, z: alongX ? base.z : 2 * base.z },
+      factor: 2,
+    };
   }
 
   /**
@@ -12062,6 +12194,8 @@ export class PortalWorld implements World {
     entry: PhysicsBody,
     line: WallLine,
     floor: number,
+    /** Wie viel länger ein ganzes Stück der Linie ist als das Getragene (`drawnWall`). */
+    factor = 1,
   ): void {
     const ghosts = (this.lineGhosts ??= new WallGhosts());
     if (ghosts.root.parent !== ctx.scene) ctx.scene.add(ghosts.root);
@@ -12080,8 +12214,8 @@ export class PortalWorld implements World {
         z: slot.z,
         yaw: slot.yaw,
         scale: {
-          x: fixX * (alongX ? slot.stretch : 1),
-          z: fixZ * (alongX ? 1 : slot.stretch),
+          x: fixX * (alongX ? slot.stretch * factor : 1),
+          z: fixZ * (alongX ? 1 : slot.stretch * factor),
         },
       });
     }
@@ -12201,15 +12335,20 @@ export class PortalWorld implements World {
    * Fläche (`placeModelAt`): Es rastet auf der Fuge ein, ersetzt eine Wand,
    * die dort schon stand (`replaceWalls`), wird unter 45° gekürzt
    * (`fitWall`), und alles zusammen ist **ein** Schritt für _Rückgängig_.
+   *
+   * **Fest auf der Etage, auf der man steht** (`buildFloorY`), und nicht
+   * fallend: Gemeldet war, dass oben an der Treppe gezogene Wände durch das
+   * Loch auf die Stufen fielen — _„Wände werden immer auf der Etage gesetzt wo
+   * wir uns befinden"_ und _„einfach so tun, als wenn wir in der Luft bauen
+   * könnten"_. Eine Wand über dem Loch oder am Rand der Etage bleibt also dort.
    */
   private commitWallLine(
     brush: { entry: PhysicsBody; path: string },
     line: WallLine,
     floor: number,
   ): void {
-    const { entry, path } = brush;
-    const halfPath = wallHalfOf(path);
-    const y = floor + this.wallBase(entry).half.y + AREA_LIFT;
+    const { path, halfPath } = this.drawnWall(brush);
+    const y = floor + this.wallBase(brush.entry).half.y;
     const label = propLabel(modelKind(path));
     let placed = 0;
     const done: Promise<void>[] = [];
@@ -12217,9 +12356,11 @@ export class PortalWorld implements World {
     for (const slot of line.slots) {
       const piece = slot.half && halfPath ? halfPath : path;
       done.push(
-        this.placeModelAt(piece, new THREE.Vector3(slot.x, y, slot.z), slot.yaw).then((one) => {
-          if (one) placed += 1;
-        }),
+        this.placeModelAt(piece, new THREE.Vector3(slot.x, y, slot.z), slot.yaw, true, true).then(
+          (one) => {
+            if (one) placed += 1;
+          },
+        ),
       );
     }
     this.buildHistory.end();
@@ -12264,6 +12405,9 @@ export class PortalWorld implements World {
     // Wand hängt an ihr. Wände und Bodenstücke bleiben bei ihrem Gitter —
     // eine Wand kommt um die Fläche herum, ein Boden liegt im Boden.
     const plain = plan.edges.length > 0 || this.floorPieces.has(entry);
+    // Eine Wand rundum steht fest auf der Etage, wie eine gezogene
+    // (`commitWallLine`).
+    const ring = plan.edges.length > 0;
     // Eine Fläche ist ein Schritt für _Rückgängig_ — was schon geladen ist,
     // entsteht noch in dieser Zeile (`placeModelAt`), also schließt die Gruppe
     // gleich dahinter. Und weil es noch in dieser Zeile entsteht, steht jede
@@ -12275,9 +12419,9 @@ export class PortalWorld implements World {
       (slot, spot) => {
         const at = spot
           ? new THREE.Vector3(spot.x, spot.y, spot.z)
-          : new THREE.Vector3(slot.x, y, slot.z);
+          : new THREE.Vector3(slot.x, ring ? y - AREA_LIFT : y, slot.z);
         done.push(
-          this.placeModelAt(path, at, spot ? spot.yaw : slot.yaw, true, spot !== null).then(
+          this.placeModelAt(path, at, spot ? spot.yaw : slot.yaw, true, spot !== null || ring).then(
             (one) => {
               if (one) placed += 1;
             },

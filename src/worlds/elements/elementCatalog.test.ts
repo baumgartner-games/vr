@@ -15,6 +15,8 @@ import {
   PLASTER_WALL,
   PLASTER_WALL_HALF,
   wallHalfOf,
+  wallFullOf,
+  isDoorModel,
   elementById,
   elementLit,
   hasElement,
@@ -299,18 +301,26 @@ describe('der Möbelkatalog im Menü', () => {
   it('hat Wände, Türen und Fenster als Regalwände — Modelle, keine Blöcke', () => {
     const models = (id: string) => BUILD_FOLDERS.find((folder) => folder.id === id)!.models;
     for (const folder of BUILD_FOLDERS) expect(folder.elements).toEqual([]);
-    expect(models('walls')).toEqual([SHELF_WALL, SHELF_WALL_HALF, PLASTER_WALL, PLASTER_WALL_HALF]);
+    // Nur die kurzen Stücke — lang wird gezogen (`wallFullOf`).
+    expect(models('walls')).toEqual([SHELF_WALL_HALF, PLASTER_WALL_HALF]);
     expect(models('doors')).toEqual([
       'prototype-bits/Wall_Doorway.glb',
       'prototype-bits/Wall_Doorway_Wide.glb',
     ]);
-    expect(models('windows')).toEqual([
+    expect(models('windows')).toEqual(['prototype-bits/Wall_Window_Closed_Narrow.glb']);
+    expect(wallFullOf(SHELF_WALL_HALF)).toBe(SHELF_WALL);
+    expect(wallFullOf(PLASTER_WALL_HALF)).toBe(PLASTER_WALL);
+    expect(wallFullOf('prototype-bits/Wall_Window_Closed_Narrow.glb')).toBe(
       'prototype-bits/Wall_Window_Closed.glb',
-      'prototype-bits/Wall_Window_Closed_Narrow.glb',
-    ]);
-    // Jede Regalwand der Test Navigation steht in einer der Mappen.
+    );
+    expect(wallFullOf('prototype-bits/Wall_Doorway.glb')).toBeNull();
+    expect(isDoorModel('prototype-bits/Wall_Doorway_Wide.glb')).toBe(true);
+    expect(isDoorModel(SHELF_WALL)).toBe(false);
+    // Jede Regalwand der Test Navigation steht in einer der Mappen — oder ist
+    // die lange zu einem kurzen Stück darin.
     const all = BUILD_FOLDERS.flatMap((folder) => folder.models ?? []);
-    for (const path of WALL_MODELS) expect(all).toContain(path);
+    const drawn = [...all, ...all.flatMap((path) => wallFullOf(path) ?? [])];
+    for (const path of WALL_MODELS) expect(drawn).toContain(path);
     for (const folder of BUILD_FOLDERS) expect(FURNITURE_FOLDERS).toContain(folder);
     expect(WALL_MODELS).toEqual([
       'prototype-bits/Wall_Window_Closed.glb',
