@@ -1363,6 +1363,25 @@ Wall."_
   Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
   alte auf derselben Fuge. In der Brille gibt es _Wand ziehen_ noch nicht (keine
   Leiste, kein Zeiger über dem Bild).
+- **Wände abreißen wie Wände ziehen** (September 2026, gewünscht: _„eine
+  wall mit disallowed icon, was eigentlich funktioniert wie eine wand setzen,
+  nur bei der auswahl würde dann die entsprechende wand gelöscht werden,
+  sodass ich wände abreißen kann"_): Im Katalog unter _Haus_ steht hinter
+  Wand, Tür und Fenster _Wand abreißen_ — die kurze Wand mit rotem
+  Verbotszeichen oben links (`elementCatalog.WALL_ERASER`,
+  `FurnitureFolder.erasers`, `MenuEntry.mark` `forbidden`). Genommen wird sie
+  wie jede Wand und gezogen auf demselben Weg, in allen drei Modi und in der
+  Brille; nur **Linie**, kein _Raum_ (`PortalWorld.wallErasers`). Die Linie
+  geht Kachel für Kachel, ihr Geist ist rot, und rot leuchten auch die
+  Wände, die sie wegnimmt (`wallsOnLine`, dieselbe Fugenrechnung wie
+  `wallsUnder`, nur auf der Etage, auf der man steht, ohne Bilder).
+  Bestätigt reißt `eraseWallLine` sie ab wie die Bombe: Von einer langen
+  Wand, die nur halb auf der Linie liegt, bleibt die andere Hälfte als
+  kurzes Stück stehen (`wallRests`), und alles ist **ein** Schritt für
+  _Rückgängig_. Die Wand zum Abreißen wird selbst nie hingestellt —
+  losgelassen verschwindet sie (`release`), und im _Baukasten_ bleibt
+  _Wand ziehen_ für sie immer an. Im Hausbau geht mit einem aufgebrochenen
+  Raum wie sonst auch die Decke ([Hausbau](./hausbau.md#die-decke-über-jedem-raum)).
 
 ## Die Werkzeugleiste des Baukastens
 

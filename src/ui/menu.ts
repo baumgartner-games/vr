@@ -156,7 +156,7 @@ export interface MenuDetail {
 }
 
 /** **Die Marken einer Kachel** (`MenuEntry.mark`). */
-export type MenuMark = 'crate';
+export type MenuMark = 'crate' | 'forbidden';
 
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {

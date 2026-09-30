@@ -402,6 +402,10 @@
   pointer-events: none;
 }
 .pmenu__mark svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* Das Verbotszeichen (`forbidden`, die Wand zum Abreißen) ist rot und größer:
+   Es sagt nicht, was das Ding ist, sondern dass es das Gegenteil tut. */
+.pmenu__mark--forbidden { width: 38px; height: 38px; color: #ff5a5a; border-color: #ff5a5a; }
+.pmenu__mark--forbidden svg { width: 26px; height: 26px; stroke-width: 2.4; }
 /* **Die Marke als Knopf** (`MenuEntry.markRun`): Böden und Tapeten nehmen
    hier ihre Vorratskiste. Liegt neben der Kachel über ihr, wie das ⓘ. */
 .pmenu__mark--button { padding: 0; cursor: pointer; pointer-events: auto; }

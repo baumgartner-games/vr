@@ -20,6 +20,7 @@ import {
   CATALOG_DOOR,
   CATALOG_DOOR_WIDE,
   HOUSE_FOLDER,
+  WALL_ERASER,
   PLASTER_WALL,
   PLASTER_WALL_HALF,
   wallHalfOf,
@@ -226,6 +227,9 @@ describe('der Möbelkatalog im Menü', () => {
     expect(FURNITURE_FOLDERS[0]).toBe(HOUSE_FOLDER);
     expect(HOUSE_FOLDER.folders).toBeUndefined();
     expect(HOUSE_FOLDER.models).toBe(BUILD_MODELS);
+    // Dazu die Wand zum Abreißen — dieselbe kurze Wand, gezogen nimmt sie weg.
+    expect(HOUSE_FOLDER.erasers).toEqual([WALL_ERASER]);
+    expect(WALL_ERASER).toBe(SHELF_WALL_HALF);
     expect(FURNITURE_FOLDERS[1]!.folders).toBe(KITCHEN_FOLDERS);
     expect(KITCHEN_FOLDERS.map((folder) => folder.label)).toEqual([
       'Allgemein',
