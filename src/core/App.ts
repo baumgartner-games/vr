@@ -2344,10 +2344,11 @@ export class App {
           // `worlds/grid/cellHitboxView.ts`: rot belegt, grün frei, rote
           // Linien für geschlossene Kanten. Das, woran Spieler und NPCs
           // wirklich hängen bleiben, seit Wände nur noch über das Gitter
-          // blocken.
+          // blocken. Steht als einzige Werkstattansicht im Grafik-Menü selbst
+          // (`ui/menuGroups.ts`).
           id: 'gfx:grid-hitboxes',
           label: 'Hitboxen (2D-Gitter)',
-          sub: 'Jede halbe Kachel der Etage · rot belegt, grün frei, rote Linie: Wand, Pfeile an Treppen',
+          sub: 'Bodenkacheln der Etage · rot belegt, grün frei · rote Linie auf dem Boden: Wand · Pfeile an Treppen',
           caption: 'Liegt über allem · Werkstattansicht — in Welten ohne Gitter passiert nichts',
           icon: 'settings',
           accent: 0x6f7d99,
@@ -2589,8 +2590,8 @@ export class App {
             ]),
         {
           id: 'gfx:reset',
-          label: 'Zurück auf Einfach',
-          sub: 'Das Bild, das dieses Projekt immer hatte',
+          label: 'Standard',
+          sub: 'Alle Grafik-Einstellungen zurücksetzen · das Bild, das dieses Projekt immer hatte',
           icon: 'reset',
           accent: 0xffc857,
           run: () => {

@@ -212,7 +212,8 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   { match: 'gfx:grid-lines', group: 'werkstatt' },
   { match: 'gfx:cell-footprints', group: 'werkstatt' },
   { match: 'gfx:hitboxes', group: 'werkstatt' },
-  { match: 'gfx:grid-hitboxes', group: 'werkstatt' },
+  // `gfx:grid-hitboxes` bleibt mit Absicht unter _Grafik_: Gewünscht war, die
+  // belegten Bodenkacheln und die Wandlinien dort einschalten zu können.
   { match: 'gfx:ghost-boxes', group: 'werkstatt' },
   { match: 'gfx:handles', group: 'werkstatt' },
   { match: 'gfx:shadows-full', group: 'werkstatt' },

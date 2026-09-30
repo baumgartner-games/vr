@@ -181,6 +181,7 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   Haunting), heißt das: Es geht sekündlich wieder aus. Solange Schatten am
   Comic hingen, fiel das niemandem auf, weil der Durchlauf in der einfachen
   Stufe gar nicht lief.
+
 - **Der Rand ist weich** (`shadowRadius`, 1,5 Texel). Das Vorbild hat keine
   harten Kanten, und eine scharfe Silhouette auf einem Kachelboden sieht aus
   wie ein Aufkleber. Weiter weich geht nicht: Bei 2,5 Texeln blieb von einem
@@ -287,6 +288,13 @@ Ansicht, die sagt, woran man hängen bleibt — die 3D-Hitboxen zeigen deren
 Kasten weiter, er hält aber nur noch Gegenstände auf. Beide lassen sich einzeln
 an- und ausschalten. Gezählt wird fünfmal je Sekunde, in Puffern, die einmal
 angelegt werden.
+
+Als einzige der Werkstattansichten steht es **im Grafik-Menü selbst** und nicht
+in der Werkstatt (`ui/menuGroups.ts` hat keine Zeile dafür). Gewünscht: _„in
+grafik menü die einstellung aktivieren können …, die boden kacheln zu sehen,
+welche besetzt sind und wo wände (linien auf dem boden) sind"_. Der Knopf ganz
+unten auf derselben Seite heißt seither **Standard** (vormals _Zurück auf
+Einfach_) und setzt alle Grafik-Einstellungen zurück.
 
 ## Die Hitboxen
 
@@ -839,7 +847,6 @@ Test sie ohne Szene nachrechnen kann — steht die Kamera **senkrecht** über de
 Schild, ist jede Richtung gleich richtig, und dann bleibt das bisherige Gieren
 stehen, statt auf den kleinsten Rechenfehler hin herumzuspringen.
 
-
 ## Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind
 
 Eine Gitterwelt beschreibt sich als Grundriss, und der Grundriss wird Kachel
@@ -858,7 +865,7 @@ Die Antwort heißt `InstancedMesh`: tausend gleiche Kästen in **einem** Aufruf.
 Es gab sie schon (`GridWorld.batchGridGeometry()`), und sie stand aus einem
 guten Grund überall auf `false` — ein Bündel hat **ein** Material, und das
 Wand-Ghosting braucht das Gegenteil. Von oben wird durchsichtig, was zwischen
-Kamera und Figur steht, und zwar *diese* eine Wand; gebündelt würde stattdessen
+Kamera und Figur steht, und zwar _diese_ eine Wand; gebündelt würde stattdessen
 jede Wand derselben Sorte auf derselben Ebene durchsichtig.
 
 Der Einwand gilt nur nicht für alle Quader. `wallGhost.blocksView` beantwortet
@@ -869,7 +876,7 @@ je durchsichtig, also kostet es auch nichts, sie zusammenzufassen. Genau das
 steht in `grid/gridBatch.ts`, und zwar als **Umkehrung** von `blocksView` und
 nicht als zweite, ähnliche Regel daneben: Was ghosten kann, bleibt einzeln; was
 nicht ghosten kann, darf zusammen. Zwei Sorten kommen trotzdem nicht hinein,
-obwohl sie flach liegen — **Portalflächen** (ein Portal haftet an *einer*
+obwohl sie flach liegen — **Portalflächen** (ein Portal haftet an _einer_
 Fläche mit ihrer eigenen Kollisionsgruppe; gebündelt risse ein Bodenportal jede
 andere Bodenkachel mit auf) und **Türblätter** (sie gehen auf und zu, und ein
 Bündel hat genau eine Sichtbarkeit für alle darin).
@@ -888,12 +895,12 @@ zehntausend Kacheln.
 
 Gemessen, aus derselben Pose in der Küche mit Blick auf die Strecke:
 
-|                          | vorher | nachher |
-| ------------------------ | ------ | ------- |
-| Draw Calls je Bild       | 1 924  | **668** |
-| davon Schattendurchgang  | ~600   | ~120    |
-| Meshes im Blickkegel     | 1 231  | 399     |
-| Dreiecke je Bild         | 73 k   | 92 k    |
+|                         | vorher | nachher |
+| ----------------------- | ------ | ------- |
+| Draw Calls je Bild      | 1 924  | **668** |
+| davon Schattendurchgang | ~600   | ~120    |
+| Meshes im Blickkegel    | 1 231  | 399     |
+| Dreiecke je Bild        | 73 k   | 92 k    |
 
 Die Dreiecke steigen, und das ist kein Versehen: Ein Bündel ist **ein** Objekt
 und wird als Ganzes ausgesiebt oder gar nicht — der halbe Boden hinter dem
@@ -917,7 +924,10 @@ Der Einwand gegen das Bündeln steht aber nicht für alle Zeiten, sondern für
 `GridWorld.stepWallGhosts`:
 
 ```ts
-if (!ctx.topDown) { this.clearWallGhosts(); return; }
+if (!ctx.topDown) {
+  this.clearWallGhosts();
+  return;
+}
 ```
 
 **Geghostet wird ausschließlich von oben.** In der Brille steht man _in_ der
@@ -1043,20 +1053,20 @@ Gezählt wird, indem `renderBufferDirect` umhüllt wird — die eine Stelle, dur
 die jeder Zeichenaufruf geht, im Haupt- wie im Schattendurchgang. Keine Zeile im
 Spiel ändert sich dafür.
 
-| Blick | Aufrufe je Bild | Hauptdurchgang | Schattendurchgang | Dreiecke |
-| ----: | --------------: | -------------: | ----------------: | -------: |
-| 0° (Norden) | 243 | 48 | 195 | 76 138 |
-| 30° | 234 | 39 | 195 | 71 501 |
-| 60° | 258 | 63 | 195 | 70 389 |
-| 90° (Westen) | 327 | 132 | 195 | 81 833 |
-| 120° | 460 | 265 | 195 | 93 071 |
-| 150° | 473 | 278 | 195 | 94 721 |
-| 180° (Süden) | 439 | 244 | 195 | 90 201 |
-| 210° | 330 | 135 | 195 | 79 119 |
-| 240° | 529 | 334 | 195 | 90 536 |
-| 270° (Osten) | 543 | 348 | 195 | 90 072 |
-| 300° | **558** | **357** | 201 | 96 557 |
-| 330° | 391 | 190 | 201 | 86 919 |
+|        Blick | Aufrufe je Bild | Hauptdurchgang | Schattendurchgang | Dreiecke |
+| -----------: | --------------: | -------------: | ----------------: | -------: |
+|  0° (Norden) |             243 |             48 |               195 |   76 138 |
+|          30° |             234 |             39 |               195 |   71 501 |
+|          60° |             258 |             63 |               195 |   70 389 |
+| 90° (Westen) |             327 |            132 |               195 |   81 833 |
+|         120° |             460 |            265 |               195 |   93 071 |
+|         150° |             473 |            278 |               195 |   94 721 |
+| 180° (Süden) |             439 |            244 |               195 |   90 201 |
+|         210° |             330 |            135 |               195 |   79 119 |
+|         240° |             529 |            334 |               195 |   90 536 |
+| 270° (Osten) |             543 |            348 |               195 |   90 072 |
+|         300° |         **558** |        **357** |               201 |   96 557 |
+|         330° |             391 |            190 |               201 |   86 919 |
 
 Drei Sachen stehen in dieser Tabelle:
 
@@ -1201,15 +1211,15 @@ sucht an der Welt nach einer Methode, die danach klingt (`sample…`,
 Gemessen im Container (SwiftShader), aus den Augen, Schatten an; **Brille ≈**
 ist _Hauptbild × 2 + Schatten + Renderziele_ (siehe oben):
 
-| Welt, Stelle | Hauptbild (Mittel / höchstens) | Schatten | **Brille ≈** | Dreiecke im Hauptbild | Netze (sichtbar) | Materialien sichtbar | `world.update` |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Testküche (Bezug), `?at=kitchen#test` | 209 / 303 → 200 / 293 | 227 → 225 | 645 → **624** | 279 k | 5 034 (674) | 347 | 3–7 ms |
-| Hub, Mitte der Lobby | 32 / 36 → 32 / 35 | 38 → 33 | 103 → **97** | 20 k | 347 (72) | 65 | 0,5 ms |
-| Restaurant, Tag 1 offen, 3 Gäste | 62 / 94 → 53 / 73 | 156 → 106 | 281 → **213** | 30 k → 34 k | 557 (206) | 78 | 0,6 ms |
-| Bauplatz (ohne Beispielraum, s. o.) | 19 / 26 | 19 | **56** | 12 k | 265 (34) | 27 | 0,5 ms |
-| Testwelt, Sitzecke, 6 Besucher | 219 / 564 → 210 / 532 | 142 → 126 | 580 → **545** | 331 k | 5 120 (732) | 392 | 3–4 ms |
-| Haunting, Übungsrunde, Einsatzzentrale | 253 / 596 → 162 / 378 | 49 → 48 | 554 → **371** | 207 k → 178 k | 2 747 (860) | 757 | 3 ms |
-| Haunting, Übungsrunde, Cafeteria | 254 / 401 → 157 / 237 | 108 → 92 | 616 → **405** | 209 k → 180 k | 2 749 | — | 3–4 ms |
+| Welt, Stelle                           | Hauptbild (Mittel / höchstens) |  Schatten |  **Brille ≈** | Dreiecke im Hauptbild | Netze (sichtbar) | Materialien sichtbar | `world.update` |
+| -------------------------------------- | -----------------------------: | --------: | ------------: | --------------------: | ---------------: | -------------------: | -------------: |
+| Testküche (Bezug), `?at=kitchen#test`  |          209 / 303 → 200 / 293 | 227 → 225 | 645 → **624** |                 279 k |      5 034 (674) |                  347 |         3–7 ms |
+| Hub, Mitte der Lobby                   |              32 / 36 → 32 / 35 |   38 → 33 |  103 → **97** |                  20 k |         347 (72) |                   65 |         0,5 ms |
+| Restaurant, Tag 1 offen, 3 Gäste       |              62 / 94 → 53 / 73 | 156 → 106 | 281 → **213** |           30 k → 34 k |        557 (206) |                   78 |         0,6 ms |
+| Bauplatz (ohne Beispielraum, s. o.)    |                        19 / 26 |        19 |        **56** |                  12 k |         265 (34) |                   27 |         0,5 ms |
+| Testwelt, Sitzecke, 6 Besucher         |          219 / 564 → 210 / 532 | 142 → 126 | 580 → **545** |                 331 k |      5 120 (732) |                  392 |         3–4 ms |
+| Haunting, Übungsrunde, Einsatzzentrale |          253 / 596 → 162 / 378 |   49 → 48 | 554 → **371** |         207 k → 178 k |      2 747 (860) |                  757 |           3 ms |
+| Haunting, Übungsrunde, Cafeteria       |          254 / 401 → 157 / 237 |  108 → 92 | 616 → **405** |         209 k → 180 k |            2 749 |                    — |         3–4 ms |
 
 Links vom Pfeil vorher, rechts nachher; Netze und Materialien stehen im
 Zustand vorher. Renderziele (Spiegel, Portalsichten) waren an keiner der
