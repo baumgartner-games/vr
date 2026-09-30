@@ -43,6 +43,7 @@ import { STAIR_STEPS, STOREY, houseTiles, stairDir, stairFits, stairTiles } from
 import { bringBack, cutAway, type ViewLevel } from '../../core/cutaway';
 import { SHELF_WALL_Y } from '../grid/shelfWalls';
 import { tileKey, type Dir } from '../nav/navTile';
+import { roofOverSight } from './roofSight';
 import {
   WALLPAPERS,
   wallpaperFacts,
@@ -63,6 +64,7 @@ import type { MenuFact } from '../../ui/menu';
 const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
 const _aim = new THREE.Vector3();
+const _roofEye = new THREE.Vector3();
 const _turn = new THREE.Quaternion();
 const _at = new THREE.Vector3();
 
@@ -415,6 +417,25 @@ export class HausbauWorld extends TestRestaurantWorld {
   }
 
   /**
+   * **Draußen hinter dem Haus: aufschneiden wie drinnen** (`roofSight.ts`) —
+   * wenn der Blick von der Kamera zur Figur unter einer Decke hindurchgeht.
+   * Sonst bliebe von der Figur hinter dem Haus nur der Kopf.
+   */
+  private roofHides(ctx: WorldContext): boolean {
+    const graph = this.grid?.graph;
+    if (!graph || !ctx.topDown) return false;
+    const eye = (ctx.viewCamera ?? ctx.camera).getWorldPosition(_roofEye);
+    const feet = ctx.rig.position;
+    return roofOverSight(
+      { x: feet.x, y: ctx.rig.getFloorY(), z: feet.z },
+      eye,
+      this.level(),
+      graph.levels,
+      (x, z, level) => graph.has(tileKey(x, z, level)),
+    );
+  }
+
+  /**
    * **Von oben: im Haus aufgeschnitten, draußen ganz** (`core/cutaway.ts`).
    * Gewünscht: _„auch wenn ich das Dach aus vr/First Person und von oben nicht
    * sehe, die oberen Ebenen, wenn ich im Haus bin. Von außen sehe ich dann die
@@ -428,7 +449,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     // **Mit der Ebenen-Leiste entscheidet sie** (`grid/levelBar.ts`): die
     // gewählte Etage, oder _von außen_ alle — und nicht, wo der Kran schwebt.
     if (this.levelBarOn) return view;
-    if (!view || !ctx || !graph || this.underRoof(ctx)) return view;
+    if (!view || !ctx || !graph || this.underRoof(ctx) || this.roofHides(ctx)) return view;
     // Ganz ist das Haus nur, wenn es über einem noch etwas gibt. Unscharf wird
     // es trotzdem unter der Etage, auf der man steht (`stand`).
     const top = graph.levels.length - 1;
