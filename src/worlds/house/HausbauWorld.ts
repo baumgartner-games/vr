@@ -199,6 +199,12 @@ export class HausbauWorld extends TestRestaurantWorld {
    * (`HOUSE_FOLDER`); dazu kommt die Treppe als Kachel und die Ordner _Böden_
    * und _Tapeten_. **Die Kisten stehen bei dem, was sie hergeben**, statt in
    * eigenen Ordnern — erkennbar an der Kiste oben links (`MenuEntry.mark`).
+   *
+   * **Böden und Tapeten ohne eigene Kistenkachel**: Ihre Vorratskiste nimmt
+   * der Knopf oben links auf der Kachel des Belags selbst (`catalogItem`,
+   * `crate`). Gewünscht: _„Bei den böden brauche ich nicht noch extra die
+   * bodenkiste von den böden extra als item … bei der tapete genau das
+   * gleiche"_.
    */
   protected override elementFolders(): readonly FurnitureFolder[] {
     return mapFolder(super.elementFolders(), 'house', (house) => ({
@@ -210,13 +216,13 @@ export class HausbauWorld extends TestRestaurantWorld {
         {
           id: 'floors',
           label: 'Böden',
-          elements: FLOORING_CRATES.map((crate) => crate.id),
+          elements: [],
           items: FLOORINGS.map((one) => flooringItem(one.id)),
         },
         {
           id: 'wallpapers',
           label: 'Tapeten',
-          elements: WALLPAPER_CRATES.map((crate) => crate.id),
+          elements: [],
           items: WALLPAPERS.map((one) => wallpaperItem(one.id)),
         },
       ],
@@ -228,9 +234,11 @@ export class HausbauWorld extends TestRestaurantWorld {
     model: string;
     preview?: string;
     facts?: readonly MenuFact[];
+    crate?: string;
   } | null {
     const paper = wallpaperOfItem(id);
-    if (!paper && !flooringOfItem(id) && id !== 'stair') return null;
+    const flooring = flooringOfItem(id);
+    if (!paper && !flooring && id !== 'stair') return null;
     const model = ITEM_MODELS[id as KitchenItem];
     const label = ITEM_LABELS[id as KitchenItem];
     return {
@@ -240,6 +248,8 @@ export class HausbauWorld extends TestRestaurantWorld {
       ...(paper
         ? { preview: `${WALLPAPER_PREVIEW}${paper.id}`, facts: wallpaperFacts(paper) }
         : {}),
+      ...(paper ? { crate: `crate-wallpaper-${paper.id}` } : {}),
+      ...(flooring ? { crate: `crate-floor-${flooring.id}` } : {}),
     };
   }
 

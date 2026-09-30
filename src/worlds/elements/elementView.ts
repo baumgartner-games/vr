@@ -4,6 +4,7 @@ import type { SolidBlock } from '../grid/GridWorld';
 import { DETAIL_OVERLAY } from '../../ui/previewGrid';
 import { CELL as CELL_SIZE } from '../nav/cellGrid';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
+import { paintWallpaper } from '../house/wallpaperSkin';
 import { builtPart, isBuiltPart } from './builtParts';
 import { elementLit, type ElementPart, type GameElement } from './elementCatalog';
 import {
@@ -204,6 +205,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
       views.push(null);
       return;
     }
+    if (part.wallpaper) paintWallpaper(model, part.wallpaper);
     const one = part.inside
       ? layInside(model, laid[i - 1] ?? null)
       : layOn(model, part, yaw, x, z, baseOf(part, i, laid));
