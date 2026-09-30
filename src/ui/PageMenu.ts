@@ -1,4 +1,10 @@
-import { drawMenuIcon, type MenuDetail, type MenuEntry, type MenuFact } from './menu';
+import {
+  drawMenuIcon,
+  type MenuDetail,
+  type MenuEntry,
+  type MenuFact,
+  type MenuMark,
+} from './menu';
 import { COPY_FALLBACK, copyText } from './clipboard';
 import { findMenuPath } from './menuGroups';
 import { MenuNav, findStep } from './menuNav';
@@ -1259,6 +1265,7 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
   node.append(face(entry, accent, ready), el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
+  if (entry.mark) node.append(mark(entry.mark));
   if (!entry.detail) return node;
   // **Zwei Ziele in einer Kachel** — und ein Knopf im Knopf ist kein gültiges
   // DOM. Also liegt das ⓘ **neben** der Kachel in einem Rahmen, der beide
@@ -1387,6 +1394,26 @@ function chevron(): HTMLElement {
 }
 
 /** Ein runder Knopf mit einem Strich darauf — Zurück, Schließen, der Pfeil. */
+/**
+ * **Die Marken oben links auf einer Kachel** (`MenuEntry.mark`): Name zum
+ * Vorlesen und Überfahren, und ein Strichbild im selben Stift wie das ⓘ.
+ */
+const MARKS: Readonly<Record<MenuMark, { label: string; path: string }>> = {
+  // Eine Kiste von vorn: Deckelkante, Rahmen, zwei Latten.
+  crate: { label: 'Vorratskiste', path: 'M4 8h16v11H4zM3 5h18v3H3zM4 12h16M9 12v7M15 12v7' },
+};
+
+function mark(which: MenuMark): HTMLElement {
+  const { label, path } = MARKS[which];
+  const node = el('span', `pmenu__mark pmenu__mark--${which}`);
+  node.title = label;
+  node.setAttribute('aria-label', label);
+  node.setAttribute('role', 'img');
+  // Feste Zeichenkette, kein fremder Text: `path` steht oben in dieser Datei.
+  node.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}" /></svg>`;
+  return node;
+}
+
 function iconButton(className: string, label: string, path: string): HTMLButtonElement {
   const node = el('button', className);
   node.type = 'button';

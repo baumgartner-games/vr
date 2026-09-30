@@ -137,3 +137,25 @@ export function wallpaperOfItem(item: string | null | undefined): Wallpaper | nu
   if (!item?.startsWith('wallpaper-')) return null;
   return wallpaperById(item.slice('wallpaper-'.length));
 }
+
+/**
+ * **Der Steckbrief einer Tapete** — hinter dem ⓘ im Katalog. Gewünscht: _„bei
+ * den tapeten fehlt mir noch ein mehr anzeigen button"_.
+ */
+export function wallpaperFacts(
+  paper: Wallpaper,
+): { label: string; value: string; copy?: boolean }[] {
+  const repeat = paper.repeat >= 1 ? `${paper.repeat} m` : `${Math.round(paper.repeat * 100)} cm`;
+  return [
+    { label: 'Id', value: wallpaperItem(paper.id), copy: true },
+    { label: 'Muster', value: `wiederholt sich alle ${repeat}, in der Breite wie in der Höhe` },
+    { label: 'Grundfarbe', value: paper.swatch, copy: true },
+    {
+      label: 'Wirkung',
+      value:
+        'klebt auf eine Seite einer Wand — innen und außen getrennt; Türen und Fenster behalten ihre Öffnung',
+    },
+    { label: 'Nehmen', value: 'in die Hand, auf eine Wand im Raum zeigen, A klebt' },
+    { label: 'Vorrat', value: `Tapetenkiste ${paper.label} — gibt sie unbegrenzt her` },
+  ];
+}

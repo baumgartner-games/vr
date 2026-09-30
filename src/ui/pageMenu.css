@@ -383,6 +383,25 @@
 }
 
 .pmenu__info svg { width: 17px; height: 17px; }
+
+/* Die Marke oben links (`MenuEntry.mark`): das Gegenstück zum ⓘ oben rechts,
+   aber kein Knopf — sie sagt nur, was das Ding ist (die Vorratskiste). */
+.pmenu__tile { position: relative; }
+.pmenu__mark {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+  background: rgba(8, 12, 22, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pmenu__mark svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* Das ⓘ ist ein Kreis und zwei Striche; der Punkt darüber ist ein Strich von
    einem Zehntel Punkt Länge, den `stroke-linecap: round` zu einem Punkt macht.
    Ein zweiter Pfad dafür wäre ein zweiter Pfad für einen Punkt. */

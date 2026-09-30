@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { World, WorldContext, WorldPreview } from '../../core/types';
 import type { HintZone } from '../../core/controlHints';
 import { stripOutlines } from '../../core/outlineShell';
-import type { MenuEntry, MenuIcon } from '../../ui/menu';
+import type { MenuEntry, MenuFact, MenuIcon } from '../../ui/menu';
 import type { ControllerState, Handedness } from '../../core/XRInput';
 import { Portal, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH } from './Portal';
 import {
@@ -47,7 +47,8 @@ import {
   type NoteChange,
 } from '../../core/worldChanges';
 import {
-  BUILD_FOLDERS,
+  BUILD_LABELS,
+  HOUSE_FOLDER,
   isDoorModel,
   wallFullOf,
   wallHalfOf,
@@ -3998,11 +3999,11 @@ export class PortalWorld implements World {
   /**
    * **Die Unterordner des Katalogs** — je Gericht die Möbel dafür, dieselben
    * Elemente wie in der ganzen Liste (`elementCatalog.FURNITURE_FOLDERS`). Hier
-   * nur die Baumappen Wände, Türen und Fenster (`BUILD_FOLDERS`): Das sind
+   * nur das Haus mit Wand, Tür und Fenster (`HOUSE_FOLDER`): Das sind
    * Regalwände und keine Spielelemente, und die setzt jede Welt.
    */
   protected elementFolders(): readonly FurnitureFolder[] {
-    return BUILD_FOLDERS;
+    return [HOUSE_FOLDER];
   }
 
   /**
@@ -4080,6 +4081,10 @@ export class PortalWorld implements World {
         caption: `${w} × ${d} Kachel · ${2 * w} × ${2 * d} Zellen gesperrt`,
         accent,
         preview: `${ELEMENT_PREVIEW}${id}`,
+        // **Vorratskisten erkennt man an der Ecke** — gewünscht statt eigener
+        // Ordner: _„für die vorratskisten reicht es, wenn bei den jeweiligen
+        // elementen oben links ein Icon ist"_ (`MenuEntry.mark`).
+        ...(element.kind === 'crate' ? { mark: 'crate' as const } : {}),
         // **Die Detailseite hinter dem ⓘ**, wie im Modellregal: das ganze
         // Element mit seinen gesperrten Zellen darunter, und im Steckbrief
         // Grundfläche, Belegung, Zweck und jedes Teil mit Adresse und Lage.
@@ -4113,20 +4118,25 @@ export class PortalWorld implements World {
             full: true,
             run,
           };
-      return { ...entry, id: `${at}:${path}` };
+      const label = BUILD_LABELS[path];
+      return { ...entry, id: `${at}:${path}`, ...(label ? { label } : {}) };
     };
     // **Dinge für die Hand** (die Tapeten, `FurnitureFolder.items`): Genommen
     // wird nicht ein Möbel, sondern das Ding selbst, wie aus seiner Kiste —
     // am Schirm wie mit dem Kran (`takeCatalogItem`).
     const item = (id: string, at: string): MenuEntry => {
       const facts = this.catalogItem(id)!;
+      const preview = facts.preview ?? `kaykit:${facts.model}`;
       return {
         id: `${at}:item:${id}`,
         label: facts.label,
         caption: 'In die Hand',
         accent,
-        preview: `kaykit:${facts.model}`,
+        preview,
         full: true,
+        // **_Mehr anzeigen_** — gewünscht bei den Tapeten: dasselbe ⓘ wie an
+        // jedem Möbel, mit dem Muster groß und dem Steckbrief darunter.
+        ...(facts.facts ? { detail: { preview, facts: facts.facts } } : {}),
         run: (hand: Handedness | null) => {
           ctx().menu.toggle(false);
           this.takeCatalogItem(ctx(), id, hand);
@@ -4143,7 +4153,7 @@ export class PortalWorld implements World {
         return hasElement(cover.element) ? `${ELEMENT_PREVIEW}${cover.element}` : undefined;
       if ('model' in cover) return `kaykit:${cover.model}`;
       const facts = this.catalogItem(cover.item);
-      return facts?.model ? `kaykit:${facts.model}` : undefined;
+      return facts?.preview ?? (facts?.model ? `kaykit:${facts.model}` : undefined);
     };
     // **Was die Suche kennt** — jede Kachel mit den Namen ihrer Ordner
     // (`catalogSearch`). Gesammelt beim Bauen des Baums, einmal je Menü.
@@ -4161,17 +4171,10 @@ export class PortalWorld implements World {
         const inside = folder.elements.filter(hasElement);
         const models = folder.models ?? [];
         const items = (folder.items ?? []).filter((id) => this.catalogItem(id) !== null);
+        // Erst die Kacheln, dann die Ordner — auf _Haus_ stehen Wand, Tür,
+        // Fenster und Treppe vor _Böden_ und _Tapeten_. Unter den Kacheln die
+        // Bauteile vorn, dann was man in die Hand nimmt, dann die Kisten.
         const own = [
-          ...items.map((id) => {
-            const entry = item(id, at);
-            rows.push({ key: `item:${id}`, name: entry.label, words: `${where} ${id}`, entry });
-            return entry;
-          }),
-          ...inside.map((id) => {
-            const entry = tile(id, at);
-            rows.push({ key: `element:${id}`, name: entry.label, words: `${where} ${id}`, entry });
-            return entry;
-          }),
           ...models.map((path) => {
             const entry = model(path, at);
             rows.push({
@@ -4182,14 +4185,25 @@ export class PortalWorld implements World {
             });
             return entry;
           }),
+          ...items.map((id) => {
+            const entry = item(id, at);
+            rows.push({ key: `item:${id}`, name: entry.label, words: `${where} ${id}`, entry });
+            return entry;
+          }),
+          ...inside.map((id) => {
+            const entry = tile(id, at);
+            rows.push({ key: `element:${id}`, name: entry.label, words: `${where} ${id}`, entry });
+            return entry;
+          }),
         ];
         if (inner.length + own.length === 0) return [];
-        const count =
-          inner.length > 0
-            ? `${inner.length} Ordner`
-            : own.length === 1
-              ? '1 Stück'
-              : `${own.length} Stück`;
+        const pieces = own.length === 1 ? '1 Stück' : `${own.length} Stück`;
+        const count = [
+          own.length > 0 ? pieces : '',
+          inner.length > 0 ? `${inner.length} Ordner` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
         const preview = coverPreview(folder);
         return [
           {
@@ -4204,12 +4218,15 @@ export class PortalWorld implements World {
             cols: SHELF_COLS,
             full: true,
             take: true,
-            children: [...inner, ...own],
+            children: [...own, ...inner],
           },
         ];
       });
     const folders = folderEntries(this.elementFolders(), 'elements', []);
-    const children = folders.length > 0 ? folders : ids.map((id) => tile(id, 'elements'));
+    // **Ein einziger Ordner steht gleich offen** — in einer Welt ohne Gitter
+    // gibt es nur _Haus_, und ein Ordner allein ist ein Klick, der nichts sagt.
+    const only = folders.length === 1 ? folders[0]!.children : undefined;
+    const children = only ?? (folders.length > 0 ? folders : ids.map((id) => tile(id, 'elements')));
     if (folders.length === 0)
       for (const entry of children)
         rows.push({
@@ -13019,7 +13036,14 @@ export class PortalWorld implements World {
    * Name und Bild, oder `null`, wenn diese Welt es nicht tragen kann. Dann
    * fehlt die Kachel.
    */
-  protected catalogItem(_id: string): { label: string; model: string } | null {
+  protected catalogItem(_id: string): {
+    label: string;
+    model: string;
+    /** Ein anderes Bild als das Ding selbst — die Tapete zeigt ihr Muster. */
+    preview?: string;
+    /** Der Steckbrief hinter dem ⓘ (_Mehr anzeigen_). */
+    facts?: readonly MenuFact[];
+  } | null {
     return null;
   }
 
@@ -13320,7 +13344,15 @@ export class PortalWorld implements World {
     if (id.startsWith(ELEMENT_PREVIEW))
       return this.elementPreview(id.slice(ELEMENT_PREVIEW.length));
     if (id.startsWith(ELEMENT_CELLS)) return this.elementWithCells(id.slice(ELEMENT_CELLS.length));
-    return this.tool(id);
+    return this.catalogPreview(id) ?? this.tool(id);
+  }
+
+  /**
+   * **Ein Bild im Katalog, das nur diese Welt kennt** — die Tapete als Muster
+   * (`HausbauWorld`, `catalogItem.preview`). Hier keines.
+   */
+  protected catalogPreview(_id: string): THREE.Object3D | null {
+    return null;
   }
 
   /**

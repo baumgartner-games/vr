@@ -155,6 +155,9 @@ export interface MenuDetail {
   };
 }
 
+/** **Die Marken einer Kachel** (`MenuEntry.mark`). */
+export type MenuMark = 'crate';
+
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {
   id: string;
@@ -268,6 +271,14 @@ export interface MenuEntry {
    * nicht versehentlich in eine leere Seite ab.
    */
   detail?: MenuDetail;
+  /**
+   * **Eine kleine Marke oben links auf der Kachel** — was das Ding _ist_,
+   * ohne dass es dafür einen eigenen Ordner braucht. `crate` ist die
+   * Vorratskiste: gewünscht _„für die vorratskisten reicht es, wenn bei den
+   * jeweiligen elementen oben links ein Icon ist"_. Nur die Seite zeigt sie
+   * (`ui/PageMenu.ts`); am Handgelenk steht es weiter im Namen.
+   */
+  mark?: MenuMark;
   /**
    * **Diese Seite wird gerade aufgeschlagen.**
    *
