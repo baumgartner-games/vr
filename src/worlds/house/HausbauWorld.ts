@@ -28,6 +28,7 @@ import {
   type FlooringAim,
 } from './flooring';
 import { HOUSE_SPOTS, houseSpawn, housePlan, houseWalls, onHouseGround } from './housePlan';
+import { ceilingChange, ceilingKey } from './ceiling';
 import { roomTiles, traceRoom, type PieceFace, type RoomTile, type WallPiece } from './roomTrace';
 import { STAIR_STEPS, STOREY, houseTiles, stairDir, stairFits, stairTiles } from './stairPlan';
 import { bringBack, cutAway, type ViewLevel } from '../../core/cutaway';
@@ -113,10 +114,15 @@ export class HausbauWorld extends TestRestaurantWorld {
     house: RoomTile[] | null;
     fits: boolean;
   } | null = null;
-  /** **Die gestellten Treppen** — ihre unterste Kachel und die Etage, auf der sie steht. */
-  private readonly stairs: Array<{ x: number; z: number; level: number }> = [];
-  /** Für welche Wände die Etagen über den Treppen zuletzt gelegt wurden (`coverStairs`). */
-  private stairWallsFor = '';
+  /**
+   * **Der Stand oben jeder Treppe** (`x,z,level`) — er hält die Decke, auf
+   * der er liegt, auch wenn der Raum darunter aufgeht (`coverRooms`).
+   */
+  private readonly landings = new Set<string>();
+  /** **Die Decke**: Boden, den ein geschlossener Raum darunter gelegt hat (`house/ceiling.ts`). */
+  private readonly ceiling = new Set<string>();
+  /** Für welche Wände die Decke zuletzt gerechnet wurde (`coverRooms`). */
+  private ceilingWallsFor = '';
   /** Was aus den Augen gerade ausgeblendet ist — die Etagen über einem (`cutAway`). */
   private readonly cut: THREE.Object3D[] = [];
   /** Für welchen Stand das gilt: Etage, Fassung des Plans, drinnen. */
@@ -281,7 +287,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     const ready = paper !== null && this.room !== null && this.room.faces.length > 0;
     if (ready || (flooring && this.floorRoom) || this.stairAim) ctx.rig.useCandidate = true;
     this.markWallLevels();
-    this.coverStairs();
+    this.coverRooms();
     this.paintWalls();
     this.showFloorRoom(ctx, flooring);
     this.showStair(ctx);
@@ -514,7 +520,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     }
     const first = aim.tiles[0]!;
     plan.stairs(first.x, first.z, aim.dir, aim.level, STAIR_STEPS);
-    this.stairs.push({ x: first.x, z: first.z, level: aim.level });
+    this.landings.add(ceilingKey(landing.x, landing.z, up));
     this.setCarried(null, null);
     this.stairAim = null;
     ctx.notify(
@@ -525,34 +531,57 @@ export class HausbauWorld extends TestRestaurantWorld {
   }
 
   /**
-   * **Die Etage über einer Treppe wächst mit dem Haus** — gemeldet: _„Wenn ich
-   * erst eine Treppe setze und dann die Wände, fehlt mir der floor."_ Beim
-   * Stellen legt die Treppe den Boden darüber nur über das Haus, das es da
-   * schon gibt, im Freien also nur ihren Stand. Schließen die Wände danach
-   * einen Raum um sie, kommt der Boden jetzt dazu — derselbe wie beim Stellen
-   * im fertigen Haus (`houseTiles`). Neu gerechnet wird nur, wenn sich die
-   * Wände geändert haben; Boden, der schon liegt, bleibt, und das Loch über
+   * **Über jeden geschlossenen Raum die Decke** (`house/ceiling.ts`) —
+   * gewünscht: _„wenn ich einen raum schließe soll direkt die decke drauf
+   * gesetzt werden (wie wenn ich eine treppe setze)"_. Das ist der Boden der
+   * Etage darüber; fehlt die Etage, kommt sie dazu wie bei der Treppe. Darin
+   * steckt auch, was die Treppe vorher allein tat: Wände um eine Treppe
+   * gezogen, und ihr Haus bekommt den Boden darüber (_„Wenn ich erst eine
+   * Treppe setze und dann die Wände, fehlt mir der floor."_).
+   *
+   * **Aufgebrochen** geht die Decke wieder — außer, oben steht etwas auf ihr:
+   * eine Wand, ein Raum, ein Belag, ein Baustein, eine Treppe oder ihr Stand.
+   * Dann bleibt sie als Boden, und das Stockwerk darüber bleibt, wie es ist.
+   * Neu gerechnet wird nur, wenn sich die Wände geändert haben; das Loch über
    * einer Treppe bleibt leer (`GridPlan.floor`).
    */
-  private coverStairs(): void {
+  private coverRooms(): void {
     const plan = this.grid;
-    if (!plan || this.stairs.length === 0) return;
+    if (!plan) return;
     const walls = this.standingWalls();
     const key = walls
       .map((wall) => `${wall.a.x},${wall.a.z},${wall.b.x},${wall.b.z},${wall.centre.y.toFixed(1)}`)
       .join('|');
-    if (key === this.stairWallsFor) return;
-    this.stairWallsFor = key;
+    if (key === this.ceilingWallsFor) return;
+    this.ceilingWallsFor = key;
     const graph = plan.graph;
-    for (const stair of this.stairs) {
-      const { pieces, doors } = this.wallsOn(stair.level);
-      const house = houseTiles(pieces, doors, stair.x + 0.5, stair.z + 0.5);
-      if (!house) continue;
-      const up = stair.level + 1;
-      for (const tile of house) {
-        if (!graph.has(tileKey(tile.x, tile.z, up)))
-          plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level: up });
+    const storeys = graph.levels.map((_, level) => ({ level, pieces: this.wallsOn(level).pieces }));
+    const { lay, drop } = ceilingChange(
+      storeys,
+      this.ceiling,
+      (x, z, level) => graph.has(tileKey(x, z, level)) || plan.emptyAt(tileKey(x, z, level)),
+      (x, z, level) => {
+        const here = tileKey(x, z, level);
+        return (
+          plan.emptyAt(here) ||
+          this.floors.has(ceilingKey(x, z, level)) ||
+          this.landings.has(ceilingKey(x, z, level)) ||
+          plan.flightOn(here) !== null ||
+          plan.blocksOn(here).length > 0 ||
+          plan.fixturesOn(here).length > 0
+        );
+      },
+    );
+    for (const tile of lay) {
+      while (graph.levels.length <= tile.level) {
+        graph.levels.push(graph.levelY(graph.levels.length - 1) + STOREY);
       }
+      plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level: tile.level });
+      this.ceiling.add(ceilingKey(tile.x, tile.z, tile.level));
+    }
+    for (const tile of drop) {
+      plan.unfloor(tileKey(tile.x, tile.z, tile.level));
+      this.ceiling.delete(ceilingKey(tile.x, tile.z, tile.level));
     }
   }
 

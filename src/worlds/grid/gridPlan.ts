@@ -292,6 +292,21 @@ export class GridPlan {
   }
 
   /**
+   * **Boden wieder wegnehmen** — die Decke über einem Raum, der aufgebrochen
+   * wurde (`house/ceiling.ts`). Über einer Treppe bleibt das Loch ein Loch; es
+   * vergisst nur den Boden, der nach ihr wiederkäme.
+   */
+  unfloor(key: TileKey): this {
+    if (this.empties.has(key)) {
+      this.empties.set(key, null);
+      this.edits++;
+      return this;
+    }
+    if (this.graph.removeTile(key)) this.base.delete(key);
+    return this;
+  }
+
+  /**
    * **Ein Zimmer**: Boden, wahlweise Wände ringsum und eine Decke darüber.
    *
    * Der eine Handgriff, den jede Welt hier zwanzigmal braucht. Die Wände
