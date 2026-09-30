@@ -11,21 +11,20 @@ import type { GhostBox } from './wallGhost';
  * Gewünscht mit genau diesem Zweck: „hier wäre bei Grafik Option gut, wenn wir
  * sehen könnten, welche Box/Felder unsichtbar werden sollen, um diesem Bug
  * entgegenzuwirken." Das Ghosting ist eine Rechnung über Kästen
- * (`wallGhost.wallsHiding`), und ein Fehler darin sieht im Bild immer gleich
+ * (`roomWalls.roomWallsToClear`), und ein Fehler darin sieht im Bild immer gleich
  * aus — die falsche Wand wird durchsichtig. **Welcher** Fehler es war, sagt
  * erst der Kasten: ob er zu breit ist, ob er gar nicht in der Liste steht,
  * oder ob die Rechnung von der falschen Stelle aus fragt.
  *
- * Drei Farben, und jede ist eine Antwort:
+ * Zwei Farben, und jede ist eine Antwort:
  *
  * - **Gelb** — ein Kasten, der verdecken **könnte** (`wallGhost.blocksView`),
  *   es in diesem Bild aber nicht tut.
- * - **Rot** — was gerade durchsichtig ist.
- * - **Weiß** — die Spalte der Figur, in der gefragt wird, als Streifen auf
- *   dem Boden: so breit wie die Schultern (`wallGhost.GHOST_SHOULDER`) und
- *   von der Figur bis unter die Kamera. Was rot ist, muss darin stehen. Als
- *   Strecke durch die Luft wäre sie nutzlos: Sie liefe genau auf die Kamera
- *   zu, und von dort aus ist jede solche Strecke ein Punkt.
+ * - **Rot** — was gerade durchsichtig oder abgeschnitten ist.
+ *
+ * Bis Ende September 2026 lag daneben ein weißer Streifen: die Spalte der Figur, in
+ * der die Sichtlinie fragte. Die Sichtlinie ist weg (`roomWalls.ts`), der
+ * Streifen mit ihr.
  *
  * Wie die Hitboxen **ohne Tiefenprüfung**: Ein Kasten, den die Wand verdeckt,
  * zu der er gehört, beantwortet keine Frage. Und nur die Kästen in der Nähe
@@ -38,16 +37,12 @@ export const GHOST_VIEW_REACH = 14;
 
 const COLOR_IDLE = new THREE.Color(0xffd23f);
 const COLOR_HIDDEN = new THREE.Color(0xff3b3b);
-const COLOR_RAY = new THREE.Color(0xffffff);
 
 /** Ein Kasten und ob er gerade durchsichtig ist. */
 export interface GhostBoxLine {
   readonly box: GhostBox;
   readonly hidden: boolean;
 }
-
-/** Wie weit der Streifen über dem Boden liegt, in Metern. */
-const STRIP_LIFT = 0.03;
 
 /** Zwölf Kanten je Kasten, zwei Punkte je Kante. */
 const BOX_POINTS = 24;
@@ -59,23 +54,14 @@ export class GhostBoxView {
   constructor(private readonly parent: THREE.Object3D) {}
 
   /**
-   * **Ein Bild zeichnen**: die Kästen um die Figur und die Spalte, in der
-   * gefragt wird.
+   * **Ein Bild zeichnen**: die Kästen um die Figur.
    *
-   * @param aim Worauf gezielt wird — die Brust der Figur.
-   * @param eye Wo die Kamera steht; von ihr gilt nur die Tiefe (`wallGhost`
-   *   fragt in der Spalte der Figur, nicht auf der Strecke von der Kamera).
-   * @param floor Die Höhe, auf der der Streifen liegt — unter den Füßen.
+   * @param aim Die Figur — gezeichnet wird, was höchstens `GHOST_VIEW_REACH`
+   *   von ihr weg ist.
    */
-  show(
-    aim: { x: number; y: number; z: number },
-    eye: { x: number; y: number; z: number },
-    floor: number,
-    shoulder: number,
-    boxes: Iterable<GhostBoxLine>,
-  ): void {
-    // Die Darstellungsoptionen (`core/infoViews.ts`): ohne Wände nur die
-    // Spalte der Figur — die Kästen sind Wände, Massen und Modelle.
+  show(aim: { x: number; z: number }, boxes: Iterable<GhostBoxLine>): void {
+    // Die Darstellungsoptionen (`core/infoViews.ts`): ohne Wände nichts —
+    // die Kästen sind Wände, Massen und Modelle.
     const look = infoView('ghost');
     const near: GhostBoxLine[] = [];
     for (const one of look.walls ? boxes : []) {
@@ -83,7 +69,7 @@ export class GhostBoxView {
       const dz = Math.max(Math.abs(one.box.z - aim.z) - one.box.d / 2, 0);
       if (Math.hypot(dx, dz) <= GHOST_VIEW_REACH) near.push(one);
     }
-    const count = near.length * BOX_POINTS + 8;
+    const count = near.length * BOX_POINTS;
     const lines = this.ensure(count);
     const position = lines.geometry.getAttribute('position') as THREE.BufferAttribute;
     const color = lines.geometry.getAttribute('color') as THREE.BufferAttribute;
@@ -99,35 +85,6 @@ export class GhostBoxView {
         put(a[0], a[1], a[2], tone);
         put(b[0], b[1], b[2], tone);
       }
-    }
-    // Der Streifen: von der Figur bis unter die Kamera, aber nicht weiter als
-    // die Kästen gezeichnet werden.
-    const toward = Math.sign(eye.z - aim.z) * Math.min(Math.abs(eye.z - aim.z), GHOST_VIEW_REACH);
-    const y = floor + STRIP_LIFT;
-    const west = aim.x - shoulder;
-    const east = aim.x + shoulder;
-    const near0 = aim.z;
-    const far0 = aim.z + toward;
-    for (const [a, b] of [
-      [
-        [west, near0],
-        [east, near0],
-      ],
-      [
-        [east, near0],
-        [east, far0],
-      ],
-      [
-        [east, far0],
-        [west, far0],
-      ],
-      [
-        [west, far0],
-        [west, near0],
-      ],
-    ] as const) {
-      put(a[0], y, a[1], COLOR_RAY);
-      put(b[0], y, b[1], COLOR_RAY);
     }
     position.needsUpdate = true;
     color.needsUpdate = true;

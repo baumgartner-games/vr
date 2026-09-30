@@ -42,8 +42,8 @@ describe('Grafikeinstellungen', () => {
       hitBoxes: false,
       gridHitBoxes: false,
       ghostBoxes: false,
-      // Von oben wird die Wand entlang der Sichtlinie durchsichtig — wie immer.
-      wallOcclusion: 'ghost',
+      // Von oben werden die Wände des eigenen Raums durchsichtig.
+      wallOcclusion: 'ghostFront',
       showHandles: false,
       // Quest-3-Blickfeld und Mensch als Boxen: Werkstattansichten, ab Werk aus.
       showVrFrustum: false,
@@ -316,19 +316,21 @@ describe('Grafikeinstellungen', () => {
   });
 
   /**
-   * **Wände vorn: vier Arten im Kreis** — ab Werk die Sichtlinie, Unbekanntes
-   * wird die Vorgabe, und genannt wird nur eine Abweichung.
+   * **Wände vorn: zwei Arten im Wechsel** — ab Werk durchsichtig, was es nicht
+   * mehr gibt (Sichtlinie, Guckloch), wird die Vorgabe, genannt wird nur eine
+   * Abweichung.
    */
-  it('schaltet die Wände vorn im Kreis und nennt nur die Abweichung', () => {
-    expect(nextWallOcclusion('ghost')).toBe('ghostFront');
+  it('wechselt die Wände vorn und nennt nur die Abweichung', () => {
     expect(nextWallOcclusion('ghostFront')).toBe('cutaway');
-    expect(nextWallOcclusion('cutaway')).toBe('hole');
-    expect(nextWallOcclusion('hole')).toBe('ghost');
+    expect(nextWallOcclusion('cutaway')).toBe('ghostFront');
     expect(clampGraphics({ wallOcclusion: 'cutaway' }).wallOcclusion).toBe('cutaway');
-    expect(clampGraphics({ wallOcclusion: 'sims' as never }).wallOcclusion).toBe('ghost');
-    expect(graphicsSummary({ mode: 'simple', xrScale: 1, wallOcclusion: 'ghost' })).toBe('Einfach');
-    expect(graphicsSummary({ mode: 'simple', xrScale: 1, wallOcclusion: 'hole' })).toBe(
-      'Einfach · Wände Guckloch (Kreis)',
+    expect(clampGraphics({ wallOcclusion: 'ghost' as never }).wallOcclusion).toBe('ghostFront');
+    expect(clampGraphics({ wallOcclusion: 'hole' as never }).wallOcclusion).toBe('ghostFront');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, wallOcclusion: 'ghostFront' })).toBe(
+      'Einfach',
+    );
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, wallOcclusion: 'cutaway' })).toBe(
+      'Einfach · Wände Abgeschnitten (Sims)',
     );
   });
 

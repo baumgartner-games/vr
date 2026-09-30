@@ -92,42 +92,38 @@ export function readShadowMode(raw: unknown): ShadowMode {
 }
 
 /**
- * **Was mit den Wänden vor der Figur passiert** — von oben
+ * **Was mit den Wänden des eigenen Raums passiert** — von oben
  * (`GraphicsSettings.wallOcclusion`, _Menü → Grafik → Wände vorn_).
  *
  * Die Kamera steht schräg im Süden, also hinter jeder Wand, die südlich der
- * Figur liegt. Spiele beantworten das auf vier Arten, und alle vier stehen
- * hier zur Wahl (Wunsch: _„über Menü Grafik zwischen den indoor wand ghost
- * modus wechseln"_). Die englischen Namen sind die, unter denen man sie in
- * Spielen findet — _occlusion handling_ heißt die ganze Frage:
+ * Figur liegt. In Spielen heißt die Frage _occlusion handling_. Zwei
+ * Antworten stehen zur Wahl, beide mit derselben Auswahl
+ * (`worlds/grid/roomWalls.ts`): **nur Wände des Raums, in dem die Figur
+ * steht**, ohne die oberen Außenwände (die „Bombenlinie" von oben trifft sie
+ * zuerst) und ohne die Seitenwände.
  *
- * - `ghost` — **Ghost Wall** entlang der Sichtlinie: nur, was zwischen Kamera
- *   und Figur steht, wird durchsichtig (`worlds/grid/wallGhost.wallsHiding`).
- *   Der Stand, den es immer gab, und die Vorgabe.
- * - `ghostFront` — **Ghost Walls, alle vorn**: jede Wand der eigenen Etage,
- *   die ganz auf der Kameraseite der Figur liegt (`wallsInFront`).
- * - `cutaway` — **Wall Cutaway** wie in den Sims: dieselben Wände, aber nicht
- *   durchsichtig, sondern bis auf einen Sockel **abgeschnitten**
- *   (`worlds/grid/wallCut.ts`).
- * - `hole` — **See-through Circle** (Kreis-/Kugelmaske): ein rundes Loch um die
- *   Figur, nur in den Wänden, die sie verdecken; der Rest bleibt fest.
+ * - `ghostFront` — **Ghost Walls**: diese Wände werden durchsichtig. Die
+ *   Vorgabe.
+ * - `cutaway` — **Wall Cutaway** wie in den Sims: dieselben Wände, bis auf
+ *   einen Sockel **abgeschnitten** (`worlds/grid/wallCut.ts`).
+ *
+ * Es waren einmal vier: die Sichtlinie (nur die eine Wand zwischen Kamera und
+ * Figur) und ein Guckloch um die Figur. Beide sind wieder heraus — gewünscht
+ * war der Raum, nicht die Linie. Ein Speicher, der sie noch nennt, bekommt
+ * die Vorgabe.
  */
-export type WallOcclusion = 'ghost' | 'ghostFront' | 'cutaway' | 'hole';
+export type WallOcclusion = 'ghostFront' | 'cutaway';
 
-export const WALL_OCCLUSIONS = ['ghost', 'ghostFront', 'cutaway', 'hole'] as const;
+export const WALL_OCCLUSIONS = ['ghostFront', 'cutaway'] as const;
 
 export const WALL_OCCLUSION_LABELS: Readonly<Record<WallOcclusion, string>> = {
-  ghost: 'Durchsichtig (Sichtlinie)',
-  ghostFront: 'Durchsichtig (alle vorn)',
+  ghostFront: 'Durchsichtig',
   cutaway: 'Abgeschnitten (Sims)',
-  hole: 'Guckloch (Kreis)',
 };
 
 export const WALL_OCCLUSION_SUBS: Readonly<Record<WallOcclusion, string>> = {
-  ghost: 'Ghost Wall · nur die Wand zwischen Kamera und Figur',
-  ghostFront: 'Ghost Walls · jede Wand der Etage zwischen Figur und Kamera',
-  cutaway: 'Wall Cutaway · die Wände davor bis auf einen Sockel gekürzt',
-  hole: 'See-through Circle · ein rundes Loch um die Figur',
+  ghostFront: 'Ghost Walls · die Wände des Raums außer oben und an den Seiten',
+  cutaway: 'Wall Cutaway · dieselben Wände bis auf einen Sockel gekürzt',
 };
 
 /** Ein Druck auf die Zeile: die nächste Art, oben wieder von vorn. */
@@ -232,9 +228,9 @@ export interface GraphicsSettings {
    */
   ghostBoxes: boolean;
   /**
-   * **Was mit den Wänden vor der Figur passiert**, von oben
-   * (`WallOcclusion`): durchsichtig entlang der Sichtlinie (ab Werk), alle
-   * vorn durchsichtig, abgeschnitten wie in den Sims, oder ein Guckloch.
+   * **Was mit den Wänden des eigenen Raums passiert**, von oben
+   * (`WallOcclusion`): durchsichtig (ab Werk) oder abgeschnitten wie in den
+   * Sims.
    */
   wallOcclusion: WallOcclusion;
   /**
@@ -573,7 +569,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   hitBoxes: false,
   gridHitBoxes: false,
   ghostBoxes: false,
-  wallOcclusion: 'ghost',
+  wallOcclusion: 'ghostFront',
   showHandles: false,
   showVrFrustum: false,
   showBodyModel: false,
@@ -974,7 +970,7 @@ export function graphicsSummary(
   const cellBoxes = settings.gridHitBoxes ? ' · Hitboxen 2D' : '';
   const ghosts = settings.ghostBoxes ? ' · Ghosting' : '';
   const grips = settings.showHandles ? ' · Griffe' : '';
-  // Die Sichtlinie ist der Normalfall; genannt wird, wer eine andere Art wählt.
+  // Durchsichtig ist der Normalfall; genannt wird, wer abschneidet.
   const walls =
     settings.wallOcclusion && settings.wallOcclusion !== DEFAULT_GRAPHICS.wallOcclusion
       ? ` · Wände ${WALL_OCCLUSION_LABELS[settings.wallOcclusion]}`

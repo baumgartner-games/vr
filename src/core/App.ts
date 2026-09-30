@@ -2439,14 +2439,14 @@ export class App {
           this.notify(message);
         }),
         {
-          // **Was mit den Wänden vor der Figur passiert** — von oben
-          // (`worlds/grid/wallCut.ts`, `wallGhost.ts`). Vier Arten, die man
-          // aus Spielen kennt: Ghost Wall entlang der Sichtlinie (ab Werk),
-          // alle vorn durchsichtig, abgeschnitten wie in den Sims, Guckloch.
+          // **Was mit den Wänden des eigenen Raums passiert** — von oben
+          // (`worlds/grid/roomWalls.ts`, `wallCut.ts`): durchsichtig (ab
+          // Werk) oder abgeschnitten wie in den Sims.
           id: 'gfx:walls',
           label: `Wände vorn: ${WALL_OCCLUSION_LABELS[settings.wallOcclusion]}`,
           sub: WALL_OCCLUSION_SUBS[settings.wallOcclusion],
-          caption: 'Sichtlinie → alle vorn → Sims → Guckloch · nur in der Ansicht von oben',
+          caption:
+            'Durchsichtig ↔ Sims · nur Wände im eigenen Raum, ohne obere Außen- und Seitenwände',
           icon: 'settings',
           accent,
           run: () => {
