@@ -338,7 +338,12 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
       von derselben Glättung wie die Figur. Mit den Füßen führe das Bild jede
       Treppenstufe einzeln mit.
   - **Und was daneben steht, wird durchsichtig** (`grid/wallGhost.ts` mit Test,
-    umgesetzt in `GridWorld`). Das Aufschneiden nimmt weg, was **über** der
+    umgesetzt in `GridWorld`). **Seit Ende September 2026 entscheidet der
+    Raum und nicht mehr die Strecke:** alle Wände des Raums, in dem die Figur
+    steht, außer den oberen Außenwänden und den Seitenwänden — durchsichtig
+    oder wie in den Sims abgeschnitten (`grid/roomWalls.ts`, siehe
+    [Grafik → Wände vorn](grafik.md)). Was hier über die Strecke steht, ist
+    die Geschichte davor. Das Aufschneiden nimmt weg, was **über** der
     Figur liegt; eine Wand auf derselben Ebene bleibt stehen — und die Kamera
     steht im Süden, also hinter jeder Wand, die südlich von der Figur liegt.
     In _Overcooked_ und den Sims ist das seit jeher dieselbe Antwort: Die Wand

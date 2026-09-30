@@ -434,7 +434,7 @@ export function cellsFor(width: number): number {
  * - sonst nur ein Streifen von `TRANSIT_WIDTH` Zellen um die Verbindung zweier
  *   freier Nachbarn (gerade oder schräg) und um eine freie Mitte selbst.
  *
- * **Warum so eng.** Bis Oktober 2026 galt „der Block unter den Füßen ist frei".
+ * **Warum so eng.** Bis Ende September 2026 galt „der Block unter den Füßen ist frei".
  * Dann durfte die Figur eine Viertelzelle weit an jede Seite ihres Blocks,
  * auch in Richtung einer Wand: Ihre Mitte stand 0,25 m vor der Wandfuge, ihr
  * Körper (0,24 m) steckte in der Wand (0,1 m dick) — gemeldet in der Küche
@@ -444,7 +444,7 @@ export function cellsFor(width: number): number {
  * **Über Eck** (das Bild des Besitzers, `docs/agents/zellgitter.md`) ist die
  * schräge Verbindung zweier freier Blöcke ein Weg, auch wenn die beiden
  * geraden Blöcke dazwischen gesperrt sind. Unterwegs rundet die Figur auf
- * einen davon — erlaubt, aber nur im Streifen. Bis Oktober 2026 hieß die
+ * einen davon — erlaubt, aber nur im Streifen. Bis Ende September 2026 hieß die
  * Ausnahme „der gesperrte Block dazwischen, und von einem gesperrten Block aus
  * jeder freie": An einer 45°-Wand kam man so über die Wand ins Leere dahinter.
  */

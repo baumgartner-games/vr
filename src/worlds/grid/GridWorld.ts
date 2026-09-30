@@ -44,15 +44,9 @@ import {
 } from '../nav/navTile';
 import { blockModel, blockModelSpot, type BlockKind } from './blocks';
 import { changeSlidingDoor } from './slidingDoor';
-import {
-  GHOST_SHOULDER,
-  blocksView,
-  wallsHiding,
-  wallsInFront,
-  type GhostCandidate,
-  type GhostPoint,
-} from './wallGhost';
+import { blocksView, wallsInFront, type GhostCandidate, type GhostPoint } from './wallGhost';
 import { ModelGhosts } from './modelGhost';
+import { roomWallsToClear } from './roomWalls';
 import { aimWallCut, lookOfOcclusion, setWallLook, wallCutTwin, type WallLook } from './wallCut';
 import { GhostBoxView, type GhostBoxLine } from './ghostView';
 import { turnedHalf, yawOf } from '../portal/gridSnap';
@@ -2761,7 +2755,8 @@ export abstract class GridWorld extends PortalWorld {
   }
 
   /**
-   * **Was zwischen Kamera und Figur steht, wird für dieses Bild durchsichtig.**
+   * **Die Wände des eigenen Raums werden für dieses Bild durchsichtig** — oder
+   * abgeschnitten (_Grafik → Wände vorn_).
    *
    * Das Aufschneiden (`core/cutaway.ts`) nimmt nur weg, was **über** der Ebene
    * des Rigs liegt — Decken und Dächer. Eine Wand auf derselben Ebene bleibt
@@ -2777,12 +2772,12 @@ export abstract class GridWorld extends PortalWorld {
    * - **Gezielt wird auf die Mitte der Figur** (`GHOST_AIM`) und nicht auf
    *   ihre Füße: Der Strahl zu den Füßen streift jede Bodenplatte und jede
    *   Schwelle davor.
-   * - **Und die Auswahl trifft `wallGhost.wallsHiding`** und nicht mehr ein
-   *   Strahl von der Kamera aus: Sie fragt in der **Spalte der Figur** und nur
-   *   nach Wänden, von denen die Kamera die andere Seite sieht. Der Strahl von
-   *   der nachziehenden Kamera aus erwischte beim Laufen die Wand **neben**
-   *   der Figur — nach Westen die eine, nach Osten spiegelbildlich die
-   *   andere. Die lange Fassung steht dort.
+   * - **Und die Auswahl trifft `roomWalls.roomWallsToClear`**: alle Wände
+   *   des Raums, in dem die Figur steht, außer den oberen Außenwänden (die
+   *   Linie von oben trifft sie zuerst) und den Seitenwänden. Steht die Figur
+   *   draußen, gilt, was ganz vor ihr liegt (`wallGhost.wallsInFront`). Bis
+   *   Ende September 2026 war das eine Strecke von der Kamera zur Figur — gewünscht
+   *   war aber der Raum, nicht die Linie.
    * - **Getauscht wird nur, was sich geändert hat.** Ein Material jedes Bild
    *   neu zuzuweisen ist für three.js ein neuer Zustand — und bei tausend
    *   Quadern eine Liste, die nichts tut außer Arbeit zu machen.
@@ -2811,28 +2806,23 @@ export abstract class GridWorld extends PortalWorld {
     // **Welche Art** (_Grafik → Wände vorn_, `wallCut.ts`): Wechselt sie, geht
     // erst alles zurück — die Quader tauschen nur, wenn sich `on` ändert, und
     // behielten sonst die alte Fassung.
-    const mode = graphics().wallOcclusion;
-    const look = lookOfOcclusion(mode);
+    const look = lookOfOcclusion(graphics().wallOcclusion);
     if (look !== this.ghostLook) {
       this.clearWallGhosts();
       this.ghostLook = look;
     }
     setWallLook(look);
-    aimWallCut(ctx.rig.getFloorY(), eye, aim);
-    // Das Guckloch nimmt dieselben Wände wie _alle vorn_: Wo das Loch sitzt,
-    // entscheidet sein Shader, und eine Wand, die es nicht trifft, sieht mit
-    // dem Zwilling genauso aus wie ohne. Die Sichtlinie allein wäre zu knapp —
-    // von oben geht sie zur Körpermitte oft gerade über die Wand hinweg,
-    // während die Beine dahinter verschwinden.
-    const pick = <T extends GhostCandidate>(boxes: readonly T[]): T[] =>
-      mode === 'ghost' ? wallsHiding(eye, aim, boxes) : wallsInFront(eye, aim, boxes);
+    aimWallCut(ctx.rig.getFloorY());
+    // **Quader und Modelle in einer Rechnung**: Ein Raum kann aus beiden
+    // gebaut sein, und die Flut, die ihn findet, muss an beiden anhalten.
     const models = this.gatherModelCandidates();
-    const hidden = new Set<GhostCandidate>(pick(this.wallGhosts));
+    const all: GhostCandidate[] = [...this.wallGhosts, ...models];
+    const hidden = new Set<GhostCandidate>(
+      roomWallsToClear(eye, aim, all) ?? wallsInFront(eye, aim, all),
+    );
     for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
-    const hiddenModels = pick(models);
-    this.modelGhosts.apply(hiddenModels.map((one) => one.entry.object));
-    for (const one of hiddenModels) hidden.add(one);
-    this.drawGhostView(eye, aim, ctx.rig.getFloorY(), models, hidden);
+    this.modelGhosts.apply(models.filter((one) => hidden.has(one)).map((one) => one.entry.object));
+    this.drawGhostView(aim, models, hidden);
   }
 
   /**
@@ -2870,9 +2860,7 @@ export abstract class GridWorld extends PortalWorld {
    * sie erst beim ersten Anschalten: Wer es nie tut, bekommt kein Netz.
    */
   private drawGhostView(
-    eye: GhostPoint,
     aim: GhostPoint,
-    floor: number,
     models: readonly ModelCandidate[],
     hidden: ReadonlySet<GhostCandidate>,
   ): void {
@@ -2884,7 +2872,7 @@ export abstract class GridWorld extends PortalWorld {
     const boxes: GhostBoxLine[] = [];
     for (const one of this.wallGhosts) boxes.push({ box: one.box, hidden: hidden.has(one) });
     for (const one of models) boxes.push({ box: one.box, hidden: hidden.has(one) });
-    this.ghostBoxView.show(aim, eye, floor, GHOST_SHOULDER, boxes);
+    this.ghostBoxView.show(aim, boxes);
   }
 
   /** Alles zurück auf sein eigenes Material. */
@@ -2917,12 +2905,12 @@ export abstract class GridWorld extends PortalWorld {
     const key = `${this.ghostLook}:${kind}`;
     const had = this.ghostPalette.get(key);
     if (had) return had;
-    // Abgeschnitten oder mit Loch ist die Wand nicht durchsichtig, sondern
+    // Abgeschnitten ist die Wand nicht durchsichtig, sondern
     // fest mit einem Schnitt im Shader (`wallCut.ts`).
     const made =
       this.ghostLook === 'fade'
         ? this.buildMaterial(kind, true)
-        : wallCutTwin(this.materialFor(kind), this.ghostLook);
+        : wallCutTwin(this.materialFor(kind));
     this.ghostPalette.set(key, made);
     return made;
   }

@@ -2,12 +2,11 @@ import * as THREE from 'three';
 import type { WallOcclusion } from '../../core/graphicsSettings';
 
 /**
- * **Wie eine Wand vor der Figur aussieht** — durchsichtig, abgeschnitten oder
- * mit einem Loch (`GraphicsSettings.wallOcclusion`, _Menü → Grafik → Wände
- * vorn_).
+ * **Wie eine Wand vor der Figur aussieht** — durchsichtig oder abgeschnitten
+ * (`GraphicsSettings.wallOcclusion`, _Menü → Grafik → Wände vorn_).
  *
- * Welche Wände es trifft, rechnet `wallGhost.ts`; hier steht nur, was aus
- * ihrem Material wird. Drei Fassungen:
+ * Welche Wände es trifft, rechnet `roomWalls.ts`; hier steht nur, was aus
+ * ihrem Material wird. Zwei Fassungen:
  *
  * - `fade` — der durchsichtige Zwilling, den es immer gab (`modelGhost.ts`,
  *   `GridWorld.ghostFor`): gleiche Farbe, ein Viertel Deckkraft.
@@ -15,13 +14,10 @@ import type { WallOcclusion } from '../../core/graphicsSettings';
  *   (`CUT_HEIGHT` über den Füßen) wird im Shader verworfen. Die Wand bleibt
  *   fest und schreibt in den Tiefenpuffer, es gibt also kein Sortieren wie bei
  *   Durchsichtigem.
- * - `hole` — **See-through Circle**: verworfen wird, was näher als
- *   `HOLE_RADIUS` an der Sichtlinie von der Kamera zur Figur liegt, und nur
- *   **vor** ihr. Der Rest der Wand steht.
  *
  * **Ohne Deckel.** Eine abgeschnittene Wand ist oben offen; von schräg oben
- * sieht man in sie hinein auf ihre Innenseiten. Deshalb zeichnen beide
- * Zwillinge auch die Rückseiten, und zwar dunkler — so liest sich die offene
+ * sieht man in sie hinein auf ihre Innenseiten. Deshalb zeichnet der Zwilling
+ * auch die Rückseiten, und zwar dunkler — so liest sich die offene
  * Oberkante wie eine Schnittfläche, und kein zweites Netz ist nötig.
  *
  * Gerechnet wird in **Weltkoordinaten** über ein eigenes `varying`, nicht mit
@@ -29,14 +25,12 @@ import type { WallOcclusion } from '../../core/graphicsSettings';
  * (`localClippingEnabled`), und die Portalwelt schaltet sie selbst um.
  */
 
-/** Die drei Arten, eine Wand aus dem Weg zu nehmen. */
-export type WallLook = 'fade' | 'cut' | 'hole';
+/** Die beiden Arten, eine Wand aus dem Weg zu nehmen. */
+export type WallLook = 'fade' | 'cut';
 
 /** Welche Fassung zu einer Einstellung gehört. */
 export function lookOfOcclusion(mode: WallOcclusion): WallLook {
-  if (mode === 'cutaway') return 'cut';
-  if (mode === 'hole') return 'hole';
-  return 'fade';
+  return mode === 'cutaway' ? 'cut' : 'fade';
 }
 
 /**
@@ -46,33 +40,21 @@ export function lookOfOcclusion(mode: WallOcclusion): WallLook {
  */
 export const CUT_HEIGHT = 0.35;
 
-/**
- * **Wie weit das Loch ist**, in Metern um die Sichtlinie. Eine Figur ist gut
- * einen halben Meter breit und anderthalb hoch; 1,1 m lässt sie ganz frei
- * und dazu einen Rand, in dem man sieht, wohin sie läuft.
- */
-export const HOLE_RADIUS = 1.1;
-
 /** Wie hell die Innenseite einer aufgeschnittenen Wand ist — die Schnittfläche. */
 const INSIDE_SHADE = 0.55;
 
 /**
- * **Die Werte, die jedes Bild neu gesetzt werden** — geteilt von allen
- * Zwillingen, weil es immer nur eine Figur und eine Kamera gibt, nach denen
- * geschnitten wird (`GridWorld.stepWallGhosts`).
+ * **Die Schnitthöhe, jedes Bild neu gesetzt** — geteilt von allen Zwillingen,
+ * weil es immer nur eine Figur gibt, nach der geschnitten wird
+ * (`GridWorld.stepWallGhosts`).
  */
 export const WALL_CUT_UNIFORMS = {
   uWallCutY: { value: CUT_HEIGHT },
-  uWallHoleEye: { value: new THREE.Vector3() },
-  uWallHoleAim: { value: new THREE.Vector3() },
-  uWallHoleRadius: { value: HOLE_RADIUS },
 };
 
-/** Schnitthöhe und Sichtlinie für dieses Bild. */
-export function aimWallCut(floorY: number, eye: THREE.Vector3Like, aim: THREE.Vector3Like): void {
+/** Die Schnitthöhe für dieses Bild: ein Sockel über den Füßen. */
+export function aimWallCut(floorY: number): void {
   WALL_CUT_UNIFORMS.uWallCutY.value = floorY + CUT_HEIGHT;
-  WALL_CUT_UNIFORMS.uWallHoleEye.value.copy(eye);
-  WALL_CUT_UNIFORMS.uWallHoleAim.value.copy(aim);
 }
 
 /**
@@ -92,7 +74,7 @@ export function setWallLook(look: WallLook): void {
 }
 
 /**
- * **Der Zwilling eines Materials, der abschneidet oder ein Loch hat.**
+ * **Der Zwilling eines Materials, der abschneidet.**
  *
  * Ein Klon und kein Umbau am Original, aus demselben Grund wie beim
  * durchsichtigen Zwilling: Das Original teilen sich viele Wände, und nur die
@@ -100,7 +82,7 @@ export function setWallLook(look: WallLook): void {
  * (die Tapete, `house/wallpaperSkin.ts`; die Stufen des Comics,
  * `core/materialLook.ts`) läuft zuerst, der Schnitt kommt danach dazu.
  */
-export function wallCutTwin(material: THREE.Material, look: 'cut' | 'hole'): THREE.Material {
+export function wallCutTwin(material: THREE.Material): THREE.Material {
   const made = material.clone();
   made.side = THREE.DoubleSide;
   // Der Comic baut Materialien der Szene um (`materialLook.applyLook`) und
@@ -111,14 +93,14 @@ export function wallCutTwin(material: THREE.Material, look: 'cut' | 'hole'): THR
     : null;
   made.onBeforeCompile = (shader, renderer) => {
     own?.(shader, renderer);
-    injectCut(shader, look);
+    injectCut(shader);
   };
-  made.customProgramCacheKey = () => `${material.customProgramCacheKey()}|wall-${look}`;
+  made.customProgramCacheKey = () => `${material.customProgramCacheKey()}|wall-cut`;
   return made;
 }
 
 /** Der Shader-Umbau selbst — Weltposition hinüberreichen, dann verwerfen. */
-export function injectCut(shader: THREE.WebGLProgramParametersWithUniforms, look: WallLook): void {
+export function injectCut(shader: THREE.WebGLProgramParametersWithUniforms): void {
   Object.assign(shader.uniforms, WALL_CUT_UNIFORMS);
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vWallCutPos;')
@@ -134,24 +116,13 @@ vec4 wallCutPos = vec4( transformed, 1.0 );
 #endif
 vWallCutPos = ( modelMatrix * wallCutPos ).xyz;`,
     );
-  const test =
-    look === 'cut'
-      ? 'if ( vWallCutPos.y > uWallCutY ) discard;'
-      : `{
-  vec3 wallAxis = uWallHoleAim - uWallHoleEye;
-  float wallT = dot( vWallCutPos - uWallHoleEye, wallAxis ) / max( dot( wallAxis, wallAxis ), 1e-6 );
-  vec3 wallNear = uWallHoleEye + wallAxis * clamp( wallT, 0.0, 1.0 );
-  if ( wallT < 1.0 && distance( vWallCutPos, wallNear ) < uWallHoleRadius ) discard;
-}`;
+  const test = 'if ( vWallCutPos.y > uWallCutY ) discard;';
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
       `#include <common>
 varying vec3 vWallCutPos;
-uniform float uWallCutY;
-uniform vec3 uWallHoleEye;
-uniform vec3 uWallHoleAim;
-uniform float uWallHoleRadius;`,
+uniform float uWallCutY;`,
     )
     .replace('#include <clipping_planes_fragment>', `${test}\n#include <clipping_planes_fragment>`)
     .replace(

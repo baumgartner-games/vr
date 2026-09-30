@@ -1,5 +1,5 @@
 /**
- * **Abgeschnitten und Guckloch** (`wallCut.ts`): der Shader-Umbau greift an
+ * **Abgeschnitten** (`wallCut.ts`): der Shader-Umbau greift an
  * den Stellen, die jedes eingebaute Material von three.js hat, und die
  * Zwillinge wechseln mit der Einstellung (`modelGhost.ts`).
  */
@@ -16,32 +16,27 @@ function shaderOf(name: 'standard' | 'basic'): THREE.WebGLProgramParametersWithU
   } as THREE.WebGLProgramParametersWithUniforms;
 }
 
-describe('Wände vorn: abgeschnitten und Guckloch', () => {
+describe('Wände vorn: abgeschnitten', () => {
   afterEach(() => setWallLook('fade'));
 
   it('ordnet jeder Einstellung ihre Fassung zu', () => {
-    expect(lookOfOcclusion('ghost')).toBe('fade');
     expect(lookOfOcclusion('ghostFront')).toBe('fade');
     expect(lookOfOcclusion('cutaway')).toBe('cut');
-    expect(lookOfOcclusion('hole')).toBe('hole');
   });
 
   it.each(['standard', 'basic'] as const)('baut den Schnitt in %s ein', (name) => {
-    for (const look of ['cut', 'hole'] as const) {
-      const shader = shaderOf(name);
-      injectCut(shader, look);
-      expect(shader.vertexShader).toContain('vWallCutPos = ( modelMatrix * wallCutPos ).xyz;');
-      expect(shader.fragmentShader).toContain('varying vec3 vWallCutPos;');
-      expect(shader.fragmentShader).toContain('discard;');
-      expect(shader.fragmentShader).toContain('gl_FrontFacing');
-      expect(shader.uniforms['uWallCutY']).toBeDefined();
-      expect(shader.uniforms['uWallHoleRadius']).toBeDefined();
-    }
+    const shader = shaderOf(name);
+    injectCut(shader);
+    expect(shader.vertexShader).toContain('vWallCutPos = ( modelMatrix * wallCutPos ).xyz;');
+    expect(shader.fragmentShader).toContain('varying vec3 vWallCutPos;');
+    expect(shader.fragmentShader).toContain('if ( vWallCutPos.y > uWallCutY ) discard;');
+    expect(shader.fragmentShader).toContain('gl_FrontFacing');
+    expect(shader.uniforms['uWallCutY']).toBeDefined();
   });
 
   it('lässt das Original in Ruhe und zeichnet beide Seiten', () => {
     const own = new THREE.MeshStandardMaterial({ color: 0x445566 });
-    const twin = wallCutTwin(own, 'cut');
+    const twin = wallCutTwin(own);
     expect(twin).not.toBe(own);
     expect(twin.side).toBe(THREE.DoubleSide);
     expect(twin.transparent).toBe(false);

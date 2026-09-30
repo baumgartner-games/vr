@@ -13,7 +13,7 @@ import { wallCutTwin, wallLook, type WallLook } from './wallCut';
  * Wände verhalten sich nicht wie die anderen Wände und werden durchsichtig."
  *
  * **Die Auswahl ist dieselbe**: Ein hingestelltes Modell kommt mit seinem
- * Kasten in dieselbe Rechnung wie jede Wand (`wallsHiding`), und was die sagt,
+ * Kasten in dieselbe Rechnung wie jede Wand (`roomWalls.ts`), und was die sagt,
  * gilt für beide. Hier steht nur, wie ein Modell durchsichtig **wird** — und
  * das geht anders als bei einem Quader, weil ein Modell viele Netze mit
  * eigenen Materialien hat und keine Sorte, deren zweite Palette man nehmen
@@ -26,7 +26,7 @@ import { wallCutTwin, wallLook, type WallLook } from './wallCut';
  * derselbe Grund wie bei der zweiten Palette der Quader.
  *
  * **Wie der Zwilling aussieht, sagt die Einstellung** (`wallCut.wallLook`):
- * durchsichtig, abgeschnitten oder mit Loch. Wechselt sie, geht beim nächsten
+ * durchsichtig oder abgeschnitten. Wechselt sie, geht beim nächsten
  * `apply` alles zurück und kommt in der neuen Fassung wieder.
  */
 export class ModelGhosts {
@@ -109,7 +109,7 @@ export class ModelGhosts {
     const key = `${this.look}:${id}`;
     const had = this.twins.get(key);
     if (had) return had;
-    const made = this.look === 'fade' ? this.fadeTwin(material) : wallCutTwin(material, this.look);
+    const made = this.look === 'fade' ? this.fadeTwin(material) : wallCutTwin(material);
     this.twins.set(key, made);
     return made;
   }
