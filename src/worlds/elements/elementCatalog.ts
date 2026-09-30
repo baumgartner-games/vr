@@ -482,6 +482,17 @@ export const BUILD_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * **Die Wand zum Abreißen** — dieselbe kurze Wand wie _Wand_, im Katalog mit
+ * dem Verbotszeichen (`MenuEntry.mark` `forbidden`). Gewünscht (September
+ * 2026): _„eine wall mit disallowed icon, was eigentlich funktioniert wie eine
+ * wand setzen, nur bei der auswahl würde dann die entsprechende wand gelöscht
+ * werden, sodass ich wände abreißen kann"_. Gezogen wird wie jede Wand
+ * (`PortalWorld.eraseWallLine`), nur dass die Linie die Wände auf ihren Fugen
+ * wegnimmt, statt welche hinzustellen.
+ */
+export const WALL_ERASER = SHELF_WALL_HALF;
+
+/**
  * **Der Ordner _Haus_** — Wand, Tür und Fenster direkt darin. Welten, die mehr
  * vom Haus verstehen, legen dazu (der Hausbau: Treppe, _Böden_, _Tapeten_).
  */
@@ -490,6 +501,7 @@ export const HOUSE_FOLDER: FurnitureFolder = {
   label: 'Haus',
   elements: [],
   models: BUILD_MODELS,
+  erasers: [WALL_ERASER],
   cover: { model: CATALOG_DOOR },
 };
 
@@ -857,6 +869,12 @@ export interface FurnitureFolder {
    * (die Wände, `WALL_MODELS`).
    */
   readonly models?: readonly string[];
+  /**
+   * **Regalwände zum Abreißen** — genommen wie `models`, gezogen wie eine
+   * Wand, aber die Linie nimmt die Wände auf ihren Fugen weg
+   * (`WALL_ERASER`). Die Kachel trägt das Verbotszeichen.
+   */
+  readonly erasers?: readonly string[];
   /**
    * **Dinge für die Hand** — Ids aus der Küche (`KitchenItem`), die man aus
    * dem Katalog direkt in die Hand nimmt, wie aus ihrer Kiste: die Tapeten
