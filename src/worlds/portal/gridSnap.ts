@@ -1,4 +1,5 @@
 import { TILE } from '../nav/navTile';
+import type { FloorCorner } from '../grid/solids';
 
 /**
  * **Was hingestellt wird, rastet auf dem Kachelgitter ein** — reine Rechnung,
@@ -428,6 +429,11 @@ export function placesOnGrid(speed: number, placed: boolean): boolean {
 export interface GridTile {
   readonly x: number;
   readonly z: number;
+  /**
+   * **Nur eine Hälfte** — die Ecke, deren Dreieck nicht leuchtet: der halbe
+   * Belag unter einer Wand unter 45° (`house/flooring.halveSlanted`).
+   */
+  readonly empty?: FloorCorner;
 }
 
 /**

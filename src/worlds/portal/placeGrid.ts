@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TILE } from '../nav/navTile';
 import { KAYKIT_ACCENT } from '../../core/kaykitIndex';
+import { halfFloorTriangle, type FloorCorner } from '../grid/solids';
 import { MAX_TILES, type GridEdge, type GridTile } from './gridSnap';
 
 /**
@@ -73,6 +74,11 @@ export class PlaceGrid {
   private readonly frame: THREE.BufferGeometry;
   private readonly fillSkin: THREE.MeshBasicMaterial;
   private readonly frameSkin: THREE.MeshBasicMaterial;
+  /** Fläche und Rahmen einer halben Kachel je leerer Ecke — erst, wenn eine gebraucht wird. */
+  private readonly halves = new Map<
+    FloorCorner,
+    { fill: THREE.BufferGeometry; frame: THREE.BufferGeometry }
+  >();
   readonly group = new THREE.Group();
 
   constructor(parent: THREE.Object3D) {
@@ -153,7 +159,14 @@ export class PlaceGrid {
       const quad = this.quads[index]!;
       const tile = tiles[index];
       quad.visible = index < count && tile !== undefined;
-      if (tile) quad.position.set(tile.x, y + LIFT, tile.z);
+      if (!tile) continue;
+      quad.position.set(tile.x, y + LIFT, tile.z);
+      // **Eine halbe Kachel als Dreieck** — der Belag unter einer Wand unter
+      // 45° bekommt nur die eine Hälfte, und die Vorschau zeigt genau die.
+      const half = tile.empty ? this.half(tile.empty) : null;
+      const [fill, frame] = quad.children as [THREE.Mesh, THREE.Mesh];
+      fill.geometry = half?.fill ?? this.fill;
+      frame.geometry = half?.frame ?? this.frame;
     }
     for (const edge of this.edges) edge.visible = false;
     this.group.visible = true;
@@ -230,6 +243,17 @@ export class PlaceGrid {
     this.group.visible = false;
   }
 
+  /** Fläche und Rahmen der halben Kachel ohne die Ecke `empty` (`show`). */
+  private half(empty: FloorCorner): { fill: THREE.BufferGeometry; frame: THREE.BufferGeometry } {
+    let half = this.halves.get(empty);
+    if (!half) {
+      const side = TILE - SEAM;
+      half = { fill: triangleGeometry(side, empty, 0), frame: triangleGeometry(side, empty, BAR) };
+      this.halves.set(empty, half);
+    }
+    return half;
+  }
+
   dispose(): void {
     this.group.removeFromParent();
     this.group.clear();
@@ -238,6 +262,11 @@ export class PlaceGrid {
     this.fill.dispose();
     this.edge.dispose();
     this.frame.dispose();
+    for (const half of this.halves.values()) {
+      half.fill.dispose();
+      half.frame.dispose();
+    }
+    this.halves.clear();
     this.fillSkin.dispose();
     this.frameSkin.dispose();
   }
@@ -270,6 +299,37 @@ function bandGeometry(side: number, bar: number): THREE.BufferGeometry {
   const geometry = new THREE.ShapeGeometry(shape);
   // `ShapeGeometry` liegt in der xy-Ebene; eine Vierteldrehung legt sie auf
   // den Boden, mit der Vorderseite nach oben.
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
+}
+
+/**
+ * **Eine halbe Kachel**, flach in der Bodenebene — das Dreieck ohne die Ecke
+ * `empty` (`solids.halfFloorTriangle`), außen `side` breit. Mit `bar` > 0 nur
+ * ihr Rahmen: innen dasselbe Dreieck, um `bar` nach innen gerückt (zur Mitte
+ * des Inkreises hin verkleinert).
+ */
+function triangleGeometry(side: number, empty: FloorCorner, bar: number): THREE.BufferGeometry {
+  // Die Form liegt in der xy-Ebene und wird nachher auf den Boden gedreht:
+  // aus y wird −z.
+  const outer = halfFloorTriangle(empty).map((p) => new THREE.Vector2(p.x * side, -p.z * side));
+  const shape = new THREE.Shape(outer);
+  if (bar > 0) {
+    // Rechtwinklig-gleichschenklig mit Schenkeln `side`: Inkreisradius r.
+    const r = (side * (2 - Math.SQRT2)) / 2;
+    const scale = Math.max(r - bar, 0.01) / r;
+    const centre = outer
+      .reduce((sum, p, i) => {
+        // Gewichte des Inkreismittelpunkts: die Länge der gegenüberliegenden Seite.
+        const a = outer[(i + 1) % 3]!,
+          b = outer[(i + 2) % 3]!;
+        return sum.add(p.clone().multiplyScalar(a.distanceTo(b)));
+      }, new THREE.Vector2())
+      .divideScalar(side * (2 + Math.SQRT2));
+    const inner = outer.map((p) => p.clone().sub(centre).multiplyScalar(scale).add(centre));
+    shape.holes.push(new THREE.Path(inner.reverse()));
+  }
+  const geometry = new THREE.ShapeGeometry(shape);
   geometry.rotateX(-Math.PI / 2);
   return geometry;
 }
