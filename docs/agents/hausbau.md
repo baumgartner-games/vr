@@ -156,12 +156,11 @@ Ebene anlegen durch eine 2x8 Treppe."_
     ist. Die Haustür führt ins Freie, und das Freie ist kein Zimmer.
   - Steht sie nicht in einem Zimmer (im Freien, oben ohne Wände), kommt auf
     der Etage darüber nur ihr Stand dazu.
-  - **Wände danach ziehen reicht auch** (`HausbauWorld.coverStairs`) —
-    gemeldet: _„Wenn ich erst eine Treppe setze und dann die Wände, fehlt mir
-    der floor."_ Die Welt merkt sich jede Treppe (`stairs`) und legt, sobald
-    sich die Wände ändern, über ihrem Haus (`houseTiles` ab ihrer untersten
-    Kachel) den Boden der Etage darüber nach — wie beim Stellen im fertigen
-    Haus. Was schon liegt, bleibt; das Loch bleibt leer.
+  - **Wände danach ziehen reicht auch** — gemeldet: _„Wenn ich erst eine
+    Treppe setze und dann die Wände, fehlt mir der floor."_ Das erledigt
+    inzwischen die Decke (unten): Schließen die Wände einen Raum um die
+    Treppe, liegt über ihm der Boden der Etage darüber. Was schon liegt,
+    bleibt; das Loch bleibt leer.
   - Die Treppe baut der Plan (`GridPlan.stairs`, drei Kacheln): Stufen, das
     Loch darüber und die Verbindung für die Wege.
   - **Das Loch ist leerer Boden** (`GridPlan.setEmpty`, `emptyAt`,
@@ -209,6 +208,33 @@ Ebene anlegen durch eine 2x8 Treppe."_
   Stufen geht es nach beiden Seiten auf die Etage darüber
   (`physics/stairStepOff.test.ts`).
 
+## Die Decke über jedem Raum
+
+Gewünscht (September 2026): _„wenn ich einen raum schließe soll direkt die
+decke drauf gesetzt werden (wie wenn ich eine treppe setze). Ich weiß nicht wie
+ich damit umgehen soll, wenn ich einen raum aufbreche, was dann mit den oberen
+stockwerken passiert"_
+
+- **Schließen** (`house/ceiling.ts`, `HausbauWorld.coverRooms`): Sobald sich
+  die Wände ändern, sucht die Welt auf jeder Etage alle geschlossenen Räume
+  (`roomTrace.closedRooms`, von den Kacheln an den Wänden aus,
+  `wallSideTiles`) und legt über jeden den Boden der Etage darüber. Fehlt die
+  Etage, kommt sie dazu wie bei der Treppe (`STOREY`). Das Haus der Welt hat
+  darum von Anfang an eine Etage 1 über beiden Zimmern. Was dort schon liegt,
+  bleibt; neu gelegter Boden merkt sich als **Decke** (`HausbauWorld.ceiling`).
+- **Aufbrechen**: Die Decke geht mit dem Raum (`GridPlan.unfloor`) — aber nur,
+  wo oben nichts auf ihr steht. Sie hält: eine Wand an ihrer Kante, ein
+  geschlossener Raum oben, ein Bodenbelag, ein Baustein oder Einbau des
+  Plans (`blocksOn`, `fixturesOn`), eine
+  Treppe, der Stand einer Treppe (`landings`) und das Loch über einer. Dann
+  bleibt die Kachel als Boden (wie ein Balkon), und **das Stockwerk darüber
+  ändert sich nicht** — es stürzt nicht ein, weil unten eine Wand fehlt. Wird
+  oben später abgeräumt und der Raum ist noch offen, geht die Decke beim
+  nächsten Umbau der Wände.
+- **Selbst gelegter Boden ist nie Decke**: der Stand einer Treppe im Freien,
+  ein Belag Kachel für Kachel. Er geht nie von allein.
+- Die Etagen selbst bleiben, auch wenn keine Kachel mehr darauf liegt.
+
 ## Die Tapete auf der Wand
 
 **Die Ausnahme von „nur Modelle aus dem Regal"** ist ausdrücklich gewünscht:
@@ -237,8 +263,9 @@ mit den Materialien des Regals.
   Prototyp, und Treppen und Etagen sind weg.
 - Eine Treppe lässt sich noch nicht wieder abbauen.
 - Oben gibt es erst Wände, wenn man sie zieht, und Boden über den Stand der
-  Treppe hinaus erst, wenn man ihn legt; über den Rand der Etage fällt man
-  hinunter. Sie hängt am Stück — reißt man es ab
+  Treppe hinaus erst, wenn man ihn legt oder darunter einen Raum schließt;
+  über den Rand der Etage fällt man hinunter. Was oben steht, ohne im Plan
+  zu sein (aus der Hand, `placeModel`), hält die Decke nicht. Sie hängt am Stück — reißt man es ab
   oder ersetzt es, ist sie weg.
 - Von oben blendet die Welt Wände vor der Figur durchsichtig
   (`grid/modelGhost.ts`); der durchsichtige Zwilling kennt die Tapete nicht.
@@ -256,5 +283,6 @@ mit den Materialien des Regals.
 | `worlds/house/wallpaperSkin.ts` | das Muster auf einer Seite des Modells, das Leuchten           |
 | `worlds/house/flooring.ts`      | die Bodenbeläge (Platten aus dem Regal)                        |
 | `worlds/house/stairPlan.ts`     | die Treppe: Kacheln, Richtung, das Haus durch die Türen        |
+| `worlds/house/ceiling.ts`       | die Decke: über geschlossenen Räumen legen, beim Öffnen nehmen |
 | `elements/elementCatalog.ts`    | `WALLPAPER_CRATES`, `FLOORING_CRATES`, `FurnitureFolder.items` |
 | `test/zones/kitchenRecipes.ts`  | die Dinge `wallpaper-*` und `floor-*`                          |

@@ -315,3 +315,53 @@ export function roomTiles(
   }
   return out;
 }
+
+/**
+ * **Die Kacheln an den Wänden** — zu beiden Seiten jeder Einheit, und bei einer
+ * Wand unter 45° die Kachel, durch die sie geht. Von hier aus sucht
+ * `closedRooms` die Räume, und hier steht, worauf oben eine Wand steht.
+ */
+export function wallSideTiles(pieces: readonly WallPiece[]): RoomTile[] {
+  const out = new Map<string, RoomTile>();
+  const add = (x: number, z: number): void => {
+    out.set(`${x},${z}`, { x, z });
+  };
+  for (const unit of unitsOf(pieces)) {
+    const minX = Math.min(unit.a.x, unit.b.x);
+    const minZ = Math.min(unit.a.z, unit.b.z);
+    if (unit.a.z === unit.b.z) {
+      add(minX, minZ - 1);
+      add(minX, minZ);
+    } else if (unit.a.x === unit.b.x) {
+      add(minX - 1, minZ);
+      add(minX, minZ);
+    } else {
+      // Die Kachel, durch die sie geht, und je Seite eine daneben — aus der
+      // Kachel selbst liefe `roomTiles` nach beiden Seiten.
+      add(minX, minZ);
+      add(minX + 1, minZ);
+      add(minX, minZ + 1);
+      add(minX - 1, minZ);
+      add(minX, minZ - 1);
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * **Alle geschlossenen Räume** einer Etage — für die Decke: jeder Raum, der
+ * an einer Wand liegt und zu ist (`roomTiles`). Das Freie ist keiner, es ist
+ * größer als `max`.
+ */
+export function closedRooms(pieces: readonly WallPiece[], max = ROOM_TILES_MAX): RoomTile[][] {
+  const seen = new Set<string>();
+  const rooms: RoomTile[][] = [];
+  for (const start of wallSideTiles(pieces)) {
+    if (seen.has(`${start.x},${start.z}`)) continue;
+    const room = roomTiles(pieces, start.x + 0.5, start.z + 0.5, max);
+    if (!room) continue;
+    for (const tile of room) seen.add(`${tile.x},${tile.z}`);
+    rooms.push(room);
+  }
+  return rooms;
+}
