@@ -602,7 +602,7 @@ export function kaykitCategoryOf(path: string): string {
 const CATEGORY_TERMS: ReadonlyMap<string, readonly string[]> = new Map(
   KAYKIT_CATEGORIES.map((category) => [
     category.id,
-    [...new Set([...terms(category.id), ...terms(category.label)])],
+    [...new Set([...searchTerms(category.id), ...searchTerms(category.label)])],
   ]),
 );
 
@@ -613,7 +613,7 @@ const CATEGORY_TERMS: ReadonlyMap<string, readonly string[]> = new Map(
  * Faltung zerfiele `möbel` am Zerteiler in `m` und `bel` und fände nie
  * etwas — und wer auf einem englischen Pad tippt, schreibt ohnehin `mobel`.
  */
-function terms(text: string): string[] {
+export function searchTerms(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/ä/g, 'a')
@@ -736,7 +736,7 @@ export function kaykitSearch(
 ): KaykitFileRef[] {
   // Einmal je Anfrage und nicht je Datei: Das Wörterbuch wird für zwei
   // Wörter aufgeschlagen und danach viertausendfünfhundertmal benutzt.
-  const wanted = terms(query).map((term) => ({ term, english: kaykitEnglish(term) }));
+  const wanted = searchTerms(query).map((term) => ({ term, english: kaykitEnglish(term) }));
   if (wanted.length === 0) return [];
   const hits: { file: KaykitFileRef; score: number }[] = [];
   for (const file of files) {

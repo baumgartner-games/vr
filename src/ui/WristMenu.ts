@@ -7,6 +7,7 @@ import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
 import { menuMiniature } from './menuMiniature';
+import { PREVIEW_YAW } from './previewGrid';
 
 const _wrist = new THREE.Vector3();
 const _head = new THREE.Vector3();
@@ -67,9 +68,6 @@ const SWIPE_SLOP = 0.02;
  * keins gibt. Die Welt liefert das — das Menü weiß nicht, was ein Werkzeug ist.
  */
 export type MenuModelFactory = (id: string) => THREE.Object3D | null;
-
-/** Wie schnell sich ein Vorschaumodell dreht, in Radiant pro Sekunde. */
-const PREVIEW_SPIN = 0.7;
 
 /**
  * Wie lange nach einem `null` gewartet wird, bevor dieselbe Id noch einmal
@@ -218,7 +216,6 @@ export class WristMenu extends THREE.Group {
    */
   private readonly asked = new Map<string, number>();
   private models: MenuModelFactory | null = null;
-  private spin = 0;
   private previewClock = 0;
 
   constructor(
@@ -830,8 +827,9 @@ export class WristMenu extends THREE.Group {
    * Vor jeder sichtbaren Zeile, die eins hat, steht das Ding selbst.
    *
    * Eine Strichzeichnung sagt „irgendein Handschuh"; das Modell sagt, welcher
-   * — und es dreht sich langsam, weil man einem Werkzeug von einer Seite oft
-   * nicht ansieht, was es ist. Es fängt **keinen Strahl** ab: es ist kein
+   * — und es steht schräg (`PREVIEW_YAW`), Vorderseite und eine Flanke zum
+   * Betrachter; gedreht hat es sich bis September 2026, gewünscht war dann
+   * _„Die Elemente nicht mehr automatisch drehen in der Vorschau"_. Es fängt **keinen Strahl** ab: es ist kein
    * Ziel des Pointers, also greift man weiter die Zeile dahinter, und die
    * ganze Zeile bleibt anfassbar wie vorher.
    */
@@ -841,7 +839,6 @@ export class WristMenu extends THREE.Group {
       if (this.previews.size > 0) this.clearPreviews();
       return;
     }
-    this.spin = (this.spin + dt * PREVIEW_SPIN) % (Math.PI * 2);
     this.previewClock += dt;
 
     const shown = new Set<string>();
@@ -859,7 +856,7 @@ export class WristMenu extends THREE.Group {
       if (!preview) continue;
       preview.visible = true;
       preview.position.set(anchor.x, anchor.y, 0.004);
-      preview.rotation.y = this.spin;
+      preview.rotation.y = PREVIEW_YAW;
     }
     for (const [id, preview] of [...this.previews]) {
       if (shown.has(id)) continue;

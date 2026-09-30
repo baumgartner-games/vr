@@ -247,7 +247,7 @@ export interface MenuEntry {
   checked?: boolean;
   /**
    * Statt der gezeichneten Ikone ein **kleines Modell der Sache selbst**,
-   * das vor der Zeile im Raum steht und sich langsam dreht.
+   * das vor der Zeile im Raum steht, schräg von vorn (`previewGrid.PREVIEW_YAW`).
    *
    * Der Wert ist eine Id, die derjenige versteht, der die Modelle baut — beim
    * Werkzeugregal die Werkzeug-Id. Eine Strichzeichnung sagt „irgendein

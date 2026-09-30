@@ -365,20 +365,44 @@ Möbelkatalog gibt **Spielelemente** her.
   (`SHOW_ONLY_GIVES`), und der Test verbietet sie hier. Jedes
   belegt eine Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was
   es in der Küche tut.
-- **Nur Ordner auf der Seite _Möbel_** (`FURNITURE_FOLDERS`): **Allgemein**
+- **Erst der Bereich, dann die Art** (Ende September 2026, gewünscht:
+  _„Katalog Ordner besser gruppieren (Haus, Restaurant, etc.) … Ggf wie bei
+  Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** (Wände, Türen,
+  Fenster — `BUILD_FOLDERS`; im Hausbau dazu Böden, Treppen, Tapeten- und
+  Bodenkisten) und **Restaurant** (`KITCHEN_FOLDERS`: Allgemein, dann nach
+  Art **Kochen, Vorräte, Geschirr**, dann je Gericht, zuletzt Alles). Ein
+  Ordner kann Unterordner tragen (`FurnitureFolder.folders`); wer einem
+  Ordner irgendwo im Baum etwas hinzufügt, nimmt `mapFolder`. Welten ohne
+  Gitter zeigen weiter nur Wände, Türen und Fenster flach
+  (`PortalWorld.elementFolders`). Die Menü-Ids tragen den ganzen Weg
+  (`elements/restaurant/burger:board`).
+- **Jeder Ordner zeigt sein prägnantestes Stück** (`FurnitureFolder.cover`,
+  `folderCover`): gerendert wie jede Kachel, der Herd auf _Restaurant_, der
+  Durchgang auf _Haus_, die Pizza-Vorratsbox auf _Pizza_ … Ohne Angabe das
+  erste Stück darin; solange es lädt, steht die Ordner-Ikone da.
+- **Ein Suchfeld wie im Modellregal** (`elements/catalogSearch.ts`, an jeder
+  Seite des Katalogs über `MenuEntry.find`): gesucht wird im ganzen Katalog,
+  alle Wörter müssen vorkommen, Umlaute gefaltet. Die Ordnernamen zählen mit
+  (`pizza` findet alles aus _Pizza_), Englisch über Id und Adresse (`cheese`),
+  und das Wörterbuch des Regals übersetzt (`kiste` → `crate`). Dasselbe Möbel
+  aus mehreren Ordnern steht in den Treffern einmal.
+- **Die Vorschau steht still** (`previewGrid.PREVIEW_YAW`, auch am
+  Handgelenk): schräg von vorn statt drehend — gewünscht: _„Die Elemente nicht
+  mehr automatisch drehen in der Vorschau"_.
+- **Die Ordner der Küche** (`KITCHEN_FOLDERS`, unter _Restaurant_): **Allgemein**
   (Arbeitsplatte, Waschbecken, Mülleimer, Feuerlöscher auf Arbeitsplatte),
   je Gericht **Pizza, Burger, Eis, Waffeln, Suppe** — jeder mit der
   Arbeitsplatte vorn und den Möbeln, mit denen `elementFlows.test.ts` das
   Gericht kocht, Burger und Pizza mit Tellerstapel und Tellerkiste — und **Alles** mit
-  der ganzen Liste; dahinter **Wände** mit den Regalwänden der Test
+  der ganzen Liste; die **Wände** mit den Regalwänden der Test
   Navigation, genommen wie im Modellregal
-  ([Die Wand](#die-wand-aus-der-test-navigation)). Gewünscht zuerst: _„einige Möbel doppelt gelistet …
+  ([Die Wand](#die-wand-aus-der-test-navigation)), stehen unter _Haus_. Gewünscht zuerst: _„einige Möbel doppelt gelistet …
   unterordner … Pizza, Burger, Eis, Waffeln, Suppe"_, dann: _„bei den unter
   Ordner die Arbeitsplatte jeweils rein. Und die Möbel aus dem Restaurant
   Ordner dafür raus. Dafür einen Ordner allgemein … Im Restaurant Ordner noch
   einen Ordner „alles“"_. **Doppelt ist nur die Kachel**: Dasselbe Element
   steht in mehreren Ordnern, hingestellt wird jedes Mal dasselbe. Die Menü-Ids
-  tragen deshalb den Ort (`elements/burger:board`), denn Ids im Menü sind
+  tragen deshalb den Ort (`elements/restaurant/burger:board`), denn Ids im Menü sind
   Adressen. Eine Welt gibt ihre Ordner über `PortalWorld.elementFolders` her;
   ohne Ordner steht die Liste wie früher gleich auf der Seite.
 - **Der Feuerlöscher** (`extinguisher`) ist eine Arbeitsplatte, auf der zu

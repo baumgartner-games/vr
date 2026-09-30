@@ -9,6 +9,10 @@ import {
   ELEMENTS,
   FURNITURE_CATALOGUE,
   FURNITURE_FOLDERS,
+  KITCHEN_FOLDERS,
+  allFolders,
+  folderCover,
+  mapFolder,
   SHOW_ONLY_GIVES,
   WALL_MODELS,
   BUILD_FOLDERS,
@@ -213,39 +217,82 @@ describe('der Möbelkatalog im Menü', () => {
     }
   });
 
-  it('hat die Unterordner Allgemein, Pizza, Burger, Eis, Waffeln, Suppe, Alles, Wände, Türen, Fenster', () => {
-    expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
+  it('ordnet wie die Sims erst nach Bereich: Haus mit Wände, Türen, Fenster, Restaurant mit der Küche', () => {
+    expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual(['Haus', 'Restaurant']);
+    expect(FURNITURE_FOLDERS[0]!.folders).toBe(BUILD_FOLDERS);
+    expect(FURNITURE_FOLDERS[1]!.folders).toBe(KITCHEN_FOLDERS);
+    expect(KITCHEN_FOLDERS.map((folder) => folder.label)).toEqual([
       'Allgemein',
+      'Kochen',
+      'Vorräte',
+      'Geschirr',
       'Pizza',
       'Burger',
       'Eis',
       'Waffeln',
       'Suppe',
       'Alles',
-      'Wände',
-      'Türen',
-      'Fenster',
     ]);
-    expect(new Set(FURNITURE_FOLDERS.map((folder) => folder.id)).size).toBe(
-      FURNITURE_FOLDERS.length,
-    );
-    for (const folder of FURNITURE_FOLDERS) {
-      expect(folder.elements.length + (folder.models?.length ?? 0)).toBeGreaterThan(0);
+    const all = allFolders(FURNITURE_FOLDERS);
+    expect(new Set(all.map((folder) => folder.id)).size).toBe(all.length);
+    for (const folder of all) {
+      const inner = folder.folders?.length ?? 0;
+      expect(folder.elements.length + (folder.models?.length ?? 0) + inner).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
       for (const id of folder.elements) expect(FURNITURE_CATALOGUE).toContain(id);
     }
   });
 
+  it('findet jedes Möbel der Küche auch außerhalb von Alles', () => {
+    const sorted = KITCHEN_FOLDERS.filter((folder) => folder.id !== 'all').flatMap(
+      (folder) => folder.elements,
+    );
+    for (const id of FURNITURE_CATALOGUE) expect(sorted).toContain(id);
+  });
+
+  it('legt in Vorräte jede Kiste der Küche', () => {
+    const supplies = KITCHEN_FOLDERS.find((one) => one.id === 'supplies')!.elements;
+    for (const id of FURNITURE_CATALOGUE)
+      if (elementById(id).kind === 'crate') expect(supplies).toContain(id);
+    expect(supplies).toContain('crate-cheese');
+  });
+
+  it('zeigt auf jedem Ordner ein Möbel oder Modell, das es gibt und das darin liegt', () => {
+    const inside = (folder: (typeof FURNITURE_FOLDERS)[number]): string[] =>
+      allFolders([folder]).flatMap((one) => [
+        ...one.elements,
+        ...(one.models ?? []),
+        ...(one.items ?? []),
+      ]);
+    for (const folder of allFolders(FURNITURE_FOLDERS)) {
+      const cover = folderCover(folder);
+      expect(cover).not.toBeNull();
+      const what =
+        'element' in cover! ? cover.element : 'model' in cover! ? cover.model : cover!.item;
+      if ('element' in cover!) expect(hasElement(cover.element)).toBe(true);
+      expect(inside(folder)).toContain(what);
+    }
+    expect(folderCover({ id: 'x', label: 'X', elements: [] })).toBeNull();
+    expect(folderCover({ id: 'x', label: 'X', elements: ['bin', 'sink'] })).toEqual({
+      element: 'bin',
+    });
+  });
+
+  it('ändert mit mapFolder einen Ordner auf jeder Ebene und lässt den Rest', () => {
+    const changed = mapFolder(FURNITURE_FOLDERS, 'walls', (folder) => ({ ...folder, label: 'W' }));
+    expect(allFolders(changed).find((one) => one.id === 'walls')!.label).toBe('W');
+    expect(changed[1]).toEqual(FURNITURE_FOLDERS[1]);
+    expect(allFolders(FURNITURE_FOLDERS).find((one) => one.id === 'walls')!.label).toBe('Wände');
+  });
+
   it('hat die Arbeitsplatte in jedem Ordner der Küche, den Tellerstapel bei Burger und Pizza', () => {
-    const build = new Set(BUILD_FOLDERS.map((one) => one.id));
-    for (const folder of FURNITURE_FOLDERS.filter((one) => !build.has(one.id)))
-      expect(folder.elements).toContain('counter');
-    const plates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('plate-stack'));
-    expect(plates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
+    for (const folder of KITCHEN_FOLDERS) expect(folder.elements).toContain('counter');
+    const plates = KITCHEN_FOLDERS.filter((folder) => folder.elements.includes('plate-stack'));
+    expect(plates.map((folder) => folder.id)).toEqual(['dishes', 'pizza', 'burger', 'all']);
   });
 
   it('hat Waschbecken, Mülleimer und Feuerlöscher in Allgemein, und in Alles jedes Möbel', () => {
-    const folder = (id: string) => FURNITURE_FOLDERS.find((one) => one.id === id)!.elements;
+    const folder = (id: string) => KITCHEN_FOLDERS.find((one) => one.id === id)!.elements;
     expect(folder('general')).toEqual(['counter', 'sink', 'pliers', 'bin', 'extinguisher']);
     expect(folder('all')).toEqual(FURNITURE_CATALOGUE);
   });
@@ -278,8 +325,14 @@ describe('der Möbelkatalog im Menü', () => {
 
   it('hat die Tellerkiste bei Burger und Pizza — eine Kiste, die Teller hergibt', () => {
     expect(elementById('crate-plates')).toMatchObject({ kind: 'crate', gives: 'plate' });
-    const crates = FURNITURE_FOLDERS.filter((folder) => folder.elements.includes('crate-plates'));
-    expect(crates.map((folder) => folder.id)).toEqual(['pizza', 'burger', 'all']);
+    const crates = KITCHEN_FOLDERS.filter((folder) => folder.elements.includes('crate-plates'));
+    expect(crates.map((folder) => folder.id)).toEqual([
+      'supplies',
+      'dishes',
+      'pizza',
+      'burger',
+      'all',
+    ]);
   });
 
   it('lässt jedes Möbel mit Zweck selbst leuchten — Kisten, Mülleimer, Arbeitsplatte —, Tisch und Band nicht', () => {
@@ -321,7 +374,7 @@ describe('der Möbelkatalog im Menü', () => {
     const all = BUILD_FOLDERS.flatMap((folder) => folder.models ?? []);
     const drawn = [...all, ...all.flatMap((path) => wallFullOf(path) ?? [])];
     for (const path of WALL_MODELS) expect(drawn).toContain(path);
-    for (const folder of BUILD_FOLDERS) expect(FURNITURE_FOLDERS).toContain(folder);
+    for (const folder of BUILD_FOLDERS) expect(allFolders(FURNITURE_FOLDERS)).toContain(folder);
     expect(WALL_MODELS).toEqual([
       'prototype-bits/Wall_Window_Closed.glb',
       'prototype-bits/Wall_Window_Closed_Narrow.glb',

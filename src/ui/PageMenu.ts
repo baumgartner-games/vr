@@ -38,7 +38,7 @@ import './pageMenu.css';
  * aufgesetzter Brille die Handgelenke, sonst diese Seite. Kein three.js — nur
  * DOM, damit ein Test sie ohne Browser aufschlagen kann (`pageMenu.test.ts`).
  *
- * **Auch die drehenden Modelle nicht.** Eine Kachel des Asset-Regals zeigt
+ * **Auch die Modelle in den Kacheln nicht.** Eine Kachel des Asset-Regals zeigt
  * nicht ihre Ikone, sondern das Ding selbst (`MenuEntry.preview`) — und das
  * ist three.js. Die Seite hält dafür nur den Platz frei: ein Quadrat je
  * Kachel (`.pmenu__prev`) und den **scrollenden Kasten**, in den eine
@@ -1282,7 +1282,7 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
  * **Was links (oder oben) in der Zeile steht** — und das ist zweierlei.
  *
  * Ohne `preview` die Ikone wie bisher. Mit `preview` ein **Quadrat**, in das
- * eine Vorschauschicht ihr drehendes Modell zeichnet (`PagePreviews.ts`).
+ * eine Vorschauschicht ihr Modell zeichnet (`PagePreviews.ts`).
  * Das Quadrat steht auch dann da, wenn niemand zeichnet — es hält den Platz,
  * damit im Raster kein Loch entsteht —, und solange kein Modell angekommen
  * ist, steht die Ikone darin. Erst wenn eines steht, geht sie weg: zwei
