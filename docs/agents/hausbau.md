@@ -204,6 +204,13 @@ Ebene anlegen durch eine 2x8 Treppe."_
   - Von oben schneidet die Kamera (`TopDownCamera`, `core/cutaway.ts`) — die
     Welt meldet draußen die oberste Etage als die, auf der man steht
     (`HausbauWorld.viewLevel`), dann ist nichts darüber.
+  - **Außer man steht hinter dem Haus** (`house/roofSight.ts`,
+    `HausbauWorld.roofHides`): Kreuzt ein Strahl aus der Figur (Beine, Kopf)
+    zur Kamera die Bodenhöhe einer höheren Etage über einer ihrer Kacheln,
+    schneidet die Welt draußen wie drinnen. Gewünscht: _„wenn ich hinter einem
+    Haus stehe, sollte so viel unsichtbar oder abgeschnitten werden, dass man
+    sieht, wo ich bin"_. Die Wand davor nimmt _Grafik → Wände vorn_ weg
+    (`wallGhost.wallsCovering`).
   - Im _Baukasten_ wählt man die Etage an der Ebenen-Leiste rechts
     (`grid/levelBar.ts`, [Bauen](bauen.md#ebenen-wie-in-die-sims)); dann gilt
     sie und nicht drinnen/draußen, und _⌂ Außen_ zeigt das ganze Haus.
