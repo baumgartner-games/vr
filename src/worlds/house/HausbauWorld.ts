@@ -12,6 +12,7 @@ import {
 } from '../elements/elementCatalog';
 import { ITEM_MODELS } from '../elements/itemModels';
 import type { GridPlan } from '../grid/gridPlan';
+import type { FloorCorner } from '../grid/solids';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import type { StandingWall } from '../portal/PortalWorld';
 import { TestRestaurantWorld } from '../testrestaurant/TestRestaurantWorld';
@@ -23,13 +24,21 @@ import {
   FLOORINGS,
   flooringAim,
   flooringItem,
+  halveSlanted,
   flooringOfItem,
   type Flooring,
   type FlooringAim,
 } from './flooring';
 import { HOUSE_SPOTS, houseSpawn, housePlan, houseWalls, onHouseGround } from './housePlan';
 import { ceilingChange, ceilingKey } from './ceiling';
-import { roomTiles, traceRoom, type PieceFace, type RoomTile, type WallPiece } from './roomTrace';
+import {
+  roomTiles,
+  slantedTiles,
+  traceRoom,
+  type PieceFace,
+  type RoomTile,
+  type WallPiece,
+} from './roomTrace';
 import { STAIR_STEPS, STOREY, houseTiles, stairDir, stairFits, stairTiles } from './stairPlan';
 import { bringBack, cutAway, type ViewLevel } from '../../core/cutaway';
 import { SHELF_WALL_Y } from '../grid/shelfWalls';
@@ -102,6 +111,12 @@ export class HausbauWorld extends TestRestaurantWorld {
   private clock = 0;
   /** **Der Bodenbelag je Kachel** (`x,z` → Platte), wo er vom Prototyp-Boden abweicht. */
   private readonly floors = new Map<string, string>();
+  /**
+   * **Der halbe Belag** (`x,z,level`) auf Kacheln mit einer Wand unter 45°
+   * (`flooring.halveSlanted`): die Platte auf der Hälfte ohne die Ecke
+   * `empty` — die andere Hälfte trägt weiter, was `floors` sagt.
+   */
+  private readonly halves = new Map<string, { empty: FloorCorner; path: string }>();
   /** Die Kacheln, die der Belag in der Hand gerade bekäme — der Raum oder die Kachel vor einem. */
   private floorRoom: FlooringAim | null = null;
   /** Das Leuchten über diesen Kacheln (`portal/placeGrid.ts`). */
@@ -169,6 +184,14 @@ export class HausbauWorld extends TestRestaurantWorld {
   /** Der gelegte Belag, sonst der Prototyp-Boden der Testwelten. */
   protected override floorPlate(tile: PlateTile): string | null {
     return this.floors.get(`${tile.col},${tile.row},${tile.level}`) ?? PLATE_PROTOTYPE;
+  }
+
+  /** Die halben Beläge unter den Wänden unter 45° (`halves`). */
+  protected override *halfPlates(): Iterable<PlateTile & { model: string; empty: FloorCorner }> {
+    for (const [key, half] of this.halves) {
+      const [col, row, level] = key.split(',').map(Number) as [number, number, number];
+      yield { col, row, level, model: half.path, empty: half.empty };
+    }
   }
 
   /** **Das Haus**: die Wände aus dem Katalog, hingestellt wie aus der Hand. */
@@ -575,6 +598,7 @@ export class HausbauWorld extends TestRestaurantWorld {
         return (
           plan.emptyAt(here) ||
           this.floors.has(ceilingKey(x, z, level)) ||
+          this.halves.has(ceilingKey(x, z, level)) ||
           this.landings.has(ceilingKey(x, z, level)) ||
           plan.flightOn(here) !== null ||
           plan.blocksOn(here).length > 0 ||
@@ -615,12 +639,15 @@ export class HausbauWorld extends TestRestaurantWorld {
     aimForward(ctx.topDown, _rigAhead, _headAhead, _aim);
     ctx.rig.getHeadPosition(_at);
     const ahead = stairTiles(_at.x, _at.z, stairDir(_aim.x, _aim.z))[0]!;
-    const room = roomTiles(this.wallsOn(level).pieces, _at.x, _at.z);
-    return flooringAim(room, ahead, (tile) => {
+    const { pieces } = this.wallsOn(level);
+    const room = roomTiles(pieces, _at.x, _at.z);
+    const aim = flooringAim(room, ahead, (tile) => {
       const key = tileKey(tile.x, tile.z, level);
       if (this.grid?.emptyAt(key)) return false;
       return level > 0 || (graph?.has(key) ?? false);
     });
+    // Unter einer Wand unter 45° nur die Hälfte diesseits (`halveSlanted`).
+    return aim && halveSlanted(aim, slantedTiles(pieces), _at);
   }
 
   /**
@@ -641,14 +668,37 @@ export class HausbauWorld extends TestRestaurantWorld {
       if (plan.emptyAt(here)) continue;
       if (!plan.graph.has(here)) plan.floor({ x: tile.x, z: tile.z, w: 1, d: 1, level });
       const key = `${tile.x},${tile.z},${level}`;
-      if (flooring.path === PLATE_PROTOTYPE) this.floors.delete(key);
-      else this.floors.set(key, flooring.path);
+      if (tile.empty) this.layHalf(key, tile.empty, flooring.path);
+      else {
+        this.halves.delete(key);
+        this.setFloor(key, flooring.path);
+      }
     }
     this.rebuildFloor();
     this.floorRoom = null;
     if (!aim.room) return;
     this.setCarried(null, null);
     ctx.notify(`${flooring.label}: ${aim.tiles.length} Kacheln gelegt`);
+  }
+
+  /** Der ganze Belag einer Kachel — der Prototyp-Boden ist keiner (`floorPlate`). */
+  private setFloor(key: string, path: string): void {
+    if (path === PLATE_PROTOTYPE) this.floors.delete(key);
+    else this.floors.set(key, path);
+  }
+
+  /**
+   * **Den Belag auf eine Hälfte legen** — die ohne die Ecke `empty`. Liegt
+   * die andere Hälfte schon halb (der Raum jenseits der Schräge), bekommt
+   * die ganze Platte darunter den neuen Belag: Sie ist nur noch auf dieser
+   * Hälfte zu sehen. Zeigen beide Hälften dasselbe, bleibt eine ganze Platte.
+   */
+  private layHalf(key: string, empty: FloorCorner, path: string): void {
+    const half = this.halves.get(key);
+    if (half && half.empty !== empty) this.setFloor(key, path);
+    else this.halves.set(key, { empty, path });
+    const now = this.halves.get(key)!;
+    if (now.path === (this.floors.get(key) ?? PLATE_PROTOTYPE)) this.halves.delete(key);
   }
 
   /**

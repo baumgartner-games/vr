@@ -1,3 +1,5 @@
+import type { FloorCorner } from '../grid/solids';
+
 /**
  * **Die Bodenbeläge** — was man in einem Raum auf den Boden legt.
  *
@@ -77,10 +79,14 @@ export function flooringOfItem(item: string | null | undefined): Flooring | null
   return flooringById(item.slice('floor-'.length));
 }
 
-/** Eine Kachel: Spalte und Reihe. */
+/**
+ * Eine Kachel: Spalte und Reihe — und, wenn eine Wand unter 45° hindurchgeht,
+ * die Ecke, deren Dreieck der Belag **nicht** bekommt (`halveSlanted`).
+ */
 interface FloorTile {
   readonly x: number;
   readonly z: number;
+  readonly empty?: FloorCorner;
 }
 
 /** Wohin der Belag in der Hand käme — und ob er dabei in der Hand bleibt. */
@@ -114,4 +120,60 @@ export function flooringAim(
     return tiles.length > 0 ? { tiles, room: true } : null;
   }
   return layable(ahead) ? { tiles: [ahead], room: false } : null;
+}
+
+/** Die Kacheln an den beiden Kanten einer Ecke: `ne` → Norden und Osten. */
+function besideCorner(tile: FloorTile, corner: FloorCorner): FloorTile[] {
+  const dz = corner === 'nw' || corner === 'ne' ? -1 : 1;
+  const dx = corner === 'nw' || corner === 'sw' ? -1 : 1;
+  return [
+    { x: tile.x, z: tile.z + dz },
+    { x: tile.x + dx, z: tile.z },
+  ];
+}
+
+/**
+ * **Auf einer Kachel mit einer Wand unter 45° nur die eine Hälfte** —
+ * gewünscht (September 2026): _„beim setzen des boden gibt es bei diagonalen
+ * wänden noch ein problem. In der welt haunting haben wir das gelöst, dass
+ * auch nur diagonale bodenteile eingefärbt werden können. Das soll an sich
+ * auch möglich sein, wenn ich einen boden lege."_ Wie der halbe Boden der
+ * Station (`GridPlan.halfFloor`), nur dass die andere Hälfte ihren Belag
+ * behält, statt leer zu werden.
+ *
+ * - **Im Raum** bekommt der Belag die Hälfte, an deren Kanten der Raum liegt;
+ *   leer bleibt die Ecke, an der weniger Kacheln des Raums liegen. Gleich
+ *   viele (man steht auf der Schräge selbst): die ganze Kachel.
+ * - **Ohne Raum** die Hälfte zum Spieler hin (`from`): leer bleibt die Ecke,
+ *   die weiter weg ist.
+ *
+ * @param slanted die Kacheln mit einer Wand unter 45° und die beiden Ecken,
+ *   die sie trennt (`roomTrace.slantedTiles`)
+ */
+export function halveSlanted(
+  aim: FlooringAim,
+  slanted: ReadonlyMap<string, readonly [FloorCorner, FloorCorner]>,
+  from: { readonly x: number; readonly z: number },
+): FlooringAim {
+  const inRoom = new Set(aim.tiles.map((tile) => `${tile.x},${tile.z}`));
+  const tiles = aim.tiles.map((tile): FloorTile => {
+    const corners = slanted.get(`${tile.x},${tile.z}`);
+    if (!corners) return { x: tile.x, z: tile.z };
+    const [a, b] = corners;
+    let empty: FloorCorner | null;
+    if (aim.room) {
+      const count = (corner: FloorCorner): number =>
+        besideCorner(tile, corner).filter((one) => inRoom.has(`${one.x},${one.z}`)).length;
+      empty = count(a) < count(b) ? a : count(b) < count(a) ? b : null;
+    } else {
+      const far = (corner: FloorCorner): number => {
+        const cx = tile.x + (corner === 'ne' || corner === 'se' ? 1 : 0);
+        const cz = tile.z + (corner === 'se' || corner === 'sw' ? 1 : 0);
+        return Math.hypot(cx - from.x, cz - from.z);
+      };
+      empty = far(a) >= far(b) ? a : b;
+    }
+    return empty ? { x: tile.x, z: tile.z, empty } : { x: tile.x, z: tile.z };
+  });
+  return { tiles, room: aim.room };
 }

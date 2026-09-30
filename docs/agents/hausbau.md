@@ -110,6 +110,22 @@ für Gäste. Gleiches Prinzip."_
   Kachel, sonst ginge es oben nach jeder die Treppe hinunter zur Kiste. Im Raum
   ist er wie bisher aufgebraucht. Nicht belegt werden leerer Boden über einer
   Treppe und, auf der untersten Etage, alles jenseits des Grundstücks.
+- **Unter einer Wand unter 45° nur die eine Hälfte** (September 2026) —
+  gemeldet: _„beim setzen des boden gibt es bei diagonalen wänden noch ein
+  problem. In der welt haunting haben wir das gelöst, dass auch nur diagonale
+  bodenteile eingefärbt werden können."_ Vorher lag der Belag auf der ganzen
+  Schrägkachel und schaute auf der anderen Seite der Wand heraus. Jetzt
+  bekommt eine Kachel, durch die eine Wand unter 45° geht
+  (`roomTrace.slantedTiles`), im Raum nur die Hälfte, an deren Kanten der Raum
+  liegt, ohne Raum die Hälfte zum Spieler hin (`flooring.halveSlanted`). Die
+  andere Hälfte behält ihren Belag. Gezeichnet wird die **Platte aus dem
+  Regal, diagonal geschnitten** (`shared/plateCut.cutPlate`, an der Geometrie,
+  nicht mit einer Schnittebene), drei Millimeter über der ganzen darunter
+  (`GridWorld.halfPlates`, `HALF_PLATE_LIFT`; je Datei, Etage und Ecke ein
+  Bündel, `PlateFloor` mit `cut`). Gemerkt in `HausbauWorld.halves`; legt man
+  danach den Raum jenseits der Wand, bekommt die ganze Platte darunter dessen
+  Belag. Anders als in Haunting (`GridPlan.halfFloor`) bleibt keine Hälfte
+  leer — draußen liegt ja Boden.
 - **Das Leuchten** ist das Gitter des Bauens (`portal/placeGrid.ts`) über den
   Kacheln des Raums.
 
