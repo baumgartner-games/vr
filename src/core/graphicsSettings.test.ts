@@ -10,6 +10,7 @@ import {
   animationSummary,
   clampGraphics,
   clearGraphics,
+  nextWallOcclusion,
   graphics,
   graphicsProfile,
   graphicsSummary,
@@ -41,6 +42,8 @@ describe('Grafikeinstellungen', () => {
       hitBoxes: false,
       gridHitBoxes: false,
       ghostBoxes: false,
+      // Von oben wird die Wand entlang der Sichtlinie durchsichtig — wie immer.
+      wallOcclusion: 'ghost',
       showHandles: false,
       // Quest-3-Blickfeld und Mensch als Boxen: Werkstattansichten, ab Werk aus.
       showVrFrustum: false,
@@ -309,6 +312,23 @@ describe('Grafikeinstellungen', () => {
     expect(clampGraphics({ ghostBoxes: 1 as never })).toEqual(DEFAULT_GRAPHICS);
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, ghostBoxes: true })).toBe(
       'Einfach · Hitboxen 3D · Ghosting',
+    );
+  });
+
+  /**
+   * **Wände vorn: vier Arten im Kreis** — ab Werk die Sichtlinie, Unbekanntes
+   * wird die Vorgabe, und genannt wird nur eine Abweichung.
+   */
+  it('schaltet die Wände vorn im Kreis und nennt nur die Abweichung', () => {
+    expect(nextWallOcclusion('ghost')).toBe('ghostFront');
+    expect(nextWallOcclusion('ghostFront')).toBe('cutaway');
+    expect(nextWallOcclusion('cutaway')).toBe('hole');
+    expect(nextWallOcclusion('hole')).toBe('ghost');
+    expect(clampGraphics({ wallOcclusion: 'cutaway' }).wallOcclusion).toBe('cutaway');
+    expect(clampGraphics({ wallOcclusion: 'sims' as never }).wallOcclusion).toBe('ghost');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, wallOcclusion: 'ghost' })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, wallOcclusion: 'hole' })).toBe(
+      'Einfach · Wände Guckloch (Kreis)',
     );
   });
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { isHighlight } from '../../core/highlight';
 import { isOutline } from '../../core/outlineShell';
+import { wallCutTwin, wallLook, type WallLook } from './wallCut';
 
 /**
  * **Durchsichtig wie eine Wand — für das, was man selbst hingestellt hat.**
@@ -23,12 +24,20 @@ import { isOutline } from '../../core/outlineShell';
  * `transparent` am Material selbst umzulegen, machte jedes Fass derselben
  * Datei durchsichtig, und three.js baute den Shader dabei jedes Mal neu —
  * derselbe Grund wie bei der zweiten Palette der Quader.
+ *
+ * **Wie der Zwilling aussieht, sagt die Einstellung** (`wallCut.wallLook`):
+ * durchsichtig, abgeschnitten oder mit Loch. Wechselt sie, geht beim nächsten
+ * `apply` alles zurück und kommt in der neuen Fassung wieder.
  */
 export class ModelGhosts {
   /** Was gerade durchsichtig ist — und wie es vorher aussah. */
   private readonly faded = new Map<THREE.Object3D, Faded[]>();
-  /** Die Zwillinge, je Original einer. */
-  private readonly twins = new Map<THREE.Material, THREE.Material>();
+  /** Die Zwillinge, je Fassung und Original einer. */
+  private readonly twins = new Map<string, THREE.Material>();
+  private readonly keys = new WeakMap<THREE.Material, number>();
+  private nextKey = 0;
+  /** In welcher Fassung das, was gerade weg ist, weg ist. */
+  private look: WallLook = 'fade';
 
   /** @param opacity Wie viel von der Deckkraft übrig bleibt — wie bei den Wänden. */
   constructor(private readonly opacity: number) {}
@@ -45,6 +54,12 @@ export class ModelGhosts {
    */
   apply(objects: Iterable<THREE.Object3D>): void {
     const want = new Set(objects);
+    const look = wallLook();
+    if (look !== this.look) {
+      for (const saved of this.faded.values()) restore(saved);
+      this.faded.clear();
+      this.look = look;
+    }
     for (const [object, saved] of this.faded) {
       if (want.has(object)) continue;
       restore(saved);
@@ -89,15 +104,23 @@ export class ModelGhosts {
   }
 
   private twin(material: THREE.Material): THREE.Material {
-    const had = this.twins.get(material);
+    let id = this.keys.get(material);
+    if (id === undefined) this.keys.set(material, (id = this.nextKey++));
+    const key = `${this.look}:${id}`;
+    const had = this.twins.get(key);
     if (had) return had;
+    const made = this.look === 'fade' ? this.fadeTwin(material) : wallCutTwin(material, this.look);
+    this.twins.set(key, made);
+    return made;
+  }
+
+  private fadeTwin(material: THREE.Material): THREE.Material {
     const made = material.clone();
     made.transparent = true;
     made.opacity = material.opacity * this.opacity;
     // Wie bei den Wänden: Was durchsichtig ist, schreibt nicht in den
     // Tiefenpuffer — sonst verdeckt es die Figur trotzdem, nur unsichtbar.
     made.depthWrite = false;
-    this.twins.set(material, made);
     return made;
   }
 }

@@ -48,10 +48,12 @@ import {
   GHOST_SHOULDER,
   blocksView,
   wallsHiding,
+  wallsInFront,
   type GhostCandidate,
   type GhostPoint,
 } from './wallGhost';
 import { ModelGhosts } from './modelGhost';
+import { aimWallCut, lookOfOcclusion, setWallLook, wallCutTwin, type WallLook } from './wallCut';
 import { GhostBoxView, type GhostBoxLine } from './ghostView';
 import { turnedHalf, yawOf } from '../portal/gridSnap';
 import { boxAround, type Box as DecorBox } from '../portal/decorPlace';
@@ -400,7 +402,9 @@ export abstract class GridWorld extends PortalWorld {
    */
   private readonly wallGhosts: GhostSlab[] = [];
   /** Die zweite Palette: dieselben Farben, durchsichtig (`ghostFor`). */
-  private readonly ghostPalette = new Map<PlanSolidKind, THREE.Material>();
+  private readonly ghostPalette = new Map<string, THREE.Material>();
+  /** In welcher Fassung die Quader gerade weg sind (`wallCut.ts`). */
+  private ghostLook: WallLook = 'fade';
   /**
    * **Was aus dem Regal hingestellt ist, wird genauso durchsichtig**
    * (`modelGhost.ts`) — eine Wand aus dem Regal ist kein Quader aus dem
@@ -2804,10 +2808,28 @@ export abstract class GridWorld extends PortalWorld {
     const eye = (ctx.viewCamera ?? ctx.camera).getWorldPosition(_eye);
     const rig = ctx.rig.position;
     const aim = { x: rig.x, y: rig.y + GHOST_AIM, z: rig.z };
+    // **Welche Art** (_Grafik → Wände vorn_, `wallCut.ts`): Wechselt sie, geht
+    // erst alles zurück — die Quader tauschen nur, wenn sich `on` ändert, und
+    // behielten sonst die alte Fassung.
+    const mode = graphics().wallOcclusion;
+    const look = lookOfOcclusion(mode);
+    if (look !== this.ghostLook) {
+      this.clearWallGhosts();
+      this.ghostLook = look;
+    }
+    setWallLook(look);
+    aimWallCut(ctx.rig.getFloorY(), eye, aim);
+    // Das Guckloch nimmt dieselben Wände wie _alle vorn_: Wo das Loch sitzt,
+    // entscheidet sein Shader, und eine Wand, die es nicht trifft, sieht mit
+    // dem Zwilling genauso aus wie ohne. Die Sichtlinie allein wäre zu knapp —
+    // von oben geht sie zur Körpermitte oft gerade über die Wand hinweg,
+    // während die Beine dahinter verschwinden.
+    const pick = <T extends GhostCandidate>(boxes: readonly T[]): T[] =>
+      mode === 'ghost' ? wallsHiding(eye, aim, boxes) : wallsInFront(eye, aim, boxes);
     const models = this.gatherModelCandidates();
-    const hidden = new Set<GhostCandidate>(wallsHiding(eye, aim, this.wallGhosts));
+    const hidden = new Set<GhostCandidate>(pick(this.wallGhosts));
     for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
-    const hiddenModels = wallsHiding(eye, aim, models);
+    const hiddenModels = pick(models);
     this.modelGhosts.apply(hiddenModels.map((one) => one.entry.object));
     for (const one of hiddenModels) hidden.add(one);
     this.drawGhostView(eye, aim, ctx.rig.getFloorY(), models, hidden);
@@ -2892,10 +2914,16 @@ export abstract class GridWorld extends PortalWorld {
    * durchsichtig, und three.js baut den Shader dabei jedes Mal neu.
    */
   private ghostFor(kind: PlanSolidKind): THREE.Material {
-    const had = this.ghostPalette.get(kind);
+    const key = `${this.ghostLook}:${kind}`;
+    const had = this.ghostPalette.get(key);
     if (had) return had;
-    const made = this.buildMaterial(kind, true);
-    this.ghostPalette.set(kind, made);
+    // Abgeschnitten oder mit Loch ist die Wand nicht durchsichtig, sondern
+    // fest mit einem Schnitt im Shader (`wallCut.ts`).
+    const made =
+      this.ghostLook === 'fade'
+        ? this.buildMaterial(kind, true)
+        : wallCutTwin(this.materialFor(kind), this.ghostLook);
+    this.ghostPalette.set(key, made);
     return made;
   }
 

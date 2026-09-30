@@ -391,6 +391,51 @@ daneben durchsichtig wurde. Jetzt kommt jedes hingestellte Modell
 Grund wie die zweite Palette der Quader. Der schwarze Rand des Comics geht
 solange weg, der gelbe Saum des Hervorhebens bleibt.
 
+## Wände vorn: vier Arten, eine Wand aus dem Weg zu nehmen
+
+_Menü → Grafik → **Wände vorn**_ (`GraphicsSettings.wallOcclusion`, Typ
+`WallOcclusion`) — ein Druck schaltet weiter. Gewünscht: _„über Menü Grafik
+zwischen den indoor wand ghost modus wechseln"_, mit dem Nachsatz, dass der
+Name dafür nicht einfallen wollte. In Spielen heißt die ganze Frage
+**occlusion handling**; die vier Antworten und ihre üblichen Namen:
+
+| Zeile im Menü | Name in Spielen | Welche Wände | Wie sie aussehen |
+| ------------- | --------------- | ------------ | ---------------- |
+| **Durchsichtig (Sichtlinie)** — ab Werk | Ghost Wall | `wallsHiding`: nur, was zwischen Kamera und Figur steht | durchsichtiger Zwilling, ein Viertel Deckkraft |
+| **Durchsichtig (alle vorn)** | Ghost Walls | `wallsInFront`: jede Wand der Etage, die ganz auf der Kameraseite der Figur liegt | dasselbe |
+| **Abgeschnitten (Sims)** | Wall Cutaway (_Die Sims_: „Wände ausgeschnitten") | `wallsInFront` | bis auf einen Sockel von 0,35 m über den Füßen gekürzt (`CUT_HEIGHT`) |
+| **Guckloch (Kreis)** | See-through Circle, Circle/Sphere Masking | `wallsInFront` | ein Loch von 1,1 m um die Sichtlinie zur Figur (`HOLE_RADIUS`), nur vor ihr |
+
+- **Die Auswahl** steht in `worlds/grid/wallGhost.ts`: `wallsInFront` ist
+  `wallsHiding` ohne die Strecke — dieselbe Frage nach der Seite
+  (`turnsItsBack`), dieselbe Drehung mit der Kamera, beschränkt auf die Etage
+  der Figur (`FRONT_BELOW`, `FRONT_ABOVE`). Das Guckloch nimmt dieselben Wände
+  wie _alle vorn_, weil der Shader entscheidet, wo das Loch sitzt: Die
+  Sichtlinie allein ist zu knapp — aus der steilen Kamera geht sie zur
+  Körpermitte oft gerade über die Wand, während die Beine dahinter
+  verschwinden.
+- **Das Aussehen** steht in `worlds/grid/wallCut.ts`. Abgeschnitten und
+  Guckloch sind **feste** Zwillinge mit einem Schnitt im Shader
+  (`wallCutTwin`, `injectCut`): Die Weltposition geht als eigenes `varying`
+  in den Fragment-Shader, und dort wird verworfen — über der Schnitthöhe oder
+  im Zylinder um die Strecke Kamera → Figur. Keine Schnittebenen des
+  Renderers (`localClippingEnabled` müsste jede Welt freischalten, und die
+  Portalwelt schaltet es selbst), kein Durchsichtiges, kein Sortieren.
+  Schnitthöhe und Sichtlinie sind geteilte Uniforms (`WALL_CUT_UNIFORMS`),
+  gesetzt einmal je Bild in `GridWorld.stepWallGhosts` (`aimWallCut`).
+- **Ohne Deckel.** Eine abgeschnittene Wand ist oben offen. Beide Zwillinge
+  zeichnen deshalb auch die Rückseiten, dunkler (`INSIDE_SHADE`), und so liest
+  sich die offene Oberkante wie eine Schnittfläche.
+- **Für Modelle wie für Quader.** `ModelGhosts` fragt die geltende Fassung
+  (`wallCut.wallLook`, gesetzt von `GridWorld`) und baut je Fassung und
+  Original einen Zwilling; wechselt die Einstellung, geht beim nächsten
+  `apply` alles zurück und kommt neu. Ein eigenes `onBeforeCompile` des
+  Originals (die Tapete) läuft vor dem Schnitt, und der Comic lässt die
+  Zwillinge in Ruhe (`bgvrNoLook`).
+- Genannt wird in der Überschrift der Seite nur eine Abweichung von der
+  Sichtlinie. Die Werkstattansicht _Ghosting zeigen_ bleibt bei ihrer Spalte;
+  rot ist in jeder Art, was gerade betroffen ist.
+
 ## Position zeigen
 
 Noch ein Häkchen, und die einfachste Auskunft von allen: _Menü → Grafik →
