@@ -11,7 +11,7 @@ import {
   TOP_DOWN_FOV,
   TOP_DOWN_ZOOM,
   groundDirection,
-  quarterTurn,
+  stepTurn,
   screenToGround,
   topDownDistance,
   topDownPitch,
@@ -215,13 +215,13 @@ export class TopDownCamera {
   }
 
   /**
-   * **Das Bild eine Vierteldrehung weiter** — `+1` links herum, `-1` rechts
-   * herum (Steuerkreuz ←/→ am Pad, `Q` / `Umschalt`+`Q`, `FlatControls`).
+   * **Das Bild einen Schritt weiter** (45°, `TURN_STEP`) — `+1` links herum,
+   * `-1` rechts herum (Steuerkreuz ←/→ am Pad, `Q` / `Umschalt`+`Q`, `FlatControls`).
    * Gelaufen wird danach weiter **im Bild**: oben bleibt oben
    * (`screenToGround`).
    */
   turn(direction: number): void {
-    this.headingGoal = quarterTurn(this.headingGoal, direction);
+    this.headingGoal = stepTurn(this.headingGoal, direction);
   }
 
   /** Wohin „oben" im Bild gerade zeigt — die weich nachgezogene Drehung. */
@@ -229,7 +229,7 @@ export class TopDownCamera {
     return this.headingNow;
   }
 
-  /** Wohin „oben" zeigen wird, wenn die Drehung angekommen ist — ein ganzes Viertel. */
+  /** Wohin „oben" zeigen wird, wenn die Drehung angekommen ist — ein ganzer Schritt. */
   get headingTarget(): number {
     return this.headingGoal;
   }
