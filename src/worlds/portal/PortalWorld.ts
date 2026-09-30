@@ -52,10 +52,12 @@ import {
   wallFullOf,
   wallHalfOf,
   elementById,
+  folderCover,
   hasElement,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
 import { elementFacts } from '../elements/elementFacts';
+import { catalogSearch, type CatalogRow } from '../elements/catalogSearch';
 import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { KaykitDishView } from '../elements/dishView';
 import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipes';
@@ -4131,54 +4133,119 @@ export class PortalWorld implements World {
         },
       };
     };
-    const folders = this.elementFolders().flatMap((folder): MenuEntry[] => {
-      const inside = folder.elements.filter(hasElement);
-      const models = folder.models ?? [];
-      const items = (folder.items ?? []).filter((id) => this.catalogItem(id) !== null);
-      if (inside.length + models.length + items.length === 0) return [];
-      const at = `elements/${folder.id}`;
-      const total = inside.length + models.length + items.length;
-      const count = total === 1 ? '1 Stück' : `${total} Stück`;
-      return [
-        {
-          id: at,
-          label: folder.label,
-          sub: count,
-          caption: count,
-          icon: 'folder',
-          accent,
-          grid: true,
-          cols: SHELF_COLS,
-          full: true,
-          take: true,
-          children: [
-            ...items.map((id) => item(id, at)),
-            ...inside.map((id) => tile(id, at)),
-            ...models.map((path) => model(path, at)),
-          ],
-        },
-      ];
-    });
-    return [
-      {
-        id: 'elements',
-        label: 'Katalog',
-        sub: 'Kaufen und bauen: Möbel, Wände, Türen, Fenster',
-        icon: 'plank',
-        // Die Wände darin sind Regalmodelle; ihre Steckbriefe kommen aus dem
-        // Index des Regals, der erst beim Öffnen geholt wird.
-        onOpen: () => this.openShelf(),
-        accent,
-        grid: true,
-        cols: SHELF_COLS,
-        full: true,
-        take: true,
-        // **Nur Ordner** — gewünscht: _„die Möbel aus dem Restaurant Ordner
-        // dafür raus"_. Die ganze Liste steht im Ordner _Alles_; eine Welt
-        // ohne Ordner zeigt sie wie vorher gleich hier.
-        children: folders.length > 0 ? folders : ids.map((id) => tile(id, 'elements')),
-      },
-    ];
+    // **Das Bild auf dem Ordner** (`folderCover`): das prägnanteste Möbel,
+    // gerendert wie jede Kachel — gewünscht: _„Menü Ordner sollen
+    // Icons/Symbole bekommen oder das prägnant Möbel Element gerendert"_.
+    const coverPreview = (folder: FurnitureFolder): string | undefined => {
+      const cover = folderCover(folder);
+      if (!cover) return undefined;
+      if ('element' in cover)
+        return hasElement(cover.element) ? `${ELEMENT_PREVIEW}${cover.element}` : undefined;
+      if ('model' in cover) return `kaykit:${cover.model}`;
+      const facts = this.catalogItem(cover.item);
+      return facts?.model ? `kaykit:${facts.model}` : undefined;
+    };
+    // **Was die Suche kennt** — jede Kachel mit den Namen ihrer Ordner
+    // (`catalogSearch`). Gesammelt beim Bauen des Baums, einmal je Menü.
+    const rows: CatalogRow<MenuEntry>[] = [];
+    const folderEntries = (
+      list: readonly FurnitureFolder[],
+      parent: string,
+      path: readonly string[],
+    ): MenuEntry[] =>
+      list.flatMap((folder): MenuEntry[] => {
+        const at = `${parent}/${folder.id}`;
+        const labels = [...path, folder.label];
+        const where = labels.join(' ');
+        const inner = folderEntries(folder.folders ?? [], at, labels);
+        const inside = folder.elements.filter(hasElement);
+        const models = folder.models ?? [];
+        const items = (folder.items ?? []).filter((id) => this.catalogItem(id) !== null);
+        const own = [
+          ...items.map((id) => {
+            const entry = item(id, at);
+            rows.push({ key: `item:${id}`, name: entry.label, words: `${where} ${id}`, entry });
+            return entry;
+          }),
+          ...inside.map((id) => {
+            const entry = tile(id, at);
+            rows.push({ key: `element:${id}`, name: entry.label, words: `${where} ${id}`, entry });
+            return entry;
+          }),
+          ...models.map((path) => {
+            const entry = model(path, at);
+            rows.push({
+              key: `model:${path}`,
+              name: entry.label,
+              words: `${where} ${path}`,
+              entry,
+            });
+            return entry;
+          }),
+        ];
+        if (inner.length + own.length === 0) return [];
+        const count =
+          inner.length > 0
+            ? `${inner.length} Ordner`
+            : own.length === 1
+              ? '1 Stück'
+              : `${own.length} Stück`;
+        const preview = coverPreview(folder);
+        return [
+          {
+            id: at,
+            label: folder.label,
+            sub: count,
+            caption: count,
+            icon: 'folder',
+            ...(preview ? { preview } : {}),
+            accent,
+            grid: true,
+            cols: SHELF_COLS,
+            full: true,
+            take: true,
+            children: [...inner, ...own],
+          },
+        ];
+      });
+    const folders = folderEntries(this.elementFolders(), 'elements', []);
+    const children = folders.length > 0 ? folders : ids.map((id) => tile(id, 'elements'));
+    if (folders.length === 0)
+      for (const entry of children)
+        rows.push({
+          key: entry.id.slice(entry.id.indexOf(':') + 1),
+          name: entry.label,
+          words: entry.id,
+          entry,
+        });
+    const root: MenuEntry = {
+      id: 'elements',
+      label: 'Katalog',
+      sub: 'Kaufen und bauen: Möbel, Wände, Türen, Fenster',
+      icon: 'plank',
+      // Die Wände darin sind Regalmodelle; ihre Steckbriefe kommen aus dem
+      // Index des Regals, der erst beim Öffnen geholt wird.
+      onOpen: () => this.openShelf(),
+      accent,
+      grid: true,
+      cols: SHELF_COLS,
+      full: true,
+      take: true,
+      // **Nur Ordner** — gewünscht: _„die Möbel aus dem Restaurant Ordner
+      // dafür raus"_. Die ganze Liste steht im Ordner _Alles_; eine Welt
+      // ohne Ordner zeigt sie wie vorher gleich hier.
+      children,
+    };
+    // **Das Suchfeld auf jeder Seite des Katalogs**, wie im Modellregal
+    // (`kaykitIndex.offerSearch`): gesucht wird immer im ganzen Katalog.
+    const find = (query: string): MenuEntry[] => catalogSearch(rows, query);
+    const offer = (entry: MenuEntry): void => {
+      if (!entry.children) return;
+      entry.find = find;
+      entry.children.forEach(offer);
+    };
+    offer(root);
+    return [root];
   }
 
   /**

@@ -4,7 +4,7 @@ import { menuMiniature } from './menuMiniature';
 import { PageDetail, type MenuClipSource } from './PageDetail';
 import {
   PREVIEW_FILL,
-  PREVIEW_SPIN,
+  PREVIEW_YAW,
   PreviewLedger,
   previewSheet,
   previewWindow,
@@ -18,8 +18,8 @@ import {
 import type { MenuModelFactory } from './WristMenu';
 
 /**
- * **Das Regal auf dem Telefon: in jeder Kachel das Modell selbst, langsam
- * gedreht.**
+ * **Das Regal auf dem Telefon: in jeder Kachel das Modell selbst, schräg von
+ * vorn und stehend** (`PREVIEW_YAW`; bis September 2026 drehte es sich).
  *
  * In der Brille macht das Panel am Handgelenk es schon lange (`WristMenu.ts`,
  * `updatePreviews`); im Browserfenster standen dieselben Kacheln leer, weil
@@ -124,7 +124,6 @@ export class PagePreviews implements PagePreviewLayer {
   private frame = 0;
   /** Sekunden seit dem Aufschlagen — die Uhr des Verzeichnisses. */
   private now = 0;
-  private spin = 0;
   /** Ein Modell kam an: Die Seite soll neu zeichnen, aber nur einmal je Bild. */
   private dirty = false;
   /** Wie viele Modelle seit dem letzten Neuaufsetzen der Leinwand entladen wurden. */
@@ -313,7 +312,6 @@ export class PagePreviews implements PagePreviewLayer {
 
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this.now += dt;
-    this.spin = (this.spin + dt * PREVIEW_SPIN) % (Math.PI * 2);
 
     const view = measure(box);
     // Das Blatt zuerst: Wo es hängt, entscheidet, wo jedes Modell darauf
@@ -337,7 +335,7 @@ export class PagePreviews implements PagePreviewLayer {
       model.visible = true;
       model.position.set(slot.x, -slot.y, 0);
       model.scale.setScalar(slot.size * PREVIEW_FILL);
-      model.rotation.y = this.spin;
+      model.rotation.y = PREVIEW_YAW;
     }
     // Die Nachbarn im Fenster werden schon geholt, aber nicht gezeichnet.
     const keep = previewWindow([...this.boxes.keys()], shown);

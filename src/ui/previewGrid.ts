@@ -68,8 +68,15 @@ export interface Slot {
  */
 export const PREVIEW_RETRY = 0.5;
 
-/** Wie schnell sich ein Vorschaumodell dreht, in Radiant pro Sekunde. */
-export const PREVIEW_SPIN = 0.7;
+/**
+ * **Wie ein Vorschaumodell steht** — fest um die Hochachse gedreht, in
+ * Radiant, und nicht mehr sich drehend. Gewünscht: _„Die Elemente nicht mehr
+ * automatisch drehen in der Vorschau"_. Ein Achtel zur Seite: Die Vorderseite
+ * (`+z`, wohin ein Möbel schaut) zeigt zum Betrachter, und eine Seite sieht
+ * man mit, sonst wäre eine Arbeitsplatte nur ein Rechteck. Dieselbe Zahl am
+ * Handgelenk (`ui/WristMenu.ts`).
+ */
+export const PREVIEW_YAW = -Math.PI / 5;
 
 /**
  * Wie weit es nach vorn gekippt steht. Eine reine Seitenansicht macht aus

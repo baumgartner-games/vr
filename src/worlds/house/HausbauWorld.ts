@@ -7,6 +7,7 @@ import {
   FLOORING_CRATES,
   STAIR_CRATE,
   WALLPAPER_CRATES,
+  mapFolder,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
 import { ITEM_MODELS } from '../elements/itemModels';
@@ -176,34 +177,43 @@ export class HausbauWorld extends TestRestaurantWorld {
    * Böden, Treppen und die Kisten in eigenen Ordnern.
    */
   protected override elementFolders(): readonly FurnitureFolder[] {
-    return [
-      ...super
-        .elementFolders()
-        .map((folder) =>
-          folder.id === 'walls'
-            ? { ...folder, items: WALLPAPERS.map((one) => wallpaperItem(one.id)) }
-            : folder,
-        ),
-      // **Die Böden** — die Beläge zum Nehmen, wie die Tapeten unter _Wände_.
-      {
-        id: 'floors',
-        label: 'Böden',
-        elements: [],
-        items: FLOORINGS.map((one) => flooringItem(one.id)),
-      },
-      // **Die Treppe** — zum Nehmen, und ihre Kiste daneben.
-      { id: 'stairs', label: 'Treppen', elements: [STAIR_CRATE.id], items: ['stair'] },
-      {
-        id: 'wallpaper-crates',
-        label: 'Tapetenkisten',
-        elements: WALLPAPER_CRATES.map((crate) => crate.id),
-      },
-      {
-        id: 'floor-crates',
-        label: 'Bodenkisten',
-        elements: FLOORING_CRATES.map((crate) => crate.id),
-      },
-    ];
+    const walls = mapFolder(super.elementFolders(), 'walls', (folder) => ({
+      ...folder,
+      items: WALLPAPERS.map((one) => wallpaperItem(one.id)),
+    }));
+    // **Ins _Haus_**, neben Wände, Türen und Fenster — wie der Baumodus der
+    // Sims: Böden, Treppen und die Kisten dazu.
+    return mapFolder(walls, 'house', (house) => ({
+      ...house,
+      folders: [
+        ...(house.folders ?? []),
+        // **Die Böden** — die Beläge zum Nehmen, wie die Tapeten unter _Wände_.
+        {
+          id: 'floors',
+          label: 'Böden',
+          elements: [],
+          items: FLOORINGS.map((one) => flooringItem(one.id)),
+        },
+        // **Die Treppe** — zum Nehmen, und ihre Kiste daneben.
+        {
+          id: 'stairs',
+          label: 'Treppen',
+          elements: [STAIR_CRATE.id],
+          items: ['stair'],
+          cover: { item: 'stair' },
+        },
+        {
+          id: 'wallpaper-crates',
+          label: 'Tapetenkisten',
+          elements: WALLPAPER_CRATES.map((crate) => crate.id),
+        },
+        {
+          id: 'floor-crates',
+          label: 'Bodenkisten',
+          elements: FLOORING_CRATES.map((crate) => crate.id),
+        },
+      ],
+    }));
   }
 
   protected override catalogItem(id: string): { label: string; model: string } | null {

@@ -453,6 +453,7 @@ export const BUILD_FOLDERS: readonly FurnitureFolder[] = [
     label: 'Wände',
     elements: [],
     models: [SHELF_WALL_HALF, PLASTER_WALL_HALF],
+    cover: { model: SHELF_WALL_HALF },
   },
   {
     id: 'doors',
@@ -830,13 +831,77 @@ export interface FurnitureFolder {
    * (`PortalWorld.catalogItem`).
    */
   readonly items?: readonly string[];
+  /**
+   * **Unterordner** — wie der Kauf- und Baumodus in _Die Sims_, der erst nach
+   * Bereich (_Haus_, _Restaurant_) und darin nach Art sortiert. Ein Ordner
+   * mit Unterordnern zeigt diese vor seinen eigenen Kacheln.
+   */
+  readonly folders?: readonly FurnitureFolder[];
+  /**
+   * **Das Bild auf dem Ordner** — das Möbel, das ihn am deutlichsten sagt,
+   * gerendert und stehend (gewünscht: _„Menü Ordner sollen Icons/Symbole
+   * bekommen oder das prägnante Möbel Element gerendert"_). Ohne Angabe das
+   * erste Stück darin (`folderCover`).
+   */
+  readonly cover?: FolderCover;
+}
+
+/** **Was auf einem Ordner abgebildet ist** — ein Element, ein Regalmodell oder ein Ding für die Hand. */
+export type FolderCover =
+  { readonly element: string } | { readonly model: string } | { readonly item: string };
+
+/**
+ * **Das Bild eines Ordners** — `cover`, sonst das erste Stück in der
+ * Reihenfolge der Kacheln (Dinge, Elemente, Modelle), sonst das Bild des
+ * ersten Unterordners. `null`, wenn der Ordner leer ist.
+ */
+export function folderCover(folder: FurnitureFolder): FolderCover | null {
+  if (folder.cover) return folder.cover;
+  const item = folder.items?.[0];
+  if (item) return { item };
+  const element = folder.elements[0];
+  if (element) return { element };
+  const model = folder.models?.[0];
+  if (model) return { model };
+  for (const inner of folder.folders ?? []) {
+    const cover = folderCover(inner);
+    if (cover) return cover;
+  }
+  return null;
 }
 
 /**
- * **Die Unterordner des Möbelkatalogs** — und seit dem zweiten Wunsch die
- * einzigen Einträge der Seite _Möbel_: vorn _Allgemein_, dann je Gericht die
- * Möbel, die man dafür braucht, in der Reihenfolge, in der man sie benutzt,
- * und zuletzt _Alles_ mit jedem Möbel der Küche.
+ * **Einen Ordner irgendwo im Baum ändern** — gesucht nach `id` auf jeder
+ * Ebene. Für Welten, die einem Ordner etwas hinzufügen (der Hausbau legt die
+ * Tapeten zu den Wänden und Böden und Treppen ins _Haus_).
+ */
+export function mapFolder(
+  folders: readonly FurnitureFolder[],
+  id: string,
+  change: (folder: FurnitureFolder) => FurnitureFolder,
+): FurnitureFolder[] {
+  return folders.map((folder) => {
+    const inner = folder.folders
+      ? { ...folder, folders: mapFolder(folder.folders, id, change) }
+      : folder;
+    return folder.id === id ? change(inner) : inner;
+  });
+}
+
+/** **Alle Ordner des Baums**, jeder vor seinen Unterordnern. */
+export function allFolders(folders: readonly FurnitureFolder[]): FurnitureFolder[] {
+  return folders.flatMap((folder) => [folder, ...allFolders(folder.folders ?? [])]);
+}
+
+/** Die Elemente nach Namen. */
+const BY_ID = new Map(ELEMENTS.map((element) => [element.id, element]));
+
+/**
+ * **Die Ordner der Küche** — im Katalog unter _Restaurant_
+ * (`FURNITURE_FOLDERS`): vorn _Allgemein_, dann nach Art _Kochen_, _Vorräte_
+ * und _Geschirr_, dann je Gericht die Möbel, die man dafür braucht, in der
+ * Reihenfolge, in der man sie benutzt, und zuletzt _Alles_ mit jedem Möbel
+ * der Küche.
  *
  * Gewünscht: _„In dem Menü Möbel will ich ggf einige Möbel doppelt gelistet
  * haben (sind aber die gleichen) nur weil ich in dem Ordner noch weiter
@@ -853,11 +918,41 @@ export interface FurnitureFolder {
  * Möbel zu einem Gericht gehören, sagt die Regel der Küche
  * (`elementFlows.test.ts` kocht jedes davon mit genau diesen Möbeln).
  */
-export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
+export const KITCHEN_FOLDERS: readonly FurnitureFolder[] = [
   {
     id: 'general',
     label: 'Allgemein',
     elements: ['counter', 'sink', 'pliers', 'bin', 'extinguisher'],
+    cover: { element: 'sink' },
+  },
+  // **Nach Art** (September 2026), wie die Sims ihre Küchenmöbel ordnen:
+  // Kochen, Vorräte, Geschirr — für wen nicht weiß, welches Gericht es wird.
+  {
+    id: 'cooking',
+    label: 'Kochen',
+    elements: [
+      'counter',
+      'board',
+      'rolling-board',
+      'stove',
+      'stove-pot',
+      'hob',
+      'griddle',
+      'ice-machine',
+    ],
+    cover: { element: 'stove' },
+  },
+  {
+    id: 'supplies',
+    label: 'Vorräte',
+    elements: ['counter', ...FURNITURE_CATALOGUE.filter((id) => BY_ID.get(id)?.kind === 'crate')],
+    cover: { element: 'crate-tomatoes' },
+  },
+  {
+    id: 'dishes',
+    label: 'Geschirr',
+    elements: ['counter', 'plate-stack', 'crate-plates', 'bowl-stack', 'pizzabox-stack', 'sink'],
+    cover: { element: 'plate-stack' },
   },
   {
     id: 'pizza',
@@ -871,6 +966,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'crate-plates',
       'bin',
     ],
+    cover: { element: 'pizza-supply' },
   },
   {
     id: 'burger',
@@ -891,6 +987,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'crate-plates',
       'bin',
     ],
+    cover: { element: 'crate-patties' },
   },
   {
     id: 'ice',
@@ -905,6 +1002,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'crate-trays',
       'ice-machine',
     ],
+    cover: { element: 'ice-stand' },
   },
   {
     id: 'waffles',
@@ -920,6 +1018,7 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'ice-tray-strawberry',
       'ice-tray-chocolate',
     ],
+    cover: { element: 'crate-dough' },
   },
   {
     id: 'soup',
@@ -937,15 +1036,36 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
       'pliers',
       'bowl-stack',
     ],
+    cover: { element: 'stove-pot' },
   },
   // **Alles, was zur Küche gehört** — die ganze Liste des Katalogs.
-  { id: 'all', label: 'Alles', elements: FURNITURE_CATALOGUE },
-  // **Wände, Türen, Fenster** — die Baumappen, in jeder Welt (`BUILD_FOLDERS`).
-  ...BUILD_FOLDERS,
+  { id: 'all', label: 'Alles', elements: FURNITURE_CATALOGUE, cover: { element: 'board' } },
 ];
 
-/** Die Elemente nach Namen. */
-const BY_ID = new Map(ELEMENTS.map((element) => [element.id, element]));
+/**
+ * **Die obersten Ordner des Katalogs** — erst der Bereich, dann die Art, wie
+ * in _Die Sims_: **Haus** mit den Baumappen (Wände, Türen, Fenster, im Hausbau
+ * dazu Böden, Treppen und ihre Kisten) und **Restaurant** mit der Küche
+ * (`KITCHEN_FOLDERS`). Gewünscht: _„Katalog Ordner besser gruppieren (Haus,
+ * Restaurant, etc.)"_. Vorher standen zehn Ordner aus zwei Welten
+ * nebeneinander, Pizza neben Fenster.
+ */
+export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
+  {
+    id: 'house',
+    label: 'Haus',
+    elements: [],
+    folders: BUILD_FOLDERS,
+    cover: { model: 'prototype-bits/Wall_Doorway.glb' },
+  },
+  {
+    id: 'restaurant',
+    label: 'Restaurant',
+    elements: [],
+    folders: KITCHEN_FOLDERS,
+    cover: { element: 'stove' },
+  },
+];
 
 /**
  * **Ein Element nach seinem Namen** — ein Tippfehler in einem Plan ist ein
