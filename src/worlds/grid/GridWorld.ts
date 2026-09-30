@@ -92,7 +92,7 @@ import {
 import { ConstructRoom, type ConstructItem, type ConstructOptions } from '../shared/construct';
 import { WardrobeRack, type RackPiece } from '../shared/wardrobeRack';
 import { appearance, saveAppearance, type Appearance } from '../../core/appearance';
-import type { PlanSolid, PlanSolidKind } from './solids';
+import type { FloorCorner, PlanSolid, PlanSolidKind } from './solids';
 import { halfFloorGeometry } from './halfFloor';
 import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
@@ -102,6 +102,13 @@ import { HIDDEN_LEVEL_BAR, LevelBar, stepLevel } from './levelBar';
 
 /** Die „Datei“, auf die ein Quader unter einem eigenen Belag wartet (`underOwnFloor`). */
 const OWN_FLOOR = 'own-floor';
+/**
+ * **Wie hoch eine halbe Platte über der ganzen darunter liegt** (`halfPlates`),
+ * in Metern: drei Millimeter — genug, dass sich die beiden Oberseiten nicht um
+ * Bildpunkte streiten, zu wenig, um darüber zu stolpern (gegangen wird ohnehin
+ * auf dem Quader).
+ */
+const HALF_PLATE_LIFT = 0.003;
 
 /**
  * **Wie hoch der Kasten unter einem Möbel ist** (`GridWorld.blockSolid`) —
@@ -540,6 +547,17 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected floorPlate(_tile: PlateTile): string | null {
     return null;
+  }
+
+  /**
+   * **Halbe Platten über den ganzen** — der Belag auf einer Seite einer Wand
+   * unter 45° (Hausbau, `house/flooring.ts`). Jede liegt auf einer Kachel, die
+   * schon eine ganze Platte trägt (`floorPlate`), einen Hauch darüber
+   * (`HALF_PLATE_LIFT`), und ihr fehlt das Dreieck an der Ecke `empty`
+   * (`shared/plateCut.ts`). Voreingestellt gibt es keine.
+   */
+  protected halfPlates(): Iterable<PlateTile & { model: string; empty: FloorCorner }> {
+    return [];
   }
 
   /**
@@ -2408,20 +2426,44 @@ export abstract class GridWorld extends PortalWorld {
     // **Je Datei und je Etage ein Bündel.** Die Datei, weil ein
     // `InstancedMesh` genau eine Geometrie hat; die Etage, weil es genau eine
     // Sichtbarkeit hat und von oben aufgeschnitten wird (`core/cutaway.ts`).
-    const byBundle = new Map<string, { file: string; level: number; seats: PlateSeat[] }>();
+    const byBundle = new Map<
+      string,
+      { file: string; level: number; seats: PlateSeat[]; cut?: FloorCorner }
+    >();
+    // Wo eine ganze Platte liegt — darüber dürfen halbe (`halfPlates`).
+    const tops = new Map<string, number>();
     for (const spot of floorPlateSpots(this.plateSolids, this.plateChoice)) {
       const key = `${spot.model}@${spot.level}`;
       const bundle = byBundle.get(key) ?? { file: spot.model, level: spot.level, seats: [] };
       bundle.seats.push({ x: spot.x, y: spot.y, z: spot.z });
       byBundle.set(key, bundle);
+      tops.set(`${Math.floor(spot.x / TILE)},${Math.floor(spot.z / TILE)},${spot.level}`, spot.y);
     }
-    for (const { file, level, seats } of byBundle.values()) {
+    for (const half of this.halfPlates()) {
+      const y = tops.get(`${half.col},${half.row},${half.level}`);
+      if (y === undefined) continue;
+      const key = `${half.model}@${half.level}@${half.empty}`;
+      const bundle = byBundle.get(key) ?? {
+        file: half.model,
+        level: half.level,
+        seats: [],
+        cut: half.empty,
+      };
+      bundle.seats.push({
+        x: (half.col + 0.5) * TILE,
+        y: y + HALF_PLATE_LIFT,
+        z: (half.row + 0.5) * TILE,
+      });
+      byBundle.set(key, bundle);
+    }
+    for (const { file, level, seats, cut } of byBundle.values()) {
       // Was ein Bodenstück schon deckt, kommt gar nicht erst ins Bild — der
       // Grundriss wird umgebaut, die Stücke aus dem Regal bleiben liegen.
       const floor = new PlateFloor(group, file, this.visibleSeats(seats), {
         level,
         capacity: seats.length,
-        ready: () => this.plateArrived(file),
+        // Eine halbe Platte deckt keinen Quader: Den hält die ganze darunter.
+        ...(cut ? { cut } : { ready: () => this.plateArrived(file) }),
       });
       this.platesBuilt.push(floor);
       this.plateSeats.set(floor, seats);

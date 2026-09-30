@@ -2,7 +2,7 @@
  * **Welche Wände zu einem Raum gehören** (`roomTrace.ts`) — vom Blick auf die
  * erste Wand, an ihr entlang in beide Richtungen.
  */
-import { firstWall, roomTiles, traceRoom, type WallPiece } from './roomTrace';
+import { firstWall, roomTiles, slantedTiles, traceRoom, type WallPiece } from './roomTrace';
 
 /** Ein Stück von (ax, az) nach (bx, bz), Vorderseite links der Richtung. */
 function piece(id: string, ax: number, az: number, bx: number, bz: number): WallPiece {
@@ -109,5 +109,22 @@ describe('roomTiles', () => {
     expect(keys.has('0,0')).toBe(true);
     expect(keys.has('1,1')).toBe(true);
     expect(keys.has('3,3')).toBe(false);
+  });
+});
+
+describe('slantedTiles', () => {
+  it('nennt je Kachel unter einer Wand unter 45° die beiden Ecken, die sie trennt', () => {
+    const tiles = slantedTiles([
+      piece('a', 0, 0, 2, 2),
+      piece('b', 5, 1, 4, 0),
+      piece('c', 0, 3, 1, 2),
+      piece('gerade', 0, 5, 2, 5),
+    ]);
+    expect([...tiles]).toEqual([
+      ['0,0', ['ne', 'sw']],
+      ['1,1', ['ne', 'sw']],
+      ['4,0', ['ne', 'sw']],
+      ['0,2', ['nw', 'se']],
+    ]);
   });
 });

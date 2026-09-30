@@ -25,6 +25,8 @@
  * seine Mitte, ist dort eine Ecke wie jede andere.
  */
 
+import type { FloorCorner } from '../grid/solids';
+
 /** Eine Ecke des Kachelgitters: dort, wo sich Fugen kreuzen. */
 export interface Corner {
   readonly x: number;
@@ -312,6 +314,26 @@ export function roomTiles(
       seen.add(key);
       queue.push(next);
     }
+  }
+  return out;
+}
+
+/**
+ * **Welche Kacheln eine Wand unter 45° teilt** — je Kachel (`x,z`) die beiden
+ * Ecken, die sie voneinander trennt (wie `solids.slopeCorners`): Geht sie von
+ * Nordwest nach Südost, liegen Nordost und Südwest zu ihren Seiten, sonst
+ * Nordwest und Südost. Für den halben Belag (`flooring.halveSlanted`).
+ */
+export function slantedTiles(
+  pieces: readonly WallPiece[],
+): Map<string, readonly [FloorCorner, FloorCorner]> {
+  const out = new Map<string, readonly [FloorCorner, FloorCorner]>();
+  for (const unit of unitsOf(pieces)) {
+    const dx = unit.b.x - unit.a.x;
+    const dz = unit.b.z - unit.a.z;
+    if (dx === 0 || dz === 0) continue;
+    const key = `${Math.min(unit.a.x, unit.b.x)},${Math.min(unit.a.z, unit.b.z)}`;
+    out.set(key, Math.sign(dx) === Math.sign(dz) ? ['ne', 'sw'] : ['nw', 'se']);
   }
   return out;
 }

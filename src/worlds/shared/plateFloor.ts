@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../core/chefFit';
 import { GROUND_TOP, markBackdrop } from './environment';
+import type { FloorCorner } from '../grid/solids';
+import { cutPlate } from './plateCut';
 import { PLATE_SIZE } from './plateField';
 
 /**
@@ -133,6 +135,8 @@ export class PlateFloor {
   private seats: readonly PlateSeat[];
   /** Wie viele Platten das Bündel höchstens fasst (`reseat`). */
   private readonly capacity: number;
+  /** Die Ecke, deren Dreieck jeder Platte fehlt (`plateCut.cutPlate`) — sonst ganz. */
+  private readonly cut: FloorCorner | undefined;
 
   /**
    * `options.ready` wird **genau dann** gerufen, wenn wirklich ein Bündel
@@ -153,14 +157,18 @@ export class PlateFloor {
    * `options.capacity` ist für einen Boden, der **wandert** (`reseat`): So
    * viele Platten fasst das Bündel dann höchstens, und es wird einmal in
    * dieser Größe angelegt statt bei jedem Nachziehen neu.
+   *
+   * `options.cut` ist für den **halben Belag** unter einer Wand unter 45°
+   * (`GridWorld.halfPlates`): Jeder Platte fehlt das Dreieck an dieser Ecke.
    */
   constructor(
     root: THREE.Object3D,
     model: string,
     seats: readonly PlateSeat[],
-    options: { level?: number; ready?: () => void; capacity?: number } = {},
+    options: { level?: number; ready?: () => void; capacity?: number; cut?: FloorCorner } = {},
   ) {
     this.ready = options.ready;
+    this.cut = options.cut;
     this.seats = seats;
     this.capacity = Math.max(seats.length, options.capacity ?? 0);
     this.group.name = `plate-floor:${model}`;
@@ -292,8 +300,13 @@ export class PlateFloor {
     // **Die Verschiebung wandert in die Geometrie** und nicht in jede der
     // zehntausend Instanzmatrizen. Die Kopie ist zugleich das, was diese
     // Gruppe aufräumen darf (siehe `dispose`).
-    const shape = mesh.geometry.clone();
+    let shape = mesh.geometry.clone();
     shape.applyMatrix4(mesh.matrixWorld);
+    if (this.cut) {
+      const whole = shape;
+      shape = cutPlate(whole, this.cut, PLATE_SIZE);
+      whole.dispose();
+    }
     this.owned.push(shape);
     this.owned.push(skin);
     // **Der Saum gegen das Flimmern in der Ferne** — siehe `PLATE_LIFT`. Die
