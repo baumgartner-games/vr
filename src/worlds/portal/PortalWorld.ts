@@ -1476,6 +1476,14 @@ export class PortalWorld implements World {
    */
   private readonly shelfFresh = new WeakSet<PhysicsBody>();
   /**
+   * **Eine Wand zum Abreißen in der Hand** (`FurnitureFolder.erasers`) — sie
+   * wird gezogen wie jede Wand, nimmt aber die Wände auf der Linie weg
+   * (`eraseWallLine`) und wird selbst nie hingestellt (`release`).
+   */
+  private readonly wallErasers = new WeakSet<PhysicsBody>();
+  private readonly eraseTurn = new THREE.Quaternion();
+  private readonly eraseScratch: PhysicsBody[] = [];
+  /**
    * **Ein Spielelement aus dem Möbelkatalog in der Hand** (`takeElement`) —
    * getragen wird sein Bodenstück wie ein Modell aus dem Regal, und beim
    * Hinstellen stellt die Welt an seiner Stelle das Element hin
@@ -1683,7 +1691,7 @@ export class PortalWorld implements World {
   /** Wo ein schon stehendes Stück stand, als es aufgehoben wurde — für _Verschieben_ rückgängig. */
   private readonly pickedFrom = new WeakMap<PhysicsBody, BuildPose>();
   /** Der letzte Pinsel aus dem Regal — _Setzen_ mit leerem Haken nimmt ihn wieder. */
-  private lastBrush: { path: string; yaw: number } | null = null;
+  private lastBrush: { path: string; yaw: number; eraser: boolean } | null = null;
   /** Ob im Baukasten auch Möbel in Achteln drehen (`45°` an der Leiste, `gridPose` mit `fine`). */
   private fineTurn = false;
   /** In der Brille: Greifen reißt ab (`buildToolsMenu`, `attach`). */
@@ -4132,6 +4140,20 @@ export class PortalWorld implements World {
       const label = BUILD_LABELS[path];
       return { ...entry, id: `${at}:${path}`, ...(label ? { label } : {}) };
     };
+    // **Die Wand zum Abreißen** (`FurnitureFolder.erasers`): dieselbe Wand im
+    // Bild, oben links das Verbotszeichen. Gezogen nimmt sie die Wände auf
+    // der Linie weg (`eraseWallLine`).
+    const eraser = (path: string, at: string): MenuEntry => ({
+      id: `${at}:erase:${path}`,
+      label: 'Wand abreißen',
+      sub: 'Wie eine Wand ziehen — die Wände auf der Linie verschwinden',
+      caption: 'Wände abreißen',
+      accent,
+      preview: `kaykit:${path}`,
+      mark: 'forbidden',
+      full: true,
+      run: (hand: Handedness | null) => this.takeModel(ctx(), path, hand, null, true),
+    });
     // **Dinge für die Hand** (die Tapeten, `FurnitureFolder.items`): Genommen
     // wird nicht ein Möbel, sondern das Ding selbst, wie aus seiner Kiste —
     // am Schirm wie mit dem Kran (`takeCatalogItem`).
@@ -4191,6 +4213,7 @@ export class PortalWorld implements World {
         const inner = folderEntries(folder.folders ?? [], at, labels);
         const inside = folder.elements.filter(hasElement);
         const models = folder.models ?? [];
+        const erasers = folder.erasers ?? [];
         const items = (folder.items ?? []).filter((id) => this.catalogItem(id) !== null);
         // Erst die Kacheln, dann die Ordner — auf _Haus_ stehen Wand, Tür,
         // Fenster und Treppe vor _Böden_ und _Tapeten_. Unter den Kacheln die
@@ -4202,6 +4225,16 @@ export class PortalWorld implements World {
               key: `model:${path}`,
               name: entry.label,
               words: `${where} ${path}`,
+              entry,
+            });
+            return entry;
+          }),
+          ...erasers.map((path) => {
+            const entry = eraser(path, at);
+            rows.push({
+              key: `erase:${path}`,
+              name: entry.label,
+              words: `${where} ${path} abreißen abriss löschen`,
               entry,
             });
             return entry;
@@ -8455,6 +8488,8 @@ export class PortalWorld implements World {
     this.endFlight(entry, true);
     const hand = this.handHolding(entry);
     if (hand) this.release(this.context!, hand, this.grabs.get(hand)!, true);
+    // Die Wand zum Abreißen verschwindet beim Loslassen (`release`).
+    if (entry.removed) return;
 
     entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
     physics.setCarried(entry, false);
@@ -10216,6 +10251,13 @@ export class PortalWorld implements World {
     if (this.shrunk?.entry === grab.entry) this.unshrinkScreenCarry();
     this.grabs.delete(hand);
     if (!drop) return;
+    // **Die Wand zum Abreißen wird nie hingestellt** — losgelassen
+    // verschwindet sie wie ein Pinsel, den man weglegt (`letGo`).
+    if (this.wallErasers.has(grab.entry)) {
+      this.shelfFresh.delete(grab.entry);
+      this.removeProp(grab.entry, true);
+      return;
+    }
 
     physics.setCarried(grab.entry, false);
     grab.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
@@ -10342,6 +10384,8 @@ export class PortalWorld implements World {
     // Mit einem Spielelement auch nicht: Es wird beim Hinstellen ersetzt, und
     // eine Reihe davon gibt der Baukasten ohnehin Stück für Stück nach.
     if (this.elementBodies.has(entry)) return false;
+    // Mit der Wand zum Abreißen erst recht nicht: Ein Strich stellte Wände hin.
+    if (this.wallErasers.has(entry)) return false;
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
     if (path === null) return false;
     entry.object.getWorldPosition(_point);
@@ -10866,6 +10910,9 @@ export class PortalWorld implements World {
       );
       return;
     }
+    // **Die Wand zum Abreißen** zeigt nur ihre Linie (`updateAreaPaint`) —
+    // was sie wegnimmt, leuchtet dort rot, und nicht die Fuge unter ihr.
+    if (this.wallErasers.has(entry)) return;
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long, this.fineTurn);
     const floorY = ctx.rig.getFloorY();
@@ -11171,7 +11218,12 @@ export class PortalWorld implements World {
     ) {
       const path = this.modelPath(carried);
       carried.object.getWorldQuaternion(_quaternion);
-      if (path !== null) this.lastBrush = { path, yaw: eighthYaw(yawOf(_quaternion)) };
+      if (path !== null)
+        this.lastBrush = {
+          path,
+          yaw: eighthYaw(yawOf(_quaternion)),
+          eraser: this.wallErasers.has(carried),
+        };
     }
     const bar = (this.buildBar ??= new BuildBar());
     for (const event of bar.take()) this.onBuildEvent(ctx, event);
@@ -11395,7 +11447,7 @@ export class PortalWorld implements World {
     }
     if (grab) return;
     const brush = this.lastBrush;
-    if (brush) this.takeModel(ctx, brush.path, side ?? null, brush.yaw);
+    if (brush) this.takeModel(ctx, brush.path, side ?? null, brush.yaw, brush.eraser);
     else {
       // Noch nichts gesetzt: Den Katalog aufschlagen, dort wird ausgesucht.
       ctx.menu.toggle(true);
@@ -11892,7 +11944,7 @@ export class PortalWorld implements World {
             return;
           }
           const brush = this.lastBrush;
-          if (brush) this.takeModel(ctx, brush.path, hand, brush.yaw);
+          if (brush) this.takeModel(ctx, brush.path, hand, brush.yaw, brush.eraser);
           else ctx.menu.openSubmenu(this.catalogueId());
         }),
       },
@@ -12155,20 +12207,23 @@ export class PortalWorld implements World {
     const pad = (this.areaPad ??= new AreaPad());
     const floor = this.buildFloorY(ctx);
     const wall = this.brushIsWall(brush.entry);
+    const eraser = this.wallErasers.has(brush.entry);
     // **Eine Wand aus dem Katalog: gleich ziehen** — wie in _Die Sims_, wo
     // man die Wand wählt und sofort den Startpunkt setzt. Einmal je Wand in
     // der Hand; `Esc` beendet es, und dann setzt der Kran sie einzeln.
-    if (wall && !this.areaOn && this.areaAuto !== brush.entry) {
+    // **Die Wand zum Abreißen immer** — einzeln gesetzt wäre sie eine Wand.
+    if (wall && !this.areaOn && (this.areaAuto !== brush.entry || eraser)) {
       this.areaAuto = brush.entry;
       this.startArea();
     }
-    const shape = wall ? this.areaShape : undefined;
+    // Abgerissen wird nur als Linie: Ein Raum rundum stellte Wände hin.
+    const shape = wall && !eraser ? this.areaShape : undefined;
     for (const event of pad.take()) this.areaEvent(ctx, event, brush, floor);
     if (!this.areaOn) {
       pad.show({ kind: 'offer', shape });
       return;
     }
-    if (wall && this.areaShape === 'line') {
+    if (wall && (this.areaShape === 'line' || eraser)) {
       this.updateWallLine(ctx, pad, brush, floor);
       return;
     }
@@ -12241,10 +12296,13 @@ export class PortalWorld implements World {
     floor: number,
   ): void {
     const select = this.areaSelect;
-    const label = propLabel(modelKind(brush.path));
+    const eraser = this.wallErasers.has(brush.entry);
+    const label = eraser ? 'Abreißen' : propLabel(modelKind(brush.path));
     const line = this.currentWallLine(brush);
     const drawing = line !== null && line.slots.length > 0;
     this.showLineGrid(drawing ? line : null, floor);
+    const doomed = eraser && drawing ? this.wallsOnLine(brush, line, floor) : [];
+    if (eraser) this.markReplaced(doomed);
     // Der Pfeiler steht dort, wo die Wand gerade anfinge oder enden würde —
     // vor dem Startpunkt unter der Maus, danach am Ende der Linie.
     const post = drawing ? line.end : (select.end ?? select.start ?? this.areaHover);
@@ -12252,13 +12310,19 @@ export class PortalWorld implements World {
     const length = line ? `${line.length.toFixed(line.diagonal ? 1 : 0)} m` : '';
     pad.show({
       kind: 'active',
-      shape: 'line',
+      ...(eraser ? {} : { shape: 'line' as const }),
       text:
         select.phase === 'idle'
           ? `${label}: vom Startpunkt aus ziehen`
           : line && line.slots.length > 0
-            ? `${length} · ${line.slots.length}× ${label}` +
-              (select.phase === 'second' ? ' · Endpunkt antippen' : ' · loslassen setzt')
+            ? (eraser
+                ? `${length} · ${doomed.length} Wände abreißen`
+                : `${length} · ${line.slots.length}× ${label}`) +
+              (select.phase === 'second'
+                ? ' · Endpunkt antippen'
+                : eraser
+                  ? ' · loslassen reißt ab'
+                  : ' · loslassen setzt')
             : select.phase === 'second'
               ? 'Startpunkt steht · jetzt den Endpunkt antippen'
               : 'Zum Endpunkt ziehen',
@@ -12295,6 +12359,11 @@ export class PortalWorld implements World {
     factor: number;
   } {
     const base = this.wallBase(brush.entry).half;
+    // **Abgerissen wird Kachel für Kachel** (`eraseWallLine`): Jedes Stück der
+    // Linie ist eine Fuge, und was von einer langen Wand daneben stehen
+    // bleibt, bleibt als halbes Stück stehen (`wallRests`).
+    if (this.wallErasers.has(brush.entry))
+      return { path: brush.path, halfPath: null, half: base, factor: 1 };
     const full = wallFullOf(brush.path);
     if (!full) return { path: brush.path, halfPath: wallHalfOf(brush.path), half: base, factor: 1 };
     const alongX = base.x >= base.z;
@@ -12497,7 +12566,7 @@ export class PortalWorld implements World {
       ctx.notify('Startpunkt zurückgenommen');
       return;
     }
-    this.commitWallLine(brush, line, this.buildFloorY(ctx));
+    this.commitLine(brush, line, this.buildFloorY(ctx));
     this.spendBrush(ctx, brush);
   }
 
@@ -12514,10 +12583,11 @@ export class PortalWorld implements World {
     const presenting = ctx.renderer.xr.isPresenting;
     if (this.carryLine?.entry !== brush.entry) {
       this.carryLine = { entry: brush.entry, start: null };
+      const what = this.wallErasers.has(brush.entry) ? 'Wand abreißen' : 'Wand';
       ctx.notify(
         presenting
-          ? 'Wand: festhalten, auf den Startpunkt halten und A drücken'
-          : 'Wand: auf den Startpunkt zielen und interagieren',
+          ? `${what}: festhalten, auf den Startpunkt halten und A drücken`
+          : `${what}: auf den Startpunkt zielen und interagieren`,
       );
     }
     if (presenting) {
@@ -12533,9 +12603,11 @@ export class PortalWorld implements World {
       }
     }
     const floor = this.buildFloorY(ctx);
-    this.markReplaced([]);
     const line = this.carryLineNow(brush);
     const drawing = line !== null && line.slots.length > 0;
+    this.markReplaced(
+      drawing && this.wallErasers.has(brush.entry) ? this.wallsOnLine(brush, line, floor) : [],
+    );
     this.showLineGrid(drawing ? line : null, floor);
     this.showLinePreview(
       ctx,
@@ -12585,8 +12657,9 @@ export class PortalWorld implements World {
     slots.length = 0;
     if (line) this.wallGhostSlots(brush.entry, line, floor, this.drawnWall(brush).factor, slots);
     if (post) slots.push(this.postGhostSlot(brush.entry, post, floor));
+    // Die Wand zum Abreißen zeigt ihre Linie rot, wie der Geist der Bombe.
     if (slots.length === 0) ghosts.hide();
-    else ghosts.show(brush.entry.object, slots, true);
+    else ghosts.show(brush.entry.object, slots, !this.wallErasers.has(brush.entry));
   }
 
   /** Ein Knopf oder ein Druck von der Leiste (`AreaPad`). */
@@ -12597,7 +12670,9 @@ export class PortalWorld implements World {
     floor: number,
   ): void {
     const select = this.areaSelect;
-    const line = this.brushIsWall(brush.entry) && this.areaShape === 'line';
+    const line =
+      this.brushIsWall(brush.entry) &&
+      (this.areaShape === 'line' || this.wallErasers.has(brush.entry));
     switch (event.kind) {
       case 'toggle':
         if (this.areaOn) {
@@ -12658,7 +12733,7 @@ export class PortalWorld implements World {
           const drawn = this.currentWallLine(brush);
           select.reset();
           if (drawn && drawn.slots.length > 0) {
-            this.commitWallLine(brush, drawn, floor);
+            this.commitLine(brush, drawn, floor);
             this.spendBrush(ctx, brush);
           }
           return;
@@ -12724,6 +12799,104 @@ export class PortalWorld implements World {
           (skipped ? ` · ${skipped} standen schon` : ''),
       );
     });
+  }
+
+  /** Die gezogene Linie ausführen — setzen oder, mit der Wand zum Abreißen, abreißen. */
+  private commitLine(
+    brush: { entry: PhysicsBody; path: string },
+    line: WallLine,
+    floor: number,
+  ): void {
+    if (this.wallErasers.has(brush.entry)) this.eraseWallLine(brush, line, floor);
+    else this.commitWallLine(brush, line, floor);
+  }
+
+  /**
+   * **Die Fugen und schrägen Kacheln unter einer gezogenen Linie** — in
+   * derselben Schreibweise wie `wallFootprint`, je Stück der Linie so, wie
+   * das Getragene dort einrasten würde.
+   */
+  private lineFootprint(brush: { entry: PhysicsBody }, line: WallLine): Set<string> {
+    const base = this.wallBase(brush.entry);
+    const out = new Set<string>();
+    for (const slot of line.slots) {
+      this.eraseTurn.setFromAxisAngle(UP, slot.yaw);
+      const pose = gridPose(slot.x, slot.z, this.eraseTurn, base.half, base.long);
+      const keys = this.wallFootprint(brush.entry, pose);
+      if (keys) for (const key of keys) out.add(key);
+    }
+    return out;
+  }
+
+  /**
+   * **Die Wände, die eine Linie der Wand zum Abreißen wegnimmt** — jede
+   * hingestellte Wand der Etage, auf der man steht, die eine Fuge oder
+   * schräge Kachel mit der Linie teilt (wie `wallsUnder`). Bilder und
+   * anderes, was an einer Wand hängt, gehören nicht dazu.
+   */
+  private wallsOnLine(
+    brush: { entry: PhysicsBody },
+    line: WallLine,
+    floor: number,
+    mine = this.lineFootprint(brush, line),
+  ): PhysicsBody[] {
+    const out: PhysicsBody[] = [];
+    if (!mine.size) return out;
+    const y = floor + this.wallBase(brush.entry).half.y;
+    for (const other of this.placedModels(this.eraseScratch)) {
+      if (other === brush.entry) continue;
+      const path = this.modelPath(other);
+      if (path === null || mountsOnWall(path)) continue;
+      if (Math.abs(other.object.getWorldPosition(_footSpot).y - y) > WALL_STOREY_GAP) continue;
+      const theirs = this.wallFootprint(other);
+      if (!theirs) continue;
+      for (const key of theirs)
+        if (mine.has(key)) {
+          out.push(other);
+          break;
+        }
+    }
+    return out;
+  }
+
+  /**
+   * **Die Linie der Wand zum Abreißen ausführen** — gewünscht: _„funktioniert
+   * wie eine wand setzen, nur bei der auswahl würde dann die entsprechende
+   * wand gelöscht werden, sodass ich wände abreißen kann"_. Jede Wand auf der
+   * Linie geht wie unter der Abrissbombe (`detonate`); von einer langen Wand,
+   * die nur zur Hälfte darauf liegt, bleibt die andere Hälfte als kurzes
+   * Stück stehen (`wallRests`). Alles zusammen ist **ein** Schritt für
+   * _Rückgängig_.
+   */
+  private eraseWallLine(brush: { entry: PhysicsBody }, line: WallLine, floor: number): void {
+    const mine = this.lineFootprint(brush, line);
+    const gone = this.wallsOnLine(brush, line, floor, mine);
+    this.markReplaced([]);
+    const length = `${line.length.toFixed(line.diagonal ? 1 : 0)} m`;
+    if (!gone.length) {
+      this.context?.notify(`Keine Wand auf ${length}`);
+      return;
+    }
+    const record = !this.replaying;
+    this.buildHistory.begin();
+    this.replacedSteps.length = 0;
+    const rests: WallRest[] = [];
+    for (const old of gone) {
+      const path = this.modelPath(old);
+      if (path !== null) {
+        rests.push(...this.wallRests(old, path, mine));
+        if (record)
+          this.buildHistory.push({ kind: 'remove', item: { path, pose: this.buildPoseOf(old) } });
+      }
+      this.dropModel(old);
+    }
+    this.restoreWallRests(rests, record);
+    for (const step of this.replacedSteps.splice(0)) this.buildHistory.push(step);
+    this.buildHistory.end();
+    playTone({ type: 'sawtooth', from: 180, to: 40, duration: 0.35, gain: 0.08 });
+    this.context?.notify(
+      `Abgerissen: ${length} · ${gone.length === 1 ? '1 Wand' : `${gone.length} Wände`}`,
+    );
   }
 
   /**
@@ -13208,12 +13381,14 @@ export class PortalWorld implements World {
     path: string,
     hand: Handedness | null,
     yaw: number | null = null,
+    /** Als **Wand zum Abreißen** (`wallErasers`). */
+    eraser = false,
   ): void {
     ctx.menu.toggle(false);
     // **Erst fragen, ob daraus hier ein Möbel wird** — und nur sonst ein Fass
     // (`takeFurniture`).
-    if (this.takeFurniture(ctx, path)) return;
-    void this.conjureModel(ctx, path, hand, yaw);
+    if (!eraser && this.takeFurniture(ctx, path)) return;
+    void this.conjureModel(ctx, path, hand, yaw, null, null, eraser);
   }
 
   /**
@@ -13247,6 +13422,8 @@ export class PortalWorld implements World {
     note: string | null = null,
     /** Ein **Spielelement** aus dem Möbelkatalog, dessen Bodenstück das ist (`takeElement`). */
     element: CarriedElement | null = null,
+    /** Als **Wand zum Abreißen** (`wallErasers`). */
+    eraser = false,
   ): Promise<void> {
     const physics = this.physics;
     let model = kaykitModelNow(path);
@@ -13272,7 +13449,7 @@ export class PortalWorld implements World {
       now.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
       return;
     }
-    this.spawnModel(now, model, path, hand, yaw, note, element);
+    this.spawnModel(now, model, path, hand, yaw, note, element, eraser);
   }
 
   /**
@@ -13287,6 +13464,7 @@ export class PortalWorld implements World {
     yaw: number | null = null,
     note: string | null = null,
     element: CarriedElement | null = null,
+    eraser = false,
   ): void {
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked ? gripOf(controller) : null;
@@ -13316,6 +13494,7 @@ export class PortalWorld implements World {
       spin,
     );
     this.shelfFresh.add(entry);
+    if (eraser) this.wallErasers.add(entry);
     // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
     // Ein Zettel nicht: Drüben käme nur das Gestell an, ohne Text.

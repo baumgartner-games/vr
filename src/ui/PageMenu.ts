@@ -1421,6 +1421,8 @@ function chevron(): HTMLElement {
 const MARKS: Readonly<Record<MenuMark, { label: string; path: string }>> = {
   // Eine Kiste von vorn: Deckelkante, Rahmen, zwei Latten.
   crate: { label: 'Vorratskiste', path: 'M4 8h16v11H4zM3 5h18v3H3zM4 12h16M9 12v7M15 12v7' },
+  // Das Verbotszeichen: ein Kreis mit Schrägstrich — die Wand, die abreißt.
+  forbidden: { label: 'Abreißen', path: 'M12 3a9 9 0 100 18 9 9 0 000-18zM5.6 5.6l12.8 12.8' },
 };
 
 function mark(which: MenuMark): HTMLElement {

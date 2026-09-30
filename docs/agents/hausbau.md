@@ -264,6 +264,10 @@ stockwerken passiert"_
 - **Selbst gelegter Boden ist nie Decke**: der Stand einer Treppe im Freien,
   ein Belag Kachel für Kachel. Er geht nie von allein.
 - Die Etagen selbst bleiben, auch wenn keine Kachel mehr darauf liegt.
+- **Wände abreißen** geht über den Katalog: _Haus_ → _Wand abreißen_ (die
+  Wand mit dem Verbotszeichen) zieht eine Linie wie eine Wand und nimmt die
+  Wände darauf weg ([Bauen](./bauen.md#wand-ziehen-wie-in-die-sims)). Ein so
+  aufgebrochener Raum verliert seine Decke wie oben.
 
 ## Die Tapete auf der Wand
 
