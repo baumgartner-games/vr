@@ -103,6 +103,9 @@ import {
   graphicsSummary,
   nextGraphicsMode,
   nextShadowMode,
+  nextWallOcclusion,
+  WALL_OCCLUSION_LABELS,
+  WALL_OCCLUSION_SUBS,
   nextScreenPads,
   nextSquishScale,
   nextSquishSpeed,
@@ -2435,6 +2438,25 @@ export class App {
           this.menuDirty = true;
           this.notify(message);
         }),
+        {
+          // **Was mit den Wänden vor der Figur passiert** — von oben
+          // (`worlds/grid/wallCut.ts`, `wallGhost.ts`). Vier Arten, die man
+          // aus Spielen kennt: Ghost Wall entlang der Sichtlinie (ab Werk),
+          // alle vorn durchsichtig, abgeschnitten wie in den Sims, Guckloch.
+          id: 'gfx:walls',
+          label: `Wände vorn: ${WALL_OCCLUSION_LABELS[settings.wallOcclusion]}`,
+          sub: WALL_OCCLUSION_SUBS[settings.wallOcclusion],
+          caption: 'Sichtlinie → alle vorn → Sims → Guckloch · nur in der Ansicht von oben',
+          icon: 'settings',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              wallOcclusion: nextWallOcclusion(graphics().wallOcclusion),
+            });
+            this.menuDirty = true;
+            this.notify(`Wände vorn: ${WALL_OCCLUSION_LABELS[next.wallOcclusion]}`);
+          },
+        },
         {
           // **Der Schalter, den der Besitzer wollte**: Schatten wie in
           // Overcooked, ohne dafür die ganze Zeichnung dazuzunehmen. Er steht

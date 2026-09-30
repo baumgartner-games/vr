@@ -170,6 +170,48 @@ export function wallsHiding<T extends GhostCandidate>(
 }
 
 /**
+ * **Wie weit eine Wand über und unter der Mitte der Figur noch zu ihrer Etage
+ * zählt**, in Metern (`wallsInFront`). Die Mitte liegt knapp einen Meter über
+ * den Füßen: Was nicht über das Knie reicht, liegt eine Etage tiefer; was
+ * erst zwei Meter über der Mitte anfängt, gehört zur Decke oder zur Etage
+ * darüber, und die schneidet ohnehin das Aufschneiden weg (`core/cutaway.ts`).
+ */
+export const FRONT_BELOW = 0.4;
+export const FRONT_ABOVE = 2;
+
+/**
+ * **Alle Wände vor der Figur** — _Ghost Walls, alle vorn_ und _Wall Cutaway_
+ * (`GraphicsSettings.wallOcclusion`).
+ *
+ * Dieselbe Frage wie in `wallsHiding` ohne die Strecke: Jede Wand, die ganz
+ * auf der Kameraseite der Figur liegt (`turnsItsBack`), zählt — auch die
+ * zehn Meter daneben. So machen es die Sims: Die ganze Front des Hauses geht
+ * weg, nicht nur das Stück, hinter dem man gerade steht. Beschränkt wird nur
+ * auf die **Etage** der Figur (`FRONT_BELOW`, `FRONT_ABOVE`), sonst gingen im
+ * ersten Stock die Wände des Erdgeschosses mit.
+ */
+export function wallsInFront<T extends GhostCandidate>(
+  camera: GhostPoint,
+  figure: GhostPoint,
+  boxes: readonly T[],
+  knee = GHOST_KNEE,
+): T[] {
+  const out: T[] = [];
+  const quarter = cameraQuarter(camera, figure);
+  const eye = toCameraSouth(camera, quarter);
+  const aim = toCameraSouth(figure, quarter);
+  for (const one of boxes) {
+    if (!blocksView(one, knee)) continue;
+    const top = one.box.y + one.box.h / 2;
+    const bottom = one.box.y - one.box.h / 2;
+    if (top <= figure.y - FRONT_BELOW || bottom >= figure.y + FRONT_ABOVE) continue;
+    const box = quarter === 0 ? one.box : boxToCameraSouth(one.box, quarter);
+    if (turnsItsBack(box, aim, eye)) out.push(one);
+  }
+  return out;
+}
+
+/**
  * **In welchem Viertel die Kamera steht**, von der Figur aus: 0 im Süden
  * (ungedreht), 1 im Osten, 2 im Norden, 3 im Westen — links herum gezählt
  * wie `topDownPose.quarterOf`. Senkrecht darüber zählt als Süden.

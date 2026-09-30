@@ -3,6 +3,7 @@ import {
   blocksView,
   cameraQuarter,
   wallsHiding,
+  wallsInFront,
   type GhostCandidate,
 } from './wallGhost';
 
@@ -191,5 +192,35 @@ describe('Wenn das Bild gedreht ist', () => {
   it('lässt die Südwand stehen, wenn die Kamera im Norden steht', () => {
     const south = box(0, 1.4, 1, 4, 2.8, 0.2);
     expect(wallsHiding(turned(CAMERA, 2), FIGURE, [south])).toEqual([]);
+  });
+});
+
+describe('Alle Wände vor der Figur (Ghost Walls, Wall Cutaway)', () => {
+  it('nimmt jede Wand der Etage auf der Kameraseite — auch weit daneben', () => {
+    const front = box(0, 1.4, 1, 4, 2.8, 0.2);
+    const farFront = box(9, 1.4, 5, 4, 2.8, 0.2);
+    const behind = box(0, 1.4, -1, 4, 2.8, 0.2);
+    // Die Seitenwand reicht an der Figur vorbei nach hinten: Sie bleibt.
+    const side = box(1, 1.4, 0, 0.2, 2.8, 4);
+    expect(wallsInFront(CAMERA, FIGURE, [front, farFront, behind, side])).toEqual([
+      front,
+      farFront,
+    ]);
+  });
+
+  it('lässt Böden, niedrige Kästen und andere Etagen stehen', () => {
+    const floor = box(0, 0, 2, 4, 0.1, 4, true);
+    const kerb = box(0, 0.2, 2, 4, 0.4, 0.2);
+    const upstairs = box(0, 4.4, 2, 4, 2.8, 0.2);
+    expect(wallsInFront(CAMERA, FIGURE, [floor, kerb, upstairs])).toEqual([]);
+    // Eine Etage höher gilt dieselbe Wand dort wieder.
+    const up = { x: 0, y: 3.9, z: 0 };
+    expect(wallsInFront({ x: 0, y: 12, z: 12 }, up, [upstairs])).toEqual([upstairs]);
+  });
+
+  it('dreht mit der Kamera: von Osten zählt, was östlich steht', () => {
+    const east = box(1, 1.4, 0, 0.2, 2.8, 4);
+    const west = box(-1, 1.4, 0, 0.2, 2.8, 4);
+    expect(wallsInFront({ x: 12, y: 9, z: 0 }, FIGURE, [east, west])).toEqual([east]);
   });
 });

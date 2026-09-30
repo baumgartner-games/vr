@@ -91,6 +91,50 @@ export function readShadowMode(raw: unknown): ShadowMode {
   return SHADOW_MODES.includes(raw as ShadowMode) ? (raw as ShadowMode) : 'simple';
 }
 
+/**
+ * **Was mit den Wänden vor der Figur passiert** — von oben
+ * (`GraphicsSettings.wallOcclusion`, _Menü → Grafik → Wände vorn_).
+ *
+ * Die Kamera steht schräg im Süden, also hinter jeder Wand, die südlich der
+ * Figur liegt. Spiele beantworten das auf vier Arten, und alle vier stehen
+ * hier zur Wahl (Wunsch: _„über Menü Grafik zwischen den indoor wand ghost
+ * modus wechseln"_). Die englischen Namen sind die, unter denen man sie in
+ * Spielen findet — _occlusion handling_ heißt die ganze Frage:
+ *
+ * - `ghost` — **Ghost Wall** entlang der Sichtlinie: nur, was zwischen Kamera
+ *   und Figur steht, wird durchsichtig (`worlds/grid/wallGhost.wallsHiding`).
+ *   Der Stand, den es immer gab, und die Vorgabe.
+ * - `ghostFront` — **Ghost Walls, alle vorn**: jede Wand der eigenen Etage,
+ *   die ganz auf der Kameraseite der Figur liegt (`wallsInFront`).
+ * - `cutaway` — **Wall Cutaway** wie in den Sims: dieselben Wände, aber nicht
+ *   durchsichtig, sondern bis auf einen Sockel **abgeschnitten**
+ *   (`worlds/grid/wallCut.ts`).
+ * - `hole` — **See-through Circle** (Kreis-/Kugelmaske): ein rundes Loch um die
+ *   Figur, nur in den Wänden, die sie verdecken; der Rest bleibt fest.
+ */
+export type WallOcclusion = 'ghost' | 'ghostFront' | 'cutaway' | 'hole';
+
+export const WALL_OCCLUSIONS = ['ghost', 'ghostFront', 'cutaway', 'hole'] as const;
+
+export const WALL_OCCLUSION_LABELS: Readonly<Record<WallOcclusion, string>> = {
+  ghost: 'Durchsichtig (Sichtlinie)',
+  ghostFront: 'Durchsichtig (alle vorn)',
+  cutaway: 'Abgeschnitten (Sims)',
+  hole: 'Guckloch (Kreis)',
+};
+
+export const WALL_OCCLUSION_SUBS: Readonly<Record<WallOcclusion, string>> = {
+  ghost: 'Ghost Wall · nur die Wand zwischen Kamera und Figur',
+  ghostFront: 'Ghost Walls · jede Wand der Etage zwischen Figur und Kamera',
+  cutaway: 'Wall Cutaway · die Wände davor bis auf einen Sockel gekürzt',
+  hole: 'See-through Circle · ein rundes Loch um die Figur',
+};
+
+/** Ein Druck auf die Zeile: die nächste Art, oben wieder von vorn. */
+export function nextWallOcclusion(mode: WallOcclusion): WallOcclusion {
+  return WALL_OCCLUSIONS[(WALL_OCCLUSIONS.indexOf(mode) + 1) % WALL_OCCLUSIONS.length]!;
+}
+
 export interface GraphicsSettings {
   mode: GraphicsMode;
   /**
@@ -187,6 +231,12 @@ export interface GraphicsSettings {
    * Brille und aus den Augen zeigt sie nichts — dort wird nicht geghostet.
    */
   ghostBoxes: boolean;
+  /**
+   * **Was mit den Wänden vor der Figur passiert**, von oben
+   * (`WallOcclusion`): durchsichtig entlang der Sichtlinie (ab Werk), alle
+   * vorn durchsichtig, abgeschnitten wie in den Sims, oder ein Guckloch.
+   */
+  wallOcclusion: WallOcclusion;
   /**
    * **Ob die unsichtbaren Griffe sichtbar sind** (`core/handleView.ts`).
    *
@@ -523,6 +573,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   hitBoxes: false,
   gridHitBoxes: false,
   ghostBoxes: false,
+  wallOcclusion: 'ghost',
   showHandles: false,
   showVrFrustum: false,
   showBodyModel: false,
@@ -699,6 +750,9 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const hitBoxes = raw.hitBoxes === true;
   const gridHitBoxes = raw.gridHitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
+  const wallOcclusion = WALL_OCCLUSIONS.includes(raw.wallOcclusion as WallOcclusion)
+    ? (raw.wallOcclusion as WallOcclusion)
+    : DEFAULT_GRAPHICS.wallOcclusion;
   const showHandles = raw.showHandles === true;
   const showVrFrustum = raw.showVrFrustum === true;
   const showBodyModel = raw.showBodyModel === true;
@@ -750,6 +804,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     hitBoxes,
     gridHitBoxes,
     ghostBoxes,
+    wallOcclusion,
     showHandles,
     showVrFrustum,
     showBodyModel,
@@ -899,6 +954,7 @@ export function graphicsSummary(
         | 'hitBoxes'
         | 'gridHitBoxes'
         | 'ghostBoxes'
+        | 'wallOcclusion'
         | 'showHandles'
         | 'shadows'
         | 'levelBlur'
@@ -918,6 +974,11 @@ export function graphicsSummary(
   const cellBoxes = settings.gridHitBoxes ? ' · Hitboxen 2D' : '';
   const ghosts = settings.ghostBoxes ? ' · Ghosting' : '';
   const grips = settings.showHandles ? ' · Griffe' : '';
+  // Die Sichtlinie ist der Normalfall; genannt wird, wer eine andere Art wählt.
+  const walls =
+    settings.wallOcclusion && settings.wallOcclusion !== DEFAULT_GRAPHICS.wallOcclusion
+      ? ` · Wände ${WALL_OCCLUSION_LABELS[settings.wallOcclusion]}`
+      : '';
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
   // Seit es den Kreis gibt, ist er der Normalfall; genannt werden „ohne" und
@@ -945,7 +1006,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${grips}${shade}${blur}${squishy}${breath}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${grips}${walls}${shade}${blur}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------
