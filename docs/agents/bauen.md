@@ -1284,6 +1284,20 @@ Wall."_
   Modus werden wir eh lange Wände ziehen."_ Gezogen wird trotzdem mit dem
   langen Stück dazu (`elementCatalog.wallFullOf`, `PortalWorld.drawnWall`):
   lange Stücke aneinander, am ungeraden Ende das kurze.
+- **Außer beim Fenster** (September 2026, gemeldet: _„fenster über zwei
+  felder scheinen das fenster nicht breiter zu machen"_): Das lange
+  `Wall_Window_Closed` hat dasselbe Fenster (0,8 m) wie das schmale, nur mit
+  mehr Wand drumherum. Ein Fenster wird deshalb Kachel für Kachel aus dem
+  schmalen gezogen (`wallFullOf` gibt `null`); die Rahmen stoßen zu einem
+  Fensterband aneinander, zwei Kacheln sind ein Doppelfenster.
+- **Die Wand sitzt quer mittig auf der Fuge** (`props.modelPropShape`):
+  Gemittelt wird längs und in der Höhe nach der Hülle, quer aber nach dem
+  Ursprung der Datei. Die Prototypwände tragen ihre Flecken nur auf einer
+  Seite (0,28 statt 0,25 Quelleinheiten); nach der Hülle stand jedes Stück
+  7,5 mm daneben, und zwei Nachbarn, einer um 180° gedreht, sprangen um
+  1,5 cm — gemeldet als _„keine saubere grade Wand, sondern eine
+  Einrückung"_. Die Fensterwand selbst hat einen Rahmen, der 5 cm tief
+  eingelassen ist; beim schmalen Fenster reicht er über das ganze Stück.
 - **Eine lange Wand wird geteilt, wenn ein kürzeres Stück einen Teil von ihr
   ersetzt** (`wallRests`, `restoreWallRests`): Ein schmales Fenster in einer
   langen Wand nimmt nur seine Fuge, auf der anderen bleibt ein halbes Stück

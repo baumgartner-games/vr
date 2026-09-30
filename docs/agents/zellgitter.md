@@ -370,7 +370,11 @@ den großen Kacheln bleibt.
   spawn der welt"_.
 - **Wände aus dem Regal** gehören zum Zellgitter (`GridWorld.refreshWallSlopes`,
   `gridSnap.wallCells`):
-  - Unter 45° (`gridSnap.diagonalPose`, `PortalWorld.fitWall`) als Schrägen.
+  - Unter 45° (`gridSnap.diagonalPose`, `PortalWorld.fitWall`) als Schrägen —
+    **außer ein Durchgang** (`MODEL_ARCHES`): Er gibt keine Schräge, man geht
+    durch seine Kacheln (September 2026, gemeldet: _„türen bei diagonalen
+    wänden scheinen nicht zu klappen um durchzugehen"_). Die Schräge sperrte
+    die ganze Kachel samt Öffnung; die Pfosten stehen an den Kachelecken.
   - Gerade und eingerastet (auf einer Fuge, in einer Vierteldrehung) als
     Wände auf ihren Kanten (`propEdges`, `NavCellOptions.walls`).
   - **Eingerastet hält ihr Kasten Spieler und NPCs nicht mehr auf**

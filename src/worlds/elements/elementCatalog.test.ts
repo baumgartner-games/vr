@@ -375,8 +375,11 @@ describe('der Möbelkatalog im Menü', () => {
     ]);
     expect(wallFullOf(SHELF_WALL_HALF)).toBe(SHELF_WALL);
     expect(wallFullOf(PLASTER_WALL_HALF)).toBe(PLASTER_WALL);
-    expect(wallFullOf('prototype-bits/Wall_Window_Closed_Narrow.glb')).toBe(
-      'prototype-bits/Wall_Window_Closed.glb',
+    // Das Fenster nicht: Das lange Stück hat dasselbe schmale Fenster in mehr
+    // Wand. Über zwei Kacheln gezogen kommen zwei Fenster nebeneinander.
+    expect(wallFullOf('prototype-bits/Wall_Window_Closed_Narrow.glb')).toBeNull();
+    expect(wallHalfOf('prototype-bits/Wall_Window_Closed.glb')).toBe(
+      'prototype-bits/Wall_Window_Closed_Narrow.glb',
     );
     // Über zwei Kacheln gezogen wird aus der Tür die Doppeltür.
     expect(wallFullOf(CATALOG_DOOR)).toBe(CATALOG_DOOR_WIDE);
@@ -387,7 +390,8 @@ describe('der Möbelkatalog im Menü', () => {
     // die lange zu einem kurzen Stück darin.
     const all = BUILD_MODELS;
     const drawn = [...all, ...all.flatMap((path) => wallFullOf(path) ?? [])];
-    for (const path of WALL_MODELS) expect(drawn).toContain(path);
+    for (const path of WALL_MODELS)
+      expect(drawn.includes(path) || all.includes(wallHalfOf(path) ?? '')).toBe(true);
     expect(WALL_MODELS).toEqual([
       'prototype-bits/Wall_Window_Closed.glb',
       'prototype-bits/Wall_Window_Closed_Narrow.glb',
