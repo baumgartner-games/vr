@@ -1098,6 +1098,13 @@ export class PageMenu {
 
   private onListClick(event: Event): void {
     const target = event.target as HTMLElement;
+    // Die Marke als Knopf nimmt die Vorratskiste (`MenuEntry.markRun`).
+    const corner = target.closest<HTMLElement>('[data-mark]');
+    if (corner && this.list.contains(corner)) {
+      this.source[Number(corner.dataset['mark'])]?.markRun?.(null);
+      this.render();
+      return;
+    }
     const more = target.closest<HTMLElement>('[data-more]');
     const hit = more ?? target.closest<HTMLElement>('[data-index]');
     if (!hit || !this.list.contains(hit)) return;
@@ -1265,8 +1272,8 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
   node.append(face(entry, accent, ready), el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
-  if (entry.mark) node.append(mark(entry.mark));
-  if (!entry.detail) return node;
+  if (entry.mark && !entry.markRun) node.append(mark(entry.mark));
+  if (!entry.detail && !(entry.mark && entry.markRun)) return node;
   // **Zwei Ziele in einer Kachel** — und ein Knopf im Knopf ist kein gültiges
   // DOM. Also liegt das ⓘ **neben** der Kachel in einem Rahmen, der beide
   // übereinanderlegt (`.pmenu__card`): Die Kachel nimmt wie bisher, der Knopf
@@ -1274,14 +1281,27 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
   // einer Nimm-Zeile (`.pmenu__pair`), nur über Eck statt nebeneinander.
   const wrap = el('div', 'pmenu__card');
   wrap.dataset['key'] = `card:${entry.id}`;
-  const info = iconButton(
-    'pmenu__info',
-    `${entry.label}: Mehr anzeigen`,
-    'M12 4a8 8 0 100 16 8 8 0 000-16zM12 11v5M12 8.2v.1',
-  );
-  info.dataset['more'] = String(index);
-  info.style.setProperty('--accent', accent);
-  wrap.append(node, info);
+  wrap.append(node);
+  // **Die Marke als Knopf** (`MenuEntry.markRun`) — gebaut wie das ⓘ, nur
+  // oben links: neben der Kachel, über sie gelegt.
+  if (entry.mark && entry.markRun) {
+    const { label, path } = MARKS[entry.mark];
+    const run = iconButton('pmenu__mark pmenu__mark--button', `${entry.label}: ${label}`, path);
+    run.title = label;
+    run.dataset['mark'] = String(index);
+    run.style.setProperty('--accent', accent);
+    wrap.append(run);
+  }
+  if (entry.detail) {
+    const info = iconButton(
+      'pmenu__info',
+      `${entry.label}: Mehr anzeigen`,
+      'M12 4a8 8 0 100 16 8 8 0 000-16zM12 11v5M12 8.2v.1',
+    );
+    info.dataset['more'] = String(index);
+    info.style.setProperty('--accent', accent);
+    wrap.append(info);
+  }
   return wrap;
 }
 

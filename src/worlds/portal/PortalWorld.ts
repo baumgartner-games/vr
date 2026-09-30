@@ -4137,6 +4137,16 @@ export class PortalWorld implements World {
         // **_Mehr anzeigen_** — gewünscht bei den Tapeten: dasselbe ⓘ wie an
         // jedem Möbel, mit dem Muster groß und dem Steckbrief darunter.
         ...(facts.facts ? { detail: { preview, facts: facts.facts } } : {}),
+        // **Die Vorratskiste oben links** — gewünscht: _„für jeden boden soll
+        // es immer automatisch den button oben links geben für eine
+        // vorratskiste mit dem boden. Dann brauche ich das vorratskisten item
+        // nicht."_ Die Kiste nimmt man wie jedes Möbel (`takeElement`).
+        ...(facts.crate && hasElement(facts.crate)
+          ? {
+              mark: 'crate' as const,
+              markRun: (hand: Handedness | null) => this.takeElement(ctx(), facts.crate!, hand),
+            }
+          : {}),
         run: (hand: Handedness | null) => {
           ctx().menu.toggle(false);
           this.takeCatalogItem(ctx(), id, hand);
@@ -13043,6 +13053,12 @@ export class PortalWorld implements World {
     preview?: string;
     /** Der Steckbrief hinter dem ⓘ (_Mehr anzeigen_). */
     facts?: readonly MenuFact[];
+    /**
+     * **Die Vorratskiste dazu** — die Id des Elements, das die Kiste oben
+     * links auf der Kachel nimmt (`MenuEntry.markRun`). Böden und Tapeten
+     * stehen so nur einmal im Katalog, und ihre Kiste hängt an ihnen.
+     */
+    crate?: string;
   } | null {
     return null;
   }

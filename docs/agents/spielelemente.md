@@ -386,12 +386,19 @@ Möbelkatalog gibt **Spielelemente** her.
   (`wallFullOf`, `wallHalfOf`): Gezogen kommen Doppeltüren aneinander, am
   ungeraden Ende eine einfache.
 - **Vorratskisten haben keinen eigenen Ordner mehr**, sondern stehen bei dem,
-  was sie hergeben (Tapetenkisten unter _Tapeten_, Bodenkisten unter _Böden_),
-  und tragen **oben links eine Kiste** (`MenuEntry.mark: 'crate'`,
+  was sie hergeben, und tragen **oben links eine Kiste** (`MenuEntry.mark: 'crate'`,
   `PageMenu.mark`) — jedes Element mit `kind: 'crate'`, auch in der Küche.
   Gewünscht: _„für die vorratskisten reicht es, wenn bei den jeweiligen
   elementen oben links ein Icon ist"_. Nur am Schirm; am Handgelenk steht es
   im Namen.
+- **Böden und Tapeten haben keine eigene Kistenkachel** — die Kiste oben
+  links auf der Kachel des Belags **ist ein Knopf** und nimmt seine
+  Vorratskiste (`MenuEntry.markRun`; die Welt nennt sie über
+  `catalogItem(...).crate`). Gewünscht: _„für jeden boden soll es immer
+  automatisch den button oben links geben für eine vorratskiste mit dem
+  boden. Dann brauche ich das vorratskisten item nicht."_ Die Kisten bleiben
+  im Katalog der Welt (`elementCatalogue`), stehen aber in keinem Ordner.
+  Nur am Schirm; am Handgelenk gibt es den Knopf nicht.
 - **Tapeten zeigen ihr Muster** statt der Stoffbahn in der Hand
   (`wallpaperSkin.wallpaperSwatch`, Vorschau-Id `wallpaper:<id>`, über
   `PortalWorld.catalogPreview`) und haben ein ⓘ mit Steckbrief

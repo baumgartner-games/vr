@@ -21,9 +21,13 @@ unendlich viele davon hat."_
   `elementCatalog.WALLPAPER_CRATES`): Backstein, Putz weiß, Tapete beige,
   Tapete grün gestreift, Holzvertäfelung, Fliesen blau. Eine Kiste ist eine
   Station der Art `crate` und wird nie leer; wer mit derselben Tapete davor
-  steht, legt sie zurück. Darin liegt die Bahn in ihrer Farbe — auf 80 cm
-  gebracht (`ElementPart.fit`), denn die Bahn aus dem Regal ist 1,6 m lang
-  und lag über die Kiste hinaus.
+  steht, legt sie zurück. Darin liegt die Bahn **mit dem Muster ihrer
+  Tapete** (`ElementPart.wallpaper`, `wallpaperSkin.paintWallpaper`: flache
+  Texturkoordinaten über die langen Seiten, die Bahn aus dem Regal zeigt
+  sonst nur einen Fleck ihres Farbatlas) — auf 80 cm gebracht
+  (`ElementPart.fit`), denn die Bahn aus dem Regal ist 1,6 m lang und lag
+  über die Kiste hinaus. Im Katalog nimmt man eine Tapeten- oder Bodenkiste
+  über die Kiste oben links auf der Kachel des Belags (`MenuEntry.markRun`).
 - **Sechs Bodenkisten** rechts daneben (`elementCatalog.FLOORING_CRATES`,
   `house/flooring.ts`): Prototyp-Boden, Küchenfliesen, Küchenfliesen B,
   Dielen Gastraum, Dielen dunkel, Steinplatten — darin die Platte selbst,

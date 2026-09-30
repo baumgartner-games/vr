@@ -280,6 +280,15 @@ export interface MenuEntry {
    */
   mark?: MenuMark;
   /**
+   * **Die Marke als Knopf** — dann tut sie etwas, statt nur etwas zu sagen.
+   * Gewünscht bei Böden und Tapeten: _„für jeden boden soll es immer
+   * automatisch den button oben links geben für eine vorratskiste mit dem
+   * boden. Dann brauche ich das vorratskisten item nicht."_ Die Kachel nimmt
+   * das Ding in die Hand, die Kiste oben links nimmt seine Vorratskiste.
+   * Wie `mark` nur auf der Seite (`ui/PageMenu.ts`).
+   */
+  markRun?(hand: Handedness | null): void;
+  /**
    * **Diese Seite wird gerade aufgeschlagen.**
    *
    * Gerufen von jeder Bedienfläche, die eine Ebene tiefer geht — am

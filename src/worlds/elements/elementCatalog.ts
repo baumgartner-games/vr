@@ -112,6 +112,14 @@ export interface ElementPart {
    * Ohne Angabe ist es das erste Teil: die Platte, der Herd, die Kiste.
    */
   readonly surface?: boolean;
+  /**
+   * **Mit dem Muster dieser Tapete bemalt** (`house/wallpaperSkin.paintWallpaper`)
+   * — die Id aus `house/wallpaper.WALLPAPERS`. Gewünscht bei den Tapetenkisten:
+   * _„bei den tapeten kisten sieht man an dem banner darin nicht, wie die
+   * tapete aussieht"_. Das Modell bleibt die Bahn aus dem Regal, nur ihr
+   * Bild wird die Tapete.
+   */
+  readonly wallpaper?: string;
 }
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
@@ -312,6 +320,8 @@ export const WALLPAPER_CRATES: readonly GameElement[] = (
         // Die Bahn ist 1,6 m lang und lag über die Kiste hinaus.
         fit: CRATE_FILL,
         flush: CRATE_FLUSH,
+        // Die Bahn trägt das Muster der Tapete, sonst sähe man nur ihre Farbe.
+        wallpaper: id,
       },
     ],
     { gives: `wallpaper-${id}` },

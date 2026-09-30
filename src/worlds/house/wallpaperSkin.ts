@@ -301,3 +301,55 @@ export function wallpaperSwatch(id: string): THREE.Object3D | null {
   group.add(mesh);
   return group;
 }
+
+/**
+ * **Ein Modell aus dem Regal mit dem Muster einer Tapete bemalen** — die Bahn
+ * in der Tapetenkiste (`ElementPart.wallpaper`). Gewünscht: _„bei den tapeten
+ * kisten sieht man an dem banner darin nicht, wie die tapete aussieht. Bitte
+ * darin bei kisten den tapete direkt anzeigen"_.
+ *
+ * Die Bahn zeigt über ihre eigenen Texturkoordinaten nur einen Fleck des
+ * Farbatlas; die taugen für kein Muster. Also bekommt jedes Netz eine Kopie
+ * seiner Form mit neuen Koordinaten, **flach** über seine beiden längsten
+ * Seiten gelegt und in Metern des Modells — ein Muster von einem Meter ist
+ * auf der 1,6 m langen Bahn so gut anderthalbmal zu sehen —, und ein eigenes
+ * Material mit der Tapete. Form und Material des Regals bleiben unberührt;
+ * die teilen alle Bahnen.
+ *
+ * @returns ob es die Tapete gibt (sonst bleibt das Modell, wie es ist)
+ */
+export function paintWallpaper(object: THREE.Object3D, id: string): boolean {
+  const paper = wallpaperById(id);
+  if (!paper) return false;
+  const map = wallpaperTexture(id);
+  const material = new THREE.MeshStandardMaterial({ map, roughness: 0.9 });
+  object.updateMatrixWorld(true);
+  object.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const geometry = mesh.geometry.clone();
+    const position = geometry.getAttribute('position');
+    if (!position) return;
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox!;
+    const size = box.getSize(new THREE.Vector3());
+    // Die dünnste Richtung fällt weg; das Muster liegt auf den beiden anderen.
+    const axes = [0, 1, 2].sort((a, b) => size.getComponent(b) - size.getComponent(a));
+    const [u, v] = [axes[0]!, axes[1]!];
+    // Längen in Metern des Modells, auch wenn das Netz selbst skaliert hängt.
+    const scale = mesh.getWorldScale(new THREE.Vector3());
+    const uv = new Float32Array(position.count * 2);
+    for (let i = 0; i < position.count; i++) {
+      uv[i * 2] =
+        ((position.getComponent(i, u) - box.min.getComponent(u)) * scale.getComponent(u)) /
+        paper.repeat;
+      uv[i * 2 + 1] =
+        ((position.getComponent(i, v) - box.min.getComponent(v)) * scale.getComponent(v)) /
+        paper.repeat;
+    }
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    mesh.geometry = geometry;
+    mesh.material = material;
+  });
+  return true;
+}

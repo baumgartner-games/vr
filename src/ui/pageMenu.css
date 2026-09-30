@@ -402,6 +402,10 @@
   pointer-events: none;
 }
 .pmenu__mark svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* **Die Marke als Knopf** (`MenuEntry.markRun`): Böden und Tapeten nehmen
+   hier ihre Vorratskiste. Liegt neben der Kachel über ihr, wie das ⓘ. */
+.pmenu__mark--button { padding: 0; cursor: pointer; pointer-events: auto; }
+.pmenu__mark--button:hover { background: rgba(140, 170, 230, 0.24); }
 /* Das ⓘ ist ein Kreis und zwei Striche; der Punkt darüber ist ein Strich von
    einem Zehntel Punkt Länge, den `stroke-linecap: round` zu einem Punkt macht.
    Ein zweiter Pfad dafür wäre ein zweiter Pfad für einen Punkt. */
