@@ -200,7 +200,7 @@ lesen:
 | **Figur** | das Aussehen (`look`) |
 | **Einstellungen** | _Bewegung_, _Grafik_, _Hände & Greifen_ (so heißt `settings` hier) |
 | **Steuerung & Hilfe** | _Eingaben_ (`input`), und am Schirm zwei Verweise in einen neuen Tab: Eingabeseite und Werkzeugseite (`help:*`) |
-| **Werkstatt** `TEST` | alles zum Prüfen und Messen — Bildrate, Position, Gitterlinien, belegte Felder, Hitboxen, Ghosting, Griffe, Trefferzonen und Navigation der NPCs, Welt-Physik, Weltänderungen, Konfig-Code, Werkzeug-Posen |
+| **Werkstatt** `TEST` | alles zum Prüfen und Messen — Bildrate, Position, Gitterlinien, belegte Felder, Hitboxen (3D), Ghosting, Griffe, Trefferzonen und Navigation der NPCs, Welt-Physik, Weltänderungen, Konfig-Code, Werkzeug-Posen |
 
 **Die Ordnung steht an einer Stelle** — `MENU_PLACEMENT` in
 `ui/menuGroups.ts`, mit Test. Wer baut, baut weiter flach: `App.refreshMenu`

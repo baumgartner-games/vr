@@ -255,7 +255,7 @@ den großen Kacheln bleibt.
   - Bei gerader Größe liegt die Stellung auf einer Zellecke, bei ungerader
     in einer Zellmitte.
   - Jede Kachelkante im Inneren des Blocks wird geprüft.
-- **Anzeige:** _Menü → Werkstatt → Belegte Felder_ oder _Hitboxen (2D-Gitter)_
+- **Anzeige:** _Menü → Werkstatt → Belegte Felder_ oder _Menü → Einstellungen → Grafik → Hitboxen (2D-Gitter)_
   zeigt das Gitter **auf dem Boden** (`grid/cellHitboxView.ts`, seit Oktober
   2026). Gewünscht: _„alle Gitter-Felder sehen, ob diese mit Wand belegt sind
   oder frei … bei der Treppe … mit einem Pfeil … immer auf dem Boden"_.
