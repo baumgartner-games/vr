@@ -12,7 +12,8 @@
  * Hier stehen die **Bausteine** dazu, als reine Rechnung über
  * achsenparallele Kästen: was überhaupt verdecken kann (`blocksView`), aus
  * welcher Richtung die Kamera schaut (`facingAxes`), und welche Wände ganz
- * auf ihrer Seite liegen (`wallsInFront`). Welche Wände eines Raums
+ * auf ihrer Seite liegen (`wallsInFront`) und die Figur draußen wirklich
+ * verdecken (`wallsCovering`). Welche Wände eines Raums
  * tatsächlich weggehen, entscheidet `roomWalls.ts`; wie sie dann aussehen,
  * `wallCut.ts`.
  *
@@ -81,8 +82,8 @@ export const FRONT_BELOW = 0.4;
 export const FRONT_ABOVE = 2;
 
 /**
- * **Alle Wände vor der Figur** — was gilt, wenn sie **draußen** steht und es
- * keinen Raum gibt (`roomWalls.roomWallsToClear` gibt dann `null`).
+ * **Alle Wände vor der Figur** — die Vorauswahl für draußen
+ * (`wallsCovering`).
  *
  * Jede Wand, die ganz auf der Kameraseite der Figur liegt (`turnsItsBack`),
  * zählt — auch die zehn Meter daneben. Beschränkt wird nur auf die **Etage**
@@ -106,6 +107,72 @@ export function wallsInFront<T extends GhostCandidate>(
     if (turnsItsBack(box, figure, axes)) out.push(one);
   }
   return out;
+}
+
+/**
+ * **Wie breit und hoch die Figur für `wallsCovering` ist**, in Metern: eine
+ * halbe Schulterbreite zu jeder Seite, und Strahlen aus drei Höhen um ihre
+ * Mitte — Beine, Bauch, Kopf.
+ */
+export const COVER_HALF_WIDTH = 0.3;
+const COVER_HEIGHTS = [-0.6, 0, 0.6] as const;
+
+/**
+ * **Die Wände, die die Figur wirklich verdecken** — was gilt, wenn sie
+ * **draußen** steht (`roomWalls.roomWallsToClear` gibt dann `null`).
+ *
+ * Gewünscht (September 2026): _„nicht aktiviert werden, wenn ich außerhalb
+ * von Räumen bin, außer ich stehe direkt hinter der Wand."_ Vorher galt
+ * draußen `wallsInFront`, und von einem Platz vor dem Haus aus wurde die ganze
+ * Front durchsichtig, obwohl sie niemanden verdeckte.
+ *
+ * Also nur, was ganz auf der Kameraseite liegt (`wallsInFront`) **und** von
+ * einem der Strahlen aus der Figur zur Kamera getroffen wird — aus drei Höhen
+ * (`COVER_HEIGHTS`), mit dem Kasten um `COVER_HALF_WIDTH` verbreitert, damit
+ * eine Wand, die nur eine Schulter abschneidet, auch zählt.
+ */
+export function wallsCovering<T extends GhostCandidate>(
+  camera: GhostPoint,
+  figure: GhostPoint,
+  boxes: readonly T[],
+  knee = GHOST_KNEE,
+): T[] {
+  return wallsInFront(camera, figure, boxes, knee).filter((one) => {
+    const box = one.box;
+    const wide = {
+      ...box,
+      w: box.w + 2 * COVER_HALF_WIDTH,
+      d: box.d + 2 * COVER_HALF_WIDTH,
+    };
+    return COVER_HEIGHTS.some((dy) =>
+      segmentHits({ x: figure.x, y: figure.y + dy, z: figure.z }, camera, wide),
+    );
+  });
+}
+
+/** Schneidet die Strecke von `from` nach `to` diesen Kasten? (Plattenverfahren) */
+function segmentHits(from: GhostPoint, to: GhostPoint, box: GhostBox): boolean {
+  let near = 0;
+  let far = 1;
+  const axes: [number, number, number, number][] = [
+    [from.x, to.x - from.x, box.x, box.w],
+    [from.y, to.y - from.y, box.y, box.h],
+    [from.z, to.z - from.z, box.z, box.d],
+  ];
+  for (const [start, delta, centre, size] of axes) {
+    const low = centre - size / 2;
+    const high = centre + size / 2;
+    if (Math.abs(delta) < 1e-9) {
+      if (start < low || start > high) return false;
+      continue;
+    }
+    const a = (low - start) / delta;
+    const b = (high - start) / delta;
+    near = Math.max(near, Math.min(a, b));
+    far = Math.min(far, Math.max(a, b));
+    if (near > far) return false;
+  }
+  return true;
 }
 
 /**

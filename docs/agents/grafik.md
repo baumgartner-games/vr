@@ -410,8 +410,13 @@ Wände links und rechts), dann brauchen diese das nicht."_
   Raster von 25 cm (`ROOM_CELL`), gesperrt von jedem Kasten der Etage, der
   verdecken kann — Quader und hingestellte Modelle in **einer** Rechnung,
   Türen aus dem Regal zählen wie Wände. Läuft die Flut 16 m weit
-  (`ROOM_REACH`), steht die Figur draußen; dann gilt, was ganz vor ihr liegt
-  (`wallGhost.wallsInFront`).
+  (`ROOM_REACH`), steht die Figur draußen. **Draußen geht nur weg, was sie
+  wirklich verdeckt** (`wallGhost.wallsCovering`): eine Wand ganz auf der
+  Kameraseite, die einer von drei Strahlen aus der Figur zur Kamera trifft
+  (Beine, Bauch, Kopf; der Kasten um 0,3 m verbreitert). Gewünscht: _„nicht
+  aktiviert werden, wenn ich außerhalb von Räumen bin, außer ich stehe direkt
+  hinter der Wand"_ — vorher wurde draußen die ganze Hausfront durchsichtig
+  (`wallsInFront`, jetzt nur noch die Vorauswahl).
 - **Die Bombenlinie**: Eine quer liegende Wand, nördlich von der (weg von der
   Kamera) kein Stück desselben Raums liegt, trifft die Linie von oben zuerst
   — sie bleibt stehen. Liegt dort Raum, ist sie eine Front oder eine

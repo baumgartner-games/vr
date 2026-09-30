@@ -1,4 +1,11 @@
-import { GHOST_KNEE, blocksView, facingAxes, wallsInFront, type GhostCandidate } from './wallGhost';
+import {
+  GHOST_KNEE,
+  blocksView,
+  facingAxes,
+  wallsCovering,
+  wallsInFront,
+  type GhostCandidate,
+} from './wallGhost';
 
 /** Ein Quader: Mitte und Kantenlängen, wie ein `PlanSolid`. */
 function box(
@@ -139,5 +146,35 @@ describe('Alle Wände vor der Figur (Ghost Walls, Wall Cutaway)', () => {
     const east = box(1, 1.4, 0, 0.2, 2.8, 4);
     const west = box(-1, 1.4, 0, 0.2, 2.8, 4);
     expect(wallsInFront({ x: 12, y: 9, z: 0 }, FIGURE, [east, west])).toEqual([east]);
+  });
+});
+
+describe('Draußen nur, was die Figur wirklich verdeckt', () => {
+  it('nimmt die Wand direkt vor der Figur', () => {
+    const close = box(0, 1.4, 1, 4, 2.8, 0.2);
+    expect(wallsCovering(CAMERA, FIGURE, [close])).toEqual([close]);
+  });
+
+  it('lässt eine Hausfront weit daneben oder weit davor stehen', () => {
+    // Seitlich versetzt: vor der Figur, aber nicht zwischen ihr und der Kamera.
+    const aside = box(8, 1.4, 1, 4, 2.8, 0.2);
+    // Weit vorn: Der Blick geht längst darüber hinweg.
+    const far = box(0, 1.4, 8, 4, 2.8, 0.2);
+    expect(wallsInFront(CAMERA, FIGURE, [aside, far])).toHaveLength(2);
+    expect(wallsCovering(CAMERA, FIGURE, [aside, far])).toEqual([]);
+  });
+
+  it('zählt auch eine Wand, die nur die Beine verdeckt', () => {
+    // Niedrig und dicht davor: Der Strahl aus Kopfhöhe geht darüber, der aus
+    // den Beinen nicht.
+    const low = box(0, 0.6, 0.6, 4, 1.2, 0.2);
+    expect(wallsCovering(CAMERA, FIGURE, [low])).toEqual([low]);
+  });
+
+  it('schräg von Südosten die Wand, die zwischen Figur und Kamera steht', () => {
+    const southEast = { x: 9, y: 9, z: 9 };
+    const between = box(0.8, 1.4, 0.8, 2, 2.8, 0.2);
+    const west = box(-1, 1.4, 0, 0.2, 2.8, 4);
+    expect(wallsCovering(southEast, FIGURE, [between, west])).toEqual([between]);
   });
 });
