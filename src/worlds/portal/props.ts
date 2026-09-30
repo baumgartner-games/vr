@@ -380,6 +380,17 @@ export function modelPropShape(
   const size = box.isEmpty() ? new THREE.Vector3(0.2, 0.2, 0.2) : box.getSize(new THREE.Vector3());
   if (!box.isEmpty()) {
     const centre = box.getCenter(new THREE.Vector3());
+    // **Eine Wand quer zu ihrer Fuge nicht nach der Hülle rücken**, sondern
+    // nach ihrem eigenen Ursprung: Die Prototypwände tragen ihre Flecken nur
+    // auf einer Seite (0,28 statt 0,25 Quelleinheiten), die Hülle ist dort
+    // dicker, und nach ihr gemittelt stand jedes Stück 7,5 mm neben der Fuge.
+    // Zwei Nachbarn, der eine um 180° gedreht, sprangen so um 1,5 cm —
+    // gemeldet als _„keine saubere grade Wand, sondern eine Einrückung"_.
+    // Der Ursprung dieser Dateien liegt mitten in der Wand; wo er außerhalb
+    // liegt, gilt weiter die Hülle.
+    const across = size.y >= WALL_LONG ? wallAxis(size.x, size.z) : null;
+    const origin = across ? model.position[across] : 0;
+    if (across && box.min[across] < origin && origin < box.max[across]) centre[across] = origin;
     model.position.sub(centre);
   }
   object.add(stretchWall(model, box.isEmpty() ? null : size));

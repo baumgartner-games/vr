@@ -511,13 +511,17 @@ export function wallHalfOf(path: string): string | null {
  * nur am ungeraden Ende ein kurzes (`PortalWorld.drawnWall`). Zur Tür die
  * Doppeltür: Über zwei Kacheln gezogen wird sie eine. `null`, wenn es kein
  * längeres gibt.
+ *
+ * **Das Fenster hat keines**, obwohl es `Wall_Window_Closed` gibt: Das lange
+ * Stück hat dasselbe Fenster (0,8 m) in mehr Wand. Gemeldet: _„fenster über
+ * zwei felder scheinen das fenster nicht breiter zu machen"_. Gezogen kommt
+ * deshalb je Kachel ein schmales Fenster, und die Rahmen stoßen zu einem
+ * breiten Fensterband aneinander.
  */
 export function wallFullOf(path: string): string | null {
   switch (path) {
     case SHELF_WALL_HALF:
       return SHELF_WALL;
-    case SHELF_WINDOW_PIECES.half:
-      return SHELF_WINDOW_PIECES.full;
     case PLASTER_WALL_HALF:
       return PLASTER_WALL;
     case CATALOG_DOOR:

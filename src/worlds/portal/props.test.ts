@@ -92,6 +92,22 @@ describe('Wände aus dem Regal', () => {
     expect(centre.length()).toBeCloseTo(0, 9);
   });
 
+  it('stehen mit ihrer Mitte auf der Fuge, auch mit Flecken auf nur einer Seite', () => {
+    // Wie `prototype-bits/Wall_Half`: die Wand ±0,125 um den Ursprung, davor
+    // ein Fleck 1,5 cm dick — die Hülle reicht auf der einen Seite weiter.
+    const root = box(1, 2, 0.25);
+    const spot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.015));
+    spot.position.set(0.3, 1, 0.125 + 0.0075);
+    root.add(spot);
+    const wall = modelPropShape(root, 'Wand');
+    wall.object.updateMatrixWorld(true);
+    const core = new THREE.Box3().setFromObject(root.children[0]!);
+    expect(core.min.z).toBeCloseTo(-0.125, 9);
+    expect(core.max.z).toBeCloseTo(0.125, 9);
+    // Längs und in der Höhe bleibt es die Hülle.
+    expect(core.getCenter(new THREE.Vector3()).x).toBeCloseTo(0, 9);
+  });
+
   it('strecken in Nord-Süd-Richtung, wenn sie so stehen', () => {
     const size = drawn(modelPropShape(box(0.25, 2, 2), 'Wand').object);
     expect(size.z).toBeCloseTo(2 + 2 * WALL_OVERLAP, 9);

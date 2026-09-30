@@ -1218,9 +1218,16 @@ export abstract class GridWorld extends PortalWorld {
       entry.object.getWorldPosition(_spot);
       const level = wallLevel(graph, _spot.y - entry.halfExtents.y);
       const wall = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
+      const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind);
+      const arch = path === null ? undefined : MODEL_ARCHES[path];
       if (wall) {
-        for (const cell of wall.cells)
-          this.wallSlopes.set(tileKey(cell.x, cell.z, level), wall.slope);
+        // **Ein Durchgang unter 45° ist keine Schräge** — gemeldet: _„türen
+        // bei diagonalen wänden scheinen nicht zu klappen um durchzugehen"_.
+        // Die Schräge sperrte die ganze Kachel, die Öffnung mit. Die Pfosten
+        // stehen an den Ecken der Kacheln; durch die Kacheln geht man.
+        if (!arch)
+          for (const cell of wall.cells)
+            this.wallSlopes.set(tileKey(cell.x, cell.z, level), wall.slope);
         this.gridWalls.add(entry);
         continue;
       }
@@ -1229,8 +1236,6 @@ export abstract class GridWorld extends PortalWorld {
       // eine gebaute (`propEdges`). Nur, wenn sie wirklich eingerastet steht:
       // Eine umgefallene oder schief geschobene hält weiter nur die Physik.
       entry.object.getWorldQuaternion(_turn);
-      const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind);
-      const arch = path === null ? undefined : MODEL_ARCHES[path];
       const cells = wallCells(_spot.x, _spot.z, _turn, entry.halfExtents, undefined, arch);
       if (!cells || !standsOnGrid(cells, arch)) continue;
       for (const edge of cells.edges)
