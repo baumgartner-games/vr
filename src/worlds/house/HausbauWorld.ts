@@ -33,8 +33,22 @@ import { STAIR_STEPS, STOREY, houseTiles, stairDir, stairFits, stairTiles } from
 import { bringBack, cutAway, type ViewLevel } from '../../core/cutaway';
 import { SHELF_WALL_Y } from '../grid/shelfWalls';
 import { tileKey, type Dir } from '../nav/navTile';
-import { WALLPAPERS, wallpaperItem, wallpaperOfItem, type Wallpaper } from './wallpaper';
-import { BARE_WALL, skinWall, stepWallpaperGlow, type WallSkin } from './wallpaperSkin';
+import {
+  WALLPAPERS,
+  wallpaperFacts,
+  wallpaperItem,
+  wallpaperOfItem,
+  type Wallpaper,
+} from './wallpaper';
+import {
+  BARE_WALL,
+  WALLPAPER_PREVIEW,
+  skinWall,
+  stepWallpaperGlow,
+  wallpaperSwatch,
+  type WallSkin,
+} from './wallpaperSkin';
+import type { MenuFact } from '../../ui/menu';
 
 const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
@@ -173,53 +187,60 @@ export class HausbauWorld extends TestRestaurantWorld {
   }
 
   /**
-   * **Die Ordner aller Welten — und in _Wände_ die Tapeten** zum Nehmen, dazu
-   * Böden, Treppen und die Kisten in eigenen Ordnern.
+   * **Das Haus wie im Baumodus der Sims** — gewünscht: _„wand · tür · treppe
+   * (kann direkt das treppen element sein) · böden (ordner wie jetzt) ·
+   * tapeten"_. Wand, Tür und Fenster stehen schon direkt im _Haus_
+   * (`HOUSE_FOLDER`); dazu kommt die Treppe als Kachel und die Ordner _Böden_
+   * und _Tapeten_. **Die Kisten stehen bei dem, was sie hergeben**, statt in
+   * eigenen Ordnern — erkennbar an der Kiste oben links (`MenuEntry.mark`).
    */
   protected override elementFolders(): readonly FurnitureFolder[] {
-    const walls = mapFolder(super.elementFolders(), 'walls', (folder) => ({
-      ...folder,
-      items: WALLPAPERS.map((one) => wallpaperItem(one.id)),
-    }));
-    // **Ins _Haus_**, neben Wände, Türen und Fenster — wie der Baumodus der
-    // Sims: Böden, Treppen und die Kisten dazu.
-    return mapFolder(walls, 'house', (house) => ({
+    return mapFolder(super.elementFolders(), 'house', (house) => ({
       ...house,
+      items: [...(house.items ?? []), 'stair'],
+      elements: [...house.elements, STAIR_CRATE.id],
       folders: [
         ...(house.folders ?? []),
-        // **Die Böden** — die Beläge zum Nehmen, wie die Tapeten unter _Wände_.
         {
           id: 'floors',
           label: 'Böden',
-          elements: [],
+          elements: FLOORING_CRATES.map((crate) => crate.id),
           items: FLOORINGS.map((one) => flooringItem(one.id)),
         },
-        // **Die Treppe** — zum Nehmen, und ihre Kiste daneben.
         {
-          id: 'stairs',
-          label: 'Treppen',
-          elements: [STAIR_CRATE.id],
-          items: ['stair'],
-          cover: { item: 'stair' },
-        },
-        {
-          id: 'wallpaper-crates',
-          label: 'Tapetenkisten',
+          id: 'wallpapers',
+          label: 'Tapeten',
           elements: WALLPAPER_CRATES.map((crate) => crate.id),
-        },
-        {
-          id: 'floor-crates',
-          label: 'Bodenkisten',
-          elements: FLOORING_CRATES.map((crate) => crate.id),
+          items: WALLPAPERS.map((one) => wallpaperItem(one.id)),
         },
       ],
     }));
   }
 
-  protected override catalogItem(id: string): { label: string; model: string } | null {
-    if (!wallpaperOfItem(id) && !flooringOfItem(id) && id !== 'stair') return null;
+  protected override catalogItem(id: string): {
+    label: string;
+    model: string;
+    preview?: string;
+    facts?: readonly MenuFact[];
+  } | null {
+    const paper = wallpaperOfItem(id);
+    if (!paper && !flooringOfItem(id) && id !== 'stair') return null;
     const model = ITEM_MODELS[id as KitchenItem];
-    return { label: ITEM_LABELS[id as KitchenItem], model: typeof model === 'string' ? model : '' };
+    const label = ITEM_LABELS[id as KitchenItem];
+    return {
+      label,
+      model: typeof model === 'string' ? model : '',
+      // **Die Tapete zeigt ihr Muster** und nicht die Stoffbahn, die man trägt.
+      ...(paper
+        ? { preview: `${WALLPAPER_PREVIEW}${paper.id}`, facts: wallpaperFacts(paper) }
+        : {}),
+    };
+  }
+
+  protected override catalogPreview(id: string): THREE.Object3D | null {
+    return id.startsWith(WALLPAPER_PREVIEW)
+      ? wallpaperSwatch(id.slice(WALLPAPER_PREVIEW.length))
+      : null;
   }
 
   protected override takeCatalogItem(ctx: WorldContext, id: string, hand: Handedness | null): void {

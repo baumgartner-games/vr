@@ -213,8 +213,8 @@ definiert. und ich konnte die schräg setzen. Also eigentlich das was in
 modellregal wall ist, soll einfach nur nach möbel kommen, aber eben nicht als
 "block""_.
 
-Die Wände sind deshalb **keine Spielelemente**. Die Baumappen im Katalog
-(`BUILD_FOLDERS`: _Wände_, _Türen_, _Fenster_) führen statt Elementen
+Die Wände sind deshalb **keine Spielelemente**. Das _Haus_ im Katalog
+(`HOUSE_FOLDER`, `BUILD_MODELS`: Wand, Putzwand, Tür, Fenster) führt statt Elementen
 Regalmodelle (`FurnitureFolder.models`, alle aus `WALL_MODELS` und dazu die
 Putzwand): die Fensterwand und ihre schmale Hälfte
 (`shelfWalls.SHELF_WINDOW_PIECES`, die Kammern der Test Navigation), die graue
@@ -307,9 +307,8 @@ Element, das scheitert, fehlt mit einer Warnung, die Welt stirbt nicht daran.
 „Möbel" dahingehend erweitern bzw. auch umbenennen, dass es wie bei Sims der
 Katalog ist für die Sachen die man kaufen kann und einbauen kann."_ Er steht
 unter _Bauen & Gestalten_ gleich hinter dem Spielmodus und hat neben den
-Möbeln die **Baumappen** _Wände_ (Prototypwand und Putzwand, ganz und halb),
-_Türen_ (Durchgang, breiter Durchgang) und _Fenster_ (Fensterwand ganz und
-schmal) — `elementCatalog.BUILD_FOLDERS`. Die Baumappen sind Regalwände und
+Möbeln das **Haus** mit Wand, Putzwand, Tür und Fenster (die kurzen Stücke,
+`elementCatalog.BUILD_MODELS`). Die Bauteile sind Regalwände und
 keine Spielelemente, und deshalb steht der Katalog mit ihnen in **jeder** Welt
 (`PortalWorld.elementFolders`). _Setzen_ ohne Pinsel schlägt den Katalog auf
 (`catalogueId`).
@@ -367,15 +366,37 @@ Möbelkatalog gibt **Spielelemente** her.
   es in der Küche tut.
 - **Erst der Bereich, dann die Art** (Ende September 2026, gewünscht:
   _„Katalog Ordner besser gruppieren (Haus, Restaurant, etc.) … Ggf wie bei
-  Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** (Wände, Türen,
-  Fenster — `BUILD_FOLDERS`; im Hausbau dazu Böden, Treppen, Tapeten- und
-  Bodenkisten) und **Restaurant** (`KITCHEN_FOLDERS`: Allgemein, dann nach
+  Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** und
+  **Restaurant** (`KITCHEN_FOLDERS`: Allgemein, dann nach
   Art **Kochen, Vorräte, Geschirr**, dann je Gericht, zuletzt Alles). Ein
   Ordner kann Unterordner tragen (`FurnitureFolder.folders`); wer einem
-  Ordner irgendwo im Baum etwas hinzufügt, nimmt `mapFolder`. Welten ohne
-  Gitter zeigen weiter nur Wände, Türen und Fenster flach
-  (`PortalWorld.elementFolders`). Die Menü-Ids tragen den ganzen Weg
-  (`elements/restaurant/burger:board`).
+  Ordner irgendwo im Baum etwas hinzufügt, nimmt `mapFolder`. Die Menü-Ids
+  tragen den ganzen Weg (`elements/restaurant/burger:board`).
+- **Im _Haus_ stehen die Bauteile direkt** (gewünscht: _„wand (kann direkt das
+  wand element sein) · tür · treppe · böden (ordner wie jetzt) · tapeten"_):
+  Wand, Putzwand, Tür und Fenster als Kacheln (`HOUSE_FOLDER`, deutsche Namen
+  aus `BUILD_LABELS`), im Hausbau dazu die Treppe und ihre Kiste und die
+  Ordner **Böden** und **Tapeten** (`HausbauWorld.elementFolders`). Erst die
+  Kacheln, dann die Ordner. Eine Welt ohne Gitter hat nur das Haus, und ein
+  einziger Ordner steht gleich offen.
+- **Keine Doppeltür im Katalog** — gewünscht: _„wenn ich eine tür über mehrere
+  felder ziehe, soll er statt zwei einzel türen, dann automatisch die
+  doppeltür nehmen"_. Die Tür (`Wall_Doorway`) ist das kurze Stück zur
+  Doppeltür (`Wall_Doorway_Wide`) wie die halbe Wand zur ganzen
+  (`wallFullOf`, `wallHalfOf`): Gezogen kommen Doppeltüren aneinander, am
+  ungeraden Ende eine einfache.
+- **Vorratskisten haben keinen eigenen Ordner mehr**, sondern stehen bei dem,
+  was sie hergeben (Tapetenkisten unter _Tapeten_, Bodenkisten unter _Böden_),
+  und tragen **oben links eine Kiste** (`MenuEntry.mark: 'crate'`,
+  `PageMenu.mark`) — jedes Element mit `kind: 'crate'`, auch in der Küche.
+  Gewünscht: _„für die vorratskisten reicht es, wenn bei den jeweiligen
+  elementen oben links ein Icon ist"_. Nur am Schirm; am Handgelenk steht es
+  im Namen.
+- **Tapeten zeigen ihr Muster** statt der Stoffbahn in der Hand
+  (`wallpaperSkin.wallpaperSwatch`, Vorschau-Id `wallpaper:<id>`, über
+  `PortalWorld.catalogPreview`) und haben ein ⓘ mit Steckbrief
+  (`wallpaper.wallpaperFacts`; `catalogItem` darf `preview` und `facts`
+  mitgeben). Das Musterstück ist nur ein Bild im Menü, kein Stück der Welt.
 - **Jeder Ordner zeigt sein prägnantestes Stück** (`FurnitureFolder.cover`,
   `folderCover`): gerendert wie jede Kachel, der Herd auf _Restaurant_, der
   Durchgang auf _Haus_, die Pizza-Vorratsbox auf _Pizza_ … Ohne Angabe das

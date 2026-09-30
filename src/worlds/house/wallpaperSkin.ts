@@ -249,3 +249,55 @@ export function skinWall(object: THREE.Object3D, frame: WallFrame, skin: WallSki
   }
   return true;
 }
+
+/** **Die Vorschau-Id einer Tapete im Katalog** — `wallpaper:brick` (`wallpaperSwatch`). */
+export const WALLPAPER_PREVIEW = 'wallpaper:';
+
+/** Wie breit und hoch das Musterstück der Vorschau ist, in Metern. */
+const SWATCH_SIZE = 1;
+const swatchMaps = new Map<string, THREE.Texture>();
+
+/** Wie dick — eine Platte, damit man sie schräg von vorn als Wandstück liest. */
+const SWATCH_DEPTH = 0.08;
+
+/**
+ * **Das Muster einer Tapete als Vorschau** — ein Stück Wand von einem Meter,
+ * vorn mit der Tapete, so wie sie an der Wand wiederholt wird. Gewünscht:
+ * _„bei den tapeten wäre es schön, wenn ich das muster in der vorschau direkt
+ * sehe, statt dem item"_ — das Ding in der Hand ist eine Stoffbahn aus dem
+ * Regal, und die sagt nicht, ob Backstein oder Streifen.
+ *
+ * Nur ein Bild im Menü, kein Stück der Welt: Gebaut wird dort weiter aus dem
+ * Regal. Jede Frage bekommt ein eigenes Material (die Vorschau gibt es beim
+ * Wegscrollen frei), die Textur teilt es mit den Wänden.
+ *
+ * @returns `null` für eine unbekannte Tapete
+ */
+export function wallpaperSwatch(id: string): THREE.Object3D | null {
+  const paper = wallpaperById(id);
+  if (!paper) return null;
+  let map = swatchMaps.get(id);
+  if (!map) {
+    // Eine eigene Wiederholung je Tapete, einmal gebaut; das Bild teilt sie.
+    map = wallpaperTexture(id).clone();
+    map.repeat.set(SWATCH_SIZE / paper.repeat, SWATCH_SIZE / paper.repeat);
+    map.needsUpdate = true;
+    swatchMaps.set(id, map);
+  }
+  const face = new THREE.MeshStandardMaterial({ map, roughness: 0.9 });
+  const edge = new THREE.MeshStandardMaterial({ color: 0xd9d4ca, roughness: 0.9 });
+  // Die Seiten einer Box: +x, −x, +y, −y, +z (vorn), −z.
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(SWATCH_SIZE, SWATCH_SIZE, SWATCH_DEPTH), [
+    edge,
+    edge,
+    edge,
+    edge,
+    face,
+    edge,
+  ]);
+  mesh.name = `wallpaper-swatch:${id}`;
+  mesh.position.y = SWATCH_SIZE / 2;
+  const group = new THREE.Group();
+  group.add(mesh);
+  return group;
+}

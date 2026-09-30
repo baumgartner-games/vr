@@ -2,6 +2,7 @@ import {
   WALLPAPERS,
   WALLPAPER_SIZE,
   wallpaperById,
+  wallpaperFacts,
   wallpaperColor,
   wallpaperPixels,
 } from './wallpaper';
@@ -41,5 +42,20 @@ describe('die Tapeten', () => {
   it('wiederholt sich nahtlos: dieselbe Stelle, dieselbe Farbe', () => {
     for (const one of WALLPAPERS)
       expect(wallpaperColor(one.id, 0.25, 0.75)).toEqual(wallpaperColor(one.id, 0.25, 0.75));
+  });
+
+  it('hat für jede Tapete einen Steckbrief mit Id, Muster und Kiste', () => {
+    for (const paper of WALLPAPERS) {
+      const facts = wallpaperFacts(paper);
+      expect(facts.find((one) => one.label === 'Id')).toEqual({
+        label: 'Id',
+        value: `wallpaper-${paper.id}`,
+        copy: true,
+      });
+      expect(facts.find((one) => one.label === 'Vorrat')?.value).toContain(paper.label);
+    }
+    expect(
+      wallpaperFacts(wallpaperById('beige')!).find((one) => one.label === 'Muster')?.value,
+    ).toContain('50 cm');
   });
 });

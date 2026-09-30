@@ -431,49 +431,63 @@ export function isDoorModel(path: string | null): boolean {
 export const PLASTER_WALL = 'restaurant-bits/wall.glb';
 export const PLASTER_WALL_HALF = 'restaurant-bits/wall_half.glb';
 
+/** **Die Tür im Katalog** — der schmale Durchgang; gezogen wird daraus der breite. */
+export const CATALOG_DOOR = 'prototype-bits/Wall_Doorway.glb';
+/** **Die Doppeltür** — der breite Durchgang, zwei Kacheln (`wallFullOf`). */
+export const CATALOG_DOOR_WIDE = 'prototype-bits/Wall_Doorway_Wide.glb';
+
 /**
- * **Die Baumappen des Katalogs** — wie der Baumodus in _Die Sims_: Wände,
- * Türen, Fenster. Gewünscht: _„Alle Wände sind an sich erstmal gleich, dass
- * man nicht durch kann. Nur Türen und Fenster Wand Elemente sind besonders.
- * Fenster kann man durch blicken und Türen kann man durch gehen."_
+ * **Die Bauteile des Hauses** — wie der Baumodus in _Die Sims_: Wand, Tür,
+ * Fenster, und zwar **direkt** als Kacheln auf der Seite _Haus_ und nicht in
+ * je einem Ordner mit einer Kachel darin. Gewünscht: _„wand (kann direkt das
+ * wand element sein) · tür (kann direkt das tür element sein)"_. Davor: _„Alle
+ * Wände sind an sich erstmal gleich, dass man nicht durch kann. Nur Türen und
+ * Fenster Wand Elemente sind besonders."_
  *
  * Alles darin sind Regalwände (`WALL_MODELS`, dazu die Putzwand) und keine
  * Spielelemente: Sie rasten auf der Fuge ein, lassen sich schräg setzen und
- * im Baukasten **ziehen** (`areaPaint.wallLine`). Die Mappen stehen in jeder
- * Welt im Katalog (`PortalWorld.elementFolders`), nicht nur im Restaurant.
+ * im Baukasten **ziehen** (`areaPaint.wallLine`). Sie stehen in jeder Welt im
+ * Katalog (`PortalWorld.elementFolders`), nicht nur im Restaurant.
  *
- * **Nur die kurzen Stücke** (eine Kachel, 2 × 1 Zellen) bei Wänden und
- * Fenstern — gewünscht: _„Es wäre sinnvoll wenn im Katalog nur die 2x1 Wände,
- * also die kurzen angeboten werden. Im Wand zieh Modus werden wir eh lange
- * Wände ziehen."_ Gezogen wird trotzdem mit den langen (`wallFullOf`).
+ * **Nur die kurzen Stücke** (eine Kachel, 2 × 1 Zellen) — gewünscht: _„Es
+ * wäre sinnvoll wenn im Katalog nur die 2x1 Wände, also die kurzen angeboten
+ * werden. Im Wand zieh Modus werden wir eh lange Wände ziehen."_ Gezogen wird
+ * mit den langen (`wallFullOf`), und das gilt **auch für die Tür**: Keine
+ * Doppeltür im Katalog, _„wenn ich eine tür über mehrere felder ziehe, soll er
+ * statt zwei einzel türen, dann automatisch die doppeltür nehmen"_.
  */
-export const BUILD_FOLDERS: readonly FurnitureFolder[] = [
-  {
-    id: 'walls',
-    label: 'Wände',
-    elements: [],
-    models: [SHELF_WALL_HALF, PLASTER_WALL_HALF],
-    cover: { model: SHELF_WALL_HALF },
-  },
-  {
-    id: 'doors',
-    label: 'Türen',
-    elements: [],
-    models: DOOR_MODELS,
-  },
-  {
-    id: 'windows',
-    label: 'Fenster',
-    elements: [],
-    models: [SHELF_WINDOW_PIECES.half],
-  },
+export const BUILD_MODELS: readonly string[] = [
+  SHELF_WALL_HALF,
+  PLASTER_WALL_HALF,
+  CATALOG_DOOR,
+  SHELF_WINDOW_PIECES.half,
 ];
+
+/** **Die Namen der Bauteile im Katalog** — das Regal kennt nur `Wall_Half`. */
+export const BUILD_LABELS: Readonly<Record<string, string>> = {
+  [SHELF_WALL_HALF]: 'Wand',
+  [PLASTER_WALL_HALF]: 'Putzwand',
+  [CATALOG_DOOR]: 'Tür',
+  [SHELF_WINDOW_PIECES.half]: 'Fenster',
+};
+
+/**
+ * **Der Ordner _Haus_** — Wand, Tür und Fenster direkt darin. Welten, die mehr
+ * vom Haus verstehen, legen dazu (der Hausbau: Treppe, _Böden_, _Tapeten_).
+ */
+export const HOUSE_FOLDER: FurnitureFolder = {
+  id: 'house',
+  label: 'Haus',
+  elements: [],
+  models: BUILD_MODELS,
+  cover: { model: CATALOG_DOOR },
+};
 
 /**
  * **Das halbe Stück zu einer ganzen Wand** — damit eine gezogene Wand
  * ungerader Länge am Ende ein halbes Stück bekommt, wie `shelfWalls.wallRun`.
- * `null`, wenn es keines gibt (Durchgänge): Dann endet die Wand ein Stück
- * früher.
+ * Zur Doppeltür die einfache Tür. `null`, wenn es keines gibt: Dann endet die
+ * Wand ein Stück früher.
  */
 export function wallHalfOf(path: string): string | null {
   switch (path) {
@@ -483,6 +497,8 @@ export function wallHalfOf(path: string): string | null {
       return SHELF_WINDOW_PIECES.half;
     case PLASTER_WALL:
       return PLASTER_WALL_HALF;
+    case CATALOG_DOOR_WIDE:
+      return CATALOG_DOOR;
     default:
       return null;
   }
@@ -490,10 +506,11 @@ export function wallHalfOf(path: string): string | null {
 
 /**
  * **Die ganze Wand zu einem halben Stück** — das Gegenstück zu `wallHalfOf`.
- * Im Katalog liegen nur noch die kurzen Stücke (`BUILD_FOLDERS`); wer mit
+ * Im Katalog liegen nur noch die kurzen Stücke (`BUILD_MODELS`); wer mit
  * einem davon eine Wand zieht, bekommt trotzdem lange Stücke aneinander und
- * nur am ungeraden Ende ein kurzes (`PortalWorld.drawnWall`). `null`, wenn es
- * kein längeres gibt.
+ * nur am ungeraden Ende ein kurzes (`PortalWorld.drawnWall`). Zur Tür die
+ * Doppeltür: Über zwei Kacheln gezogen wird sie eine. `null`, wenn es kein
+ * längeres gibt.
  */
 export function wallFullOf(path: string): string | null {
   switch (path) {
@@ -503,6 +520,8 @@ export function wallFullOf(path: string): string | null {
       return SHELF_WINDOW_PIECES.full;
     case PLASTER_WALL_HALF:
       return PLASTER_WALL;
+    case CATALOG_DOOR:
+      return CATALOG_DOOR_WIDE;
     default:
       return null;
   }
@@ -1044,20 +1063,14 @@ export const KITCHEN_FOLDERS: readonly FurnitureFolder[] = [
 
 /**
  * **Die obersten Ordner des Katalogs** — erst der Bereich, dann die Art, wie
- * in _Die Sims_: **Haus** mit den Baumappen (Wände, Türen, Fenster, im Hausbau
- * dazu Böden, Treppen und ihre Kisten) und **Restaurant** mit der Küche
+ * in _Die Sims_: **Haus** mit Wand, Tür und Fenster (`HOUSE_FOLDER`, im
+ * Hausbau dazu Treppe, Böden und Tapeten) und **Restaurant** mit der Küche
  * (`KITCHEN_FOLDERS`). Gewünscht: _„Katalog Ordner besser gruppieren (Haus,
  * Restaurant, etc.)"_. Vorher standen zehn Ordner aus zwei Welten
  * nebeneinander, Pizza neben Fenster.
  */
 export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
-  {
-    id: 'house',
-    label: 'Haus',
-    elements: [],
-    folders: BUILD_FOLDERS,
-    cover: { model: 'prototype-bits/Wall_Doorway.glb' },
-  },
+  HOUSE_FOLDER,
   {
     id: 'restaurant',
     label: 'Restaurant',

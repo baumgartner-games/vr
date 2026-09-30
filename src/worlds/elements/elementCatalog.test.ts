@@ -15,7 +15,11 @@ import {
   mapFolder,
   SHOW_ONLY_GIVES,
   WALL_MODELS,
-  BUILD_FOLDERS,
+  BUILD_LABELS,
+  BUILD_MODELS,
+  CATALOG_DOOR,
+  CATALOG_DOOR_WIDE,
+  HOUSE_FOLDER,
   PLASTER_WALL,
   PLASTER_WALL_HALF,
   wallHalfOf,
@@ -217,9 +221,11 @@ describe('der Möbelkatalog im Menü', () => {
     }
   });
 
-  it('ordnet wie die Sims erst nach Bereich: Haus mit Wände, Türen, Fenster, Restaurant mit der Küche', () => {
+  it('ordnet wie die Sims erst nach Bereich: Haus mit Wand, Tür, Fenster, Restaurant mit der Küche', () => {
     expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual(['Haus', 'Restaurant']);
-    expect(FURNITURE_FOLDERS[0]!.folders).toBe(BUILD_FOLDERS);
+    expect(FURNITURE_FOLDERS[0]).toBe(HOUSE_FOLDER);
+    expect(HOUSE_FOLDER.folders).toBeUndefined();
+    expect(HOUSE_FOLDER.models).toBe(BUILD_MODELS);
     expect(FURNITURE_FOLDERS[1]!.folders).toBe(KITCHEN_FOLDERS);
     expect(KITCHEN_FOLDERS.map((folder) => folder.label)).toEqual([
       'Allgemein',
@@ -279,10 +285,10 @@ describe('der Möbelkatalog im Menü', () => {
   });
 
   it('ändert mit mapFolder einen Ordner auf jeder Ebene und lässt den Rest', () => {
-    const changed = mapFolder(FURNITURE_FOLDERS, 'walls', (folder) => ({ ...folder, label: 'W' }));
-    expect(allFolders(changed).find((one) => one.id === 'walls')!.label).toBe('W');
-    expect(changed[1]).toEqual(FURNITURE_FOLDERS[1]);
-    expect(allFolders(FURNITURE_FOLDERS).find((one) => one.id === 'walls')!.label).toBe('Wände');
+    const changed = mapFolder(FURNITURE_FOLDERS, 'soup', (folder) => ({ ...folder, label: 'S' }));
+    expect(allFolders(changed).find((one) => one.id === 'soup')!.label).toBe('S');
+    expect(changed[0]).toEqual(FURNITURE_FOLDERS[0]);
+    expect(allFolders(FURNITURE_FOLDERS).find((one) => one.id === 'soup')!.label).toBe('Suppe');
   });
 
   it('hat die Arbeitsplatte in jedem Ordner der Küche, den Tellerstapel bei Burger und Pizza', () => {
@@ -351,30 +357,37 @@ describe('der Möbelkatalog im Menü', () => {
     });
   });
 
-  it('hat Wände, Türen und Fenster als Regalwände — Modelle, keine Blöcke', () => {
-    const models = (id: string) => BUILD_FOLDERS.find((folder) => folder.id === id)!.models;
-    for (const folder of BUILD_FOLDERS) expect(folder.elements).toEqual([]);
-    // Nur die kurzen Stücke — lang wird gezogen (`wallFullOf`).
-    expect(models('walls')).toEqual([SHELF_WALL_HALF, PLASTER_WALL_HALF]);
-    expect(models('doors')).toEqual([
+  it('hat Wand, Tür und Fenster direkt im Haus als Regalwände — Modelle, keine Blöcke', () => {
+    expect(HOUSE_FOLDER.elements).toEqual([]);
+    // Nur die kurzen Stücke — lang wird gezogen (`wallFullOf`), auch die Tür.
+    expect(BUILD_MODELS).toEqual([
+      SHELF_WALL_HALF,
+      PLASTER_WALL_HALF,
       'prototype-bits/Wall_Doorway.glb',
-      'prototype-bits/Wall_Doorway_Wide.glb',
+      'prototype-bits/Wall_Window_Closed_Narrow.glb',
     ]);
-    expect(models('windows')).toEqual(['prototype-bits/Wall_Window_Closed_Narrow.glb']);
+    expect(BUILD_MODELS).not.toContain(CATALOG_DOOR_WIDE);
+    expect(BUILD_MODELS.map((path) => BUILD_LABELS[path])).toEqual([
+      'Wand',
+      'Putzwand',
+      'Tür',
+      'Fenster',
+    ]);
     expect(wallFullOf(SHELF_WALL_HALF)).toBe(SHELF_WALL);
     expect(wallFullOf(PLASTER_WALL_HALF)).toBe(PLASTER_WALL);
     expect(wallFullOf('prototype-bits/Wall_Window_Closed_Narrow.glb')).toBe(
       'prototype-bits/Wall_Window_Closed.glb',
     );
-    expect(wallFullOf('prototype-bits/Wall_Doorway.glb')).toBeNull();
+    // Über zwei Kacheln gezogen wird aus der Tür die Doppeltür.
+    expect(wallFullOf(CATALOG_DOOR)).toBe(CATALOG_DOOR_WIDE);
+    expect(wallHalfOf(CATALOG_DOOR_WIDE)).toBe(CATALOG_DOOR);
     expect(isDoorModel('prototype-bits/Wall_Doorway_Wide.glb')).toBe(true);
     expect(isDoorModel(SHELF_WALL)).toBe(false);
     // Jede Regalwand der Test Navigation steht in einer der Mappen — oder ist
     // die lange zu einem kurzen Stück darin.
-    const all = BUILD_FOLDERS.flatMap((folder) => folder.models ?? []);
+    const all = BUILD_MODELS;
     const drawn = [...all, ...all.flatMap((path) => wallFullOf(path) ?? [])];
     for (const path of WALL_MODELS) expect(drawn).toContain(path);
-    for (const folder of BUILD_FOLDERS) expect(allFolders(FURNITURE_FOLDERS)).toContain(folder);
     expect(WALL_MODELS).toEqual([
       'prototype-bits/Wall_Window_Closed.glb',
       'prototype-bits/Wall_Window_Closed_Narrow.glb',
@@ -390,13 +403,16 @@ describe('der Möbelkatalog im Menü', () => {
     if (files) for (const path of all) expect(files.has(path)).toBe(true);
   });
 
-  it('kennt zu jeder ganzen Wand das halbe Stück — Durchgänge haben keines', () => {
+  it('kennt zu jeder ganzen Wand das halbe Stück — zur Doppeltür die Tür', () => {
     expect(wallHalfOf(SHELF_WALL)).toBe(SHELF_WALL_HALF);
     expect(wallHalfOf(PLASTER_WALL)).toBe(PLASTER_WALL_HALF);
     expect(wallHalfOf('prototype-bits/Wall_Window_Closed.glb')).toBe(
       'prototype-bits/Wall_Window_Closed_Narrow.glb',
     );
     expect(wallHalfOf('prototype-bits/Wall_Doorway.glb')).toBeNull();
+    expect(wallHalfOf('prototype-bits/Wall_Doorway_Wide.glb')).toBe(
+      'prototype-bits/Wall_Doorway.glb',
+    );
   });
 
   it('hat Hörnchen und Eiswannen als Vorräte der Küche — eine Wanne je Platte', () => {
