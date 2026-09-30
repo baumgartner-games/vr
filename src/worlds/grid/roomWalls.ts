@@ -3,9 +3,7 @@ import {
   FRONT_BELOW,
   GHOST_KNEE,
   blocksView,
-  boxToCameraSouth,
-  cameraQuarter,
-  toCameraSouth,
+  facingAxes,
   type GhostBox,
   type GhostCandidate,
   type GhostPoint,
@@ -23,8 +21,9 @@ import {
  * vertikal steht zur Kamera (wie die Wände links und rechts), dann brauchen
  * diese das nicht."_
  *
- * Also, alles in der Drehung, in der die Kamera im Süden steht
- * (`toCameraSouth`):
+ * Also, von der Kamera aus gesehen (`facingAxes`: welche Achsen zu ihr
+ * zeigen — eine, wenn das Bild gerade steht, zwei, wenn es um 45° gedreht
+ * ist):
  *
  * 1. **Der Raum** ist, was die Figur zu Fuß erreicht, ohne durch eine Wand
  *    zu gehen: eine Flutfüllung auf einem Raster von `ROOM_CELL`, gesperrt
@@ -32,14 +31,16 @@ import {
  *    Regal haben einen Kasten und schließen den Raum damit wie eine Wand
  *    (wie in `house/roomTrace.ts`). Läuft die Flut bis an den Rand
  *    (`ROOM_REACH`), steht die Figur draußen, und es gibt keinen Raum.
- * 2. **Die Bombenlinie** fällt von oben (Norden, weg von der Kamera) in den
- *    Raum; was sie in jeder Spalte zuerst trifft, ist eine **obere
- *    Außenwand** und bleibt. Das heißt für eine quer liegende Wand: Liegt
- *    nördlich von ihr kein Stück desselben Raums, trifft die Linie sie zuerst.
- *    Liegt dort Raum, ist sie eine Wand weiter unten — eine Front oder eine
- *    Zwischenwand — und wird durchsichtig bzw. abgeschnitten.
- * 3. **Seitenwände bleiben** — was längs zur Blickrichtung steht (tiefer als
- *    breit), verdeckt nichts, was man sehen will.
+ * 2. **Die Bombenlinie** fällt von oben (weg von der Kamera) in den Raum;
+ *    was sie zuerst trifft, ist eine **obere Außenwand** und bleibt. Das
+ *    heißt für eine Wand, die der Kamera ihre Fläche zeigt: Liegt auf ihrer
+ *    abgewandten Seite kein Stück desselben Raums, trifft die Linie sie
+ *    zuerst. Liegt dort Raum, ist sie eine Wand weiter unten — eine Front
+ *    oder eine Zwischenwand — und wird durchsichtig bzw. abgeschnitten.
+ *    Schräg von Südosten sind das die Wände im Süden **und** im Osten.
+ * 3. **Seitenwände bleiben** — was längs zur Blickrichtung steht, verdeckt
+ *    nichts, was man sehen will. Bei gerader Sicht von Süden sind das alle
+ *    Wände, die von Nord nach Süd laufen; schräg gibt es keine.
  *
  * Nur **Wände** zählen (`wallLike`): hoch und dünn. Ein Kühlschrank oder ein
  * Block von einem Meter sperrt die Flut, wird aber nie weggenommen.
@@ -83,11 +84,10 @@ export function roomWallsToClear<T extends GhostCandidate>(
   boxes: readonly T[],
   knee = GHOST_KNEE,
 ): T[] | null {
-  const quarter = cameraQuarter(camera, figure);
-  const aim = toCameraSouth(figure, quarter);
+  const axes = facingAxes(camera, figure);
   const size = Math.ceil((2 * ROOM_REACH) / ROOM_CELL);
-  const x0 = aim.x - ROOM_REACH;
-  const z0 = aim.z - ROOM_REACH;
+  const x0 = figure.x - ROOM_REACH;
+  const z0 = figure.z - ROOM_REACH;
   const cells = size * size;
   if (scratch.blocked.length !== cells) {
     scratch.blocked = new Uint8Array(cells);
@@ -97,15 +97,15 @@ export function roomWallsToClear<T extends GhostCandidate>(
   const { blocked, reached, queue } = scratch;
   blocked.fill(0);
   reached.fill(0);
-  const turned: { one: T; box: GhostBox }[] = [];
+  const walls: T[] = [];
 
   for (const one of boxes) {
     if (!blocksView(one, knee)) continue;
-    const top = one.box.y + one.box.h / 2;
-    const bottom = one.box.y - one.box.h / 2;
+    const box = one.box;
+    const top = box.y + box.h / 2;
+    const bottom = box.y - box.h / 2;
     if (top <= figure.y - FRONT_BELOW || bottom >= figure.y + FRONT_ABOVE) continue;
-    const box = quarter === 0 ? one.box : boxToCameraSouth(one.box, quarter);
-    turned.push({ one, box });
+    if (wallLike(box)) walls.push(one);
     // Jede Zelle, die der Kasten auch nur berührt, ist zu.
     const ax = Math.max(0, Math.floor((box.x - box.w / 2 - x0) / ROOM_CELL));
     const bx = Math.min(size - 1, Math.floor((box.x + box.w / 2 - x0) / ROOM_CELL));
@@ -133,23 +133,42 @@ export function roomWallsToClear<T extends GhostCandidate>(
     }
   }
 
-  const out: T[] = [];
-  for (const { one, box } of turned) {
-    if (!wallLike(box) || box.d > box.w) continue;
-    // Die Zeilen direkt nördlich der Wand, über ihre ganze Breite.
-    const ax = Math.max(0, Math.floor((box.x - box.w / 2 - x0) / ROOM_CELL));
-    const bx = Math.min(size - 1, Math.floor((box.x + box.w / 2 - x0) / ROOM_CELL));
-    const edge = Math.floor((box.z - box.d / 2 - z0) / ROOM_CELL);
-    let below = false;
-    for (let iz = edge - 1; iz >= edge - ROOM_PROBE && iz >= 0 && !below; iz--) {
-      for (let ix = ax; ix <= bx; ix++) {
-        if (reached[iz * size + ix]) {
-          below = true;
-          break;
-        }
+  const cellX = (x: number): number => Math.floor((x - x0) / ROOM_CELL);
+  const cellZ = (z: number): number => Math.floor((z - z0) / ROOM_CELL);
+  /** Liegt in diesem Streifen von Zellen irgendwo Raum? */
+  const anyReached = (ax: number, bx: number, az: number, bz: number): boolean => {
+    for (let iz = Math.max(0, az); iz <= Math.min(size - 1, bz); iz++) {
+      for (let ix = Math.max(0, ax); ix <= Math.min(size - 1, bx); ix++) {
+        if (reached[iz * size + ix]) return true;
       }
     }
-    if (below) out.push(one);
+    return false;
+  };
+
+  const out: T[] = [];
+  for (const one of walls) {
+    const box = one.box;
+    if (box.w >= box.d) {
+      // Quer zur z-Achse: zeigt der Kamera ihre Fläche, wenn die z-Achse zu
+      // ihr zeigt. Abgewandt ist die Seite, von der die Kamera weg ist.
+      if (axes.z === 0) continue;
+      const ax = cellX(box.x - box.w / 2);
+      const bx = cellX(box.x + box.w / 2);
+      const hit =
+        axes.z > 0
+          ? anyReached(ax, bx, cellZ(box.z - box.d / 2) - ROOM_PROBE, cellZ(box.z - box.d / 2) - 1)
+          : anyReached(ax, bx, cellZ(box.z + box.d / 2) + 1, cellZ(box.z + box.d / 2) + ROOM_PROBE);
+      if (hit) out.push(one);
+    } else {
+      if (axes.x === 0) continue;
+      const az = cellZ(box.z - box.d / 2);
+      const bz = cellZ(box.z + box.d / 2);
+      const hit =
+        axes.x > 0
+          ? anyReached(cellX(box.x - box.w / 2) - ROOM_PROBE, cellX(box.x - box.w / 2) - 1, az, bz)
+          : anyReached(cellX(box.x + box.w / 2) + 1, cellX(box.x + box.w / 2) + ROOM_PROBE, az, bz);
+      if (hit) out.push(one);
+    }
   }
   return out;
 }

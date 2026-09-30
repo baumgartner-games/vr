@@ -11,7 +11,7 @@
  *
  * Hier stehen die **Bausteine** dazu, als reine Rechnung über
  * achsenparallele Kästen: was überhaupt verdecken kann (`blocksView`), aus
- * welchem Viertel die Kamera schaut (`cameraQuarter`), und welche Wände ganz
+ * welcher Richtung die Kamera schaut (`facingAxes`), und welche Wände ganz
  * auf ihrer Seite liegen (`wallsInFront`). Welche Wände eines Raums
  * tatsächlich weggehen, entscheidet `roomWalls.ts`; wie sie dann aussehen,
  * `wallCut.ts`.
@@ -96,80 +96,62 @@ export function wallsInFront<T extends GhostCandidate>(
   knee = GHOST_KNEE,
 ): T[] {
   const out: T[] = [];
-  const quarter = cameraQuarter(camera, figure);
-  const eye = toCameraSouth(camera, quarter);
-  const aim = toCameraSouth(figure, quarter);
+  const axes = facingAxes(camera, figure);
   for (const one of boxes) {
     if (!blocksView(one, knee)) continue;
-    const top = one.box.y + one.box.h / 2;
-    const bottom = one.box.y - one.box.h / 2;
+    const box = one.box;
+    const top = box.y + box.h / 2;
+    const bottom = box.y - box.h / 2;
     if (top <= figure.y - FRONT_BELOW || bottom >= figure.y + FRONT_ABOVE) continue;
-    const box = quarter === 0 ? one.box : boxToCameraSouth(one.box, quarter);
-    if (turnsItsBack(box, aim, eye)) out.push(one);
+    if (turnsItsBack(box, figure, axes)) out.push(one);
   }
   return out;
 }
 
 /**
- * **In welchem Viertel die Kamera steht**, von der Figur aus: 0 im Süden
- * (ungedreht), 1 im Osten, 2 im Norden, 3 im Westen — links herum gezählt
- * wie `topDownPose.quarterOf`. Senkrecht darüber zählt als Süden.
+ * **Ab welchem Anteil eine Achse zur Kamera zeigt** — der Sinus von 22,5°.
+ * Gerade von Süden zeigt nur z zur Kamera; um 45° gedreht zeigen beide Achsen
+ * gleich stark (je 0,71), und beide zählen.
  */
-export function cameraQuarter(camera: GhostPoint, figure: GhostPoint): 0 | 1 | 2 | 3 {
-  const dx = camera.x - figure.x;
-  const dz = camera.z - figure.z;
-  if (Math.hypot(dx, dz) < 1e-6) return 0;
-  const quarters = Math.round(Math.atan2(dx, dz) / (Math.PI / 2));
-  return (((quarters % 4) + 4) % 4) as 0 | 1 | 2 | 3;
-}
+const FACING = Math.sin(Math.PI / 8);
 
 /**
- * **Einen Punkt so drehen, dass die Kamera im Süden steht** — um ganze
- * Viertel um die Hochachse, zurück um das Viertel, in dem sie steht.
+ * **Welche Achsen zur Kamera zeigen**, von der Figur aus: je Achse +1 (die
+ * Kamera steht auf der Plusseite), −1 oder 0 (die Achse läuft quer zum
+ * Blick). Senkrecht darüber zeigt nichts — dann gilt nur z, wie ungedreht.
  */
-export function toCameraSouth(point: GhostPoint, quarter: 0 | 1 | 2 | 3): GhostPoint {
-  switch (quarter) {
-    case 0:
-      return point;
-    case 1:
-      return { x: -point.z, y: point.y, z: point.x };
-    case 2:
-      return { x: -point.x, y: point.y, z: -point.z };
-    case 3:
-      return { x: point.z, y: point.y, z: -point.x };
-  }
-}
-
-/** Dasselbe für einen Kasten: die Mitte gedreht, Breite und Tiefe getauscht. */
-export function boxToCameraSouth(box: GhostBox, quarter: 0 | 1 | 2 | 3): GhostBox {
-  const centre = toCameraSouth(box, quarter);
-  const odd = quarter % 2 === 1;
+export function facingAxes(
+  camera: GhostPoint,
+  figure: GhostPoint,
+): { x: -1 | 0 | 1; z: -1 | 0 | 1 } {
+  const dx = camera.x - figure.x;
+  const dz = camera.z - figure.z;
+  const length = Math.hypot(dx, dz);
+  if (length < 1e-6) return { x: 0, z: 1 };
+  const x = dx / length;
+  const z = dz / length;
   return {
-    x: centre.x,
-    y: box.y,
-    z: centre.z,
-    w: odd ? box.d : box.w,
-    h: box.h,
-    d: odd ? box.w : box.d,
+    x: x > FACING ? 1 : x < -FACING ? -1 : 0,
+    z: z > FACING ? 1 : z < -FACING ? -1 : 0,
   };
 }
 
 /**
  * **Zeigt dieser Quader der Kamera seine andere Seite?**
  *
- * Er tut es, wenn er **vollständig** auf der Kameraseite der Figur liegt: Dann
- * steht die Figur davor und die Kamera dahinter, und was zwischen beiden
- * liegt, sieht der Spieler nicht mehr. Reicht er an der Figur vorbei — eine
- * Wand, die neben ihr nach hinten weiterläuft —, sehen beide dieselbe Seite,
- * und er bleibt stehen.
- *
- * Steht die Kamera **senkrecht** über der Figur, gibt es keine Seite, auf die
- * man sich beziehen könnte; dann entscheidet allein die Strecke (der Blick
- * geht von oben durch die Decke und nicht durch eine Wand).
+ * Er tut es, wenn er entlang einer Achse, die zur Kamera zeigt, **vollständig**
+ * auf der Kameraseite der Figur liegt: Dann steht die Figur davor und die
+ * Kamera dahinter. Reicht er an der Figur vorbei — eine Wand, die neben ihr
+ * nach hinten weiterläuft —, sehen beide dieselbe Seite, und er bleibt stehen.
  */
-function turnsItsBack(box: GhostBox, figure: GhostPoint, camera: GhostPoint): boolean {
-  const toward = camera.z - figure.z;
-  if (Math.abs(toward) < 1e-9) return true;
-  const near = toward > 0 ? box.z - box.d / 2 : box.z + box.d / 2;
-  return toward > 0 ? near >= figure.z : near <= figure.z;
+function turnsItsBack(
+  box: GhostBox,
+  figure: GhostPoint,
+  axes: { x: -1 | 0 | 1; z: -1 | 0 | 1 },
+): boolean {
+  if (axes.z > 0 && box.z - box.d / 2 >= figure.z) return true;
+  if (axes.z < 0 && box.z + box.d / 2 <= figure.z) return true;
+  if (axes.x > 0 && box.x - box.w / 2 >= figure.x) return true;
+  if (axes.x < 0 && box.x + box.w / 2 <= figure.x) return true;
+  return false;
 }

@@ -420,8 +420,12 @@ Wände links und rechts), dann brauchen diese das nicht."_
   Blickrichtung steht. Ebenso alles, was keine Wand ist (`wallLike`: mindestens
   1,2 m hoch, höchstens 0,6 m dick) — ein Kühlschrank sperrt die Flut, wird
   aber nie weggenommen.
-- Alles in der Drehung, in der die Kamera im Süden steht (`toCameraSouth`):
-  Mit _Bild drehen_ ist „oben" die Seite, die von der Kamera weg liegt.
+- **Mit der Kamera gedreht** (`wallGhost.facingAxes`): „Oben" ist die Seite,
+  die von der Kamera weg liegt. Gerade von Süden zeigt nur die z-Achse zur
+  Kamera, und die Nord-Süd-Wände sind Seitenwände. Um 45° gedreht (_Bild
+  drehen_ geht seit Ende September 2026 in Achteln) zeigen beide Achsen zur
+  Kamera: Von Südosten gehen die Wände im Süden **und** im Osten weg, die im
+  Norden und Westen bleiben, Seitenwände gibt es dann keine.
 
 **Das Aussehen** steht in `worlds/grid/wallCut.ts`. _Abgeschnitten_ ist ein
 **fester** Zwilling mit einem Schnitt im Shader (`wallCutTwin`, `injectCut`):

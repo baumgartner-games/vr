@@ -188,18 +188,26 @@ export function screenToGround(
   return out;
 }
 
-/** Eine Vierteldrehung im Bogenmaß — der Schritt, in dem sich das Bild dreht. */
+/** Eine Vierteldrehung im Bogenmaß. */
 export const QUARTER_TURN = Math.PI / 2;
 
 /**
- * **Das Bild eine Vierteldrehung weiter** — `+1` links herum (die Kamera
- * wandert nach rechts um die Figur, das Bild dreht sich nach links wie ein
- * Kopf), `-1` rechts herum. Heraus kommt immer ein ganzes Viertel zwischen
+ * **Der Schritt, in dem sich das Bild dreht** — ein Achtel, 45°. Es war ein
+ * Viertel; gewünscht: _„statt 90° drehen um 45°"_. Schräg von oben sieht man
+ * zwei Wände eines Raums zugleich von vorn, und die Auswahl der Wände vorn
+ * rechnet damit (`worlds/grid/wallGhost.facingAxes`).
+ */
+export const TURN_STEP = Math.PI / 4;
+
+/**
+ * **Das Bild einen Schritt weiter** — `+1` links herum (die Kamera wandert
+ * nach rechts um die Figur, das Bild dreht sich nach links wie ein Kopf), `-1`
+ * rechts herum. Heraus kommt immer ein ganzer Schritt (`TURN_STEP`) zwischen
  * −π und π, auch wenn das Ziel davor krumm war.
  */
-export function quarterTurn(heading: number, direction: number): number {
-  const quarters = Math.round(heading / QUARTER_TURN) + Math.sign(direction);
-  return wrapAngle(quarters * QUARTER_TURN);
+export function stepTurn(heading: number, direction: number): number {
+  const steps = Math.round(heading / TURN_STEP) + Math.sign(direction);
+  return wrapAngle(steps * TURN_STEP);
 }
 
 /** Welches Viertel ein Winkel ist: 0 (Norden oben), 1, 2, 3 — links herum gezählt. */

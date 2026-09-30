@@ -15,7 +15,8 @@ import {
   zoomStep,
   QUARTER_TURN,
   quarterOf,
-  quarterTurn,
+  stepTurn,
+  TURN_STEP,
   screenToGround,
   turnToward,
 } from './topDownPose';
@@ -285,13 +286,16 @@ describe('Die gedrehte Draufsicht', () => {
     expect(turned.z).toBeCloseTo(-plain.z, 9);
   });
 
-  it('dreht in ganzen Vierteln, rundherum und zurück', () => {
+  it('dreht in Schritten von 45°, rundherum und zurück', () => {
+    expect(TURN_STEP).toBeCloseTo(Math.PI / 4, 9);
     let heading = 0;
-    for (let i = 0; i < 4; i++) heading = quarterTurn(heading, 1);
+    for (let i = 0; i < 8; i++) heading = stepTurn(heading, 1);
     expect(heading).toBeCloseTo(0, 9);
-    expect(quarterTurn(0, -1)).toBeCloseTo(-QUARTER_TURN, 9);
-    // Ein krummer Stand rastet beim nächsten Druck auf ein ganzes Viertel.
-    expect(quarterTurn(0.2, 1)).toBeCloseTo(QUARTER_TURN, 9);
+    expect(stepTurn(0, 1)).toBeCloseTo(TURN_STEP, 9);
+    expect(stepTurn(0, -1)).toBeCloseTo(-TURN_STEP, 9);
+    expect(stepTurn(stepTurn(0, 1), 1)).toBeCloseTo(QUARTER_TURN, 9);
+    // Ein krummer Stand rastet beim nächsten Druck auf einen ganzen Schritt.
+    expect(stepTurn(0.2, 1)).toBeCloseTo(TURN_STEP, 9);
     expect([0, 1, 2, 3].map((q) => quarterOf(q * QUARTER_TURN))).toEqual([0, 1, 2, 3]);
     expect(quarterOf(-QUARTER_TURN)).toBe(3);
   });

@@ -1,10 +1,4 @@
-import {
-  GHOST_KNEE,
-  blocksView,
-  cameraQuarter,
-  wallsInFront,
-  type GhostCandidate,
-} from './wallGhost';
+import { GHOST_KNEE, blocksView, facingAxes, wallsInFront, type GhostCandidate } from './wallGhost';
 
 /** Ein Quader: Mitte und Kantenlängen, wie ein `PlanSolid`. */
 function box(
@@ -81,11 +75,24 @@ describe('Wenn das Bild gedreht ist', () => {
     };
   }
 
-  it('erkennt, in welchem Viertel die Kamera steht', () => {
-    expect(cameraQuarter(CAMERA, FIGURE)).toBe(0);
-    expect([1, 2, 3].map((q) => cameraQuarter(turned(CAMERA, q), FIGURE))).toEqual([1, 2, 3]);
+  it('erkennt, welche Achsen zur Kamera zeigen — eine gerade, zwei schräg', () => {
+    expect(facingAxes(CAMERA, FIGURE)).toEqual({ x: 0, z: 1 });
+    expect([1, 2, 3].map((q) => facingAxes(turned(CAMERA, q), FIGURE))).toEqual([
+      { x: 1, z: 0 },
+      { x: 0, z: -1 },
+      { x: -1, z: 0 },
+    ]);
+    // Um 45° gedreht: von Südosten zeigen x und z.
+    expect(facingAxes({ x: 9, y: 9, z: 9 }, FIGURE)).toEqual({ x: 1, z: 1 });
     // Senkrecht darüber: wie ungedreht.
-    expect(cameraQuarter({ x: 0, y: 20, z: 0 }, FIGURE)).toBe(0);
+    expect(facingAxes({ x: 0, y: 20, z: 0 }, FIGURE)).toEqual({ x: 0, z: 1 });
+  });
+
+  it('nimmt schräg von Südosten die Wand im Süden und die im Osten', () => {
+    const south = box(0, 1.4, 1, 4, 2.8, 0.2);
+    const east = box(1, 1.4, 0, 0.2, 2.8, 4);
+    const west = box(-1, 1.4, 0, 0.2, 2.8, 4);
+    expect(wallsInFront({ x: 9, y: 9, z: 9 }, FIGURE, [south, east, west])).toEqual([south, east]);
   });
 
   it('findet in jedem Viertel dieselbe Wand wie ungedreht — und nur die', () => {

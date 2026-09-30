@@ -169,7 +169,7 @@ export function faceCamera(object: THREE.Object3D, options?: BillboardOptions): 
  * **Wie eine Beschriftung der gedrehten Draufsicht folgt** — ohne Szene
  * nachrechenbar.
  *
- * Die Kamera von oben lässt sich in Vierteln drehen (`TopDownCamera.turn`).
+ * Die Kamera von oben lässt sich in Schritten von 45° drehen (`TopDownCamera.turn`).
  * Was **flach** liegt und von oben gelesen wird — der Raumname auf der Karte
  * —, stünde danach auf der Seite oder auf dem Kopf; was **aufrecht** an einer
  * Wand hängt, zeigte der Kamera die Kante oder den Rücken.

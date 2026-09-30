@@ -84,7 +84,7 @@ export interface TouchPads {
   right: HTMLElement | null;
   /**
    * **Das Bild drehen** (`#touch-turn-left` ⟲, `#touch-turn-right` ⟳) — eine
-   * Vierteldrehung je Tipp, wie `Q` / `Umschalt`+`Q` und das Steuerkreuz ←/→.
+   * 45° je Tipp, wie `Q` / `Umschalt`+`Q` und das Steuerkreuz ←/→.
    * Sie stehen im Block rechts und damit nur in der Ansicht von oben.
    */
   turnLeft?: HTMLElement | null;
@@ -739,7 +739,7 @@ export class FlatControls {
 
     if (this.padZoomIn.justPressed) this.view?.zoomBy(-1);
     if (this.padZoomOut.justPressed) this.view?.zoomBy(1);
-    // **Das Bild in Vierteln drehen** — Steuerkreuz ←/→, `Q`/`Umschalt`+`Q`.
+    // **Das Bild in Schritten von 45° drehen** — Steuerkreuz ←/→, `Q`/`Umschalt`+`Q`.
     // Gelaufen wird danach weiter im Bild (`screenToGround`), die Figur
     // selbst dreht sich dabei nicht mit.
     let turns = this.viewTurns;
@@ -945,7 +945,7 @@ export class FlatControls {
         e.preventDefault();
         this.toolsQueued = true;
       }
-      // **`Q` dreht das Bild von oben** um ein Viertel, `Umschalt`+`Q` zurück
+      // **`Q` dreht das Bild von oben** um 45°, `Umschalt`+`Q` zurück
       // (`TopDownCamera.turn`) — in beiden Ansichten von oben, auch als Kran.
       if (this.bound(e.code, 'turn') && this.topDownOn && !e.repeat) {
         e.preventDefault();

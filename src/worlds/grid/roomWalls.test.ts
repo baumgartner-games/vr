@@ -75,6 +75,16 @@ describe('Die Wände des eigenen Raums', () => {
     expect(names(roomWallsToClear(fromEast, INSIDE_WEST, HOUSE))).toEqual(['partition']);
   });
 
+  it('nimmt schräg von Südosten die Front im Süden und die Wand im Osten', () => {
+    // Um 45° gedreht: Oben im Bild liegt die Ecke im Nordwesten. Die Linie
+    // trifft Nord- und Westwand zuerst, weg gehen Süd- und Trennwand.
+    const fromSouthEast = { x: 25, y: 30, z: 25 };
+    expect(names(roomWallsToClear(fromSouthEast, INSIDE_WEST, HOUSE))).toEqual([
+      'partition',
+      'south-west',
+    ]);
+  });
+
   it('lässt andere Etagen aus dem Spiel', () => {
     const upstairs = HOUSE.map((one) => ({ ...one, box: { ...one.box, y: one.box.y + 3 } }));
     // Die obere Etage sperrt die Flut nicht: Unten gibt es keine Wände, also draußen.
