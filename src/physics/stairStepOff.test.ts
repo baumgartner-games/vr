@@ -42,7 +42,10 @@ const STOREY = 2.8;
 /** Die Treppe des Hausbaus: Spalte 3, drei Kacheln Stufen von z = 6 nach Norden, oben der Stand. */
 const STAIR_X = 3;
 
-async function stage(start = { x: STAIR_X + 0.5, z: 7.5 }): Promise<{
+async function stage(
+  start = { x: STAIR_X + 0.5, z: 7.5 },
+  build?: (plan: GridPlan) => void,
+): Promise<{
   rig: TestRig;
   walk: (seconds: number, vx: number, vz: number) => void;
   climbTo: (z: number) => void;
@@ -51,6 +54,7 @@ async function stage(start = { x: STAIR_X + 0.5, z: 7.5 }): Promise<{
   plan.floor({ x: 0, z: 0, w: 8, d: 10 });
   plan.floor({ x: 0, z: 0, w: 8, d: 10, level: 1 });
   plan.stairs(STAIR_X, 6, DIR_N, 0, 3);
+  build?.(plan);
 
   const physics = await PhysicsWorld.create(-9.81);
   for (const solid of plan.solids()) {
@@ -142,6 +146,31 @@ describe('Hinter der Treppe, auf der Etage darunter', () => {
     expect(rig.position.y).toBeCloseTo(STOREY, 1);
     walk(4, 0, 1.2);
     expect(rig.position.z).toBeGreaterThan(7);
+    expect(Math.abs(rig.position.y)).toBeLessThan(0.1);
+  });
+});
+
+describe('Der Stand hinter einer Wand der Etage darunter', () => {
+  // Gemeldet: _„bei der unteren treppe komme ich leider nicht auf das dach.
+  // Bei der oberen treppe klappt das korrekt."_ Die untere Treppe stand eine
+  // Kachel näher am Haus: Ihr Stand lag auf der Decke des Raums, und die
+  // Wand des Raums (Etage 0) auf der Kante zwischen oberster Stufe und Stand
+  // hielt den Spieler oben auf der Treppe fest.
+  const wallAtHead = (plan: GridPlan): void => {
+    plan.wall(STAIR_X, 4, DIR_N, 0);
+  };
+
+  it('geht von der obersten Stufe über die Wand auf den Stand', async () => {
+    const { rig, climbTo } = await stage(undefined, wallAtHead);
+    climbTo(2.5);
+    expect(rig.position.z).toBeLessThan(3);
+    expect(rig.position.y).toBeCloseTo(STOREY, 1);
+  });
+
+  it('hält unten im Raum weiter an der Wand', async () => {
+    const { rig, walk } = await stage({ x: STAIR_X + 0.5, z: 2.5 }, wallAtHead);
+    walk(3, 0, 1.2);
+    expect(rig.position.z).toBeLessThan(3.9);
     expect(Math.abs(rig.position.y)).toBeLessThan(0.1);
   });
 });

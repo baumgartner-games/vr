@@ -235,9 +235,22 @@ export function cellPlaneWalls(
   level = 0,
 ): PlaneWall[] {
   const out: PlaneWall[] = [];
-  const edgeClosed = (tx: number, tz: number, dir: Dir): boolean =>
-    !grid.edgeOpen(tx, tz, dir, level) ||
-    !grid.edgeOpen(tx + dirX(dir), tz + dirZ(dir), ((dir + 2) % 4) as Dir, level);
+  const closedOn = (tx: number, tz: number, dir: Dir, on: number): boolean =>
+    !grid.edgeOpen(tx, tz, dir, on) ||
+    !grid.edgeOpen(tx + dirX(dir), tz + dirZ(dir), ((dir + 2) % 4) as Dir, on);
+  // **Der Kopf eines Laufs** mündet auf die Etage darüber — auf seiner Kante
+  // zählt deren Wand und nicht die der Etage, auf der die Treppe steht.
+  // Gemeldet: _„bei der unteren treppe komme ich leider nicht auf das dach"_:
+  // Der Stand lag auf der Decke eines Raums, und dessen Wand unten hielt einen
+  // auf der obersten Stufe fest. Von unten hält dort weiter der Kopf selbst
+  // (`flightSides`), eine Einbahnwand.
+  const edgeClosed = (tx: number, tz: number, dir: Dir): boolean => {
+    const here = grid.flightAt(tx, tz, level);
+    const there = grid.flightAt(tx + dirX(dir), tz + dirZ(dir), level);
+    const head =
+      (here === dir && there === null) || (here === null && there === (((dir + 2) % 4) as Dir));
+    return closedOn(tx, tz, dir, head ? level + 1 : level);
+  };
   for (let tz = tz0; tz <= tz1; tz++)
     for (let tx = tx0; tx <= tx1; tx++) {
       const x = tx * TILE,

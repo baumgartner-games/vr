@@ -207,6 +207,13 @@ Ebene anlegen durch eine 2x8 Treppe."_
   Boden der Etage darüber fest (`stuckAtStep`). Von der **letzten** Kachel
   Stufen geht es nach beiden Seiten auf die Etage darüber
   (`physics/stairStepOff.test.ts`).
+- **Der Kopf des Laufs gehört der Etage darüber** (`planeMove.cellPlaneWalls`)
+  — gemeldet: _„bei der unteren treppe komme ich leider nicht auf das dach.
+  Bei der oberen treppe klappt das korrekt."_ Stand der Stand auf der Decke
+  eines Raums, lag die Wand des Raums (Etage 0) genau auf der Kante zwischen
+  oberster Stufe und Stand, und die Ebene hielt einen dort fest. Auf dieser
+  Kante zählt jetzt nur eine Wand der Etage darüber; von unten hält weiter der
+  Kopf des Laufs als Einbahnwand.
 
 ## Die Decke über jedem Raum
 
