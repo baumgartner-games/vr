@@ -1303,6 +1303,12 @@ Wall."_
   langen Wand nimmt nur seine Fuge, auf der anderen bleibt ein halbes Stück
   stehen — im selben Schritt für _Rückgängig_. Ein Teilstück mit der
   Abrissbombe entfernen geht noch nicht: Sie reißt das ganze Stück ab.
+  Muss der Rest erst geladen werden, kommt er nur, wo dann noch frei ist
+  (`placeModelAt(…, onlyIfFree)`) — gemeldet: _„wenn ich fenster über mehrere
+  bereiche hinweg legen will, wird eine wand falsch unterbrochen"_. Ein
+  gezogenes Fensterband setzt Kachel für Kachel; der Rest neben dem ersten
+  Fenster kam an, als auf seiner Fuge schon das nächste stand, und ersetzte
+  es.
 - **Fest auf der Etage, auf der man steht** (`buildFloorY`) — gezogene Wände
   und die Wand rundum fallen nicht, sondern stehen, wo der Geist stand, auch
   über einem Loch ([Hausbau](./hausbau.md#treppen-und-etagen)).
@@ -1353,10 +1359,10 @@ Wall."_
   (`showCarryLine`); der Knopf der Figur wird dabei abgeholt, damit sie
   weder springt noch benutzt, was vor ihr steht. Loslassen der Greif-Taste
   stellt die Wand einzeln hin wie bisher.
-**Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
-Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
-alte auf derselben Fuge. In der Brille gibt es _Wand ziehen_ noch nicht (keine
-Leiste, kein Zeiger über dem Bild).
+  **Umfärben heißt: dieselbe Linie mit einer anderen Wand noch einmal ziehen.**
+  Alle Wände sperren gleich, sie sehen nur anders aus; eine neue ersetzt die
+  alte auf derselben Fuge. In der Brille gibt es _Wand ziehen_ noch nicht (keine
+  Leiste, kein Zeiger über dem Bild).
 
 ## Die Werkzeugleiste des Baukastens
 

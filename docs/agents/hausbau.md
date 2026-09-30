@@ -126,6 +126,9 @@ für Gäste. Gleiches Prinzip."_
   danach den Raum jenseits der Wand, bekommt die ganze Platte darunter dessen
   Belag. Anders als in Haunting (`GridPlan.halfFloor`) bleibt keine Hälfte
   leer — draußen liegt ja Boden.
+  **Die Vorschau zeigt dasselbe** (gemeldet: _„auch bitte bei der vorschau
+  korrekt anpassen"_): Eine halbe Kachel leuchtet als Dreieck
+  (`GridTile.empty`, `PlaceGrid.show` → `triangleGeometry`).
 - **Das Leuchten** ist das Gitter des Bauens (`portal/placeGrid.ts`) über den
   Kacheln des Raums.
 

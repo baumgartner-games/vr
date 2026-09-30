@@ -714,7 +714,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     const glow = (this.floorGlow ??= new PlaceGrid(ctx.scene));
     glow.tint();
     glow.show(
-      aim.tiles.map((tile) => ({ x: tile.x + 0.5, z: tile.z + 0.5 })),
+      aim.tiles.map((tile) => ({ x: tile.x + 0.5, z: tile.z + 0.5, empty: tile.empty })),
       ctx.rig.getFloorY(),
       aim.tiles.length,
     );

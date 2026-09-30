@@ -3805,6 +3805,12 @@ export class PortalWorld implements World {
      * ungefähr** etwas hinkommt, und nicht, wie hoch der Tisch darunter ist.
      */
     snap = false,
+    /**
+     * **Nur, wo noch keine Wand steht** — für den Rest einer langen Wand
+     * (`restoreWallRests`), der erst geladen werden musste: Bis er ankommt,
+     * kann auf seiner Fuge schon das nächste Stück stehen.
+     */
+    onlyIfFree = false,
   ): Promise<PhysicsBody | null> {
     const physics = this.physics;
     if (!this.context || !physics) return null;
@@ -3833,6 +3839,11 @@ export class PortalWorld implements World {
       // vom Pinsel genauso wie aus der Hand.
       const base = this.wallBase(entry);
       const pose = gridPose(at.x, at.z, spin, base.half, base.long);
+      if (onlyIfFree && this.wallsUnder(entry, pose).length > 0) {
+        // Nie geteilt, also auch nichts abzumelden.
+        this.removeProp(entry, false);
+        return null;
+      }
       this.replaceWalls(entry, pose, note);
       this.fitWall(entry, pose);
       // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
@@ -10559,7 +10570,13 @@ export class PortalWorld implements World {
     for (const rest of rests) {
       const at = new THREE.Vector3(rest.x, rest.y, rest.z);
       if (!kaykitModelNow(rest.path)) {
-        void this.placeModelAt(rest.path, at, rest.yaw, record, true);
+        // **Später, und nur, wo dann noch frei ist** — gemeldet: _„wenn ich
+        // fenster über mehrere bereiche hinweg legen will, wird eine wand
+        // falsch unterbrochen"_. Ein gezogenes Fensterband setzt Kachel für
+        // Kachel; das erste Fenster in einer langen Wand ließ den Rest auf
+        // der Nachbarfuge laden, dort stand beim Ankommen schon das nächste
+        // Fenster, und der Rest ersetzte es.
+        void this.placeModelAt(rest.path, at, rest.yaw, record, true, false, true);
         continue;
       }
       this.replaying = true;
