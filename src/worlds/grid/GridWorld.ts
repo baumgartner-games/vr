@@ -44,7 +44,7 @@ import {
 } from '../nav/navTile';
 import { blockModel, blockModelSpot, type BlockKind } from './blocks';
 import { changeSlidingDoor } from './slidingDoor';
-import { blocksView, wallsInFront, type GhostCandidate, type GhostPoint } from './wallGhost';
+import { blocksView, wallsCovering, type GhostCandidate, type GhostPoint } from './wallGhost';
 import { ModelGhosts } from './modelGhost';
 import { roomWallsToClear } from './roomWalls';
 import { aimWallCut, lookOfOcclusion, setWallLook, wallCutTwin, type WallLook } from './wallCut';
@@ -2775,7 +2775,8 @@ export abstract class GridWorld extends PortalWorld {
    * - **Und die Auswahl trifft `roomWalls.roomWallsToClear`**: alle Wände
    *   des Raums, in dem die Figur steht, außer den oberen Außenwänden (die
    *   Linie von oben trifft sie zuerst) und den Seitenwänden. Steht die Figur
-   *   draußen, gilt, was ganz vor ihr liegt (`wallGhost.wallsInFront`). Bis
+   *   draußen, geht nur weg, was sie wirklich verdeckt
+   *   (`wallGhost.wallsCovering`). Bis
    *   Ende September 2026 war das eine Strecke von der Kamera zur Figur — gewünscht
    *   war aber der Raum, nicht die Linie.
    * - **Getauscht wird nur, was sich geändert hat.** Ein Material jedes Bild
@@ -2818,7 +2819,7 @@ export abstract class GridWorld extends PortalWorld {
     const models = this.gatherModelCandidates();
     const all: GhostCandidate[] = [...this.wallGhosts, ...models];
     const hidden = new Set<GhostCandidate>(
-      roomWallsToClear(eye, aim, all) ?? wallsInFront(eye, aim, all),
+      roomWallsToClear(eye, aim, all) ?? wallsCovering(eye, aim, all),
     );
     for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
     this.modelGhosts.apply(models.filter((one) => hidden.has(one)).map((one) => one.entry.object));
