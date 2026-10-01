@@ -1502,10 +1502,16 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
     if (entry.sub) node.append(el('small', '', entry.sub));
     return node;
   }
-  node.append(face(entry, accent, ready), el('strong', '', entry.label));
+  const art = face(entry, accent, ready);
+  node.append(art, el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
-  if (entry.mark && !entry.markRun) node.append(mark(entry.mark));
+  // **Das Verbotszeichen steht mitten auf dem Bild** — gewünscht: _„Das icon
+  // disallowed bei wand abreißen kann ruhig mittig über der kachel drauf"_.
+  // Es sagt, was die Kachel tut, und gehört deshalb aufs Modell, nicht in die
+  // Ecke, in der die Vorratskiste nur sagt, was das Ding ist.
+  if (entry.mark === 'forbidden' && !entry.markRun) art.append(mark(entry.mark));
+  else if (entry.mark && !entry.markRun) node.append(mark(entry.mark));
   if (!entry.detail && !(entry.mark && entry.markRun)) return node;
   // **Zwei Ziele in einer Kachel** — und ein Knopf im Knopf ist kein gültiges
   // DOM. Also liegt das ⓘ **neben** der Kachel in einem Rahmen, der beide

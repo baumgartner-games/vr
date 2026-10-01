@@ -493,6 +493,15 @@ export const BUILD_LABELS: Readonly<Record<string, string>> = {
 export const WALL_ERASER = SHELF_WALL_HALF;
 
 /**
+ * **Das Bild der Wand zum Abreißen** — die zerbrochene Wand aus dem Dungeon,
+ * mit dem Verbotszeichen mitten darauf. Nicht dieselbe Datei wie _Wand_: Die
+ * Vorschauen im Raster gehen nach Vorschau-Id (`ui/PagePreviews.ts`), und
+ * zwei Kacheln mit derselben Id bekamen nur ein Bild — die _Wand_ blieb leer
+ * (gemeldet: _„das wand icon lädt nicht? dafür bei wand abreißen"_).
+ */
+export const WALL_ERASER_PREVIEW = 'dungeon/wall_broken.glb';
+
+/**
  * **Der Ordner _Haus_** — Wand, Tür und Fenster direkt darin. Welten, die mehr
  * vom Haus verstehen, legen dazu (der Hausbau: Treppe, _Böden_, _Tapeten_).
  */

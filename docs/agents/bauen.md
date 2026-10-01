@@ -1367,9 +1367,12 @@ Wall."_
   wall mit disallowed icon, was eigentlich funktioniert wie eine wand setzen,
   nur bei der auswahl würde dann die entsprechende wand gelöscht werden,
   sodass ich wände abreißen kann"_): Im Katalog unter _Haus_ steht hinter
-  Wand, Tür und Fenster _Wand abreißen_ — die kurze Wand mit rotem
-  Verbotszeichen oben links (`elementCatalog.WALL_ERASER`,
-  `FurnitureFolder.erasers`, `MenuEntry.mark` `forbidden`). Genommen wird sie
+  Wand, Tür und Fenster _Wand abreißen_ — im Bild die zerbrochene Wand
+  (`elementCatalog.WALL_ERASER_PREVIEW`), mitten darauf groß das rote
+  Verbotszeichen (`FurnitureFolder.erasers`, `MenuEntry.mark` `forbidden`).
+  Gezeigt wird bewusst nicht dieselbe Datei wie _Wand_: Die Vorschauen im
+  Raster gehen nach Vorschau-Id (`ui/PagePreviews.ts`), und zwei Kacheln mit
+  derselben Id bekommen nur ein Bild — die _Wand_ blieb leer. Genommen wird sie
   wie jede Wand und gezogen auf demselben Weg, in allen drei Modi und in der
   Brille; nur **Linie**, kein _Raum_ (`PortalWorld.wallErasers`). Die Linie
   geht Kachel für Kachel, ihr Geist ist rot, und rot leuchten auch die

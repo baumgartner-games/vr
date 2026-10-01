@@ -49,6 +49,7 @@ import {
 import {
   BUILD_LABELS,
   HOUSE_FOLDER,
+  WALL_ERASER_PREVIEW,
   isDoorModel,
   wallFullOf,
   wallHalfOf,
@@ -4140,16 +4141,18 @@ export class PortalWorld implements World {
       const label = BUILD_LABELS[path];
       return { ...entry, id: `${at}:${path}`, ...(label ? { label } : {}) };
     };
-    // **Die Wand zum Abreißen** (`FurnitureFolder.erasers`): dieselbe Wand im
-    // Bild, oben links das Verbotszeichen. Gezogen nimmt sie die Wände auf
-    // der Linie weg (`eraseWallLine`).
+    // **Die Wand zum Abreißen** (`FurnitureFolder.erasers`): im Bild die
+    // zerbrochene Wand (`WALL_ERASER_PREVIEW`) — nie dieselbe Vorschau-Id wie
+    // die Kachel _Wand_, sonst bekommt nur eine von beiden ein Bild —, mitten
+    // darauf das Verbotszeichen. Gezogen nimmt sie die Wände auf der Linie weg
+    // (`eraseWallLine`).
     const eraser = (path: string, at: string): MenuEntry => ({
       id: `${at}:erase:${path}`,
       label: 'Wand abreißen',
       sub: 'Wie eine Wand ziehen — die Wände auf der Linie verschwinden',
       caption: 'Wände abreißen',
       accent,
-      preview: `kaykit:${path}`,
+      preview: `kaykit:${WALL_ERASER_PREVIEW}`,
       mark: 'forbidden',
       full: true,
       run: (hand: Handedness | null) => this.takeModel(ctx(), path, hand, null, true),
