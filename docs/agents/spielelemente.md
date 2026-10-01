@@ -374,8 +374,9 @@ Modell speichern. Zudem will ich mit checkbox besetzte boden Kacheln anpassen
 […] Unten gibt es einen Button um die Anpassungen alle zu kopieren damit ich
 diese dir geben kann."_
 
-- _Modell verschieben_ zeigt je Achse − und +, je Druck eine halbe Zelle
-  (0,25 m, `TWEAK_STEP`). Verschoben werden die Teile, nicht die Zellen
+- _Modell verschieben_ zeigt je Achse − und +, je Druck eine halbe Kachel
+  (0,5 m, `TWEAK_STEP`: _„falls ein Gegenstand genau zwischen zwei Kacheln
+  steht"_). Verschoben werden die Teile, nicht die Zellen
   (`PageDetail.applyShift`).
 - _Belegte Zellen anpassen_ stellt die Kamera senkrecht darüber, orthogonal
   (`PageDetail.placeTop`), macht das Ding zum Geist und lässt Zellen antippen:

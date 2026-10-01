@@ -1227,7 +1227,7 @@ describe('Ein Spielelement auf der Detailseite anpassen', () => {
     return {
       cols: 1,
       rows: 1,
-      step: 0.25,
+      step: 0.5,
       load: () => store.get('tree') ?? preset,
       preset: () => preset,
       save: (tweak) => {
@@ -1286,7 +1286,7 @@ describe('Ein Spielelement auf der Detailseite anpassen', () => {
     menu.dispose();
   });
 
-  it('verschiebt in halben Zellen, erst mit dem Schalter, und speichert den Unterschied', () => {
+  it('verschiebt in halben Kacheln, erst mit dem Schalter, und speichert den Unterschied', () => {
     const layer = new FakeLayer();
     const store = new Map<string, DetailTweak>();
     const menu = treeMenu(layer, store);
@@ -1297,12 +1297,12 @@ describe('Ein Spielelement auf der Detailseite anpassen', () => {
     button(menu, 'X (West/Ost) +').click();
     button(menu, 'X (West/Ost) +').click();
     button(menu, 'Y (hinten/vorn) −').click();
-    expect(last(layer).shift).toEqual([0.5, -0.25]);
-    expect(move.textContent).toContain('+0,50 m');
-    expect(move.textContent).toContain('−0,25 m');
+    expect(last(layer).shift).toEqual([1, -0.5]);
+    expect(move.textContent).toContain('+1,00 m');
+    expect(move.textContent).toContain('−0,50 m');
     expect(menu.element.querySelector('.pmenu__tweakline')!.textContent).toBe('Nicht gespeichert');
     button(menu, 'Speichern').click();
-    expect(store.get('tree')!.shift).toEqual([0.5, -0.25]);
+    expect(store.get('tree')!.shift).toEqual([1, -0.5]);
     expect(button(menu, 'Speichern').disabled).toBe(true);
     menu.dispose();
   });

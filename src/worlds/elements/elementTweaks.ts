@@ -30,8 +30,11 @@ import { spotCells, spotSize, type ElementSpot } from './elementPlace';
 /** Unter diesem Schlüssel liegen alle Anpassungen, als JSON. */
 export const TWEAKS_KEY = 'bgvr.elementTweaks';
 
-/** **Ein Druck verschiebt um eine halbe Zelle** — 0,25 m. */
-export const TWEAK_STEP = 0.25;
+/**
+ * **Ein Druck verschiebt um eine halbe Kachel** — 0,5 m. Gewünscht: _„0,5
+ * Kacheln bitte, falls ein Gegenstand genau zwischen zwei Kacheln steht"_.
+ */
+export const TWEAK_STEP = 0.5;
 
 /** Was gespeichert ist — je Element-Id nur die Abweichungen vom Katalog. */
 interface Stored {

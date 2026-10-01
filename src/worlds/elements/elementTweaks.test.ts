@@ -21,7 +21,7 @@ describe('Anpassungen an Spielelementen', () => {
     expect(presetCells('tree-slim')).toEqual(['0,0']);
     expect(presetCells('counter')).toEqual(['0,0', '1,0', '0,1', '1,1']);
     const spec = elementTweakSpec('tree-slim');
-    expect([spec.cols, spec.rows, spec.step]).toEqual([1, 1, 0.25]);
+    expect([spec.cols, spec.rows, spec.step]).toEqual([1, 1, 0.5]);
   });
 
   it('speichert nur Abweichungen und nimmt sie mit dem Katalogstand wieder weg', () => {

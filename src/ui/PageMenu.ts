@@ -414,7 +414,7 @@ export class PageMenu {
     this.deedButton.hidden = true;
     this.deedButton.append(el('span', 'pmenu__text'));
     // **Anpassen** — nur auf der Seite eines Spielelements (`MenuDetail.tweak`).
-    this.moveButton = switchRow('Modell verschieben', 'Je Druck eine halbe Zelle (0,25 m)');
+    this.moveButton = switchRow('Modell verschieben', 'Je Druck eine halbe Kachel (0,5 m)');
     this.moveEl = el('div', 'pmenu__move');
     const axis = (label: string, index: 0 | 1): HTMLElement => {
       const line = el('div', 'pmenu__axis');
