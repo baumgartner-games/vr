@@ -1041,7 +1041,8 @@ function pageOf(entry: MenuEntry): Page {
   const grid = entry.grid ?? false;
   return {
     title: entry.label,
-    entries: entry.children ?? [],
+    // Eine versteckte Seite ist keine Zeile (`MenuEntry.hidden`).
+    entries: (entry.children ?? []).filter((child) => !child.hidden),
     grid,
     ...(entry.cols === undefined ? {} : { cols: entry.cols }),
     take: entry.take ?? grid,

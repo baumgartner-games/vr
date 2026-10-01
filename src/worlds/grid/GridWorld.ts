@@ -1959,7 +1959,7 @@ export abstract class GridWorld extends PortalWorld {
    *
    * **Aus dem Blatt vor dem Gesicht ist ein Raum geworden.** Bis eben klappte
    * ein Druck auf den Schrank ein Menü auf — am Schirm ein Blatt
-   * (`ui/WardrobeMenu.ts`), in der Brille die Seite _Aussehen_ am Handgelenk.
+   * (`ui/WardrobeMenu.ts`, inzwischen weg), in der Brille die Seite _Aussehen_ am Handgelenk.
    * Das war eine Liste mit Pfeilen, und eine Liste mit Pfeilen ist die eine
    * Bedienung, von der man in einer Brille nichts hat: Man sieht das
    * Kleidungsstück nicht, man liest seinen Namen.

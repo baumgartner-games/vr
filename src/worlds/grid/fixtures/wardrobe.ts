@@ -21,7 +21,7 @@ import {
  * Er steht an einer Kante wie ein Regal, ist eine Kachel breit, einen halben
  * Meter tief und 2,1 m hoch, und auf einer seiner beiden Türfronten hängt ein
  * **Spiegel**. Wer davorsteht und `A` drückt, meldet `{ type: 'wardrobe' }`,
- * und `GridWorld` macht daraufhin die Umkleide auf (`ui/WardrobeMenu.ts`). Er
+ * und `GridWorld` macht daraufhin die Umkleide auf (`ui/outfitMenu.ts`). Er
  * ist damit der erste Einbau, der nicht die Welt ändert, sondern **den
  * Spieler** — und genau deshalb tut er es über ein Ereignis und nicht selbst:
  * Eine Art, die `saveAppearance` riefe, wäre eine, die man ohne Speicher

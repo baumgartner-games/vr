@@ -146,6 +146,13 @@ export interface PageAside {
   readonly page: string;
   readonly element: HTMLElement;
   show(on: boolean): void;
+  /**
+   * **Steht es auch neben dieser Seite?** — die Figur bleibt auf den Seiten
+   * unter _Aussehen_ stehen (`ui/outfitMenu.ts`). Ohne Angabe nur auf `page`.
+   */
+  covers?(page: string): boolean;
+  /** Welche Seite gerade daneben offen ist — nach jedem Zeichnen, solange es zu sehen ist. */
+  onPage?(page: string): void;
 }
 
 /** Wie groß eine Ikone gezeichnet wird, in Bildpunkten der Leinwand. */
@@ -896,7 +903,11 @@ export class PageMenu {
     this.titleEl.textContent = page.title;
     this.backButton.hidden = this.stack.length <= this.floor;
     this.paintTabs();
-    this.showAside(this.open && this.aside !== null && page.id === this.aside.page);
+    const aside = this.aside;
+    this.showAside(
+      this.open && aside !== null && (page.id === aside.page || (aside.covers?.(page.id) ?? false)),
+    );
+    if (this.asideShown) aside?.onPage?.(page.id);
     this.paintCrumbs();
     // Der Weg an den Anfang des Katalogs steht nur da, wenn er auch woanders
     // hinführt als *Zurück* (`MenuEntry.home`).
@@ -1412,8 +1423,10 @@ function pageOf(entry: MenuEntry): Page {
  * bleiben dabei die der Modelle**, also merkt sich der Weg durchs Menü
  * (`menuNav.ts`) weiter dasselbe, und die Vorschau muss nichts übersetzen.
  */
-function spread(entries: readonly MenuEntry[]): MenuEntry[] {
-  if (!entries.some((entry) => entry.flatten && entry.children)) return [...entries];
+function spread(all: readonly MenuEntry[]): MenuEntry[] {
+  // Eine versteckte Seite ist keine Zeile (`MenuEntry.hidden`).
+  const entries = all.filter((entry) => !entry.hidden);
+  if (!entries.some((entry) => entry.flatten && entry.children)) return entries;
   const out: MenuEntry[] = [];
   for (const entry of entries) {
     if (entry.flatten && entry.children) out.push(...entry.children);

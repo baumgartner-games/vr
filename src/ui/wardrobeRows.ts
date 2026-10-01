@@ -17,7 +17,7 @@ import { FIGURE_PATHS, figureLabel, figureSub } from '../core/avatarFigures';
  * Grund, aus dem `init`/`step` einer Einbau-Art rein sind: Was eine Zeile
  * schaltet, ist eine Rechnung über drei Listen, und die kann man in
  * Millisekunden prüfen. Was daraus für ein Knopf wird — DOM am Bildschirm
- * (`WardrobeMenu.ts`), Menüzeile am Handgelenk (`App.appearanceMenu`) —, ist
+ * (früher `WardrobeMenu.ts`), Menüzeile am Handgelenk (`App.appearanceMenu`) —, ist
  * eine zweite Frage.
  *
  * **Gespeichert wird sofort.** Es gibt kein _Übernehmen_: Jeder Schritt ruft

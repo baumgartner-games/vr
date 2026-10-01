@@ -47,6 +47,13 @@ export class WristMenus extends THREE.Group {
   private preferred: Handedness = 'left';
   /** Das Menü als Seite, für alles ohne Brille — oder `null`, dann immer der Arm. */
   private page: PageMenu | null = null;
+  /** Was die Welt für die Kacheln abgegeben hat (`setModelFactory`). */
+  private worldModels: {
+    factory: MenuModelFactory | null;
+    clips: MenuClipSource | null;
+    forget: ((id: string) => void) | null;
+  } = { factory: null, clips: null, forget: null };
+  private extraModels: MenuModelFactory | null = null;
   /** Ob die Brille aufgesetzt ist (`App`, Sitzungsbeginn und -ende). */
   private immersive = false;
 
@@ -209,6 +216,25 @@ export class WristMenus extends THREE.Group {
     clips: MenuClipSource | null = null,
     forget: ((id: string) => void) | null = null,
   ): void {
+    this.worldModels = { factory, clips, forget };
+    this.installModels();
+  }
+
+  /**
+   * **Modelle, die keiner Welt gehören** — die Stücke unter _Aussehen_
+   * (`ui/outfitModels.ts`). Gefragt wird zuerst hier, dann die Welt; und es
+   * gilt auch in einer Welt, die selbst keine Fabrik abgibt.
+   */
+  setExtraModels(factory: MenuModelFactory | null): void {
+    this.extraModels = factory;
+    this.installModels();
+  }
+
+  private installModels(): void {
+    const { factory: world, clips, forget } = this.worldModels;
+    const extra = this.extraModels;
+    const factory: MenuModelFactory | null =
+      world && extra ? (id) => extra(id) ?? world(id) : (world ?? extra);
     for (const menu of this.menus) menu.setModelFactory(factory);
     this.page?.setPreviews(factory ? new PagePreviews(factory, clips, forget) : null);
   }

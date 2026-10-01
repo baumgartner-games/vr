@@ -71,7 +71,7 @@ import type { MenuModelFactory } from './WristMenu';
  *
  * ## Und sie läuft nur, wenn man hinsieht
  *
- * Dieselbe Disziplin wie in der Umkleide (`WardrobeMenu.ts`): Ein zweiter
+ * Dieselbe Disziplin wie bei der Figur im Inventar (`previewScene.ts`): Ein zweiter
  * Renderer, der im Hintergrund weiterläuft, kostet auf der Quest genau die
  * Bilder, die dem Spiel fehlen. Er entsteht deshalb beim Aufschlagen des
  * Menüs und ist beim Zumachen wieder weg, samt `dispose` und

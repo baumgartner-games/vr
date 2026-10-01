@@ -167,6 +167,14 @@ export interface MenuEntry {
   badge?: string;
   icon?: MenuIcon;
   selected?: boolean;
+  /**
+   * **Eine Seite, aber keine Zeile** — sie steht nicht in der Liste ihres
+   * Eltern, man kommt nur über ihre Id hin (`PageMenu.openSubmenu`). So hängt
+   * _Aussehen_ unter dem Reiter _Inventar_, ohne zwischen den Werkzeugen eine
+   * Kachel zu sein (`ui/outfitMenu.ts`); hinein geht es über den Knopf an der
+   * Figur.
+   */
+  hidden?: boolean;
   /** Opens a submenu instead of running something. */
   children?: MenuEntry[];
   /** Draw the children as a grid of icons instead of a list. */

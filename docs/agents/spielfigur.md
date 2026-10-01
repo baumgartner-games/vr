@@ -413,13 +413,15 @@ werden:
   der hinterher eine Datei geholt wird.
 
 **Geändert wird an zwei Stellen, und beide lesen denselben Speicher**: die Seite
-_Aussehen_ im Menü (vier Zeilen, jede schaltet im Kreis, die Überschrift zeigt
-die Wahl gleich mit — `appearanceSummary`) und die **Umkleide** am
+_Aussehen_ im Menü (am Schirm unter dem Reiter _Inventar_ als Kacheln mit
+Vorschau, gespeichert erst mit _Aussehen speichern_ — siehe
+[Aussehen im Inventar](seite.md#aussehen-im-inventar); am Handgelenk Zeilen,
+die im Kreis schalten) und die **Umkleide** am
 Kleiderschrank — und die ist keine Liste mehr, sondern ein **Regal im
 Konstrukt**, in dem dieselben neunundzwanzig Sachen als Sachen dastehen und der
 Spiegel an der Tür zeigt, was man gerade angezogen hat (siehe
-_Der Konstrukt-Raum_ und _Der Kleiderschrank und die Umkleide_). Gespeichert
-wird sofort (`saveAppearance`), und wer zuhören will, hängt sich an
+_Der Konstrukt-Raum_ und _Der Kleiderschrank und die Umkleide_). Im Regal
+wird sofort gespeichert (`saveAppearance`), und wer zuhören will, hängt sich an
 `onAppearanceChange` — der eigene Körper und das Netz tun genau das.
 
 **Von innen ist ein Helm etwas anderes als von außen.** Außen eine Schale,

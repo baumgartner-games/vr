@@ -67,3 +67,25 @@
   .pcard__text { flex: none; justify-items: stretch; text-align: center; }
   .pcard__edit { padding: 11px 16px; }
 }
+
+/* Unter _Aussehen_ (`pcard--edit`): Speichern in der Farbe, Zurücksetzen
+   leiser darunter. Speichern ist aus, solange es nichts zu speichern gibt. */
+.pcard__edit[hidden], .pcard__reset[hidden] { display: none; }
+.pcard__edit:disabled { opacity: 0.45; cursor: default; }
+
+.pcard__reset {
+  padding: 9px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.12);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.pcard__reset:hover { background: rgba(140, 170, 230, 0.24); }
+
+@media (min-width: 640px) {
+  .pcard__reset { padding: 11px 16px; }
+}
