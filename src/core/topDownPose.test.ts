@@ -3,6 +3,9 @@ import {
   TOP_DOWN_MAX,
   TOP_DOWN_MIN,
   TOP_DOWN_TILT,
+  TOP_DOWN_TILT_MAX,
+  TOP_DOWN_TILT_MIN,
+  clampTilt,
   groundDirection,
   pinchFactor,
   stepFromDistance,
@@ -335,5 +338,34 @@ describe('Der Start-Zoom einer Welt (topDownFit)', () => {
     expect(topDownFit(1, 1)).toBe(TOP_DOWN_MIN);
     expect(topDownFit(500, 0.4)).toBe(TOP_DOWN_MAX);
     expect(topDownFit(12, Number.NaN)).toBeCloseTo(topDownFit(12, 1));
+  });
+});
+
+describe('Der einstellbare Blickwinkel (clampTilt)', () => {
+  it('lässt Werte zwischen den Enden stehen und rundet auf ganze Grad', () => {
+    expect(clampTilt(65)).toBe(65);
+    expect(clampTilt(47.4)).toBe(47);
+  });
+
+  it('klemmt auf 20° flach und 90° senkrecht', () => {
+    expect(clampTilt(5)).toBe(TOP_DOWN_TILT_MIN);
+    expect(clampTilt(120)).toBe(TOP_DOWN_TILT_MAX);
+  });
+
+  it('macht aus allem, was keine Zahl ist, die Vorgabe', () => {
+    expect(clampTilt(undefined)).toBe(TOP_DOWN_TILT);
+    expect(clampTilt('70')).toBe(TOP_DOWN_TILT);
+    expect(clampTilt(Number.NaN)).toBe(TOP_DOWN_TILT);
+  });
+
+  it('senkrecht steht die Kamera genau über dem Ziel und sieht es an', () => {
+    const at = topDownPosition({ x: 2, y: 0, z: 3 }, 10, { x: 0, y: 0, z: 0 }, 90);
+    expect(at.x).toBeCloseTo(2, 9);
+    expect(at.y).toBeCloseTo(10, 9);
+    expect(at.z).toBeCloseTo(3, 9);
+  });
+
+  it('ein steilerer Blick braucht für dieselbe Welt keinen größeren Abstand', () => {
+    expect(topDownFit(40, 16 / 9, 90)).toBeLessThanOrEqual(topDownFit(40, 16 / 9, 55));
   });
 });

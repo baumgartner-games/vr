@@ -70,6 +70,9 @@ describe('Grafikeinstellungen', () => {
       screenPads: 'auto',
       // Links unten der Stock — das Steuerkreuz ist die Wahl im Menü.
       movePad: 'stick',
+      // Von oben unter 55°, wie es immer war — das freie Kippen ist ein Angebot.
+      topDownTilt: 55,
+      tiltDrag: false,
     });
   });
 
@@ -498,5 +501,18 @@ describe('Grafikeinstellungen', () => {
     stop();
     saveGraphics({ mode: 'comic' });
     expect(seen).toHaveLength(2);
+  });
+
+  it('merkt sich den Blickwinkel von oben, geklemmt auf 20–90°, ab Werk 55°', () => {
+    expect(clampGraphics({}).topDownTilt).toBe(55);
+    expect(clampGraphics({ topDownTilt: 70 }).topDownTilt).toBe(70);
+    expect(clampGraphics({ topDownTilt: 200 }).topDownTilt).toBe(90);
+    expect(clampGraphics({ topDownTilt: 'steil' as never })).toEqual(DEFAULT_GRAPHICS);
+  });
+
+  it('kippt mit der rechten Maustaste nur, wenn es ausdrücklich an ist', () => {
+    expect(clampGraphics({}).tiltDrag).toBe(false);
+    expect(clampGraphics({ tiltDrag: 1 as never }).tiltDrag).toBe(false);
+    expect(clampGraphics({ tiltDrag: true }).tiltDrag).toBe(true);
   });
 });
