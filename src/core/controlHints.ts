@@ -196,7 +196,7 @@ function padHints(ctx: HintContext): HintItem[] {
     add('✥', 'Wählen');
     add(pad('use'), 'OK');
     add(pad('cancel'), 'Zurück');
-    add(pairKey(pad('zoomIn'), pad('zoomOut')), 'Seite');
+    add(pairKey(pad('zoomIn'), pad('zoomOut')), 'Reiter');
     add(pad('menu'), 'Schließen');
     return out;
   }

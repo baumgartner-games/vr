@@ -521,6 +521,18 @@ export class PageMenu {
     this.toggle(true);
   }
 
+  /**
+   * **Einen Reiter weiter oder zurück** — LB/RB am Pad (`ui/padNav.ts`),
+   * am Ende wieder vorn. `false`, wenn es keine Reiter gibt.
+   */
+  stepTab(step: -1 | 1): boolean {
+    if (!this.tabs || !this.open || this.root.length === 0) return false;
+    const at = this.root.findIndex((entry) => entry.id === this.nav.path[0]);
+    const next = this.root[(at + step + this.root.length) % this.root.length]!;
+    this.showTab(next.id);
+    return true;
+  }
+
   setStatus(status: string): void {
     this.statusEl.textContent = status;
   }
@@ -713,6 +725,11 @@ export class PageMenu {
         return tab;
       }),
     );
+    // Am Telefon passen nicht alle Reiter nebeneinander: der offene rollt ins Bild.
+    this.tabsEl.querySelector<HTMLElement>('.is-on')?.scrollIntoView?.({
+      block: 'nearest',
+      inline: 'nearest',
+    });
   }
 
   /** Die Seitenspalte zeigen oder wegnehmen — gesagt wird es nur bei Änderung. */

@@ -634,8 +634,8 @@
 /* Ein Reiter: Ikone über dem Wort, alle gleich breit — vier passen auch auf
    ein schmales Telefon, ohne dass ein Wort abbricht. */
 .pmenu__tab {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 0 auto;
+  min-width: 76px;
   display: grid;
   justify-items: center;
   gap: 2px;

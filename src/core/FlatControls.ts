@@ -911,11 +911,11 @@ export class FlatControls {
       }
       if (!this.enabled) return;
       // **Liegt ein Menü davor, gehören ihm die Tasten** (Pfeile, Eingabe,
-      // Rücktaste — `ui/padNav.ts`). Nur die Werkzeugliste lässt sich mit
-      // ihrer eigenen Taste auch wieder zumachen.
+      // Rücktaste — `ui/padNav.ts`). Nur `Tab` macht das Menü (es öffnet auf
+      // dem Inventar) mit derselben Taste auch wieder zu.
       const blocker = this.blocker();
       if (blocker) {
-        if (blocker === 'tools' && this.bound(e.code, 'tools') && !e.repeat) {
+        if (this.bound(e.code, 'tools') && !e.repeat) {
           e.preventDefault();
           this.onTools?.();
         }

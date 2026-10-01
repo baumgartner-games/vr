@@ -56,6 +56,12 @@ export interface PadScope {
   close?(): void;
   /** Macht auch `Y` (die Werkzeugliste) es wieder zu? */
   closeOnTools?: boolean;
+  /**
+   * **LB/RB wechseln den Reiter** (`PageMenu`, `tabs`) — statt seitenweise zu
+   * blättern. `false` heißt „hier gibt es keine Reiter", dann blättern sie wie
+   * sonst.
+   */
+  tab?(step: -1 | 1): boolean;
   /** Wer gewinnt, wenn zwei offen sind — der Höhere. */
   priority: number;
   /** Womit der Fokus anfängt, wenn noch keiner drin steht. */
@@ -256,8 +262,9 @@ export class PadNav {
       this.press(root);
       return;
     }
-    if (edges.has('zoomIn')) this.page(root, 'up');
-    if (edges.has('zoomOut')) this.page(root, 'down');
+    // LB/RB: erst der Reiter, wo es welche gibt — sonst eine Seite weiter.
+    if (edges.has('zoomIn') && !(scope.tab?.(-1) ?? false)) this.page(root, 'up');
+    if (edges.has('zoomOut') && !(scope.tab?.(1) ?? false)) this.page(root, 'down');
 
     // Der erste Druck zeigt nur, wo der Fokus steht — er springt nicht gleich
     // weiter, sonst begänne jedes Menü eine Zeile unter der ersten.

@@ -25,12 +25,12 @@ geht zurück):
 | Bestätigen / Benutzen             | `A` (unten)            | `A` rechts, Trigger auf eine Zeile           | `E`, Eingabe, Linksklick    | Knopf `A`         |
 | Springen (nichts in Reichweite)   | `A`                    | `A`                                          | Leertaste                   | Knopf `A`         |
 | Zurück / Abbrechen / Ablegen      | `B` (rechts)           | `B`/`Y` im offenen Menü                      | Rücktaste im Menü, `Esc` zu | Pfeil im Menükopf |
-| Inventar (Werkzeuge, Katalog …)   | `Y` (oben)             | Beutel-Knopf am Handgelenk, neben ☰         | `Tab`, im Inventar `1`–`4`  | Werkzeugknopf     |
+| Menü auf dem Inventar             | `Y` (oben)             | ☰ am Handgelenk, Reiter _Inventar_          | `Tab`, im Inventar `1`–`4`  | Werkzeugknopf     |
 | Menü                              | ☰ (Start)             | Knopf am Handgelenk, ☰ am linken Controller | `M`, Knopf ☰               | Knopf ☰          |
 | Ansicht wechseln                  | ⊟ (Select)             | – (man steht in der Welt)                    | `V`                         | Menü → _Spiel-Sicht_  |
 | Auslösen / Schießen               | RT                     | Trigger                                      | Linksklick                  | Auslöser-Knopf    |
 | Zielen über die Waffe             | LT                     | – (Waffe ans Auge)                           | Rechtsklick halten          | –                 |
-| Zoom (von oben), Menü seitenweise | LB / RB                | –                                            | Mausrad                     | zwei Finger       |
+| Zoom (von oben), Menü: Reiter     | LB / RB                | –                                            | Mausrad                     | zwei Finger       |
 | Bild drehen (von oben)            | Steuerkreuz ◀ / ▶      | –                                            | `Q`, `Umschalt`+`Q`         | Knöpfe ⟲ ⟳        |
 | Werkzeug der Leiste (Baukasten)   | Steuerkreuz ▲ / ▼      | –                                            | Klick auf die Leiste        | antippen          |
 | Laufen / Umsehen                  | linker / rechter Stick | linker Stick / Kopf, rechter Snap-Turn       | `WASD` / Maus               | Stöcke / wischen  |

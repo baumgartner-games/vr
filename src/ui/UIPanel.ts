@@ -588,7 +588,10 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       // Erst kleiner, dann gekürzt: „Einstellungen" soll ganz dastehen.
       const room = width - TAB_GAP - 12;
       ctx.font = '600 22px system-ui, sans-serif';
-      if (ctx.measureText(tab.label).width > room) ctx.font = '600 18px system-ui, sans-serif';
+      for (const px of [18, 15]) {
+        if (ctx.measureText(tab.label).width <= room) break;
+        ctx.font = `600 ${px}px system-ui, sans-serif`;
+      }
       ctx.fillText(clip(ctx, tab.label, room), x + width / 2, top + 76);
     });
     ctx.restore();

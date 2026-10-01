@@ -27,7 +27,7 @@ describe('controlHints — die Tastenhilfe', () => {
 
   it('zeigt im Menü Bestätigen und Zurück — dieselben Knöpfe wie im Spiel', () => {
     expect(hintText(controlHints({ ...base, menu: 'menu' }))).toBe(
-      '✥ Wählen · A OK · B Zurück · LB/RB Seite · ☰ Schließen',
+      '✥ Wählen · A OK · B Zurück · LB/RB Reiter · ☰ Schließen',
     );
   });
 
@@ -148,7 +148,7 @@ describe('controlHints — die Sonderzonen', () => {
 
   it('weicht dem Menü: Im offenen Menü gilt die Zeile des Menüs', () => {
     expect(hintText(controlHints({ ...base, menu: 'menu', zone: { kind: 'kart' } }))).toBe(
-      '✥ Wählen · A OK · B Zurück · LB/RB Seite · ☰ Schließen',
+      '✥ Wählen · A OK · B Zurück · LB/RB Reiter · ☰ Schließen',
     );
   });
 

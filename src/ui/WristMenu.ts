@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { UIPanel } from './UIPanel';
 import { TextPlane } from './TextPlane';
-import { drawMenuIcon, type MenuEntry } from './menu';
+import type { MenuEntry } from './menu';
 import { findMenuPath } from './menuGroups';
 import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
@@ -116,12 +116,6 @@ export interface WristMenuOptions {
    */
   tabs?: boolean;
   /**
-   * **Was auf dem runden Knopf steht** — ☰ für das Menü, der Beutel fürs
-   * Inventar. Und an welcher Stelle er sitzt: `slot` 1 liegt eine Knopfbreite
-   * neben dem ersten, damit beide am selben Handgelenk Platz haben.
-   */
-  button?: { icon: 'menu' | 'bag'; slot?: number };
-  /**
    * **Etwas, das neben dem Panel steht** — für genau eine Seite: die Figur im
    * Inventar (`ui/XRPlayerCard.ts`). Das Ding hängt am Panel der Hand, die
    * gerade offen ist, und folgt ihm durch jede Neigung.
@@ -162,8 +156,6 @@ export class WristMenu extends THREE.Group {
 
   private open = false;
   private readonly tabs: boolean;
-  private readonly buttonIcon: 'menu' | 'bag';
-  private readonly buttonSlot: number;
   private readonly aside: { page: string; object: THREE.Object3D } | null;
   /** Wie tief man in jedem Reiter stand, nach seiner Id. */
   private readonly tabPaths = new Map<string, readonly string[]>();
@@ -255,8 +247,6 @@ export class WristMenu extends THREE.Group {
     this.nav = options.nav ?? new MenuNav();
     this.onToggle = options.onToggle ?? null;
     this.tabs = options.tabs ?? false;
-    this.buttonIcon = options.button?.icon ?? 'menu';
-    this.buttonSlot = options.button?.slot ?? 0;
     this.aside = options.aside ?? null;
     this.name = `wrist-menu-${this.hand}`;
     // Die andere Hand ist eine Ebene tiefer gegangen: dieselbe Seite hier.
@@ -507,11 +497,6 @@ export class WristMenu extends THREE.Group {
 
       _roll.copy(_handUp);
       this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
-      // Ein zweiter Knopf (`button.slot`) sitzt eine Knopfbreite daneben.
-      if (this.buttonSlot !== 0) {
-        _offset.crossVectors(_dir, _handUp).normalize();
-        this.button.position.addScaledVector(_offset, 0.06 * this.buttonSlot);
-      }
       faceTowards(this.button, _head, _roll);
 
       // The panel starts upright above the wrist and tilts by however far the
@@ -543,9 +528,7 @@ export class WristMenu extends THREE.Group {
     // steht.
     const reach = this.anchor === 'view' ? -0.72 : -0.62;
     _quat.setFromRotationMatrix(_local);
-    this.button.position
-      .copy(_head)
-      .add(_offset.set(0.2 - 0.06 * this.buttonSlot, -0.16, -0.55).applyQuaternion(_quat));
+    this.button.position.copy(_head).add(_offset.set(0.2, -0.16, -0.55).applyQuaternion(_quat));
     this.button.quaternion.copy(_quat);
     this.panel.position.copy(_head).add(_offset.set(0, -0.02, reach).applyQuaternion(_quat));
     this.panel.quaternion.copy(_quat);
@@ -1017,9 +1000,7 @@ export class WristMenu extends THREE.Group {
     ctx.clearRect(0, 0, size, size);
 
     const glow = ctx.createRadialGradient(128, 128, 40, 128, 128, 126);
-    const idle =
-      this.buttonIcon === 'bag' ? 'rgba(94, 224, 160, 0.95)' : 'rgba(74, 168, 255, 0.95)';
-    glow.addColorStop(0, this.open ? 'rgba(255, 157, 61, 0.95)' : idle);
+    glow.addColorStop(0, this.open ? 'rgba(255, 157, 61, 0.95)' : 'rgba(74, 168, 255, 0.95)');
     glow.addColorStop(1, 'rgba(8, 14, 26, 0.9)');
     ctx.beginPath();
     ctx.arc(128, 128, 124, 0, Math.PI * 2);
@@ -1041,9 +1022,6 @@ export class WristMenu extends THREE.Group {
       ctx.moveTo(168, 88);
       ctx.lineTo(88, 168);
       ctx.stroke();
-    } else if (this.buttonIcon === 'bag') {
-      // Der Beutel des Inventars — dieselbe Ikone wie auf seinem Reiter.
-      drawMenuIcon(ctx, 'bag', 128, 132, 120, '#ffffff');
     } else {
       for (let i = 0; i < 3; i++) {
         const y = 94 + i * 34;

@@ -178,6 +178,12 @@ steht die Zeile _Spiel-Sicht_ (`gfx:view`) und öffnet dieselbe Seite.
 
 ## Das Menü: acht Bereiche und eine Tabelle
 
+> **Seit Oktober 2026 steht das nicht mehr als Liste da, sondern als Reiter**
+> (siehe [Das Menü mit Reitern](#das-menü-mit-reitern-inventar-katalog-welten-)):
+> Die Bereiche und `MENU_PLACEMENT` gibt es weiter, sie entscheiden, was
+> zusammengehört — `ui/menuTabs.ts` verteilt sie dann auf sechs Reiter.
+> _Weiterspielen_ ist weg; zu macht das ✕ oben rechts.
+
 Gemeldet war: „Die Menüführung ist verbesserungswürdig — wie die Menüs
 aufgebaut und gruppiert sind." Bis dahin hing **jeder** Eintrag an der Wurzel:
 sieben aus der App (Welten, Ansicht, Verbindung, Bewegung, Eingaben, Aussehen,
@@ -296,7 +302,29 @@ In älteren Kapiteln steht oft noch der alte Weg; so heißt er jetzt:
 | Menü → NPC → Trefferzonen, Navigation | Menü → Werkstatt |
 | Menü → Einstellungen → Welt-Physik, Konfig-Code, Posen; Menü → Weltänderungen | Menü → Werkstatt |
 
-## Das Inventar hinter `Tab`
+## Das Menü mit Reitern: Inventar, Katalog, Welten …
+
+**Es gibt nur noch dieses eine Menü.** Gewünscht: _„können wir noch zudem das
+Burger-Menü-Icon oben links ändern, sodass dann das Menü geöffnet wird damit?
+Das alte Menü brauchen wir dann ja nicht mehr."_ Burger oben links, `M`, ☰ am
+Pad und ☰ am Handgelenk öffnen es dort, wo man zuletzt war; `Tab`, `Y` und der
+Werkzeugknopf öffnen es immer auf dem Inventar. **LB/RB wechseln am Pad den
+Reiter** (`PadScope.tab`, `PageMenu.stepTab`), `1`–`9` an der Tastatur.
+
+| Reiter | Was darin steht (`ui/menuTabs.ts`) |
+| ------ | --------------- |
+| **Inventar** | Werkzeuge als Kacheln und die Figur (nur in einer Welt) |
+| **Katalog** | der Möbelkatalog (`elements`) |
+| **Welten** | _Diese Welt_ (Name der Welt, ihre Einträge, Zurücksetzen) zuoberst, dann Welten und Spiel-Sicht |
+| **Bauen** | Bauen & Gestalten ohne Katalog; in der Brille auch ohne das Werkzeugregal, das dort im Inventar liegt |
+| **Zusammen** | Raum, Chat, Stimme, Zuschauen |
+| **Einstellungen** | Bewegung, Grafik, Ton, Hände — darunter Figur, Steuerung & Hilfe, Werkstatt |
+
+`openSubmenu('bag' | 'look' | 'assets' | …)` findet seine Seiten unter den
+Reitern weiter (drei Ebenen tief, `menuTabs.test.ts`). Am Telefon passen nicht
+alle sechs Reiter nebeneinander; die Leiste rollt zum offenen.
+
+### Wie es dazu kam: das Inventar hinter `Tab`
 
 Gewünscht war: _„mit Tab ein UI-Menü öffnen, welches wie bei Sims oben eine
 Tab-Menü-Reihe hat: Inventar/Spieler, Katalog, Welten, Einstellungen"_ — im
@@ -338,16 +366,14 @@ Inventar eine eigene Vorschauschicht).
   Streifen über den Kacheln (Figur links, Name und Knopf rechts), am
   Schreibtisch als Spalte rechts (`pageMenu.css`, `playerCard.css`).
 
-### In der Brille: der Beutel am Handgelenk
+### In der Brille: dasselbe Menü am Handgelenk
 
 Gewünscht: _„In der Brille könnte man ein Menü öffnen über das Handgelenk.
-Das Menü kann dann gleich aussehen wie beim PC."_ Neben dem runden ☰-Knopf
-sitzt an jedem Handgelenk ein zweiter, grüner mit dem **Beutel**
-(`WristMenuOptions.button`, `slot: 1`). Dahinter liegt ein zweites
-`WristMenus` (`App.inventoryWrist`) mit demselben Baum (`inventoryRoot`) und
-**demselben Weg** wie die Seite am Schirm — das Bildschirm-Inventar ist seine
-Seite (`attachPage`). Wer am PC im Katalog stand, steht nach dem Aufsetzen
-dort auch am Arm.
+Das Menü kann dann gleich aussehen wie beim PC."_ Der runde ☰-Knopf am
+Handgelenk öffnet dasselbe Menü mit denselben Reitern (`WristMenuOptions.tabs`)
+und **demselben Weg** wie die Seite am Schirm. Wer am PC im Katalog stand,
+steht nach dem Aufsetzen dort auch am Arm. (Eine Woche lang gab es dafür einen
+zweiten, grünen Beutel-Knopf daneben; mit dem einen Menü ist er wieder weg.)
 
 - **Die Reiter** zeichnet das Panel selbst (`UIPanel`, `PageOptions.tabs`):
   eine Reihe unter dem Titel, der offene unterstrichen, ein Trigger darauf
@@ -360,16 +386,9 @@ dort auch am Arm.
   (`ui/XRPlayerCard.ts`, `WristMenuOptions.aside`): ein echtes kleines Modell
   im Raum, kein zweiter Renderer, nur auf der Seite _Inventar_ zu sehen.
   _Aussehen anpassen_ öffnet _Figur_ im Menü am Handgelenk.
-- **Nie zwei Menüs zugleich** (`WristMenus.attachSide`): Das eine geht auf,
-  das andere zu. ☰ am Controller bleibt das Menü (`menuButton: false`), und
-  solange das Inventar offen ist, gilt das Menü als offen (`isOpen`) — `B`
-  setzt dann keine Welt zurück.
 - **Am Schirm nachstellen**: in der Konsole `bgvr.wristMenu.presenting = true`,
-  dann `bgvr.inventoryWrist.menu('left').toggle(true)` — das Panel hängt dann
-  vor der Ansicht aus den Augen.
-
-Offen: Die Reiter am Pad erreicht man über den Fokus (Stick nach oben), nicht
-über eigene Schultertasten.
+  dann `bgvr.wristMenu.menu('left').toggle(true)` — das Panel hängt dann vor
+  der Ansicht aus den Augen.
 
 ## Menü → Eingaben
 

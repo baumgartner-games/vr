@@ -47,29 +47,14 @@ export class WristMenus extends THREE.Group {
   private preferred: Handedness = 'left';
   /** Das Menü als Seite, für alles ohne Brille — oder `null`, dann immer der Arm. */
   private page: PageMenu | null = null;
-  /**
-   * **Weitere Menüs neben diesem** — das Inventar mit seinen Reitern, am
-   * Handgelenk wie am Schirm (`attachSide`). Es liest einen eigenen Baum,
-   * bekommt aber dieselben kleinen Modelle, dieselbe Brille, und es ist nie
-   * zugleich mit diesem offen.
-   */
-  private readonly sides: WristMenus[] = [];
-  /** Ob ☰ am Controller dieses Menü auf- und zumacht — beim Inventar nicht. */
-  private readonly menuButton: boolean;
-  /** Irgendein Handgelenk dieses Menüs ging auf (`attachSide` schließt das andere). */
-  onOpen: (() => void) | null = null;
   /** Ob die Brille aufgesetzt ist (`App`, Sitzungsbeginn und -ende). */
   private immersive = false;
 
   constructor(
     pointer: Pointer,
-    options: Omit<WristMenuOptions, 'hand' | 'onToggle'> & {
-      nav?: MenuNav;
-      menuButton?: boolean;
-    } = {},
+    options: Omit<WristMenuOptions, 'hand' | 'onToggle'> & { nav?: MenuNav } = {},
   ) {
     super();
-    this.menuButton = options.menuButton ?? true;
     this.name = 'wrist-menus';
     const onToggle = (menu: WristMenu, open: boolean): void => this.onToggle(menu, open);
     const nav = options.nav ?? new MenuNav();
@@ -90,9 +75,7 @@ export class WristMenus extends THREE.Group {
 
   /** Ob irgendein Gesicht des Menüs offen ist — Handgelenk oder Seite. */
   get isOpen(): boolean {
-    return (
-      this.open !== null || (this.page?.isOpen ?? false) || this.sides.some((side) => side.isOpen)
-    );
+    return this.open !== null || (this.page?.isOpen ?? false);
   }
 
   /**
@@ -105,20 +88,6 @@ export class WristMenus extends THREE.Group {
   }
 
   /**
-   * **Ein zweites Menü daneben hängen** — das Inventar. Es bekommt dieselben
-   * Modelle und dieselbe Brille, und die beiden sind nie zugleich offen: Wer
-   * das eine am Handgelenk aufmacht, macht das andere zu.
-   */
-  attachSide(side: WristMenus): void {
-    this.sides.push(side);
-    side.presenting = this.immersive;
-    side.onOpen = () => this.toggle(false);
-    this.onOpen = () => {
-      for (const other of this.sides) if (other.open) other.toggle(false);
-    };
-  }
-
-  /**
    * Brille auf oder ab. Beim Aufsetzen geht die Seite zu, beim Absetzen das
    * Handgelenk — ein offenes Menü, das man nicht mehr sehen kann, hielte
    * sonst weiter die Welt an (`ShipExperience` fragt `isOpen`).
@@ -127,7 +96,6 @@ export class WristMenus extends THREE.Group {
     if (on === this.immersive) return;
     this.immersive = on;
     this.page?.setPresenting(on);
-    for (const side of this.sides) side.presenting = on;
     if (on) this.page?.toggle(false);
     else this.closeWrists();
   }
@@ -243,20 +211,13 @@ export class WristMenus extends THREE.Group {
   ): void {
     for (const menu of this.menus) menu.setModelFactory(factory);
     this.page?.setPreviews(factory ? new PagePreviews(factory, clips, forget) : null);
-    // Das Inventar daneben bekommt dieselbe Fabrik — und seine Seite eine
-    // eigene Schicht: Eine Leinwand hängt in genau einem Kasten.
-    for (const side of this.sides) side.setModelFactory(factory, clips, forget);
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {
     // **☰ am Controller macht das Menü auf und zu** — derselbe Knopf wie ☰
     // am Pad und `M` an der Tastatur (`XRInput.menu`). Auf geht es am
     // Handgelenk, das zuletzt benutzt wurde; ein zweiter Druck macht zu.
-    if (
-      this.menuButton &&
-      this.immersive &&
-      input.controllers.some((one) => one.tracked && one.menu.justPressed)
-    ) {
+    if (this.immersive && input.controllers.some((one) => one.tracked && one.menu.justPressed)) {
       this.toggle();
     }
     const onPage = this.onPage;
@@ -282,7 +243,6 @@ export class WristMenus extends THREE.Group {
     this.preferred = menu.hand;
     const other = menu === this.left ? this.right : this.left;
     if (other.isOpen) other.toggle(false);
-    this.onOpen?.();
     // Der runde Knopf am Arm geht auch ohne Brille — dann aber nur so, dass
     // das Menü nicht zweimal offen ist.
     this.page?.toggle(false);

@@ -147,6 +147,22 @@ describe('PadNav', () => {
     expect(closed).toBe(false);
   });
 
+  it('wechselt mit LB/RB den Reiter, wo es welche gibt', () => {
+    const steps: number[] = [];
+    nav.addScope({
+      priority: 1,
+      active: () => true,
+      root: () => root,
+      tab: (step) => {
+        steps.push(step);
+        return true;
+      },
+    });
+    tap(4);
+    tap(5);
+    expect(steps).toEqual([-1, 1]);
+  });
+
   it('macht die Werkzeugliste mit Y wieder zu, das Menü nicht', () => {
     const closed: string[] = [];
     const tools = nav.addScope({
