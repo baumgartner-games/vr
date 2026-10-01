@@ -250,13 +250,29 @@ Sträucher, Steine, Gras & Blumen, Holz und Alles. Keines hat einen Zweck
 (`kind: null`), und die Ordner sortieren nach dem Anfang der Id (`tree-`,
 `bush-`, `rock-`, `plant-`, `wood-`).
 
-**Unter der Krone geht man durch.** Ein Baum belegt so viele Kacheln, wie
-seine Krone breit ist, mindestens 2 × 2. Dort fasst man ihn an, und dort rastet
-er ein. Gesperrt ist aber nur der Stamm: `solid: [0.5, 0.5]`, also die 2 × 2
-Zellen um die Mitte, und der Kasten in der Physik ist ebenso klein. Auf einer
-einzigen Kachel wäre der Stamm schon die ganze Kachel. Weil nur die
+**Unter der Krone geht man durch.** Die drei breiten Laubbäume — _Laubbaum_,
+_Großer Laubbaum_, _Schirmbaum_ — belegen so viele Kacheln, wie ihre Krone
+breit ist, mindestens 2 × 2. Dort fasst man sie an, und dort rasten sie ein.
+Gesperrt ist aber nur der Stamm: `solid: [0.5, 0.5]`, also die 2 × 2 Zellen um
+die Mitte, und der Kasten in der Physik ist ebenso klein. Weil nur die
 Stammzellen frei sein müssen (`FurnishedWorld.furnishSpot` → `cellsFree`),
 dürfen sich zwei Kronen überlappen, und man kann einen Wald dicht pflanzen.
+
+**Alle anderen Bäume stehen auf einer einzigen Zelle** (Oktober 2026,
+gewünscht: _„Außer: Laubbaum, großer Laub Baum, und Schirm Baum, sollen alle
+Bäume nur 1 Kachel Grundfläche belegen, und daher stehen die nicht mittig auf
+einer 2x2 Kachel sondern nur mittig auf einer Kachel"_ — „Kachel" meint dort
+die Zelle). `natureCatalog.sapling` gibt ihnen `tiles: [0.5, 0.5]`; das ist der
+einzige Fall einer Grundfläche, die kein Vielfaches einer Kachel ist
+(`elementPlace.onCells`). Dann darf `ElementSpot.x`/`z` auf einer halben Kachel
+liegen, `spotAround` rastet **je Zelle** ein (auf jeder der vier Zellen einer
+Kachel steht ein eigener Baum), `spotTiles` nennt die Kachel, in der die Zelle
+liegt, und das Gitter unter der Hand leuchtet nur diese eine Zelle
+(`PortalWorld.updatePlaceGrid` → `PlaceGrid.show(…, size = CELL)`). Welches
+Element man im Bau-Modus anfasst, entscheidet die Grundfläche selbst
+(`spotCovers`) und nicht ihre Kachel. Die Detailseite zeichnet die Zellen in
+Weltlage (`elementCellsOverlay` an einer Stelle bei 0, 0): der Baum mittig auf
+seiner Zelle, die Kachellinien darum.
 
 **Ein Element mit eigenem `solid` steht ganz als Bild da** und nicht als festes
 Stück der Welt (`placeModel`), sonst bekäme die ganze Krone einen Körper.
@@ -349,6 +365,37 @@ Brötchen und Käse und co beim conveyer belt nicht interagierbar."_ Ein
 Element, das scheitert, fehlt mit einer Warnung, die Welt stirbt nicht daran.
 
 ## Der Möbelkatalog im Menü
+
+**Auf der Detailseite eines Elements wird eingemessen** (Oktober 2026,
+`elementTweaks.ts`, `MenuDetail.tweak`). Gewünscht: _„in der detailliert eine
+checkbox haben um die Modelle zu verschieben. Dann bei aktiv sind Buttons zu
+sehen: +-0,5 Kacheln in jede Richtung x,Y. Und dann kann ich den diff mit dem
+Modell speichern. Zudem will ich mit checkbox besetzte boden Kacheln anpassen
+[…] Unten gibt es einen Button um die Anpassungen alle zu kopieren damit ich
+diese dir geben kann."_
+
+- _Modell verschieben_ zeigt je Achse − und +, je Druck eine halbe Zelle
+  (0,25 m, `TWEAK_STEP`). Verschoben werden die Teile, nicht die Zellen
+  (`PageDetail.applyShift`).
+- _Belegte Zellen anpassen_ stellt die Kamera senkrecht darüber, orthogonal
+  (`PageDetail.placeTop`), macht das Ding zum Geist und lässt Zellen antippen:
+  gesperrt ↔ frei, auch zwei Zellen um die Grundfläche herum
+  (`DetailRequest.onCell`). Gezeichnet werden die Zellen dann von der Vorschau
+  selbst (`DetailOptions.cells`), nicht mehr vom Modell.
+- _Speichern_ legt nur Abweichungen vom Katalog in `localStorage`
+  (`bgvr.elementTweaks`); _Zurücksetzen_ holt den Katalogstand zurück.
+- Ganz unten: **_Alle Anpassungen kopieren_** — JSON mit Name,
+  Grundfläche, `shiftMetres` und `blockedCells` samt `blockedBefore`, Zellen
+  als `'ix,iz'` ab der Nordwestecke der Grundfläche, nach Süden gedreht.
+
+**Das ist ein Werkzeug zum Einmessen, kein Teil des Spiels**: In der Welt
+gilt, was im Katalog steht. Wer die kopierte Liste bekommt, überträgt sie in
+`elementCatalog.ts`/`natureCatalog.ts` (`ElementPart.at` für die
+Verschiebung; eine Belegung, die kein Rechteck um die Mitte ist, braucht dafür
+noch eine Sperre je Zelle in `placeElement`). Der _Gitterboden_-Schalter fehlt
+auf diesen Seiten: Das Raster liegt schon unter dem Ding (gemeldet: _„Die
+Option mit dem Gitterboden verstehe ich nicht. Es ist bereits ein gitterboden
+angezeigt."_).
 
 **Seit Ende September 2026 heißt er _Katalog_** — gewünscht: _„das Menü
 „Möbel" dahingehend erweitern bzw. auch umbenennen, dass es wie bei Sims der

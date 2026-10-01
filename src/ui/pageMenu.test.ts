@@ -2,8 +2,14 @@
 import { PageMenu, cssColor } from './PageMenu';
 import { MenuNav } from './menuNav';
 import { catalogRecall } from './menuRecall';
-import type { MenuEntry } from './menu';
-import type { DetailFacts, DetailRequest, DetailView, PagePreviewLayer } from './previewGrid';
+import type { DetailTweak, DetailTweakSpec, MenuEntry } from './menu';
+import type {
+  DetailFacts,
+  DetailOptions,
+  DetailRequest,
+  DetailView,
+  PagePreviewLayer,
+} from './previewGrid';
 
 /**
  * **Das Menü als Seite** (`PageMenu.ts`): derselbe Baum wie am Handgelenk,
@@ -393,6 +399,7 @@ class FakeLayer implements PagePreviewLayer {
     // Rückruf: So lässt sich nachstellen, dass die gemessenen Zahlen erst
     // nach dem Aufschlagen ankommen.
     this.onFacts = (facts) => request.onFacts(facts);
+    this.onCell = (key) => request.onCell?.(key);
     const view: FakeDetail = {
       id: request.id,
       options: [],
@@ -417,11 +424,13 @@ class FakeLayer implements PagePreviewLayer {
   readonly details: FakeDetail[] = [];
   /** Der Rückruf der zuletzt bestellten Vorschau — für Nachschlag im Test. */
   onFacts: ((facts: DetailFacts) => void) | null = null;
+  /** Und der fürs Antippen einer Zelle (`DetailCells.edit`). */
+  onCell: ((key: string) => void) | null = null;
 }
 
 interface FakeDetail extends DetailView {
   id: string;
-  options: { floor: boolean; bounds: boolean; clip: string | null }[];
+  options: DetailOptions[];
   gone: boolean;
 }
 
@@ -1201,6 +1210,139 @@ describe('Das ⓘ hinter aufgeklappten Fächern', () => {
     expect(title(menu)).toBe('Tile 77');
     menu.setRoot(withDetails());
     expect(title(menu)).toBe('Tile 77');
+    menu.dispose();
+  });
+});
+
+/**
+ * **Ein Spielelement anpassen** (`MenuDetail.tweak`): verschieben, Zellen von
+ * oben umtippen, speichern, alles kopieren. Gewünscht: _„in der detailliert
+ * eine checkbox haben um die Modelle zu verschieben"_, _„besetzte boden Kacheln
+ * anpassen"_ und _„einen Button um die Anpassungen alle zu kopieren"_.
+ */
+describe('Ein Spielelement auf der Detailseite anpassen', () => {
+  /** Ein Speicher wie `elementTweaks.ts`, nur im Test. */
+  function spec(store: Map<string, DetailTweak>): DetailTweakSpec {
+    const preset: DetailTweak = { shift: [0, 0], cells: ['0,0'] };
+    return {
+      cols: 1,
+      rows: 1,
+      step: 0.25,
+      load: () => store.get('tree') ?? preset,
+      preset: () => preset,
+      save: (tweak) => {
+        if (tweak) store.set('tree', tweak);
+        else store.delete('tree');
+      },
+      count: () => store.size,
+      exportAll: () => JSON.stringify([...store.entries()]),
+    };
+  }
+
+  function treeMenu(layer: FakeLayer, store: Map<string, DetailTweak>): PageMenu {
+    const menu = new PageMenu({ host });
+    menu.setPreviews(layer);
+    menu.setRoot([
+      {
+        id: 'nature',
+        label: 'Natur',
+        grid: true,
+        children: [
+          {
+            id: 'tree',
+            label: 'Schmaler Laubbaum',
+            preview: 'element:tree',
+            full: true,
+            detail: { preview: 'element-cells:tree', facts: [], tweak: spec(store) },
+          },
+        ],
+      },
+    ]);
+    menu.openSubmenu('nature');
+    info(menu, 'tree').click();
+    return menu;
+  }
+
+  function button(menu: PageMenu, label: string): HTMLButtonElement {
+    const found = [
+      ...menu.element.querySelectorAll<HTMLButtonElement>('.pmenu__detail button'),
+    ].find((one) => one.textContent?.includes(label) || one.getAttribute('aria-label') === label);
+    if (!found) throw new Error(`Kein Knopf: ${label}`);
+    return found;
+  }
+
+  function last(layer: FakeLayer): DetailOptions {
+    return layer.details.at(-1)!.options.at(-1)!;
+  }
+
+  it('zeigt keinen Gitterboden, aber die Zellen — und die Schalter zum Anpassen', () => {
+    const layer = new FakeLayer();
+    const menu = treeMenu(layer, new Map());
+    expect(button(menu, 'Gitterboden').hidden).toBe(true);
+    expect(button(menu, 'Modell verschieben').hidden).toBe(false);
+    expect(button(menu, 'Belegte Zellen anpassen').hidden).toBe(false);
+    expect(last(layer).cells).toEqual({ cols: 1, rows: 1, blocked: ['0,0'], edit: false });
+    expect(last(layer).shift).toEqual([0, 0]);
+    menu.dispose();
+  });
+
+  it('verschiebt in halben Zellen, erst mit dem Schalter, und speichert den Unterschied', () => {
+    const layer = new FakeLayer();
+    const store = new Map<string, DetailTweak>();
+    const menu = treeMenu(layer, store);
+    const move = menu.element.querySelector<HTMLElement>('.pmenu__move')!;
+    expect(move.hidden).toBe(true);
+    button(menu, 'Modell verschieben').click();
+    expect(move.hidden).toBe(false);
+    button(menu, 'X (West/Ost) +').click();
+    button(menu, 'X (West/Ost) +').click();
+    button(menu, 'Y (hinten/vorn) −').click();
+    expect(last(layer).shift).toEqual([0.5, -0.25]);
+    expect(move.textContent).toContain('+0,50 m');
+    expect(move.textContent).toContain('−0,25 m');
+    expect(menu.element.querySelector('.pmenu__tweakline')!.textContent).toBe('Nicht gespeichert');
+    button(menu, 'Speichern').click();
+    expect(store.get('tree')!.shift).toEqual([0.5, -0.25]);
+    expect(button(menu, 'Speichern').disabled).toBe(true);
+    menu.dispose();
+  });
+
+  it('tippt von oben Zellen um — und nur, solange der Schalter an ist', () => {
+    const layer = new FakeLayer();
+    const store = new Map<string, DetailTweak>();
+    const menu = treeMenu(layer, store);
+    layer.onCell!('1,0');
+    expect(last(layer).cells!.blocked).toEqual(['0,0']);
+    button(menu, 'Belegte Zellen anpassen').click();
+    expect(last(layer).cells!.edit).toBe(true);
+    layer.onCell!('1,0');
+    layer.onCell!('0,0');
+    expect(last(layer).cells!.blocked).toEqual(['1,0']);
+    button(menu, 'Speichern').click();
+    expect(store.get('tree')!.cells).toEqual(['1,0']);
+    // Zurücksetzen holt den Katalog zurück — gespeichert erst mit Speichern.
+    button(menu, 'Zurücksetzen').click();
+    expect(last(layer).cells!.blocked).toEqual(['0,0']);
+    expect(store.get('tree')!.cells).toEqual(['1,0']);
+    menu.dispose();
+  });
+
+  it('kopiert alle Anpassungen auf einmal', async () => {
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: async (text: string) => void written.push(text) },
+      configurable: true,
+    });
+    const layer = new FakeLayer();
+    const store = new Map<string, DetailTweak>([['tree', { shift: [0.25, 0], cells: ['0,0'] }]]);
+    const menu = treeMenu(layer, store);
+    const copy = button(menu, 'Alle Anpassungen kopieren');
+    expect(copy.textContent).toContain('(1)');
+    copy.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(written).toEqual([JSON.stringify([...store.entries()])]);
+    expect(menu.element.querySelector('.pmenu__note')!.textContent).toBe('1 Anpassung kopiert.');
+    Reflect.deleteProperty(navigator, 'clipboard');
     menu.dispose();
   });
 });

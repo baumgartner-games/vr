@@ -644,6 +644,73 @@
 .pmenu__opts .pmenu__row {
   text-align: left;
 }
+/* Was eine Seite nicht anbietet, steht nicht da — auch eine Schalterzeile. */
+.pmenu__opts [hidden],
+.pmenu__export[hidden] {
+  display: none;
+}
+
+/* **Anpassen eines Spielelements** (`MenuDetail.tweak`): zwei Achsen mit
+   Minus und Plus, darunter Stand, Zurücksetzen und Speichern. */
+.pmenu__move {
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(140, 170, 230, 0.05);
+  border-radius: 12px;
+}
+.pmenu__axis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pmenu__axislabel {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pmenu__axisval {
+  min-width: 72px;
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.pmenu__tweak {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.pmenu__tweakline {
+  flex: 1;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pmenu__tweakline.is-dirty {
+  color: var(--accent);
+}
+.pmenu__btn {
+  flex: none;
+  height: 38px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.12);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pmenu__btn--main {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #10141c;
+}
+.pmenu__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .pmenu__clips {
   display: flex;

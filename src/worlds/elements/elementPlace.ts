@@ -1,4 +1,4 @@
-import { footprintCellKeys } from '../nav/cellGrid';
+import { CELL, footprintCellKeys } from '../nav/cellGrid';
 import { elementById, type GameElement } from './elementCatalog';
 
 /**
@@ -24,7 +24,10 @@ export interface ElementSpot {
   readonly id: string;
   /** Welches Element (`elementCatalog.ELEMENTS`). */
   readonly element: string;
-  /** Die Kachel der Nordwestecke der (gedrehten) Grundfläche. */
+  /**
+   * Die Kachel der Nordwestecke der (gedrehten) Grundfläche — bei einem
+   * Element auf Zellen (`onCells`) auch eine halbe.
+   */
   readonly x: number;
   readonly z: number;
   /** Wohin die Vorderseite schaut; ohne Angabe nach Süden. */
@@ -105,13 +108,33 @@ export function spotCentre(spot: ElementSpot): { x: number; z: number } {
   return { x: spot.x + w / 2, z: spot.z + d / 2 };
 }
 
-/** Die belegten Kacheln als `'x,z'`. */
+/**
+ * **Ob ein Element auf Zellen steht und nicht auf Kacheln** — seine
+ * Grundfläche ist kein Vielfaches einer Kachel (`GameElement.tiles`
+ * `[0.5, 0.5]`: ein schmaler Baum auf einer Zelle). Dann rastet es je Zelle
+ * ein (`spotAround`), und die Stelle darf auf einer halben Kachel anfangen.
+ */
+export function onCells(element: GameElement): boolean {
+  return element.tiles.some((one) => !Number.isInteger(one));
+}
+
+/**
+ * Die belegten Kacheln als `'x,z'` — bei einem Element auf Zellen (`onCells`)
+ * die Kachel, in der seine Zelle liegt.
+ */
 export function spotTiles(spot: ElementSpot): string[] {
   const [w, d] = spotSize(spot);
   const out: string[] = [];
-  for (let dz = 0; dz < d; dz++)
-    for (let dx = 0; dx < w; dx++) out.push(`${spot.x + dx},${spot.z + dz}`);
+  const [x0, z0] = [Math.floor(spot.x), Math.floor(spot.z)];
+  const [x1, z1] = [Math.ceil(spot.x + w), Math.ceil(spot.z + d)];
+  for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) out.push(`${x},${z}`);
   return out;
+}
+
+/** Ob ein Punkt (Meter) auf der Grundfläche der Stelle liegt. */
+export function spotCovers(spot: ElementSpot, x: number, z: number): boolean {
+  const [w, d] = spotSize(spot);
+  return x >= spot.x && x < spot.x + w && z >= spot.z && z < spot.z + d;
 }
 
 /**
@@ -209,7 +232,9 @@ export function yawFace(yaw: number): Face {
  * **Die Stelle um einen Punkt** — für ein Element, das jemand hinstellt, statt
  * dass ein Plan es bestellt: Der Punkt (in Metern) ist, wo es losgelassen
  * wurde, und die Stelle ist die, deren Mitte ihm am nächsten liegt. Für eine
- * Kachel ist das die Kachel, auf die der Punkt fällt.
+ * Kachel ist das die Kachel, auf die der Punkt fällt — und für ein Element auf
+ * Zellen (`onCells`) die Zelle: Ein schmaler Baum steht auf jeder der vier
+ * Zellen einer Kachel.
  */
 export function spotAround(
   id: string,
@@ -220,7 +245,9 @@ export function spotAround(
 ): ElementSpot {
   const probe: ElementSpot = { id, element, x: 0, z: 0, face };
   const [w, d] = spotSize(probe);
-  return { ...probe, x: Math.round(x - w / 2), z: Math.round(z - d / 2) };
+  const step = onCells(spotElement(probe)) ? CELL : 1;
+  const snap = (value: number): number => Math.round(value / step) * step;
+  return { ...probe, x: snap(x - w / 2), z: snap(z - d / 2) };
 }
 
 /**

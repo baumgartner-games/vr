@@ -132,8 +132,12 @@ export class PlaceGrid {
    * `limit` hebt die Grenze für eine gezogene Fläche (`areaPaint.ts`): Unter
    * einem Möbel sind es nie mehr als `MAX_TILES`, unter einem Boden von
    * zwanzig mal zwanzig schon.
+   *
+   * `size` ist die Kantenlänge einer Fläche, in Metern: eine Kachel, oder
+   * eine Zelle für ein Element, das je Zelle einrastet (ein schmaler Baum,
+   * `elementPlace.onCells`).
    */
-  show(tiles: readonly GridTile[], y: number, limit = MAX_TILES): void {
+  show(tiles: readonly GridTile[], y: number, limit = MAX_TILES, size = TILE): void {
     const count = Math.min(tiles.length, limit);
     if (count === 0 || !Number.isFinite(y)) {
       this.hide();
@@ -161,6 +165,7 @@ export class PlaceGrid {
       quad.visible = index < count && tile !== undefined;
       if (!tile) continue;
       quad.position.set(tile.x, y + LIFT, tile.z);
+      quad.scale.set(size / TILE, 1, size / TILE);
       // **Eine halbe Kachel als Dreieck** — der Belag unter einer Wand unter
       // 45° bekommt nur die eine Hälfte, und die Vorschau zeigt genau die.
       const half = tile.empty ? this.half(tile.empty) : null;

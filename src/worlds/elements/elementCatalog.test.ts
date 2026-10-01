@@ -64,9 +64,13 @@ describe('Spielelemente — der Katalog', () => {
 
   it('hat eine Grundfläche und einen Körper, und Möbel mit Zweck sind zu hoch zum Draufspringen', () => {
     for (const element of ELEMENTS) {
-      expect(element.tiles[0]).toBeGreaterThanOrEqual(1);
-      expect(element.tiles[1]).toBeGreaterThanOrEqual(1);
-      expect(Number.isInteger(element.tiles[0]) && Number.isInteger(element.tiles[1])).toBe(true);
+      // Ganze Kacheln — oder, für die schmalen Bäume, eine Zelle
+      // (`elementPlace.onCells`): immer ein Vielfaches einer halben Kachel.
+      expect(element.tiles[0]).toBeGreaterThanOrEqual(0.5);
+      expect(element.tiles[1]).toBeGreaterThanOrEqual(0.5);
+      expect(Number.isInteger(element.tiles[0] * 2) && Number.isInteger(element.tiles[1] * 2)).toBe(
+        true,
+      );
       expect(element.height).toBeGreaterThanOrEqual(0.5);
       if (element.kind !== null)
         expect({ id: element.id, h: element.height >= 1.4 }).toEqual({ id: element.id, h: true });

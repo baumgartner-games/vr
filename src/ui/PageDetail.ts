@@ -3,7 +3,7 @@ import { createLighting } from '../worlds/shared/environment';
 import { wheelPixels, wheelStep } from '../core/wheelZoom';
 import { DETAIL_POSE, detailDrag, detailGutter, detailZoom, type DetailPose } from './detailDrag';
 import { DETAIL_OVERLAY, PREVIEW_RETRY } from './previewGrid';
-import type { DetailFacts, DetailOptions, DetailView } from './previewGrid';
+import type { DetailCells, DetailFacts, DetailOptions, DetailView } from './previewGrid';
 import type { MenuModelFactory } from './WristMenu';
 
 /**
@@ -62,6 +62,20 @@ const FLOOR_COLOR = 0x5d7898;
 const FLOOR_MID = 0x8fb4d8;
 const BOUNDS_COLOR = 0x7fd6a6;
 
+/** Die Zellen der Detailseite — dieselben Farben wie unter dem Modell (`elementCellsOverlay`). */
+const CELL_SIZE = 0.5;
+const CELLS_BLOCKED = 0xe0463c;
+const CELLS_LINE = 0x8a93a3;
+const CELLS_TILE = 0xd0d6e0;
+const CELLS_FOOT = 0xf0b44a;
+const CELLS_FRONT = 0x46b86a;
+/** Wie viele Zellen Rand um die Grundfläche zum Antippen bleiben. */
+const CELLS_MARGIN = 2;
+/** So durchsichtig ist das Ding, solange man darunter Zellen tippt. */
+const GHOST_OPACITY = 0.22;
+/** Weiter als so viele Bildpunkte gewischt ist kein Tippen mehr. */
+const TAP_SLOP = 10;
+
 /**
  * **Woher die Bewegungen zu einer Vorschau-Id kommen.**
  *
@@ -77,6 +91,8 @@ export type MenuClipSource = (id: string, height: number | null) => Promise<THRE
 export class PageDetail implements DetailView {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(FOV, 1, 0.01, 500);
+  /** **Von oben, ohne Fluchtpunkt** — solange Zellen getippt werden (`DetailCells.edit`). */
+  private readonly top = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 500);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly lighting: THREE.Group;
   /** Der Kasten über der Mitte: Er nimmt die Gesten, der Saum daneben nicht. */
@@ -88,6 +104,15 @@ export class PageDetail implements DetailView {
   private action: THREE.AnimationAction | null = null;
   private floor: THREE.GridHelper | null = null;
   private bounds: THREE.Box3Helper | null = null;
+  /** Die selbst gezeichneten Zellen (`DetailOptions.cells`) und wofür sie gebaut sind. */
+  private cells: THREE.Group | null = null;
+  private cellsKey = '';
+  /** Wo die Teile des Modells ohne Verschiebung stehen. */
+  private readonly bases = new Map<THREE.Object3D, THREE.Vector3>();
+  /** Die echten Materialien, solange das Ding ein Geist ist. */
+  private readonly ghosts = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+  /** Ein Finger, der vielleicht nur tippt: wo er aufsetzte und ob er wischte. */
+  private tap: { id: number; x: number; y: number; moved: boolean } | null = null;
   /** Die Hülle in Weltmaßen — Gitter, Kasten und Kamera rechnen daran. */
   private readonly box = new THREE.Box3();
   private readonly target = new THREE.Vector3();
@@ -119,6 +144,7 @@ export class PageDetail implements DetailView {
     private readonly factory: MenuModelFactory,
     private readonly clipsOf: MenuClipSource | null,
     private readonly onFacts: (facts: DetailFacts) => void,
+    private readonly onCell: (key: string) => void = () => {},
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
@@ -152,6 +178,9 @@ export class PageDetail implements DetailView {
     this.applyFloor();
     this.applyBounds();
     this.applyClip();
+    this.applyShift();
+    this.applyCells();
+    this.applyGhost();
   }
 
   dispose(): void {
@@ -170,6 +199,8 @@ export class PageDetail implements DetailView {
     this.mixer = null;
     this.dropFloor();
     this.dropBounds();
+    this.dropCells();
+    this.unghost();
     // **Das Modell selbst wird nicht freigegeben**: Geometrie und Textur
     // gehören der Vorlage im Speicher und allen anderen Kopien
     // (`core/kaykitModel.ts`, `userData.sharedAssets`). Weg ist hier nur der
@@ -193,6 +224,11 @@ export class PageDetail implements DetailView {
     if (!this.fit()) return;
     if (!this.model) this.take();
     this.mixer?.update(dt);
+    if (this.editing()) {
+      this.placeTop();
+      this.renderer.render(this.scene, this.top);
+      return;
+    }
     this.place();
     this.renderer.render(this.scene, this.camera);
   };
@@ -263,6 +299,35 @@ export class PageDetail implements DetailView {
       this.target.z + Math.cos(this.pose.yaw) * cos * dist,
     );
     this.camera.lookAt(this.target);
+  }
+
+  /** Ob gerade Zellen getippt werden — dann von oben und als Geist. */
+  private editing(): boolean {
+    return (this.options.cells?.edit ?? false) && this.model !== null;
+  }
+
+  /**
+   * **Die Kamera senkrecht über der Grundfläche**, orthogonal: Norden oben,
+   * und so weit offen, dass die Grundfläche samt Rand ins Bild passt.
+   */
+  private placeTop(): void {
+    const cells = this.options.cells;
+    const model = this.model;
+    if (!cells || !model) return;
+    const spanX = (cells.cols + 2 * CELLS_MARGIN) * CELL_SIZE;
+    const spanZ = (cells.rows + 2 * CELLS_MARGIN) * CELL_SIZE;
+    const aspect = this.width / Math.max(this.height, 1);
+    const half = (Math.max(spanZ / 2, spanX / 2 / aspect) * 1.08) / this.pose.zoom;
+    this.top.left = -half * aspect;
+    this.top.right = half * aspect;
+    this.top.top = half;
+    this.top.bottom = -half;
+    this.top.updateProjectionMatrix();
+    model.getWorldPosition(_centre);
+    this.top.up.set(0, 0, -1);
+    this.top.position.set(_centre.x, _centre.y + 100, _centre.z);
+    this.top.lookAt(_centre);
+    this.top.updateMatrixWorld();
   }
 
   // --- was gemessen wurde ---------------------------------------------------
@@ -351,6 +416,137 @@ export class PageDetail implements DetailView {
   }
 
   /**
+   * **Das Modell verschieben** (`DetailOptions.shift`) — jedes Teil, nicht
+   * die Anzeigen daneben: Die Zellen bleiben, wo sie in der Welt lägen, und
+   * das Ding rückt über ihnen.
+   */
+  private applyShift(): void {
+    const model = this.model;
+    if (!model) return;
+    const [sx, sz] = this.options.shift ?? [0, 0];
+    for (const child of model.children) {
+      if (child.userData[DETAIL_OVERLAY]) continue;
+      let base = this.bases.get(child);
+      if (!base) {
+        base = child.position.clone();
+        this.bases.set(child, base);
+      }
+      child.position.set(base.x + sx, base.y, base.z + sz);
+    }
+  }
+
+  /**
+   * **Die Zellen selbst zeichnen** (`DetailOptions.cells`) — und die Anzeige,
+   * die das Modell mitbringt, so lange ausblenden. Gebaut wird nur neu, wenn
+   * sich etwas daran geändert hat.
+   */
+  private applyCells(): void {
+    const model = this.model;
+    const cells = this.options.cells ?? null;
+    if (model) {
+      for (const child of model.children) {
+        if (child.userData[DETAIL_OVERLAY] && child !== this.cells) child.visible = cells === null;
+      }
+    }
+    if (!cells || !model) {
+      this.dropCells();
+      return;
+    }
+    const key = `${cells.cols}x${cells.rows}|${cells.edit ? 1 : 0}|${[...cells.blocked].sort().join(' ')}`;
+    if (key === this.cellsKey && this.cells) return;
+    this.dropCells();
+    this.cells = cellsGroup(cells);
+    model.add(this.cells);
+    this.cellsKey = key;
+  }
+
+  private dropCells(): void {
+    if (!this.cells) return;
+    this.cells.removeFromParent();
+    this.cells.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.geometry) return;
+      mesh.geometry.dispose();
+      disposeMaterial(mesh.material);
+    });
+    this.cells = null;
+    this.cellsKey = '';
+  }
+
+  /**
+   * **Ein Geist, solange Zellen getippt werden** — durchsichtig, damit man
+   * die Zellen unter der Krone sieht. Die Materialien gehören der Vorlage und
+   * allen Kopien; getauscht wird deshalb nur, was an diesem Netz hängt, und
+   * danach zurück.
+   */
+  private applyGhost(): void {
+    if (!this.editing()) {
+      this.unghost();
+      return;
+    }
+    const model = this.model;
+    if (!model || this.ghosts.size > 0) return;
+    const visit = (object: THREE.Object3D): void => {
+      if (object.userData[DETAIL_OVERLAY]) return;
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh && mesh.material) {
+        this.ghosts.set(mesh, mesh.material);
+        const ghost = (one: THREE.Material): THREE.Material => {
+          const copy = one.clone();
+          copy.transparent = true;
+          copy.opacity = GHOST_OPACITY;
+          copy.depthWrite = false;
+          return copy;
+        };
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(ghost)
+          : ghost(mesh.material);
+      }
+      for (const child of object.children) visit(child);
+    };
+    visit(model);
+  }
+
+  private unghost(): void {
+    for (const [mesh, material] of this.ghosts) {
+      disposeMaterial(mesh.material);
+      mesh.material = material;
+    }
+    this.ghosts.clear();
+  }
+
+  /**
+   * **Welche Zelle unter dem Finger liegt** — von der Kamera oben senkrecht
+   * hinunter auf den Boden des Modells, als `'ix,iz'` ab der Nordwestecke der
+   * Grundfläche; `null` daneben.
+   */
+  private cellAt(clientX: number, clientY: number): string | null {
+    const cells = this.options.cells;
+    const model = this.model;
+    if (!cells || !model) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    _ndc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.placeTop();
+    _ray.setFromCamera(_ndc, this.top);
+    model.getWorldPosition(_centre);
+    _plane.set(_upward, -_centre.y);
+    if (!_ray.ray.intersectPlane(_plane, _hit)) return null;
+    model.worldToLocal(_hit);
+    const ix = Math.floor((_hit.x + (cells.cols * CELL_SIZE) / 2) / CELL_SIZE);
+    const iz = Math.floor((_hit.z + (cells.rows * CELL_SIZE) / 2) / CELL_SIZE);
+    const inside =
+      ix >= -CELLS_MARGIN &&
+      ix < cells.cols + CELLS_MARGIN &&
+      iz >= -CELLS_MARGIN &&
+      iz < cells.rows + CELLS_MARGIN;
+    return inside ? `${ix},${iz}` : null;
+  }
+
+  /**
    * Die gewählte Bewegung spielen — oder keine, und dann steht das Modell
    * wieder so, wie es in der Datei liegt.
    */
@@ -381,6 +577,11 @@ export class PageDetail implements DetailView {
     this.grab.setPointerCapture(event.pointerId);
     this.touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.pinch = 0;
+    // Nur ein einzelner Finger kann tippen; ein zweiter macht daraus ein Kneifen.
+    this.tap =
+      this.touches.size === 1
+        ? { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
+        : null;
   };
 
   private readonly onMove = (event: PointerEvent): void => {
@@ -390,6 +591,9 @@ export class PageDetail implements DetailView {
     const dy = event.clientY - last.y;
     last.x = event.clientX;
     last.y = event.clientY;
+    const tap = this.tap;
+    if (tap && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > TAP_SLOP)
+      tap.moved = true;
     if (this.touches.size >= 2) {
       // **Zwei Finger kneifen und drehen nicht.** Wer mit zwei Fingern
       // zusammenzieht, meint den Zoom; ihn nebenher auch drehen zu lassen,
@@ -399,10 +603,20 @@ export class PageDetail implements DetailView {
       this.pinch = span;
       return;
     }
+    // Von oben dreht nichts: Die Zellen sollen stillhalten, während man tippt.
+    if (this.editing()) return;
     this.pose = detailDrag(this.pose, dx, dy, this.width, this.height);
   };
 
   private readonly onUp = (event: PointerEvent): void => {
+    const tap = this.tap;
+    if (tap && tap.id === event.pointerId && !tap.moved && event.type === 'pointerup') {
+      this.tap = null;
+      if (this.editing()) {
+        const key = this.cellAt(event.clientX, event.clientY);
+        if (key !== null) this.onCell(key);
+      }
+    }
     this.touches.delete(event.pointerId);
     this.pinch = 0;
     if (this.grab.hasPointerCapture(event.pointerId)) {
@@ -482,6 +696,101 @@ function hasOverlay(object: THREE.Object3D): boolean {
   return found;
 }
 
+/**
+ * **Die Zellen unter einem Element** — gesperrte rot, darum Zell- und
+ * Kachellinien, die Grundfläche als Rahmen und vorn ein Pfeil. In Metern um
+ * die Mitte der Grundfläche, wie das Modell (`elementView.elementModel`).
+ * Beim Tippen liegt alles über dem Geist (`depthTest: false`).
+ */
+function cellsGroup(cells: DetailCells): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'detail-cells';
+  group.userData[DETAIL_OVERLAY] = true;
+  const over = cells.edit;
+  const w = cells.cols * CELL_SIZE;
+  const d = cells.rows * CELL_SIZE;
+  const x = (ix: number): number => -w / 2 + ix * CELL_SIZE;
+  const z = (iz: number): number => -d / 2 + iz * CELL_SIZE;
+  const y = 0.004;
+
+  const inset = 0.03;
+  const quad = new THREE.PlaneGeometry(CELL_SIZE - 2 * inset, CELL_SIZE - 2 * inset);
+  quad.rotateX(-Math.PI / 2);
+  const fill = new THREE.MeshBasicMaterial({
+    color: CELLS_BLOCKED,
+    transparent: true,
+    opacity: over ? 0.7 : 0.55,
+    depthWrite: false,
+    depthTest: !over,
+    side: THREE.DoubleSide,
+  });
+  // Alle Zellen teilen Geometrie und Material; doppelt freigegeben schadet nicht.
+  for (const key of cells.blocked) {
+    const [ix, iz] = key.split(',').map(Number) as [number, number];
+    const mesh = new THREE.Mesh(quad, fill);
+    mesh.position.set(x(ix) + CELL_SIZE / 2, y, z(iz) + CELL_SIZE / 2);
+    mesh.renderOrder = 10;
+    group.add(mesh);
+  }
+
+  const thin: number[] = [];
+  const bold: number[] = [];
+  const m = CELLS_MARGIN;
+  for (let ix = -m; ix <= cells.cols + m; ix++) {
+    (ix % 2 === 0 ? bold : thin).push(x(ix), y * 2, z(-m), x(ix), y * 2, z(cells.rows + m));
+  }
+  for (let iz = -m; iz <= cells.rows + m; iz++) {
+    (iz % 2 === 0 ? bold : thin).push(x(-m), y * 2, z(iz), x(cells.cols + m), y * 2, z(iz));
+  }
+  const foot = [
+    [x(0), z(0), x(cells.cols), z(0)],
+    [x(cells.cols), z(0), x(cells.cols), z(cells.rows)],
+    [x(cells.cols), z(cells.rows), x(0), z(cells.rows)],
+    [x(0), z(cells.rows), x(0), z(0)],
+  ].flatMap(([ax, az, bx, bz]) => [ax!, y * 3, az!, bx!, y * 3, bz!]);
+  for (const [points, color] of [
+    [thin, CELLS_LINE],
+    [bold, CELLS_TILE],
+    [foot, CELLS_FOOT],
+  ] as const) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    const lines = new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ color, depthTest: !over, transparent: over }),
+    );
+    lines.renderOrder = 11;
+    group.add(lines);
+  }
+
+  const arrow = new THREE.Shape();
+  arrow.moveTo(-0.15, 0);
+  arrow.lineTo(0.15, 0);
+  arrow.lineTo(0, 0.25);
+  arrow.closePath();
+  const tip = new THREE.ShapeGeometry(arrow);
+  tip.rotateX(Math.PI / 2);
+  const front = new THREE.Mesh(
+    tip,
+    new THREE.MeshBasicMaterial({
+      color: CELLS_FRONT,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: !over,
+    }),
+  );
+  front.position.set(0, y * 3, d / 2 + 0.08);
+  front.renderOrder = 12;
+  group.add(front);
+  return group;
+}
+
+const _centre = new THREE.Vector3();
+const _hit = new THREE.Vector3();
+const _ndc = new THREE.Vector2();
+const _upward = new THREE.Vector3(0, 1, 0);
+const _plane = new THREE.Plane();
+const _ray = new THREE.Raycaster();
 const _frame = new THREE.Box3();
 const _zero = new THREE.Vector3();
 const _one = new THREE.Vector3(1, 1, 1);

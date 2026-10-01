@@ -1,6 +1,15 @@
 import { allFolders, elementById, FURNITURE_FOLDERS, hasElement } from './elementCatalog';
 import { elementFacts, footprintRows, CELL_BLOCKED } from './elementFacts';
-import { FACES, spotCells, spotFootprintCells, type ElementSpot } from './elementPlace';
+import {
+  FACES,
+  onCells,
+  spotAround,
+  spotCells,
+  spotCentre,
+  spotFootprintCells,
+  spotTiles,
+  type ElementSpot,
+} from './elementPlace';
 import { NATURE_CATALOGUE, NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
 
 /** Ein Element an einer Stelle, nach `face` gedreht. */
@@ -9,6 +18,9 @@ function at(id: string, face: ElementSpot['face'] = 'S'): ElementSpot {
 }
 
 const TREES = NATURE_CATALOGUE.filter((id) => id.startsWith('tree-'));
+
+/** Die breiten Laubbäume — alle anderen stehen auf einer Zelle. */
+const WIDE = ['tree-leafy', 'tree-leafy-large', 'tree-umbrella'];
 
 describe('Natur im Katalog', () => {
   it('steht als eigener Bereich neben Haus und Restaurant, nach Art sortiert', () => {
@@ -41,8 +53,8 @@ describe('Natur im Katalog', () => {
     for (const element of NATURE_ELEMENTS) expect(element.kind).toBeNull();
   });
 
-  it('sperrt unter einem Baum nur den Stamm — 2 × 2 Zellen in der Mitte, in jeder Drehung', () => {
-    for (const id of TREES) {
+  it('sperrt unter einem breiten Laubbaum nur den Stamm — 2 × 2 Zellen in der Mitte, in jeder Drehung', () => {
+    for (const id of WIDE) {
       const [w, d] = elementById(id).tiles;
       expect(w * d).toBeGreaterThan(1);
       for (const face of FACES) {
@@ -62,12 +74,40 @@ describe('Natur im Katalog', () => {
     }
   });
 
+  it('stellt alle anderen Bäume mittig auf eine einzige Zelle — und die rastet je Zelle ein', () => {
+    const narrow = TREES.filter((id) => !WIDE.includes(id));
+    expect(narrow.length).toBeGreaterThanOrEqual(8);
+    for (const id of narrow) {
+      const element = elementById(id);
+      expect({ id, tiles: element.tiles }).toEqual({ id, tiles: [0.5, 0.5] });
+      expect(onCells(element)).toBe(true);
+      for (const face of FACES) {
+        // Jede der vier Zellen einer Kachel ist eine eigene Stelle.
+        const spots = [
+          [4.2, 4.2],
+          [4.7, 4.2],
+          [4.2, 4.7],
+          [4.7, 4.7],
+        ].map(([x, z]) => spotAround(id, id, x!, z!, face));
+        const cells = spots.map((spot) => spotCells(spot));
+        expect(cells.map((one) => one.length)).toEqual([1, 1, 1, 1]);
+        expect(new Set(cells.flat()).size).toBe(4);
+        expect(cells.flat().sort()).toEqual(['8,8,0', '8,9,0', '9,8,0', '9,9,0']);
+        // Die Mitte des Stamms ist die Mitte der Zelle.
+        expect(spotCentre(spots[3]!)).toEqual({ x: 4.75, z: 4.75 });
+        for (const spot of spots) expect(spotTiles(spot)).toEqual(['4,4']);
+      }
+    }
+    for (const id of WIDE) expect(onCells(elementById(id))).toBe(false);
+  });
+
   it('lässt durch Gras und Blumen laufen, Sträucher und Steine sperren ihre Kachel', () => {
     for (const id of NATURE_CATALOGUE) {
       const cells = spotCells(at(id)).length;
       const [w, d] = elementById(id).tiles;
       if (id.startsWith('plant-')) expect({ id, cells }).toEqual({ id, cells: 0 });
-      else if (id.startsWith('tree-')) expect({ id, cells }).toEqual({ id, cells: 4 });
+      else if (WIDE.includes(id)) expect({ id, cells }).toEqual({ id, cells: 4 });
+      else if (id.startsWith('tree-')) expect({ id, cells }).toEqual({ id, cells: 1 });
       else expect({ id, cells }).toEqual({ id, cells: 4 * w * d });
     }
   });

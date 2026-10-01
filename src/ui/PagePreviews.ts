@@ -162,6 +162,7 @@ export class PagePreviews implements PagePreviewLayer {
         // von ihrem Objekt getrennt herumgereicht wird, findet ihr `this`
         // später nicht wieder (`eslint.config.js`, `unbound-method`).
         (facts) => request.onFacts(facts),
+        (key) => request.onCell?.(key),
       );
     } catch {
       // Kein Kontext, kein Bild — und das ist kein Grund, den Steckbrief nicht

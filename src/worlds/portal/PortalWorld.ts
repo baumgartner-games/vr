@@ -62,9 +62,10 @@ import {
   hasElement,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
-import { elementBlockedCells, elementFacts } from '../elements/elementFacts';
+import { elementBlockedCells, elementFacts, footprintLabel } from '../elements/elementFacts';
 import { catalogSearch, type CatalogRow } from '../elements/catalogSearch';
 import { elementCellsOverlay, elementModel } from '../elements/elementView';
+import { elementTweakSpec } from '../elements/elementTweaks';
 import { KaykitDishView } from '../elements/dishView';
 import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipes';
 import { heldItemOf } from '../elements/dishHold';
@@ -72,7 +73,9 @@ import { loadItemModel } from '../elements/itemTemplate';
 
 import {
   faceYaw,
+  onCells,
   spotAround,
+  spotFootprintCells,
   spotTiles,
   yawFace,
   type CarriedElement,
@@ -172,6 +175,7 @@ import {
   eighthYaw,
   gridPose,
   isDiagonal,
+  MAX_TILES,
   placesOnGrid,
   quarterYaw,
   tilesCovered,
@@ -458,7 +462,7 @@ import {
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion, type PlayerPlane } from '../../physics/PhysicsLocomotion';
-import type { CellGrid } from '../nav/cellGrid';
+import { CELL, type CellGrid } from '../nav/cellGrid';
 import { HitboxView } from '../../physics/HitboxView';
 import {
   MOVE_PAD_LABELS,
@@ -4180,14 +4184,16 @@ export class PortalWorld implements World {
       const blocked = elementBlockedCells(element);
       const cells =
         blocked === 4 * w * d
-          ? `${2 * w} × ${2 * d} Zellen gesperrt`
+          ? onCells(element)
+            ? 'gesperrt'
+            : `${2 * w} × ${2 * d} Zellen gesperrt`
           : blocked === 0
             ? 'begehbar'
             : `${blocked} ${blocked === 1 ? 'Zelle' : 'Zellen'} gesperrt`;
       return {
         id: `${at}:${id}`,
         label: element.label,
-        caption: `${w} × ${d} Kachel · ${cells}`,
+        caption: `${footprintLabel(element)} · ${cells}`,
         accent,
         preview: `${ELEMENT_PREVIEW}${id}`,
         // **Vorratskisten erkennt man an der Ecke** — gewünscht statt eigener
@@ -4201,6 +4207,9 @@ export class PortalWorld implements World {
         detail: {
           preview: `${ELEMENT_CELLS}${id}`,
           facts: elementFacts(id),
+          // Verschieben, Zellen umtippen, speichern, alles kopieren
+          // (`elementTweaks.ts`) — zum Einmessen, bevor es in den Katalog geht.
+          tweak: elementTweakSpec(id),
           ...this.holdAction(ctx, id),
         },
         run: (hand: Handedness | null) => this.takeElement(ctx(), id, hand),
@@ -10993,6 +11002,16 @@ export class PortalWorld implements World {
       this.markReplaced([]);
       const face = yawFace(quarterYaw(yawOf(_quaternion)) + ELEMENT_HOLD);
       const spot = spotAround('', element.id, _point.x, _point.z, face);
+      // **Ein schmaler Baum leuchtet auf seiner Zelle** und nicht auf der
+      // ganzen Kachel (`onCells`) — er steht auf jeder der vier.
+      if (onCells(elementById(element.id))) {
+        const cells = spotFootprintCells(spot).map((key) => {
+          const [ix, iz] = key.split(',').map(Number) as [number, number];
+          return { x: (ix + 0.5) * CELL, z: (iz + 0.5) * CELL };
+        });
+        grid.show(cells, ctx.rig.getFloorY(), MAX_TILES, CELL);
+        return;
+      }
       grid.show(
         spotTiles(spot).map((tile) => {
           const [tx, tz] = tile.split(',').map(Number) as [number, number];

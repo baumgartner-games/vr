@@ -418,9 +418,14 @@ export function elementCellsOverlay(id: string): THREE.Group {
   group.name = `element-cells:${id}`;
   // Nicht mitgemessen: Die Maße auf der Detailseite sind die des Möbels.
   group.userData[DETAIL_OVERLAY] = true;
-  const probe: ElementSpot = { id, element: id, x: 0, z: 0 };
-  const [w, d] = spotSize(probe);
-  const shifted: ElementSpot = { ...probe, x: -w / 2, z: -d / 2 };
+  // **Gezeichnet an einer Stelle auf dem Gitter** (Nordwestecke 0, 0) und
+  // dann so verschoben, dass die Mitte der Grundfläche im Ursprung liegt wie
+  // beim Modell (`elementModel`). So liegen Zell- und Kachellinien da, wo sie
+  // in der Welt lägen — auch unter einem schmalen Baum, der mittig auf einer
+  // einzigen Zelle steht (`elementPlace.onCells`).
+  const shifted: ElementSpot = { id, element: id, x: 0, z: 0 };
+  const [w, d] = spotSize(shifted);
+  group.position.set(-w / 2, 0, -d / 2);
 
   const fill = new THREE.MeshBasicMaterial({
     color: CELLS_BLOCKED,
@@ -456,11 +461,12 @@ export function elementCellsOverlay(id: string): THREE.Group {
   through.renderOrder = 10;
   group.add(through);
 
-  // Das Gitter: eine Kachel Rand um die Grundfläche, Zellen fein, Kacheln kräftig.
-  const x0 = -w / 2 - 1;
-  const x1 = w / 2 + 1;
-  const z0 = -d / 2 - 1;
-  const z1 = d / 2 + 1;
+  // Das Gitter: eine Kachel Rand um die Kacheln der Grundfläche, Zellen fein,
+  // Kacheln kräftig.
+  const x0 = -1;
+  const x1 = Math.ceil(w) + 1;
+  const z0 = -1;
+  const z1 = Math.ceil(d) + 1;
   const thin: number[] = [];
   const bold: number[] = [];
   const y = CELLS_LIFT * 2;
@@ -494,7 +500,7 @@ export function elementCellsOverlay(id: string): THREE.Group {
     tip,
     new THREE.MeshBasicMaterial({ color: CELLS_FRONT, side: THREE.DoubleSide, depthWrite: false }),
   );
-  front.position.set(0, CELLS_LIFT * 3, d / 2 + 0.1);
+  front.position.set(w / 2, CELLS_LIFT * 3, d + 0.1);
   group.add(front);
   return group;
 }

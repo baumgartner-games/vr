@@ -2,7 +2,7 @@ import { GridPlan } from '../grid/gridPlan';
 import { CELL, CellGrid, navCellSource, type CellPos } from '../nav/cellGrid';
 import { PLAYER_PLANE_RADIUS, slideOnCells } from '../nav/planeMove';
 import { ELEMENTS } from './elementCatalog';
-import { FACES, spotCells, type ElementSpot } from './elementPlace';
+import { FACES, onCells, spotCells, spotElement, type ElementSpot } from './elementPlace';
 
 /**
  * **Die Füße gegen jedes Spielelement** — kein Element lässt jemanden hinein,
@@ -77,7 +77,8 @@ describe('Spielelemente — die Füße', () => {
     for (const spot of SPOTS) {
       const grid = gridWith(spot);
       const cells = spotCells(spot);
-      expect(cells.length).toBeGreaterThanOrEqual(4);
+      // Eine Kachel hat vier Zellen; ein schmaler Baum steht auf einer.
+      expect(cells.length).toBeGreaterThanOrEqual(onCells(spotElement(spot)) ? 1 : 4);
       for (const key of cells) {
         const [ix, iz] = key.split(',').map(Number) as [number, number];
         expect({ id: spot.id, solid: grid.cellSolid(ix, iz, 0) }).toEqual({
@@ -89,7 +90,9 @@ describe('Spielelemente — die Füße', () => {
   });
 
   it('lässt keinen 2 × 2-Block hinein — aus keiner der vier Richtungen', () => {
-    for (const spot of SPOTS) {
+    // Ein Baum auf einer Zelle ist schmaler als jeder Block: Hineinschieben
+    // lässt sich da nichts, nur daneben stehen.
+    for (const spot of SPOTS.filter((one) => !onCells(spotElement(one)))) {
       const grid = gridWith(spot);
       const b = box(spot);
       // Ein Block bei `cx` belegt `cx − 1` und `cx`: davor steht er bei

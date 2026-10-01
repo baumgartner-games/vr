@@ -6,7 +6,7 @@ import {
   type ElementPart,
   type GameElement,
 } from './elementCatalog';
-import { spotCells, spotFootprintCells, type ElementSpot } from './elementPlace';
+import { onCells, spotCells, spotFootprintCells, type ElementSpot } from './elementPlace';
 
 /**
  * **Der Steckbrief eines Spielelements** — was hinter dem ⓘ einer Kachel im
@@ -61,6 +61,19 @@ export function elementPurpose(element: GameElement): string {
       : 'Brett — schneidet, was man auflegt';
   }
   return KIND_WORDS[element.kind] ?? element.kind;
+}
+
+/**
+ * **Die Grundfläche in Worten** — `2 × 2 Kacheln`, `1 × 1 Kachel`, und für
+ * ein Element auf Zellen (`elementPlace.onCells`) in Zellen: `1 Zelle`.
+ */
+export function footprintLabel(element: GameElement): string {
+  const [w, d] = element.tiles;
+  if (onCells(element)) {
+    const [cw, cd] = [w * 2, d * 2];
+    return cw * cd === 1 ? '1 Zelle' : `${cw} × ${cd} Zellen`;
+  }
+  return `${w} × ${d} ${w * d === 1 ? 'Kachel' : 'Kacheln'}`;
 }
 
 /**
@@ -130,10 +143,7 @@ export function elementFacts(id: string): MenuFact[] {
   const blocked = elementBlockedCells(element);
   const facts: MenuFact[] = [
     { label: 'Id', value: element.id, copy: true },
-    {
-      label: 'Grundfläche',
-      value: `${w} × ${d} ${w * d === 1 ? 'Kachel' : 'Kacheln'} · ${metres(w)} × ${metres(d)}`,
-    },
+    { label: 'Grundfläche', value: `${footprintLabel(element)} · ${metres(w)} × ${metres(d)}` },
     {
       label: 'Zellen',
       value:

@@ -153,6 +153,45 @@ export interface MenuDetail {
     readonly sub: string;
     run(): void;
   };
+  /**
+   * **Anpassen und mitnehmen** — für ein Spielelement: das Modell verschieben,
+   * die gesperrten Zellen von oben umtippen, speichern, und alles kopieren
+   * (`worlds/elements/elementTweaks.ts`). Ohne Angabe gibt es das nicht.
+   *
+   * Eine Seite mit diesem Feld zeigt ihre Zellen selbst (`DetailOptions.cells`)
+   * und braucht deshalb den _Gitterboden_ nicht: Das Raster liegt schon unter
+   * dem Ding.
+   */
+  readonly tweak?: DetailTweakSpec;
+}
+
+/**
+ * **Ein Stand der Anpassungen** — Verschiebung in Metern (x Osten, z Süden)
+ * und die gesperrten Zellen als `'ix,iz'` ab der Nordwestecke der
+ * Grundfläche.
+ */
+export interface DetailTweak {
+  readonly shift: readonly [number, number];
+  readonly cells: readonly string[];
+}
+
+/** Was die Detailseite zum Anpassen eines Elements braucht. */
+export interface DetailTweakSpec {
+  /** Die Grundfläche in Zellen, Breite (x) × Tiefe (z). */
+  readonly cols: number;
+  readonly rows: number;
+  /** Wie weit ein Druck verschiebt, in Metern. */
+  readonly step: number;
+  /** Was gespeichert ist — ohne Anpassung der Katalog. */
+  load(): DetailTweak;
+  /** Wie es im Katalog steht. */
+  preset(): DetailTweak;
+  /** Speichern; `null` nimmt die Anpassung weg. */
+  save(tweak: DetailTweak | null): void;
+  /** Wie viele Elemente eine Anpassung haben. */
+  count(): number;
+  /** Alle Anpassungen als Text zum Mitnehmen. */
+  exportAll(): string;
 }
 
 /** **Die Marken einer Kachel** (`MenuEntry.mark`). */

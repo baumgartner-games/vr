@@ -7,11 +7,13 @@ import type { FurnitureFolder, GameElement } from './elementCatalog';
  * alles Natur sein kann und füge es hinzu. Bei Bäumen z.B. sollten wir nur den
  * Stamm als nicht betretbar machen."_
  *
- * **Unter der Krone geht man durch.** Ein Baum belegt so viele Kacheln, wie
- * seine Krone breit ist (`tiles`: dort fasst man ihn an, dort rastet er ein),
- * aber gesperrt ist nur der Stamm (`GameElement.solid`, 2 × 2 Zellen um die
- * Mitte). Sträucher, Steine und Holz sperren ihre Kachel wie ein Möbel; Gras,
- * Blumen und Pilze sperren nichts.
+ * **Unter der Krone geht man durch.** Die breiten Laubbäume (Laubbaum, Großer
+ * Laubbaum, Schirmbaum) belegen so viele Kacheln, wie ihre Krone breit ist
+ * (`tiles`: dort fasst man sie an, dort rasten sie ein), aber gesperrt ist nur
+ * der Stamm (`GameElement.solid`, 2 × 2 Zellen um die Mitte). **Alle anderen
+ * Bäume stehen auf einer einzigen Zelle** (`sapling`), mittig darauf, und
+ * rasten je Zelle ein. Sträucher, Steine und Holz sperren ihre Kachel wie ein
+ * Möbel; Gras, Blumen und Pilze sperren nichts.
  *
  * **Eine Farbe** aus _Forest Nature_ (`color1`): Das Paket hat jedes Modell
  * achtmal, nur in anderer Palette, und achtmal derselbe Baum ist kein Katalog.
@@ -49,6 +51,27 @@ function tree(id: string, label: string, model: string, size = 2): GameElement {
   };
 }
 
+/** Eine Zelle, eine halbe Kachel im Quadrat. */
+const ONE_CELL: readonly [number, number] = [0.5, 0.5];
+
+/**
+ * **Ein schmaler Baum auf einer Zelle** — Grundfläche, Sperre und Einrasten
+ * sind die eine Zelle unter dem Stamm (`elementPlace.onCells`). Gewünscht:
+ * _„Außer: Laubbaum, großer Laub Baum, und Schirm Baum, sollen alle Bäume nur
+ * 1 Kachel Grundfläche belegen, und daher stehen die nicht mittig auf einer
+ * 2x2 Kachel sondern nur mittig auf einer Kachel."_
+ */
+function sapling(id: string, label: string, model: string): GameElement {
+  return {
+    id,
+    label,
+    tiles: ONE_CELL,
+    height: BODY,
+    kind: null,
+    parts: [{ model, rooted: true }],
+  };
+}
+
 /** Etwas, das seine Kacheln sperrt wie ein Möbel — Strauch, Stein, Holz. */
 function block(id: string, label: string, model: string, size = 1, rooted = false): GameElement {
   return {
@@ -71,9 +94,10 @@ function ground(id: string, label: string, model: string): GameElement {
  * sortiert nach dem Anfang der Id: `tree-`, `bush-`, `rock-`, `plant-`,
  * `wood-`.
  *
- * Die Kacheln eines Baums sind seine Krone, aufgerundet auf mindestens zwei:
- * Auf einer einzigen Kachel wäre der Stamm (2 × 2 Zellen) schon die ganze
- * Kachel, und es gäbe nichts, wo man drunter durchgeht. Die Herbstbäume sind
+ * Die Kacheln der breiten Laubbäume sind ihre Krone, aufgerundet auf
+ * mindestens zwei: Auf einer einzigen Kachel wäre der Stamm (2 × 2 Zellen)
+ * schon die ganze Kachel. Die übrigen Bäume stehen auf einer Zelle
+ * (`sapling`). Die Herbstbäume sind
  * aus _Halloween Bits_ (zweimal dieselbe Form, orange und gelb), der tote Baum
  * auch. Die kleinen Bäume aus _City Builder_ und _Medieval Hexagon_ fehlen mit
  * Absicht: Sie sind Modellbahn-Bäume von einem halben Meter.
@@ -82,19 +106,19 @@ export const NATURE_ELEMENTS: readonly GameElement[] = [
   // Bäume — gemessen bei 0,5: Krone breit × hoch, Stamm Ø.
   tree('tree-leafy', 'Laubbaum', forest('Tree_1_B')), // 2,0 × 2,5, Stamm 0,36
   tree('tree-leafy-large', 'Großer Laubbaum', forest('Tree_1_C'), 3), // 3,4 × 3,9, Stamm 0,49
-  tree('tree-cube', 'Baum mit Würfelkrone', forest('Tree_2_B')), // 1,9 × 3,0
-  tree('tree-cube-large', 'Großer Baum mit Würfelkrone', forest('Tree_2_E'), 3), // 3,0 × 4,4
-  tree('tree-slim', 'Schmaler Laubbaum', forest('Tree_6_B')), // 1,4 × 2,8
+  sapling('tree-cube', 'Baum mit Würfelkrone', forest('Tree_2_B')), // 1,9 × 3,0
+  sapling('tree-cube-large', 'Großer Baum mit Würfelkrone', forest('Tree_2_E')), // 3,0 × 4,4
+  sapling('tree-slim', 'Schmaler Laubbaum', forest('Tree_6_B')), // 1,4 × 2,8
   tree('tree-umbrella', 'Schirmbaum', forest('Tree_3_B')), // 2,1 × 2,2, Stamm 0,39
-  tree('tree-pine', 'Pinie', forest('Tree_7_B')), // 1,8 × 3,5
-  tree('tree-fir', 'Tanne', forest('Tree_4_B')), // 1,3 × 3,5
-  tree('tree-fir-tall', 'Hohe Tanne', forest('Tree_4_C')), // 1,9 × 5,4
-  tree('tree-spruce', 'Fichte', forest('Tree_5_B')), // 1,5 × 2,9, Zweige bis zum Boden
-  tree('tree-spruce-tall', 'Hohe Fichte', forest('Tree_5_E')), // 1,5 × 4,1, Stamm frei
-  tree('tree-autumn-orange', 'Herbstbaum, orange', 'halloween-bits/tree_pine_orange_medium.glb'),
-  tree('tree-autumn-yellow', 'Herbstbaum, gelb', 'halloween-bits/tree_pine_yellow_medium.glb'),
-  tree('tree-bare', 'Kahler Baum', forest('Tree_Bare_2_B')), // 0,9 × 2,8
-  tree('tree-dead', 'Toter Baum', 'halloween-bits/tree_dead_large.glb'), // 1,2 × 2,5
+  sapling('tree-pine', 'Pinie', forest('Tree_7_B')), // 1,8 × 3,5
+  sapling('tree-fir', 'Tanne', forest('Tree_4_B')), // 1,3 × 3,5
+  sapling('tree-fir-tall', 'Hohe Tanne', forest('Tree_4_C')), // 1,9 × 5,4
+  sapling('tree-spruce', 'Fichte', forest('Tree_5_B')), // 1,5 × 2,9, Zweige bis zum Boden
+  sapling('tree-spruce-tall', 'Hohe Fichte', forest('Tree_5_E')), // 1,5 × 4,1, Stamm frei
+  sapling('tree-autumn-orange', 'Herbstbaum, orange', 'halloween-bits/tree_pine_orange_medium.glb'),
+  sapling('tree-autumn-yellow', 'Herbstbaum, gelb', 'halloween-bits/tree_pine_yellow_medium.glb'),
+  sapling('tree-bare', 'Kahler Baum', forest('Tree_Bare_2_B')), // 0,9 × 2,8
+  sapling('tree-dead', 'Toter Baum', 'halloween-bits/tree_dead_large.glb'), // 1,2 × 2,5
   // Sträucher — eine Kachel, ganz gesperrt: Durch einen Busch läuft man nicht.
   block('bush-round', 'Runder Busch', forest('Bush_1_C')),
   block('bush-group', 'Buschgruppe', forest('Bush_1_E')),

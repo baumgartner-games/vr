@@ -71,7 +71,10 @@ describe('die Zellen unter dem Möbel auf der Detailseite', () => {
       const cells = footprintRows(elementById(id)).join('').split(CELL_BLOCKED).length - 1;
       expect(quads(id)).toHaveLength(cells);
     }
-    const centres = quads('counter').map((quad) => [quad.position.x, quad.position.z]);
+    const centres = quads('counter').map((quad) => {
+      const at = quad.position.clone().add(quad.parent!.position);
+      return [at.x, at.z];
+    });
     expect(centres.sort()).toEqual([
       [-0.25, -0.25],
       [-0.25, 0.25],
@@ -79,5 +82,12 @@ describe('die Zellen unter dem Möbel auf der Detailseite', () => {
       [0.25, 0.25],
     ]);
     expect(quads('table-round')).toHaveLength(16);
+  });
+
+  it('zeigt einen schmalen Baum mittig auf seiner einen Zelle', () => {
+    const [cell] = quads('tree-slim');
+    expect(quads('tree-slim')).toHaveLength(1);
+    const at = cell!.position.clone().add(cell!.parent!.position);
+    expect([at.x, at.z]).toEqual([0, 0]);
   });
 });

@@ -19,6 +19,7 @@ import {
 import {
   spotAround,
   spotCells,
+  spotCovers,
   spotTiles,
   yawFace,
   type CarriedElement,
@@ -268,10 +269,13 @@ export abstract class FurnishedWorld extends GridWorld {
     return { id: placed.element.id, from: placed.spot, keep };
   }
 
-  /** Das Element, dessen Kacheln diesen Punkt (Meter) decken — oder keines. */
+  /**
+   * Das Element, dessen Grundfläche diesen Punkt (Meter) deckt — oder keines.
+   * Auf die Grundfläche und nicht auf ihre Kacheln: Vier schmale Bäume auf
+   * einer Kachel (`elementPlace.onCells`) sind vier Elemente.
+   */
   private placedAt(x: number, z: number): PlacedElement | null {
-    const tile = `${Math.floor(x)},${Math.floor(z)}`;
-    return this.placed.find((one) => spotTiles(one.spot).includes(tile)) ?? null;
+    return this.placed.find((one) => spotCovers(one.spot, x, z)) ?? null;
   }
 
   /**

@@ -1,5 +1,7 @@
 import {
   drawMenuIcon,
+  type DetailTweak,
+  type DetailTweakSpec,
   type MenuDetail,
   type MenuEntry,
   type MenuFact,
@@ -248,6 +250,26 @@ export class PageMenu {
   /** Was er gerade tut — und woran man merkt, dass er neu beschriftet gehört. */
   private deed: MenuDetail['action'] | null = null;
   private deedLine = '';
+  /**
+   * **Anpassen eines Spielelements** (`MenuDetail.tweak`): verschieben,
+   * Zellen umtippen, speichern, alles kopieren. `tweak` ist, was die Seite
+   * anbietet, `tweakDraft` der Stand auf dem Schirm, `tweakSaved` der im
+   * Speicher — weichen die beiden ab, ist etwas nicht gespeichert.
+   */
+  private tweak: DetailTweakSpec | null = null;
+  private tweakDraft: DetailTweak | null = null;
+  private tweakSaved: DetailTweak | null = null;
+  private moveOn = false;
+  private cellsOn = false;
+  private readonly moveButton: HTMLButtonElement;
+  private readonly moveEl: HTMLElement;
+  private readonly moveValues: readonly [HTMLElement, HTMLElement];
+  private readonly cellsButton: HTMLButtonElement;
+  private readonly tweakEl: HTMLElement;
+  private readonly tweakLine: HTMLElement;
+  private readonly saveButton: HTMLButtonElement;
+  private readonly resetButton: HTMLButtonElement;
+  private readonly exportButton: HTMLButtonElement;
   private readonly clipsEl: HTMLElement;
   private readonly clipsSelect: HTMLSelectElement;
   private readonly factsEl: HTMLElement;
@@ -391,7 +413,52 @@ export class PageMenu {
     this.deedButton.type = 'button';
     this.deedButton.hidden = true;
     this.deedButton.append(el('span', 'pmenu__text'));
-    this.optsEl.append(this.floorButton, this.boundsButton, this.deedButton);
+    // **Anpassen** — nur auf der Seite eines Spielelements (`MenuDetail.tweak`).
+    this.moveButton = switchRow('Modell verschieben', 'Je Druck eine halbe Zelle (0,25 m)');
+    this.moveEl = el('div', 'pmenu__move');
+    const axis = (label: string, index: 0 | 1): HTMLElement => {
+      const line = el('div', 'pmenu__axis');
+      const less = iconButton('pmenu__step', `${label} −`, 'M6 12h12');
+      const more = iconButton('pmenu__step', `${label} +`, 'M12 6v12M6 12h12');
+      less.dataset['axis'] = String(index);
+      less.dataset['dir'] = '-1';
+      more.dataset['axis'] = String(index);
+      more.dataset['dir'] = '1';
+      const value = el('span', 'pmenu__axisval');
+      line.append(el('span', 'pmenu__axislabel', label), less, value, more);
+      return line;
+    };
+    const lineX = axis('X (West/Ost)', 0);
+    const lineZ = axis('Y (hinten/vorn)', 1);
+    this.moveValues = [
+      lineX.querySelector<HTMLElement>('.pmenu__axisval')!,
+      lineZ.querySelector<HTMLElement>('.pmenu__axisval')!,
+    ];
+    this.moveEl.append(lineX, lineZ);
+    this.cellsButton = switchRow(
+      'Belegte Zellen anpassen',
+      'Von oben, das Ding als Geist — Zellen antippen zum Sperren',
+    );
+    this.tweakEl = el('div', 'pmenu__tweak');
+    this.tweakLine = el('span', 'pmenu__tweakline');
+    this.saveButton = el('button', 'pmenu__btn pmenu__btn--main', 'Speichern');
+    this.saveButton.type = 'button';
+    this.resetButton = el('button', 'pmenu__btn', 'Zurücksetzen');
+    this.resetButton.type = 'button';
+    this.resetButton.title = 'Wie im Katalog — gespeichert wird erst mit Speichern';
+    this.tweakEl.append(this.tweakLine, this.resetButton, this.saveButton);
+    this.exportButton = el('button', 'pmenu__row pmenu__deed pmenu__export');
+    this.exportButton.type = 'button';
+    this.exportButton.append(el('span', 'pmenu__text'));
+    this.optsEl.append(
+      this.floorButton,
+      this.boundsButton,
+      this.moveButton,
+      this.moveEl,
+      this.cellsButton,
+      this.tweakEl,
+      this.deedButton,
+    );
     this.clipsEl = el('div', 'pmenu__clips');
     const clipsLabel = el('label', 'pmenu__cliplabel', 'Animation');
     this.clipsSelect = document.createElement('select');
@@ -409,7 +476,7 @@ export class PageMenu {
     this.noteEl = el('p', 'pmenu__note');
     this.noteEl.setAttribute('aria-live', 'polite');
     const about = el('div', 'pmenu__about');
-    about.append(this.optsEl, this.clipsEl, this.factsEl, this.noteEl);
+    about.append(this.optsEl, this.clipsEl, this.factsEl, this.exportButton, this.noteEl);
     this.detailEl = el('div', 'pmenu__detail');
     this.detailEl.hidden = true;
     this.detailEl.append(this.viewEl, about);
@@ -488,6 +555,25 @@ export class PageMenu {
     this.clipsSelect.addEventListener('change', () =>
       this.stepDetail({ clip: this.clipsSelect.value || null }),
     );
+    this.moveButton.addEventListener('click', () => {
+      this.moveOn = !this.moveOn;
+      this.pushTweak();
+    });
+    this.moveEl.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-axis]');
+      if (button) this.nudge(Number(button.dataset['axis']), Number(button.dataset['dir']));
+    });
+    this.cellsButton.addEventListener('click', () => {
+      this.cellsOn = !this.cellsOn;
+      this.pushTweak();
+    });
+    this.saveButton.addEventListener('click', () => this.saveTweak());
+    this.resetButton.addEventListener('click', () => {
+      if (!this.tweak) return;
+      this.tweakDraft = this.tweak.preset();
+      this.pushTweak();
+    });
+    this.exportButton.addEventListener('click', () => void this.exportTweaks());
     this.deedButton.addEventListener('click', () => {
       this.deed?.run();
       // Die Tat wirkt außerhalb dieser Seite (das Aussehen, der Avatar, das
@@ -1028,11 +1114,19 @@ export class PageMenu {
       this.detailId = detail.preview;
       // Eine andere Sache bewegt sich nicht so wie die vorige.
       this.detailOpts = { ...this.detailOpts, clip: null };
+      // Und hat ihre eigenen Anpassungen — beide Schalter fangen aus an.
+      this.tweak = detail.tweak ?? null;
+      this.tweakSaved = this.tweak?.load() ?? null;
+      this.tweakDraft = this.tweakSaved;
+      this.moveOn = false;
+      this.cellsOn = false;
+      this.detailOpts = { ...this.detailOpts, ...this.tweakOptions() };
       this.detailView =
         this.previews?.detail({
           host: this.viewEl,
           id: detail.preview,
           onFacts: this.onDetailFacts,
+          onCell: this.onDetailCell,
         }) ?? null;
       this.detailView?.set(this.detailOpts);
     }
@@ -1058,6 +1152,114 @@ export class PageMenu {
     this.deed = null;
     this.deedLine = '';
     this.deedButton.hidden = true;
+    this.tweak = null;
+    this.tweakDraft = null;
+    this.tweakSaved = null;
+    this.moveOn = false;
+    this.cellsOn = false;
+  }
+
+  // --- Anpassen eines Spielelements -------------------------------------------
+
+  /** Was die Vorschau vom Stand der Anpassung wissen muss. */
+  private tweakOptions(): Pick<DetailOptions, 'shift' | 'cells'> {
+    const tweak = this.tweak;
+    const draft = this.tweakDraft;
+    if (!tweak || !draft) return { shift: [0, 0], cells: null };
+    return {
+      shift: draft.shift,
+      cells: { cols: tweak.cols, rows: tweak.rows, blocked: draft.cells, edit: this.cellsOn },
+    };
+  }
+
+  /** Den Stand an die Vorschau und auf den Schirm. */
+  private pushTweak(): void {
+    this.stepDetail(this.tweakOptions());
+  }
+
+  /** Um einen Schritt verschieben — `axis` 0 ist x (Osten), 1 ist z (vorn). */
+  private nudge(axis: number, dir: number): void {
+    const tweak = this.tweak;
+    const draft = this.tweakDraft;
+    if (!tweak || !draft || !(axis === 0 || axis === 1) || !Number.isFinite(dir)) return;
+    const shift: [number, number] = [draft.shift[0], draft.shift[1]];
+    shift[axis] = Math.round((shift[axis] + dir * tweak.step) * 1000) / 1000;
+    this.tweakDraft = { ...draft, shift };
+    this.pushTweak();
+  }
+
+  /** Eine Zelle wurde von oben angetippt: gesperrt ↔ frei. */
+  private readonly onDetailCell = (key: string): void => {
+    const draft = this.tweakDraft;
+    if (!draft || !this.cellsOn) return;
+    const cells = draft.cells.includes(key)
+      ? draft.cells.filter((one) => one !== key)
+      : [...draft.cells, key];
+    this.tweakDraft = { ...draft, cells };
+    this.pushTweak();
+  };
+
+  private saveTweak(): void {
+    const tweak = this.tweak;
+    if (!tweak || !this.tweakDraft) return;
+    tweak.save(this.tweakDraft);
+    this.tweakSaved = tweak.load();
+    this.tweakDraft = this.tweakSaved;
+    this.setNote('Anpassung gespeichert.', false);
+    this.pushTweak();
+  }
+
+  /** Alle gespeicherten Anpassungen in die Zwischenablage — zum Weitergeben. */
+  private async exportTweaks(): Promise<void> {
+    const tweak = this.tweak;
+    if (!tweak) return;
+    const count = tweak.count();
+    if (count === 0) {
+      this.setNote('Noch nichts gespeichert — erst anpassen und speichern.', true);
+      return;
+    }
+    if (await copyText(tweak.exportAll())) {
+      this.setNote(`${count} ${count === 1 ? 'Anpassung' : 'Anpassungen'} kopiert.`, false);
+    } else this.setNote(COPY_FALLBACK, true);
+  }
+
+  /** Schalter, Werte und Knöpfe des Anpassens — nur, was sich geändert hat. */
+  private paintTweak(): void {
+    const tweak = this.tweak;
+    const draft = this.tweakDraft;
+    const on = tweak !== null && draft !== null;
+    this.moveButton.hidden = !on;
+    this.cellsButton.hidden = !on;
+    this.tweakEl.hidden = !on;
+    this.exportButton.hidden = !on;
+    this.moveEl.hidden = !on || !this.moveOn;
+    if (!tweak || !draft) return;
+    setSwitch(this.moveButton, this.moveOn);
+    setSwitch(this.cellsButton, this.cellsOn);
+    this.moveValues.forEach((box, index) => {
+      const text = metresSigned(draft.shift[index]!);
+      if (box.textContent !== text) box.textContent = text;
+    });
+    const saved = this.tweakSaved ?? tweak.preset();
+    const dirty = !sameDraft(draft, saved);
+    const line = dirty
+      ? 'Nicht gespeichert'
+      : sameDraft(saved, tweak.preset())
+        ? 'Wie im Katalog'
+        : 'Gespeichert — weicht vom Katalog ab';
+    if (this.tweakLine.textContent !== line) this.tweakLine.textContent = line;
+    this.tweakLine.classList.toggle('is-dirty', dirty);
+    this.saveButton.disabled = !dirty;
+    this.resetButton.disabled = sameDraft(draft, tweak.preset());
+    const count = tweak.count();
+    const label = `Alle Anpassungen kopieren (${count})`;
+    const text = this.exportButton.querySelector('.pmenu__text')!;
+    if (text.firstChild?.textContent !== label) {
+      text.replaceChildren(
+        el('strong', '', label),
+        el('small', '', 'Als JSON in die Zwischenablage — zum Weitergeben'),
+      );
+    }
   }
 
   /** Ein Schalter wurde gedrückt — der Stand liegt hier, die Wirkung dort. */
@@ -1081,6 +1283,12 @@ export class PageMenu {
    * beim Aufklappen jedes Mal wieder zu.
    */
   private paintDetail(detail: MenuDetail): void {
+    // **Kein Gitterboden, wo die Zellen schon liegen** — ein Spielelement
+    // bringt sein Raster mit (`MenuDetail.tweak`). Gemeldet: _„Die Option mit
+    // dem Gitterboden verstehe ich nicht. Es ist bereits ein gitterboden
+    // angezeigt."_
+    this.floorButton.hidden = detail.tweak !== undefined;
+    this.paintTweak();
     setSwitch(this.floorButton, this.detailOpts.floor);
     setSwitch(this.boundsButton, this.detailOpts.bounds);
 
@@ -1617,6 +1825,21 @@ function switchRow(label: string, hint: string): HTMLButtonElement {
 function setSwitch(node: HTMLButtonElement, on: boolean): void {
   node.setAttribute('aria-checked', on ? 'true' : 'false');
   node.querySelector('.pmenu__switch')?.classList.toggle('is-on', on);
+}
+
+/** Eine Verschiebung, wie man sie liest: mit Vorzeichen und Komma. */
+function metresSigned(value: number): string {
+  const text = Math.abs(value).toFixed(2).replace('.', ',');
+  return `${value > 0 ? '+' : value < 0 ? '−' : '±'}${text} m`;
+}
+
+/** Ob zwei Stände der Anpassung dasselbe sagen — die Zellen in beliebiger Reihenfolge. */
+function sameDraft(a: DetailTweak, b: DetailTweak): boolean {
+  return (
+    a.shift[0] === b.shift[0] &&
+    a.shift[1] === b.shift[1] &&
+    [...a.cells].sort().join(' ') === [...b.cells].sort().join(' ')
+  );
 }
 
 function option(value: string, label: string): HTMLOptionElement {

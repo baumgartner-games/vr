@@ -317,6 +317,8 @@ export interface DetailRequest {
    * bis dahin steht dort, was schon im Verzeichnis stand.
    */
   onFacts(facts: DetailFacts): void;
+  /** Eine Zelle wurde angetippt (`DetailCells.edit`) — `'ix,iz'`. */
+  onCell?(key: string): void;
 }
 
 /**
@@ -349,6 +351,27 @@ export interface DetailOptions {
   readonly bounds: boolean;
   /** Welche Bewegung läuft, oder `null` für „keine". */
   readonly clip: string | null;
+  /** Das Modell verschoben, in Metern (x Osten, z Süden) — ohne Angabe gar nicht. */
+  readonly shift?: readonly [number, number];
+  /**
+   * **Die Zellen, selbst gezeichnet** — statt der Anzeige, die das Modell
+   * mitbringt (`DETAIL_OVERLAY`), damit eine Anpassung sofort zu sehen ist.
+   * Mit `edit` steht die Kamera senkrecht darüber (orthogonal), das Ding ist
+   * nur noch ein Geist, und ein Tippen auf eine Zelle meldet sie
+   * (`DetailRequest.onCell`).
+   */
+  readonly cells?: DetailCells | null;
+}
+
+/** Die Zellen unter einem Element, wie die Detailseite sie zeichnet. */
+export interface DetailCells {
+  /** Die Grundfläche in Zellen, ihre Mitte im Ursprung des Modells. */
+  readonly cols: number;
+  readonly rows: number;
+  /** Gesperrt, als `'ix,iz'` ab der Nordwestecke der Grundfläche. */
+  readonly blocked: readonly string[];
+  /** Von oben und zum Antippen. */
+  readonly edit: boolean;
 }
 
 /** Die Steuerung einer offenen Detailvorschau. */
