@@ -1042,9 +1042,11 @@ ausgeliefert wird. Drei Entscheidungen:
   aus dem Verzeichnis (`worlds/index.ts`, dieselbe wie `net.world`). Alte
   Listen ohne `world` lesen sich weiter. Zettel stehen mit Text darin (siehe
   [Zettel](#zettel-beschriften-was-man-baut)).
-- **Im Browser gespeichert**, anders als der Modus: Eine Liste, die beim
-  Neuladen weg ist, bevor man sie kopiert hat, ist eine halbe Stunde
-  Einrichten ohne Spur.
+- **Bei jedem Start der Seite leer** (Oktober 2026, gewünscht: _„liste der
+  welt änderungen bei jedem start der seite leeren"_): Beim Laden fällt
+  alles weg, was eine frühere Sitzung mitgeschrieben hat — wie _Liste
+  leeren_. Im Browser gespeichert bleiben nur das Häkchen und die Zettel,
+  deren einziger Speicher die Liste ist.
 
 **Und wo man stand** (`PlayerView`, Oktober 2026, gewünscht: _„wenn die
 aktuelle spieler position und camera einstellung mitkopiert werden (aber
@@ -1074,12 +1076,11 @@ und nicht die, in der man steht) wird nicht eingefügt, die Meldung zählt sie
 mit (`… · 2 aus einer anderen Welt`); Zeilen ohne Welt gelten wie bisher hier.
 
 **Was aus dem Regal hingestellt wurde, übersteht kein Neuladen.** Das ist
-nachgesehen (September 2026) und nicht selbstverständlich: Die Liste der
-Weltänderungen überlebt es, die Modelle selbst nicht — gespeichert wird nur
-der Grundriss (`grid/worldStore.ts`, `keepWorld` schreibt den `GridPlan`),
-und niemand stellt die Modelle aus der Liste beim Betreten wieder auf. Wer
-nach dem Neuladen weiterbauen will, fügt die Liste ein (_Einfügen_). Die
-einzige Ausnahme sind die Zettel.
+nachgesehen (September 2026): Gespeichert wird nur der Grundriss
+(`grid/worldStore.ts`, `keepWorld` schreibt den `GridPlan`), und seit Oktober
+2026 fängt auch die Liste der Weltänderungen bei jedem Start leer an. Wer
+nach dem Neuladen weiterbauen will, kopiert die Liste vorher und fügt sie
+danach wieder ein (_Einfügen_). Die einzige Ausnahme sind die Zettel.
 
 ## Zettel: beschriften, was man baut
 

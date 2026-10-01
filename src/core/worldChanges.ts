@@ -38,10 +38,13 @@
  * gelten. Die Kennung ist die der Welt im Verzeichnis (`test-restaurant`);
  * alte Listen ohne sie lesen sich weiter, nur eben ohne diese Angabe.
  *
- * **Gespeichert wird im Browser**, anders als der Spielmodus nebenan
- * (`core/gameMode.ts`): Eine Liste, die beim Neuladen verschwindet, bevor man
- * sie kopiert hat, ist eine halbe Stunde Einrichten, die niemand mehr
- * nachvollziehen kann.
+ * **Bei jedem Start der Seite leer** (Oktober 2026, gewünscht: _„liste der
+ * welt änderungen bei jedem start der seite leeren"_): Was eine frühere
+ * Sitzung mitgeschrieben hat, wird beim Laden verworfen (`load`), so wie
+ * _Liste leeren_ es tut. Gespeichert wird im Browser trotzdem weiter, aus zwei
+ * Gründen: Das Häkchen bleibt, wie man es gesetzt hat, und die **Zettel**
+ * bleiben — die Liste ist ihr einziger Speicher (`notesIn`), ohne ihre Zeilen
+ * stünde man nach dem Neuladen vor einer unbeschrifteten Küche.
  */
 
 /** Wo ein Möbel steht: Kachel und Viertelumdrehungen, relativ zur Küche. */
@@ -555,11 +558,16 @@ function load(): void {
     const data = JSON.parse(raw) as { on?: unknown; list?: unknown };
     tracking = data.on === true;
     if (!Array.isArray(data.list)) return;
+    // **Die Seite fängt mit leerer Liste an** — nur die Zettel kommen wieder,
+    // sie stehen ja noch in der Welt (siehe oben und `clearWorldChanges`).
+    let dropped = false;
     for (const entry of data.list) {
       if (!Array.isArray(entry) || typeof entry[0] !== 'string') continue;
       const change = parseRow(entry[1]);
-      if (change) changes.set(entry[0], change);
+      if (change?.kind === 'note') changes.set(entry[0], change);
+      else dropped = true;
     }
+    if (dropped) save();
   } catch {
     /* kaputt oder gesperrt — dann eben leer */
   }
