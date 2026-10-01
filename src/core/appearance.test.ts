@@ -7,9 +7,12 @@ import {
   saveAppearance,
 } from './appearance';
 import { HEADGEAR_KINDS, HEADGEAR_LABELS, asHeadgear, nextHeadgear } from './headgear';
+import { readFileSync } from 'node:fs';
 import {
   FIGURE_CHEF,
+  FIGURE_DEFAULT,
   FIGURE_KINDS,
+  FIGURE_PRESETS,
   FIGURE_MAX_HEIGHT,
   FIGURE_MIN_HEIGHT,
   asFigure,
@@ -20,13 +23,15 @@ import {
 import { CHEF_EYE, CHEF_HEIGHT } from './chefFit';
 
 describe('wie man aussieht', () => {
-  it('liefert als barhäuptigen Koch in Weiß aus', () => {
+  it('liefert als barhäuptiges Mannequin aus — der Koch ist keine Wahl mehr', () => {
     expect(DEFAULT_APPEARANCE).toEqual({
       hat: 'none',
       head: 'round',
       body: 'white',
-      figure: 'chef',
+      figure: FIGURE_DEFAULT,
     });
+    // Wer den Koch noch gespeichert hat oder ansagt, läuft als Mannequin herum.
+    expect(clampAppearance({ figure: FIGURE_CHEF }).figure).toBe(FIGURE_DEFAULT);
   });
 
   it('macht aus Unsinn die Vorgabe', () => {
@@ -46,7 +51,7 @@ describe('wie man aussieht', () => {
       hat: 'chef',
       head: 'beard',
       body: 'striped',
-      figure: 'chef',
+      figure: FIGURE_DEFAULT,
     });
   });
 
@@ -66,9 +71,15 @@ describe('wie man aussieht', () => {
   });
 
   it('schreibt alle drei Stücke in eine Zeile', () => {
-    expect(appearanceSummary(DEFAULT_APPEARANCE)).toBe('Rund · ohne Hut · Kochjacke weiß');
+    expect(appearanceSummary(DEFAULT_APPEARANCE)).toBe('Mannequin · ohne Hut');
     expect(
-      appearanceSummary({ ...DEFAULT_APPEARANCE, hat: 'chef', head: 'beard', body: 'red' }),
+      appearanceSummary({
+        ...DEFAULT_APPEARANCE,
+        figure: FIGURE_CHEF,
+        hat: 'chef',
+        head: 'beard',
+        body: 'red',
+      }),
     ).toBe('Vollbart · Kochmütze · Kochjacke rot');
   });
 
@@ -126,7 +137,8 @@ describe('als was man herumläuft', () => {
   });
 
   it('kennt jede kuratierte Figur mit Namen und lässt sie durch die Prüfung', () => {
-    expect(FIGURE_KINDS[0]!.path).toBe(FIGURE_CHEF);
+    expect(FIGURE_KINDS[0]!.path).toBe(FIGURE_DEFAULT);
+    expect(FIGURE_KINDS.some((kind) => kind.path === FIGURE_CHEF)).toBe(false);
     expect(FIGURE_KINDS.length).toBeGreaterThanOrEqual(10);
     for (const kind of FIGURE_KINDS) {
       expect([kind.path, asFigure(kind.path)]).toEqual([kind.path, kind.path]);
@@ -136,6 +148,29 @@ describe('als was man herumläuft', () => {
     }
     // Nichts doppelt: Zwei Zeilen mit derselben Figur wären eine, die nichts tut.
     expect(new Set(FIGURE_KINDS.map((kind) => kind.path)).size).toBe(FIGURE_KINDS.length);
+  });
+
+  it('stellt unter Vorgefertigte jede Figur der Pakete hin — jede eine Datei mit Skelett', () => {
+    expect(FIGURE_PRESETS.slice(0, FIGURE_KINDS.length)).toEqual(FIGURE_KINDS);
+    expect(new Set(FIGURE_PRESETS.map((kind) => kind.path)).size).toBe(FIGURE_PRESETS.length);
+    for (const want of [
+      'character-animations/mannequin-character/characters/Mannequin_Large.glb',
+      'prototype-bits/character/Dummy.glb',
+      'skeletons/characters/Necromancer.glb',
+      'mystery-monthly-5/4-october-2024-vampire/characters/Vampire.glb',
+      'mystery-monthly-6/7-january-2026-4gtn/characters/4GTN.glb',
+    ])
+      expect(FIGURE_PRESETS.map((kind) => kind.path)).toContain(want);
+    for (const kind of FIGURE_PRESETS) {
+      expect(asFigure(kind.path)).toBe(kind.path);
+      expect(kind.label).toBeTruthy();
+      // Der Kopf der GLB-Datei: 12 Byte Rahmen, dann die Länge und das JSON.
+      const file = readFileSync(`public/models/kaykit/${kind.path}`);
+      const json = JSON.parse(file.subarray(20, 20 + file.readUInt32LE(12)).toString()) as {
+        skins?: unknown[];
+      };
+      expect([kind.path, (json.skins ?? []).length > 0]).toEqual([kind.path, true]);
+    }
   });
 
   it('nennt auch eine Figur beim Namen, die nicht in der Liste steht', () => {

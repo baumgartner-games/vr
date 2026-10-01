@@ -40,8 +40,8 @@ export interface PlayerCardOptions {
   dirty: () => boolean;
   /** _Aussehen anpassen_ wurde gedrückt. */
   onCustomize: () => void;
-  /** _Aussehen speichern_. */
-  onSave: () => void;
+  /** _Aussehen speichern_ — mit dem Spitznamen aus dem Feld darüber. */
+  onSave: (name: string) => void;
   /** _Aussehen zurücksetzen_. */
   onReset: () => void;
   /** Die Seiten zum Bearbeiten sind verlassen — oder die Karte ist weg. */
@@ -55,6 +55,9 @@ export class PlayerCard implements PageAside {
   private readonly options: PlayerCardOptions;
   private readonly stage: HTMLElement;
   private readonly nameEl: HTMLElement;
+  /** Der Spitzname zum Bearbeiten — nur unter _Aussehen_ statt des Namens. */
+  private readonly nick: HTMLInputElement;
+  private readonly nickLabel: HTMLLabelElement;
   private readonly lookEl: HTMLElement;
   private readonly customize: HTMLButtonElement;
   private readonly save: HTMLButtonElement;
@@ -78,11 +81,30 @@ export class PlayerCard implements PageAside {
 
     const text = el('div', 'pcard__text');
     this.nameEl = el('strong', 'pcard__name');
+    // **Der Spitzname gehört zur Figur** — gewünscht: _„in dem charakter
+    // anpassen des aussehens, will ich auch den nicknamen ändern können"_.
+    // Gespeichert wird er mit demselben Knopf wie das Aussehen.
+    this.nickLabel = el('label', 'pcard__nick');
+    this.nick = el('input');
+    this.nick.type = 'text';
+    this.nick.maxLength = 24;
+    this.nick.autocomplete = 'off';
+    this.nick.spellcheck = false;
+    this.nick.placeholder = 'Dein Name';
+    this.nickLabel.append(el('span', '', 'Spitzname'), this.nick);
+    this.nick.addEventListener('input', () => this.refresh());
+    this.nick.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if (!this.save.disabled) this.save.click();
+    });
     this.lookEl = el('small', 'pcard__look');
     this.customize = button('pcard__edit', 'Aussehen anpassen', () => options.onCustomize());
-    this.save = button('pcard__edit', 'Aussehen speichern', () => options.onSave());
+    this.save = button('pcard__edit', 'Aussehen speichern', () =>
+      options.onSave(this.nick.value.trim()),
+    );
     this.reset = button('pcard__reset', 'Aussehen zurücksetzen', () => options.onReset());
-    text.append(this.nameEl, this.lookEl, this.customize, this.save, this.reset);
+    text.append(this.nameEl, this.nickLabel, this.lookEl, this.customize, this.save, this.reset);
 
     this.element.append(this.stage, text);
     this.paintMode();
@@ -102,6 +124,7 @@ export class PlayerCard implements PageAside {
     this.editing = editing;
     this.paintMode();
     if (!editing) this.options.onLeave();
+    this.nick.value = this.options.name();
     this.refresh();
   }
 
@@ -132,7 +155,7 @@ export class PlayerCard implements PageAside {
     const look = this.options.look();
     this.nameEl.textContent = this.name();
     this.lookEl.textContent = appearanceSummary(look);
-    this.save.disabled = !this.options.dirty();
+    this.save.disabled = !this.options.dirty() && !this.renamed();
     // Die Seite zeichnet zweimal die Sekunde neu; angezogen wird nur, was
     // sich wirklich geändert hat.
     const key = `${look.head}|${look.hat}|${look.body}|${look.figure}`;
@@ -151,8 +174,15 @@ export class PlayerCard implements PageAside {
     return this.options.name() || 'Du';
   }
 
+  /** Ob im Feld ein anderer Name steht als der, den man hat. */
+  private renamed(): boolean {
+    return this.editing && this.nick.value.trim() !== this.options.name().trim();
+  }
+
   private paintMode(): void {
     this.customize.hidden = this.editing;
+    this.nameEl.hidden = this.editing;
+    this.nickLabel.hidden = !this.editing;
     this.save.hidden = !this.editing;
     this.reset.hidden = !this.editing;
     this.element.classList.toggle('pcard--edit', this.editing);

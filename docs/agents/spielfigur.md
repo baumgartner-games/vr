@@ -413,6 +413,9 @@ werden:
   der hinterher eine Datei geholt wird.
 
 **Geändert wird an zwei Stellen, und beide lesen denselben Speicher**: die Seite
+**Die Auslieferung ist seit Oktober 2026 das Mannequin** und nicht mehr der
+Koch aus zwei Kugeln (`avatarFigures.FIGURE_DEFAULT`); der Koch ist keine Wahl
+mehr, steht aber da, solange eine Figur lädt.
 _Aussehen_ im Menü (am Schirm unter dem Reiter _Inventar_ als Kacheln mit
 Vorschau, gespeichert erst mit _Aussehen speichern_ — siehe
 [Aussehen im Inventar](seite.md#aussehen-im-inventar); am Handgelenk Zeilen,
