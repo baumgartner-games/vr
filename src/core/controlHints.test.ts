@@ -56,7 +56,7 @@ describe('controlHints — die Tastenhilfe', () => {
 
   it('spricht an der Tastatur von Tasten', () => {
     const line = hintText(controlHints({ ...base, device: 'keyboard', tools: true }));
-    expect(line).toBe('Leertaste Springen · Tab Werkzeug · V Ansicht · M Menü');
+    expect(line).toBe('Leertaste Springen · Tab Inventar · V Ansicht · M Menü');
     expect(hintText(controlHints({ ...base, device: 'keyboard', view: 'crane' }))).toContain(
       'WASD Kamera',
     );
@@ -72,7 +72,7 @@ describe('controlHints — die Tastenhilfe', () => {
     expect(hintText(controlHints(grid))).toBe('⊟ Ansicht · ☰ Menü');
     expect(hintText(controlHints({ ...grid, useCandidate: true }))).toContain('A Benutzen');
     expect(hintText(controlHints({ ...grid, device: 'keyboard', tools: true }))).toBe(
-      'Tab Werkzeug · V Ansicht · M Menü',
+      'Tab Inventar · V Ansicht · M Menü',
     );
     expect(controlHints({ ...grid, device: 'touch' })).toEqual([]);
     expect(hintText(controlHints({ ...grid, device: 'touch', useCandidate: true }))).toBe(

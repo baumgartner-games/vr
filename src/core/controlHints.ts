@@ -220,7 +220,7 @@ function padHints(ctx: HintContext): HintItem[] {
   if (ctx.carrying) add(pad('cancel'), 'Ablegen');
   if (ctx.armed || ctx.view === 'topDown') add(pad('fire'), 'Auslösen');
   if (ctx.armed && ctx.view === 'firstPerson') add(pad('sight'), 'Zielen');
-  if (ctx.tools) add(pad('tools'), 'Werkzeug');
+  if (ctx.tools) add(pad('tools'), 'Inventar');
   if (ctx.view === 'topDown') {
     add(pairKey(pad('zoomIn'), pad('zoomOut')), 'Zoom');
     add(pairKey(pad('turnLeft'), pad('turnRight')), 'Bild drehen');
@@ -266,7 +266,7 @@ function keyHints(ctx: HintContext): HintItem[] {
   if (ctx.canJump) add(key('jump'), 'Springen');
   if (!ctx.carrying && (ctx.armed || ctx.view === 'topDown')) add('Klick', 'Auslösen');
   if (ctx.armed && ctx.view === 'firstPerson') add('Rechtsklick', 'Zielen');
-  if (ctx.tools) add(key('tools'), 'Werkzeug');
+  if (ctx.tools) add(key('tools'), 'Inventar');
   if (ctx.view === 'topDown') {
     add('Rad', 'Zoom');
     add(key('turn'), 'Bild drehen');

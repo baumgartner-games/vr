@@ -120,6 +120,32 @@ export interface PageMenuOptions {
   host?: HTMLElement;
   /** Auf- oder zugegangen — für den Knopf, der es öffnet (`aria-expanded`). */
   onToggle?: (open: boolean) => void;
+  /**
+   * **Die Einträge der Wurzel sind Reiter** — wie oben in _Die Sims_: eine
+   * Reihe Knöpfe über der Seite, und die Wurzel selbst schlägt niemand auf.
+   * Gebraucht vom Inventar hinter `Tab` (`App.inventoryRoot`): Inventar,
+   * Katalog, Welten, Einstellungen. Jeder Reiter merkt sich, wie tief man in
+   * ihm stand.
+   */
+  tabs?: boolean;
+  /** Was neben einer Seite steht (`PageAside`) — die Figur im Inventar. */
+  aside?: PageAside;
+}
+
+/**
+ * **Eine Spalte neben der Liste** — für genau eine Seite.
+ *
+ * Am Schreibtisch rechts neben den Kacheln, am Telefon als Streifen darüber
+ * (`pageMenu.css`, `.pmenu--aside`). Was darin steht, weiß die Seite nicht;
+ * sie sagt nur, wann es zu sehen ist (`show`) — die Figur im Inventar
+ * zeichnet mit einem eigenen Renderer und soll das nur tun, solange man sie
+ * sieht (`ui/PlayerCard.ts`).
+ */
+export interface PageAside {
+  /** Die Id der Seite, neben der es steht. */
+  readonly page: string;
+  readonly element: HTMLElement;
+  show(on: boolean): void;
 }
 
 /** Wie groß eine Ikone gezeichnet wird, in Bildpunkten der Leinwand. */
@@ -149,6 +175,13 @@ export class PageMenu {
   private readonly stage: HTMLElement;
   private readonly list: HTMLElement;
   private readonly footEl: HTMLElement;
+  /** Die Reiter über der Seite (`PageMenuOptions.tabs`) — sonst leer und versteckt. */
+  private readonly tabsEl: HTMLElement;
+  private readonly tabs: boolean;
+  /** Wie tief man in jedem Reiter stand, nach seiner Id. */
+  private readonly tabPaths = new Map<string, readonly string[]>();
+  private readonly aside: PageAside | null;
+  private asideShown = false;
   /** Die Leiste über der Liste: Suchfeld und die beiden Spaltenknöpfe. */
   private readonly toolsEl: HTMLElement;
   private readonly searchEl: HTMLInputElement;
@@ -269,8 +302,11 @@ export class PageMenu {
     this.rootTitle = options.title ?? 'Menü';
     this.nav = options.nav ?? new MenuNav();
     this.onToggle = options.onToggle ?? null;
+    this.tabs = options.tabs ?? false;
+    this.aside = options.aside ?? null;
 
     this.element = el('div', 'pmenu');
+    if (this.tabs) this.element.classList.add('pmenu--tabs');
     this.element.hidden = true;
     this.element.setAttribute('role', 'dialog');
     this.element.setAttribute('aria-modal', 'true');
@@ -371,7 +407,26 @@ export class PageMenu {
     this.stage.append(this.list, this.detailEl);
     this.footEl = el('p', 'pmenu__foot');
 
-    this.sheet.append(head, this.toolsEl, this.statusEl, this.stage, this.footEl);
+    // **Die Reiter** stehen unter dem Kopf und über allem anderen — dort, wo
+    // man sie in _Die Sims_ sucht. Ohne `tabs` bleibt die Leiste leer und weg.
+    this.tabsEl = el('nav', 'pmenu__tabs');
+    this.tabsEl.setAttribute('role', 'tablist');
+    this.tabsEl.hidden = !this.tabs;
+    this.tabsEl.addEventListener('click', (event) => {
+      const tab = (event.target as HTMLElement).closest<HTMLElement>('[data-tab]');
+      if (tab) this.showTab(tab.dataset['tab']!);
+    });
+
+    // Liste und Seitenspalte nebeneinander (am Telefon untereinander).
+    const body = el('div', 'pmenu__body');
+    body.append(this.stage);
+    if (this.aside) {
+      this.aside.element.classList.add('pmenu__aside');
+      this.aside.element.hidden = true;
+      body.append(this.aside.element);
+    }
+
+    this.sheet.append(head, this.tabsEl, this.toolsEl, this.statusEl, body, this.footEl);
     this.element.append(this.sheet);
     (options.host ?? document.body).append(this.element);
 
@@ -457,6 +512,15 @@ export class PageMenu {
     this.toggle(true);
   }
 
+  /**
+   * **Einen Reiter aufschlagen und das Menü dazu öffnen** — dort, wo man in
+   * ihm zuletzt stand (`PageMenuOptions.tabs`).
+   */
+  openTab(id: string): void {
+    this.showTab(id);
+    this.toggle(true);
+  }
+
   setStatus(status: string): void {
     this.statusEl.textContent = status;
   }
@@ -513,6 +577,7 @@ export class PageMenu {
     if (!next) this.keepScroll();
     this.open = next;
     this.element.hidden = !next;
+    if (!next) this.showAside(false);
     if (next) {
       this.window = PAGE_WINDOW;
       this.render();
@@ -538,7 +603,7 @@ export class PageMenu {
    * statt dass nichts passiert.
    */
   goBack(): boolean {
-    if (!this.open || (this.query === '' && this.stack.length <= 1)) return false;
+    if (!this.open || (this.query === '' && this.stack.length <= this.floor)) return false;
     this.back();
     return true;
   }
@@ -582,6 +647,7 @@ export class PageMenu {
 
   dispose(): void {
     this.offNav();
+    this.showAside(false);
     this.closeDetail();
     // Auch dann, wenn gar kein Steckbrief offen war: Ein Zeitgeber, der ein
     // abgeräumtes Menü anspricht, ist der Fehler, den niemand mehr zuordnet.
@@ -597,6 +663,66 @@ export class PageMenu {
 
   private get page(): Page {
     return this.stack[this.stack.length - 1]!;
+  }
+
+  /**
+   * **Wie viele Seiten der Stapel mindestens hat** — darunter geht kein
+   * _Zurück_. Mit Reitern ist das die Seite des Reiters: Die Wurzel ist nur
+   * die Reihe darüber und keine Seite, auf die man zurückkäme.
+   */
+  private get floor(): number {
+    return this.tabs ? 2 : 1;
+  }
+
+  /** Zu einem Reiter wechseln — und dort weitermachen, wo man ihn verließ. */
+  private showTab(id: string): void {
+    if (!this.root.some((entry) => entry.id === id)) return;
+    const path = this.nav.path;
+    if (path[0] === id && this.open) {
+      // Ein Druck auf den Reiter, in dem man schon steht: an seinen Anfang.
+      if (path.length > 1) {
+        this.keepScroll();
+        this.nav.goTo([id]);
+      }
+      return;
+    }
+    if (path.length > 0) this.tabPaths.set(path[0]!, path);
+    this.keepScroll();
+    this.nav.goTo(this.tabPaths.get(id) ?? [id]);
+  }
+
+  /** Die Reihe der Reiter — neu gebaut nur, wenn sich daran etwas ändert. */
+  private paintTabs(): void {
+    if (!this.tabs) return;
+    const current = this.nav.path[0] ?? '';
+    const key = this.root.map((entry) => `${entry.id}:${entry.label}`).join('|') + `#${current}`;
+    if (this.tabsEl.dataset['key'] === key) return;
+    this.tabsEl.dataset['key'] = key;
+    this.tabsEl.replaceChildren(
+      ...this.root.map((entry, at) => {
+        const tab = el('button', 'pmenu__tab');
+        tab.type = 'button';
+        tab.dataset['tab'] = entry.id;
+        tab.setAttribute('role', 'tab');
+        const on = entry.id === current;
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        if (on) tab.classList.add('is-on');
+        tab.title = `${entry.label} · ${at + 1}`;
+        tab.style.setProperty('--accent', cssColor(entry.accent));
+        tab.append(icon(entry, cssColor(entry.accent)), el('span', '', entry.label));
+        return tab;
+      }),
+    );
+  }
+
+  /** Die Seitenspalte zeigen oder wegnehmen — gesagt wird es nur bei Änderung. */
+  private showAside(on: boolean): void {
+    const aside = this.aside;
+    if (!aside || on === this.asideShown) return;
+    this.asideShown = on;
+    aside.element.hidden = !on;
+    this.element.classList.toggle('pmenu--aside', on);
+    aside.show(on);
   }
 
   /** Der Weg aus dem geteilten Merkzettel, als Stapel von Seiten. */
@@ -635,6 +761,13 @@ export class PageMenu {
       this.stack.push(pageOf(entry));
       level = entry.children;
     }
+    // **Mit Reitern wird die Wurzel nie aufgeschlagen** — wer dort ankäme
+    // (beim ersten Öffnen, nach dem Wegfall eines Reiters), steht im ersten.
+    if (this.tabs && this.stack.length < 2 && this.root.length > 0) {
+      const first = this.root[0]!.id;
+      this.nav.goTo(this.tabPaths.get(first) ?? [first]);
+      return;
+    }
     // **Eine andere Seite fängt ohne Suchbegriff an.** Ein Feld, das beim
     // Hineingehen stehen bliebe, filterte die neue Seite nach dem, was jemand
     // auf der alten gesucht hat — und niemand sähe, warum sie fast leer ist.
@@ -671,18 +804,21 @@ export class PageMenu {
    * wenn sich der Weg geändert hat — `render` läuft zweimal die Sekunde.
    */
   private paintCrumbs(): void {
-    const steps = this.stack.slice(0, -1).map((page) => page.title);
+    // Mit Reitern fängt der Weg beim Reiter an: Die Wurzel steht als Reihe
+    // darüber und braucht keine Brotkrume.
+    const base = this.floor - 1;
+    const steps = this.stack.slice(base, -1).map((page) => page.title);
     const key = steps.join('\u0000');
     if (this.crumbsEl.dataset['key'] === key) return;
     this.crumbsEl.dataset['key'] = key;
     this.crumbsEl.hidden = steps.length === 0;
     this.crumbsEl.replaceChildren(
-      ...steps.flatMap((label, depth) => {
+      ...steps.flatMap((label, at) => {
         const step = el('button', 'pmenu__crumb');
         step.type = 'button';
-        step.dataset['depth'] = String(depth);
+        step.dataset['depth'] = String(base + at);
         step.textContent = label;
-        return depth === 0 ? [step] : [el('span', 'pmenu__crumbsep'), step];
+        return at === 0 ? [step] : [el('span', 'pmenu__crumbsep'), step];
       }),
     );
   }
@@ -723,7 +859,9 @@ export class PageMenu {
   private render(): void {
     const page = this.page;
     this.titleEl.textContent = page.title;
-    this.backButton.hidden = this.stack.length <= 1;
+    this.backButton.hidden = this.stack.length <= this.floor;
+    this.paintTabs();
+    this.showAside(this.open && this.aside !== null && page.id === this.aside.page);
     this.paintCrumbs();
     // Der Weg an den Anfang des Katalogs steht nur da, wenn er auch woanders
     // hinführt als *Zurück* (`MenuEntry.home`).
@@ -1152,7 +1290,7 @@ export class PageMenu {
       this.render();
       return;
     }
-    if (this.stack.length > 1) {
+    if (this.stack.length > this.floor) {
       this.keepScroll();
       this.nav.pop();
       return;
@@ -1161,7 +1299,18 @@ export class PageMenu {
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {
-    if (!this.open || event.key !== 'Escape') return;
+    if (!this.open) return;
+    // **Die Ziffern wählen den Reiter** — `1` Inventar, `2` Katalog … wie die
+    // Leiste in Minecraft. Nicht im Suchfeld: Dort ist eine Ziffer ein Wort.
+    if (this.tabs && /^[1-9]$/.test(event.key) && !event.altKey && !event.ctrlKey) {
+      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
+      const entry = this.root[Number(event.key) - 1];
+      if (!entry) return;
+      event.preventDefault();
+      this.showTab(entry.id);
+      return;
+    }
+    if (event.key !== 'Escape') return;
     event.preventDefault();
     this.back();
   };

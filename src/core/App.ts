@@ -10,7 +10,7 @@ import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { MenuNav } from '../ui/menuNav';
 import { catalogRecall } from '../ui/menuRecall';
-import { WORLD_BADGES, folderWorlds, groupMenu, worldKind } from '../ui/menuGroups';
+import { WORLD_BADGES, findMenuEntry, folderWorlds, groupMenu, worldKind } from '../ui/menuGroups';
 import { PageMenu } from '../ui/PageMenu';
 import { padNav } from '../ui/padNav';
 import { ControlHints, hintsOn, setHintsOn } from '../ui/ControlHints';
@@ -22,6 +22,7 @@ import { hintDevice } from './controlHints';
 import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
+import { PlayerCard } from '../ui/PlayerCard';
 import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
 import { topDownFit } from './topDownPose';
@@ -180,6 +181,13 @@ export interface ConnectOptions extends TrysteroOptions {
   local?: boolean;
 }
 
+/**
+ * **Die Id des ersten Reiters im Inventar** — die Seite mit den Werkzeugen und
+ * der Figur. Darf mit keiner Id des großen Menüs zusammenfallen
+ * (`ui/menuGroups.MENU_GROUPS`).
+ */
+const INVENTORY_TAB = 'inventar';
+
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
 const _headPos = new THREE.Vector3();
@@ -219,12 +227,21 @@ export class App {
    */
   readonly pageMenu: PageMenu;
   /**
-   * **Die Werkzeugliste am Bildschirm** — derselbe Seitenmenü-Baustein wie
-   * oben links, nur mit einem sehr kurzen Baum: die Hand und die Werkzeuge
-   * dieser Welt (`World.toolChoice`). Ein eigenes Menü und kein Ast im
-   * großen: Es gehört zum Knopf unten rechts und nicht in die Einstellungen.
+   * **Das Inventar hinter `Tab`** — derselbe Seitenmenü-Baustein wie oben
+   * links, aber mit Reitern wie in _Die Sims_: **Inventar** (die Hand und die
+   * Werkzeuge dieser Welt als Kacheln, rechts daneben die eigene Figur mit
+   * _Aussehen anpassen_, wie in Minecraft), **Katalog**, **Welten** und
+   * **Einstellungen** — die drei hinteren sind dieselben Seiten wie im Menü
+   * (`inventoryRoot`). Es löst die Werkzeugliste ab, die vorher hinter `Tab`,
+   * `Y` und dem Knopf unten rechts lag.
    */
   readonly toolMenu: PageMenu;
+  /** Die Figur im Inventar (`ui/PlayerCard.ts`). */
+  private readonly playerCard: PlayerCard | null;
+  /** Die Wurzel des großen Menüs, mit Bereichen — woraus das Inventar seine Reiter nimmt. */
+  private menuRoot: MenuEntry[] = [];
+  /** Die Umkleide kam aus dem Inventar: beim Schließen dorthin zurück. */
+  private wardrobeReturns = false;
   /** Die Tastenhilfe unten im Bild — `null` ohne DOM (Tests). */
   private readonly hints: ControlHints | null =
     typeof document === 'undefined' ? null : new ControlHints();
@@ -492,12 +509,34 @@ export class App {
       onToggle: (open) => this.hooks.onMenuChanged?.(open),
     });
     this.wristMenu.attachPage(this.pageMenu);
-    // Die Werkzeugliste: eigener Baum, eigener Weg, eigener Knopf.
+    // Das Inventar: eigener Baum, eigener Weg, eigener Knopf — und die Figur
+    // daneben, die die Umkleide aufmacht.
+    this.playerCard =
+      typeof document === 'undefined'
+        ? null
+        : new PlayerCard({
+            page: INVENTORY_TAB,
+            name: () => this.net.name,
+            onCustomize: () => {
+              this.toolMenu.toggle(false);
+              this.wardrobeReturns = true;
+              this.openWardrobe();
+            },
+          });
     this.toolMenu = new PageMenu({
-      title: 'Werkzeug',
+      title: 'Inventar',
+      tabs: true,
+      ...(this.playerCard ? { aside: this.playerCard } : {}),
       onToggle: (open) => this.toolButton?.setOpen(open),
     });
-    this.wardrobe = new WardrobeMenu();
+    this.wristMenu.attachSidePage(this.toolMenu);
+    this.wardrobe = new WardrobeMenu({
+      onToggle: (open) => {
+        if (open || !this.wardrobeReturns) return;
+        this.wardrobeReturns = false;
+        this.toolMenu.openTab(INVENTORY_TAB);
+      },
+    });
     this.holdMenu = new HoldMenu({
       onToggle: (open) => {
         if (open || !this.holdReopens) return;
@@ -1070,7 +1109,8 @@ export class App {
       device: hintDevice(padNav.device, this.flat.screenPadsShown),
       view: this.flat.topDown ? (this.flat.crane ? 'crane' : 'topDown') : 'firstPerson',
       menu,
-      tools: this.toolShown !== undefined,
+      // Das Inventar geht in jeder Welt auf, auch ohne Werkzeuge.
+      tools: true,
       useCandidate: this.rig.useCandidate,
       carrying: this.rig.carrying,
       armed: this.rig.armed,
@@ -1193,28 +1233,35 @@ export class App {
    * Er steht in **jeder** Bildschirmansicht, sobald die Welt Werkzeuge
    * anbietet, und in der Brille nie: Dort ist das Regal am Handgelenk, und
    * ein zweiter Weg zum selben Ding wäre ein zweiter Ort, an dem man sucht.
+   *
+   * Das Inventar dahinter geht auch ohne Werkzeuge auf (`Tab`) — Katalog,
+   * Welten und Einstellungen gibt es überall; nur der Knopf bleibt dann weg.
    */
   private updateToolButton(presenting: boolean): void {
+    if (presenting && this.toolMenu.isOpen) this.toolMenu.toggle(false);
     const button = this.toolButton;
-    if (!button) return;
     const choice = presenting ? null : (this.world?.toolChoice?.() ?? null);
     if (!choice) {
-      button.show(false);
-      if (this.toolMenu.isOpen) this.toolMenu.toggle(false);
+      button?.show(false);
+      // Die Werkzeuge sind weg (eine Welt ohne): Das offene Inventar zeigt es.
+      if (this.toolShown !== undefined && this.toolMenu.isOpen) {
+        this.toolMenu.setRoot(this.inventoryRoot());
+      }
       this.toolShown = undefined;
       return;
     }
+    if (!button) return;
     button.show(true);
     if (choice.current === this.toolShown) return;
     this.toolShown = choice.current;
     const option = choice.options.find((entry) => entry.id === choice.current);
     button.set(option?.icon ?? null, option?.label ?? HAND_LABEL, cssColor(option?.accent));
-    // Steht die Liste offen, wandert der Punkt mit — sonst zeigte sie noch
+    // Steht das Inventar offen, wandert der Rahmen mit — sonst zeigte es noch
     // auf das, was eben abgelegt wurde.
-    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.toolPage(choice), 'Werkzeug');
+    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.inventoryRoot());
   }
 
-  /** Die Zeilen der Liste, samt dem, was ein Tipp auslöst (`ui/ToolButton.ts`). */
+  /** Die Kacheln des Inventars, samt dem, was ein Tipp auslöst (`ui/ToolButton.ts`). */
   private toolPage(choice: ToolChoice): MenuEntry[] {
     return toolEntries(choice, (id) => {
       choice.choose(id);
@@ -1223,16 +1270,60 @@ export class App {
     });
   }
 
+  /**
+   * **Die Reiter des Inventars** (`toolMenu`): vorn das Inventar selbst, dann
+   * drei Seiten, die es im großen Menü schon gibt — der Möbelkatalog
+   * (`elements`, nur in Welten, die einen haben), _Spielen_ als **Welten** und
+   * die **Einstellungen**. Es sind **dieselben Einträge**: Wer hier eine
+   * Grafikeinstellung umlegt, legt sie im Menü um, und der Katalog zeigt
+   * dieselben Kacheln mit denselben Modellen.
+   */
+  private inventoryRoot(): MenuEntry[] {
+    const choice = this.world?.toolChoice?.() ?? null;
+    const tools: MenuEntry[] = choice
+      ? this.toolPage(choice)
+      : [
+          {
+            id: 'tool:none',
+            label: 'Keine Werkzeuge',
+            caption: 'Diese Welt gibt keine in die Hand',
+            icon: 'hand',
+            accent: 0x6f7d99,
+          },
+        ];
+    const tabs: MenuEntry[] = [
+      {
+        id: INVENTORY_TAB,
+        label: 'Inventar',
+        sub: 'Werkzeuge und deine Figur',
+        icon: 'bag',
+        accent: 0x5ee0a0,
+        grid: true,
+        take: false,
+        children: tools,
+      },
+    ];
+    const catalog = findMenuEntry(this.menuRoot, 'elements');
+    if (catalog?.children) tabs.push({ ...catalog, label: 'Katalog' });
+    const worlds = this.menuRoot.find((entry) => entry.id === 'spielen');
+    if (worlds?.children) tabs.push({ ...worlds, label: 'Welten', icon: 'worlds' });
+    const settings = this.menuRoot.find((entry) => entry.id === 'einstellungen');
+    if (settings?.children) tabs.push({ ...settings, label: 'Einstellungen' });
+    return tabs;
+  }
+
   /** Den Knopf drücken: auf oder zu (`Tab`, `Y`, Tipp auf `#hud-tool`). */
   private toggleToolMenu(): void {
     if (this.toolMenu.isOpen) {
       this.toolMenu.toggle(false);
       return;
     }
-    const choice = this.world?.toolChoice?.();
-    if (!choice) return;
-    this.toolMenu.setRoot(this.toolPage(choice), 'Werkzeug');
-    this.toolMenu.toggle(true);
+    if (!this.world || this.renderer.xr.isPresenting) return;
+    if (this.pageMenu.isOpen) this.pageMenu.toggle(false);
+    this.toolMenu.setRoot(this.inventoryRoot());
+    // **Immer auf dem Inventar** — wie `E` in Minecraft. Die anderen Reiter
+    // merken sich trotzdem, wo man in ihnen stand.
+    this.toolMenu.openTab(INVENTORY_TAB);
   }
 
   notify(message: string): void {
@@ -1262,6 +1353,7 @@ export class App {
     this.padScopes = [];
     this.pageMenu.dispose();
     this.toolMenu.dispose();
+    this.playerCard?.dispose();
     this.wardrobe.dispose();
     this.holdMenu.dispose();
     this.toolButton?.dispose();
@@ -1411,6 +1503,10 @@ export class App {
     // spectator switches change under the player's nose. The menu keeps the
     // page and the scroll position through it, open or closed.
     this.wristMenu.setRoot(root);
+    // Das Inventar nimmt drei seiner Reiter aus dieser Wurzel — und zieht mit,
+    // wenn darin ein Schalter umgelegt wurde.
+    this.menuRoot = root;
+    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.inventoryRoot());
   }
 
   /**

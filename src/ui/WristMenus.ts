@@ -47,6 +47,12 @@ export class WristMenus extends THREE.Group {
   private preferred: Handedness = 'left';
   /** Das Menü als Seite, für alles ohne Brille — oder `null`, dann immer der Arm. */
   private page: PageMenu | null = null;
+  /**
+   * **Weitere Seiten neben dem Menü** — das Inventar hinter `Tab`. Sie lesen
+   * einen eigenen Baum, bekommen aber dieselben kleinen Modelle und gehen beim
+   * Aufsetzen der Brille ebenso zu (`attachSidePage`).
+   */
+  private readonly sidePages: PageMenu[] = [];
   /** Ob die Brille aufgesetzt ist (`App`, Sitzungsbeginn und -ende). */
   private immersive = false;
 
@@ -87,6 +93,12 @@ export class WristMenus extends THREE.Group {
     page.setPresenting(this.immersive);
   }
 
+  /** Eine Seite mit eigenem Baum dazuhängen — Modelle und Brille wie beim Menü. */
+  attachSidePage(page: PageMenu): void {
+    this.sidePages.push(page);
+    page.setPresenting(this.immersive);
+  }
+
   /**
    * Brille auf oder ab. Beim Aufsetzen geht die Seite zu, beim Absetzen das
    * Handgelenk — ein offenes Menü, das man nicht mehr sehen kann, hielte
@@ -96,6 +108,10 @@ export class WristMenus extends THREE.Group {
     if (on === this.immersive) return;
     this.immersive = on;
     this.page?.setPresenting(on);
+    for (const side of this.sidePages) {
+      side.setPresenting(on);
+      if (on) side.toggle(false);
+    }
     if (on) this.page?.toggle(false);
     else this.closeWrists();
   }
@@ -211,6 +227,10 @@ export class WristMenus extends THREE.Group {
   ): void {
     for (const menu of this.menus) menu.setModelFactory(factory);
     this.page?.setPreviews(factory ? new PagePreviews(factory, clips, forget) : null);
+    // Jede Seite ihre eigene Schicht: Eine Leinwand hängt in genau einem Kasten.
+    for (const side of this.sidePages) {
+      side.setPreviews(factory ? new PagePreviews(factory, clips, forget) : null);
+    }
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {

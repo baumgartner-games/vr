@@ -88,7 +88,7 @@ export const ACTION_LABELS: Record<PadAction | KeyAction, { label: string; sub: 
   sight: { label: 'Zielen', sub: 'Aus den Augen: über die Waffe zielen' },
   view: { label: 'Ansicht', sub: 'Von oben ↔ aus den Augen' },
   sprint: { label: 'Sprint', sub: 'Schneller laufen' },
-  tools: { label: 'Werkzeugliste', sub: 'Das Regal auf- und zuklappen' },
+  tools: { label: 'Inventar', sub: 'Inventar, Katalog, Welten, Einstellungen auf- und zuklappen' },
   zoomIn: { label: 'Zoom heran', sub: 'Von oben: eine Stufe näher' },
   zoomOut: { label: 'Zoom zurück', sub: 'Von oben: eine Stufe weiter weg' },
   turnLeft: { label: 'Bild links drehen', sub: 'Von oben: um 45° nach links' },

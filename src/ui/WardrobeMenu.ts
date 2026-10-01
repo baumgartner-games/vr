@@ -164,7 +164,7 @@ export class WardrobeMenu {
     });
     close.addEventListener('click', () => this.toggle(false));
     done.addEventListener('click', () => this.toggle(false));
-    this.stage.addEventListener('pointerdown', this.onPointerDown);
+    this.stage.addEventListener('pointerdown', (event) => turnByDrag(event, this.stage, this.view));
     window.addEventListener('keydown', this.onKeyDown);
 
     // Geändert wird auch woanders — im Menü am Handgelenk, auf der Seite
@@ -246,14 +246,8 @@ export class WardrobeMenu {
    */
   private startPreview(): void {
     if (this.view) return;
-    try {
-      // Erst fragen, dann bauen: three zeichnet seit r15x nur noch auf WebGL 2,
-      // und ein Renderer, der das im Konstruktor herausfindet, schreibt dabei
-      // eine Fehlermeldung in die Konsole, die hier kein Fehler ist.
-      if (typeof WebGL2RenderingContext === 'undefined') throw new Error('kein WebGL 2');
-      this.view = new PreviewScene(this.stage);
-    } catch {
-      this.view = null;
+    this.view = openPreviewScene(this.stage);
+    if (!this.view) {
       this.stage.hidden = true;
       return;
     }
@@ -266,33 +260,55 @@ export class WardrobeMenu {
     this.view = null;
   }
 
-  /** Wischen dreht die Figur — solange der Finger liegt. */
-  private readonly onPointerDown = (event: PointerEvent): void => {
-    const view = this.view;
-    if (!view) return;
-    const width = this.stage.clientWidth || 1;
-    let last = event.clientX;
-    view.spinning = false;
-    this.stage.setPointerCapture(event.pointerId);
-
-    const move = (e: PointerEvent): void => {
-      view.turn += ((e.clientX - last) / width) * DRAG_TURN;
-      last = e.clientX;
-    };
-    const up = (): void => {
-      this.stage.removeEventListener('pointermove', move);
-      this.stage.removeEventListener('pointerup', up);
-      this.stage.removeEventListener('pointercancel', up);
-      view.spinning = true;
-    };
-    this.stage.addEventListener('pointermove', move);
-    this.stage.addEventListener('pointerup', up);
-    this.stage.addEventListener('pointercancel', up);
-  };
-
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (this.open && event.key === 'Escape') this.toggle(false);
   };
+}
+
+/**
+ * **Wischen dreht die Figur** — solange der Finger liegt. Dieselbe Geste in
+ * der Umkleide und im Inventar (`ui/PlayerCard.ts`).
+ */
+export function turnByDrag(
+  event: PointerEvent,
+  stage: HTMLElement,
+  view: PreviewScene | null,
+): void {
+  if (!view) return;
+  const width = stage.clientWidth || 1;
+  let last = event.clientX;
+  view.spinning = false;
+  stage.setPointerCapture(event.pointerId);
+
+  const move = (e: PointerEvent): void => {
+    view.turn += ((e.clientX - last) / width) * DRAG_TURN;
+    last = e.clientX;
+  };
+  const up = (): void => {
+    stage.removeEventListener('pointermove', move);
+    stage.removeEventListener('pointerup', up);
+    stage.removeEventListener('pointercancel', up);
+    view.spinning = true;
+  };
+  stage.addEventListener('pointermove', move);
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
+}
+
+/**
+ * **Die Figur auf ihrem Drehteller — oder `null`**, wenn dieser Browser keinen
+ * zweiten WebGL-Kontext hergibt (siehe `WardrobeMenu.startPreview`).
+ */
+export function openPreviewScene(stage: HTMLElement): PreviewScene | null {
+  try {
+    // Erst fragen, dann bauen: three zeichnet seit r15x nur noch auf WebGL 2,
+    // und ein Renderer, der das im Konstruktor herausfindet, schreibt dabei
+    // eine Fehlermeldung in die Konsole, die hier kein Fehler ist.
+    if (typeof WebGL2RenderingContext === 'undefined') return null;
+    return new PreviewScene(stage);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -303,7 +319,7 @@ export class WardrobeMenu {
  * mit einer Totzone (`AvatarBody.update`) — wer ihn über den Kopf drehte,
  * bekäme eine Figur, die dem Blick hinterherzuckelt statt sich zu zeigen.
  */
-class PreviewScene {
+export class PreviewScene {
   readonly body: AvatarBody;
   /** Wie weit der Teller gedreht ist, in Bogenmaß. */
   turn = FACING;

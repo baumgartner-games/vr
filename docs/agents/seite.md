@@ -296,6 +296,51 @@ In älteren Kapiteln steht oft noch der alte Weg; so heißt er jetzt:
 | Menü → NPC → Trefferzonen, Navigation | Menü → Werkstatt |
 | Menü → Einstellungen → Welt-Physik, Konfig-Code, Posen; Menü → Weltänderungen | Menü → Werkstatt |
 
+## Das Inventar hinter `Tab`
+
+Gewünscht war: _„mit Tab ein UI-Menü öffnen, welches wie bei Sims oben eine
+Tab-Menü-Reihe hat: Inventar/Spieler, Katalog, Welten, Einstellungen"_ — im
+Inventar links die Werkzeuge, rechts der Spieler, wie er aussieht, mit einem
+Knopf zum Anpassen, „angelehnt an Minecraft"; am Telefon bei den Kacheln
+bleiben wie im Katalog.
+
+Es ist **dasselbe Seitenmenü** (`ui/PageMenu.ts`) mit `tabs: true`: Die
+Einträge der Wurzel sind Reiter unter dem Kopf, die Wurzel selbst schlägt
+niemand auf, und jeder Reiter merkt sich, wie tief man in ihm stand (ein
+zweiter Druck auf denselben Reiter führt an seinen Anfang). Den Baum baut
+`App.inventoryRoot`:
+
+| Reiter | Was darin steht |
+| ------ | --------------- |
+| **Inventar** (`inventar`) | die Hand und die Werkzeuge der Welt (`World.toolChoice`) als Kacheln; ein Tipp nimmt und schließt. Daneben die Figur (`ui/PlayerCard.ts`) mit _Aussehen anpassen_ → Umkleide, und beim _Fertig_ dort zurück ins Inventar |
+| **Katalog** (`elements`) | der Möbelkatalog aus _Bauen & Gestalten_ — nur in Welten, die einen haben |
+| **Welten** (`spielen`) | die Seite _Spielen_: Welten, Ordner, Spiel-Sicht |
+| **Einstellungen** (`einstellungen`) | Bewegung, Grafik, Ton, Hände & Greifen |
+
+Die drei hinteren sind **dieselben Einträge** wie im großen Menü
+(`findMenuEntry` aus der gruppierten Wurzel), also dieselben Schalter und
+dieselben Kacheln samt Modellen (`WristMenus.attachSidePage` gibt dem
+Inventar eine eigene Vorschauschicht).
+
+- **Auf geht es immer auf dem Inventar** — `Tab`, `Y` am Pad, der Knopf
+  `#hud-tool` —, wie `E` in Minecraft. Es geht in jeder Welt auf, auch ohne
+  Werkzeuge (dann steht dort _Keine Werkzeuge_); nur der Knopf unten rechts
+  bleibt ohne Werkzeuge weg. In der Brille nie: Dort ist das Regal am
+  Handgelenk.
+- **`1`–`4`** wählen den Reiter (nicht im Suchfeld), `Esc` und `B` gehen
+  zurück und auf der Seite eines Reiters zu.
+- **Die Figur** ist dieselbe kleine Szene wie in der Umkleide
+  (`WardrobeMenu.PreviewScene`) und läuft nur, solange die Seite _Inventar_
+  offen ist — beim Reiterwechsel und beim Zumachen ist ihr Renderer weg.
+- **Am Telefon** steht die Figur als Streifen über den Kacheln (Figur links,
+  Name und Knopf rechts), das Blatt ist fest 88 % hoch, damit es beim
+  Reiterwechsel nicht springt; am Schreibtisch ein Kasten in der Mitte, die
+  Figur als Spalte rechts (`pageMenu.css`, `playerCard.css`). Der Katalog
+  nimmt wie im Menü den ganzen Schirm.
+
+Offen: In der Brille gibt es kein Gegenstück; die Reiter am Pad erreicht man
+über den Fokus (Stick nach oben), nicht über eigene Schultertasten.
+
 ## Menü → Eingaben
 
 Heute unter _Steuerung & Hilfe_ (siehe oben).

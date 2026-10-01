@@ -608,3 +608,81 @@
    Zustand, sondern eine Tat, und deshalb ist er der einzige mit Farbe am Rand. */
 .pmenu__deed { border-color: var(--accent); }
 .pmenu__deed[hidden] { display: none; }
+
+/* ---------- Das Inventar hinter `Tab`: Reiter und Seitenspalte ----------
+
+   Dasselbe Blatt wie das Menü (`PageMenu`, `tabs: true`), aber mit einer
+   Reihe Reiter unter dem Kopf — Inventar, Katalog, Welten, Einstellungen, wie
+   oben in _Die Sims_ — und auf der Seite _Inventar_ mit der Figur daneben
+   (`.pmenu__aside`, `ui/PlayerCard.ts`), wie in Minecraft. */
+
+/* Liste und Seitenspalte: am Telefon untereinander, die Figur oben. */
+.pmenu__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pmenu__aside[hidden] { display: none; }
+
+.pmenu__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pmenu__tabs[hidden] { display: none; }
+
+/* Ein Reiter: Ikone über dem Wort, alle gleich breit — vier passen auch auf
+   ein schmales Telefon, ohne dass ein Wort abbricht. */
+.pmenu__tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 2px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 10px 10px 0 0;
+  cursor: pointer;
+}
+
+.pmenu__tab:hover { color: var(--fg); background: rgba(140, 170, 230, 0.08); }
+.pmenu__tab.is-on { color: var(--fg); border-bottom-color: var(--accent); background: rgba(140, 170, 230, 0.1); }
+.pmenu__tab .pmenu__icon { width: 24px; height: 24px; }
+.pmenu__tab span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmenu__tab .pmenu__icon--blank { width: 10px; height: 10px; margin: 7px; }
+
+/* Die Kacheln im Inventar füllen, was neben der Figur frei ist — so viele
+   Spalten, wie hineinpassen, statt einer festen Zahl. */
+.pmenu--aside .pmenu__list--grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+
+/* Am Telefon steht das Blatt hoch und gleich hoch, egal welcher Reiter: Ein
+   Blatt, das beim Wechseln springt, wirft den Daumen vom Reiter. */
+.pmenu--tabs:not(.pmenu--full) .pmenu__sheet { height: min(88dvh, 100%); }
+
+@media (min-width: 640px) {
+  /* Am Schreibtisch ein Kasten in der Mitte, breit genug für Kacheln und
+     Figur nebeneinander. */
+  .pmenu.pmenu--tabs:not(.pmenu--full) {
+    align-items: center;
+    justify-content: center;
+    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right))
+      max(16px, var(--safe-bottom)) max(16px, var(--safe-left));
+    background: rgba(2, 4, 10, 0.45);
+  }
+
+  .pmenu--tabs:not(.pmenu--full) .pmenu__sheet {
+    width: min(980px, 100%);
+    height: min(720px, 100%);
+  }
+
+  .pmenu__tab { flex: 0 1 auto; display: flex; align-items: center; gap: 8px; padding: 8px 16px 10px; font-size: 14px; }
+
+  .pmenu--aside .pmenu__body { flex-direction: row; }
+  .pmenu--aside .pmenu__stage { flex: 1; }
+}

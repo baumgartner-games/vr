@@ -466,3 +466,26 @@ export function folderWorlds<
   }
   return out;
 }
+
+/**
+ * **Der Eintrag selbst, wo immer er steht** — derselbe Weg wie
+ * `findMenuPath`, nur dass am Ende das Ding und nicht die Ids herauskommen.
+ * Das Inventar holt sich so den Möbelkatalog aus dem großen Menü
+ * (`App.inventoryRoot`), egal unter welchem Bereich er gerade steht.
+ */
+export function findMenuEntry(
+  entries: readonly MenuEntry[],
+  id: string,
+  depth = 3,
+): MenuEntry | null {
+  const path = findMenuPath(entries, id, depth);
+  if (!path) return null;
+  let level: readonly MenuEntry[] = entries;
+  let found: MenuEntry | null = null;
+  for (const step of path) {
+    found = level.find((entry) => entry.id === step) ?? null;
+    if (!found) return null;
+    level = found.children ?? [];
+  }
+  return found;
+}
