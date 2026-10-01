@@ -35,6 +35,8 @@
  * abschalten und ein Code vom PC einer Brille keine aufzwingen.
  */
 
+import { TOP_DOWN_TILT, clampTilt } from './topDownPose';
+
 const KEY = 'bgvr.graphics';
 
 /** Die beiden Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
@@ -398,6 +400,20 @@ export interface GraphicsSettings {
    * Tempo; der Stock bleibt die Voreinstellung.
    */
   movePad: MovePad;
+  /**
+   * **Wie steil die Ansicht _Von oben_ schaut**, in Grad über der Waagerechten
+   * (`core/topDownPose.ts`, 20–90, ab Werk 55). Eingestellt unter _Grafik →
+   * Blickwinkel von oben_ in Schritten von 5° und 10°. Gewünscht: _„bei
+   * Ansicht von oben noch den Winkel anpassen / einstellen können"_.
+   */
+  topDownTilt: number;
+  /**
+   * **Rechte Maustaste halten und ziehen stellt die Neigung frei ein** — nur
+   * am Schirm mit Maus und nur von oben (`FlatControls`). Ab Werk aus: Der
+   * Rechtsklick holt als Kran die Abrissbombe, und wer das nicht weiß, soll
+   * sich das Bild nicht aus Versehen verkippen.
+   */
+  tiltDrag: boolean;
 }
 
 /** Stock oder Steuerkreuz (`GraphicsSettings.movePad`). */
@@ -584,6 +600,8 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   idleSquishSpeed: 1,
   screenPads: 'auto',
   movePad: 'stick',
+  topDownTilt: TOP_DOWN_TILT,
+  tiltDrag: false,
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -815,6 +833,9 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     idleSquishSpeed,
     screenPads,
     movePad,
+    // Ein Stand von gestern kennt den Winkel nicht und bekommt die 55° von immer.
+    topDownTilt: clampTilt(raw.topDownTilt),
+    tiltDrag: raw.tiltDrag === true,
   };
 }
 

@@ -387,6 +387,29 @@ daneben durchsichtig wurde. Jetzt kommt jedes hingestellte Modell
 Grund wie die zweite Palette der Quader. Der schwarze Rand des Comics geht
 solange weg, der gelbe Saum des Hervorhebens bleibt.
 
+## Blickwinkel von oben
+
+_Menü → Grafik → **Blickwinkel von oben**_ (`GraphicsSettings.topDownTilt`, ab
+Werk 55°). Gewünscht: _„über das grafik menü, will ich bei ansicht von oben
+noch den winkel anpassen / einstellen können"_. Die Seite hat vier Knöpfe —
+**Steiler +10°**, **Flacher −10°**, **Steiler +5°**, **Flacher −5°** — und
+**Zurück auf 55°**. Geklemmt wird auf 20° flach bis 90° senkrecht
+(`topDownPose.clampTilt`); die Kamera kippt weich hinüber (`TopDownCamera.setTilt`,
+dieselbe Zeitkonstante wie das Drehen), und das Zielen mit der Maus rechnet mit
+dem Winkel, der gerade gilt (`groundDirection`). Auch der Start-Zoom einer Welt
+(`topDownFit`) nimmt ihn.
+
+**Nur am Schirm** steht darunter der Schalter **Rechtsklick ziehen: frei
+kippen** (`GraphicsSettings.tiltDrag`, ab Werk aus): rechte Maustaste halten und
+nach unten ziehen macht das Bild steiler, nach oben flacher (0,25° je
+Bildpunkt, `FlatControls.TILT_DRAG_SPEED`); beim Loslassen wird der Winkel die
+Einstellung. Als Kran bleibt rechts die Abrissbombe; solange der Schalter an
+ist, öffnet ein Rechtsklick von oben kein Kontextmenü.
+
+Was mit 55° rechnet und nicht nachzieht: die Auswahl der Wände vorn, das
+Deckel-Licht der Haunting-Station, die Schilder — sie sind für 55° gebaut und
+sehen bei anderen Winkeln nur etwas weniger genau aus.
+
 ## Wände vorn: die Wände des eigenen Raums
 
 _Menü → Grafik → **Wände vorn**_ (`GraphicsSettings.wallOcclusion`, Typ

@@ -38,6 +38,27 @@ export interface Vec2 {
  */
 export const TOP_DOWN_TILT = 55;
 
+/**
+ * **Wie flach und wie steil die Neigung eingestellt werden darf**, in Grad
+ * (_Menü → Grafik → Blickwinkel von oben_, `GraphicsSettings.topDownTilt`).
+ *
+ * Oben ist senkrecht — 90° sieht wie ein Grundriss aus und ist das Ende. Unten
+ * hört es bei 20° auf: Flacher schaut die Kamera über die Wände hinweg in den
+ * Nachbarraum, und die Nord-Süd-Strecken im Bild schrumpfen auf ein Drittel
+ * (`groundDirection` teilt durch den Sinus).
+ */
+export const TOP_DOWN_TILT_MIN = 20;
+export const TOP_DOWN_TILT_MAX = 90;
+
+/**
+ * **Eine Neigung, die es geben darf** — geklemmt auf die Enden oben und auf
+ * ganze Grad gerundet; was keine Zahl ist, wird die Vorgabe.
+ */
+export function clampTilt(tilt: unknown): number {
+  if (typeof tilt !== 'number' || !Number.isFinite(tilt)) return TOP_DOWN_TILT;
+  return Math.max(TOP_DOWN_TILT_MIN, Math.min(TOP_DOWN_TILT_MAX, Math.round(tilt)));
+}
+
 /** Öffnungswinkel der Kamera in Grad — eng, siehe oben. */
 export const TOP_DOWN_FOV = 30;
 
@@ -325,14 +346,14 @@ const NOTCH_EPS = 1e-3;
  * Figur — dort ist das Bild enger, also wird für sie gerechnet. Geklemmt auf
  * die Enden, die auch Rad und Pinch haben.
  */
-export function topDownFit(span: number, aspect: number): number {
+export function topDownFit(span: number, aspect: number, tilt = TOP_DOWN_TILT): number {
   const tan = Math.tan((TOP_DOWN_FOV / 2) * DEG);
   const wide = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
   const half = span / 2;
   // Die nahe Kante (zur Kamera hin) ist die enge: Sie liegt der Kamera um
   // `half · cos(Neigung)` näher als die Figur, und dort ist das Bild schmaler.
-  const near = half * Math.cos(TOP_DOWN_TILT * DEG);
+  const near = half * Math.cos(tilt * DEG);
   const across = half / (tan * wide) + near;
-  const along = (half * Math.sin(TOP_DOWN_TILT * DEG)) / tan + near;
+  const along = (half * Math.sin(tilt * DEG)) / tan + near;
   return Math.max(TOP_DOWN_MIN, Math.min(TOP_DOWN_MAX, Math.max(across, along)));
 }
