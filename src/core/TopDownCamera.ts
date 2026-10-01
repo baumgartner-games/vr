@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SmoothPose, weight } from '../net/PoseSmoothing';
 import type { PoseArray } from '../net/types';
 import { bringBack, cutAway, type ViewLevel } from './cutaway';
+import { OccluderGhosts } from './occluderGhost';
 import type { PlayerRig } from './PlayerRig';
 import { viewLayers } from './viewLayers';
 import { wheelPixels, wheelStep, wheelTakenByUi } from './wheelZoom';
@@ -58,6 +59,11 @@ import {
  * sonst führe das ganze Bild jede Treppenstufe einzeln mit, und eine Rampe
  * wäre eine Fahrt im Aufzug. Weich wird beides von derselben Glättung, die
  * auch der Figur hinterherzieht.
+ *
+ * **Und die Figur ist nie verdeckt** (`core/occluderGhost.ts`): Was nach dem
+ * Aufschneiden noch zwischen ihr und der Kamera steht — eine Baumkrone, ein
+ * Regal, ein Dach ohne Ebenenmarke —, ist für dieses Bild durchsichtig. Das
+ * gilt in jeder Welt, ohne dass sie etwas dafür tun muss.
  */
 /** Drehung und Abstand der Kamera von oben (`TopDownCamera.viewState`). */
 export interface TopDownViewState {
@@ -105,6 +111,10 @@ export class TopDownCamera {
   private level: number | null = null;
   /** Was für dieses Bild ausgeblendet ist. Nach dem Zeichnen wieder her damit. */
   private readonly hidden: THREE.Object3D[] = [];
+  /** Was die Figur verdeckt und für dieses Bild durchsichtig ist (`cut`). */
+  private readonly ghosts = new OccluderGhosts();
+  /** Die Figur des letzten `update` — ihr gilt das Durchsichtigmachen. */
+  private rig: PlayerRig | null = null;
   /**
    * **Wohin die Kamera schaut, solange sie niemandem folgt** — als Kran
    * (`core/crane.ts`). Dann fährt WASD das Bild (`pan`), und der Kran geht
@@ -160,6 +170,7 @@ export class TopDownCamera {
    */
   update(dt: number, rig: PlayerRig, ground: ViewLevel | null = null): void {
     this.level = ground?.level ?? null;
+    this.rig = rig;
     if (this.free && this.refocus) {
       this.free.x = rig.position.x;
       this.free.z = rig.position.z;
@@ -193,10 +204,13 @@ export class TopDownCamera {
    * unmittelbar vor dem Zeichnen und **vor** den Spiegeln und Portalsichten:
    * Die zeichnen dieselbe Szene noch einmal, und ein Spiegel, in dem die Decke
    * steht, die daneben fehlt, ist schlimmer als gar kein Spiegel.
+   *
+   * Danach wird durchsichtig, was die Figur dann noch verdeckt
+   * (`core/occluderGhost.ts`) — in jeder Welt, auch in einer ohne Ebenen.
    */
   cut(root: THREE.Object3D): void {
-    if (this.level === null) return;
-    cutAway(root, this.level, this.hidden);
+    if (this.level !== null) cutAway(root, this.level, this.hidden);
+    if (this.rig) this.ghosts.apply(root, this.camera, this.rig, this.rig.getFloorY());
   }
 
   /**
@@ -207,7 +221,16 @@ export class TopDownCamera {
    * genau das, was `cut` ausgeblendet hat.
    */
   uncut(): void {
+    this.ghosts.restore();
     bringBack(this.hidden);
+  }
+
+  /**
+   * **Die durchsichtigen Zwillinge weg** — beim Weltwechsel: Die Materialien,
+   * zu denen sie gehörten, gehen mit der alten Welt.
+   */
+  forgetGhosts(): void {
+    this.ghosts.forget();
   }
 
   /**
@@ -418,6 +441,7 @@ export class TopDownCamera {
   }
 
   dispose(): void {
+    this.ghosts.forget();
     for (const off of this.disposers) off();
     this.disposers = [];
   }

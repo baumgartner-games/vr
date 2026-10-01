@@ -807,6 +807,7 @@ export class App {
       // Eine neue Welt fängt mit Norden oben an — ihre Karten und Schilder
       // sind so gezeichnet (`TopDownCamera.turn`).
       this.topDownCamera.resetHeading();
+      this.topDownCamera.forgetGhosts();
       // Und mit dem Zoom, der die Welt ins Bild bringt — falls sie einen will.
       this.topDownCamera.startZoom(
         definition.topDownSpan === undefined

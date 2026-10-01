@@ -387,6 +387,34 @@ daneben durchsichtig wurde. Jetzt kommt jedes hingestellte Modell
 Grund wie die zweite Palette der Quader. Der schwarze Rand des Comics geht
 solange weg, der gelbe Saum des Hervorhebens bleibt.
 
+## Die Figur ist von oben nie verdeckt
+
+Über dem Wand-Ghosting der Gitterwelten steht eine **allgemeine Regel, die in
+jeder Welt gilt** (`core/occluderGhost.ts`, gerufen von `TopDownCamera.cut`).
+Gemeldet im Oktober 2026 an einer Baumkrone, unter der die Figur verschwand:
+_„Im von oben Modus sollte der Spieler nie verdeckt sein, dann sollten die
+Dinge die ihn verdecken ghost gemacht werden. Allgemeine Regel die immer
+gilt."_
+
+- **Gefragt wird nach dem Aufschneiden**, mit fünf Strahlen aus der Figur zur
+  Kamera (Beine, Mitte, Kopf, beide Schultern, `FIGURE_POINTS`) gegen die echten
+  Dreiecke. Vorher siebt eine Kugelprobe (`nearSegment`), damit nicht jedes Netz
+  der Szene Dreieck für Dreieck befragt wird. Was näher als 0,3 m an der Figur
+  liegt (`OCCLUDER_NEAR`), zählt nicht — das ist, was sie in der Hand hat.
+- **Durchsichtig wird das ganze Ding**: der höchste Vorfahr, der kaum breiter
+  ist als das getroffene Netz (`sameThing`) — Krone und Stamm zusammen, aber
+  nie die kleine Welt, in der der Stuhl steht.
+- **Nur für dieses eine Bild**, wie das Aufschneiden: `uncut` stellt jedes
+  Material zurück. Dadurch kommt die Regel dem Wand-Ghosting nicht in die
+  Quere; was das schon durchsichtig gemacht hat, ist `transparent` und wird
+  hier übersprungen. Die Zwillinge (ein Viertel Deckkraft, ohne Tiefe) werden
+  je Material einmal gebaut und beim Weltwechsel weggeworfen (`forgetGhosts`).
+- **Fest bleiben** der eigene Körper (`LAYER_SELF_ONLY`, alles am Rig),
+  Bündel (`InstancedMesh`, `BatchedMesh` — sonst ginge jedes Stück darin
+  weg), Figuren mit Skelett und alles, was keine Strahlen annimmt: Wer ein
+  Ding absichtlich deckend halten will, ersetzt sein `raycast` durch eine
+  leere Funktion (so die Deckel von `haunting/world3d/topDownFog.ts`).
+
 ## Wände vorn: die Wände des eigenen Raums
 
 _Menü → Grafik → **Wände vorn**_ (`GraphicsSettings.wallOcclusion`, Typ
