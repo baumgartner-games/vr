@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SmoothPose, weight } from '../net/PoseSmoothing';
 import type { PoseArray } from '../net/types';
 import { bringBack, cutAway, type ViewLevel } from './cutaway';
+import { graphics } from './graphicsSettings';
 import { OccluderGhosts } from './occluderGhost';
 import type { PlayerRig } from './PlayerRig';
 import { viewLayers } from './viewLayers';
@@ -206,11 +207,13 @@ export class TopDownCamera {
    * steht, die daneben fehlt, ist schlimmer als gar kein Spiegel.
    *
    * Danach wird durchsichtig, was die Figur dann noch verdeckt
-   * (`core/occluderGhost.ts`) — in jeder Welt, auch in einer ohne Ebenen.
+   * (`core/occluderGhost.ts`) — in jeder Welt, auch in einer ohne Ebenen,
+   * solange _Grafik → Figur nie verdeckt_ an ist (ab Werk).
    */
   cut(root: THREE.Object3D): void {
     if (this.level !== null) cutAway(root, this.level, this.hidden);
-    if (this.rig) this.ghosts.apply(root, this.camera, this.rig, this.rig.getFloorY());
+    if (this.rig && graphics().figureGhost)
+      this.ghosts.apply(root, this.camera, this.rig, this.rig.getFloorY());
   }
 
   /**

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { isHighlight } from './highlight';
 import { isOutline } from './outlineShell';
+import { PLAYER_CAPSULE_RADIUS } from '../physics/playerClearance';
 import { LAYER_SELF_ONLY } from './PlayerAvatar';
 
 /**
@@ -17,16 +18,26 @@ import { LAYER_SELF_ONLY } from './PlayerAvatar';
  * gilt in jeder Welt, für alles, was gezeichnet wird: Baumkronen, Möbel,
  * Spielelemente, Deko, Dächer ohne Ebenenmarke.
  *
- * **Wie gefragt wird.** Aus fünf Punkten der Figur — Beine, Mitte, Kopf und
- * beide Schultern (`FIGURE_POINTS`) — geht je ein Strahl zur Kamera. Was einer
- * davon trifft, wird für dieses eine Bild durchsichtig und danach wieder fest
+ * **Gemessen wird am Zylinder, nicht am Körper.** Jede Figur hat dieselbe
+ * Grundfläche — den Kreis der Spielerkapsel (`PLAYER_CAPSULE_RADIUS`) — und
+ * für die Verdeckung ist sie ein Zylinder darüber (`FIGURE_HEIGHT`).
+ * Schultern, Arme und Hände sind Hitboxen fürs Treffen und zählen hier nicht:
+ * Bis Oktober 2026 gingen zwei Strahlen von den Schultern aus, und wer neben
+ * einer Seitenwand stand, machte sie damit durchsichtig. Gewünscht: _„Jeder
+ * Charakter hat doch eh die gleiche Grundfläche, nur daran wird das gemessen
+ * bzw. ist für die verdeckung ein Zylinder."_
+ *
+ * **Wie gefragt wird.** Von den Punkten des Zylinders, die die Kamera sieht
+ * (`FIGURE_POINTS`: die Achse unten, in der Mitte und oben, dazu sein linker
+ * und rechter Rand quer zum Blick, unten und oben), geht je ein Strahl zur
+ * Kamera. Was einer davon trifft, wird für dieses eine Bild durchsichtig und danach wieder fest
  * (`restore`), genau wie das Aufschneiden (`core/cutaway.ts`). Vorher siebt
  * eine billige Probe: Nur was mit seiner Hüllkugel an die Strecke Figur–Kamera
  * heranreicht (`nearSegment`), wird überhaupt Dreieck für Dreieck befragt.
  *
  * **Durchsichtig wird das ganze Ding**, nicht nur das getroffene Netz: Eine
  * Krone aus fünf Netzen, von denen zwei weg sind, ist ein Flickenteppich.
- * Das Ding ist der höchste Vorfahr, der noch klein ist (`THING_SPAN`).
+ * Das Ding ist der höchste Vorfahr, der kaum breiter ist (`sameThing`).
  *
  * **Nicht angefasst wird:**
  *
@@ -45,16 +56,31 @@ import { LAYER_SELF_ONLY } from './PlayerAvatar';
 /** Wie viel Deckkraft übrig bleibt — wie bei den Wänden (`GridWorld`). */
 export const OCCLUDER_OPACITY = 0.25;
 
+/** Wie hoch der Zylinder der Figur ist, in Metern — die stehende Spielerkapsel. */
+export const FIGURE_HEIGHT = 1.7;
+
+/** Wie weit unten der Zylinder anfängt — knapp über dem Boden, der nie verdeckt. */
+const FIGURE_BASE = 0.15;
+
 /**
- * **Die Punkte der Figur, von denen aus gefragt wird** — Höhe über den Füßen
- * und Versatz zur Seite (quer zur Blickrichtung), in Metern.
+ * **Der Rand des Zylinders, ein Hauch nach innen**: Eine Wand, an der die
+ * Kapsel anliegt, berührt den Rand genau — und ein Strahl, der an ihr
+ * entlangstreift, soll sie nicht treffen.
+ */
+const FIGURE_EDGE = PLAYER_CAPSULE_RADIUS - 0.03;
+
+/**
+ * **Die Punkte des Zylinders, von denen aus gefragt wird** — Höhe über den
+ * Füßen und Versatz quer zur Blickrichtung, in Metern.
  */
 export const FIGURE_POINTS: readonly { up: number; side: number }[] = [
-  { up: 0.35, side: 0 },
-  { up: 0.9, side: 0 },
-  { up: 1.6, side: 0 },
-  { up: 1.1, side: -0.22 },
-  { up: 1.1, side: 0.22 },
+  { up: FIGURE_BASE, side: 0 },
+  { up: FIGURE_HEIGHT / 2, side: 0 },
+  { up: FIGURE_HEIGHT, side: 0 },
+  { up: FIGURE_BASE, side: -FIGURE_EDGE },
+  { up: FIGURE_BASE, side: FIGURE_EDGE },
+  { up: FIGURE_HEIGHT, side: -FIGURE_EDGE },
+  { up: FIGURE_HEIGHT, side: FIGURE_EDGE },
 ];
 
 /**
@@ -64,8 +90,11 @@ export const FIGURE_POINTS: readonly { up: number; side: number }[] = [
  */
 export const OCCLUDER_NEAR = 0.3;
 
-/** Wie weit die Strecke Figur–Kamera für die Vorprobe aufgedickt wird, in Metern. */
-export const SEGMENT_SLACK = 0.4;
+/**
+ * **Wie weit die Strecke Figur–Kamera für die Vorprobe aufgedickt wird**, in
+ * Metern: so weit, dass jeder Strahl des Zylinders darin liegt.
+ */
+export const SEGMENT_SLACK = Math.hypot(FIGURE_HEIGHT / 2, PLAYER_CAPSULE_RADIUS) + 0.05;
 
 /**
  * **Bis wohin ein Vorfahr noch dasselbe Ding ist** (`thingOf`): höchstens
@@ -152,11 +181,11 @@ export class OccluderGhosts {
    */
   apply(root: THREE.Object3D, camera: THREE.Camera, rig: THREE.Object3D, feet: number): void {
     const eye = camera.getWorldPosition(_eye);
-    _aim.set(rig.position.x, feet + 0.9, rig.position.z);
+    _aim.set(rig.position.x, feet + FIGURE_HEIGHT / 2, rig.position.z);
     this.candidates.length = 0;
     this.gather(root, rig, camera.layers, eye);
     if (this.candidates.length === 0) return;
-    // Quer zur Blickrichtung, waagerecht: die Schultern.
+    // Quer zur Blickrichtung, waagerecht: die Ränder des Zylinders.
     _side.set(eye.z - _aim.z, 0, _aim.x - eye.x);
     if (_side.lengthSq() < 1e-9) _side.set(1, 0, 0);
     _side.normalize();

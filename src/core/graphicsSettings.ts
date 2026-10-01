@@ -228,6 +228,15 @@ export interface GraphicsSettings {
    */
   ghostBoxes: boolean;
   /**
+   * **Ob die Figur von oben nie verdeckt ist** (`core/occluderGhost.ts`): Was
+   * zwischen ihr und der Kamera steht — eine Baumkrone, ein Regal, ein Dach —,
+   * wird durchsichtig. Gewünscht: _„Im von oben Modus sollte der Spieler nie
+   * verdeckt sein"_, dann als Häkchen im Grafik-Menü.
+   *
+   * Ab Werk **an**; nur ein ausdrückliches Aus ist aus.
+   */
+  figureGhost: boolean;
+  /**
    * **Was mit den Wänden des eigenen Raums passiert**, von oben
    * (`WallOcclusion`): durchsichtig (ab Werk) oder abgeschnitten wie in den
    * Sims.
@@ -569,6 +578,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   hitBoxes: false,
   gridHitBoxes: false,
   ghostBoxes: false,
+  figureGhost: true,
   wallOcclusion: 'ghostFront',
   showHandles: false,
   showVrFrustum: false,
@@ -746,6 +756,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const hitBoxes = raw.hitBoxes === true;
   const gridHitBoxes = raw.gridHitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
+  // Ab Werk an: „kenne ich nicht" heißt an, nur ein ausdrückliches Aus ist aus.
+  const figureGhost = raw.figureGhost !== false;
   const wallOcclusion = WALL_OCCLUSIONS.includes(raw.wallOcclusion as WallOcclusion)
     ? (raw.wallOcclusion as WallOcclusion)
     : DEFAULT_GRAPHICS.wallOcclusion;
@@ -800,6 +812,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     hitBoxes,
     gridHitBoxes,
     ghostBoxes,
+    figureGhost,
     wallOcclusion,
     showHandles,
     showVrFrustum,
@@ -950,6 +963,7 @@ export function graphicsSummary(
         | 'hitBoxes'
         | 'gridHitBoxes'
         | 'ghostBoxes'
+        | 'figureGhost'
         | 'wallOcclusion'
         | 'showHandles'
         | 'shadows'
@@ -969,6 +983,8 @@ export function graphicsSummary(
   const boxes = settings.hitBoxes ? ' · Hitboxen 3D' : '';
   const cellBoxes = settings.gridHitBoxes ? ' · Hitboxen 2D' : '';
   const ghosts = settings.ghostBoxes ? ' · Ghosting' : '';
+  // Ab Werk an; genannt wird, wer es abgestellt hat.
+  const hiding = settings.figureGhost === false ? ' · Figur verdeckbar' : '';
   const grips = settings.showHandles ? ' · Griffe' : '';
   // Durchsichtig ist der Normalfall; genannt wird, wer abschneidet.
   const walls =
@@ -1002,7 +1018,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${grips}${walls}${shade}${blur}${squishy}${breath}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${hiding}${grips}${walls}${shade}${blur}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

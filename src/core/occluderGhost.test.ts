@@ -61,6 +61,18 @@ describe('Was die Figur von oben verdeckt, wird durchsichtig', () => {
     expect(ghosts.count).toBe(0);
   });
 
+  it('misst am Zylinder: eine Seitenwand, an der die Figur anliegt, bleibt', () => {
+    const { scene, rig, camera } = stage();
+    // Von Nord nach Süd, ihre Fläche genau am Rand der Kapsel (0,24 m).
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 6), new THREE.MeshStandardMaterial());
+    wall.position.set(0.24 + 0.1, 1.5, 0);
+    scene.add(wall);
+    scene.updateMatrixWorld(true);
+    const ghosts = new OccluderGhosts();
+    ghosts.apply(scene, camera, rig, 0);
+    expect(ghosts.count).toBe(0);
+  });
+
   it('nimmt das ganze Ding, nicht nur das getroffene Netz', () => {
     const { scene, rig, camera } = stage();
     const tree = new THREE.Group();

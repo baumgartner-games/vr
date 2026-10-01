@@ -396,9 +396,19 @@ _„Im von oben Modus sollte der Spieler nie verdeckt sein, dann sollten die
 Dinge die ihn verdecken ghost gemacht werden. Allgemeine Regel die immer
 gilt."_
 
-- **Gefragt wird nach dem Aufschneiden**, mit fünf Strahlen aus der Figur zur
-  Kamera (Beine, Mitte, Kopf, beide Schultern, `FIGURE_POINTS`) gegen die echten
-  Dreiecke. Vorher siebt eine Kugelprobe (`nearSegment`), damit nicht jedes Netz
+- **Ein Häkchen**: _Menü → Grafik → **Figur nie verdeckt**_
+  (`GraphicsSettings.figureGhost`), ab Werk an; in der Überschrift steht nur
+  das Aus (_Figur verdeckbar_).
+- **Gemessen wird am Zylinder**, nicht am Körper: Jede Figur hat dieselbe
+  Grundfläche, den Kreis der Spielerkapsel (`PLAYER_CAPSULE_RADIUS`), und
+  darüber einen Zylinder von 1,70 m (`FIGURE_HEIGHT`). Schultern und Arme sind
+  Hitboxen fürs Treffen und zählen nicht — mit Schulterstrahlen wurde eine
+  Seitenwand durchsichtig, an der man nur stand. Gewünscht: _„Jeder Charakter
+  hat doch eh die gleiche Grundfläche, nur daran wird das gemessen bzw. ist
+  für die verdeckung ein Zylinder."_
+- **Gefragt wird nach dem Aufschneiden**, mit sieben Strahlen vom Zylinder zur
+  Kamera (Achse unten, Mitte, oben; der linke und rechte Rand quer zum Blick,
+  unten und oben, `FIGURE_POINTS`) gegen die echten Dreiecke. Vorher siebt eine Kugelprobe (`nearSegment`), damit nicht jedes Netz
   der Szene Dreieck für Dreieck befragt wird. Was näher als 0,3 m an der Figur
   liegt (`OCCLUDER_NEAR`), zählt nicht — das ist, was sie in der Hand hat.
 - **Durchsichtig wird das ganze Ding**: der höchste Vorfahr, der kaum breiter

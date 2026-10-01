@@ -2491,6 +2491,23 @@ export class App {
           },
         },
         {
+          // **Die Figur ist von oben nie verdeckt** (`core/occluderGhost.ts`,
+          // gerufen von `TopDownCamera.cut`): Was zwischen ihr und der Kamera
+          // steht, wird durchsichtig — in jeder Welt. Ab Werk an.
+          id: 'gfx:figure-ghost',
+          label: 'Figur nie verdeckt',
+          sub: 'Von oben: was vor der Figur steht, wird durchsichtig · Baumkronen, Regale, Dächer',
+          caption: 'Nur in der Ansicht von oben',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.figureGhost,
+          run: () => {
+            const next = saveGraphics({ figureGhost: !graphics().figureGhost });
+            this.menuDirty = true;
+            this.notify(next.figureGhost ? 'Figur nie verdeckt an' : 'Figur nie verdeckt aus');
+          },
+        },
+        {
           // **Die unsichtbaren Griffe** — gezeichnet von `core/handleView.ts`,
           // überall dort, wo ein Ding welche angemeldet hat
           // (`core/grabHandles.ts`). Ein Werkzeug zum Einmessen: Man sieht, wo

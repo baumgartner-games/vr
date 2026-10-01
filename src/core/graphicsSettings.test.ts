@@ -42,6 +42,8 @@ describe('Grafikeinstellungen', () => {
       hitBoxes: false,
       gridHitBoxes: false,
       ghostBoxes: false,
+      // Von oben ist die Figur nie verdeckt: ab Werk an.
+      figureGhost: true,
       // Von oben werden die Wände des eigenen Raums durchsichtig.
       wallOcclusion: 'ghostFront',
       showHandles: false,
@@ -312,6 +314,24 @@ describe('Grafikeinstellungen', () => {
     expect(clampGraphics({ ghostBoxes: 1 as never })).toEqual(DEFAULT_GRAPHICS);
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, ghostBoxes: true })).toBe(
       'Einfach · Hitboxen 3D · Ghosting',
+    );
+  });
+
+  /**
+   * **Die Figur von oben nie verdeckt** — ab Werk an, nur ein ausdrückliches
+   * Aus ist aus, und in der Überschrift steht nur das Aus.
+   */
+  it('lässt die Figur ab Werk nie verdecken und nennt nur das Aus', () => {
+    expect(DEFAULT_GRAPHICS.figureGhost).toBe(true);
+    expect(clampGraphics({})).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ figureGhost: 'nein' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ figureGhost: false })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      figureGhost: false,
+    });
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, figureGhost: true })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, figureGhost: false })).toBe(
+      'Einfach · Figur verdeckbar',
     );
   });
 
