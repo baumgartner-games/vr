@@ -684,3 +684,18 @@
 @media (max-width: 639px) {
   .pmenu__list--cards { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* **Mit Reitern** (`PageMenu`, `tabs`): oben die Reiter und rechts daneben
+   Schließen, darunter *Zurück* links neben der Suche — der Pfeil steht dort,
+   wo der Blick nach dem Reiter hingeht, und nicht über ihm. */
+.pmenu__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.pmenu__top .pmenu__tabs { flex: 1; min-width: 0; border-bottom: none; }
+.pmenu--tabs .pmenu__tools { padding-bottom: 0; }
+.pmenu--tabs .pmenu__head { padding: 6px 12px 0; border-bottom: none; }
+.pmenu__head[hidden] { display: none; }
