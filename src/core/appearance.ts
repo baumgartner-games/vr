@@ -7,7 +7,7 @@ import {
   type BodyKind,
   type HeadKind,
 } from './avatarLook';
-import { asFigure, FIGURE_CHEF, figureLabel } from './avatarFigures';
+import { asFigure, FIGURE_CHEF, FIGURE_DEFAULT, figureLabel } from './avatarFigures';
 
 /**
  * **Wie man aussieht** — die eigene Erscheinung, so wie `graphicsSettings` das
@@ -54,7 +54,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   hat: 'none',
   head: 'round',
   body: 'white',
-  figure: FIGURE_CHEF,
+  figure: FIGURE_DEFAULT,
 };
 
 /** Ein Aussehen, bei dem jeder Wert erlaubt ist. */
@@ -63,8 +63,14 @@ export function clampAppearance(look: Partial<Appearance> | undefined): Appearan
     hat: asHeadgear(look?.hat),
     head: asHead(look?.head),
     body: asBody(look?.body),
-    figure: asFigure(look?.figure),
+    // **Der Koch ist keine Wahl mehr** (`avatarFigures.FIGURE_CHEF`): Wer ihn
+    // noch gespeichert hat oder ansagt, läuft als Auslieferung herum.
+    figure: retired(asFigure(look?.figure)),
   };
+}
+
+function retired(figure: string): string {
+  return figure === FIGURE_CHEF ? FIGURE_DEFAULT : figure;
 }
 
 /**

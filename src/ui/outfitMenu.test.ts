@@ -1,7 +1,6 @@
 /** @jest-environment jsdom */
 import { DEFAULT_APPEARANCE, appearance, saveAppearance } from '../core/appearance';
-import { FIGURE_CHEF, FIGURE_KINDS } from '../core/avatarFigures';
-import { BODY_KINDS, HEAD_KINDS } from '../core/avatarLook';
+import { FIGURE_CHEF, FIGURE_KINDS, FIGURE_PRESETS } from '../core/avatarFigures';
 import { HEADGEAR_KINDS } from '../core/headgear';
 import type { MenuEntry } from './menu';
 import { OUTFIT_PAGE, OutfitDraft, isOutfitPage, outfitEntry } from './outfitMenu';
@@ -36,7 +35,7 @@ describe('Der Entwurf', () => {
   });
 
   it('setzt auf die Auslieferung zurück, und verwerfen holt das Gespeicherte', () => {
-    saveAppearance({ hat: 'cap', body: BODY_KINDS[1]! });
+    saveAppearance({ hat: 'cap', figure: FIGURE_KINDS[1]!.path });
     const draft = new OutfitDraft();
     draft.reset();
     expect(draft.current).toEqual(DEFAULT_APPEARANCE);
@@ -53,49 +52,35 @@ describe('Die Seite', () => {
     expect(entry.hidden).toBe(true);
     expect(entry.grid).toBe(true);
     expect(entry.children!.map((one) => one.label)).toEqual(['Vorgefertigte', 'Customizing']);
-    expect(child(entry, 'outfit:presets').children).toHaveLength(FIGURE_KINDS.length);
+    expect(child(entry, 'outfit:presets').children).toHaveLength(FIGURE_PRESETS.length);
   });
 
-  it('hat im Customizing Kopf, Hut und Körper, jedes Stück mit Vorschau', () => {
-    const custom = child(
-      outfitEntry(new OutfitDraft(), () => {}),
-      'outfit:custom',
-    );
-    expect(custom.children!.map((one) => one.label)).toEqual(['Kopf', 'Hut', 'Körper']);
-    const [heads, hats, bodies] = custom.children!;
-    expect(heads!.children).toHaveLength(HEAD_KINDS.length);
-    expect(hats!.children).toHaveLength(HEADGEAR_KINDS.length);
-    expect(bodies!.children).toHaveLength(BODY_KINDS.length);
-    for (const piece of [...heads!.children!, ...hats!.children!, ...bodies!.children!]) {
-      expect(piece.preview).toBe(piece.id);
-    }
-    expect(heads!.children!.filter((one) => one.selected).map((one) => one.id)).toEqual([
-      `outfit:head:${DEFAULT_APPEARANCE.head}`,
+  it('hat im Customizing den Hut, jedes Stück mit Vorschau — und keinen Koch mehr', () => {
+    const entry = outfitEntry(new OutfitDraft(), () => {});
+    const custom = child(entry, 'outfit:custom');
+    expect(custom.children!.map((one) => one.label)).toEqual(['Hut']);
+    const hats = custom.children![0]!.children!;
+    expect(hats).toHaveLength(HEADGEAR_KINDS.length);
+    for (const piece of hats) expect(piece.preview).toBe(piece.id);
+    expect(hats.filter((one) => one.selected).map((one) => one.id)).toEqual([
+      `outfit:hat:${DEFAULT_APPEARANCE.hat}`,
     ]);
+    const presets = child(entry, 'outfit:presets').children!;
+    expect(presets.some((one) => one.id === `outfit:figure:${FIGURE_CHEF}`)).toBe(false);
   });
 
-  it('macht aus einer fertigen Figur wieder den Koch, wenn man einen Kopf wählt', () => {
+  it('setzt den Hut, ohne die Figur anzufassen', () => {
     const draft = new OutfitDraft();
     const knight = FIGURE_KINDS[1]!.path;
     draft.set({ figure: knight });
     let picks = 0;
-    const custom = child(
-      outfitEntry(draft, () => picks++),
-      'outfit:custom',
-    );
-    // An einer fertigen Figur wirken Kopf und Jacke nicht — markiert ist dort nichts.
-    expect(custom.children![0]!.children!.some((one) => one.selected)).toBe(false);
-    custom.children![0]!.children![2]!.run!(null);
-    expect(draft.current.figure).toBe(FIGURE_CHEF);
-    expect(draft.current.head).toBe(HEAD_KINDS[2]);
-    // Der Hut lässt die Figur, wie sie ist.
-    draft.set({ figure: knight });
     child(
       outfitEntry(draft, () => picks++),
       'outfit:custom',
-    ).children![1]!.children![1]!.run!(null);
+    ).children![0]!.children![1]!.run!(null);
     expect(draft.current.figure).toBe(knight);
-    expect(picks).toBe(2);
+    expect(draft.current.hat).toBe(HEADGEAR_KINDS[1]);
+    expect(picks).toBe(1);
   });
 });
 
@@ -103,14 +88,18 @@ describe('Im Menü, mit der Figur daneben', () => {
   function setup() {
     const draft = new OutfitDraft();
     const log: string[] = [];
+    let name = 'Nils';
     const card = new PlayerCard({
       page: 'inventar',
-      name: () => 'Nils',
+      name: () => name,
       look: () => draft.current,
       edits: isOutfitPage,
       dirty: () => draft.dirty,
       onCustomize: () => log.push('customize'),
-      onSave: () => draft.save(),
+      onSave: (next) => {
+        draft.save();
+        name = next || name;
+      },
       onReset: () => draft.reset(),
       onLeave: () => draft.discard(),
     });
@@ -126,7 +115,7 @@ describe('Im Menü, mit der Figur daneben', () => {
       { id: 'einstellungen', label: 'Einstellungen', children: [{ id: 'gfx', label: 'Grafik' }] },
     ];
     menu.setRoot(root());
-    return { draft, card, menu, log, root };
+    return { draft, card, menu, log, root, name: () => name };
   }
 
   const tiles = (menu: PageMenu): string[] =>
@@ -187,6 +176,24 @@ describe('Im Menü, mit der Figur daneben', () => {
     card.refresh();
     card.element.querySelector<HTMLButtonElement>('.pcard__edit:not([hidden])')!.click();
     expect(appearance().hat).toBe('cap');
+    menu.dispose();
+    card.dispose();
+  });
+
+  it('ändert unter Aussehen auch den Spitznamen — gespeichert mit demselben Knopf', () => {
+    const { menu, card, name } = setup();
+    menu.openTab('inventar');
+    expect(card.element.querySelector<HTMLElement>('.pcard__nick')!.hidden).toBe(true);
+    menu.openSubmenu(OUTFIT_PAGE);
+    const nick = card.element.querySelector<HTMLInputElement>('.pcard__nick input')!;
+    const save = card.element.querySelector<HTMLButtonElement>('.pcard__edit:not([hidden])')!;
+    expect(nick.value).toBe('Nils');
+    expect(save.disabled).toBe(true);
+    nick.value = 'Koch Nils';
+    nick.dispatchEvent(new Event('input'));
+    expect(save.disabled).toBe(false);
+    nick.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(name()).toBe('Koch Nils');
     menu.dispose();
     card.dispose();
   });

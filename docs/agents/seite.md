@@ -399,10 +399,24 @@ Vorschau.
   trotzdem. Hinein geht es über _Aussehen anpassen_ an der Figur und über den
   Kleiderschrank ohne Konstrukt (`App.openWardrobe`). Vollbild wie alles im
   Menü.
-- **_Vorgefertigte_** sind die Figuren (`core/avatarFigures.ts`),
-  **_Customizing_** ist der Koch: _Kopf_, _Hut_, _Körper_, je Stück eine
-  Kachel. Kopf oder Jacke machen aus einer fertigen Figur wieder den Koch —
-  an ihr wirken sie nicht; der Hut sitzt auf jeder Figur und lässt sie.
+- **_Vorgefertigte_** sind die Figuren (`avatarFigures.FIGURE_PRESETS`):
+  die kuratierten mit deutschen Namen, dann **alle** Figuren der Pakete
+  _Skeletons_, _Monthly Mystery 4–6_, _Character Animations_ (auch das große
+  Mannequin) und der _Dummy_ aus den Prototype Bits — gewünscht im Oktober
+  2026. Dass jede davon eine Datei mit Skelett ist, prüft
+  `appearance.test.ts` an den Dateien.
+- **Der Koch aus zwei Kugeln ist keine Wahl mehr** — _„Ich will den
+  originalen charakter nicht mehr haben"_. Die Auslieferung ist das
+  Mannequin (`FIGURE_DEFAULT`); ein gespeichertes oder angesagtes `'chef'`
+  wird dazu (`appearance.clampAppearance`). Gebaut wird der Koch weiter: Er
+  steht da, solange eine Figur noch lädt, und ohne WebGL.
+- **_Customizing_** ist, was eine Figur dazu trägt: der **Hut**, je Stück
+  eine Kachel. Kopf und Jacke gab es nur am Koch und sind mit ihm gegangen;
+  am Handgelenk schalten die Zeilen jetzt _Figur_ und _Hut_.
+- **Der Spitzname** steht unter _Aussehen_ als Feld über den Knöpfen
+  (`PlayerCard`, `.pcard__nick`) und wird mit _Aussehen speichern_ (oder
+  `Enter`) gesetzt — `App.setPlayerName`, also gemerkt und allen im Raum neu
+  angesagt.
 - **Die Vorschau in den Kacheln** baut `ui/outfitModels.ts` aus denselben
   Bausteinen wie den Avatar; sie hängt über `WristMenus.setExtraModels` vor
   der Fabrik der Welt und gilt deshalb in jeder Welt. Der Koch trägt seine
@@ -414,6 +428,11 @@ Vorschau.
   zurücksetzen_ legt die Auslieferung in den Entwurf, gespeichert ist sie
   damit noch nicht. Wer zurück ins Inventar geht oder das Menü zumacht,
   verwirft den Entwurf (`PageAside.onPage`, `PlayerCard.onLeave`).
+- **Die Vorschauen kommen nach dem Hintergrund wieder**: `PagePreviews`
+  hört auf `visibilitychange`, solange das Menü offen ist, und nicht nur,
+  solange die Schleife läuft — vorher meldete das Anhalten im Hintergrund
+  genau den Zuhörer ab, der sie beim Zurückkommen wieder starten sollte, und
+  in den Kacheln blieben die Ikonen stehen.
 - **In der Brille nicht**: Dort bleibt _Aussehen_ am Handgelenk unter den
   Einstellungen, und die Seite unter dem Inventar wird gar nicht erst gebaut.
 

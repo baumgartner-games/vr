@@ -275,7 +275,13 @@ export class AvatarBody extends THREE.Group {
   private readonly kept: Set<THREE.Material>;
 
   /** Was diese Figur gerade trägt (`core/appearance.ts`). */
-  private look: Appearance = { ...DEFAULT_APPEARANCE };
+  /**
+   * Gebaut wird zuerst immer der Koch — die Figur kommt erst über
+   * `setLook`/`changeFigure`. Steht hier also der Koch, auch wenn die
+   * Auslieferung eine andere Figur ist: Sonst hielte das erste `setLook` die
+   * Auslieferung für schon angezogen und lüde sie nie.
+   */
+  private look: Appearance = { ...DEFAULT_APPEARANCE, figure: FIGURE_CHEF };
 
   private readonly previous = new THREE.Vector3();
   private hasPrevious = false;

@@ -34,8 +34,19 @@ import { humanLabel } from './kaykitIndex';
  * `GLTFLoader` und `import.meta` mit sich, und beides bringt Jest zum Stehen.
  */
 
-/** Die Auslieferung: der Koch, gebaut und als Modell (`core/chefModel.ts`). */
+/**
+ * **Der Koch, gebaut und als Modell** (`core/chefModel.ts`) — die beiden
+ * Kugeln. Er ist keine Wahl mehr (gewünscht: _„Ich will den originalen
+ * charakter nicht mehr haben (die beiden kugeln)"_), aber er bleibt der
+ * Körper, der dasteht, solange eine Figur noch über die Leitung kommt, und
+ * der, der ohne WebGL bleibt (Jest). Ein gespeichertes `'chef'` wird zur
+ * Auslieferung (`FIGURE_DEFAULT`, `appearance.clampAppearance`).
+ */
 export const FIGURE_CHEF = 'chef';
+
+/** **Die Auslieferung**: das Mannequin — die Gliederpuppe, an der alle Bewegungen hängen. */
+export const FIGURE_DEFAULT =
+  'character-animations/mannequin-character/characters/Mannequin_Medium.glb';
 
 /** Ein Eintrag der kuratierten Liste. */
 export interface FigureKind {
@@ -134,15 +145,9 @@ export const SPACE_RANGER =
 
 export const FIGURE_KINDS: readonly FigureKind[] = [
   {
-    path: FIGURE_CHEF,
-    label: 'Koch',
-    sub: 'Die Auslieferung — der Koch aus der Küche',
-    height: CHEF_HEIGHT,
-  },
-  {
-    path: 'character-animations/mannequin-character/characters/Mannequin_Medium.glb',
+    path: FIGURE_DEFAULT,
     label: 'Mannequin',
-    sub: 'Die Gliederpuppe, an der alle Bewegungen hängen',
+    sub: 'Die Auslieferung — die Gliederpuppe, an der alle Bewegungen hängen',
     height: FIGURE_HEIGHT,
   },
   {
@@ -207,12 +212,120 @@ export const FIGURE_KINDS: readonly FigureKind[] = [
   },
 ];
 
+/**
+ * **Die Pakete, deren Figuren alle unter _Vorgefertigte_ stehen** — gewünscht:
+ * _„die restlichen charaktere noch in die presets hinzufügen: skeletons
+ * charakter pack, monthly mystery series 4, 5, 6, charakter animations (der
+ * große mannequin), der dummy"_. Die Adressen stehen hier ausgeschrieben, weil
+ * das Regal in Jest nicht da ist; dass jede davon eine Figur mit Skelett ist,
+ * prüft `avatarFigures.test.ts` an den Dateien.
+ *
+ * Die großen Skelette (`Mannequin_Large`, `Skeleton_Golem`, `FrostGolem`)
+ * stehen jetzt dabei: Die Höhenregel stellt jede Figur mit dem Kopf dorthin,
+ * wo der des Kochs stand (`figureLift`), und Bewegungen bringt der Lader für
+ * beide Skelette mit (`core/kaykitClips.kaykitRigOf`).
+ */
+const PACKS: ReadonlyArray<{ sub: string; paths: readonly string[] }> = [
+  {
+    sub: 'Character Animations',
+    paths: ['character-animations/mannequin-character/characters/Mannequin_Large.glb'],
+  },
+  { sub: 'Prototype Bits', paths: ['prototype-bits/character/Dummy.glb'] },
+  {
+    sub: 'Skeletons',
+    paths: [
+      'skeletons/characters/Skeleton_Minion.glb',
+      'skeletons/characters/Skeleton_Mage.glb',
+      'skeletons/characters/Skeleton_Rogue.glb',
+      'skeletons/characters/Skeleton_Golem.glb',
+      'skeletons/characters/Necromancer.glb',
+    ],
+  },
+  {
+    sub: 'Monthly Mystery 4',
+    paths: [
+      'mystery-monthly-4/1-july-2023-orc-raider/character/OrcRaider.glb',
+      'mystery-monthly-4/2-august-2023-driver/character/Driver.glb',
+      'mystery-monthly-4/3-september-2023-monster-costume/character/Monster.glb',
+      'mystery-monthly-4/3-september-2023-monster-costume/character/MonsterCostume.glb',
+      'mystery-monthly-4/4-october-2023-werewolf/characters/Werewolf_Man.glb',
+      'mystery-monthly-4/4-october-2023-werewolf/characters/Werewolf_Wolf.glb',
+      'mystery-monthly-4/5-november-2023-animatronic/characters/Animatronic_Normal.glb',
+      'mystery-monthly-4/5-november-2023-animatronic/characters/Animatronic_Creepy.glb',
+      'mystery-monthly-4/6-december-2023-action-figure/character/ActionFigure.glb',
+      'mystery-monthly-4/7-january-2024-space-ranger/character/SpaceRanger_FlightMode.glb',
+      'mystery-monthly-4/9-march-2024-survivalist/character/Survivalist.glb',
+      'mystery-monthly-4/10-april-2024-paladin/characters/Paladin.glb',
+      'mystery-monthly-4/10-april-2024-paladin/characters/Paladin_with_Helmet.glb',
+      'mystery-monthly-4/11-may-2024-clown/characters/Clown.glb',
+    ],
+  },
+  {
+    sub: 'Monthly Mystery 5',
+    paths: [
+      'mystery-monthly-5/1-july-2024-combat-mech/characters/CombatMech.glb',
+      'mystery-monthly-5/2-august-2024-superhero/characters/Superhero.glb',
+      'mystery-monthly-5/3-september-2024-black-knight/characters/BlackKnight.glb',
+      'mystery-monthly-5/4-october-2024-vampire/characters/Vampire.glb',
+      'mystery-monthly-5/5-november-2024-witch/characters/Witch.glb',
+      'mystery-monthly-5/6-december-2024-helpers/characters/Helper_A.glb',
+      'mystery-monthly-5/6-december-2024-helpers/characters/Helper_B.glb',
+      'mystery-monthly-5/7-january-2025-frostgolem/characters/FrostGolem.glb',
+      'mystery-monthly-5/8-february-2025-caveman/characters/Caveman.glb',
+      'mystery-monthly-5/9-march-2025-clanker/characters/Clanker.glb',
+      'mystery-monthly-5/10-april-2025-protagonists/characters/Protagonist_A.glb',
+      'mystery-monthly-5/10-april-2025-protagonists/characters/Protagonist_B.glb',
+      'mystery-monthly-5/11-may-2025-hiker/characters/Hiker.glb',
+      'mystery-monthly-5/12-june-2025-tiefling/characters/Tiefling.glb',
+    ],
+  },
+  {
+    sub: 'Monthly Mystery 6',
+    paths: [
+      'mystery-monthly-6/1-july-2025-lorekeeper/characters/Lorekeeper.glb',
+      'mystery-monthly-6/2-august-2025-orc-brute/characters/OrcBrute.glb',
+      'mystery-monthly-6/3-september-2025-cleric/characters/Cleric.glb',
+      'mystery-monthly-6/4-october-2025-monstrosity/characters/Monstrosity.glb',
+      'mystery-monthly-6/5-november-2025-plant-warrior/characters/PlantWarrior.glb',
+      'mystery-monthly-6/6-december-2025-toy-soldier/characters/ToySoldier.glb',
+      'mystery-monthly-6/7-january-2026-4gtn/characters/4GTN.glb',
+      'mystery-monthly-6/7-january-2026-4gtn/characters/4GTN_Forgotten.glb',
+      'mystery-monthly-6/8-february-2026-hoarder/characters/Hoarder.glb',
+      'mystery-monthly-6/9-march-2026-avian-swordsman/characters/AvianSwordsman.glb',
+      'mystery-monthly-6/10-april-2026-marksman/characters/Marksman.glb',
+      'mystery-monthly-6/11-may-2026-magical-girl/characters/MagicalGirl.glb',
+      'mystery-monthly-6/12-june-2026-farmers/characters/Farmer_A.glb',
+      'mystery-monthly-6/12-june-2026-farmers/characters/Farmer_B.glb',
+    ],
+  },
+];
+
+/**
+ * **Alle Figuren unter _Vorgefertigte_** (`ui/outfitMenu.ts`): erst die
+ * kuratierten mit ihren deutschen Namen, dann die Pakete in ihrer Reihenfolge,
+ * jede mit dem Namen, den das Regal ihr gibt (`humanLabel`).
+ *
+ * Der Kleiderschrank im Konstrukt nimmt weiter nur `FIGURE_KINDS` — gut
+ * fünfzig Ständer sprengten seinen Ring.
+ */
+export const FIGURE_PRESETS: readonly FigureKind[] = [
+  ...FIGURE_KINDS,
+  ...PACKS.flatMap((pack) =>
+    pack.paths.map((path) => ({
+      path,
+      label: humanLabel(path.slice(path.lastIndexOf('/') + 1)),
+      sub: pack.sub,
+      height: FIGURE_HEIGHT,
+    })),
+  ),
+];
+
 /** Dieselbe Liste nur als Adressen — die Zeile im Menü schaltet darüber. */
 export const FIGURE_PATHS: readonly string[] = FIGURE_KINDS.map((kind) => kind.path);
 
 /** Den Eintrag zu einer Adresse — oder nichts, wenn sie nicht kuratiert ist. */
 export function figureKind(path: string): FigureKind | null {
-  return FIGURE_KINDS.find((kind) => kind.path === path) ?? null;
+  return FIGURE_PRESETS.find((kind) => kind.path === path) ?? null;
 }
 
 /**
