@@ -6,7 +6,7 @@ import {
   type ElementPart,
   type GameElement,
 } from './elementCatalog';
-import { spotCells, type ElementSpot } from './elementPlace';
+import { spotCells, spotFootprintCells, type ElementSpot } from './elementPlace';
 
 /**
  * **Der Steckbrief eines Spielelements** — was hinter dem ⓘ einer Kachel im
@@ -70,13 +70,17 @@ export function elementPurpose(element: GameElement): string {
  */
 export function footprintRows(element: GameElement): string[] {
   const probe: ElementSpot = { id: element.id, element: element.id, x: 0, z: 0 };
-  const cells = spotCells(probe).map((key) => key.split(',').map(Number) as [number, number]);
-  if (cells.length === 0) return [];
-  const xs = cells.map(([x]) => x);
-  const zs = cells.map(([, z]) => z);
+  // Gezeichnet wird die ganze Grundfläche, gesperrt nur, was sperrt: unter
+  // einem Baum der Stamm mitten in freien Zellen (`GameElement.solid`).
+  const all = spotFootprintCells(probe).map(
+    (key) => key.split(',').map(Number) as [number, number],
+  );
+  if (all.length === 0) return [];
+  const xs = all.map(([x]) => x);
+  const zs = all.map(([, z]) => z);
   const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
   const [z0, z1] = [Math.min(...zs), Math.max(...zs)];
-  const taken = new Set(cells.map(([x, z]) => `${x},${z}`));
+  const taken = new Set(spotCells(probe).map((key) => key.split(',').slice(0, 2).join(',')));
   const rows: string[] = [];
   for (let z = z0; z <= z1; z++) {
     const row: string[] = [];
@@ -84,6 +88,11 @@ export function footprintRows(element: GameElement): string[] {
     rows.push(row.join(' '));
   }
   return rows;
+}
+
+/** **Wie viele Zellen das Element sperrt** — alle der Grundfläche, beim Baum die unter dem Stamm. */
+export function elementBlockedCells(element: GameElement): number {
+  return spotCells({ id: element.id, element: element.id, x: 0, z: 0 }).length;
 }
 
 /**
@@ -118,13 +127,22 @@ export function elementFacts(id: string): MenuFact[] {
   const element = elementById(id);
   const [w, d] = element.tiles;
   const cells = 4 * w * d;
+  const blocked = elementBlockedCells(element);
   const facts: MenuFact[] = [
     { label: 'Id', value: element.id, copy: true },
     {
       label: 'Grundfläche',
       value: `${w} × ${d} ${w * d === 1 ? 'Kachel' : 'Kacheln'} · ${metres(w)} × ${metres(d)}`,
     },
-    { label: 'Zellen', value: `${2 * w} × ${2 * d} = ${cells}, alle gesperrt` },
+    {
+      label: 'Zellen',
+      value:
+        blocked === cells
+          ? `${2 * w} × ${2 * d} = ${cells}, alle gesperrt`
+          : blocked === 0
+            ? `${2 * w} × ${2 * d} = ${cells}, keine gesperrt — man läuft hindurch`
+            : `${2 * w} × ${2 * d} = ${cells}, davon ${blocked} gesperrt (der Stamm)`,
+    },
     {
       label: 'Belegung',
       value: [...footprintRows(element), '↓ vorn — davor steht, wer es benutzt'].join('\n'),

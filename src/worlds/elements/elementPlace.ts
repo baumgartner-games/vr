@@ -115,10 +115,34 @@ export function spotTiles(spot: ElementSpot): string[] {
 }
 
 /**
+ * **Was die Stelle sperrt, gedreht** — Breite (x) × Tiefe (z) in Metern, um
+ * die Mitte der Grundfläche: die ganze Grundfläche, oder nur der Stamm eines
+ * Baums (`GameElement.solid`). `[0, 0]`: nichts.
+ */
+export function spotSolid(spot: ElementSpot): [number, number] {
+  const element = spotElement(spot);
+  if (!element.solid) return spotSize(spot);
+  const [w, d] = element.solid;
+  return turned(spotFace(spot)) ? [d, w] : [w, d];
+}
+
+/**
  * **Die gesperrten Zellen** (`cellGrid.cellKey`, Etage 0) — dieselbe Rechnung,
- * die `GridWorld.blockFootprint` anstellt: vier je Kachel.
+ * die `GridWorld.blockFootprint` anstellt: vier je Kachel, beim Baum nur die
+ * unter dem Stamm (`spotSolid`), bei Gras keine.
  */
 export function spotCells(spot: ElementSpot): string[] {
+  const [w, d] = spotSolid(spot);
+  if (w <= 0 || d <= 0) return [];
+  const { x, z } = spotCentre(spot);
+  return footprintCellKeys(x, z, w, d);
+}
+
+/**
+ * **Alle Zellen der Grundfläche**, gesperrt oder nicht — für das Bild der
+ * Belegung, das unter einem Baum die freien Zellen um den Stamm zeigt.
+ */
+export function spotFootprintCells(spot: ElementSpot): string[] {
   const [w, d] = spotSize(spot);
   const { x, z } = spotCentre(spot);
   return footprintCellKeys(x, z, w, d);

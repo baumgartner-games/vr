@@ -15,6 +15,7 @@ import {
   spotFace,
   spotFront,
   spotSize,
+  spotSolid,
   spotYaw,
   type ElementSpot,
 } from './elementPlace';
@@ -118,8 +119,13 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   const face = spotFace(spot);
   const yaw = spotYaw(spot);
   const centre = spotCentre(spot);
-  const [w, d] = spotSize(spot);
-  const block = host.blockSolid(centre.x, centre.z, w, d, element.height);
+  // Gesperrt wird, was sperrt (`spotSolid`): die Grundfläche, beim Baum nur
+  // der Stamm, bei Gras nichts — dann auch kein Kasten.
+  const [w, d] = spotSolid(spot);
+  const block: SolidBlock =
+    w > 0 && d > 0
+      ? host.blockSolid(centre.x, centre.z, w, d, element.height)
+      : { cells: [], mesh: new THREE.Mesh() };
   // Das Bild darf neben seinen Zellen stehen (`ElementSpot.offset`), die
   // Sperre nicht — sie steht schon.
   const [sx, sz] = spot.offset ?? [0, 0];
@@ -152,7 +158,9 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   // Ein Element, das selbst leuchten kann (`elementLit`), braucht auch sein
   // erstes Teil als Bild: Nur ein Bild lässt sich unter den Anker der Station
   // hängen, und nur was dort hängt, bekommt den Saum.
-  const fixed = !!first && plainFloor(first) && !elementLit(element);
+  // Und eines mit eigener Sperre (`GameElement.solid`) auch: Als festes Stück
+  // bekäme die ganze Krone eines Baums einen Körper, nicht nur der Stamm.
+  const fixed = !!first && plainFloor(first) && !elementLit(element) && !element.solid;
   // Alles auf einmal holen, gestellt wird danach der Reihe nach: Was obenauf
   // liegt, braucht die Oberkante dessen, worauf es liegt.
   const [size, ...models] = await Promise.all([
@@ -276,16 +284,16 @@ function layOn(
   }
   // **Bündig** (`flush`): Die Oberkante liegt fest, die Unterkante folgt der Dicke.
   if (part.flush !== undefined) y -= part.flush + (box.max.y - box.min.y);
-  const shift = new THREE.Vector3(
-    -(box.min.x + box.max.x) / 2,
-    -box.min.y,
-    -(box.min.z + box.max.z) / 2,
-  );
+  // **Am Ursprung** (`rooted`): der Stamm auf der Stelle, die Wurzeln im Boden.
+  const shift = part.rooted
+    ? new THREE.Vector3()
+    : new THREE.Vector3(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
   spin.position.copy(shift);
   const holder = new THREE.Group();
   holder.add(spin);
   holder.position.set(x, y, z);
-  return { holder, top: y + box.max.y - box.min.y, scale, tilt, yaw, shift };
+  const top = part.rooted ? y + box.max.y : y + box.max.y - box.min.y;
+  return { holder, top, scale, tilt, yaw, shift };
 }
 
 /**

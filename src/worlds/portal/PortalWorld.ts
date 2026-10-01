@@ -62,7 +62,7 @@ import {
   hasElement,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
-import { elementFacts } from '../elements/elementFacts';
+import { elementBlockedCells, elementFacts } from '../elements/elementFacts';
 import { catalogSearch, type CatalogRow } from '../elements/catalogSearch';
 import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { KaykitDishView } from '../elements/dishView';
@@ -4175,10 +4175,19 @@ export class PortalWorld implements World {
     const tile = (id: string, at: string): MenuEntry => {
       const element = elementById(id);
       const [w, d] = element.tiles;
+      // Unter einem Baum sperrt nur der Stamm (`GameElement.solid`), und durch
+      // Gras läuft man hindurch — die Zeile sagt, was wirklich gesperrt ist.
+      const blocked = elementBlockedCells(element);
+      const cells =
+        blocked === 4 * w * d
+          ? `${2 * w} × ${2 * d} Zellen gesperrt`
+          : blocked === 0
+            ? 'begehbar'
+            : `${blocked} ${blocked === 1 ? 'Zelle' : 'Zellen'} gesperrt`;
       return {
         id: `${at}:${id}`,
         label: element.label,
-        caption: `${w} × ${d} Kachel · ${2 * w} × ${2 * d} Zellen gesperrt`,
+        caption: `${w} × ${d} Kachel · ${cells}`,
         accent,
         preview: `${ELEMENT_PREVIEW}${id}`,
         // **Vorratskisten erkennt man an der Ecke** — gewünscht statt eigener

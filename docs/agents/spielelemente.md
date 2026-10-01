@@ -73,6 +73,7 @@ Ein Eintrag `GameElement` in `ELEMENTS`:
 | `label`  | Der deutsche Name                                                                                                                                  |
 | `tiles`  | **Grundfläche in Kacheln**, Breite × Tiefe, für ein Element, das nach Süden schaut. Der runde Tisch `[2, 2]`, alles andere `[1, 1]`, auch das Band |
 | `height` | **Wie hoch der Körper ist**, nicht das Modell: 1,40 m für jedes Möbel mit Zweck, 0,5 m für das flache Band                                         |
+| `solid`  | **Was davon sperrt**, in Metern um die Mitte — ohne Angabe die ganze Grundfläche. Beim Baum nur der Stamm (`[0.5, 0.5]`, 2 × 2 Zellen), bei Gras und Blumen `[0, 0]`: nichts |
 | `kind`   | Was man damit tut, eine Stationsart der Küche (`kitchenCarry.StationKind`) ; `null` für etwas, das nur im Weg steht                                |
 | `work`   | Bei einem Brett: `'chop'` (schneiden) oder `'roll'` (ausrollen)                                                                                    |
 | `gives`  | Was eine Kiste oder ein Stapel hergibt, als Vorschlag. Die Stelle im Plan gewinnt (`ElementSpot.gives`)                                            |
@@ -113,6 +114,10 @@ Osten, z nach Süden, von der Mitte der Grundfläche aus.
 - `yaw`: eine zusätzliche Drehung um die Hochachse.
 - `height` bzw. `scale`: auf eine Höhe bringen oder um einen Faktor
   vergrößern, zusätzlich zum Maßstab des Pakets. `height` geht vor.
+- `rooted`: an seinem Ursprung, wie die Datei es hat, statt mit der Mitte
+  seiner Hülle über der Stelle und der Unterseite auf dem Boden. Für Bäume und
+  tief steckende Felsen: Der Ursprung sitzt im Stamm, die Krone hängt bis
+  0,3 m zur Seite, und die Wurzeln reichen bis 0,25 m unter den Boden.
 - `surface`: Hier wird abgelegt (`PlacedElement.top`). Ohne diese Angabe ist
   es das erste Teil.
 
@@ -232,6 +237,48 @@ gesperrter Block.
 Ein erster Umbau hatte die Fensterwand als Element `wall` auf zwei Kacheln
 gestellt, bündig an deren Vorderkante und mit beiden Kacheln gesperrt — genau
 der Block, der nicht gewünscht war. Er ist wieder weg.
+
+### Natur: Bäume, Sträucher, Steine, Gras, Holz
+
+Gewünscht (Oktober 2026): _„beim Katalog möchte ich nun gerne Natur als
+weiteren Punkt haben. Schau aus dem Modellregal was alles Natur sein kann und
+füge es hinzu. Bei Bäumen z.B. sollten wir nur den Stamm als nicht betretbar
+machen."_ Die Elemente stehen in `elements/natureCatalog.ts`
+(`NATURE_ELEMENTS`, `NATURE_CATALOGUE`), im Katalog als dritter Bereich
+**Natur** neben Haus und Restaurant (`NATURE_FOLDER`), mit den Ordnern Bäume,
+Sträucher, Steine, Gras & Blumen, Holz und Alles. Keines hat einen Zweck
+(`kind: null`), und die Ordner sortieren nach dem Anfang der Id (`tree-`,
+`bush-`, `rock-`, `plant-`, `wood-`).
+
+**Unter der Krone geht man durch.** Ein Baum belegt so viele Kacheln, wie
+seine Krone breit ist, mindestens 2 × 2. Dort fasst man ihn an, und dort rastet
+er ein. Gesperrt ist aber nur der Stamm: `solid: [0.5, 0.5]`, also die 2 × 2
+Zellen um die Mitte, und der Kasten in der Physik ist ebenso klein. Auf einer
+einzigen Kachel wäre der Stamm schon die ganze Kachel. Weil nur die
+Stammzellen frei sein müssen (`FurnishedWorld.furnishSpot` → `cellsFree`),
+dürfen sich zwei Kronen überlappen, und man kann einen Wald dicht pflanzen.
+
+**Ein Element mit eigenem `solid` steht ganz als Bild da** und nicht als festes
+Stück der Welt (`placeModel`), sonst bekäme die ganze Krone einen Körper.
+Sträucher, Steine und Holz sperren ihre Kacheln wie ein Möbel. Gras, Blumen und
+der Pilz haben `solid: [0, 0]`: keine Zelle und kein Kasten (`placeElement`
+ruft dann `blockSolid` gar nicht auf). Im Katalog steht die Zeile darunter
+entsprechend (_„4 Zellen gesperrt"_, _„begehbar"_), und der Steckbrief zeichnet
+die ganze Grundfläche mit dem Stamm in der Mitte (`footprintRows`,
+`spotFootprintCells`).
+
+**Aus dem Regal:** _Forest Nature_ in **einer** Farbe (`color1`; das Paket hat
+jedes Modell achtmal, nur in anderer Palette), daraus je Art eine Größenstufe.
+Dazu kommen die Herbstbäume und der tote Baum aus _Halloween Bits_, der
+Fliegenpilz (_Mystery Monthly 5_, Hexe), die Flachsblume (_Mixed Bag_) und das
+Holz aus _Resource Bits_ und _Mystery Monthly 4_. Was fehlt und warum:
+
+- Die Bäume aus _City Builder_ und _Medieval Hexagon_ sind bei Maßstab 0,5
+  Modellbahn-Bäume von einem halben Meter.
+- Die Hügel und Klippen von _Forest Nature_ (`Hill_*`) sind Gelände und kein
+  Möbel.
+- Kiesel unter 15 cm wären auf einer Kachel nur ein Punkt.
+- Der Weihnachtsbaum hat keinen Stamm, sondern eine Matte mit Geschenken.
 
 ## Hinstellen
 
@@ -364,6 +411,10 @@ Möbelkatalog gibt **Spielelemente** her.
   (`SHOW_ONLY_GIVES`), und der Test verbietet sie hier. Jedes
   belegt eine Kachel, also 2 × 2 Zellen, alle gesperrt, und tut auf `A`, was
   es in der Küche tut.
+- **Natur** ist seit Oktober 2026 der dritte Bereich: Bäume, Sträucher,
+  Steine, Gras & Blumen, Holz und Alles (`NATURE_FOLDER`, siehe
+  [Natur](#natur-bäume-sträucher-steine-gras-holz)). Unter einem Baum sperrt
+  nur der Stamm.
 - **Erst der Bereich, dann die Art** (Ende September 2026, gewünscht:
   _„Katalog Ordner besser gruppieren (Haus, Restaurant, etc.) … Ggf wie bei
   Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** und

@@ -64,10 +64,13 @@ function inside(spot: ElementSpot, x: number, z: number): boolean {
   return x > b.x0 * CELL && x < (b.x1 + 1) * CELL && z > b.z0 * CELL && z < (b.z1 + 1) * CELL;
 }
 
-/** Jedes Element in jede Richtung. */
+/**
+ * Jedes Element in jede Richtung — außer dem, durch das man läuft: Gras und
+ * Blumen sperren nichts (`GameElement.solid`, `natureCatalog.test.ts`).
+ */
 const SPOTS: ElementSpot[] = ELEMENTS.flatMap((element) =>
   FACES.map((face) => ({ id: `${element.id}:${face}`, element: element.id, ...AT, face })),
-);
+).filter((spot) => spotCells(spot).length > 0);
 
 describe('Spielelemente — die Füße', () => {
   it('sperrt jede Zelle unter jedem Element, in jeder Drehung', () => {

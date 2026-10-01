@@ -2,6 +2,7 @@ import { SHELF_WALL, SHELF_WALL_HALF, SHELF_WINDOW_PIECES } from '../grid/shelfW
 import type { StationKind } from '../test/zones/kitchenCarry';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import { FLOORINGS } from '../house/flooring';
+import { NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -108,6 +109,15 @@ export interface ElementPart {
    */
   readonly flush?: number;
   /**
+   * **An seinem Ursprung, wie die Datei es hat** — statt mit der Mitte seiner
+   * Hülle über der Stelle und der Unterseite auf dem Boden. Für Bäume: Der
+   * Ursprung sitzt im Stamm, die Krone hängt oft zur Seite (bis 0,3 m), und die
+   * Wurzeln reichen unter den Boden. So steht der Stamm genau auf den Zellen,
+   * die er sperrt (`GameElement.solid`), und wächst aus dem Boden, statt
+   * darauf zu stehen.
+   */
+  readonly rooted?: boolean;
+  /**
    * **Hier wird abgelegt** — die Oberkante dieses Teils ist `PlacedElement.top`.
    * Ohne Angabe ist es das erste Teil: die Platte, der Herd, die Kiste.
    */
@@ -140,6 +150,21 @@ export interface GameElement {
    * hinaufspringt; das Band liegt flach.
    */
   readonly height: number;
+  /**
+   * **Was davon sperrt**, in Metern (Breite × Tiefe, nach Süden, um die Mitte
+   * der Grundfläche) — ohne Angabe die ganze Grundfläche. Für etwas, das
+   * breiter ist als das, wogegen man läuft: Unter der Krone eines Baums geht
+   * man durch, nur der Stamm sperrt (gewünscht: _„Bei Bäumen z.B. sollten wir
+   * nur den Stamm als nicht betretbar machen"_). `[0, 0]`: Es sperrt gar
+   * nichts — Gras und Blumen, durch die man läuft.
+   *
+   * Die Grundfläche (`tiles`) bleibt, was man anfasst und wo der Katalog es
+   * einrasten lässt; Zellen und Kasten (`elementPlace.spotCells`,
+   * `GridWorld.blockSolid`) nehmen nur diese Fläche. Ein Element mit eigener
+   * Sperre steht ganz als Bild da — als festes Stück der Welt bekäme die Krone
+   * einen Körper.
+   */
+  readonly solid?: readonly [number, number];
   /** Was man damit tut — `null`: Es steht nur im Weg (Tisch, Stuhl, Band). */
   readonly kind: ElementKind | null;
   /** Bei einem Brett: was darauf passiert. Ohne Angabe schneidet es. */
@@ -802,6 +827,8 @@ export const ELEMENTS: readonly GameElement[] = [
     parts: [{ model: bits('table_round_B_tablecloth_red') }],
   },
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
+  // **Die Natur** — Bäume, Sträucher, Steine, Gras, Holz (`natureCatalog.ts`).
+  ...NATURE_ELEMENTS,
 ];
 
 /**
@@ -1106,7 +1133,8 @@ export const KITCHEN_FOLDERS: readonly FurnitureFolder[] = [
  * **Die obersten Ordner des Katalogs** — erst der Bereich, dann die Art, wie
  * in _Die Sims_: **Haus** mit Wand, Tür und Fenster (`HOUSE_FOLDER`, im
  * Hausbau dazu Treppe, Böden und Tapeten) und **Restaurant** mit der Küche
- * (`KITCHEN_FOLDERS`). Gewünscht: _„Katalog Ordner besser gruppieren (Haus,
+ * (`KITCHEN_FOLDERS`), dazu **Natur** mit Bäumen, Sträuchern und Steinen
+ * (`NATURE_FOLDER`). Gewünscht: _„Katalog Ordner besser gruppieren (Haus,
  * Restaurant, etc.)"_. Vorher standen zehn Ordner aus zwei Welten
  * nebeneinander, Pizza neben Fenster.
  */
@@ -1119,6 +1147,9 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
     folders: KITCHEN_FOLDERS,
     cover: { element: 'stove' },
   },
+  // **Natur** — gewünscht: _„beim Katalog möchte ich nun gerne Natur als
+  // weiteren Punkt haben"_ (`natureCatalog.ts`).
+  NATURE_FOLDER,
 ];
 
 /**

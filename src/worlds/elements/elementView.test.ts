@@ -5,6 +5,10 @@ import { FALLBACK_TOP, placeElement, type ElementHost } from './elementView';
 
 jest.mock('../../core/chefFit', () => ({ canLoadModels: () => true }));
 
+/** Der Laubbaum und das Gras der Natur (`natureCatalog.ts`). */
+const TREE = 'forest-nature/color1/Tree_1_B_Color1.glb';
+const GRASS = 'forest-nature/color1/Grass_2_B_Color1.glb';
+
 /** Die Maße der Modelle, wie sie aus dem Regal kämen (Breite, Höhe, Tiefe). */
 const SIZES: Record<string, readonly [number, number, number]> = {
   [bits('kitchencounter_straight_A')]: [1, 0.5, 1],
@@ -15,6 +19,8 @@ const SIZES: Record<string, readonly [number, number, number]> = {
   [bits('icecream_container')]: [0.5, 0.25, 0.8],
   [bits('icecream_container_icecream_vanilla')]: [0.4, 0.18, 0.7],
   [bits('icecream_container_icecream_strawberry')]: [0.4, 0.18, 0.7],
+  [TREE]: [2, 2.5, 2],
+  [GRASS]: [0.2, 0.46, 0.2],
 };
 
 /** Ein Kasten mit der Mitte im Ursprung — wie eine Datei, die um ihre Mitte gebaut ist. */
@@ -145,6 +151,27 @@ describe('Spielelemente — hingestellt', () => {
     await placeElement(world, { id: 'o', element: 'pizza-oven', x: 1, z: 1 });
     expect(fixed.map((one) => one.path)).toEqual([bits('pizza_oven')]);
     expect(fixed[0]!.at.toArray()).toEqual([1.5, 0.6, 1.5]);
+  });
+
+  it('sperrt unter einem Baum nur den Stamm und stellt ihn als Bild an seinen Ursprung', async () => {
+    const { host: world, log, fixed } = host();
+    // Der Baum belegt 2 × 2 Kacheln ab (3, 2) — die Mitte ist (4, 3).
+    const placed = await placeElement(world, { id: 't', element: 'tree-leafy', x: 3, z: 2 });
+    expect(log.filter((line) => line.startsWith('block'))).toEqual(['block 4,3 0.5×0.5 1.4']);
+    // Kein festes Stück der Welt: Das bekäme einen Körper so breit wie die Krone.
+    expect(fixed).toHaveLength(0);
+    // Am Ursprung der Datei (`rooted`): Dieser Kasten ist um seine Mitte gebaut
+    // und steckt deshalb zur Hälfte im Boden, wie Wurzeln.
+    const tree = bounds(placed.parts[0]!);
+    expect(tree.getCenter(new THREE.Vector3()).toArray()).toEqual([4, 0, 3]);
+  });
+
+  it('sperrt bei Gras gar nichts — kein Kasten, keine Zelle', async () => {
+    const { host: world, log } = host();
+    const placed = await placeElement(world, { id: 'g', element: 'plant-grass', x: 1, z: 1 });
+    expect(log.filter((line) => line.startsWith('block'))).toEqual([]);
+    expect(placed.cells).toEqual([]);
+    expect(placed.parts[0]).not.toBeNull();
   });
 
   it('weiß auch ohne Modelle, wo es steht', async () => {

@@ -30,6 +30,7 @@ import {
   elementLit,
   hasElement,
 } from './elementCatalog';
+import { NATURE_CATALOGUE } from './natureCatalog';
 
 /** Der Index des Regals — `null`, wenn die gekauften Pakete fehlen. */
 function shelf(): Set<string> | null {
@@ -223,7 +224,11 @@ describe('der Möbelkatalog im Menü', () => {
   });
 
   it('ordnet wie die Sims erst nach Bereich: Haus mit Wand, Tür, Fenster, Restaurant mit der Küche', () => {
-    expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual(['Haus', 'Restaurant']);
+    expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
+      'Haus',
+      'Restaurant',
+      'Natur',
+    ]);
     expect(FURNITURE_FOLDERS[0]).toBe(HOUSE_FOLDER);
     expect(HOUSE_FOLDER.folders).toBeUndefined();
     expect(HOUSE_FOLDER.models).toBe(BUILD_MODELS);
@@ -249,7 +254,8 @@ describe('der Möbelkatalog im Menü', () => {
       const inner = folder.folders?.length ?? 0;
       expect(folder.elements.length + (folder.models?.length ?? 0) + inner).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
-      for (const id of folder.elements) expect(FURNITURE_CATALOGUE).toContain(id);
+      for (const id of folder.elements)
+        expect([...FURNITURE_CATALOGUE, ...NATURE_CATALOGUE]).toContain(id);
     }
   });
 

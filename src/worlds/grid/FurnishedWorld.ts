@@ -26,6 +26,7 @@ import {
 } from '../elements/elementPlace';
 import type { ElementHost, PlacedElement } from '../elements/elementView';
 import { furnish } from '../elements/furnish';
+import { NATURE_CATALOGUE } from '../elements/natureCatalog';
 import { StationLayer, type StationHost } from '../elements/stationLayer';
 import { DEFAULT_BURN, type StationState } from '../plateup/plateUpStations';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
@@ -203,10 +204,11 @@ export abstract class FurnishedWorld extends GridWorld {
   /**
    * **Der Möbelkatalog im Menü** (`PortalWorld.elementMenu`): Arbeitsplatte,
    * Schneidebrett, Herdplatte mit Pfanne, mit Topf und blank, Waschbecken,
-   * Eis und die Vorräte — hingestellt wie jede Stelle aus `SPOTS`.
+   * Eis und die Vorräte, dazu die Natur (`natureCatalog.ts`) — hingestellt wie
+   * jede Stelle aus `SPOTS`.
    */
   protected override elementCatalogue(): readonly string[] {
-    return FURNITURE_CATALOGUE;
+    return [...FURNITURE_CATALOGUE, ...NATURE_CATALOGUE];
   }
 
   /** Dazu die Unterordner je Gericht: Pizza, Burger, Eis, Waffeln, Suppe. */
