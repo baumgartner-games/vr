@@ -89,3 +89,42 @@ describe('tabbedMenu', () => {
     expect(tabs.map((tab) => tab.label)).toEqual(['Welten', 'Einstellungen']);
   });
 });
+
+describe('searchTab', () => {
+  it('findet einen Schalter tief unter den Einstellungen, mit seinem Weg', () => {
+    const tabs = tabbedMenu(groupMenu(flat()), { inventory });
+    const settings = tabs.find((tab) => tab.id === 'einstellungen')!;
+    const hits = settings.find!('sprint');
+    expect(hits.map((hit) => hit.id)).toEqual(['sprint']);
+    expect(hits[0]!.sub).toBe('move');
+  });
+
+  it('faltet Umlaute und findet Welten unter den Welten', () => {
+    const tabs = tabbedMenu(
+      groupMenu([
+        { id: 'world:hub', label: 'Hub', sub: 'Startpunkt', run: () => {} },
+        {
+          id: 'world:folder:test',
+          label: 'Test',
+          children: [{ id: 'world:kueche', label: 'Küche', run: () => {} }],
+        },
+      ]),
+    );
+    const worlds = tabs.find((tab) => tab.id === 'spielen')!;
+    expect(worlds.find!('kuche').map((hit) => hit.id)).toEqual(['world:kueche']);
+    expect(worlds.find!('start').map((hit) => hit.id)).toEqual(['world:hub']);
+  });
+
+  it('steigt nicht in Seiten mit eigener Suche', () => {
+    const shelf: MenuEntry = {
+      id: 'assets',
+      label: 'Rohmodelle',
+      find: () => [],
+      children: [leaf('barrel')],
+    };
+    const tabs = tabbedMenu(groupMenu([page('gfx', [leaf('gfx:fps')]), shelf]));
+    const settings = tabs.find((tab) => tab.id === 'einstellungen')!;
+    expect(settings.find!('barrel')).toEqual([]);
+    expect(settings.find!('rohmodelle').map((hit) => hit.id)).toEqual(['assets']);
+  });
+});

@@ -320,6 +320,24 @@ Reiter** (`PadScope.tab`, `PageMenu.stepTab`), `1`–`9` an der Tastatur.
 | **Zusammen** | Raum, Chat, Stimme, Zuschauen |
 | **Einstellungen** | Bewegung, Grafik, Ton, Hände — darunter Figur, Steuerung & Hilfe, Werkstatt |
 
+**Welten als Karten wie auf der Startseite**: Jede Welt trägt ihr
+Vorschaubild (`MenuEntry.image`, gezeichnet als `.pmenu__tile--card`), ein
+Ordner das seiner ersten Welt und schlägt sich als Raster auf. Gewünscht:
+_„beim Welten-Tab, könnten wir die Welten doch auch so machen, wie im
+Startbildschirm, also wieder mit Kacheln?"_ Am Handgelenk bleiben es
+Ikonen-Kacheln.
+
+**Eine Suchleiste in Katalog, Welten und Einstellungen.** Der Katalog hatte
+seine schon (über den ganzen Katalog); Welten und Einstellungen suchen mit
+`menuTabs.searchTab` **durch alle Unterseiten** des Reiters, bis vier Ebenen
+tief — wer `schatten` tippt, bekommt die Schalter aus _Grafik_ und
+_Werkstatt_, jeder mit seinem Weg in der Unterzeile. Die Trefferlogik ist die
+des Katalogs (`catalogSearch`: Umlaute gefaltet, Name vor Weg). Nicht hinab
+geht es in Seiten mit eigener Suche (das Modellregal unter _Werkstatt_). Ein
+Treffer mit Unterseite öffnet sich an seiner Stelle im Baum
+(`PageMenu.pathTo`), ein Schalter schaltet direkt, und die Treffer werden
+beim Neubau des Baums neu gerechnet, damit sie den neuen Stand zeigen.
+
 `openSubmenu('bag' | 'look' | 'assets' | …)` findet seine Seiten unter den
 Reitern weiter (drei Ebenen tief, `menuTabs.test.ts`). Am Telefon passen nicht
 alle sechs Reiter nebeneinander; die Leiste rollt zum offenen.

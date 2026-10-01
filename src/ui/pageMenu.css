@@ -670,3 +670,17 @@
   .pmenu--aside .pmenu__body { flex-direction: row; }
   .pmenu--aside .pmenu__stage { flex: 1; }
 }
+
+/* **Karten mit Bild** (`MenuEntry.image`) — die Welten wie auf der
+   Startseite: oben das Vorschaubild in 16 : 9 mit dem Schildchen darauf,
+   darunter Name und Zeile. So breit, wie zwei Wörter Zeile brauchen. */
+.pmenu__list--cards { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.pmenu__tile--card { justify-items: stretch; padding: 0 0 12px; overflow: hidden; text-align: left; }
+.pmenu__tile--card strong, .pmenu__tile--card small { padding: 0 12px; }
+.pmenu__art { position: relative; display: block; aspect-ratio: 16 / 9; background: color-mix(in srgb, var(--accent) 22%, #0a0e1a); }
+.pmenu__art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pmenu__art .pmenu__badge { position: absolute; top: 8px; right: 8px; background: rgba(6, 9, 18, 0.8); }
+.pmenu__tile--card strong { font-size: 15px; }
+@media (max-width: 639px) {
+  .pmenu__list--cards { grid-template-columns: repeat(2, 1fr); }
+}

@@ -1425,11 +1425,16 @@ export class App {
     this.menuDirty = false;
     // **Die Spiele zuerst, die Prüfstände zuletzt** — und jede Welt sagt mit
     // einem Schildchen, was sie ist (`ui/menuGroups.worldKind`).
+    // **Mit dem Vorschaubild der Startseite** (`MenuEntry.image`): Im Reiter
+    // _Welten_ stehen sie als Karten wie dort (`ui/landingWorlds.ts`).
+    const image = (world: WorldDefinition): string | undefined =>
+      world.preview ? `${import.meta.env.BASE_URL ?? '/'}${world.preview}` : undefined;
     const row = (world: WorldDefinition): MenuEntry => ({
       id: `world:${world.id}`,
       label: world.title,
       sub: world.tagline,
       accent: world.accent,
+      ...(image(world) ? { image: image(world)! } : {}),
       badge: WORLD_BADGES[worldKind(world)],
       selected: world.id === this.worldId,
       run: () => this.selectWorld(world.id),
@@ -1448,6 +1453,11 @@ export class App {
         accent: item.folder.accent,
         ...(badge ? { badge } : {}),
         selected: item.worlds.some((world) => world.id === this.worldId),
+        // Ein Ordner zeigt das Bild seiner ersten Welt — wie seine Karte
+        // auf der Startseite — und schlägt sich als Raster auf.
+        ...(item.worlds[0] && image(item.worlds[0]) ? { image: image(item.worlds[0])! } : {}),
+        grid: true,
+        take: false,
         children: item.worlds.map(row),
       };
     });

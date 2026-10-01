@@ -789,6 +789,9 @@ export class PageMenu {
     // Hineingehen stehen bliebe, filterte die neue Seite nach dem, was jemand
     // auf der alten gesucht hat — und niemand sähe, warum sie fast leer ist.
     if (this.page.id !== before) this.clearSearch();
+    // Dieselbe Seite mit neuem Baum: die Treffer neu — ein Schalter darunter
+    // zeigte sonst noch, wie er vor dem Tipp stand.
+    else if (this.query && this.page.find) this.results = this.page.find(this.query);
     if (this.open) this.render();
   }
 
@@ -903,6 +906,11 @@ export class PageMenu {
     // dessen Titel „20:36" stand und in dessen Schließen-Knopf die Batterie.
     setSafeEdge(this.sheet, 'top', full);
     this.list.classList.toggle('pmenu__list--grid', page.grid);
+    // Karten mit Bild (`MenuEntry.image`) wollen breitere Spalten als Ikonen.
+    this.list.classList.toggle(
+      'pmenu__list--cards',
+      page.grid && this.source.some((entry) => entry.image),
+    );
     const columns = page.full && page.grid ? this.columns() : (page.cols ?? 3);
     // Die Spaltenzahl steht als CSS-Variable am Raster und nicht als Klasse:
     // So kann eine Seite zwei Spalten wollen (das Asset-Regal), ohne dass für
@@ -1288,7 +1296,11 @@ export class PageMenu {
       // laden will, soll es beim ersten Bild der neuen Seite schon getan
       // haben (`MenuEntry.onOpen`).
       entry.onOpen?.();
-      this.nav.push(entry.id);
+      // **Ein Treffer der Suche liegt irgendwo im Reiter** (`menuTabs.searchTab`)
+      // und nicht unter dieser Seite: Er öffnet sich an seiner Stelle im Baum.
+      const deep = this.results ? pathTo(this.root, entry.id) : null;
+      if (deep) this.nav.goTo(deep);
+      else this.nav.push(entry.id);
       return;
     }
     entry.run?.(null);
@@ -1338,6 +1350,20 @@ export class PageMenu {
 }
 
 // --- Bausteine --------------------------------------------------------------
+
+/** Der Weg zu einem Eintrag mit Kindern, wo immer er im Baum steht — oder `null`. */
+function pathTo(entries: readonly MenuEntry[], id: string, top = true): string[] | null {
+  for (const entry of entries) {
+    if (!entry.children) continue;
+    if (entry.id === id) return [entry.id];
+    // Die Reiter selbst tragen die Suche; darunter wird nicht in Seiten mit
+    // eigener Suche gestiegen — genau wie `menuTabs.searchTab`.
+    if (!top && (entry.find || entry.flatten)) continue;
+    const below = pathTo(entry.children, id, false);
+    if (below) return [entry.id, ...below];
+  }
+  return null;
+}
 
 /** Eine Menüseite aus dem Eintrag, der sie öffnet — wie am Handgelenk. */
 function pageOf(entry: MenuEntry): Page {
@@ -1439,6 +1465,22 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
   node.style.setProperty('--accent', accent);
   if (entry.selected) node.classList.add('is-selected');
   if (entry.caption) node.title = entry.caption;
+  if (entry.image) {
+    // **Eine Karte wie auf der Startseite**: oben das Bild mit dem Schildchen
+    // darauf, darunter Name und Zeile (`.wcard`, `ui/landingWorlds.ts`).
+    node.classList.add('pmenu__tile--card');
+    const art = el('span', 'pmenu__art');
+    const img = document.createElement('img');
+    img.src = entry.image;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    art.append(img);
+    if (entry.badge) art.append(el('span', 'pmenu__badge', entry.badge));
+    node.append(art, el('strong', '', entry.label));
+    if (entry.sub) node.append(el('small', '', entry.sub));
+    return node;
+  }
   node.append(face(entry, accent, ready), el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));

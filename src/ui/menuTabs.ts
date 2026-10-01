@@ -1,5 +1,6 @@
 import type { MenuEntry } from './menu';
 import { MENU_GROUPS, placementOf, type MenuGroupId } from './menuGroups';
+import { catalogSearch, type CatalogRow } from '../worlds/elements/catalogSearch';
 
 /**
  * **Das Menü als Reiter** — wie oben in _Die Sims_: eine Reihe über der Seite,
@@ -89,7 +90,12 @@ export function tabbedMenu(grouped: readonly MenuEntry[], options: TabOptions = 
       label: 'Welten',
       icon: 'worlds',
       accent: spielen?.accent ?? WORLD_TAB_ACCENT,
+      // **Kacheln wie auf der Startseite** — mit Bild, wo eine Welt eins hat
+      // (`MenuEntry.image`). Ein Tipp wählt die Welt; nehmen gibt es hier nicht.
+      grid: true,
+      take: false,
       children: worlds,
+      find: (query) => searchTab(worlds, query),
     });
   }
 
@@ -121,9 +127,57 @@ export function tabbedMenu(grouped: readonly MenuEntry[], options: TabOptions = 
     }),
   ];
   if (settings.length > 0) {
-    tabs.push(groupTab('einstellungen', TAB_IDS.settings, 'Einstellungen', settings));
+    tabs.push({
+      ...groupTab('einstellungen', TAB_IDS.settings, 'Einstellungen', settings),
+      find: (query) => searchTab(settings, query),
+    });
   }
   return tabs;
+}
+
+/**
+ * **Wie tief die Suche eines Reiters hinabsteigt.** Vier Ebenen reichen für
+ * _Einstellungen › Grafik › Schatten_ und _Welten › Test › Labor_; tiefer
+ * liegt nur, was eine eigene Suche hat.
+ */
+const SEARCH_DEPTH = 4;
+
+/**
+ * **Die Suchleiste eines Reiters** (`MenuEntry.find`) — gewünscht: _„bei den
+ * Tabs Katalog, Welten und Einstellungen eine Suchleiste oben, welche nach den
+ * einzelnen Punkten filtert, die man sucht"_.
+ *
+ * Gesucht wird **durch alle Unterseiten** des Reiters, nicht nur durch die
+ * Zeilen, die oben stehen: Wer `schatten` tippt, will den Schalter, nicht die
+ * Seite _Grafik_, hinter der er liegt. Jeder Treffer trägt deshalb seinen Weg
+ * in der Unterzeile („Grafik › …"); ein Tipp schaltet ihn direkt, und eine
+ * Seite unter den Treffern öffnet sich an ihrer Stelle im Baum
+ * (`PageMenu.onListClick`).
+ *
+ * Die Trefferlogik ist die des Katalogs (`catalogSearch`): Umlaute gefaltet,
+ * ein Treffer im Namen zählt mehr als einer im Weg. **Nicht hinab** geht es in
+ * Seiten mit eigener Suche (`find` — das Modellregal unter _Werkstatt_ mit
+ * seinen viertausend Modellen) und in Fächer (`flatten`); die Seite selbst ist
+ * aber findbar.
+ */
+export function searchTab(entries: readonly MenuEntry[], query: string): MenuEntry[] {
+  const rows: CatalogRow<MenuEntry>[] = [];
+  const walk = (level: readonly MenuEntry[], trail: readonly string[], depth: number): void => {
+    for (const entry of level) {
+      const where = trail.join(' › ');
+      const sub = [where, entry.sub].filter(Boolean).join(' · ');
+      rows.push({
+        key: [...trail, entry.id].join('/'),
+        name: entry.label,
+        words: `${entry.sub ?? ''} ${where} ${entry.caption ?? ''}`,
+        entry: sub ? { ...entry, sub } : entry,
+      });
+      const deeper = entry.children && !entry.find && !entry.flatten && depth < SEARCH_DEPTH;
+      if (deeper) walk(entry.children!, [...trail, entry.label], depth + 1);
+    }
+  };
+  walk(entries, [], 1);
+  return catalogSearch(rows, query);
 }
 
 /** Zu welchem Bereich ein Eintrag der Wurzel gehört — oder `null` (_Weiterspielen_). */

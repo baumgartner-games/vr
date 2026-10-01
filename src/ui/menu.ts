@@ -172,6 +172,13 @@ export interface MenuEntry {
   /** Draw the children as a grid of icons instead of a list. */
   grid?: boolean;
   /**
+   * **Ein Bild für die Kachel** (Adresse) — wie die Karten der Startseite
+   * (`ui/landingWorlds.ts`): Die Welten im Reiter _Welten_ zeigen ihr
+   * Vorschaubild statt einer Ikone. Nur die Seite liest es; am Handgelenk
+   * bleibt die Ikone.
+   */
+  image?: string;
+  /**
    * Spalten im Raster; Standard 3, das Asset-Regal nimmt 2 — in der Brille ist
    * mehr nicht lesbar.
    *
