@@ -217,6 +217,16 @@ export class PagePreviews implements PagePreviewLayer {
   setOpen(open: boolean): void {
     if (open === this.open) return;
     this.open = open;
+    // **Gehorcht wird, solange das Menü offen ist** — und nicht nur, solange
+    // die Schleife läuft. Vorher hing der Zuhörer an `start`/`stop`: Ging das
+    // Fenster in den Hintergrund, hielt `stop` an und meldete dabei genau den
+    // Zuhörer ab, der beim Zurückkommen wieder starten sollte. Gemeldet: _„wenn
+    // ich mal die seite in den hintergrund gehe und dann nach vorne komme […]:
+    // die vorschauen laden nicht korrekt"_ — es blieben die Ikonen stehen.
+    if (typeof document !== 'undefined') {
+      if (open) document.addEventListener('visibilitychange', this.onVisibility);
+      else document.removeEventListener('visibilitychange', this.onVisibility);
+    }
     this.sync();
   }
 
@@ -228,6 +238,8 @@ export class PagePreviews implements PagePreviewLayer {
 
   dispose(): void {
     this.open = false;
+    if (typeof document !== 'undefined')
+      document.removeEventListener('visibilitychange', this.onVisibility);
     this.stop();
     this.watcher?.disconnect();
     this.watcher = null;
@@ -271,7 +283,6 @@ export class PagePreviews implements PagePreviewLayer {
         this.watched.add(cell);
       }
     }
-    document.addEventListener('visibilitychange', this.onVisibility);
     this.clock.getDelta();
     this.frame = requestAnimationFrame(this.loop);
   }
@@ -279,7 +290,6 @@ export class PagePreviews implements PagePreviewLayer {
   private stop(): void {
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
-    document.removeEventListener('visibilitychange', this.onVisibility);
     if (!this.view) return;
     for (const id of [...this.models.keys()]) this.release(id);
     // Eine leere Seitenkennung: Beim nächsten Aufschlagen wird ohnehin alles

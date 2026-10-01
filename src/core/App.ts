@@ -87,7 +87,7 @@ import { FrameStats } from './FrameStats';
 import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
 import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from './headgear';
-import { BODY_LABELS, BODY_SUBS, HEAD_LABELS, HEAD_SUBS, nextBody, nextHead } from './avatarLook';
+import { FIGURE_PRESETS, figureLabel } from './avatarFigures';
 import {
   GRAPHICS_MODE_LABELS,
   SHADOW_MODE_LABELS,
@@ -508,8 +508,11 @@ export class App {
             edits: isOutfitPage,
             dirty: () => this.outfit.dirty,
             onCustomize: () => this.openWardrobe(),
-            onSave: () => {
+            onSave: (name) => {
               this.outfit.save();
+              // Der Name nur, wenn er sich geändert hat — `setPlayerName`
+              // sagt ihn allen im Raum neu an.
+              if (name && name !== this.net.name) this.setPlayerName(name);
               this.notify('Aussehen gespeichert');
             },
             onReset: () => this.outfit.reset(),
@@ -555,7 +558,7 @@ export class App {
     this.wristMenu.attachPage(this.pageMenu);
     // Die Stücke in den Kacheln unter _Aussehen_ — in jeder Welt, auch in
     // einer, die selbst keine Modelle für das Menü hat.
-    this.wristMenu.setExtraModels((id) => outfitModel(id, this.outfit.current));
+    this.wristMenu.setExtraModels((id) => outfitModel(id));
     this.holdMenu = new HoldMenu({
       onToggle: (open) => {
         if (open || !this.holdReopens) return;
@@ -2137,12 +2140,11 @@ export class App {
    * aufsetzt, trägt sie im Gokart auch, und alle im Raum sehen sie
    * (`net/NetSession.ts`).
    *
-   * **Drei Zeilen, jede schaltet im Kreis** — Kopf, Hut, Körper. Vorher war es
-   * eine Zeile je Hut, was bei sieben Hüten noch ging; mit Köpfen und Jacken
-   * dazu wären es zwanzig gewesen, und das ist keine Seite mehr, sondern eine
-   * Liste. Was gewählt ist, steht im Untertitel, und in aller Kürze noch
-   * einmal unter der Überschrift (`appearanceSummary`). Dieselben drei Zeilen
-   * zeigt die Umkleide vor dem Spiegel, dort mit der Figur daneben.
+   * **Zwei Zeilen, jede schaltet im Kreis** — Figur und Hut. Bis Oktober 2026
+   * waren es Kopf, Hut und Körper des Kochs; den gibt es als Wahl nicht mehr.
+   * Was gewählt ist, steht im Untertitel, und in aller Kürze noch einmal unter
+   * der Überschrift (`appearanceSummary`). Am Schirm steht dasselbe als
+   * Kacheln unter dem Reiter _Inventar_ (`ui/outfitMenu.ts`).
    */
   private appearanceMenu(): MenuEntry {
     const accent = 0x5ee0a0;
@@ -2168,20 +2170,18 @@ export class App {
       icon: 'npc',
       accent,
       children: [
-        cycle('look:head', 'Kopf', HEAD_SUBS[look.head], () => {
-          const head = nextHead(look.head);
-          saveAppearance({ head });
-          return HEAD_LABELS[head];
+        // Kopf und Jacke gehörten dem Koch, und den gibt es als Wahl nicht
+        // mehr (`avatarFigures.FIGURE_CHEF`) — geschaltet wird die Figur.
+        cycle('look:figure', 'Figur', figureLabel(look.figure), () => {
+          const at = FIGURE_PRESETS.findIndex((kind) => kind.path === look.figure);
+          const figure = FIGURE_PRESETS[(at + 1) % FIGURE_PRESETS.length]!;
+          saveAppearance({ figure: figure.path });
+          return figure.label;
         }),
         cycle('look:hat', 'Hut', HEADGEAR_SUBS[look.hat], () => {
           const hat = nextHeadgear(look.hat);
           saveAppearance({ hat });
           return HEADGEAR_LABELS[hat];
-        }),
-        cycle('look:body', 'Körper', BODY_SUBS[look.body], () => {
-          const body = nextBody(look.body);
-          saveAppearance({ body });
-          return BODY_LABELS[body];
         }),
       ],
     };
