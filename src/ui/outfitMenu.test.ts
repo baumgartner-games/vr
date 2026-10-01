@@ -1,0 +1,193 @@
+/** @jest-environment jsdom */
+import { DEFAULT_APPEARANCE, appearance, saveAppearance } from '../core/appearance';
+import { FIGURE_CHEF, FIGURE_KINDS } from '../core/avatarFigures';
+import { BODY_KINDS, HEAD_KINDS } from '../core/avatarLook';
+import { HEADGEAR_KINDS } from '../core/headgear';
+import type { MenuEntry } from './menu';
+import { OUTFIT_PAGE, OutfitDraft, isOutfitPage, outfitEntry } from './outfitMenu';
+import { PageMenu } from './PageMenu';
+import { PlayerCard } from './PlayerCard';
+
+/**
+ * **_Aussehen_ im Menü hinter `Tab`** (`ui/outfitMenu.ts`): erst zwei Kacheln,
+ * _Vorgefertigte_ und _Customizing_, darunter die Fächer als Kacheln — und
+ * gespeichert wird erst mit _Aussehen speichern_.
+ */
+function child(entry: MenuEntry, id: string): MenuEntry {
+  const found = entry.children?.find((one) => one.id === id);
+  if (!found) throw new Error(`${id} fehlt unter ${entry.id}`);
+  return found;
+}
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+describe('Der Entwurf', () => {
+  it('probiert an, ohne zu speichern — gespeichert wird erst mit save', () => {
+    const draft = new OutfitDraft();
+    draft.set({ hat: 'cap' });
+    expect(draft.current.hat).toBe('cap');
+    expect(appearance().hat).toBe('none');
+    expect(draft.dirty).toBe(true);
+    draft.save();
+    expect(appearance().hat).toBe('cap');
+    expect(draft.dirty).toBe(false);
+  });
+
+  it('setzt auf die Auslieferung zurück, und verwerfen holt das Gespeicherte', () => {
+    saveAppearance({ hat: 'cap', body: BODY_KINDS[1]! });
+    const draft = new OutfitDraft();
+    draft.reset();
+    expect(draft.current).toEqual(DEFAULT_APPEARANCE);
+    expect(appearance().hat).toBe('cap');
+    draft.discard();
+    expect(draft.current.hat).toBe('cap');
+  });
+});
+
+describe('Die Seite', () => {
+  it('ist versteckt und hat zwei Kacheln: Vorgefertigte und Customizing', () => {
+    const entry = outfitEntry(new OutfitDraft(), () => {});
+    expect(entry.id).toBe(OUTFIT_PAGE);
+    expect(entry.hidden).toBe(true);
+    expect(entry.grid).toBe(true);
+    expect(entry.children!.map((one) => one.label)).toEqual(['Vorgefertigte', 'Customizing']);
+    expect(child(entry, 'outfit:presets').children).toHaveLength(FIGURE_KINDS.length);
+  });
+
+  it('hat im Customizing Kopf, Hut und Körper, jedes Stück mit Vorschau', () => {
+    const custom = child(
+      outfitEntry(new OutfitDraft(), () => {}),
+      'outfit:custom',
+    );
+    expect(custom.children!.map((one) => one.label)).toEqual(['Kopf', 'Hut', 'Körper']);
+    const [heads, hats, bodies] = custom.children!;
+    expect(heads!.children).toHaveLength(HEAD_KINDS.length);
+    expect(hats!.children).toHaveLength(HEADGEAR_KINDS.length);
+    expect(bodies!.children).toHaveLength(BODY_KINDS.length);
+    for (const piece of [...heads!.children!, ...hats!.children!, ...bodies!.children!]) {
+      expect(piece.preview).toBe(piece.id);
+    }
+    expect(heads!.children!.filter((one) => one.selected).map((one) => one.id)).toEqual([
+      `outfit:head:${DEFAULT_APPEARANCE.head}`,
+    ]);
+  });
+
+  it('macht aus einer fertigen Figur wieder den Koch, wenn man einen Kopf wählt', () => {
+    const draft = new OutfitDraft();
+    const knight = FIGURE_KINDS[1]!.path;
+    draft.set({ figure: knight });
+    let picks = 0;
+    const custom = child(
+      outfitEntry(draft, () => picks++),
+      'outfit:custom',
+    );
+    // An einer fertigen Figur wirken Kopf und Jacke nicht — markiert ist dort nichts.
+    expect(custom.children![0]!.children!.some((one) => one.selected)).toBe(false);
+    custom.children![0]!.children![2]!.run!(null);
+    expect(draft.current.figure).toBe(FIGURE_CHEF);
+    expect(draft.current.head).toBe(HEAD_KINDS[2]);
+    // Der Hut lässt die Figur, wie sie ist.
+    draft.set({ figure: knight });
+    child(
+      outfitEntry(draft, () => picks++),
+      'outfit:custom',
+    ).children![1]!.children![1]!.run!(null);
+    expect(draft.current.figure).toBe(knight);
+    expect(picks).toBe(2);
+  });
+});
+
+describe('Im Menü, mit der Figur daneben', () => {
+  function setup() {
+    const draft = new OutfitDraft();
+    const log: string[] = [];
+    const card = new PlayerCard({
+      page: 'inventar',
+      name: () => 'Nils',
+      look: () => draft.current,
+      edits: isOutfitPage,
+      dirty: () => draft.dirty,
+      onCustomize: () => log.push('customize'),
+      onSave: () => draft.save(),
+      onReset: () => draft.reset(),
+      onLeave: () => draft.discard(),
+    });
+    const menu = new PageMenu({ tabs: true, aside: card });
+    const root = (): MenuEntry[] => [
+      {
+        id: 'inventar',
+        label: 'Inventar',
+        grid: true,
+        take: false,
+        children: [{ id: 'tool:hand', label: 'Hand' }, outfitEntry(draft, () => {})],
+      },
+      { id: 'einstellungen', label: 'Einstellungen', children: [{ id: 'gfx', label: 'Grafik' }] },
+    ];
+    menu.setRoot(root());
+    return { draft, card, menu, log, root };
+  }
+
+  const tiles = (menu: PageMenu): string[] =>
+    [...menu.element.querySelectorAll<HTMLElement>('.pmenu__tile')].map((n) => n.dataset['id']!);
+  const buttons = (card: PlayerCard): string[] =>
+    [...card.element.querySelectorAll<HTMLButtonElement>('button')]
+      .filter((b) => !b.hidden)
+      .map((b) => b.textContent!);
+
+  it('steht nicht zwischen den Werkzeugen, und die Figur hat dort Aussehen anpassen', () => {
+    const { menu, card } = setup();
+    menu.openTab('inventar');
+    expect(tiles(menu)).toEqual(['tool:hand']);
+    expect(buttons(card)).toEqual(['Aussehen anpassen']);
+    menu.dispose();
+    card.dispose();
+  });
+
+  it('schlägt Aussehen im Vollbild auf, die Figur bleibt mit Speichern und Zurücksetzen', () => {
+    const { menu, card } = setup();
+    menu.openTab('inventar');
+    menu.openSubmenu(OUTFIT_PAGE);
+    expect(menu.pageId).toBe(`inventar/${OUTFIT_PAGE}`);
+    expect(menu.element.classList.contains('pmenu--full')).toBe(true);
+    expect(tiles(menu)).toEqual(['outfit:presets', 'outfit:custom']);
+    expect(card.element.hidden).toBe(false);
+    expect(buttons(card)).toEqual(['Aussehen speichern', 'Aussehen zurücksetzen']);
+    menu.dispose();
+    card.dispose();
+  });
+
+  it('verwirft den Entwurf beim Zurückgehen ins Inventar und beim Zumachen', () => {
+    const { menu, card, draft, root } = setup();
+    menu.openTab('inventar');
+    menu.openSubmenu(OUTFIT_PAGE);
+    draft.set({ hat: 'cap' });
+    menu.setRoot(root());
+    expect(
+      card.element.querySelector<HTMLButtonElement>('.pcard__edit:not([hidden])')!.disabled,
+    ).toBe(false);
+    menu.goBack();
+    expect(draft.dirty).toBe(false);
+    expect(appearance().hat).toBe('none');
+
+    menu.openSubmenu(OUTFIT_PAGE);
+    draft.set({ hat: 'cap' });
+    menu.toggle(false);
+    expect(draft.dirty).toBe(false);
+    menu.dispose();
+    card.dispose();
+  });
+
+  it('speichert mit Aussehen speichern', () => {
+    const { menu, card, draft } = setup();
+    menu.openTab('inventar');
+    menu.openSubmenu(OUTFIT_PAGE);
+    draft.set({ hat: 'cap' });
+    card.refresh();
+    card.element.querySelector<HTMLButtonElement>('.pcard__edit:not([hidden])')!.click();
+    expect(appearance().hat).toBe('cap');
+    menu.dispose();
+    card.dispose();
+  });
+});

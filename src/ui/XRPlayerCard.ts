@@ -16,7 +16,7 @@ import { TextPlane } from './TextPlane';
  * zweiten Renderer: Sie ist ein **echtes kleines Modell im Raum**, eine
  * Handspanne hoch auf einer dunklen Tafel, und dreht sich langsam. Ein
  * zweites Canvas wäre in der Brille genau der Renderer zu viel
- * (`WardrobeMenu`).
+ * (`ui/previewScene.ts`).
  *
  * Darunter Name und Aussehen und der Knopf, der zum Anpassen führt — in der
  * Brille ist das die Seite _Aussehen_ am Handgelenk (`App.openWardrobe`).

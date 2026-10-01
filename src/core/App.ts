@@ -21,7 +21,8 @@ import { introKeys } from './worldIntro';
 import { hintDevice } from './controlHints';
 import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
-import { WardrobeMenu } from '../ui/WardrobeMenu';
+import { OUTFIT_PAGE, OutfitDraft, isOutfitPage, outfitEntry } from '../ui/outfitMenu';
+import { outfitModel } from '../ui/outfitModels';
 import { PlayerCard } from '../ui/PlayerCard';
 import { tabbedMenu } from '../ui/menuTabs';
 import { XRPlayerCard } from '../ui/XRPlayerCard';
@@ -242,8 +243,6 @@ export class App {
   private readonly playerCard: PlayerCard | null;
   /** Die Wurzel mit Bereichen (`groupMenu`) — woraus die Reiter und das Werkzeugregal kommen. */
   private menuRoot: MenuEntry[] = [];
-  /** Die Umkleide kam aus dem Inventar: beim Schließen dorthin zurück. */
-  private wardrobeReturns = false;
   /** Die Tastenhilfe unten im Bild — `null` ohne DOM (Tests). */
   private readonly hints: ControlHints | null =
     typeof document === 'undefined' ? null : new ControlHints();
@@ -275,14 +274,14 @@ export class App {
   /** Die Anmeldungen beim Fahrer der Menüs am Pad — abgemeldet in `dispose`. */
   private padScopes: Array<() => void> = [];
   /**
-   * **Die Umkleide** — die Seite vor dem Kleiderschrank (`ui/WardrobeMenu.ts`).
-   *
-   * Sie gehört `App` und keiner Welt, genau wie das Aussehen selbst
-   * (`core/appearance.ts`): Wer sich in der Testwelt umzieht, läuft im Hub
-   * ebenso herum. Eine Welt macht sie über den Weltkontext auf
-   * (`WorldContext.openWardrobe`) und weiß sonst nichts von ihr.
+   * **Das Aussehen im Entwurf** — die Seite _Aussehen_ unter dem Reiter
+   * _Inventar_ (`ui/outfitMenu.ts`). Sie gehört `App` und keiner Welt, genau
+   * wie das Aussehen selbst (`core/appearance.ts`): Wer sich in der Testwelt
+   * umzieht, läuft im Hub ebenso herum. Eine Welt macht sie über den
+   * Weltkontext auf (`WorldContext.openWardrobe`) und weiß sonst nichts von
+   * ihr.
    */
-  readonly wardrobe: WardrobeMenu;
+  private readonly outfit = new OutfitDraft();
   /**
    * **_Halten einstellen_** (`ui/HoldMenu.ts`) — aufgeschlagen von der
    * Detailseite eines Möbels (`WorldContext.openHoldEditor`). Solange sie offen
@@ -505,12 +504,23 @@ export class App {
         : new PlayerCard({
             page: INVENTORY_TAB,
             name: () => this.net.name,
-            onCustomize: () => {
-              this.pageMenu.toggle(false);
-              this.wardrobeReturns = true;
-              this.openWardrobe();
+            look: () => this.outfit.current,
+            edits: isOutfitPage,
+            dirty: () => this.outfit.dirty,
+            onCustomize: () => this.openWardrobe(),
+            onSave: () => {
+              this.outfit.save();
+              this.notify('Aussehen gespeichert');
             },
+            onReset: () => this.outfit.reset(),
+            onLeave: () => this.outfit.discard(),
           });
+    // Jede Wahl unter _Aussehen_: die Figur daneben neu anziehen und den Baum
+    // neu bauen, damit die gewählte Kachel markiert ist.
+    this.outfit.onChange(() => {
+      this.menuDirty = true;
+      this.playerCard?.refresh();
+    });
     this.xrCard = new XRPlayerCard({
       panelWidth: WRIST_PANEL_W,
       panelHeight: WRIST_PANEL_W * PANEL_ASPECT,
@@ -543,13 +553,9 @@ export class App {
       },
     });
     this.wristMenu.attachPage(this.pageMenu);
-    this.wardrobe = new WardrobeMenu({
-      onToggle: (open) => {
-        if (open || !this.wardrobeReturns) return;
-        this.wardrobeReturns = false;
-        this.pageMenu.openTab(INVENTORY_TAB);
-      },
-    });
+    // Die Stücke in den Kacheln unter _Aussehen_ — in jeder Welt, auch in
+    // einer, die selbst keine Modelle für das Menü hat.
+    this.wristMenu.setExtraModels((id) => outfitModel(id, this.outfit.current));
     this.holdMenu = new HoldMenu({
       onToggle: (open) => {
         if (open || !this.holdReopens) return;
@@ -574,7 +580,7 @@ export class App {
     // Steuerkreuz ↑/↓: die Werkzeugleiste der Welt, wenn sie eine hat.
     this.flat.onToolStep = (step) => this.world?.toolStep?.(step) ?? false;
     // **Und die Menüs am Pad** (`ui/padNav.ts`): Fokus, `A`, `B`, ☰ — das
-    // Menü über allem, die Werkzeugliste darunter, die Umkleide dazwischen.
+    // Menü über allem, die Werkzeugliste darunter.
     this.padScopes = [
       padNav.addScope({
         priority: 30,
@@ -593,12 +599,6 @@ export class App {
         active: () => this.holdMenu.isOpen,
         root: () => this.holdMenu.element,
         close: () => this.holdMenu.toggle(false),
-      }),
-      padNav.addScope({
-        priority: 20,
-        active: () => this.wardrobe.isOpen,
-        root: () => this.wardrobe.element,
-        close: () => this.wardrobe.toggle(false),
       }),
     ];
     padNav.paused = () => this.flat.capturing;
@@ -1083,7 +1083,7 @@ export class App {
    * **Die Tastenhilfe** (`ui/ControlHints.ts`) — was gerade welcher Knopf tut,
    * für das Gerät, mit dem zuletzt bedient wurde. Nicht in der Brille (dort
    * gibt es kein DOM im Bild), nicht auf der Startseite und nicht, solange
-   * die Umkleide oder die Zuschauerkamera den Schirm hat.
+   * die Zuschauerkamera den Schirm hat.
    */
   private updateHints(presenting: boolean): void {
     const landing = this.landingEl;
@@ -1091,7 +1091,6 @@ export class App {
       presenting ||
       !this.world ||
       this.spectating ||
-      this.wardrobe.isOpen ||
       this.holdMenu.isOpen ||
       (landing !== null && !landing.hidden);
     if (this.loader?.open) {
@@ -1297,6 +1296,11 @@ export class App {
               accent: 0x6f7d99,
             },
           ];
+    // **_Aussehen_ als Seite unter dem Inventar**, aber nicht als Kachel
+    // zwischen den Werkzeugen (`MenuEntry.hidden`): Hinein geht es über
+    // _Aussehen anpassen_ an der Figur. Nur am Schirm — in der Brille steht
+    // _Aussehen_ am Handgelenk unter den Einstellungen.
+    const outfit = presenting ? [] : [outfitEntry(this.outfit, () => (this.menuDirty = true))];
     return {
       id: INVENTORY_TAB,
       label: 'Inventar',
@@ -1305,7 +1309,7 @@ export class App {
       accent: 0x5ee0a0,
       grid: true,
       take: Boolean(shelf?.length),
-      children: tools,
+      children: [...tools, ...outfit],
     };
   }
 
@@ -1352,7 +1356,6 @@ export class App {
     this.pageMenu.dispose();
     this.playerCard?.dispose();
     this.xrCard.dispose();
-    this.wardrobe.dispose();
     this.holdMenu.dispose();
     this.toolButton?.dispose();
     this.handVisuals.dispose();
@@ -2197,8 +2200,9 @@ export class App {
    * **Die Umkleide aufmachen** — je Ansicht auf einem anderen Weg
    * (`WorldContext.openWardrobe`, `worlds/grid/fixtures/wardrobe.ts`).
    *
-   * Am Bildschirm ist es die Seite mit der Figur daneben
-   * (`ui/WardrobeMenu.ts`). **In der Brille nicht**: Dort steht der Spiegel am
+   * Am Bildschirm ist es die Seite _Aussehen_ unter dem Reiter _Inventar_,
+   * mit der Figur daneben (`ui/outfitMenu.ts`) — derselbe Weg wie über
+   * _Aussehen anpassen_ an der Figur. **In der Brille nicht**: Dort steht der Spiegel am
    * Schrank und zeigt einen selbst, und die drei Zeilen gibt es längst — unter
    * _Aussehen_ am Handgelenk. Ein zweites Canvas mit einer zweiten Figur davor
    * wäre ein Bild von einem Spiegel neben einem Spiegel, und es kostete einen
@@ -2210,7 +2214,10 @@ export class App {
       this.wristMenu.openSubmenu('look');
       return;
     }
-    this.wardrobe.toggle(true);
+    if (!this.world) return;
+    // Die Seite gibt es erst im frischen Baum (`inventoryEntry`).
+    if (this.menuDirty) this.refreshMenu();
+    this.pageMenu.openSubmenu(OUTFIT_PAGE);
   }
 
   /**
@@ -3382,12 +3389,11 @@ export class App {
 
     // One frame behind the spectator on purpose: the flat controls run before
     // the world, the spectator after it.
-    // **Die offene Umkleide hält die Beine an.** Sie liegt über dem Bild, und
-    // wer darin mit den Pfeiltasten blättert, soll nicht nebenbei durch die
-    // Wand laufen — die Seite fängt Finger und Maus ohnehin ab, die Tastatur
-    // hört aber am Fenster mit (`FlatControls`).
-    this.flat.enabled =
-      !presenting && !this.spectating && !this.wardrobe.isOpen && !this.holdMenu.isOpen;
+    // **Eine offene Seite über dem Bild hält die Beine an.** Wer darin mit
+    // den Pfeiltasten blättert, soll nicht nebenbei durch die Wand laufen —
+    // die Seite fängt Finger und Maus ohnehin ab, die Tastatur hört aber am
+    // Fenster mit (`FlatControls`).
+    this.flat.enabled = !presenting && !this.spectating && !this.holdMenu.isOpen;
     if (!presenting) this.flat.update(dt);
     this.updateHints(presenting || this.xrPreview);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick

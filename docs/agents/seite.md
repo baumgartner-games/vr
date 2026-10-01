@@ -358,7 +358,7 @@ zweiter Druck auf denselben Reiter führt an seinen Anfang). Den Baum baut
 
 | Reiter | Was darin steht |
 | ------ | --------------- |
-| **Inventar** (`inventar`) | die Hand und die Werkzeuge der Welt (`World.toolChoice`) als Kacheln; ein Tipp nimmt und schließt. Daneben die Figur (`ui/PlayerCard.ts`) mit _Aussehen anpassen_ → Umkleide, und beim _Fertig_ dort zurück ins Inventar |
+| **Inventar** (`inventar`) | die Hand und die Werkzeuge der Welt (`World.toolChoice`) als Kacheln; ein Tipp nimmt und schließt. Daneben die Figur (`ui/PlayerCard.ts`) mit _Aussehen anpassen_ → die Seite _Aussehen_ im selben Reiter (siehe unten) |
 | **Katalog** (`elements`) | der Möbelkatalog aus _Bauen & Gestalten_ — nur in Welten, die einen haben |
 | **Welten** (`spielen`) | die Seite _Spielen_: Welten, Ordner, Spiel-Sicht |
 | **Einstellungen** (`einstellungen`) | Bewegung, Grafik, Ton, Hände & Greifen |
@@ -375,14 +375,47 @@ Inventar eine eigene Vorschauschicht).
   Handgelenk.
 - **`1`–`4`** wählen den Reiter (nicht im Suchfeld), `Esc` und `B` gehen
   zurück und auf der Seite eines Reiters zu.
-- **Die Figur** ist dieselbe kleine Szene wie in der Umkleide
-  (`WardrobeMenu.PreviewScene`) und läuft nur, solange die Seite _Inventar_
-  offen ist — beim Reiterwechsel und beim Zumachen ist ihr Renderer weg.
+- **Die Figur** ist eine kleine eigene Szene (`ui/previewScene.ts`) und
+  läuft nur, solange die Seite _Inventar_ (oder _Aussehen_ darunter) offen
+  ist — beim Reiterwechsel und beim Zumachen ist ihr Renderer weg.
 - **Immer Vollbild**, welcher Reiter auch offen ist — gewünscht: _„so ein
   Menü im PC/Handy kann ruhig […] immer im Vollbildmodus sein"_, wie der
   Katalog (`tabs` setzt `.pmenu--full`). Am Telefon steht die Figur als
   Streifen über den Kacheln (Figur links, Name und Knopf rechts), am
   Schreibtisch als Spalte rechts (`pageMenu.css`, `playerCard.css`).
+
+### Aussehen im Inventar
+
+Gewünscht: _„beim menü aussehen anpassen, bitte auch das menü voll machen.
+Und zudem will ich dass es in dem tab menü eingebunden bleibt […] nur dass
+dann der button ‚Aussehen speichern' ist, und aussehen zurücksetzen als
+button noch"_ — und darin erst zwei Kacheln, _Vorgefertigte_ und
+_Customizing_, im Customizing je Bereich wieder Kacheln mit dem Stück als
+Vorschau.
+
+- **Eine Seite unter dem Reiter _Inventar_** (`ui/outfitMenu.ts`,
+  `OUTFIT_PAGE`), aber keine Kachel zwischen den Werkzeugen:
+  `MenuEntry.hidden` hält sie aus der Liste, `openSubmenu` findet sie
+  trotzdem. Hinein geht es über _Aussehen anpassen_ an der Figur und über den
+  Kleiderschrank ohne Konstrukt (`App.openWardrobe`). Vollbild wie alles im
+  Menü.
+- **_Vorgefertigte_** sind die Figuren (`core/avatarFigures.ts`),
+  **_Customizing_** ist der Koch: _Kopf_, _Hut_, _Körper_, je Stück eine
+  Kachel. Kopf oder Jacke machen aus einer fertigen Figur wieder den Koch —
+  an ihr wirken sie nicht; der Hut sitzt auf jeder Figur und lässt sie.
+- **Die Vorschau in den Kacheln** baut `ui/outfitModels.ts` aus denselben
+  Bausteinen wie den Avatar; sie hängt über `WristMenus.setExtraModels` vor
+  der Fabrik der Welt und gilt deshalb in jeder Welt. Der Koch trägt seine
+  Zusammenstellung in der Vorschau-Id (`chefPreview`), sonst behielte die
+  Kachel nach einer Wahl das alte Bild.
+- **Die Figur bleibt daneben stehen** (`PageAside.covers`) und trägt den
+  **Entwurf** (`OutfitDraft`): Gespeichert wird erst mit _Aussehen
+  speichern_ (aus, solange sich nichts geändert hat). _Aussehen
+  zurücksetzen_ legt die Auslieferung in den Entwurf, gespeichert ist sie
+  damit noch nicht. Wer zurück ins Inventar geht oder das Menü zumacht,
+  verwirft den Entwurf (`PageAside.onPage`, `PlayerCard.onLeave`).
+- **In der Brille nicht**: Dort bleibt _Aussehen_ am Handgelenk unter den
+  Einstellungen, und die Seite unter dem Inventar wird gar nicht erst gebaut.
 
 ### In der Brille: dasselbe Menü am Handgelenk
 
@@ -521,12 +554,12 @@ darauf achten, dass wir für Menüs diese noch wrappen in Safe-Area-Views."
   kommt dazu, sobald eine Seite wirklich bis dorthin reicht
   (`setSafeEdge(sheet, 'top', page.full)`, also im Katalog).
 - Am Schreibtisch steht das Blatt als **Kasten im Bild**, und die Ränder hält
-  schon sein Hintergrund frei (`.pmenu`, `.wrobe`). Dort fällt das Polster
+  schon sein Hintergrund frei (`.pmenu`). Dort fällt das Polster
   des Blattes weg: Auf einem Tablet im Querformat läge sonst der doppelte
   Rand in einem Kasten von 380 Punkten.
 
-Benutzt wird es von den beiden Blättern, die es gibt — dem Menü als Seite
-(`ui/PageMenu.ts`) und der Umkleide (`ui/WardrobeMenu.ts`). Alles andere auf
+Benutzt wird es vom Menü als Seite (`ui/PageMenu.ts`); die Umkleide als
+eigener Kasten (`ui/WardrobeMenu.ts`) ist seit Oktober 2026 weg. Alles andere auf
 der Startseite und im HUD rechnet schon länger mit `max(…, env(…))`; die
 Variablen stehen jetzt daneben und lassen sich dort nachziehen, wenn jemand
 ohnehin in der Datei ist.

@@ -2162,48 +2162,31 @@ im Spiel also zwei Kacheln —, und in eine
   in der Pose (`hello`, Felder `hat`, `head`, `body` — siehe _Wie man
   aussieht_). Wer sich hier umzieht, läuft auch in der nächsten Welt so herum.
 
-  **Das Blatt von früher gibt es noch, aber nur als Rückfall**
-  (`ui/WardrobeMenu.ts`). Ohne Netz kein Konstrukt: `GridWorld.openWardrobe`
-  bekommt den Schrank als Anker mitgereicht, und wenn keiner da ist, geht es
-  über `ctx.openWardrobe()` den alten Weg — am Bildschirm die Seite mit der
-  Figur daneben, in der Brille die Seite _Aussehen_ am Handgelenk. Das ist kein
-  Notbehelf, sondern die ehrliche Antwort: Ein Schrank ohne sichtbaren Korpus
-  wäre im Konstrukt ein weißer Raum mit nichts darin.
+  **Ohne Konstrukt geht es ins Menü** — der Rückfall. Ohne Netz kein
+  Konstrukt: `GridWorld.openWardrobe` bekommt den Schrank als Anker
+  mitgereicht, und wenn keiner da ist, geht es über `ctx.openWardrobe()` —
+  am Bildschirm auf die Seite _Aussehen_ unter dem Reiter _Inventar_ (siehe
+  [Die Seite selbst](seite.md#aussehen-im-inventar)), in der Brille auf die
+  Seite _Aussehen_ am Handgelenk. Das ist kein Notbehelf, sondern die ehrliche
+  Antwort: Ein Schrank ohne sichtbaren Korpus wäre im Konstrukt ein weißer
+  Raum mit nichts darin.
 
-  **Die Seite am Bildschirm** ist eine Seite über dem Bild, geschnitten wie
-  das Menü (`ui/pageMenu.css`): auf dem Telefon ein Blatt von unten, am
-  Schreibtisch ein Kasten in der Mitte. Links drei Zeilen mit ‹ und › — Kopf,
-  Hut, Körper (`ui/wardrobeRows.ts`) —, rechts **die Figur in Nahaufnahme**,
-  unten _Fertig_. Die Figur ist eine **zweite Szene**: ein eigener Renderer in
-  einem eigenen Canvas, ein `AvatarBody` darin, dasselbe Licht wie im Spiel —
-  und beides entsteht beim Öffnen und ist beim Schließen wieder weg. Das ist die
-  Stelle, an der man es falsch machen kann: Ein zweiter Renderer, der im
-  Hintergrund weiterläuft, kostet auf der Quest genau die Bilder, die dem Spiel
-  fehlen. Warum überhaupt eine zweite Szene und kein Ausschnitt der ersten: Die
-  eigene Figur steht auf einer Ebene, die nur Portale und Spiegel zeichnen
-  (`LAYER_SELF_ONLY`), und sie steht dort, wo der Spieler steht — nicht vor
-  einem Vorhang, in den man hineinschaut.
+  **Bis Oktober 2026 war das am Bildschirm ein eigener Kasten**
+  (`ui/WardrobeMenu.ts`, weg): drei Zeilen mit ‹ und ›, rechts die Figur in
+  Nahaufnahme, unten _Fertig_. Gewünscht war es anders: _„bitte auch das menü
+  voll machen. Und zudem will ich dass es in dem tab menü eingebunden
+  bleibt"_. Von ihm übrig ist die kleine Szene der Figur
+  (`ui/previewScene.ts`) — ein eigener Renderer, der nur läuft, solange man
+  sie sieht —, und mit ihr die Lehre über die **Kamera**: Sie hängt an den
+  Maßen der Figur (`CHEF_HEIGHT`) und nicht an denen des Spielers. Die Zahlen
+  stammten einmal aus der Zeit, in der der Avatar so hoch war wie sein
+  Spieler; die Kamera schaute damit einen halben Meter über den Hut hinweg,
+  und man suchte Köpfe aus, die man nicht sah.
 
-  **Die Kamera hängt an den Maßen der Figur** (`CHEF_HEIGHT`) und nicht an
-  denen des Spielers, und genau das war hier einmal falsch: Die Zahlen stammten
-  aus der Zeit, in der der Avatar so hoch war wie sein Spieler — Kamera auf
-  1,62 m, Blick auf 1,42 m. Seit die Figur ein Modell ist, ist sie 1,60 m hoch
-  und ihre Augen liegen bei 0,91 m; die Kamera schaute damit einen halben Meter
-  über ihren Hut hinweg, und in der Umkleide stand eine Mütze am unteren
-  Bildrand. Man suchte Köpfe aus, die man nicht sah. Gezeigt wird jetzt die
-  **ganze** Figur: Sie ist gedrungen genug, dass sie ins Bild passt, ohne dass
-  der Kopf klein wird, und Jacke und Hände gehören zu dem, was man hier
-  aussucht.
-
-  **In der Brille gibt es diese Seite nicht.** Fällt der Schrank dort auf den
-  alten Weg zurück, springt `App.openWardrobe` an die Seite _Aussehen_ am
+  **In der Brille gibt es keine zweite Figur.** Fällt der Schrank dort auf
+  den Rückfall, springt `App.openWardrobe` an die Seite _Aussehen_ am
   Handgelenk und baut kein zweites Canvas auf: Eine zweite Figur vor der Nase
-  wäre ein Bild von einem Spiegel neben einem Spiegel, und sie kostete einen
-  ganzen zweiten Renderer in der Sitzung, in der die Bilder am knappsten sind.
-
-  **Gespeichert wird sofort** (`saveAppearance`); _Fertig_ schließt nur. Es gibt
-  kein _Übernehmen_: Wer vor einem Spiegel steht und die Änderung nicht sieht,
-  hat kein Umkleidemenü.
+  wäre ein Bild von einem Spiegel neben einem Spiegel.
 
   **Die Zeilen sind eine eigene Datei** (`ui/wardrobeRows.ts`) und aus demselben
   Grund, aus dem `init`/`step` einer Einbau-Art rein sind: Was eine Zeile

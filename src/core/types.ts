@@ -149,7 +149,7 @@ export interface WorldContext {
    */
   dress?(figure: string | null): void;
   /**
-   * **Die Umkleide aufmachen** (`ui/WardrobeMenu.ts`).
+   * **Die Umkleide aufmachen** (`ui/outfitMenu.ts`).
    *
    * Sie gehört `App` und keiner Welt, aus demselben Grund wie das Aussehen
    * selbst: Wer sich vor dem Schrank in der Testwelt umzieht, läuft auch im

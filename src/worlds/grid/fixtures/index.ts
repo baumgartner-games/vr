@@ -144,7 +144,7 @@ export type FixtureEvent =
    */
   | { type: 'read'; title: string; text: string; markdown: boolean }
   /**
-   * **Mach die Umkleide auf** (`ui/WardrobeMenu.ts`, `WorldContext.openWardrobe`).
+   * **Mach die Umkleide auf** (`ui/outfitMenu.ts`, `WorldContext.openWardrobe`).
    *
    * Das einzige Ereignis ohne Inhalt, und das ist Absicht: Der Kleiderschrank
    * weiß nicht, wer davorsteht, was der gerade anhat und ob es am Bildschirm

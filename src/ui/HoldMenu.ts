@@ -86,7 +86,7 @@ import './holdMenu.css';
  * sieht es drüben. _Kopieren_ gibt die Zeile, die in `DISH_HOLDS` gehört, damit
  * sie für alle gilt.
  *
- * Eine zweite Szene mit eigenem Renderer, wie die Umkleide (`WardrobeMenu.ts`):
+ * Eine zweite Szene mit eigenem Renderer, wie die Figur im Inventar (`previewScene.ts`):
  * erst beim Öffnen gebaut, beim Schließen samt Kontext wieder weg. Solange sie
  * offen ist, ist das Menü mit seiner Detailseite zu (`App.openHoldEditor`),
  * damit nie zwei Vorschauen zugleich einen WebGL-Kontext halten.
