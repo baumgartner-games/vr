@@ -548,13 +548,15 @@ for (const name of browserNames) {
         // Seite stellvertretend. Also wird hier genau dieser Weg geklickt.
         await page.locator('button[data-action="options"]').click();
         await page.locator('[data-pagemenu]').click();
-        // _Ansicht_ steht unter dem Bereich _Spielen_ (`ui/menuGroups.ts`).
-        await page.locator('[data-key="row:spielen"]').click();
-        await page.locator('[data-key="row:view"]').click();
-        await page.locator('[data-key="row:view:2d"]').click();
+        // _Ansicht_ steht im Reiter _Welten_ (`ui/menuTabs.ts`, `TAB_IDS.worlds`)
+        // — als Kachel oder Zeile, je nachdem, wie der Reiter seine Einträge zeigt.
+        await page.locator('.pmenu [data-tab="spielen"]').click();
+        await page.locator('.pmenu [data-key$=":view"]').first().click();
+        await page.locator('.pmenu [data-key$=":view:2d"]').first().click();
         await page.waitForFunction(() => window.bgvr.topDown === true);
-        // `Esc` geht eine Ebene zurück: Ansicht → Spielen → Menü → zu.
-        for (let step = 0; step < 3; step++) await page.keyboard.press('Escape');
+        // `Esc` geht eine Ebene zurück: Ansicht → Welten → zu (der Reiter ist
+        // der Boden, darunter gibt es keine Seite).
+        for (let step = 0; step < 2; step++) await page.keyboard.press('Escape');
         assert.equal(
           await page.locator('.pmenu[aria-label="Menü"]').isVisible(),
           false,
