@@ -409,7 +409,14 @@ Wände links und rechts), dann brauchen diese das nicht."_
 - **Der Raum** ist, was die Figur zu Fuß erreicht: eine Flutfüllung auf einem
   Raster von 25 cm (`ROOM_CELL`), gesperrt von jedem Kasten der Etage, der
   verdecken kann — Quader und hingestellte Modelle in **einer** Rechnung,
-  Türen aus dem Regal zählen wie Wände. Läuft die Flut 16 m weit
+  Türen aus dem Regal zählen wie Wände. **Eine Decke über dem Kopf sperrt
+  nicht** (`lidLike`: flach, breiter als jede Wand, frühestens 0,9 m über der
+  Mitte der Figur) — _Haunting_ trägt seine Decken als Quader im Plan
+  (`GridPlan.room(…, { ceiling })`, 2,8 bis 3,1 m), und die hielten die Flut
+  schon an der Figur an: Bis Oktober 2026 wurde dort keine Wand je
+  durchsichtig. Gewünscht: _„wie bei allen anderen welten auch … ein
+  einheitliches system"_. Ein Sturz über der Tür ist so dünn wie die Wand und
+  schließt den Raum weiter. Läuft die Flut 16 m weit
   (`ROOM_REACH`), steht die Figur draußen. **Draußen geht nur weg, was sie
   wirklich verdeckt** (`wallGhost.wallsCovering`): eine Wand ganz auf der
   Kameraseite, die einer von drei Strahlen aus der Figur zur Kamera trifft

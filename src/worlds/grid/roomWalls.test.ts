@@ -4,7 +4,7 @@
  * nebeneinander, eine Trennwand dazwischen, Wände von 2,8 m.
  */
 import type { GhostCandidate } from './wallGhost';
-import { roomWallsToClear, wallLike } from './roomWalls';
+import { lidLike, roomWallsToClear, wallLike } from './roomWalls';
 
 function wall(
   x: number,
@@ -37,6 +37,20 @@ const names = (list: readonly (GhostCandidate & { name?: string })[] | null): st
 describe('Die Wände des eigenen Raums', () => {
   it('nimmt nur die Front des eigenen Zimmers — nicht oben, nicht die Seiten, nicht das Nachbarzimmer', () => {
     expect(names(roomWallsToClear(CAMERA, INSIDE_WEST, HOUSE))).toEqual(['south-west']);
+  });
+
+  it('lässt sich von einer Decke über dem Kopf nicht aufhalten (Haunting)', () => {
+    // Die Decke als Quader im Plan, wie `GridPlan.room(…, { ceiling })` sie legt.
+    const ceiling = { box: { x: 5, y: 2.95, z: 3, w: 10, h: 0.3, d: 6 }, name: 'ceiling' };
+    expect(lidLike(ceiling.box, INSIDE_WEST.y)).toBe(true);
+    expect(names(roomWallsToClear(CAMERA, INSIDE_WEST, [...HOUSE, ceiling]))).toEqual([
+      'south-west',
+    ]);
+  });
+
+  it('nimmt einen Sturz über der Tür nicht für einen Deckel', () => {
+    const lintel = { x: 5, y: 2.45, z: 3, w: T, h: 0.7, d: 1 };
+    expect(lidLike(lintel, INSIDE_WEST.y)).toBe(false);
   });
 
   it('gilt im anderen Zimmer genauso', () => {

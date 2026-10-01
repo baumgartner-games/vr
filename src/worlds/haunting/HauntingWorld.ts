@@ -1471,6 +1471,22 @@ export class HauntingWorld extends GridWorld {
     }));
   }
 
+  /**
+   * **Ob das Blatt einer Tür offen steht** — für das Bild und für die Sicht von
+   * oben dieselbe Antwort. Gewünscht: _„wenn der nächste Raum sichtbar
+   * geschaltet wird (von oben) auch die Tür bereits aufgehen, bzw. beide sind
+   * aneinander gekoppelt (für den jeweiligen Spieler)"_. Vorher fragte die
+   * Sicht nur die Automatik (`openDoors`), das Blatt dazu noch, ob jemand zwei
+   * Felder davor steht (`approachedDoors`) — der Nachbar stand schon offen da,
+   * die Tür noch zu. Beides rechnet jeder Spieler bei sich.
+   */
+  private leafOpen(id: string): boolean {
+    return (
+      (id === 'test-bay' ? this.state.crew.options.test : this.openDoors.has(id)) &&
+      this.approachedDoors.has(id)
+    );
+  }
+
   /** Ob eine Tür gesperrt ist — die Übungstür, solange kein Testdeck läuft. */
   private doorLocked(id: string): boolean {
     return id === TEST_BAY_DOOR.id ? !this.state.crew.options.test : this.state.shut.includes(id);
@@ -1529,9 +1545,7 @@ export class HauntingWorld extends GridWorld {
       // die Automatik.
       // Offen ist, was `applyDoors` entschieden hat — beim Gastgeber mit Kern
       // fährt die Runde die Türen, und die Automatik rechnet dann gar nicht.
-      doorOpen: (id) =>
-        (id === 'test-bay' ? this.state.crew.options.test : this.openDoors.has(id)) &&
-        this.approachedDoors.has(id),
+      doorOpen: (id) => this.leafOpen(id),
       doorLocked: (id) => this.doorLocked(id),
       travel: (at, yaw) => this.movePlayerTo(ctx, at, yaw),
       equip: (id, hand) => {
@@ -3252,8 +3266,11 @@ export class HauntingWorld extends GridWorld {
     camera.updateWorldMatrix(true, false);
     camera.getWorldQuaternion(this.cullRotation);
     this.cullTimer -= dt;
-    // Von oben zählt, welche Blätter gerade offen stehen (`topDownRooms`).
-    const doors = this.state.shut.join(',') + (topDown ? `/${[...this.openDoors].join(',')}` : '');
+    // Von oben zählt, welche Blätter gerade offen stehen (`topDownRooms`,
+    // `leafOpen`) — dieselben, die das Bild auffahren lässt.
+    const doors =
+      this.state.shut.join(',') +
+      (topDown ? `/${[...this.openDoors].filter((id) => this.leafOpen(id)).join(',')}` : '');
     if (
       !full &&
       this.cullTimer > 0 &&
@@ -3274,7 +3291,7 @@ export class HauntingWorld extends GridWorld {
     const visible = full
       ? null
       : topDown
-        ? topDownRooms(this.spec, _head, this.state.shut, (door) => this.openDoors.has(door.id))
+        ? topDownRooms(this.spec, _head, this.state.shut, (door) => this.leafOpen(door.id))
         : portalRooms(this.spec, _head, this.state.shut, (door) => {
             const edge = doorEdge(door);
             const half = doorWidth(door) / 2;
