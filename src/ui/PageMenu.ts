@@ -158,6 +158,8 @@ export class PageMenu {
   private readonly backButton: HTMLButtonElement;
   /** Der Knopf zurück an den Anfang des Katalogs (`MenuEntry.home`). */
   private readonly homeButton: HTMLButtonElement;
+  /** Die Kopfzeile mit Titel und Brotkrumen (mit Reitern unter der Suche). */
+  private readonly headEl: HTMLElement;
   private readonly titleEl: HTMLElement;
   /**
    * **Die Brotkrumen über dem Titel** — wo man steht, und jede Stufe davor ein
@@ -322,6 +324,7 @@ export class PageMenu {
     keepSafe(this.sheet, 'bottom', 'left', 'right');
 
     const head = el('header', 'pmenu__head');
+    this.headEl = head;
     this.backButton = iconButton('pmenu__nav pmenu__back', 'Zurück', 'M14 6l-6 6 6 6');
     this.backButton.hidden = true;
     this.titleEl = el('h2', 'pmenu__title');
@@ -426,7 +429,19 @@ export class PageMenu {
       body.append(this.aside.element);
     }
 
-    this.sheet.append(head, this.tabsEl, this.toolsEl, this.statusEl, body, this.footEl);
+    if (this.tabs) {
+      // **Mit Reitern stehen die Reiter ganz oben**, Schließen rechts daneben;
+      // darunter *Zurück* und rechts davon die Suche. Über den Reitern war der
+      // Pfeil nicht zu finden: „bin aber blind, da der zurück pfeil über den
+      // tabs ist." Titel und Brotkrumen rutschen in eine eigene Zeile darunter.
+      const top = el('div', 'pmenu__top');
+      top.append(this.tabsEl, close);
+      this.toolsEl.prepend(this.backButton);
+      this.toolsEl.append(this.homeButton);
+      this.sheet.append(top, this.toolsEl, head, this.statusEl, body, this.footEl);
+    } else {
+      this.sheet.append(head, this.tabsEl, this.toolsEl, this.statusEl, body, this.footEl);
+    }
     this.element.append(this.sheet);
     (options.host ?? document.body).append(this.element);
 
@@ -918,7 +933,13 @@ export class PageMenu {
     this.list.style.setProperty('--pmenu-cols', String(columns));
     this.searchEl.hidden = !page.find;
     this.colsEl.hidden = !(page.full && page.grid);
-    this.toolsEl.hidden = this.searchEl.hidden && this.colsEl.hidden;
+    this.toolsEl.hidden =
+      this.searchEl.hidden &&
+      this.colsEl.hidden &&
+      (!this.tabs || (this.backButton.hidden && this.homeButton.hidden));
+    // Mit Reitern sagt der Reiter schon, wo man steht — Titel und Brotkrumen
+    // braucht es erst eine Stufe tiefer.
+    if (this.tabs) this.headEl.hidden = this.stack.length <= this.floor;
     this.colsValue.textContent = String(columns);
     const source = this.source;
     const shown = source.slice(0, this.window);
