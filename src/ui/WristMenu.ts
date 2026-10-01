@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { UIPanel } from './UIPanel';
 import { TextPlane } from './TextPlane';
-import type { MenuEntry } from './menu';
+import { drawMenuIcon, type MenuEntry } from './menu';
 import { findMenuPath } from './menuGroups';
 import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
@@ -63,6 +63,9 @@ const SCROLL_REPEAT = 0.16;
  */
 const SWIPE_SLOP = 0.02;
 
+/** Wie breit das Panel am Handgelenk ist, in Metern. */
+export const WRIST_PANEL_W = 0.26;
+
 /**
  * Baut ein kleines Modell zu einer Vorschau-Id, oder `null`, wenn es dazu
  * keins gibt. Die Welt liefert das — das Menü weiß nicht, was ein Werkzeug ist.
@@ -106,6 +109,24 @@ export interface WristMenuOptions {
    * Handgelenk gibt, an das es sich hängen könnte.
    */
   anchor?: 'wrist' | 'view';
+  /**
+   * **Die Einträge der Wurzel sind Reiter** — wie im Inventar am Schirm
+   * (`PageMenu`, `tabs`). Die Wurzel selbst schlägt niemand auf; die Reihe
+   * steht unter dem Titel (`UIPanel`, `PageOptions.tabs`).
+   */
+  tabs?: boolean;
+  /**
+   * **Was auf dem runden Knopf steht** — ☰ für das Menü, der Beutel fürs
+   * Inventar. Und an welcher Stelle er sitzt: `slot` 1 liegt eine Knopfbreite
+   * neben dem ersten, damit beide am selben Handgelenk Platz haben.
+   */
+  button?: { icon: 'menu' | 'bag'; slot?: number };
+  /**
+   * **Etwas, das neben dem Panel steht** — für genau eine Seite: die Figur im
+   * Inventar (`ui/XRPlayerCard.ts`). Das Ding hängt am Panel der Hand, die
+   * gerade offen ist, und folgt ihm durch jede Neigung.
+   */
+  aside?: { page: string; object: THREE.Object3D };
 }
 
 /**
@@ -140,6 +161,12 @@ export class WristMenu extends THREE.Group {
   private readonly onToggle: ((menu: WristMenu, open: boolean) => void) | null;
 
   private open = false;
+  private readonly tabs: boolean;
+  private readonly buttonIcon: 'menu' | 'bag';
+  private readonly buttonSlot: number;
+  private readonly aside: { page: string; object: THREE.Object3D } | null;
+  /** Wie tief man in jedem Reiter stand, nach seiner Id. */
+  private readonly tabPaths = new Map<string, readonly string[]>();
   private buttonTexture: THREE.CanvasTexture;
   private buttonCanvas: HTMLCanvasElement;
   private buttonHot = false;
@@ -227,6 +254,10 @@ export class WristMenu extends THREE.Group {
     this.anchor = options.anchor ?? 'wrist';
     this.nav = options.nav ?? new MenuNav();
     this.onToggle = options.onToggle ?? null;
+    this.tabs = options.tabs ?? false;
+    this.buttonIcon = options.button?.icon ?? 'menu';
+    this.buttonSlot = options.button?.slot ?? 0;
+    this.aside = options.aside ?? null;
     this.name = `wrist-menu-${this.hand}`;
     // Die andere Hand ist eine Ebene tiefer gegangen: dieselbe Seite hier.
     this.unwatchNav = this.nav.onChange(() => this.applyNav());
@@ -252,10 +283,11 @@ export class WristMenu extends THREE.Group {
     this.add(this.button);
 
     this.panel = new UIPanel({
-      width: 0.26,
+      width: WRIST_PANEL_W,
       title: options.title ?? 'Menü',
       footer: options.footer ?? 'Andere Hand: zielen + Trigger/A',
       onSelect: (index, hand) => this.handleSelect(index, hand),
+      onTab: (index) => this.showTab(index),
     });
     this.panel.visible = false;
     this.add(this.panel);
@@ -366,7 +398,34 @@ export class WristMenu extends THREE.Group {
       this.stack.push(pageOf(entry));
       level = entry.children;
     }
+    // **Mit Reitern wird die Wurzel nie aufgeschlagen** — wer dort ankäme,
+    // steht im ersten Reiter (wie `PageMenu.applyNav`).
+    if (this.tabs && this.stack.length < 2 && this.root.length > 0) {
+      const first = this.root[0]!.id;
+      this.nav.goTo(this.tabPaths.get(first) ?? [first]);
+      return;
+    }
     this.applyPage();
+  }
+
+  /** Wie viele Seiten der Stapel mindestens hat — darunter gibt es kein _Zurück_. */
+  private get floor(): number {
+    return this.tabs ? 2 : 1;
+  }
+
+  /** Ein Reiter wurde gedrückt: dorthin, wo man in ihm zuletzt stand. */
+  private showTab(index: number): void {
+    const entry = this.root[index];
+    if (!entry) return;
+    const path = this.nav.path;
+    this.keepScroll();
+    if (path[0] === entry.id) {
+      // Ein Druck auf den offenen Reiter führt an seinen Anfang.
+      if (path.length > 1) this.nav.goTo([entry.id]);
+      return;
+    }
+    if (path.length > 0) this.tabPaths.set(path[0]!, path);
+    this.nav.goTo(this.tabPaths.get(entry.id) ?? [entry.id]);
   }
 
   setStatus(status: string): void {
@@ -424,6 +483,7 @@ export class WristMenu extends THREE.Group {
     this.updateSwipe(input);
     this.updatePending(input);
     this.updatePreviews(dt);
+    this.updateAside();
 
     const controller = this.anchor === 'view' ? null : input.get(this.hand);
     const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
@@ -447,6 +507,11 @@ export class WristMenu extends THREE.Group {
 
       _roll.copy(_handUp);
       this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
+      // Ein zweiter Knopf (`button.slot`) sitzt eine Knopfbreite daneben.
+      if (this.buttonSlot !== 0) {
+        _offset.crossVectors(_dir, _handUp).normalize();
+        this.button.position.addScaledVector(_offset, 0.06 * this.buttonSlot);
+      }
       faceTowards(this.button, _head, _roll);
 
       // The panel starts upright above the wrist and tilts by however far the
@@ -478,7 +543,9 @@ export class WristMenu extends THREE.Group {
     // steht.
     const reach = this.anchor === 'view' ? -0.72 : -0.62;
     _quat.setFromRotationMatrix(_local);
-    this.button.position.copy(_head).add(_offset.set(0.2, -0.16, -0.55).applyQuaternion(_quat));
+    this.button.position
+      .copy(_head)
+      .add(_offset.set(0.2 - 0.06 * this.buttonSlot, -0.16, -0.55).applyQuaternion(_quat));
     this.button.quaternion.copy(_quat);
     this.panel.position.copy(_head).add(_offset.set(0, -0.02, reach).applyQuaternion(_quat));
     this.panel.quaternion.copy(_quat);
@@ -490,6 +557,19 @@ export class WristMenu extends THREE.Group {
         .add(_offset.set(0, this.panelHeight / 2 + 0.05, 0).applyQuaternion(_quat));
       this.caption.quaternion.copy(_quat);
     }
+  }
+
+  /**
+   * **Das Ding neben dem Panel** (`WristMenuOptions.aside`): an das Panel der
+   * offenen Hand gehängt, sichtbar nur auf seiner Seite. Beide Handgelenke
+   * teilen sich dasselbe Ding; wer es gerade nicht trägt, lässt es in Ruhe.
+   */
+  private updateAside(): void {
+    const aside = this.aside;
+    if (!aside) return;
+    const show = this.open && this.page.id === aside.page;
+    if (show && aside.object.parent !== this.panel) this.panel.add(aside.object);
+    if (aside.object.parent === this.panel) aside.object.visible = show;
   }
 
   /** How tall the panel is in metres, for putting the caption above it. */
@@ -549,7 +629,7 @@ export class WristMenu extends THREE.Group {
 
   private displayed(): MenuEntry[] {
     const entries = this.page.entries;
-    if (this.stack.length <= 1) return entries;
+    if (this.stack.length <= this.floor) return entries;
     return this.homeDepth() < 0 ? [BACK, ...entries] : [BACK, HOME, ...entries];
   }
 
@@ -585,10 +665,21 @@ export class WristMenu extends THREE.Group {
       // Zwei Zeilen über zwei Spalten ließen von vier Kacheln je Seite zwei
       // übrig, und ein Katalog, durch den man in Zweierschritten blättert, ist
       // keiner mehr. Im Raster fährt *Von vorne* deshalb als erste Kachel mit.
-      pinned: this.stack.length > 1 ? (this.homeDepth() < 0 || this.page.grid ? 1 : 2) : 0,
-      // Der Weg bis hierher, wie am Schirm: „Menü › Bauen & Gestalten".
+      pinned: this.stack.length > this.floor ? (this.homeDepth() < 0 || this.page.grid ? 1 : 2) : 0,
+      ...(this.tabs
+        ? {
+            tabs: this.root.map((entry) => ({
+              label: entry.label,
+              ...(entry.icon ? { icon: entry.icon } : {}),
+              ...(entry.accent === undefined ? {} : { accent: entry.accent }),
+            })),
+            tab: this.root.findIndex((entry) => entry.id === this.nav.path[0]),
+          }
+        : {}),
+      // Der Weg bis hierher, wie am Schirm: „Menü › Bauen & Gestalten" — mit
+      // Reitern ab dem Reiter, die Wurzel steht ja als Reihe darüber.
       crumb: this.stack
-        .slice(0, -1)
+        .slice(this.floor - 1, -1)
         .map((step) => step.title)
         .join(' › '),
     });
@@ -639,7 +730,7 @@ export class WristMenu extends THREE.Group {
     if (!this.open) return;
     for (const controller of input.controllers) {
       if (!controller.tracked || !controller.secondary.justPressed) continue;
-      if (this.stack.length > 1) {
+      if (this.stack.length > this.floor) {
         this.keepScroll();
         this.nav.pop();
       } else this.toggle(false);
@@ -926,7 +1017,9 @@ export class WristMenu extends THREE.Group {
     ctx.clearRect(0, 0, size, size);
 
     const glow = ctx.createRadialGradient(128, 128, 40, 128, 128, 126);
-    glow.addColorStop(0, this.open ? 'rgba(255, 157, 61, 0.95)' : 'rgba(74, 168, 255, 0.95)');
+    const idle =
+      this.buttonIcon === 'bag' ? 'rgba(94, 224, 160, 0.95)' : 'rgba(74, 168, 255, 0.95)';
+    glow.addColorStop(0, this.open ? 'rgba(255, 157, 61, 0.95)' : idle);
     glow.addColorStop(1, 'rgba(8, 14, 26, 0.9)');
     ctx.beginPath();
     ctx.arc(128, 128, 124, 0, Math.PI * 2);
@@ -948,6 +1041,9 @@ export class WristMenu extends THREE.Group {
       ctx.moveTo(168, 88);
       ctx.lineTo(88, 168);
       ctx.stroke();
+    } else if (this.buttonIcon === 'bag') {
+      // Der Beutel des Inventars — dieselbe Ikone wie auf seinem Reiter.
+      drawMenuIcon(ctx, 'bag', 128, 132, 120, '#ffffff');
     } else {
       for (let i = 0; i < 3; i++) {
         const y = 94 + i * 34;

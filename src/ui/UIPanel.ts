@@ -53,6 +53,21 @@ export interface PageOptions {
    * über die feste Zeile darunter.
    */
   crumb?: string;
+  /**
+   * **Reiter unter dem Titel** — dieselbe Reihe wie am Schirm
+   * (`PageMenu`, `tabs`): Inventar, Katalog, Welten, Einstellungen. Ein Druck
+   * darauf geht an `PanelOptions.onTab`.
+   */
+  tabs?: readonly PanelTab[];
+  /** Welcher Reiter gerade offen ist, als Index in `tabs`. */
+  tab?: number;
+}
+
+/** Ein Reiter über der Seite (`PageOptions.tabs`). */
+export interface PanelTab {
+  readonly label: string;
+  readonly icon?: MenuEntry['icon'];
+  readonly accent?: number;
 }
 
 export interface PanelOptions {
@@ -61,13 +76,20 @@ export interface PanelOptions {
   footer?: string;
   /** Eigenschaft statt Methode: Sie wird gespeichert und später einzeln gerufen. */
   onSelect?: (index: number, hand: Handedness | null) => void;
+  /** Ein Reiter wurde gedrückt (`PageOptions.tabs`). */
+  onTab?: (index: number, hand: Handedness | null) => void;
 }
 
 const CANVAS_W = 768;
 const CANVAS_H = 1280;
+/** Wie hoch ein Panel im Verhältnis zu seiner Breite ist. */
+export const PANEL_ASPECT = CANVAS_H / CANVAS_W;
 const PAD = 34;
 const HEADER_H = 150;
 const FOOTER_H = 76;
+/** Die Reihe der Reiter unter dem Titel, samt Luft darunter. */
+const TAB_H = 104;
+const TAB_GAP = 8;
 
 /** So lange steht eine Meldung in der Fußzeile, dann kommt der Hinweis zurück. */
 const STATUS_MS = 10000;
@@ -117,6 +139,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private pageKey = '';
   private flash = 0;
   private onSelect?: (index: number, hand: Handedness | null) => void;
+  private onTab?: (index: number, hand: Handedness | null) => void;
+  private tabs: readonly PanelTab[] = [];
+  private tab = -1;
+  /** Der Reiter unter dem Strahl, oder `-1`. */
+  private hoverTab = -1;
 
   constructor(options: PanelOptions = {}) {
     const width = options.width ?? 0.3;
@@ -138,6 +165,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.title = options.title ?? '';
     this.footer = options.footer ?? '';
     this.onSelect = options.onSelect;
+    this.onTab = options.onTab;
     this.name = 'ui-panel';
     this.renderOrder = 10;
     this.geometry.computeBoundingBox();
@@ -152,6 +180,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const key = options.key ?? title;
     this.title = title;
     this.crumb = options.crumb ?? '';
+    this.tabs = options.tabs ?? [];
+    this.tab = options.tab ?? -1;
     this.entries = entries;
     this.grid = options.grid ?? false;
     this.cols = Math.max(1, Math.floor(options.cols ?? GRID_COLS));
@@ -207,7 +237,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   rowAnchor(index: number): { x: number; y: number; size: number } | null {
     // Der Kopfbalken ist immer eine Zeile, auch über einem Raster.
     if (index < this.pinned) {
-      return this.anchorOf(PAD + 58, HEADER_H + index * (ROW_H + ROW_GAP) + ROW_H / 2, ROW_H * 0.6);
+      return this.anchorOf(
+        PAD + 58,
+        this.headerH + index * (ROW_H + ROW_GAP) + ROW_H / 2,
+        ROW_H * 0.6,
+      );
     }
     const slot = index - this.pinned - this.scroll;
     if (slot < 0 || slot >= this.visibleCount) return null;
@@ -297,10 +331,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       onHover: (hit) => {
         this.hovered.hand = hit.hand;
         if (hit.uv) this.hovered.v = hit.uv.y;
+        this.setHoverTab(hit.uv ? this.tabAt(hit.uv) : -1);
         this.setHover(hit.uv ? this.indexAt(hit.uv) : -1);
       },
       onBlur: () => {
         this.hovered.hand = null;
+        this.setHoverTab(-1);
         this.setHover(-1);
       },
       onSelect: (hit) => this.handleSelect(hit),
@@ -334,6 +370,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   private handleSelect(hit: PointerHit): void {
+    const tab = hit.uv ? this.tabAt(hit.uv) : -1;
+    if (tab >= 0) {
+      this.flash = 0.18;
+      this.onTab?.(tab, hit.hand);
+      return;
+    }
     const index = hit.uv ? this.indexAt(hit.uv) : -1;
     if (index < 0) return;
     this.flash = 0.18;
@@ -348,6 +390,27 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
+  private setHoverTab(index: number): void {
+    if (this.hoverTab === index) return;
+    this.hoverTab = index;
+    this.draw();
+  }
+
+  /** Wo die Liste anfängt: unter dem Titel — und unter den Reitern, wenn es welche gibt. */
+  private get headerH(): number {
+    return this.tabs.length > 0 ? HEADER_H + TAB_H : HEADER_H;
+  }
+
+  /** Der Reiter unter dieser Stelle, oder `-1`. */
+  private tabAt(uv: THREE.Vector2): number {
+    if (this.tabs.length === 0) return -1;
+    const x = uv.x * CANVAS_W - PAD;
+    const y = (1 - uv.y) * CANVAS_H - HEADER_H;
+    if (y < 0 || y > TAB_H - 14 || x < 0 || x > CANVAS_W - PAD * 2) return -1;
+    const width = (CANVAS_W - PAD * 2) / this.tabs.length;
+    return Math.min(this.tabs.length - 1, Math.floor(x / width));
+  }
+
   /** Die Breite einer Kachel auf dieser Seite. */
   private get cellW(): number {
     return cellWidth(this.cols);
@@ -360,7 +423,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** Wo der scrollende Teil anfängt: unter dem Titel und dem Kopfbalken. */
   private get bodyTop(): number {
-    return HEADER_H + this.pinned * (ROW_H + ROW_GAP);
+    return this.headerH + this.pinned * (ROW_H + ROW_GAP);
   }
 
   /** How many entries fit on one page — der Kopfbalken nimmt Platz weg. */
@@ -382,7 +445,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   private indexAt(uv: THREE.Vector2): number {
     const x = uv.x * CANVAS_W;
-    let y = (1 - uv.y) * CANVAS_H - HEADER_H;
+    let y = (1 - uv.y) * CANVAS_H - this.headerH;
     if (y < 0 || x < PAD || x > CANVAS_W - PAD) return -1;
 
     if (this.pinned > 0) {
@@ -443,12 +506,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 46px system-ui, sans-serif';
     ctx.fillText(this.title, PAD, 118);
+    this.drawTabs();
 
     // Der Kopfbalken zuerst: er steht, egal wie weit die Liste darunter
     // gescrollt ist — auf einer Rasterseite genauso, dort als Zeile über den
     // Kacheln.
     for (let i = 0; i < this.pinned; i++) {
-      this.drawRow(this.entries[i]!, HEADER_H + i * (ROW_H + ROW_GAP), i === this.hover);
+      this.drawRow(this.entries[i]!, this.headerH + i * (ROW_H + ROW_GAP), i === this.hover);
     }
 
     for (let i = 0; i < this.visibleCount; i++) {
@@ -487,6 +551,47 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     }
 
     this.texture.needsUpdate = true;
+  }
+
+  /**
+   * **Die Reiter** — gleich breit über die ganze Zeile, Ikone über dem Wort,
+   * der offene mit seiner Farbe unterstrichen. Wie am Schirm (`.pmenu__tab`).
+   */
+  private drawTabs(): void {
+    const tabs = this.tabs;
+    if (tabs.length === 0) return;
+    const ctx = this.ctx;
+    const width = (CANVAS_W - PAD * 2) / tabs.length;
+    const top = HEADER_H - 6;
+    const height = TAB_H - 14;
+    ctx.save();
+    ctx.textAlign = 'center';
+    tabs.forEach((tab, index) => {
+      const x = PAD + index * width;
+      const accent = `#${(tab.accent ?? 0x4aa8ff).toString(16).padStart(6, '0')}`;
+      const on = index === this.tab;
+      const hot = index === this.hoverTab;
+      ctx.beginPath();
+      ctx.roundRect(x + TAB_GAP / 2, top, width - TAB_GAP, height, 18);
+      ctx.fillStyle = on
+        ? 'rgba(140, 170, 230, 0.2)'
+        : hot
+          ? 'rgba(140, 170, 230, 0.14)'
+          : 'rgba(140, 170, 230, 0.06)';
+      ctx.fill();
+      if (on) {
+        ctx.fillStyle = accent;
+        ctx.fillRect(x + TAB_GAP / 2 + 12, top + height - 6, width - TAB_GAP - 24, 6);
+      }
+      if (tab.icon) drawMenuIcon(ctx, tab.icon, x + width / 2, top + 30, 34, accent);
+      ctx.fillStyle = on || hot ? '#ffffff' : '#8ea0c4';
+      // Erst kleiner, dann gekürzt: „Einstellungen" soll ganz dastehen.
+      const room = width - TAB_GAP - 12;
+      ctx.font = '600 22px system-ui, sans-serif';
+      if (ctx.measureText(tab.label).width > room) ctx.font = '600 18px system-ui, sans-serif';
+      ctx.fillText(clip(ctx, tab.label, room), x + width / 2, top + 76);
+    });
+    ctx.restore();
   }
 
   /** Where in a long page we are, drawn along the right edge. */

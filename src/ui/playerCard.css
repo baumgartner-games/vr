@@ -51,7 +51,7 @@
 @media (min-width: 640px) {
   .pcard {
     order: 0;
-    width: 300px;
+    width: clamp(300px, 26vw, 420px);
     flex-direction: column;
     align-items: stretch;
     justify-content: center;

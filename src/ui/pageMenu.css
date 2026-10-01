@@ -661,26 +661,10 @@
    Spalten, wie hineinpassen, statt einer festen Zahl. */
 .pmenu--aside .pmenu__list--grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 
-/* Am Telefon steht das Blatt hoch und gleich hoch, egal welcher Reiter: Ein
-   Blatt, das beim Wechseln springt, wirft den Daumen vom Reiter. */
-.pmenu--tabs:not(.pmenu--full) .pmenu__sheet { height: min(88dvh, 100%); }
+/* Das Inventar ist immer Vollbild (`PageMenu`, `tabs` setzt `.pmenu--full`)
+   — am Schreibtisch wie am Telefon, wie der Katalog. */
 
 @media (min-width: 640px) {
-  /* Am Schreibtisch ein Kasten in der Mitte, breit genug für Kacheln und
-     Figur nebeneinander. */
-  .pmenu.pmenu--tabs:not(.pmenu--full) {
-    align-items: center;
-    justify-content: center;
-    padding: max(16px, var(--safe-top)) max(16px, var(--safe-right))
-      max(16px, var(--safe-bottom)) max(16px, var(--safe-left));
-    background: rgba(2, 4, 10, 0.45);
-  }
-
-  .pmenu--tabs:not(.pmenu--full) .pmenu__sheet {
-    width: min(980px, 100%);
-    height: min(720px, 100%);
-  }
-
   .pmenu__tab { flex: 0 1 auto; display: flex; align-items: center; gap: 8px; padding: 8px 16px 10px; font-size: 14px; }
 
   .pmenu--aside .pmenu__body { flex-direction: row; }

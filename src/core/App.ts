@@ -23,6 +23,9 @@ import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { PlayerCard } from '../ui/PlayerCard';
+import { XRPlayerCard } from '../ui/XRPlayerCard';
+import { WRIST_PANEL_W } from '../ui/WristMenu';
+import { PANEL_ASPECT } from '../ui/UIPanel';
 import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
 import { topDownFit } from './topDownPose';
@@ -236,6 +239,10 @@ export class App {
    * `Y` und dem Knopf unten rechts lag.
    */
   readonly toolMenu: PageMenu;
+  /** Dasselbe Inventar am Handgelenk, für die Brille (`toolMenu` ist seine Seite). */
+  private readonly inventoryWrist: WristMenus;
+  /** Die Figur neben dem Inventar in der Brille. */
+  private readonly xrCard: XRPlayerCard;
   /** Die Figur im Inventar (`ui/PlayerCard.ts`). */
   private readonly playerCard: PlayerCard | null;
   /** Die Wurzel des großen Menüs, mit Bereichen — woraus das Inventar seine Reiter nimmt. */
@@ -523,13 +530,41 @@ export class App {
               this.openWardrobe();
             },
           });
+    // **In der Brille dasselbe Inventar am Handgelenk** — ein zweiter runder
+    // Knopf (der Beutel) neben ☰, dahinter dieselben Reiter auf dem Panel
+    // und rechts daneben die Figur als kleines Modell (`ui/XRPlayerCard.ts`).
+    // Gewünscht: „In der Brille könnte man ein Menü öffnen über das
+    // Handgelenk. Das Menü kann dann gleich aussehen wie beim PC."
+    this.xrCard = new XRPlayerCard({
+      panelWidth: WRIST_PANEL_W,
+      panelHeight: WRIST_PANEL_W * PANEL_ASPECT,
+      name: () => this.net.name,
+      onCustomize: () => this.openWardrobe(),
+    });
+    this.inventoryWrist = new WristMenus(this.pointer, {
+      title: 'Inventar',
+      footer: 'Andere Hand: zielen + Trigger · Greifen/A nimmt · B/Y zu',
+      tabs: true,
+      button: { icon: 'bag', slot: 1 },
+      aside: { page: INVENTORY_TAB, object: this.xrCard },
+      // ☰ am Controller bleibt das Menü; das Inventar hat seinen Knopf am Arm.
+      menuButton: false,
+      nav: new MenuNav(),
+    });
+    this.rig.add(this.inventoryWrist);
+    this.xrCard.attachPointer(this.pointer);
+    // Schirm und Handgelenk lesen denselben Weg — wer am PC im Katalog stand,
+    // steht nach dem Aufsetzen der Brille dort auch am Arm.
     this.toolMenu = new PageMenu({
       title: 'Inventar',
       tabs: true,
+      nav: this.inventoryWrist.nav,
       ...(this.playerCard ? { aside: this.playerCard } : {}),
       onToggle: (open) => this.toolButton?.setOpen(open),
     });
-    this.wristMenu.attachSidePage(this.toolMenu);
+    this.inventoryWrist.attachPage(this.toolMenu);
+    // Modelle und Brille wie beim Menü — und nie beide zugleich offen.
+    this.wristMenu.attachSide(this.inventoryWrist);
     this.wardrobe = new WardrobeMenu({
       onToggle: (open) => {
         if (open || !this.wardrobeReturns) return;
@@ -1245,7 +1280,7 @@ export class App {
       button?.show(false);
       // Die Werkzeuge sind weg (eine Welt ohne): Das offene Inventar zeigt es.
       if (this.toolShown !== undefined && this.toolMenu.isOpen) {
-        this.toolMenu.setRoot(this.inventoryRoot());
+        this.inventoryWrist.setRoot(this.inventoryRoot());
       }
       this.toolShown = undefined;
       return;
@@ -1258,7 +1293,7 @@ export class App {
     button.set(option?.icon ?? null, option?.label ?? HAND_LABEL, cssColor(option?.accent));
     // Steht das Inventar offen, wandert der Rahmen mit — sonst zeigte es noch
     // auf das, was eben abgelegt wurde.
-    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.inventoryRoot());
+    if (this.toolMenu.isOpen) this.inventoryWrist.setRoot(this.inventoryRoot());
   }
 
   /** Die Kacheln des Inventars, samt dem, was ein Tipp auslöst (`ui/ToolButton.ts`). */
@@ -1279,18 +1314,26 @@ export class App {
    * dieselben Kacheln mit denselben Modellen.
    */
   private inventoryRoot(): MenuEntry[] {
-    const choice = this.world?.toolChoice?.() ?? null;
-    const tools: MenuEntry[] = choice
-      ? this.toolPage(choice)
-      : [
-          {
-            id: 'tool:none',
-            label: 'Keine Werkzeuge',
-            caption: 'Diese Welt gibt keine in die Hand',
-            icon: 'hand',
-            accent: 0x6f7d99,
-          },
-        ];
+    // **In der Brille kommen die Werkzeuge aus dem Regal** (`tools`): Greifen
+    // oder `A` legt eines in die Hand, der Trigger geht in seine
+    // Einstellungen — wie am Handgelenk bisher, nur als Kacheln. Am Schirm
+    // wählt ein Tipp die Bildschirmhand (`World.toolChoice`).
+    const presenting = this.renderer.xr.isPresenting;
+    const shelf = presenting ? findMenuEntry(this.menuRoot, 'tools')?.children : undefined;
+    const choice = presenting ? null : (this.world?.toolChoice?.() ?? null);
+    const tools: MenuEntry[] = shelf?.length
+      ? shelf
+      : choice
+        ? this.toolPage(choice)
+        : [
+            {
+              id: 'tool:none',
+              label: 'Keine Werkzeuge',
+              caption: 'Diese Welt gibt keine in die Hand',
+              icon: 'hand',
+              accent: 0x6f7d99,
+            },
+          ];
     const tabs: MenuEntry[] = [
       {
         id: INVENTORY_TAB,
@@ -1299,7 +1342,7 @@ export class App {
         icon: 'bag',
         accent: 0x5ee0a0,
         grid: true,
-        take: false,
+        take: Boolean(shelf?.length),
         children: tools,
       },
     ];
@@ -1320,7 +1363,7 @@ export class App {
     }
     if (!this.world || this.renderer.xr.isPresenting) return;
     if (this.pageMenu.isOpen) this.pageMenu.toggle(false);
-    this.toolMenu.setRoot(this.inventoryRoot());
+    this.inventoryWrist.setRoot(this.inventoryRoot());
     // **Immer auf dem Inventar** — wie `E` in Minecraft. Die anderen Reiter
     // merken sich trotzdem, wo man in ihnen stand.
     this.toolMenu.openTab(INVENTORY_TAB);
@@ -1354,6 +1397,8 @@ export class App {
     this.pageMenu.dispose();
     this.toolMenu.dispose();
     this.playerCard?.dispose();
+    this.inventoryWrist.dispose();
+    this.xrCard.dispose();
     this.wardrobe.dispose();
     this.holdMenu.dispose();
     this.toolButton?.dispose();
@@ -1387,7 +1432,7 @@ export class App {
     // Was in der alten Welt in Reichweite stand, steht in der neuen nicht
     // mehr da: Sonst benutzte `A` beim Ankommen ins Leere, statt zu springen.
     this.rig.useCandidate = false;
-    this.toolMenu.toggle(false);
+    this.inventoryWrist.toggle(false);
     this.toolShown = undefined;
 
     // **Die Hände gehören keiner Welt.** Zwei Dinge blenden sie aus — die
@@ -1411,6 +1456,8 @@ export class App {
     this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
     this.wristMenu.attachPointer();
+    this.inventoryWrist.attachPointer();
+    this.xrCard.attachPointer(this.pointer);
     // **Die Willkommens-Tafel der Brille gehört auch keiner Welt**, und ihr
     // Zeigerziel räumt `clear` genauso mit weg wie das der Tastatur. Es
     // stand bis hierhin nur einmal im Konstruktor — nach dem ersten
@@ -1506,7 +1553,7 @@ export class App {
     // Das Inventar nimmt drei seiner Reiter aus dieser Wurzel — und zieht mit,
     // wenn darin ein Schalter umgelegt wurde.
     this.menuRoot = root;
-    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.inventoryRoot());
+    this.inventoryWrist.setRoot(this.inventoryRoot());
   }
 
   /**
@@ -3390,7 +3437,7 @@ export class App {
     this.updateHints(presenting || this.xrPreview);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
-    this.rig.menuStick = this.wristMenu.scrollHand;
+    this.rig.menuStick = this.wristMenu.scrollHand ?? this.inventoryWrist.scrollHand;
     this.fitEyes(presenting);
     this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
@@ -3437,6 +3484,8 @@ export class App {
     this.avatar.updateFromRig(dt, this.rig, this.input, _headLocal);
     this.playerGuides.update(_head, this.rig.getFloorY());
     this.wristMenu.update(dt, this.input, _head);
+    this.inventoryWrist.update(dt, this.input, _head);
+    this.xrCard.update(dt);
     this.updateXRGuide(dt, presenting || this.xrPreview);
     this.pointer.update(this.input, presenting);
     this.net.update(dt, this.rig, this.input, this.elapsed);

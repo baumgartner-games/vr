@@ -870,7 +870,11 @@ export class PageMenu {
     // auch die Knöpfe darunter. Genau so war es gewünscht: „die Höhe des
     // Katalogmenüs kann meinetwegen auch gerne die gesamte Höhe des
     // Bildschirm einnehmen, sodass dann der Menü-Button verdeckt ist."
-    this.element.classList.toggle('pmenu--full', page.full);
+    // **Das Inventar ist immer Vollbild** (`tabs`), welcher Reiter auch offen
+    // ist: „so ein Menü im PC/Handy kann ruhig […] immer im Vollbildmodus
+    // sein" — wie der Katalog.
+    const full = page.full || this.tabs;
+    this.element.classList.toggle('pmenu--full', full);
     // **Eine Detailseite zeigt ein Ding und keine Liste.** Beide liegen im
     // selben scrollenden Kasten; hier wird nur entschieden, welche dasteht.
     const detail = page.detail ?? null;
@@ -880,7 +884,7 @@ export class PageMenu {
     else this.closeDetail();
     // Erst hier steht der Kopf unter der Uhr: Gemeldet war ein Katalog, in
     // dessen Titel „20:36" stand und in dessen Schließen-Knopf die Batterie.
-    setSafeEdge(this.sheet, 'top', page.full);
+    setSafeEdge(this.sheet, 'top', full);
     this.list.classList.toggle('pmenu__list--grid', page.grid);
     const columns = page.full && page.grid ? this.columns() : (page.cols ?? 3);
     // Die Spaltenzahl steht als CSS-Variable am Raster und nicht als Klasse:

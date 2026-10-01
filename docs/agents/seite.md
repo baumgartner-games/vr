@@ -332,14 +332,44 @@ Inventar eine eigene Vorschauschicht).
 - **Die Figur** ist dieselbe kleine Szene wie in der Umkleide
   (`WardrobeMenu.PreviewScene`) und läuft nur, solange die Seite _Inventar_
   offen ist — beim Reiterwechsel und beim Zumachen ist ihr Renderer weg.
-- **Am Telefon** steht die Figur als Streifen über den Kacheln (Figur links,
-  Name und Knopf rechts), das Blatt ist fest 88 % hoch, damit es beim
-  Reiterwechsel nicht springt; am Schreibtisch ein Kasten in der Mitte, die
-  Figur als Spalte rechts (`pageMenu.css`, `playerCard.css`). Der Katalog
-  nimmt wie im Menü den ganzen Schirm.
+- **Immer Vollbild**, welcher Reiter auch offen ist — gewünscht: _„so ein
+  Menü im PC/Handy kann ruhig […] immer im Vollbildmodus sein"_, wie der
+  Katalog (`tabs` setzt `.pmenu--full`). Am Telefon steht die Figur als
+  Streifen über den Kacheln (Figur links, Name und Knopf rechts), am
+  Schreibtisch als Spalte rechts (`pageMenu.css`, `playerCard.css`).
 
-Offen: In der Brille gibt es kein Gegenstück; die Reiter am Pad erreicht man
-über den Fokus (Stick nach oben), nicht über eigene Schultertasten.
+### In der Brille: der Beutel am Handgelenk
+
+Gewünscht: _„In der Brille könnte man ein Menü öffnen über das Handgelenk.
+Das Menü kann dann gleich aussehen wie beim PC."_ Neben dem runden ☰-Knopf
+sitzt an jedem Handgelenk ein zweiter, grüner mit dem **Beutel**
+(`WristMenuOptions.button`, `slot: 1`). Dahinter liegt ein zweites
+`WristMenus` (`App.inventoryWrist`) mit demselben Baum (`inventoryRoot`) und
+**demselben Weg** wie die Seite am Schirm — das Bildschirm-Inventar ist seine
+Seite (`attachPage`). Wer am PC im Katalog stand, steht nach dem Aufsetzen
+dort auch am Arm.
+
+- **Die Reiter** zeichnet das Panel selbst (`UIPanel`, `PageOptions.tabs`):
+  eine Reihe unter dem Titel, der offene unterstrichen, ein Trigger darauf
+  wechselt (`WristMenu.showTab`, merkt sich die Tiefe je Reiter). `B`/`Y`
+  geht zurück und auf der Seite eines Reiters zu.
+- **Die Werkzeuge kommen in der Brille aus dem Regal** (`tools`), als
+  Kacheln: Greifen oder `A` legt eins in die Hand, der Trigger öffnet seine
+  Einstellungen — wie bisher im Regal am Handgelenk.
+- **Die Figur** steht rechts neben dem Panel auf einer Tafel
+  (`ui/XRPlayerCard.ts`, `WristMenuOptions.aside`): ein echtes kleines Modell
+  im Raum, kein zweiter Renderer, nur auf der Seite _Inventar_ zu sehen.
+  _Aussehen anpassen_ öffnet _Figur_ im Menü am Handgelenk.
+- **Nie zwei Menüs zugleich** (`WristMenus.attachSide`): Das eine geht auf,
+  das andere zu. ☰ am Controller bleibt das Menü (`menuButton: false`), und
+  solange das Inventar offen ist, gilt das Menü als offen (`isOpen`) — `B`
+  setzt dann keine Welt zurück.
+- **Am Schirm nachstellen**: in der Konsole `bgvr.wristMenu.presenting = true`,
+  dann `bgvr.inventoryWrist.menu('left').toggle(true)` — das Panel hängt dann
+  vor der Ansicht aus den Augen.
+
+Offen: Die Reiter am Pad erreicht man über den Fokus (Stick nach oben), nicht
+über eigene Schultertasten.
 
 ## Menü → Eingaben
 
