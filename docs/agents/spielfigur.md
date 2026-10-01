@@ -267,10 +267,17 @@ Mannequin, Ritter, Magier, Roboter und Skelett-Krieger gleichermaßen —, und
 darüber sitzt bei allen derselbe Schädel. Das Mannequin steht mit dieser Regel
 auf **1,62 m**, also praktisch auf Kochhöhe. Ein Ritter wird höher, weil sein
 Helmkamm höher ist, und das ist richtig so. Nach oben und unten gibt es einen
-Deckel (`FIGURE_MIN_HEIGHT` 1,3 m, `FIGURE_MAX_HEIGHT` 2,4 m): Ein Golem auf dem
-**großen** Skelett trägt seinen Kopf ganz oben, und sein Kopfknochen auf
-Kochhöhe wäre ein Zwerg mit Riesenschultern — dann gewinnt die Höhe gegen die
-Kopfhöhe.
+Deckel (`FIGURE_MIN_HEIGHT` 1,3 m, `FIGURE_MAX_HEIGHT` 2,4 m).
+
+**Das große Skelett nimmt die Kopfregel aus.** Ein Golem trägt seinen Kopf
+ganz oben, und sein Kopfknochen auf Kochhöhe wäre ein Zwerg mit
+Riesenschultern — so stand `Mannequin_Large` auf 1,30 m da, kleiner als das
+mittlere. Gemeldet: _„Bei den Charakteren sind die großen Figuren leider klein.
+… Mannequin hat zwei z.B. einen kleinen und großen"_. Seitdem werden Figuren,
+die `_Large` oder `Golem` im Namen tragen (`isLargeFigure`), mit
+`FIGURE_LARGE_HEIGHT` = 2,80 m bestellt und so gelassen — ihre Paketgröße und
+dieselbe Zahl wie bei den NPCs (`npcKinds.SHELF_LARGE_HEIGHT`). Ihr Kopf steht
+dann über dem des Kochs; eine große Figur ist groß.
 
 **Was auf eine Figur aus dem Regal nicht wirkt**: die Zeilen _Kopf_ und
 _Körper_. Ein Ritter bringt sein Kettenhemd mit, ein Roboter hat kein Gesicht,

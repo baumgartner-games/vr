@@ -1,3 +1,4 @@
+import { FIGURE_LARGE_HEIGHT, isLargeFigure } from '../../core/avatarFigures';
 import { KAYKIT_ACCENT, humanLabel, kaykitPathOf } from '../../core/kaykitIndex';
 import type { FigureGait } from '../../core/kaykitFigureFit';
 import type { MenuIcon } from '../../ui/menu';
@@ -285,7 +286,7 @@ export function shelfPath(kind: string | undefined): string | null {
 /** Wie hoch eine gesetzte Figur aus dem Regal steht, in Metern. */
 export const SHELF_HEIGHT = 1.75;
 /** Und wie hoch eine auf dem großen Skelett (`shelfHeight`). */
-export const SHELF_LARGE_HEIGHT = 2.8;
+export const SHELF_LARGE_HEIGHT = FIGURE_LARGE_HEIGHT;
 
 /**
  * **Wie hoch eine Figur aus dem Regal als NPC steht** — 1,75 m, und 2,80 m,
@@ -313,7 +314,7 @@ export const SHELF_LARGE_HEIGHT = 2.8;
  * sie in Menschengröße: falsch, aber sichtbar und ohne Folgen für die Physik.
  */
 export function shelfHeight(path: string): number {
-  return /(_large|golem)/i.test(path) ? SHELF_LARGE_HEIGHT : SHELF_HEIGHT;
+  return isLargeFigure(path) ? SHELF_LARGE_HEIGHT : SHELF_HEIGHT;
 }
 
 /**

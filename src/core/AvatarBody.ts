@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import { markBlobShadow } from './blobShadow';
 import { buildHeadgear, headgearFor, type HeadgearKind } from './headgear';
 import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
-import { FIGURE_CHEF, figureHeadRadius, figureHeight, figureLift } from './avatarFigures';
+import {
+  FIGURE_CHEF,
+  figureHeadRadius,
+  figureHeight,
+  figureLift,
+  isLargeFigure,
+} from './avatarFigures';
 import { figureBoneName } from './kaykitFigureFit';
 import type { KaykitFigure } from './kaykitFigure';
 import {
@@ -691,7 +697,7 @@ export class AvatarBody extends THREE.Group {
     root.updateMatrixWorld(true);
     const bone = figure.bones.head;
     const headY = bone ? _world.setFromMatrixPosition(bone.matrixWorld).y : 0;
-    const lift = figureLift(headY, figure.height);
+    const lift = figureLift(headY, figure.height, isLargeFigure(figure.path));
 
     this.figure = figure;
     this.figureHeadBone = bone;

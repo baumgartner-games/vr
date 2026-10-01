@@ -15,6 +15,10 @@ import {
   FIGURE_PRESETS,
   FIGURE_MAX_HEIGHT,
   FIGURE_MIN_HEIGHT,
+  FIGURE_HEIGHT,
+  FIGURE_LARGE_HEIGHT,
+  figureHeight,
+  isLargeFigure,
   asFigure,
   figureHeadRadius,
   figureLabel,
@@ -203,6 +207,23 @@ describe('als was man herumläuft', () => {
     expect(1.7 * golem).toBeCloseTo(FIGURE_MIN_HEIGHT, 6);
     // Und andersherum genauso.
     expect(1.7 * figureLift(0.05, 1.7)).toBeCloseTo(FIGURE_MAX_HEIGHT, 6);
+  });
+
+  it('lässt die Figuren des großen Skeletts groß', () => {
+    // Gemeldet: Mannequin_Large stand kleiner da als Mannequin_Medium.
+    const large = 'character-animations/mannequin-character/characters/Mannequin_Large.glb';
+    const medium = 'character-animations/mannequin-character/characters/Mannequin_Medium.glb';
+    expect(isLargeFigure(large)).toBe(true);
+    expect(isLargeFigure(medium)).toBe(false);
+    expect(isLargeFigure('skeletons/characters/Skeleton_Golem.glb')).toBe(true);
+    expect(figureHeight(large)).toBe(FIGURE_LARGE_HEIGHT);
+    expect(figureHeight(medium)).toBe(FIGURE_HEIGHT);
+    // Bestellt mit ihrer Höhe, bleibt sie so — egal, wo ihr Kopfknochen sitzt.
+    const lift = figureLift(0.91 * (FIGURE_LARGE_HEIGHT / 1.7), FIGURE_LARGE_HEIGHT, true);
+    expect(FIGURE_LARGE_HEIGHT * lift).toBeCloseTo(FIGURE_LARGE_HEIGHT, 6);
+    // Und damit größer als das mittlere Mannequin nach der Kopfregel.
+    const mediumHeight = 1.7 * figureLift((0.869 * 1.7) / 1.5426, 1.7);
+    expect(FIGURE_LARGE_HEIGHT * lift).toBeGreaterThan(mediumHeight + 1);
   });
 
   it('gibt bei Unsinn eine Figur her, die man ansehen kann', () => {

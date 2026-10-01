@@ -116,12 +116,36 @@ export const FIGURE_HEAD = 0.39;
  * und für alles auf dem mittleren Skelett kommt dabei eine Figur von gut 1,6 m
  * heraus — die Verhältnisse stimmen ja überein. Ein **Golem** auf dem großen
  * Skelett trägt seinen Kopf dagegen ganz oben: Sein Kopfknochen auf 0,91 m
- * hieße eine Figur von 1,14 m, also ein Zwerg mit Riesenschultern. Dann gewinnt
- * die Höhe gegen die Kopfhöhe — lieber ein Kopf eine Handbreit zu hoch als eine
- * Figur, die zusammengestaucht ist.
+ * hieße eine Figur von 1,14 m, also ein Zwerg mit Riesenschultern. Die Figuren
+ * dieses Skeletts nimmt die Regel deshalb ganz aus (`FIGURE_LARGE_HEIGHT`); die
+ * Deckel fangen, was sonst noch aus der Reihe fällt — lieber ein Kopf eine
+ * Handbreit zu hoch als eine Figur, die zusammengestaucht ist.
  */
 export const FIGURE_MIN_HEIGHT = 1.3;
 export const FIGURE_MAX_HEIGHT = 2.4;
+
+/**
+ * **Wie hoch eine Figur des großen Skeletts steht**, in Metern — ihre
+ * Paketgröße (Quelle 3,98 bis 4,23 mal 0,7, `core/kaykitFit.ts`), dieselbe
+ * Zahl wie bei den NPCs (`worlds/npc/npcKinds.SHELF_LARGE_HEIGHT`).
+ *
+ * Gemeldet: _„Bei den Charakteren sind die großen Figuren leider klein …
+ * Mannequin hat zwei z.B. einen kleinen und großen"_. Die Kopfregel
+ * (`figureLift`) stauchte `Mannequin_Large` auf 1,30 m und damit **unter** das
+ * mittlere mit 1,62 m — sein Kopfknochen sitzt anteilig höher. Eine große
+ * Figur ist groß; für sie gilt die Kopfregel deshalb nicht.
+ */
+export const FIGURE_LARGE_HEIGHT = 2.8;
+
+/**
+ * **Ob eine Figur auf dem großen Skelett steht** — am Namen erkannt, weil die
+ * Höhe gebraucht wird, bevor die Datei geladen ist. `_Large` und `Golem` sind
+ * die beiden Muster, mit denen die Sammlung ihre großen Figuren benennt
+ * (`Mannequin_Large`, `Barbarian_Large`, `Skeleton_Golem`, `FrostGolem`).
+ */
+export function isLargeFigure(path: string): boolean {
+  return /(_large|golem)/i.test(path);
+}
 
 /**
  * **Die kuratierte Liste** — zwölf Figuren, eine davon der Koch.
@@ -221,9 +245,9 @@ export const FIGURE_KINDS: readonly FigureKind[] = [
  * prüft `avatarFigures.test.ts` an den Dateien.
  *
  * Die großen Skelette (`Mannequin_Large`, `Skeleton_Golem`, `FrostGolem`)
- * stehen jetzt dabei: Die Höhenregel stellt jede Figur mit dem Kopf dorthin,
- * wo der des Kochs stand (`figureLift`), und Bewegungen bringt der Lader für
- * beide Skelette mit (`core/kaykitClips.kaykitRigOf`).
+ * stehen jetzt dabei, und zwar groß (`FIGURE_LARGE_HEIGHT`, 2,80 m) — die
+ * Kopfregel (`figureLift`) gilt nur für das mittlere Skelett. Bewegungen
+ * bringt der Lader für beide Skelette mit (`core/kaykitClips.kaykitRigOf`).
  */
 const PACKS: ReadonlyArray<{ sub: string; paths: readonly string[] }> = [
   {
@@ -386,8 +410,12 @@ export function figureSub(path: string): string {
   return cut < 0 ? 'Aus dem Regal' : `Aus dem Paket ${humanLabel(path.slice(0, cut))}`;
 }
 
-/** Mit welcher Höhe der Lader bestellt wird (siehe `FigureKind.height`). */
+/**
+ * Mit welcher Höhe der Lader bestellt wird (siehe `FigureKind.height`) — eine
+ * Figur des großen Skeletts mit ihrer eigenen (`FIGURE_LARGE_HEIGHT`).
+ */
 export function figureHeight(path: string): number {
+  if (isLargeFigure(path)) return FIGURE_LARGE_HEIGHT;
   return figureKind(path)?.height ?? FIGURE_HEIGHT;
 }
 
@@ -414,13 +442,18 @@ export function figureHeight(path: string): number {
  * dort. Und **Unsinn ergibt 1** statt `NaN`: Eine Figur mit falschem Maßstab
  * steht falsch da und lässt sich ansehen; eine mit `NaN` verschwindet.
  *
+ * **Figuren des großen Skeletts** (`large`) bleiben so hoch, wie sie bestellt
+ * wurden (`FIGURE_LARGE_HEIGHT`): Ihr Kopf auf Kochhöhe hieße eine große
+ * Figur, die kleiner ist als die mittlere.
+ *
  * @param headY Höhe des Kopfknochens über den Sohlen, wie geladen (Meter).
  * @param height Höhe der geladenen Figur (Meter) — die, die bestellt wurde.
+ * @param large Ob sie auf dem großen Skelett steht (`isLargeFigure`).
  */
-export function figureLift(headY: number, height: number): number {
+export function figureLift(headY: number, height: number, large = false): number {
   const tall = Number.isFinite(height) && height > 0 ? height : 0;
   const head = Number.isFinite(headY) && headY > 0 ? headY : 0;
-  if (tall <= 0) return 1;
+  if (tall <= 0 || large) return 1;
   // Ohne Kopfknochen bleibt nur die Höhe — dann steht die Figur so hoch wie
   // der Koch und ihr Kopf, wo er eben hinfällt.
   const wanted = head > 0 ? CHEF_EYE / head : CHEF_HEIGHT / tall;
