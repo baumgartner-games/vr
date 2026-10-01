@@ -3,7 +3,7 @@
  * (`roomWalls.ts`). Das Haus ist das aus dem Hausbau in klein: zwei Zimmer
  * nebeneinander, eine Trennwand dazwischen, Wände von 2,8 m.
  */
-import type { GhostCandidate } from './wallGhost';
+import { turnedBox, wallsCovering, type GhostCandidate } from './wallGhost';
 import { lidLike, roomWallsToClear, wallLike } from './roomWalls';
 
 function wall(
@@ -103,5 +103,69 @@ describe('Die Wände des eigenen Raums', () => {
     const upstairs = HOUSE.map((one) => ({ ...one, box: { ...one.box, y: one.box.y + 3 } }));
     // Die obere Etage sperrt die Flut nicht: Unten gibt es keine Wände, also draußen.
     expect(roomWallsToClear(CAMERA, INSIDE_WEST, upstairs)).toBeNull();
+  });
+
+  describe('mit Wänden unter 45°', () => {
+    /** Ein Regalstück unter 45° durch die Kachel (`tx`, `tz`), wie `shelfWalls.wallSlant`. */
+    const slant = (
+      tx: number,
+      tz: number,
+      yaw: number,
+      name: string,
+    ): GhostCandidate & { name: string } => ({
+      box: turnedBox(tx + 0.5, 1.4, tz + 0.5, Math.SQRT2, 2.8, 0.2, yaw),
+      name,
+    });
+    const SLASH = Math.PI / 4;
+    const BACKSLASH = -Math.PI / 4;
+    /**
+     * West 0 … Ost 10, Nord 0 … Süd 6, die Ecken im Nordwesten, Südwesten
+     * und Südosten abgeschrägt — das Zimmer aus dem Hausbau, gemeldet im
+     * Oktober 2026.
+     */
+    const CHAMFERED = [
+      wall(5.5, 0, 9, T, 'north'),
+      wall(5, 6, 8, T, 'south'),
+      wall(0, 3, T, 4, 'west'),
+      wall(10, 2.5, T, 5, 'east'),
+      slant(0, 0, SLASH, 'north-west'),
+      slant(0, 5, BACKSLASH, 'south-west'),
+      slant(9, 5, SLASH, 'south-east'),
+    ];
+    const MIDDLE = { x: 5, y: 0.9, z: 3 };
+
+    it('sind Wände und schließen den Raum', () => {
+      expect(wallLike(CHAMFERED[4]!.box)).toBe(true);
+      expect(roomWallsToClear({ x: 5, y: 30, z: 28 }, MIDDLE, CHAMFERED)).not.toBeNull();
+    });
+
+    it('gehen von Süden unten mit der Front weg, oben bleiben sie', () => {
+      expect(names(roomWallsToClear({ x: 5, y: 30, z: 28 }, MIDDLE, CHAMFERED))).toEqual([
+        'south',
+        'south-east',
+        'south-west',
+      ]);
+    });
+
+    it('stehen um 45° gedreht gerade vor der Kamera — und die anderen sind Seitenwände', () => {
+      // Von Südosten: Die Schräge im Südosten zeigt genau zur Kamera, die im
+      // Südwesten steht längs zum Blick, die im Nordwesten liegt oben.
+      expect(names(roomWallsToClear({ x: 25, y: 30, z: 23 }, MIDDLE, CHAMFERED))).toEqual([
+        'east',
+        'south',
+        'south-east',
+      ]);
+    });
+
+    it('verdecken draußen nur, wer wirklich hinter ihnen steht', () => {
+      const camera = { x: 9.5, y: 30, z: 30 };
+      // Gleich nördlich der Schräge im Südosten — und einen Meter weiter
+      // westlich, wo der Blick an ihr vorbeigeht.
+      const behind = { x: 9.3, y: 0.9, z: 4.9 };
+      const beside = { x: 8.3, y: 0.9, z: 4.9 };
+      const se = [CHAMFERED[6]!];
+      expect(names(wallsCovering(camera, beside, se))).toEqual([]);
+      expect(names(wallsCovering(camera, behind, se))).toEqual(['south-east']);
+    });
   });
 });

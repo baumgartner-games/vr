@@ -111,6 +111,51 @@ export interface ElementChange {
 
 export type WorldChange = FurnitureChange | ModelChange | NoteChange | ElementChange;
 
+/**
+ * **Wo man stand und wie man geschaut hat**, als man kopierte — keine
+ * Änderung der Welt, sondern der Standpunkt dazu. Gewünscht (Oktober 2026):
+ * _„bei weltänderungen auch gut, wenn die aktuelle spieler position und
+ * camera einstellung mitkopiert werden … damit ich dir debug szenarien besser
+ * senden kann"_. Eine falsch durchsichtige Wand ist nur von der Stelle und
+ * aus der Drehung zu sehen, aus der sie gemeldet wurde.
+ *
+ * Beim Einfügen gilt er nur, wenn das Häkchen dafür gesetzt ist
+ * (`pastingView`, ab Werk aus) — wer eine Liste einfügt, um weiterzubauen,
+ * will nicht quer durch die Welt springen.
+ */
+export interface PlayerView {
+  /** Die Füße der Figur, in Weltmetern. */
+  readonly at: { readonly x: number; readonly y: number; readonly z: number };
+  /** Wohin die Figur schaut, in Grad um die Hochachse. */
+  readonly yaw: number;
+  /** In welcher Welt. */
+  readonly world?: string;
+  /** Die Kamera von oben — fehlt, wenn aus den Augen oder in der Brille kopiert wurde. */
+  readonly camera?: {
+    /** Wohin „oben" im Bild zeigt, in Grad, links herum (`TopDownCamera.viewState`). */
+    readonly turn: number;
+    /** Der Abstand der Kamera, in Metern. */
+    readonly zoom: number;
+  };
+}
+
+/** Das Wort am Anfang der Zeile, in der `PlayerView` steht. */
+const VIEW_LINE = 'Spieler:';
+
+let pasteView = false;
+
+/**
+ * **Ob beim Einfügen Figur und Kamera mitkommen** — ab Werk aus, und nicht
+ * gespeichert: Es ist ein Werkzeug zum Nachstellen und gilt für die Sitzung.
+ */
+export function pastingView(): boolean {
+  return pasteView;
+}
+
+export function setPastingView(on: boolean): void {
+  pasteView = on;
+}
+
 const KEY = 'vr-weltaenderungen';
 
 let tracking = false;
@@ -335,7 +380,7 @@ function round(value: number): number {
  * Liste (`[x, z, Drehung]`) und nicht als Objekt mit drei Schlüsseln — bei
  * zwanzig Möbeln ist das der Unterschied zwischen einer Seite und dreien.
  */
-export function formatChanges(list: readonly WorldChange[]): string {
+export function formatChanges(list: readonly WorldChange[], view?: PlayerView): string {
   // Dieselbe Zeile wie im Speicher (`toRow`): ein Format und nicht zwei.
   const rows = list.map((change) => JSON.stringify(toRow(change)));
   const head =
@@ -350,8 +395,57 @@ export function formatChanges(list: readonly WorldChange[]): string {
   const notes = list
     .filter((change): change is NoteChange => change.kind === 'note')
     .map(describeNote);
+  // **Der Standpunkt** in einer eigenen Zeile vor dem JSON — keine Änderung
+  // und deshalb nicht in der Liste (`parseView` liest ihn zurück).
+  if (view) notes.unshift(`${VIEW_LINE} ${JSON.stringify(viewRow(view))}`);
   const lines = notes.length ? `${notes.join('\n')}\n` : '';
-  return `${head}\n${lines}[\n${rows.join(',\n')}\n]`;
+  const body = rows.length ? `[\n${rows.join(',\n')}\n]` : '[]';
+  return `${head}\n${lines}${body}`;
+}
+
+function viewRow(view: PlayerView): unknown {
+  return {
+    at: [round(view.at.x), round(view.at.y), round(view.at.z)],
+    yaw: Math.round(view.yaw),
+    ...(view.world ? { world: view.world } : {}),
+    ...(view.camera
+      ? { camera: { turn: Math.round(view.camera.turn), zoom: round(view.camera.zoom) } }
+      : {}),
+  };
+}
+
+/**
+ * **Den Standpunkt aus einem kopierten Text** — die Zeile, die mit
+ * `Spieler:` anfängt, oder `null`, wenn keine darin steht oder sie nicht
+ * passt.
+ */
+export function parseView(text: string): PlayerView | null {
+  const line = text.split('\n').find((one) => one.trimStart().startsWith(VIEW_LINE));
+  if (!line) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(line.trimStart().slice(VIEW_LINE.length));
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const at = numbers(data.at, 3);
+  if (!at) return null;
+  const yaw = typeof data.yaw === 'number' && Number.isFinite(data.yaw) ? data.yaw : 0;
+  const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
+  const cam = data.camera as Record<string, unknown> | undefined;
+  const camera =
+    cam &&
+    typeof cam === 'object' &&
+    typeof cam.turn === 'number' &&
+    Number.isFinite(cam.turn) &&
+    typeof cam.zoom === 'number' &&
+    Number.isFinite(cam.zoom) &&
+    cam.zoom > 0
+      ? { camera: { turn: cam.turn, zoom: cam.zoom } }
+      : {};
+  return { at: { x: at[0]!, y: at[1]!, z: at[2]! }, yaw, ...world, ...camera };
 }
 
 /**
@@ -502,6 +596,7 @@ function toRow(change: WorldChange): unknown {
 /** Nur für Tests: alles auf Anfang, als wäre die Seite frisch geladen. */
 export function resetWorldChangesForTest(): void {
   tracking = false;
+  pasteView = false;
   changes.clear();
   loaded = false;
   counter = 0;

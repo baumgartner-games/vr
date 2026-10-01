@@ -1046,6 +1046,25 @@ ausgeliefert wird. Drei Entscheidungen:
   Neuladen weg ist, bevor man sie kopiert hat, ist eine halbe Stunde
   Einrichten ohne Spur.
 
+**Und wo man stand** (`PlayerView`, Oktober 2026, gewünscht: _„wenn die
+aktuelle spieler position und camera einstellung mitkopiert werden (aber
+nicht berücksichtigt beim einfügen (oder bzw. checkbox …, default false),
+damit ich dir debug szenarien besser senden kann"_): _Kopieren_ schreibt vor
+das JSON eine Zeile
+
+```
+Spieler: {"at":[8.4,0,-33.1],"yaw":180,"world":"hausbau","camera":{"turn":45,"zoom":14.26}}
+```
+
+— die Füße der Figur in Weltmetern, ihre Blickrichtung in Grad, die Welt und,
+von oben, die Kamera (`TopDownCamera.viewState`: Drehung des Bildes in Grad,
+links herum, und Abstand in Metern). Sie ist keine Änderung und steht nicht
+in der Liste; mit ihr lässt sich auch eine leere Liste kopieren. Übernommen
+wird sie beim Einfügen nur mit dem Häkchen **_Spieler & Kamera mit
+einfügen_** (`pastingView`, ab Werk aus, nicht gespeichert) und nur in
+derselben Welt: Die Figur springt hin (`movePlayerTo`), die Kamera dreht und
+zoomt ohne Fahrt (`setViewState`, über `WorldContext.topDownView`).
+
 Beim Einfügen wird ein umgestelltes Möbel an seiner alten Kachel gesucht und
 über dieselben Handgriffe wie von Hand umgesetzt (`kitchen.applyChange`), in
 zwei Durchgängen, damit getauschte Plätze aufgehen. Was schon dasteht, zählt

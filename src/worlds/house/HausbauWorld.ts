@@ -30,7 +30,7 @@ import {
   type FlooringAim,
 } from './flooring';
 import { HOUSE_SPOTS, houseSpawn, housePlan, houseWalls, onHouseGround } from './housePlan';
-import { ceilingChange, ceilingKey } from './ceiling';
+import { ceilingChange, ceilingCuts, ceilingKey } from './ceiling';
 import {
   roomTiles,
   slantedTiles,
@@ -138,6 +138,12 @@ export class HausbauWorld extends TestRestaurantWorld {
   private readonly landings = new Set<string>();
   /** **Die Decke**: Boden, den ein geschlossener Raum darunter gelegt hat (`house/ceiling.ts`). */
   private readonly ceiling = new Set<string>();
+  /**
+   * **Wo die Decke über einer Schräge nur halb liegt** (`x,z,level` → leere
+   * Ecke, `ceiling.ceilingCuts`) — gilt nur für Decke, nicht für selbst
+   * gelegten Boden oder einen Belag (`plateCut`).
+   */
+  private ceilingHalves = new Map<string, FloorCorner>();
   /** Für welche Wände die Decke zuletzt gerechnet wurde (`coverRooms`). */
   private ceilingWallsFor = '';
   /** Was aus den Augen gerade ausgeblendet ist — die Etagen über einem (`cutAway`). */
@@ -186,6 +192,16 @@ export class HausbauWorld extends TestRestaurantWorld {
   /** Der gelegte Belag, sonst der Prototyp-Boden der Testwelten. */
   protected override floorPlate(tile: PlateTile): string | null {
     return this.floors.get(`${tile.col},${tile.row},${tile.level}`) ?? PLATE_PROTOTYPE;
+  }
+
+  /**
+   * **Die Decke über einer Wand unter 45° liegt nur halb** (`ceilingHalves`)
+   * — solange sie Decke ist und niemand einen Belag darauf gelegt hat.
+   */
+  protected override plateCut(tile: PlateTile): FloorCorner | null {
+    const key = ceilingKey(tile.col, tile.row, tile.level);
+    if (!this.ceiling.has(key) || this.floors.has(key) || this.halves.has(key)) return null;
+    return this.ceilingHalves.get(key) ?? null;
   }
 
   /** Die halben Beläge unter den Wänden unter 45° (`halves`). */
@@ -638,6 +654,13 @@ export class HausbauWorld extends TestRestaurantWorld {
       plan.unfloor(tileKey(tile.x, tile.z, tile.level));
       this.ceiling.delete(ceilingKey(tile.x, tile.z, tile.level));
     }
+    // **Über einer Schräge nur die Hälfte** — neu gezeichnet, wenn sich das
+    // geändert hat; den Boden selbst baut der Plan ohnehin neu, wenn Decke
+    // dazukam oder ging.
+    const cuts = ceilingCuts(storeys);
+    const was = [...this.ceilingHalves].join('|');
+    this.ceilingHalves = cuts;
+    if ([...cuts].join('|') !== was && lay.length === 0 && drop.length === 0) this.rebuildFloor();
   }
 
   // --- Bodenbeläge -----------------------------------------------------------

@@ -59,6 +59,14 @@ import {
  * wäre eine Fahrt im Aufzug. Weich wird beides von derselben Glättung, die
  * auch der Figur hinterherzieht.
  */
+/** Drehung und Abstand der Kamera von oben (`TopDownCamera.viewState`). */
+export interface TopDownViewState {
+  /** Wohin „oben" im Bild zeigt, Bogenmaß, links herum positiv. */
+  heading: number;
+  /** Der Abstand der Kamera, in Metern. */
+  zoom: number;
+}
+
 export class TopDownCamera {
   /**
    * Die Kamera selbst — perspektivisch und eng (`TOP_DOWN_FOV`).
@@ -232,6 +240,29 @@ export class TopDownCamera {
   /** Wohin „oben" zeigen wird, wenn die Drehung angekommen ist — ein ganzer Schritt. */
   get headingTarget(): number {
     return this.headingGoal;
+  }
+
+  /**
+   * **Wie die Kamera gerade eingestellt ist** — Drehung (wohin „oben" zeigt,
+   * ein ganzer Schritt) und Abstand in Metern. Für die Liste der
+   * Weltänderungen (`core/worldChanges.ts`, `PlayerView`): Wer eine Stelle
+   * weitergibt, gibt auch mit, wie er auf sie geschaut hat.
+   */
+  get viewState(): TopDownViewState {
+    return { heading: this.headingGoal, zoom: this.target };
+  }
+
+  /**
+   * **Eine eingefügte Einstellung übernehmen** — sofort, ohne Fahrt: Die Figur
+   * springt im selben Augenblick dorthin (`PortalWorld.pasteChanges`).
+   * Gedreht wird auf den nächsten ganzen Schritt, gezoomt innerhalb der
+   * Grenzen des Rads (`zoomScaled`).
+   */
+  setViewState(state: TopDownViewState): void {
+    this.headingGoal = stepTurn(state.heading, 0);
+    this.target = zoomScaled(state.zoom, 1);
+    this.zoomBefore = null;
+    this.reset();
   }
 
   /** Norden wieder oben, sofort — für eine neue Welt. */
