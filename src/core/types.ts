@@ -15,6 +15,7 @@ import type { NetSession } from '../net/NetSession';
 import type { RemoteAvatars } from '../net/RemoteAvatars';
 import type { LivePreview } from '../worlds/shared/livePreview';
 import type { ViewLevel } from './cutaway';
+import type { TopDownViewState } from './TopDownCamera';
 
 /**
  * How a player takes part. The engine detects a sensible default, but worlds
@@ -73,6 +74,16 @@ export interface WorldContext {
    * `camera`.
    */
   readonly viewCamera?: THREE.PerspectiveCamera;
+  /**
+   * **Wie die Kamera von oben steht, und wie sie stehen soll**
+   * (`TopDownCamera.viewState`) — für die Liste der Weltänderungen, die beim
+   * Kopieren mitschreibt, wo man stand und wie man geschaut hat, und es beim
+   * Einfügen auf Wunsch übernimmt. Optional, weil nur die App eine hat.
+   */
+  readonly topDownView?: {
+    get(): TopDownViewState;
+    set(state: TopDownViewState): void;
+  };
   /**
    * **Das Gamepad am Schirm, in diesem Bild** (`FlatControls.padFrame`) —
    * für Zonen, die ihre eigene Bedienung mitbringen (das Kart: RT Gas, LT

@@ -6,6 +6,8 @@ import {
   formatChanges,
   notesIn,
   parseChanges,
+  parseView,
+  pastingView,
   recordElement,
   recordFurniture,
   recordModel,
@@ -314,6 +316,47 @@ describe('worldChanges', () => {
           '[{"element":"sink","x":1,"z":2},{"element":"sink","x":1.5,"z":2},{"element":"sink","x":1,"z":2,"face":"Q"}]',
         ),
       ).toEqual([{ kind: 'element', element: 'sink', x: 1, z: 2, face: 'S' }]);
+    });
+  });
+
+  describe('der Standpunkt (Spieler und Kamera)', () => {
+    const view = {
+      at: { x: 8.404, y: 0, z: -33.1 },
+      yaw: 179.6,
+      world: 'hausbau',
+      camera: { turn: 45.2, zoom: 14.257 },
+    };
+
+    it('steht als eigene Zeile vor dem JSON und zählt nicht als Änderung', () => {
+      setTrackingChanges(true);
+      recordModel(changeKey('m'), 'block-bits/barrel.glb', { x: 1, y: 0, z: 2 }, 0);
+      const text = formatChanges(worldChanges(), view);
+      expect(text).toContain(
+        'Spieler: {"at":[8.4,0,-33.1],"yaw":180,"world":"hausbau","camera":{"turn":45,"zoom":14.26}}',
+      );
+      expect(parseChanges(text)).toEqual(worldChanges());
+      expect(parseView(`Bitte ansehen:\n${text}`)).toEqual({
+        at: { x: 8.4, y: 0, z: -33.1 },
+        yaw: 180,
+        world: 'hausbau',
+        camera: { turn: 45, zoom: 14.26 },
+      });
+    });
+
+    it('geht auch mit leerer Liste — eine Stelle allein ist schon ein Szenario', () => {
+      const text = formatChanges([], { at: { x: 1, y: 0, z: 2 }, yaw: 0 });
+      expect(parseChanges(text)).toEqual([]);
+      expect(parseView(text)).toEqual({ at: { x: 1, y: 0, z: 2 }, yaw: 0 });
+    });
+
+    it('fehlt in alten Listen und in kaputten Zeilen', () => {
+      expect(parseView(formatChanges([]))).toBeNull();
+      expect(parseView('Spieler: {"at":[1,2]}')).toBeNull();
+      expect(parseView('Spieler: kaputt')).toBeNull();
+    });
+
+    it('wird ab Werk nicht mit eingefügt', () => {
+      expect(pastingView()).toBe(false);
     });
   });
 });

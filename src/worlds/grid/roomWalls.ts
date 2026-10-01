@@ -1,9 +1,11 @@
 import {
+  FACING,
   FRONT_ABOVE,
   FRONT_BELOW,
   GHOST_KNEE,
   blocksView,
   facingAxes,
+  slantLocal,
   type GhostBox,
   type GhostCandidate,
   type GhostPoint,
@@ -43,6 +45,14 @@ import {
  *    nichts, was man sehen will. Bei gerader Sicht von Süden sind das alle
  *    Wände, die von Nord nach Süd laufen; schräg gibt es keine.
  *
+ * **Schrägen** (eine Wand unter 45°, `GhostBox.slant`) gehen dieselben drei
+ * Schritte, nur mit ihrer eigenen Richtung: Die Flut hält an einem schrägen
+ * Band an und nicht an der quadratischen Hülle, und ob die Schräge der Kamera
+ * ihre Fläche zeigt und auf ihrer abgewandten Seite Raum liegt, wird quer zu
+ * ihr gefragt. Von Süden gehen so die Ecken unten weg und die oben bleiben;
+ * um 45° gedreht steht eine Schräge gerade vor der Kamera — und die anderen
+ * beiden sind Seitenwände.
+ *
  * Nur **Wände** zählen (`wallLike`): hoch und dünn. Ein Kühlschrank oder ein
  * Block von einem Meter sperrt die Flut, wird aber nie weggenommen.
  *
@@ -71,6 +81,7 @@ const scratch = {
  * nicht.
  */
 export function wallLike(box: GhostBox): boolean {
+  if (box.slant) return box.h >= 1.2 && box.slant.thin <= 0.6;
   return box.h >= 1.2 && Math.min(box.w, box.d) <= 0.6;
 }
 
@@ -133,6 +144,10 @@ export function roomWallsToClear<T extends GhostCandidate>(
     if (top <= figure.y - FRONT_BELOW || bottom >= figure.y + FRONT_ABOVE) continue;
     if (lidLike(box, figure.y)) continue;
     if (wallLike(box)) walls.push(one);
+    if (box.slant) {
+      blockSlant(box, x0, z0, size, blocked);
+      continue;
+    }
     // Jede Zelle, die der Kasten auch nur berührt, ist zu.
     const ax = Math.max(0, Math.floor((box.x - box.w / 2 - x0) / ROOM_CELL));
     const bx = Math.min(size - 1, Math.floor((box.x + box.w / 2 - x0) / ROOM_CELL));
@@ -173,8 +188,44 @@ export function roomWallsToClear<T extends GhostCandidate>(
   };
 
   const out: T[] = [];
+  const toCamera = Math.hypot(camera.x - figure.x, camera.z - figure.z);
   for (const one of walls) {
     const box = one.box;
+    const slant = box.slant;
+    if (slant) {
+      // Zeigt sie der Kamera ihre Fläche? Gefragt wie bei `facingAxes`, nur
+      // quer zur Schräge statt entlang einer Achse.
+      if (toCamera < 1e-6) continue;
+      const { across } = slantLocal(slant, camera.x - figure.x, camera.z - figure.z);
+      const facing = across / toCamera;
+      if (Math.abs(facing) <= FACING) continue;
+      // Abgewandt ist die Seite, auf der die Kamera nicht steht.
+      const away = facing > 0 ? -1 : 1;
+      const near = slant.thin / 2;
+      const far = near + (ROOM_PROBE + 1) * ROOM_CELL;
+      let hit = false;
+      const ax = cellX(box.x - box.w / 2) - ROOM_PROBE - 1;
+      const bx = cellX(box.x + box.w / 2) + ROOM_PROBE + 1;
+      const az = cellZ(box.z - box.d / 2) - ROOM_PROBE - 1;
+      const bz = cellZ(box.z + box.d / 2) + ROOM_PROBE + 1;
+      for (let iz = Math.max(0, az); iz <= Math.min(size - 1, bz) && !hit; iz++) {
+        for (let ix = Math.max(0, ax); ix <= Math.min(size - 1, bx); ix++) {
+          if (!reached[iz * size + ix]) continue;
+          const at = slantLocal(
+            slant,
+            x0 + (ix + 0.5) * ROOM_CELL - box.x,
+            z0 + (iz + 0.5) * ROOM_CELL - box.z,
+          );
+          const off = at.across * away;
+          if (Math.abs(at.along) <= slant.long / 2 && off > near && off <= far) {
+            hit = true;
+            break;
+          }
+        }
+      }
+      if (hit) out.push(one);
+      continue;
+    }
     if (box.w >= box.d) {
       // Quer zur z-Achse: zeigt der Kamera ihre Fläche, wenn die z-Achse zu
       // ihr zeigt. Abgewandt ist die Seite, von der die Kamera weg ist.
@@ -198,4 +249,40 @@ export function roomWallsToClear<T extends GhostCandidate>(
     }
   }
   return out;
+}
+
+/**
+ * **Eine Schräge sperrt ein schräges Band** und nicht ihre Hülle: jede Zelle,
+ * die sie auch nur berührt — die Mitte höchstens eine halbe Zellendiagonale
+ * von ihr weg. So ist das Band für eine Flut in vier Richtungen dicht, und
+ * an den Enden reicht es um dieselbe halbe Diagonale über die Ecke hinaus,
+ * bis in die gerade Wand, an die sie stößt.
+ */
+function blockSlant(
+  box: GhostBox,
+  x0: number,
+  z0: number,
+  size: number,
+  blocked: Uint8Array,
+): void {
+  const slant = box.slant!;
+  const reach = ROOM_CELL * Math.SQRT1_2;
+  const ax = Math.max(0, Math.floor((box.x - box.w / 2 - x0) / ROOM_CELL) - 1);
+  const bx = Math.min(size - 1, Math.floor((box.x + box.w / 2 - x0) / ROOM_CELL) + 1);
+  const az = Math.max(0, Math.floor((box.z - box.d / 2 - z0) / ROOM_CELL) - 1);
+  const bz = Math.min(size - 1, Math.floor((box.z + box.d / 2 - z0) / ROOM_CELL) + 1);
+  for (let iz = az; iz <= bz; iz++) {
+    for (let ix = ax; ix <= bx; ix++) {
+      const at = slantLocal(
+        slant,
+        x0 + (ix + 0.5) * ROOM_CELL - box.x,
+        z0 + (iz + 0.5) * ROOM_CELL - box.z,
+      );
+      if (
+        Math.abs(at.along) <= slant.long / 2 + reach &&
+        Math.abs(at.across) <= slant.thin / 2 + reach
+      )
+        blocked[iz * size + ix] = 1;
+    }
+  }
 }

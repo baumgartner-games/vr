@@ -33,6 +33,10 @@ import {
   formatChanges,
   onWorldChanges,
   parseChanges,
+  parseView,
+  pastingView,
+  setPastingView,
+  type PlayerView,
   forgetChange,
   notesIn,
   recordElement,
@@ -3598,6 +3602,19 @@ export class PortalWorld implements World {
       accent,
       run: () => void this.pasteFromClipboard(),
     };
+    // **Figur und Kamera mit einfügen** — ab Werk aus: Kopiert wird der
+    // Standpunkt immer (`PlayerView`), übernommen nur auf Wunsch.
+    const withView: MenuEntry = {
+      id: 'changes:view',
+      label: 'Spieler & Kamera mit einfügen',
+      icon: 'teleport',
+      accent,
+      checked: pastingView(),
+      run: () => {
+        setPastingView(!pastingView());
+        this.refreshMenuLabels();
+      },
+    };
     const clear: MenuEntry = {
       id: 'changes:clear',
       label: 'Liste leeren',
@@ -3634,6 +3651,7 @@ export class PortalWorld implements World {
         track,
         copy,
         paste,
+        withView,
         clear,
         undo,
         this.noteEntry(() => this.context!, 'changes:note', accent),
@@ -3651,6 +3669,10 @@ export class PortalWorld implements World {
         ? `${count} Änderung(en) in die Zwischenablage`
         : 'Noch nichts aufgezeichnet';
       menu.sub = `${on ? 'Aufzeichnung an' : 'Aufzeichnung aus'} · ${count} Änderung(en)`;
+      withView.checked = pastingView();
+      withView.sub = pastingView()
+        ? 'Einfügen setzt die Figur und dreht die Kamera wie beim Kopieren'
+        : 'Aus — kopiert werden beide trotzdem';
     };
     paint();
     this.menuLabels.push(paint);
@@ -3658,16 +3680,70 @@ export class PortalWorld implements World {
     return menu;
   }
 
+  /**
+   * **Kopieren** — die Liste, und davor der Standpunkt (`PlayerView`): wo die
+   * Figur steht und wie die Kamera von oben gedreht und gezoomt ist. Mit dem
+   * Standpunkt ist auch eine leere Liste etwas wert: Eine Stelle allein ist
+   * schon ein Szenario, das sich nachstellen lässt.
+   */
   private async copyChanges(): Promise<void> {
     const list = worldChanges();
-    if (!list.length) {
+    const view = this.playerView();
+    if (!list.length && !view) {
       this.context?.notify('Noch keine Änderungen aufgezeichnet');
       return;
     }
-    const text = formatChanges(list);
+    const text = formatChanges(list, view ?? undefined);
     console.info('[bgvr] Weltänderungen:\n' + text);
     const copied = await copyText(text);
-    this.context?.notify(copied ? `${list.length} Änderung(en) kopiert` : COPY_FALLBACK);
+    this.context?.notify(
+      copied
+        ? `${list.length} Änderung(en) kopiert${view ? ' · mit Spieler und Kamera' : ''}`
+        : COPY_FALLBACK,
+    );
+  }
+
+  /** Wo die Figur steht und wie die Kamera von oben steht — für `copyChanges`. */
+  private playerView(): PlayerView | null {
+    const ctx = this.context;
+    if (!ctx) return null;
+    ctx.rig.getHeadPosition(_head);
+    _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
+    const camera = ctx.topDown ? ctx.topDownView?.get() : undefined;
+    const world = ctx.net.world;
+    return {
+      at: { x: _head.x, y: ctx.rig.position.y, z: _head.z },
+      yaw: (_euler.y * 180) / Math.PI,
+      ...(world ? { world } : {}),
+      ...(camera ? { camera: { turn: (camera.heading * 180) / Math.PI, zoom: camera.zoom } } : {}),
+    };
+  }
+
+  /**
+   * **Den Standpunkt einer eingefügten Liste übernehmen** — nur mit Häkchen
+   * (`pastingView`) und nur in derselben Welt. Die Kamera nur, wenn von oben
+   * gespielt wird: Aus den Augen gibt es nichts zu drehen.
+   *
+   * @returns ob die Figur versetzt wurde
+   */
+  private applyPlayerView(view: PlayerView | null): boolean {
+    const ctx = this.context;
+    if (!ctx || !view || !pastingView()) return false;
+    const here = ctx.net.world;
+    if (view.world && here && view.world !== here) return false;
+    if (ctx.rig.frozen || this.viewOverride) return false;
+    this.movePlayerTo(
+      ctx,
+      _point.set(view.at.x, view.at.y + LANDING_CLEARANCE, view.at.z),
+      (view.yaw * Math.PI) / 180,
+    );
+    if (view.camera && ctx.topDown) {
+      ctx.topDownView?.set({
+        heading: (view.camera.turn * Math.PI) / 180,
+        zoom: view.camera.zoom,
+      });
+    }
+    return true;
   }
 
   private async pasteFromClipboard(): Promise<void> {
@@ -3677,7 +3753,7 @@ export class PortalWorld implements World {
     } catch {
       text = null;
     }
-    if (text && parseChanges(text)) {
+    if (text && (parseChanges(text) || parseView(text))) {
       this.pasteChanges(text);
       return;
     }
@@ -3700,8 +3776,11 @@ export class PortalWorld implements World {
    */
   private pasteChanges(text: string): void {
     const list = parseChanges(text);
+    const moved = this.applyPlayerView(parseView(text));
     if (!list || !list.length) {
-      this.context?.notify('Keine Weltänderungen im Text gefunden');
+      this.context?.notify(
+        moved ? 'Spieler und Kamera übernommen' : 'Keine Weltänderungen im Text gefunden',
+      );
       return;
     }
     let open: FurnitureChange[] = list.filter(
@@ -3754,7 +3833,8 @@ export class PortalWorld implements World {
     this.context?.notify(
       `Eingefügt: ${done + models.length + notes.length + elements} von ${list.length}` +
         (failed ? ` · ${failed} Möbel nicht gefunden oder kein Platz` : '') +
-        (elsewhere ? ` · ${elsewhere} aus einer anderen Welt` : ''),
+        (elsewhere ? ` · ${elsewhere} aus einer anderen Welt` : '') +
+        (moved ? ' · Spieler und Kamera übernommen' : ''),
     );
   }
 

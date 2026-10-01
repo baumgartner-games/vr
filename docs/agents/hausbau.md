@@ -268,6 +268,16 @@ stockwerken passiert"_
   ändert sich nicht** — es stürzt nicht ein, weil unten eine Wand fehlt. Wird
   oben später abgeräumt und der Raum ist noch offen, geht die Decke beim
   nächsten Umbau der Wände.
+- **Über einer Wand unter 45° liegt die Decke nur halb** (`ceiling.ceilingCuts`,
+  `GridWorld.plateCut`) — gemeldet im Oktober 2026: _„dass die ebenen der
+  boden der ebene darüber bei einem hausbau rechteckig sind, statt wie
+  eigentlich gewünscht halbiert (dreiecke)"_. Die Platte der Kachel verliert
+  das Dreieck jenseits der Schräge (dieselbe Hälfte wie beim Belag,
+  `flooring.halveSlanted`) und deckt ihren Quader wie jede Platte. Ganz bleibt
+  sie, wenn auf beiden Seiten ein Raum liegt, und **oben gilt, was oben
+  steht**: Gehört die Kachel dort zu einem geschlossenen Raum, zählt dessen
+  Teilung; stößt eine Wand an sie oder liegt ein Belag darauf, ist sie ganz.
+  Nur Bild — Gehen und Zellgitter bleiben, wie beim halben Boden des Plans.
 - **Selbst gelegter Boden ist nie Decke**: der Stand einer Treppe im Freien,
   ein Belag Kachel für Kachel. Er geht nie von allein.
 - Die Etagen selbst bleiben, auch wenn keine Kachel mehr darauf liegt.

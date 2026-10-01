@@ -700,6 +700,10 @@ export class App {
       topDown: this.topDown,
       crane: this.avatar.crane,
       viewCamera: this.topDown ? this.topDownCamera.camera : this.camera,
+      topDownView: {
+        get: () => this.topDownCamera.viewState,
+        set: (state) => this.topDownCamera.setViewState(state),
+      },
       pad: this.flat.padFrame,
       elapsed: this.elapsed,
       frame: () => this.frameStats.latest,

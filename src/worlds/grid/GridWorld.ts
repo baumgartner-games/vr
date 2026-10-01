@@ -44,7 +44,14 @@ import {
 } from '../nav/navTile';
 import { blockModel, blockModelSpot, type BlockKind } from './blocks';
 import { changeSlidingDoor } from './slidingDoor';
-import { blocksView, wallsCovering, type GhostCandidate, type GhostPoint } from './wallGhost';
+import {
+  blocksView,
+  turnedBox,
+  wallsCovering,
+  type GhostBox,
+  type GhostCandidate,
+  type GhostPoint,
+} from './wallGhost';
 import { ModelGhosts } from './modelGhost';
 import { roomWallsToClear } from './roomWalls';
 import { aimWallCut, lookOfOcclusion, setWallLook, wallCutTwin, type WallLook } from './wallCut';
@@ -556,6 +563,18 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected halfPlates(): Iterable<PlateTile & { model: string; empty: FloorCorner }> {
     return [];
+  }
+
+  /**
+   * **Eine ganze Platte, die nur halb liegt** — die Decke über einer Wand
+   * unter 45° (Hausbau, `house/ceiling.ceilingCuts`): Die Platte der Kachel
+   * selbst verliert das Dreieck an der Ecke, die zurückkommt, und liegt auf
+   * ihrer gewöhnlichen Höhe. Anders als eine halbe Platte (`halfPlates`)
+   * deckt sie den Quader darunter, der dann wie unter jeder Platte
+   * unsichtbar wird. Voreingestellt liegt jede ganz.
+   */
+  protected plateCut(_tile: PlateTile): FloorCorner | null {
+    return null;
   }
 
   /**
@@ -2426,16 +2445,27 @@ export abstract class GridWorld extends PortalWorld {
     // Sichtbarkeit hat und von oben aufgeschnitten wird (`core/cutaway.ts`).
     const byBundle = new Map<
       string,
-      { file: string; level: number; seats: PlateSeat[]; cut?: FloorCorner }
+      { file: string; level: number; seats: PlateSeat[]; cut?: FloorCorner; covers?: boolean }
     >();
     // Wo eine ganze Platte liegt — darüber dürfen halbe (`halfPlates`).
     const tops = new Map<string, number>();
     for (const spot of floorPlateSpots(this.plateSolids, this.plateChoice)) {
-      const key = `${spot.model}@${spot.level}`;
-      const bundle = byBundle.get(key) ?? { file: spot.model, level: spot.level, seats: [] };
+      const col = Math.floor(spot.x / TILE);
+      const row = Math.floor(spot.z / TILE);
+      // Die Decke über einer Schräge liegt nur halb (`plateCut`) — und trägt
+      // dann auch keine halbe Platte darüber.
+      const cut = this.plateCut({ col, row, level: spot.level });
+      const key = cut ? `${spot.model}@${spot.level}@${cut}` : `${spot.model}@${spot.level}`;
+      const bundle = byBundle.get(key) ?? {
+        file: spot.model,
+        level: spot.level,
+        seats: [],
+        ...(cut ? { cut } : {}),
+      };
+      bundle.covers = true;
       bundle.seats.push({ x: spot.x, y: spot.y, z: spot.z });
       byBundle.set(key, bundle);
-      tops.set(`${Math.floor(spot.x / TILE)},${Math.floor(spot.z / TILE)},${spot.level}`, spot.y);
+      if (!cut) tops.set(`${col},${row},${spot.level}`, spot.y);
     }
     for (const half of this.halfPlates()) {
       const y = tops.get(`${half.col},${half.row},${half.level}`);
@@ -2454,14 +2484,16 @@ export abstract class GridWorld extends PortalWorld {
       });
       byBundle.set(key, bundle);
     }
-    for (const { file, level, seats, cut } of byBundle.values()) {
+    for (const { file, level, seats, cut, covers } of byBundle.values()) {
       // Was ein Bodenstück schon deckt, kommt gar nicht erst ins Bild — der
       // Grundriss wird umgebaut, die Stücke aus dem Regal bleiben liegen.
       const floor = new PlateFloor(group, file, this.visibleSeats(seats), {
         level,
         capacity: seats.length,
         // Eine halbe Platte deckt keinen Quader: Den hält die ganze darunter.
-        ...(cut ? { cut } : { ready: () => this.plateArrived(file) }),
+        // Eine ganze, die nur halb liegt (`plateCut`), deckt ihren.
+        ...(cut ? { cut } : {}),
+        ...(covers ? { ready: () => this.plateArrived(file) } : {}),
       });
       this.platesBuilt.push(floor);
       this.plateSeats.set(floor, seats);
@@ -2738,7 +2770,8 @@ export abstract class GridWorld extends PortalWorld {
       base: mesh.material as THREE.Material,
       kind: solid.kind,
       floor: solid.kind === 'floor',
-      box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
+      // Eine Schräge des Plans ist um 45° gedreht (`gridPlan.slopeSolid`).
+      box: turnedBox(solid.x, solid.y, solid.z, solid.w, solid.h, solid.d, solid.yaw ?? 0),
       on: false,
     };
     if (!blocksView(one)) return;
@@ -2838,17 +2871,15 @@ export abstract class GridWorld extends PortalWorld {
     for (const entry of this.placedModels(this.placedScratch)) {
       entry.object.getWorldPosition(_spot);
       entry.object.getWorldQuaternion(_turn);
-      const { halfX, halfZ } = turnedHalf(entry.halfExtents, yawOf(_turn));
+      // Unter 45° (eine Schräge aus dem Regal) samt ihrer Richtung — sonst
+      // die Grundfläche in der Vierteldrehung, in der sie steht.
+      const yaw = yawOf(_turn);
+      const half = entry.halfExtents;
       const one: ModelCandidate = {
         entry,
-        box: {
-          x: _spot.x,
-          y: _spot.y,
-          z: _spot.z,
-          w: 2 * halfX,
-          h: 2 * entry.halfExtents.y,
-          d: 2 * halfZ,
-        },
+        box: diagonalYaw(yaw)
+          ? turnedBox(_spot.x, _spot.y, _spot.z, 2 * half.x, 2 * half.y, 2 * half.z, yaw)
+          : axisBox(half, yaw),
       };
       if (blocksView(one)) out.push(one);
     }
@@ -3796,4 +3827,15 @@ function modelSkins(root: THREE.Object3D): THREE.Material[] {
     }
   });
   return [...out];
+}
+
+/** Steht ein Modell unter 45° (wie `gridSnap.turnedHalf` es nennt)? */
+function diagonalYaw(yaw: number): boolean {
+  return Math.abs(Math.abs(Math.sin(yaw)) - Math.abs(Math.cos(yaw))) < 0.2;
+}
+
+/** Der Kasten eines Modells in seiner Vierteldrehung, Mitte in `_spot`. */
+function axisBox(half: THREE.Vector3, yaw: number): GhostBox {
+  const { halfX, halfZ } = turnedHalf(half, yaw);
+  return { x: _spot.x, y: _spot.y, z: _spot.z, w: 2 * halfX, h: 2 * half.y, d: 2 * halfZ };
 }

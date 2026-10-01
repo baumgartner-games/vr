@@ -438,6 +438,20 @@ Wände links und rechts), dann brauchen diese das nicht."_
   drehen_ geht seit Ende September 2026 in Achteln) zeigen beide Achsen zur
   Kamera: Von Südosten gehen die Wände im Süden **und** im Osten weg, die im
   Norden und Westen bleiben, Seitenwände gibt es dann keine.
+- **Wände unter 45°** (`GhostBox.slant`, `wallGhost.turnedBox`) — gemeldet
+  im Oktober 2026: _„bitte auch die 45° wände von der kamera aus mit
+  berücksichtigen"_. Eine Schräge kam bis dahin nur als ihre quadratische
+  Hülle an (`gridSnap.turnedHalf`), galt damit nicht als Wand (`wallLike`)
+  und wurde nie durchsichtig — weder von Süden die Ecken vorn noch um 45°
+  gedreht die, die dann gerade vor der Kamera steht. Jetzt trägt der Kasten
+  Richtung, Länge und Dicke der Schräge: Die Flut hält an einem schrägen Band
+  an (`blockSlant`), und ob sie der Kamera ihre Fläche zeigt, wird quer zu ihr
+  gefragt (Anteil über `FACING`, wie bei `facingAxes`), ob dahinter Raum
+  liegt, auf ihrer abgewandten Seite. Von Süden gehen so die Ecken unten mit
+  der Front weg, die oben bleiben; von Südosten geht die Schräge im Südosten
+  weg, die im Südwesten ist Seitenwand. Draußen fragen die Strahlen von
+  `wallsCovering` die Schräge in ihrem eigenen Rahmen. Das gilt für Regalstücke
+  wie für Schrägen des Plans (`gridPlan.slopeSolid`, `PlanSolid.yaw`).
 
 **Das Aussehen** steht in `worlds/grid/wallCut.ts`. _Abgeschnitten_ ist ein
 **fester** Zwilling mit einem Schnitt im Shader (`wallCutTwin`, `injectCut`):

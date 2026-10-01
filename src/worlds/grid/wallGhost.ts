@@ -32,7 +32,13 @@ export interface GhostPoint {
   z: number;
 }
 
-/** Ein achsenparalleler Kasten: Mitte und Kantenlängen, wie ein `PlanSolid`. */
+/**
+ * Ein achsenparalleler Kasten: Mitte und Kantenlängen, wie ein `PlanSolid`.
+ *
+ * Steht darin eine **Schräge** (`slant`), ist der Kasten nur ihre Hülle — die
+ * Wand selbst liegt unter 45° darin, und wer genau fragt (`roomWalls.ts`, die
+ * Strahlen von `wallsCovering`), nimmt die Schräge.
+ */
 export interface GhostBox {
   x: number;
   y: number;
@@ -40,6 +46,58 @@ export interface GhostBox {
   w: number;
   h: number;
   d: number;
+  slant?: GhostSlant;
+}
+
+/**
+ * **Eine gedrehte Wand in ihrer Hülle**: Drehung um die Hochachse wie bei
+ * three.js (die lange Seite zeigt nach `(cos yaw, −sin yaw)`), Länge und
+ * Dicke. Bis Oktober 2026 kam eine Wand unter 45° nur als ihre quadratische
+ * Hülle an, galt damit nicht als Wand und wurde nie durchsichtig — gemeldet:
+ * _„bitte auch die 45° wände von der kamera aus mit berücksichtigen"_.
+ */
+export interface GhostSlant {
+  yaw: number;
+  long: number;
+  thin: number;
+}
+
+/**
+ * **Der Kasten eines gedrehten Quaders** — `w` entlang seiner lokalen x-Achse,
+ * `d` entlang z. Liegt er auf einer Achse, ist das ein gewöhnlicher Kasten
+ * (bei einer Vierteldrehung mit getauschten Seiten); sonst die Hülle samt
+ * Schräge.
+ */
+export function turnedBox(
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  h: number,
+  d: number,
+  yaw: number,
+): GhostBox {
+  const c = Math.abs(Math.cos(yaw));
+  const s = Math.abs(Math.sin(yaw));
+  if (s < 1e-3) return { x, y, z, w, h, d };
+  if (c < 1e-3) return { x, y, z, w: d, h, d: w };
+  const box: GhostBox = { x, y, z, w: w * c + d * s, h, d: w * s + d * c };
+  box.slant = w >= d ? { yaw, long: w, thin: d } : { yaw: yaw + Math.PI / 2, long: d, thin: w };
+  return box;
+}
+
+/**
+ * **Wo ein Punkt in der Schräge liegt**: entlang ihrer langen Seite und quer
+ * dazu, von ihrer Mitte aus. Quer ist positiv zur Seite `(sin yaw, cos yaw)`.
+ */
+export function slantLocal(
+  slant: GhostSlant,
+  dx: number,
+  dz: number,
+): { along: number; across: number } {
+  const c = Math.cos(slant.yaw);
+  const s = Math.sin(slant.yaw);
+  return { along: dx * c - dz * s, across: dx * s + dz * c };
 }
 
 /** Was von einem Quader gebraucht wird, um über ihn zu entscheiden. */
@@ -139,6 +197,26 @@ export function wallsCovering<T extends GhostCandidate>(
 ): T[] {
   return wallsInFront(camera, figure, boxes, knee).filter((one) => {
     const box = one.box;
+    const slant = box.slant;
+    if (slant) {
+      // In die Schräge gedreht, dort ist sie ein gewöhnlicher Kasten.
+      const local = (p: GhostPoint): GhostPoint => {
+        const { along, across } = slantLocal(slant, p.x - box.x, p.z - box.z);
+        return { x: along, y: p.y, z: across };
+      };
+      const wide = {
+        x: 0,
+        y: box.y,
+        z: 0,
+        w: slant.long + 2 * COVER_HALF_WIDTH,
+        h: box.h,
+        d: slant.thin + 2 * COVER_HALF_WIDTH,
+      };
+      const to = local(camera);
+      return COVER_HEIGHTS.some((dy) =>
+        segmentHits(local({ x: figure.x, y: figure.y + dy, z: figure.z }), to, wide),
+      );
+    }
     const wide = {
       ...box,
       w: box.w + 2 * COVER_HALF_WIDTH,
@@ -180,7 +258,7 @@ function segmentHits(from: GhostPoint, to: GhostPoint, box: GhostBox): boolean {
  * Gerade von Süden zeigt nur z zur Kamera; um 45° gedreht zeigen beide Achsen
  * gleich stark (je 0,71), und beide zählen.
  */
-const FACING = Math.sin(Math.PI / 8);
+export const FACING = Math.sin(Math.PI / 8);
 
 /**
  * **Welche Achsen zur Kamera zeigen**, von der Figur aus: je Achse +1 (die
