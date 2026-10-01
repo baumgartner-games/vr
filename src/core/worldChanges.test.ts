@@ -254,7 +254,7 @@ describe('worldChanges', () => {
       expect(worldChanges()).toEqual([]);
     });
 
-    it('survives a reload: saved in the browser, read back under the same key', () => {
+    it('keeps notes and the box across a reload, but starts the list empty', () => {
       const storage = fakeStorage();
       try {
         const key = changeKey('note');
@@ -274,19 +274,30 @@ describe('worldChanges', () => {
             },
           },
         ]);
-        // Und eine Zeile aus der Zeit vor den Welten liest sich auch.
+        // Alles andere fängt beim Start der Seite leer an — das Häkchen bleibt.
         globalThis.localStorage.setItem(
           'vr-weltaenderungen',
           JSON.stringify({
             on: true,
-            list: [['model:alt:1', { model: 'block-bits/barrel.glb', at: [1, 0, 2], yaw: 0 }]],
+            list: [
+              ['model:alt:1', { model: 'block-bits/barrel.glb', at: [1, 0, 2], yaw: 0 }],
+              ['element:alt:2', { element: 'board', x: 4, z: 2, face: 'N' }],
+              ['note:alt:3', { note: 'Vorrat', at: [1, 0, 1], yaw: 0, world: 'test-restaurant' }],
+            ],
           }),
         );
         resetWorldChangesForTest();
         expect(worldChanges()).toEqual([
-          { kind: 'model', path: 'block-bits/barrel.glb', at: { x: 1, y: 0, z: 2 }, yaw: 0 },
+          {
+            kind: 'note',
+            text: 'Vorrat',
+            at: { x: 1, y: 0, z: 1 },
+            yaw: 0,
+            world: 'test-restaurant',
+          },
         ]);
         expect(trackingChanges()).toBe(true);
+        expect(storage.raw()).not.toContain('barrel');
       } finally {
         storage.restore();
       }
