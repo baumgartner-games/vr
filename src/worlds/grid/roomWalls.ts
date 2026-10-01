@@ -29,7 +29,8 @@ import {
  *    zu gehen: eine Flutfüllung auf einem Raster von `ROOM_CELL`, gesperrt
  *    von jedem Kasten der Etage, der jemanden verdecken kann. Türen aus dem
  *    Regal haben einen Kasten und schließen den Raum damit wie eine Wand
- *    (wie in `house/roomTrace.ts`). Läuft die Flut bis an den Rand
+ *    (wie in `house/roomTrace.ts`). Eine Decke über dem Kopf sperrt nicht
+ *    (`lidLike`). Läuft die Flut bis an den Rand
  *    (`ROOM_REACH`), steht die Figur draußen, und es gibt keinen Raum.
  * 2. **Die Bombenlinie** fällt von oben (weg von der Kamera) in den Raum;
  *    was sie zuerst trifft, ist eine **obere Außenwand** und bleibt. Das
@@ -74,6 +75,31 @@ export function wallLike(box: GhostBox): boolean {
 }
 
 /**
+ * **Wie hoch über der Mitte der Figur ein Deckel frühestens anfängt**, in
+ * Metern — die Mitte liegt knapp einen Meter über den Füßen, der Kopf knapp
+ * einen Meter darüber.
+ */
+export const LID_ABOVE = 0.9;
+
+/**
+ * **Ist dieser Kasten ein Deckel?** Eine Decke oder ein Dach über dem Kopf:
+ * flach, in beiden Richtungen breiter als jede Wand, und erst über dem Kopf
+ * der Figur. Er schließt keinen Raum — man geht unter ihm hindurch.
+ *
+ * Gemeldet für _Haunting_ (Oktober 2026): Dort trägt jeder Raum seine Decke
+ * als Quader im Plan (`GridPlan.room(…, { ceiling })`), 2,8 bis 3,1 m hoch,
+ * und das liegt noch in der Etage der Figur (`FRONT_ABOVE`). Die Flut stand
+ * damit schon in der ersten Zelle still, der Raum war leer, und keine Wand
+ * wurde je durchsichtig — anders als im _Hausbau_, wo die Decke ein Boden der
+ * Etage darüber ist. Ein Sturz über der Tür ist dagegen so dünn wie die Wand
+ * und schließt den Raum weiter.
+ */
+export function lidLike(box: GhostBox, figureY: number): boolean {
+  const narrow = Math.min(box.w, box.d);
+  return narrow > 0.6 && box.h < narrow && box.y - box.h / 2 >= figureY + LID_ABOVE;
+}
+
+/**
  * **Die Wände, die weg dürfen** — oder `null`, wenn die Figur in keinem Raum
  * steht (die Flut ist bis an den Rand gelaufen). Dann entscheidet der Aufrufer
  * selbst, was draußen gilt.
@@ -105,6 +131,7 @@ export function roomWallsToClear<T extends GhostCandidate>(
     const top = box.y + box.h / 2;
     const bottom = box.y - box.h / 2;
     if (top <= figure.y - FRONT_BELOW || bottom >= figure.y + FRONT_ABOVE) continue;
+    if (lidLike(box, figure.y)) continue;
     if (wallLike(box)) walls.push(one);
     // Jede Zelle, die der Kasten auch nur berührt, ist zu.
     const ax = Math.max(0, Math.floor((box.x - box.w / 2 - x0) / ROOM_CELL));

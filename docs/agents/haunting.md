@@ -174,8 +174,17 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
     Abstand (`stationLayout.cutFree` → `boxInShape`).
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
   topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und **ganze**
-  Nachbarräume, deren verbindende Tür gerade offen steht (das Blatt der
-  Türautomatik, `HauntingWorld.openDoors`; verriegelt zählt nie). Ein Gang
+  Nachbarräume, deren verbindende Tür gerade offen steht — **dasselbe Blatt,
+  das man auffahren sieht** (`HauntingWorld.leafOpen`: die Automatik
+  `openDoors` und jemand höchstens zwei Felder davor, `approachedDoors`;
+  verriegelt zählt nie). Gewünscht (Oktober 2026): _„wenn der nächste raum
+  sichtbar geschaltet wird (von oben) auch die tür bereits aufgehen, bzw.
+  beide sind aneinander gekoppelt (für den jeweiligen spieler)"_ — vorher
+  fragte die Sicht nur die Automatik, und der Nachbar stand offen da, während
+  das Blatt noch zu war. Jeder Spieler rechnet beides bei sich.
+  Die Wände vorn gehen von oben weg wie in jeder Welt (_Grafik → Wände
+  vorn_, `grid/roomWalls.ts`); die Decke im Plan hielt das bis Oktober 2026
+  auf (`roomWalls.lidLike`, siehe `docs/agents/grafik.md`). Ein Gang
   zählt samt allen Stücken, die über offene Durchgänge (`passage`) daran
   hängen, als ein Raum. Weiter reicht es nicht: Der Raum hinter dem Nachbarn
   bleibt dunkel. Die Einsatzzentrale bleibt aus der Cafeteria sichtbar (Glas).
