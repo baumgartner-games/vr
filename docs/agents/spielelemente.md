@@ -389,6 +389,17 @@ diese dir geben kann."_
   Grundfläche, `shiftMetres` und `blockedCells` samt `blockedBefore`, Zellen
   als `'ix,iz'` ab der Nordwestecke der Grundfläche, nach Süden gedreht.
 
+**_Spieler anzeigen_** (Oktober 2026, `DetailOptions.player`) stellt die
+Spielfigur neben das Ding — gewünscht: _„eine checkbox für Spieler anzeigen,
+dass ich einen Spieler im darin sehen kann"_. Es ist die Figur ab Werk
+(`previewGrid.DETAIL_PLAYER`, das Mannequin aus `FIGURE_DEFAULT`), geholt über
+dieselbe Fabrik wie das Ding, auf `CHEF_HEIGHT` (1,6 m) gestellt, mit den
+Sohlen auf dem Boden des Dings, rechts daneben mit 0,4 m Luft, und im Idle
+statt in der T-Pose (`PageDetail.takePlayer`). Die Kamera geht so weit
+zurück, dass beide ins Bild passen (`frameAll`); beim Zellentippen von oben
+ist sie weg. Der Schalter steht auf jeder Detailseite, auch im Modellregal,
+und bleibt wie Gitterboden und Hülle von Seite zu Seite an.
+
 **Das ist ein Werkzeug zum Einmessen, kein Teil des Spiels**: In der Welt
 gilt, was im Katalog steht. Wer die kopierte Liste bekommt, überträgt sie in
 `elementCatalog.ts`/`natureCatalog.ts` (`ElementPart.at` für die

@@ -12,6 +12,8 @@
  * Browser wirklich braucht.
  */
 
+import { FIGURE_DEFAULT } from '../core/avatarFigures';
+
 /** Ein Rechteck, wie `getBoundingClientRect` es liefert — in Bildpunkten. */
 export interface Rect {
   left: number;
@@ -361,7 +363,19 @@ export interface DetailOptions {
    * (`DetailRequest.onCell`).
    */
   readonly cells?: DetailCells | null;
+  /**
+   * **Die Spielfigur daneben**, zum Größenvergleich — so hoch, wie sie in der
+   * Welt steht (`chefFit.CHEF_HEIGHT`), auf demselben Boden.
+   */
+  readonly player?: boolean;
 }
+
+/**
+ * **Wer neben dem Ding steht**, wenn _Spieler anzeigen_ an ist: die Figur, die
+ * ab Werk jeder Spieler ist (`avatarFigures.FIGURE_DEFAULT`), als Id der
+ * Vorschau — geholt wird sie über dieselbe Fabrik wie das Ding selbst.
+ */
+export const DETAIL_PLAYER = `kaykit:${FIGURE_DEFAULT}`;
 
 /** Die Zellen unter einem Element, wie die Detailseite sie zeichnet. */
 export interface DetailCells {
