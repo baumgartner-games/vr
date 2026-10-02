@@ -245,6 +245,8 @@ export class PageMenu {
   private readonly optsEl: HTMLElement;
   private readonly floorButton: HTMLButtonElement;
   private readonly boundsButton: HTMLButtonElement;
+  /** _Spieler anzeigen_: die Spielfigur daneben, zum Größenvergleich. */
+  private readonly playerButton: HTMLButtonElement;
   /** Der Knopf, der auf einer Detailseite etwas **tut** (`MenuDetail.action`). */
   private readonly deedButton: HTMLButtonElement;
   /** Was er gerade tut — und woran man merkt, dass er neu beschriftet gehört. */
@@ -407,6 +409,12 @@ export class PageMenu {
     this.optsEl = el('div', 'pmenu__opts');
     this.floorButton = switchRow('Gitterboden', 'Ein Raster auf Höhe des tiefsten Punktes');
     this.boundsButton = switchRow('Bounding Box', 'Die Hülle, mit der das Ding anfasst');
+    // Gewünscht: _„eine checkbox für Spieler anzeigen, dass ich einen Spieler
+    // darin sehen kann"_ — wie groß ist das Ding neben dem, der davorsteht?
+    this.playerButton = switchRow(
+      'Spieler anzeigen',
+      'Die Spielfigur daneben, so groß wie in der Welt',
+    );
     // Ohne Wippe: Er ist keine Einstellung, sondern eine Tat, und er steht nur
     // da, wenn die Seite eine anzubieten hat.
     this.deedButton = el('button', 'pmenu__row pmenu__deed');
@@ -453,6 +461,7 @@ export class PageMenu {
     this.optsEl.append(
       this.floorButton,
       this.boundsButton,
+      this.playerButton,
       this.moveButton,
       this.moveEl,
       this.cellsButton,
@@ -551,6 +560,9 @@ export class PageMenu {
     );
     this.boundsButton.addEventListener('click', () =>
       this.stepDetail({ bounds: !this.detailOpts.bounds }),
+    );
+    this.playerButton.addEventListener('click', () =>
+      this.stepDetail({ player: !this.detailOpts.player }),
     );
     this.clipsSelect.addEventListener('change', () =>
       this.stepDetail({ clip: this.clipsSelect.value || null }),
@@ -1291,6 +1303,7 @@ export class PageMenu {
     this.paintTweak();
     setSwitch(this.floorButton, this.detailOpts.floor);
     setSwitch(this.boundsButton, this.detailOpts.bounds);
+    setSwitch(this.playerButton, this.detailOpts.player ?? false);
 
     // Der Tat-Knopf: neu beschriftet wird er nur, wenn wirklich etwas anderes
     // daraufstehen soll — diese Seite wird zweimal die Sekunde gezeichnet.

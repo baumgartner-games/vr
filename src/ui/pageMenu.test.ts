@@ -631,6 +631,23 @@ describe('Der Steckbrief hinter der Kachel', () => {
     expect(layer.asked).toEqual(['kaykit:barrel.glb']);
     menu.dispose();
   });
+
+  it('stellt mit „Spieler anzeigen" die Spielfigur daneben und nimmt sie wieder weg', () => {
+    const layer = new FakeLayer();
+    const menu = shelfMenu(layer);
+    info(menu, 'kaykit:barrel.glb').click();
+    const player = [
+      ...menu.element.querySelectorAll<HTMLButtonElement>('.pmenu__opts .pmenu__row'),
+    ].find((one) => one.textContent?.includes('Spieler anzeigen'))!;
+    expect(player.hidden).toBe(false);
+    expect(player.getAttribute('aria-checked')).toBe('false');
+    player.click();
+    expect(layer.details[0]!.options.at(-1)!.player).toBe(true);
+    expect(player.getAttribute('aria-checked')).toBe('true');
+    player.click();
+    expect(layer.details[0]!.options.at(-1)!.player).toBe(false);
+    menu.dispose();
+  });
 });
 
 /**

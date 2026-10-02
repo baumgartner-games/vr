@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { createLighting } from '../worlds/shared/environment';
 import { wheelPixels, wheelStep } from '../core/wheelZoom';
 import { DETAIL_POSE, detailDrag, detailGutter, detailZoom, type DetailPose } from './detailDrag';
-import { DETAIL_OVERLAY, PREVIEW_RETRY } from './previewGrid';
+import { CHEF_HEIGHT } from '../core/chefFit';
+import { DETAIL_OVERLAY, DETAIL_PLAYER, PREVIEW_RETRY } from './previewGrid';
 import type { DetailCells, DetailFacts, DetailOptions, DetailView } from './previewGrid';
 import type { MenuModelFactory } from './WristMenu';
 
@@ -75,6 +76,8 @@ const CELLS_MARGIN = 2;
 const GHOST_OPACITY = 0.22;
 /** Weiter als so viele Bildpunkte gewischt ist kein Tippen mehr. */
 const TAP_SLOP = 10;
+/** So viel Luft bleibt zwischen dem Ding und der Spielfigur daneben, in Metern. */
+const PLAYER_GAP = 0.4;
 
 /**
  * **Woher die Bewegungen zu einer Vorschau-Id kommen.**
@@ -118,6 +121,17 @@ export class PageDetail implements DetailView {
   private readonly target = new THREE.Vector3();
   /** Wie weit die Kamera bei Zoom eins stünde. */
   private reach = 1;
+  /** Was ins Bild passen soll: das Ding samt Anzeige am Boden — ohne Spielfigur. */
+  private readonly frame0 = new THREE.Box3();
+
+  /**
+   * **Die Spielfigur daneben** (`DetailOptions.player`) — mit eigenem
+   * Mischer, damit sie im Stehen atmet statt in der T-Pose zu warten, und
+   * unabhängig von der Bewegung, die man für das Ding gewählt hat.
+   */
+  private player: THREE.Object3D | null = null;
+  private playerMixer: THREE.AnimationMixer | null = null;
+  private playerAsked = -1;
 
   private clips: THREE.AnimationClip[] = [];
   private names: string[] = [];
@@ -181,6 +195,7 @@ export class PageDetail implements DetailView {
     this.applyShift();
     this.applyCells();
     this.applyGhost();
+    this.applyPlayer();
   }
 
   dispose(): void {
@@ -200,6 +215,7 @@ export class PageDetail implements DetailView {
     this.dropFloor();
     this.dropBounds();
     this.dropCells();
+    this.dropPlayer();
     this.unghost();
     // **Das Modell selbst wird nicht freigegeben**: Geometrie und Textur
     // gehören der Vorlage im Speicher und allen anderen Kopien
@@ -223,7 +239,9 @@ export class PageDetail implements DetailView {
     this.now += dt;
     if (!this.fit()) return;
     if (!this.model) this.take();
+    if (this.options.player && this.model && !this.player) this.takePlayer();
     this.mixer?.update(dt);
+    this.playerMixer?.update(dt);
     if (this.editing()) {
       this.placeTop();
       this.renderer.render(this.scene, this.top);
@@ -275,18 +293,36 @@ export class PageDetail implements DetailView {
     this.box.getCenter(this.target);
     // Ins Bild passen soll alles, auch eine Anzeige am Boden
     // (`DETAIL_OVERLAY`); gemessen wird nur das Ding selbst.
-    _frame.setFromObject(model).union(this.box).getSize(_size);
-    // Der Abstand, aus dem die Hülle gerade ins Bild passt: die halbe Diagonale
-    // geteilt durch den halben Öffnungswinkel. Gerechnet über die Diagonale und
-    // nicht über die Höhe, damit eine breite Wand beim Drehen nicht aus dem
-    // Bild läuft.
-    this.reach = Math.max((_size.length() / 2 / Math.sin((FOV * Math.PI) / 360)) * MARGIN, 0.05);
+    this.frame0.setFromObject(model).union(this.box);
+    this.frameAll();
+    this.frame0.getSize(_size);
     this.mixer = new THREE.AnimationMixer(model);
     this.report(this.clipsOf !== null);
     this.askClips(model, _size.y);
     // Was die Schalter schon sagen wollten, gilt jetzt für ein Modell, das es
     // gibt.
     this.set(this.options);
+  }
+
+  /**
+   * **Wie weit die Kamera zurückgeht** — so weit, dass das Ding samt Anzeige
+   * und, wenn sie dasteht, die Spielfigur ins Bild passen.
+   *
+   * Der Abstand, aus dem eine Kugel um alles gerade ins Bild passt: ihr
+   * Halbmesser geteilt durch den halben Öffnungswinkel. Gerechnet über die
+   * Diagonale und nicht über die Höhe, damit eine breite Wand beim Drehen
+   * nicht aus dem Bild läuft. Die Mitte bleibt die des Dings — die Figur
+   * steht daneben, nicht im Mittelpunkt.
+   */
+  private frameAll(): void {
+    _frame.copy(this.frame0);
+    if (this.player?.visible) _frame.union(_playerBox.setFromObject(this.player));
+    let radius = 0;
+    for (const x of [_frame.min.x, _frame.max.x])
+      for (const y of [_frame.min.y, _frame.max.y])
+        for (const z of [_frame.min.z, _frame.max.z])
+          radius = Math.max(radius, _corner.set(x, y, z).distanceTo(this.target));
+    this.reach = Math.max((radius / Math.sin((FOV * Math.PI) / 360)) * MARGIN, 0.05);
   }
 
   /** Kamera auf ihren Platz: um den Mittelpunkt herum, im Abstand des Zooms. */
@@ -405,6 +441,68 @@ export class PageDetail implements DetailView {
     const helper = new THREE.Box3Helper(this.box, new THREE.Color(BOUNDS_COLOR));
     this.scene.add(helper);
     this.bounds = helper;
+  }
+
+  /**
+   * **Die Spielfigur holen** — über dieselbe Fabrik wie das Ding, und mit
+   * derselben Zusage: `null` heißt „noch nicht", gefragt wird wieder nach
+   * `PREVIEW_RETRY`.
+   *
+   * Gestellt wird sie auf die Höhe, die sie in der Welt hat
+   * (`CHEF_HEIGHT`), mit den Sohlen auf dem Boden des Dings und rechts
+   * daneben, mit einer Handbreit Luft. Das Ding verschoben (`shift`) rückt
+   * sie nicht: Sie steht, wo die Grundfläche steht.
+   */
+  private takePlayer(): void {
+    if (this.now - this.playerAsked < PREVIEW_RETRY) return;
+    this.playerAsked = this.now;
+    const figure = this.factory(DETAIL_PLAYER);
+    if (!figure) return;
+    figure.updateMatrixWorld(true);
+    _playerBox.setFromObject(figure);
+    const tall = _playerBox.max.y - _playerBox.min.y;
+    // Die Quellhöhe, in den Maßen der Datei — an ihr hängt das Skelett
+    // (`askClips`), und gemessen wird vor dem Umstellen.
+    const source = tall / (figure.scale.y || 1);
+    if (tall > 0) figure.scale.multiplyScalar(CHEF_HEIGHT / tall);
+    figure.updateMatrixWorld(true);
+    _playerBox.setFromObject(figure);
+    figure.position.x += this.box.max.x + PLAYER_GAP - _playerBox.min.x;
+    figure.position.y += this.box.min.y - _playerBox.min.y;
+    figure.position.z += this.target.z - (_playerBox.min.z + _playerBox.max.z) / 2;
+    // Erst versteckt: `applyPlayer` zeigt sie und zieht dabei die Kamera nach.
+    figure.visible = false;
+    this.player = figure;
+    this.scene.add(figure);
+    figure.updateMatrixWorld(true);
+    this.playerMixer = new THREE.AnimationMixer(figure);
+    this.applyPlayer();
+    void this.clipsOf?.(DETAIL_PLAYER, source).then((clips) => {
+      if (this.gone || this.player !== figure || !this.playerMixer) return;
+      const idle = clips.find((clip) => /idle/i.test(clip.name));
+      if (idle) this.playerMixer.clipAction(idle).play();
+    });
+  }
+
+  /**
+   * Zeigen oder verstecken — und die Kamera nachziehen. Solange Zellen
+   * getippt werden, steht sie nicht im Bild: Von oben gehört es den Zellen.
+   */
+  private applyPlayer(): void {
+    const player = this.player;
+    if (!player) return;
+    const shown = (this.options.player ?? false) && !this.editing();
+    if (player.visible === shown) return;
+    player.visible = shown;
+    this.frameAll();
+  }
+
+  private dropPlayer(): void {
+    this.playerMixer?.stopAllAction();
+    this.playerMixer = null;
+    // Wie beim Ding selbst: Geometrie und Materialien gehören der Vorlage.
+    this.player?.removeFromParent();
+    this.player = null;
   }
 
   private dropBounds(): void {
@@ -792,5 +890,7 @@ const _upward = new THREE.Vector3(0, 1, 0);
 const _plane = new THREE.Plane();
 const _ray = new THREE.Raycaster();
 const _frame = new THREE.Box3();
+const _playerBox = new THREE.Box3();
+const _corner = new THREE.Vector3();
 const _zero = new THREE.Vector3();
 const _one = new THREE.Vector3(1, 1, 1);
