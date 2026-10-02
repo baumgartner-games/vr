@@ -844,6 +844,25 @@ Drei Stufen, und jede ist nötig:
    sie für die Vorschau hochgeladen hatte. Vorher wuchs beides mit jedem
    Modell, an dem man je vorbeigescrollt war, bis das Telefon aufgab. Die
    Brille (`WristMenu`) räumt weiter nur den Rahmen weg.
+5. **Auch was nur gefragt war, geht wieder** (Oktober 2026, gemeldet: _„da
+   bei modelregal es bei zu langem scrollen abstürzt"_). Entladen wurde bis
+   dahin nur, was schon gezeichnet war. Wer schnell scrollt, fragt aber jede
+   Kachel einmal — die Fabrik stößt das Laden an und sagt „noch nicht" —, und
+   wenn die Datei ankam, war die Kachel längst weg: Die Vorlage blieb für
+   immer liegen. Gemessen (Chromium, _Alles anschauen_, 1560 Kacheln): der
+   JS-Heap flach bei 140 MB, der Prozess aber +1 GB — Geometrie liegt in
+   `ArrayBuffer`s neben dem Heap. Jetzt gibt das Verzeichnis auch diese Ids
+   her (`PreviewLedger.dropAbandoned`), und eine Vorlage, die beim Vergessen
+   noch lädt, verwirft sich beim Ankommen (`kaykitModel.unwanted`); fragt
+   vorher jemand wieder nach ihr, bleibt sie.
+6. **Und die Liste selbst bleibt kurz** (`PageMenu.trim`, `DOM_KEEP` = 180
+   Einträge). Sie wuchs nur — nach 1560 Kacheln 14 500 Knoten, und jedes
+   Neuzeichnen (zweimal die Sekunde) baute sie alle neu. Was zwei Ränder
+   (`GROW_EDGE`) über dem Bild liegt, fällt jetzt in ganzen Zeilen heraus, an
+   seiner Stelle steht ein Rand derselben, gemessenen Höhe; rückt die erste
+   stehende Kachel auf einen Rand heran, kommt der Schwung zurück. Unten wird
+   gekürzt, was weit unter dem Bild hängt. Nachgemessen über 1560 Kacheln:
+   höchstens 240 im DOM, der Prozess flach (+25 MB statt +1 GB).
 
 ### Der Vertrag der Modellfabrik: `null` heißt „noch nicht"
 

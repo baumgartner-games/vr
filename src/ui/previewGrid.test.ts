@@ -176,6 +176,27 @@ describe('PreviewLedger', () => {
     expect(book.due('weg', 0.1)).toBe(true);
   });
 
+  it('gibt auch her, was nur gefragt und nie geliefert wurde', () => {
+    // Schnell gescrollt: gefragt, „noch nicht", und schon wieder weg — die
+    // Datei kommt womöglich noch an und darf dann nicht liegen bleiben.
+    const book = new PreviewLedger();
+    book.turnTo('kaykit:all');
+    book.missed('unterwegs', 0);
+    book.missed('bleibt', 0);
+    book.got('da');
+    expect(book.keepOnly(['bleibt'])).toEqual(['da']);
+    expect(book.dropAbandoned()).toEqual(['unterwegs']);
+    // Einmal hergegeben, dann vergessen.
+    expect(book.dropAbandoned()).toEqual([]);
+    // Und wer zurückkommt, ist nicht mehr verlassen.
+    book.keepOnly([]);
+    book.missed('bleibt', 1);
+    expect(book.dropAbandoned()).toEqual([]);
+    book.missed('neu', 1);
+    expect(book.turnTo('anders')).toEqual([]);
+    expect(book.dropAbandoned().sort()).toEqual(['bleibt', 'neu']);
+  });
+
   it('gibt beim Seitenwechsel alles her — und bei derselben Seite nichts', () => {
     const book = new PreviewLedger();
     book.turnTo('kaykit:forest');

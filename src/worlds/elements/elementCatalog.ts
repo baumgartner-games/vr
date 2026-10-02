@@ -3,6 +3,7 @@ import type { StationKind } from '../test/zones/kitchenCarry';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import { FLOORINGS } from '../house/flooring';
 import { NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
+import { SPACE_ELEMENTS, SPACE_FOLDER } from './spaceCatalog';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -829,6 +830,8 @@ export const ELEMENTS: readonly GameElement[] = [
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
   // **Die Natur** — Bäume, Sträucher, Steine, Gras, Holz (`natureCatalog.ts`).
   ...NATURE_ELEMENTS,
+  // **Der Weltraum** — die Teile aus _Space Base Bits_ (`spaceCatalog.ts`).
+  ...SPACE_ELEMENTS,
 ];
 
 /**
@@ -1150,6 +1153,9 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   // **Natur** — gewünscht: _„beim Katalog möchte ich nun gerne Natur als
   // weiteren Punkt haben"_ (`natureCatalog.ts`).
   NATURE_FOLDER,
+  // **Weltraum** — gewünscht: _„beim Katalog eine weiteren Ordner anlegen:
+  // Weltraum und darin die Space base Teile einbauen"_ (`spaceCatalog.ts`).
+  SPACE_FOLDER,
 ];
 
 /**

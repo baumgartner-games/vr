@@ -26,7 +26,9 @@ des Elements in ganzen Kacheln.
 
 - `src/kaykitEditor/editorModel.ts` — die Rechnung ohne three.js, geprüft in
   `editorModel.test.ts`: die Liste der Stationselemente (dieselben Paare wie
-  `stationProps.FIXTURE_MODELS`, dazu Spind, Frachtschrank, Konsole; der Test
+  `stationProps.FIXTURE_MODELS` — die vier aus _Space Base Bits_ zeichnet das
+  Spiel als Katalog-Element, mit derselben Datei —, dazu Spind, Frachtschrank,
+  Konsole; der Test
   hält beide Listen gleich), Einstellung je Element (`scale`, `offsetX`,
   `offsetZ`, `yaw`), belegte Zellen, Protokoll und Ausgabe.
 - `src/kaykitEditor/main.ts` — das Bild: Draufsicht (orthografisch, Norden

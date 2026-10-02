@@ -150,6 +150,13 @@ const ready = new Map<string, THREE.Object3D>();
 const clips = new Map<string, THREE.AnimationClip[]>();
 
 /**
+ * **Vergessen, noch bevor sie da sind** — Adressen, deren Vorlage gerade lädt,
+ * während das Menü sie schon nicht mehr braucht (`forgetKaykitModel`). Kommt
+ * die Datei an, bekommt sie, wer auf sie wartet; liegen bleibt sie nicht.
+ */
+const unwanted = new Set<string>();
+
+/**
  * **Ein Modell aus dem Regal**, fertig skaliert — oder `null`, wenn die Datei
  * nicht ankam.
  *
@@ -229,7 +236,11 @@ export async function kaykitClips(
 
 function template(path: string): Promise<THREE.Object3D | null> {
   const known = templates.get(path);
-  if (known) return known;
+  if (known) {
+    // Wieder gefragt, während sie noch lädt: Dann soll sie doch bleiben.
+    unwanted.delete(path);
+    return known;
+  }
   // Leerzeichen und Klammern in Dateinamen sind in dieser Sammlung normal;
   // die Schrägstriche sind dagegen Teil der Adresse und bleiben stehen.
   const url = KAYKIT_BASE + path.split('/').map(encodeURIComponent).join('/');
@@ -247,11 +258,18 @@ function template(path: string): Promise<THREE.Object3D | null> {
     .loadAsync(url)
     .then((gltf) => {
       tuneTextures(gltf.scene);
+      if (unwanted.delete(path)) {
+        // Unterwegs vergessen: Wer schon wartet, bekommt sie trotzdem — die
+        // Karten behalten sie aber nicht.
+        if (templates.get(path) === pending) templates.delete(path);
+        return gltf.scene as THREE.Object3D;
+      }
       ready.set(path, gltf.scene);
       clips.set(path, gltf.animations);
       return gltf.scene as THREE.Object3D;
     })
     .catch((error: unknown) => {
+      unwanted.delete(path);
       console.warn(`Modell aus dem Regal nicht geladen (${url}).`, error);
       return null;
     });
@@ -266,11 +284,17 @@ function template(path: string): Promise<THREE.Object3D | null> {
  * Nur der Eintrag geht: Kopien, die schon irgendwo stehen, behalten Geometrie
  * und Textur, denn sie zeigen darauf und nicht auf diese Karte. Wer die Datei
  * wieder will, bekommt sie neu geladen, aus dem Zwischenspeicher des Service
- * Workers. Eine Vorlage, die gerade erst lädt, bleibt stehen — sonst holte die
- * nächste Frage sie ein zweites Mal.
+ * Workers. Eine Vorlage, die gerade erst lädt, wird beim Ankommen verworfen
+ * (`unwanted`) — fragt vorher jemand wieder nach ihr, bleibt sie doch.
  */
 export function forgetKaykitModel(path: string): void {
-  if (!ready.has(path)) return;
+  if (!ready.has(path)) {
+    // **Noch unterwegs**: Früher blieb sie hier stehen — und jede Datei, an
+    // deren Kachel man schneller vorbeigescrollt war, als sie lud, blieb für
+    // immer im Speicher. Jetzt verwirft sie sich beim Ankommen selbst.
+    if (templates.has(path)) unwanted.add(path);
+    return;
+  }
   ready.delete(path);
   templates.delete(path);
   clips.delete(path);

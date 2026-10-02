@@ -47,7 +47,9 @@ export interface EditorElement {
 
 /**
  * **Die Einrichtung der Raumstation** — dieselben Paare aus Kennzeichen und
- * Modell wie `world3d/stationProps.FIXTURE_MODELS`. Abgeschrieben und nicht
+ * Modell wie `world3d/stationProps.FIXTURE_MODELS` (die vier aus _Space Base
+ * Bits_ zeichnet die Station als Element des Katalogs, `FIXTURE_ELEMENTS`;
+ * die Datei ist dieselbe). Abgeschrieben und nicht
  * importiert, weil jene Datei three.js mitbringt; `editorModel.test.ts` hält
  * beide Listen gleich.
  */

@@ -296,6 +296,54 @@ Holz aus _Resource Bits_ und _Mystery Monthly 4_. Was fehlt und warum:
 - Kiesel unter 15 cm wären auf einer Kachel nur ein Punkt.
 - Der Weihnachtsbaum hat keinen Stamm, sondern eine Matte mit Geschenken.
 
+### Weltraum: alle Teile aus _Space Base Bits_
+
+Gewünscht (Oktober 2026): _„beim Katalog eine weiteren Ordner anlegen:
+Weltraum und darin die Space base Teile einbauen, prüfe auch für jeden eben die
+Größe wie viel Platz die verbrauchen werden."_ Die Elemente stehen in
+`elements/spaceCatalog.ts`, im Katalog als vierter Bereich **Weltraum**
+(`SPACE_FOLDER`) mit den Ordnern Module, Versorgung, Fracht, Fahrzeuge, Tunnel,
+Gelände und Alles — alle **69** Dateien des Pakets, jede genau einmal, Ids
+`space-…`.
+
+**Ein Maßstab für alles: 2 m je Einheit der Quelle** (`SPACE_SCALE` = 4 auf das
+Regal mit 0,5). Das Paket ist ein Aufbauspiel im Kleinen — bei 0,5 wäre ein
+Basismodul 50 cm hoch und eine Frachtkiste 25 cm. Bei 2 m ist die Frachtkiste
+eine Kachel, ein Modul so hoch wie die Figur und das Landungsschiff 6 m lang;
+und weil alle Teile denselben Faktor haben, passen sie aufeinander wie im Paket
+(Dachmodule auf Module, Tunnel dazwischen).
+
+**Die Grundfläche ist gemessen**, nicht geschätzt: die Hülle jeder Datei aus
+ihren Knoten, mal 2, je Seite auf ganze Kacheln aufgerundet — gut 10 cm
+Überstand passen noch auf die kleinere Zahl (Kiste 1,04 m → 1 Kachel,
+Wassertank 4,10 m → 4). Die Maße stehen als Kommentar hinter jeder Zeile, und
+`spaceCatalog.test.ts` misst die Dateien bei jedem Lauf nach. Ein Auszug:
+
+| Teil | Maße (B × H × T) | Kacheln |
+| ---- | ---------------- | ------- |
+| Frachtkiste, Behälter | 1,0 × 1,0 (0,4) × 1,0 m | 1 × 1 |
+| Frachtstapel | 2,0 × 2,0 × 2,0 m | 2 × 2 |
+| Rover | 1,0 × 1,1 × 1,8 m | 1 × 2 |
+| Hydroponik, klein | 2,8 × 1,9 × 2,8 m | 3 × 3 |
+| Wassertank | 4,0 × 2,1 × 4,1 m | 4 × 4 |
+| Basismodul | 4,0–4,9 × 2,0 × 4,3–4,8 m | 4–5 × 5 |
+| Gelände, Hang | 4,0 × 2,0–4,0 × 4,0 m | 4 × 4 |
+| Landungsschiff | 6,0 × 2,6 × 4,6 m | 6 × 5 |
+| Tunnel schräg, lang | 5,9 × 1,2 × 5,9 m | 6 × 6 |
+
+Alles sperrt seine ganze Grundfläche und hat keinen Zweck (`kind: null`). Der
+Test der Füße (`elementFeet.test.ts`) stellt deshalb jedes Element auf einen
+Boden von 17 × 17 Kacheln — auf den alten 9 × 9 hatte das Landungsschiff
+keinen Rand mehr.
+
+**Haunting nimmt daraus**, was es vorher roh aus dem Paket nahm
+(`haunting/world3d/stationProps.FIXTURE_ELEMENTS`): Wassertank
+(Dekontamination), Behälter C (Reaktor), Frachtstapel A (Frachtcontainer),
+Hydroponik klein (Hydroponikbeet). Gezeichnet wird das Element
+(`elementView.elementModel`), eingepasst in die Stellfläche des Raumplans
+(`FIXTURE_CATALOG`) — die Station hängt an diesen Maßen, nicht an den Kacheln
+des Katalogs.
+
 ## Hinstellen
 
 **Eine Stelle (`ElementSpot`, `elementPlace.ts`)** ist, was ein Plan über ein
@@ -478,6 +526,9 @@ Möbelkatalog gibt **Spielelemente** her.
   Steine, Gras & Blumen, Holz und Alles (`NATURE_FOLDER`, siehe
   [Natur](#natur-bäume-sträucher-steine-gras-holz)). Unter einem Baum sperrt
   nur der Stamm.
+- **Weltraum** ist seit Oktober 2026 der vierte: Module, Versorgung, Fracht,
+  Fahrzeuge, Tunnel, Gelände und Alles (`SPACE_FOLDER`, siehe
+  [Weltraum](#weltraum-alle-teile-aus-space-base-bits)).
 - **Erst der Bereich, dann die Art** (Ende September 2026, gewünscht:
   _„Katalog Ordner besser gruppieren (Haus, Restaurant, etc.) … Ggf wie bei
   Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** und
@@ -955,6 +1006,7 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | Datei                                 | Was darin steht                                                                                                                                                                                                                        |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`, `FURNITURE_CATALOGUE`/`FURNITURE_FOLDERS`. Kein three.js, kein Laden                                                                 |
+| `worlds/elements/spaceCatalog.ts`     | **Rein**: der Ordner _Weltraum_ — `SPACE_ELEMENTS`, `SPACE_CATALOGUE`, `SPACE_FOLDER`, `SPACE_SCALE` (2 m je Einheit der Quelle); die Kacheln gemessen, `spaceCatalog.test.ts` misst nach |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |
 | `worlds/elements/elementFacts.ts`     | **Rein**: der Steckbrief hinter dem ⓘ im Möbelkatalog — `elementFacts`, `footprintRows` (die Belegung aus `■`), `partPlace` (wo ein Teil sitzt)                                                                                        |

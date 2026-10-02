@@ -109,6 +109,19 @@ const PAGE_WINDOW = 60;
 const GROW_EDGE = 600;
 
 /**
+ * **Wie viele Einträge höchstens im DOM stehen**, bevor oben und unten wieder
+ * abgebaut wird — drei Schwünge.
+ *
+ * Gemeldet: _„da bei modelregal es bei zu langem scrollen abstürzt"_. Die
+ * Liste wuchs nur: Nach 1560 Kacheln standen 14 500 Knoten im DOM, und jedes
+ * Neuzeichnen (zweimal die Sekunde, die Bildraten-Zeile) baute sie alle neu
+ * und verglich sie. Jetzt fällt, was weit über dem Bild liegt, heraus, und an
+ * seiner Stelle steht ein Rand derselben Höhe (`trim`); scrollt man zurück,
+ * kommt es wieder.
+ */
+const DOM_KEEP = 3 * PAGE_WINDOW;
+
+/**
  * **Wie lange eine Bestätigung unter dem Steckbrief stehenbleibt**, in
  * Millisekunden — dieselben vier Sekunden wie im Netzpanel.
  */
@@ -215,8 +228,17 @@ export class PageMenu {
    * einem anderen Suchbegriff ist eine andere Liste und fängt oben an.
    */
   private renderedPage = '';
-  /** Wie viele Einträge der offenen Seite gerade im DOM stehen (`PAGE_WINDOW`). */
+  /** Bis zu welchem Eintrag der offenen Seite die Liste reicht (`PAGE_WINDOW`). */
   private window = PAGE_WINDOW;
+  /**
+   * **Wie viele Einträge oben schon wieder abgebaut sind** (`DOM_KEEP`) —
+   * immer ganze Zeilen, und für jeden Schwung die gemessene Höhe, die an
+   * seiner Stelle als Rand stehen bleibt.
+   */
+  private skip = 0;
+  private skipped: { count: number; height: number }[] = [];
+  /** Bei welcher Spaltenzahl abgebaut wurde — eine andere verschiebt die Zeilen. */
+  private skipCols = 0;
   /** Was im Suchfeld steht — leer heißt „nicht gesucht". */
   private query = '';
   /** Die Treffer dazu, einmal gerechnet und nicht bei jedem Neuzeichnen. */
@@ -711,7 +733,7 @@ export class PageMenu {
     this.element.hidden = !next;
     if (!next) this.showAside(false);
     if (next) {
-      this.window = PAGE_WINDOW;
+      this.resetWindow();
       this.render();
       this.sheet.focus({ preventScroll: true });
     } else {
@@ -980,7 +1002,7 @@ export class PageMenu {
   private clearSearch(): void {
     this.query = '';
     this.results = null;
-    this.window = PAGE_WINDOW;
+    this.resetWindow();
     if (this.searchEl.value !== '') this.searchEl.value = '';
   }
 
@@ -1051,14 +1073,25 @@ export class PageMenu {
     if (this.tabs) this.headEl.hidden = this.stack.length <= this.floor;
     this.colsValue.textContent = String(columns);
     const source = this.source;
-    const shown = source.slice(0, this.window);
-    this.footEl.textContent = this.footLine(page, source.length, shown.length);
-    const ready = this.hasModel;
-    const fresh = shown.map((entry, index) =>
-      page.grid ? tile(entry, index, ready) : row(entry, index, page.take, ready),
-    );
-    const standing = [...this.list.children] as HTMLElement[];
     const key = this.pageKey;
+    // Eine andere Seite oder andere Spalten: Was oben abgebaut war, passt
+    // nicht mehr — die Liste fängt wieder ganz an.
+    if (this.skip > 0 && (this.renderedPage !== key || this.skipCols !== this.rowUnit())) {
+      this.resetWindow(this.window);
+    }
+    const from = this.skip;
+    const shown = source.slice(from, this.window);
+    this.footEl.textContent = this.footLine(
+      page,
+      source.length,
+      Math.min(this.window, source.length),
+    );
+    const ready = this.hasModel;
+    const fresh = shown.map((entry, at) =>
+      page.grid ? tile(entry, from + at, ready) : row(entry, from + at, page.take, ready),
+    );
+    this.list.style.paddingTop = from > 0 ? `calc(10px + ${this.skippedHeight()}px)` : '';
+    const standing = [...this.list.children] as HTMLElement[];
     const sameRows =
       this.renderedPage === key &&
       standing.length === fresh.length &&
@@ -1472,15 +1505,81 @@ export class PageMenu {
     }
   }
 
-  /** Beim Scrollen: Kommt das Ende in Sicht, wird nachgelegt. */
+  /** Beim Scrollen: Kommt das Ende in Sicht, wird nachgelegt — und weit Entferntes abgebaut. */
   private readonly onScroll = (): void => {
     if (!this.open) return;
     const rest = this.stage.scrollHeight - this.stage.scrollTop - this.stage.clientHeight;
-    if (rest > GROW_EDGE) return;
-    if (this.window >= this.source.length) return;
-    this.window += PAGE_WINDOW;
-    this.render();
+    if (rest <= GROW_EDGE && this.window < this.source.length) {
+      this.window += PAGE_WINDOW;
+      this.render();
+      return;
+    }
+    if (this.trim()) this.render();
   };
+
+  /** Die Liste fängt wieder beim ersten Eintrag an. */
+  private resetWindow(window = PAGE_WINDOW): void {
+    this.window = window;
+    this.skip = 0;
+    this.skipped = [];
+    this.list.style.paddingTop = '';
+  }
+
+  /** Wie viele Einträge eine Zeile der Liste hat — so wird abgebaut. */
+  private rowUnit(): number {
+    const page = this.page;
+    if (!page.grid) return 1;
+    return page.full ? this.columns() : (page.cols ?? 3);
+  }
+
+  private skippedHeight(): number {
+    return this.skipped.reduce((sum, chunk) => sum + chunk.height, 0);
+  }
+
+  /**
+   * **Abbauen, was weit weg ist, und zurückholen, was wieder nahe kommt**
+   * (`DOM_KEEP`). Gemessen wird an den Kacheln selbst, relativ zum Kasten —
+   * in jsdom ist jedes Rechteck null, und dort passiert deshalb nichts.
+   *
+   * Oben fällt ein ganzer Schwung (ganze Zeilen) erst, wenn seine Unterkante
+   * zwei Ränder über dem Bild liegt, und er kommt zurück, sobald die erste
+   * stehende Kachel näher als einen Rand heranrückt — dazwischen liegt eine
+   * Strecke, auf der nichts hin- und herspringt. Unten wird nur gekürzt, was
+   * weit unter dem Bild hängt; nachgelegt wird dort wie immer (`onScroll`).
+   * Sagt, ob neu gezeichnet werden muss.
+   */
+  private trim(): boolean {
+    const nodes = this.list.children;
+    if (nodes.length === 0) return false;
+    const view = this.stage.getBoundingClientRect();
+    const top = (node: Element): number => node.getBoundingClientRect().top - view.top;
+    const first = top(nodes[0]!);
+    // Zurückholen: Die erste stehende Kachel rückt ins Bild.
+    if (this.skip > 0 && first > -GROW_EDGE) {
+      const chunk = this.skipped.pop()!;
+      this.skip -= chunk.count;
+      if (this.window - this.skip > DOM_KEEP)
+        this.window = Math.max(this.skip + DOM_KEEP, this.window - PAGE_WINDOW);
+      return true;
+    }
+    if (this.window - this.skip <= DOM_KEEP) return false;
+    const columns = this.rowUnit();
+    const count = columns * Math.ceil(PAGE_WINDOW / columns);
+    const boundary = nodes[count];
+    if (boundary && top(boundary) < -2 * GROW_EDGE) {
+      this.skipped.push({ count, height: top(boundary) - first });
+      this.skip += count;
+      this.skipCols = columns;
+      return true;
+    }
+    // Unten: Ein Schwung, der weit unter dem Bild hängt, darf gehen.
+    const tail = nodes[nodes.length - PAGE_WINDOW];
+    if (tail && top(tail) > view.height + 2 * GROW_EDGE) {
+      this.window -= PAGE_WINDOW;
+      return true;
+    }
+    return false;
+  }
 
   /** Ein anderes Fenster heißt andere Spalten — solange niemand sie gewählt hat. */
   private readonly onResize = (): void => {
@@ -1494,7 +1593,7 @@ export class PageMenu {
     this.query = query;
     const find = this.page.find;
     this.results = query && find ? find(query) : null;
-    this.window = PAGE_WINDOW;
+    this.resetWindow();
     this.render();
   }
 

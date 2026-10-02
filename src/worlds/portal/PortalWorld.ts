@@ -13689,7 +13689,9 @@ export class PortalWorld implements World {
     if (path !== null) forgetKaykitModel(path);
     else if (id.startsWith(ELEMENT_PREVIEW)) {
       const element = id.slice(ELEMENT_PREVIEW.length);
-      if (this.elementPreviews.get(element)) this.elementPreviews.delete(element);
+      // Auch eine, die noch gebaut wird (`null`): Sie trägt sich beim
+      // Ankommen nur ein, wenn sie dann noch gefragt ist (`elementPreview`).
+      this.elementPreviews.delete(element);
     }
   }
 
@@ -13766,8 +13768,13 @@ export class PortalWorld implements World {
       this.elementPreviews.set(id, null);
       this.elementDishes ??= new KaykitDishView(loadItemModel);
       const dishes = this.elementDishes;
-      void elementModel(id, kaykitModel, (item, on) => dishes.ready(dish(item, on))).then((model) =>
-        this.elementPreviews.set(id, model),
+      void elementModel(id, kaykitModel, (item, on) => dishes.ready(dish(item, on))).then(
+        (model) => {
+          // Inzwischen aus dem Bild gescrollt und vergessen (`forgetMenuModel`):
+          // dann nicht mehr einlagern.
+          if (this.elementPreviews.has(id) && this.elementPreviews.get(id) === null)
+            this.elementPreviews.set(id, model);
+        },
       );
       return null;
     }

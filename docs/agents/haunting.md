@@ -461,7 +461,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Gewünscht: _„Bitte nutze keine eigenen Elemente/Möbel in Haunting außer die
     aus dem KayKit-Katalog. Z. B. für den Spind kannst du Locker nutzen."_ Jedes
     Kennzeichen hat ein Modell (`FIXTURE_MODELS`), eingepasst in seine
-    Stellfläche (`fitProp`); Spind und Frachtschrank sind `Locker` bzw.
+    Stellfläche (`fitProp`). Die vier aus _Space Base Bits_ (Dekontamination,
+    Reaktor, Frachtcontainer, Hydroponik) sind seit Oktober 2026 **Elemente
+    des Katalogs** (`FIXTURE_ELEMENTS`, Ordner _Weltraum_,
+    `elements/spaceCatalog.ts`) und werden als solche gezeichnet
+    (`fixtureSource`, `elementView.elementModel`); Spind und Frachtschrank sind `Locker` bzw.
     `Locker_Decorated`, die Modelltür hängt am fahrenden Blatt
     (`dressCabinet`); Konsolen stehen auf einem Schreibtisch, die Zentrale hat
     Tisch und Hocker aus dem Regal (die Hocker in der Farbe ihres Geräts). Das

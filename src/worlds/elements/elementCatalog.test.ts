@@ -31,6 +31,7 @@ import {
   hasElement,
 } from './elementCatalog';
 import { NATURE_CATALOGUE } from './natureCatalog';
+import { SPACE_CATALOGUE } from './spaceCatalog';
 
 /** Der Index des Regals — `null`, wenn die gekauften Pakete fehlen. */
 function shelf(): Set<string> | null {
@@ -232,6 +233,7 @@ describe('der Möbelkatalog im Menü', () => {
       'Haus',
       'Restaurant',
       'Natur',
+      'Weltraum',
     ]);
     expect(FURNITURE_FOLDERS[0]).toBe(HOUSE_FOLDER);
     expect(HOUSE_FOLDER.folders).toBeUndefined();
@@ -259,7 +261,7 @@ describe('der Möbelkatalog im Menü', () => {
       expect(folder.elements.length + (folder.models?.length ?? 0) + inner).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
       for (const id of folder.elements)
-        expect([...FURNITURE_CATALOGUE, ...NATURE_CATALOGUE]).toContain(id);
+        expect([...FURNITURE_CATALOGUE, ...NATURE_CATALOGUE, ...SPACE_CATALOGUE]).toContain(id);
     }
   });
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dressProps, FIXTURE_MODELS } from './world3d/stationProps';
+import { dressProps, fixtureSource } from './world3d/stationProps';
 import { FIXTURE_CATALOG } from './fixtureDimensions';
 import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { turnWithView } from '../../ui/billboard';
@@ -407,7 +407,7 @@ function addRoomFixtures(
     return [
       {
         holder,
-        path: FIXTURE_MODELS[placement.markId],
+        path: fixtureSource(placement.markId),
         size: FIXTURE_CATALOG[placement.markId],
       },
     ];

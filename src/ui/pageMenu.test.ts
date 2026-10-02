@@ -1094,6 +1094,91 @@ describe('Von vorne durch den Katalog', () => {
 });
 
 /**
+ * **Abbauen, was weit weg ist** (`PageMenu.trim`). Gemeldet: _„da bei
+ * modelregal es bei zu langem scrollen abstürzt"_ — die Liste wuchs nur.
+ *
+ * jsdom misst nichts, also wird hier ein Raster nachgestellt: jede Zeile 100
+ * Punkte hoch, der Kasten 800, und jede Kachel liegt dort, wo ihr Index sie
+ * hinlegt — samt dem Rand, der oben für die abgebauten steht.
+ */
+describe('Das Fenster der Liste beim langen Scrollen', () => {
+  let host: HTMLElement;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.append(host);
+    window.localStorage.clear();
+  });
+
+  afterEach(() => host.remove());
+
+  function shelf(count: number): MenuEntry[] {
+    const files = Array.from({ length: count }, (_, i) => ({
+      id: `kaykit:m_${i}.glb`,
+      label: `M ${i}`,
+      run: () => {},
+    }));
+    return [{ id: 'assets', label: 'Regal', grid: true, full: true, take: true, children: files }];
+  }
+
+  it('hält höchstens ein paar Schwünge im DOM — und holt sie beim Zurückscrollen wieder', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(shelf(1200));
+    menu.openSubmenu('assets');
+    const stage = menu.element.querySelector<HTMLElement>('.pmenu__stage')!;
+    const list = menu.element.querySelector<HTMLElement>('.pmenu__list')!;
+    const cols = (): number => Number(list.style.getPropertyValue('--pmenu-cols'));
+    const ROW = 100;
+    const indices = (): number[] =>
+      [...list.querySelectorAll<HTMLElement>('[data-index]')].map((n) =>
+        Number(n.dataset['index']),
+      );
+    Object.defineProperty(stage, 'clientHeight', { configurable: true, get: () => 800 });
+    Object.defineProperty(stage, 'scrollHeight', {
+      configurable: true,
+      get: () => (Math.floor(Math.max(...indices()) / cols()) + 1) * ROW,
+    });
+    const rect = (top: number): DOMRect =>
+      ({ top, bottom: top + ROW, left: 0, right: 100, width: 100, height: ROW }) as DOMRect;
+    const measured = jest
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element): DOMRect {
+        if (this === stage) return { ...rect(0), height: 800, bottom: 800 } as DOMRect;
+        const index = (this as HTMLElement).dataset?.['index'];
+        // Was keine Kachel ist, misst wie sonst in jsdom: nichts.
+        if (index === undefined) return { ...rect(0), height: 0, bottom: 0 } as DOMRect;
+        return rect(Math.floor(Number(index) / cols()) * ROW - stage.scrollTop);
+      });
+    try {
+      const go = (to: number): void => {
+        stage.scrollTop = to;
+        stage.dispatchEvent(new Event('scroll'));
+      };
+      // Bis ganz nach unten, in Schritten wie ein Daumen.
+      let most = 0;
+      for (let y = 0; y <= (1200 / cols()) * ROW; y += 300) {
+        go(y);
+        most = Math.max(most, indices().length);
+      }
+      expect(indices()).toContain(1199);
+      expect(indices()[0]).toBeGreaterThan(0);
+      expect(most).toBeLessThanOrEqual(240);
+      expect(list.style.paddingTop).not.toBe('');
+      // Und zurück an den Anfang: Die erste Kachel ist wieder da, der Rand weg.
+      for (let y = stage.scrollTop; y >= 0; y -= 300) go(y);
+      go(0);
+      go(0);
+      expect(indices()[0]).toBe(0);
+      expect(list.style.paddingTop).toBe('');
+      expect(indices().length).toBeLessThanOrEqual(240);
+    } finally {
+      measured.mockRestore();
+      menu.dispose();
+    }
+  });
+});
+
+/**
  * **Die Blätterstellung überlebt das Zumachen** — und das hängt an einer
  * Reihenfolge, die man nur im Browser sieht.
  *

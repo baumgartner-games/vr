@@ -20,10 +20,14 @@ import { FACES, onCells, spotCells, spotElement, type ElementSpot } from './elem
  * dem Element und nicht einer Welt.
  */
 
-/** Wo das Element steht: mitten auf einem Boden von 9 × 9 Kacheln. */
-const AT = { x: 4, z: 4 };
+/**
+ * Wo das Element steht: mitten auf einem Boden von 17 × 17 Kacheln — so groß,
+ * dass auch das Landungsschiff des Weltraums (6 × 5 Kacheln) in jeder
+ * Drehung rundum Boden hat.
+ */
+const AT = { x: 5, z: 5 };
 const plan = new GridPlan([0]);
-plan.floor({ x: 0, z: 0, w: 9, d: 9 });
+plan.floor({ x: 0, z: 0, w: 17, d: 17 });
 
 const grids = new Map<string, CellGrid>();
 

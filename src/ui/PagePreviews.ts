@@ -187,6 +187,7 @@ export class PagePreviews implements PagePreviewLayer {
    */
   observe(page: string, boxes: HTMLElement[]): void {
     for (const id of this.ledger.turnTo(page)) this.release(id);
+    for (const id of this.ledger.dropAbandoned()) this.forget?.(id);
 
     this.boxes.clear();
     for (const box of boxes) {
@@ -296,6 +297,7 @@ export class PagePreviews implements PagePreviewLayer {
     // Eine leere Seitenkennung: Beim nächsten Aufschlagen wird ohnehin alles
     // neu gefragt, und ein Verzeichnis ohne Modelle darf nichts mehr halten.
     this.ledger.turnTo('');
+    for (const id of this.ledger.dropAbandoned()) this.forget?.(id);
     this.view.dispose();
     this.view = null;
     this.sheet = null;
@@ -357,6 +359,9 @@ export class PagePreviews implements PagePreviewLayer {
       if (model) model.visible = false;
     }
     for (const id of this.ledger.keepOnly(keep)) this.release(id);
+    // Und was nur gefragt war: Seine Datei darf, wenn sie noch ankommt, nicht
+    // liegen bleiben (`PreviewLedger.dropAbandoned`).
+    for (const id of this.ledger.dropAbandoned()) this.forget?.(id);
 
     stage.render();
 

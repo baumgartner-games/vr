@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
+import { elementById } from '../../elements/elementCatalog';
 import type { MarkId } from '../house';
 
 /**
@@ -19,11 +20,61 @@ import type { MarkId } from '../house';
  * das Modell aus dem Regal geladen ist — ohne WebGL und in einem Checkout ohne
  * die gekauften Pakete bleiben sie stehen.
  */
+/**
+ * **Was die Station aus dem Katalog nimmt** — die Geräte, deren Modell aus
+ * _Space Base Bits_ kommt, sind Spielelemente des Ordners _Weltraum_
+ * (`elements/spaceCatalog.ts`). Gewünscht (Oktober 2026): _„Ersetze dann die
+ * Modelle die aus Space in haunting genutzt wurden durch diese neuen Katalog
+ * Möbel."_ Gezeichnet wird das Element (`elementView.elementModel`) und nicht
+ * mehr die Datei; die Stellfläche bleibt die des Raumplans
+ * (`fixtureDimensions.FIXTURE_CATALOG`), in die es eingepasst wird — der
+ * Wassertank misst im Katalog 4 × 4 Kacheln, die Dekontamination der Station
+ * 1,40 × 1,25 m, und der Plan der Station hängt an diesen Maßen.
+ */
+export const FIXTURE_ELEMENTS: Readonly<Partial<Record<MarkId, string>>> = {
+  dusche: 'space-water-storage',
+  kamin: 'space-containers-c',
+  kiste: 'space-cargo-a-stacked',
+  esstisch: 'space-farm-small',
+};
+
+/** Die Datei eines Katalog-Elements — sein einziges Teil. */
+function catalogModel(element: string): string {
+  return elementById(element).parts[0]!.model;
+}
+
+/**
+ * **Woher ein Gerät der Station sein Bild nimmt** — ein Spielelement aus dem
+ * Katalog (`FIXTURE_ELEMENTS`) oder, wo es noch keines gibt, die Datei aus dem
+ * Regal (`FIXTURE_MODELS`).
+ */
+export type PropSource = string | { readonly element: string };
+
+export function fixtureSource(mark: MarkId): PropSource {
+  const element = FIXTURE_ELEMENTS[mark];
+  return element ? { element } : FIXTURE_MODELS[mark];
+}
+
+/** Wie ein Bild in der Szene heißt — die Datei oder das Element. */
+function sourceName(source: PropSource): string {
+  return typeof source === 'string' ? source : `element:${source.element}`;
+}
+
+/** Das Bild laden: die Datei aus dem Regal, oder das Element mit allen Teilen. */
+async function loadSource(
+  module: typeof import('../../../core/kaykitModel'),
+  source: PropSource,
+): Promise<THREE.Object3D | null> {
+  if (typeof source === 'string') return module.kaykitModel(source);
+  const view = await import('../../elements/elementView');
+  return view.elementModel(source.element, (path) => module.kaykitModel(path));
+}
+
 export const FIXTURE_MODELS: Readonly<Record<MarkId, string>> = {
   // Kryokapsel: eine Liege.
   wanne: 'furniture-bits/bed_single_B.glb',
-  // Dekontaminationskammer: der Wassertank der Weltraumbasis.
-  dusche: 'space-base-bits/water_storage.glb',
+  // Dekontaminationskammer: der Wassertank aus dem Katalog (_Weltraum_).
+  dusche: catalogModel('space-water-storage'),
   // Nährstoffdrucker: ein Ofen.
   ofen: 'restaurant-bits/oven.glb',
   // Wasseraufbereitung: die Spülenzeile.
@@ -36,18 +87,18 @@ export const FIXTURE_MODELS: Readonly<Record<MarkId, string>> = {
   werkbank: 'prototype-bits/Workbench_Decorated.glb',
   // Kommunikationskonsole: ein Schreibtisch mit Bildschirm.
   klavier: 'furniture-bits/desk_decorated.glb',
-  // Reaktor: die Container der Weltraumbasis.
-  kamin: 'space-base-bits/containers_C.glb',
+  // Reaktor: die Behälter aus dem Katalog (_Weltraum_).
+  kamin: catalogModel('space-containers-c'),
   // Sauerstofftank: ein Treibstofffass.
   standuhr: 'resource-bits/Fuel_A_Barrel.glb',
   // Pilotensitz: ein Sessel.
   sessel: 'furniture-bits/armchair.glb',
-  // Frachtcontainer: gestapelte Fracht der Weltraumbasis.
-  kiste: 'space-base-bits/cargo_A_stacked.glb',
+  // Frachtcontainer: der Frachtstapel aus dem Katalog (_Weltraum_).
+  kiste: catalogModel('space-cargo-a-stacked'),
   // Probenkammer: ein Kühlschrank.
   schaukelpferd: 'restaurant-bits/fridge_B.glb',
-  // Hydroponikbeet: die kleine Farm der Weltraumbasis.
-  esstisch: 'space-base-bits/space_farm_small.glb',
+  // Hydroponikbeet: die kleine Hydroponik aus dem Katalog (_Weltraum_).
+  esstisch: catalogModel('space-farm-small'),
   // Kantinenausgabe: die Herdzeile.
   ausgabe: 'restaurant-bits/stove_multi_decorated.glb',
 };
@@ -104,7 +155,7 @@ export function fitProp(model: THREE.Object3D, size: PropSize, stretch = false):
  */
 export function dressProp(
   holder: THREE.Object3D,
-  path: string,
+  path: PropSource,
   size: PropSize,
   fallback: readonly THREE.Object3D[],
   stretch = false,
@@ -112,9 +163,9 @@ export function dressProp(
 ): void {
   if (!canLoadModels()) return;
   void import('../../../core/kaykitModel').then(async (module) => {
-    const model = await module.kaykitModel(path);
+    const model = await loadSource(module, path);
     if (!model || !fitProp(model, size, stretch)) return;
-    model.name = `station-prop:${path}`;
+    model.name = `station-prop:${sourceName(path)}`;
     // **Eine Farbe, die etwas sagt, bleibt** — die Hocker der Zentrale tragen
     // die Farbe ihres Geräts. Die Materialien der Kopie gehören ihr allein
     // (`kaykitModel.copyOf`), also färbt das kein anderes Modell mit.
@@ -136,16 +187,16 @@ export function dressProp(
  * angekommenen gehen wieder.
  */
 export function dressProps(
-  items: readonly { holder: THREE.Object3D; path: string; size: PropSize }[],
+  items: readonly { holder: THREE.Object3D; path: PropSource; size: PropSize }[],
   fallback: readonly THREE.Object3D[],
 ): void {
   if (!canLoadModels() || items.length === 0) return;
   void import('../../../core/kaykitModel').then(async (module) => {
-    const models = await Promise.all(items.map((item) => module.kaykitModel(item.path)));
+    const models = await Promise.all(items.map((item) => loadSource(module, item.path)));
     const ready = models.every((model, i) => model && fitProp(model, items[i]!.size));
     if (!ready) return;
     models.forEach((model, i) => {
-      model!.name = `station-prop:${items[i]!.path}`;
+      model!.name = `station-prop:${sourceName(items[i]!.path)}`;
       items[i]!.holder.add(model!);
     });
     for (const one of fallback) one.visible = false;

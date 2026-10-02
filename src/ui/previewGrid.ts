@@ -207,6 +207,11 @@ export class PreviewLedger {
   private readonly asked = new Map<string, number>();
   /** Wer ein gebautes Modell hat. */
   private readonly held = new Set<string>();
+  /**
+   * **Gefragt, nie geliefert, und schon wieder aus dem Bild** — die Ids, deren
+   * Datei womöglich noch unterwegs ist (`dropAbandoned`).
+   */
+  private readonly abandoned = new Set<string>();
 
   /** Wie viele Modelle gerade gehalten werden — für Messungen und Tests. */
   get size(): number {
@@ -222,6 +227,7 @@ export class PreviewLedger {
     this.page = page;
     const gone = [...this.held];
     this.held.clear();
+    for (const id of this.asked.keys()) this.abandoned.add(id);
     this.asked.clear();
     return gone;
   }
@@ -242,11 +248,13 @@ export class PreviewLedger {
   got(id: string): void {
     this.held.add(id);
     this.asked.delete(id);
+    this.abandoned.delete(id);
   }
 
   /** Die Fabrik sagte „noch nicht" — in einer halben Sekunde wieder. */
   missed(id: string, now: number): void {
     this.asked.set(id, now);
+    this.abandoned.delete(id);
   }
 
   /**
@@ -259,8 +267,31 @@ export class PreviewLedger {
     const gone: string[] = [];
     for (const id of this.held) if (!keep.has(id)) gone.push(id);
     for (const id of gone) this.held.delete(id);
-    for (const id of [...this.asked.keys()]) if (!keep.has(id)) this.asked.delete(id);
+    for (const id of [...this.asked.keys()]) {
+      if (keep.has(id)) continue;
+      this.asked.delete(id);
+      this.abandoned.add(id);
+    }
     return gone;
+  }
+
+  /**
+   * **Was gefragt, aber nie gebaut wurde und nicht mehr dasteht** — einmal
+   * hergegeben, dann vergessen.
+   *
+   * Gemeldet: _„beim modelregal stürzt es bei zu langem scrollen ab"_. Wer
+   * schnell scrollt, fragt jede Kachel, an der er vorbeikommt, einmal: Die
+   * Fabrik stößt das Laden an und sagt „noch nicht" (`kaykitModelNow`). Kommt
+   * die Datei an, ist die Kachel längst weg — und weil nur gebaute Modelle
+   * entladen wurden (`keepOnly`), blieb jede dieser Vorlagen für immer im
+   * Speicher. Gemessen: gut ein Gigabyte nach 1500 Kacheln, bei flachem
+   * JS-Heap (Geometrie liegt in `ArrayBuffer`s daneben). Diese Ids muss der
+   * Aufrufer deshalb genauso vergessen wie die gebauten.
+   */
+  dropAbandoned(): string[] {
+    const out = [...this.abandoned].filter((id) => !this.held.has(id));
+    this.abandoned.clear();
+    return out;
   }
 }
 
