@@ -424,11 +424,15 @@ Kachel des Erdgeschosses). Die Stationen entstehen erst mit dem ersten Möbel
 Welten ohne Gitter (Portal-Labor, Interaktionslabor, Alpen) — dort gibt es
 keine Zellen, die ein Möbel sperren könnte.
 
-**Und das Modellregal heißt _Rohmodelle_ und steht in der Werkstatt**
-(`ui/menuGroups.ts`) — gewünscht: _„das modelregal sollten wir dahingehen
-runterstufen bzw umbenennen, dass es nur eher die 3d Modelle ohne Funktion
-sind […] als Hilfestellung, welche Modelle ich später noch nutzen könnte bzw
-als Möbel in den Katalog übernehmen könnte."_ Nehmen kann man daraus weiter;
+**Und das Modellregal steht wieder unter _Bauen_, gleich hinter dem Beutel**
+(`ui/menuGroups.ts`, Id `assets`) — zum Ansehen, nicht zum Bauen. Eine Weile
+hieß es _Rohmodelle_ und stand in der Werkstatt (gewünscht: _„das modelregal
+sollten wir dahingehen runterstufen bzw umbenennen, dass es nur eher die 3d
+Modelle ohne Funktion sind […] als Hilfestellung"_); dort hat es niemand
+gefunden, und im Oktober 2026 kam es zurück: _„können wir das modelregal
+wieder einfügen, nur um die modelle zu betrachten (ich meine nicht den
+katalog)"_. Die Unterzeile sagt, was es ist — _Alle 3D-Modelle ansehen —
+Rohmodelle ohne Funktion, nicht der Katalog_. Nehmen kann man daraus weiter;
 gebaut wird aus dem Katalog.
 
 Gewünscht (September 2026): _„Ich brauche bei Möbel Katalog, die Funktion

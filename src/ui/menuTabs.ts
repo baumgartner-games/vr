@@ -156,7 +156,7 @@ const SEARCH_DEPTH = 4;
  *
  * Die Trefferlogik ist die des Katalogs (`catalogSearch`): Umlaute gefaltet,
  * ein Treffer im Namen zählt mehr als einer im Weg. **Nicht hinab** geht es in
- * Seiten mit eigener Suche (`find` — das Modellregal unter _Werkstatt_ mit
+ * Seiten mit eigener Suche (`find` — das Modellregal unter _Bauen_ mit
  * seinen viertausend Modellen) und in Fächer (`flatten`); die Seite selbst ist
  * aber findbar.
  */

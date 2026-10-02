@@ -13379,8 +13379,8 @@ export class PortalWorld implements World {
   private assetMenu(ctx: () => WorldContext): MenuEntry {
     return {
       id: 'assets',
-      label: 'Rohmodelle',
-      sub: 'Modellregal zum Nachschlagen — 3D-Modelle ohne Funktion, Vorlagen für den Katalog',
+      label: 'Modellregal',
+      sub: 'Alle 3D-Modelle ansehen — Rohmodelle ohne Funktion, nicht der Katalog',
       icon: 'folder',
       accent: KAYKIT_ACCENT,
       grid: true,

@@ -5,8 +5,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 
 **Das Regal ist der Katalog der Rohmodelle — nur Bilder, keine fertigen
 Dinge.** Seit September 2026 heißt es im Menü deshalb _Modellregal_ und nicht
-mehr _KayKit-Regal_, und darunter steht _Rohmodelle — nur das Bild, kein
-Spielelement_. Gewünscht: _„wir sollten einen 3d Objekt roh Katalog haben,
+mehr _KayKit-Regal_, und darunter steht _Alle 3D-Modelle ansehen —
+Rohmodelle ohne Funktion, nicht der Katalog_. Es steht unter _Bauen_, hinter
+dem Magischen Beutel (`ui/menuGroups.ts`). Gewünscht: _„wir sollten einen 3d Objekt roh Katalog haben,
 der nur optisch da ist aber keine fertigen Objekte sind, und einen Spiel
 Element Katalog haben die man in der Welt platzieren kann, weil diese
 Eigenschaften haben 2d, Interaktion etc."_ Ein Modell von hier weiß nichts vom

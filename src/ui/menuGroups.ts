@@ -180,6 +180,12 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   // in _Die Sims_.
   { match: 'elements', group: 'bauen' },
   { match: 'bag', group: 'bauen' },
+  // **Das Modellregal**: alle Rohmodelle zum Ansehen — kein Spielelement,
+  // nichts mit Zweck, nur das Bild und der Steckbrief hinter dem ⓘ. Es stand
+  // eine Weile als _Rohmodelle_ in der Werkstatt und war dort nicht zu
+  // finden; gewünscht: _„können wir das modelregal wieder einfügen, nur um
+  // die modelle zu betrachten (ich meine nicht den katalog)"_.
+  { match: 'assets', group: 'bauen' },
   { match: 'build-tools', group: 'bauen' },
   { match: 'npc', group: 'bauen' },
   { match: 'plan-store', group: 'bauen' },
@@ -201,11 +207,6 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
 
   // Die Werkstatt: Anzeigen zum Prüfen, dann Physik und Messwerte, dann
   // die Werkzeuge zum Mitnehmen und Zurücksetzen.
-  // **Die Rohmodelle** (früher _Modellregal_ unter Bauen): nur Bilder ohne
-  // Funktion, zum Nachschlagen, welche Modelle später in den Katalog kommen
-  // könnten. Gewünscht: _„das modelregal sollten wir dahingehen runterstufen
-  // […] für mich eher als Hilfestellung"_.
-  { match: 'assets', group: 'werkstatt' },
   { match: 'gfx:fps', group: 'werkstatt' },
   { match: 'gfx:fps-hud', group: 'werkstatt' },
   { match: 'gfx:position', group: 'werkstatt' },

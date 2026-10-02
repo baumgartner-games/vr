@@ -60,13 +60,13 @@ describe('tabbedMenu', () => {
       'view',
     ]);
     const build = tabs.find((tab) => tab.id === 'bauen')!;
-    expect(build.children!.map((entry) => entry.id)).toEqual(['tools', 'bag', 'npc']);
+    expect(build.children!.map((entry) => entry.id)).toEqual(['tools', 'bag', 'assets', 'npc']);
   });
 
   it('versteckt in der Brille das Regal unter Bauen', () => {
     const tabs = tabbedMenu(groupMenu(flat()), { inventory, hideInBuild: ['tools'] });
     const build = tabs.find((tab) => tab.id === 'bauen')!;
-    expect(build.children!.map((entry) => entry.id)).toEqual(['bag', 'npc']);
+    expect(build.children!.map((entry) => entry.id)).toEqual(['bag', 'assets', 'npc']);
   });
 
   it('hängt Figur, Hilfe und Werkstatt unter die Einstellungen', () => {
@@ -116,15 +116,15 @@ describe('searchTab', () => {
   });
 
   it('steigt nicht in Seiten mit eigener Suche', () => {
-    const shelf: MenuEntry = {
-      id: 'assets',
-      label: 'Rohmodelle',
+    const deck: MenuEntry = {
+      id: 'orbital:labs',
+      label: 'Testdeck',
       find: () => [],
       children: [leaf('barrel')],
     };
-    const tabs = tabbedMenu(groupMenu([page('gfx', [leaf('gfx:fps')]), shelf]));
+    const tabs = tabbedMenu(groupMenu([page('gfx', [leaf('gfx:fps')]), deck]));
     const settings = tabs.find((tab) => tab.id === 'einstellungen')!;
     expect(settings.find!('barrel')).toEqual([]);
-    expect(settings.find!('rohmodelle').map((hit) => hit.id)).toEqual(['assets']);
+    expect(settings.find!('testdeck').map((hit) => hit.id)).toEqual(['orbital:labs']);
   });
 });
