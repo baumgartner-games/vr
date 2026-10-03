@@ -374,10 +374,10 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   hinterher hätte die Station eine Tür, die sich anders öffnet als vorher.
 
 **Alle Welten stehen darauf**, die überhaupt Zimmer, Gänge und Türen haben:
-der **Hub** (seit P4, siehe _Hub-Welt_), der **Bauplatz** und die
-**Testwelt**. Der Bauplatz ist seit der dritten Fassung selbst eine davon — er
-baute ohnehin schon aus derselben Liste, und was ihn noch ausmacht, sind ein
-Startzimmer, ein Speicher und ein weißer Raum. Es gab einmal Welten, die nicht
+der **Hub** (seit P4, siehe _Hub-Welt_) und die **Testwelt**. Den **Bauplatz**
+(`editor/EditorWorld.ts`, eine eigene Welt mit Startzimmer, Speicher und
+weißem Raum) gibt es seit Oktober 2026 nicht mehr — gewünscht: _„die bauplatz
+welt entfernen bitte"_; gebaut wird in der Sandbox. Es gab einmal Welten, die nicht
 darauf standen: Ein Berg ist keine Kachel, und ein Höhenfeld auf das Gitter zu
 ziehen hätte es nur schlechter gemacht.
 
@@ -403,7 +403,7 @@ erarbeiten musste:
   Wänden zuerst bemerkt.
 - **Der Bearbeitungsmodus.** Karte, Palette, Tischmodell, Malen und Flächen —
   eine Zeile Verdrahtung, weil `layout()` ohnehin einen `GridPlan` liefert. Wer
-  ihn will, sagt `editable()` `true`, und das tun der **Bauplatz** und die
+  ihn will, sagt `editable()` `true`, und das tut die
   **Testwelt**: Eine Weile hing er an jeder Gitterwelt, über eine Seite _Bauen_
   im Handgelenkmenü — fünfzehn Zeilen, durch die man blätterte, wann immer man
   etwas anderes suchte. Die Seite ist wieder weg; was die meisten daran
@@ -412,8 +412,7 @@ erarbeiten musste:
   auch der **Speicher** zusammen (`applyStored`): eine Welt, die man nicht
   ändern kann, hat keinen eigenen Stand aufzuheben. Und weil ein gespeicherter
   Stand den ganzen Grundriss ersetzt, gibt es daneben `planLoaded()` — den
-  Haken für das, was **auch danach** noch gelten muss. Der Bauplatz setzt dort
-  sein Tor zurück in den Hub, die Testwelt alle Einbauten ihrer zehn Zonen
+  Haken für das, was **auch danach** noch gelten muss. Die Testwelt setzt dort alle Einbauten ihrer zehn Zonen
   (`fitTest`): eines, das nur in `layout()` stünde, wäre beim ersten Besuch da
   und ab dem zweiten weg, und dann säße man in der selbstgebauten Welt ohne
   Ausgang. **Er läuft deshalb zweimal** — einmal beim Bauen, einmal nach dem
@@ -425,8 +424,7 @@ erarbeiten musste:
   ein Strich gesetzt hat) und das **Abtasten danach** (`rebake`), damit NPCs
   belaufen können, was gerade entstanden ist.
 - **Geprüft, bevor jemand die Brille aufsetzt.** Jeder Grundriss liegt in einer
-  eigenen Datei ohne three.js (`hub/hubGrid.ts`, `editor/starterGrid.ts`,
-  `test/testPlan.ts`), und sein Test läuft durch jede Tür und auf jede Etage.
+  eigenen Datei ohne three.js (`hub/hubGrid.ts`, `test/testPlan.ts`), und sein Test läuft durch jede Tür und auf jede Etage.
   Ein Zimmer ohne Tür merkt man sonst erst, wenn man davorsteht — nach dem
   Laden, nach dem Aufsetzen, nach dem Hinlaufen.
 - **Gitterlinien und Wand-Ghosting.** Das Netz der eigenen Ebene (_Menü →

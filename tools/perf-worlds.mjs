@@ -87,27 +87,6 @@ const SCENARIOS = [
     sim: 2,
     yaw: 180,
   },
-  {
-    id: 'editor',
-    title: 'Bauplatz',
-    hash: 'editor',
-    // Der Beispielraum des Baukastens, sofern es ihn gibt — gesucht wird eine
-    // Methode, die danach klingt, damit die Strecke nicht bricht, wenn sie
-    // anders heißt oder (noch) fehlt.
-    setup: () => {
-      const world = globalThis.bgvr.world;
-      const names = [];
-      for (let o = world; o && o !== Object.prototype; o = Object.getPrototypeOf(o))
-        names.push(...Object.getOwnPropertyNames(o));
-      const hit = names.find((name) => /sample|beispiel|example|demoRoom/i.test(name));
-      if (hit && typeof world[hit] === 'function') {
-        world[hit]();
-        return hit;
-      }
-      return null;
-    },
-    sim: 3,
-  },
   { id: 'kart', title: 'Test Rennstrecke', hash: 'test-kart', sim: 2 },
   {
     id: 'haunting',

@@ -12264,8 +12264,8 @@ export class PortalWorld implements World {
 
   /**
    * **Wo der Beispielraum steht** — die Mitte des Zimmers, in das er gehört,
-   * oder `null` in einer Welt ohne. Der Bauplatz sagt: sein Startzimmer
-   * (`EditorWorld`).
+   * oder `null` in einer Welt ohne. Seit der Bauplatz weg ist, sagt
+   * das keine Welt mehr.
    */
   protected sampleRoomOrigin(): { x: number; z: number } | null {
     return null;
