@@ -13,10 +13,14 @@ describe('Die Welten', () => {
     }
   });
 
-  it('hat im Ordner „Test" die Test Navigation, das Test Restaurant und den Hausbau', () => {
+  it('hat im Ordner „Test" die Prüfstände, die Zonen der alten Sandbox und den Hausbau', () => {
     expect(WORLDS.filter((world) => world.folder === 'test').map((world) => world.id)).toEqual([
       'test-navigation',
       'test-restaurant',
+      'test-kart',
+      'test-climb',
+      'test-range',
+      'test-effects',
       'hausbau',
     ]);
   });

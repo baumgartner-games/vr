@@ -1147,6 +1147,11 @@ Die zweite erledigt eine ganze Klasse von Vermutungen:
 
 ## Die Messstrecke der Küche — und wer die Aufrufe verbraucht
 
+> **Geschichte seit Oktober 2026.** Die Küche der Sandbox ist gelöscht und mit
+> ihr `tools/perf-kitchen.mjs` (`npm run perf:kitchen`); die Befunde unten
+> bleiben als Messung ihrer Zeit stehen. Wie viel jede heutige Welt verbraucht,
+> zählt `npm run perf:worlds` (`tools/perf-worlds.mjs`).
+
 Die Messstrecke für die **Bildrate** (`npm run fps`, `docs/quest3-referenz.md`)
 beantwortet, was ein Regler kostet. Ihr offener Hauptposten heißt dort **M3**:
 607 Zeichenaufrufe in der Testwelt, und die Küchenmöbel stehen im Verdacht. Wer

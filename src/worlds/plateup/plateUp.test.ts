@@ -47,8 +47,6 @@ import {
 } from './plateUpStations';
 import { dish, type Dish } from '../test/zones/kitchenRecipes';
 import { tileKey } from '../nav/navTile';
-import { testPlan } from '../test/testPlan';
-import { BURGER_GATE, BURGER_GATE_TILE } from '../test/zones/kitchenPlan';
 import { findWorld } from '../index';
 import { RETURN_GATE } from './plateUpPlan';
 import { DECOR } from './plateUpDecor';
@@ -101,11 +99,7 @@ describe('Burgerladen: Grundriss', () => {
     }
   });
 
-  test('ein Tor führt aus der Testküche hierher und eines zurück', () => {
-    const there = testPlan().fixture(BURGER_GATE);
-    expect(there?.kind).toBe('gate');
-    expect(there?.props.world).toBe('plateup');
-    expect(testPlan().graph.walkable(tileKey(BURGER_GATE_TILE.x, BURGER_GATE_TILE.z))).toBe(true);
+  test('ein Tor führt zurück in die Sandbox', () => {
     const back = plateUpGrid().fixture(RETURN_GATE);
     expect(back?.props.world).toBe('sandbox');
     expect(findWorld('plateup')?.title).toBe('Restaurant');

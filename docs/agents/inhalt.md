@@ -1602,6 +1602,15 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 - **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **elf Zonen auf einem
   Gelände**, in zwei Minuten zu Fuß abzulaufen.
 
+  > **Geschichte seit Oktober 2026.** Die Testwelt (zuletzt _Sandbox_) ist
+  > leer; Rennstrecke, Kletterwand, Schießstand und Effekte sind eigene Welten
+  > im Ordner _Test_, alles andere ist gelöscht (`docs/agents/welten.md`,
+  > _Sandbox, Ordner und die Test Navigation_). Was hier über Gelände, Zonen,
+  > Küche, Sprungmenü und Startplatz steht, beschreibt den Stand davor
+  > (`git show 54667d5:src/worlds/test/<Datei>`). Was für die vier Zonen gilt
+  > — Kartbahn, Klettern, Schießstand, Effektquellen —, gilt in ihren eigenen
+  > Welten weiter.
+
   Bis September 2026 gab es siebzehn Welten, und jede prüfte eine Sache: eine
   für die Portale, eine für den Schießstand, eine fürs Klettern, eine für die
   Wegsuche. Das war bequem zu bauen und unmöglich zu pflegen — wer am Kern
@@ -2077,7 +2086,8 @@ im Spiel also zwei Kacheln —, und in eine
   Lehrpfad.
 
 - **Die Garderobe** (`worlds/elements/coatRack.ts`, Oktober 2026): Neben dem
-  Startplatz der Sandbox steht ein Garderobenständer, und `A` daran öffnet die
+  Startplatz der Sandbox stand ein Garderobenständer (seit die Sandbox leer ist,
+  steht er nur noch im Möbelkatalog, Kennung `coat-rack`), und `A` daran öffnet die
   Seite _Aussehen_ im Menü (`WorldContext.openOutfit`), am Schirm wie in der
   Brille. Wer darauf schaut, sieht den ganzen Ständer gelb umrandet. Er ist ein
   **Spielelement** und sperrt seine Kachel selbst; wie er gebaut ist, steht in

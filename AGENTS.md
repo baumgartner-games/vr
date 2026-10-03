@@ -74,7 +74,7 @@ Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5960 Tests) — eine zweite,
+gibt** und in gut einer halben Minute durch (5929 Tests) — eine zweite,
 langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
 [Tests](docs/agents/tests.md)).
 
@@ -194,7 +194,7 @@ Stichpunkten).
   Darin: Wie man aussieht (mit Hüte und Köpfe aus den Figuren und dem immersiven Helm) · Was vor einem und an der Hand steht (Brille) · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.
   Darin: Wer hier herumläuft · Charakter: übernehmen, vormachen, nachspielen · Wie sich NPCs orientieren · Verhalten: Plätze aufsuchen, warten, ausweichen.
-- **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, Sandbox (vormals Testwelt), Ordner von Welten und die Test Navigation, und wie Portale und Spiegel rechnen.
+- **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, die leere Sandbox und die vier Zonen-Testwelten (Rennstrecke, Kletterwand, Schießstand, Effekte), Ordner von Welten und die Test Navigation, und wie Portale und Spiegel rechnen.
   Darin: Welten auf dem Kachelgitter · Eine neue Welt hinzufügen · Wie die Portale funktionieren · Wie die Spiegel funktionieren.
 - **[Zusammen spielen](docs/agents/netzwerk.md)** — Peer-to-Peer, Chat, Stimmen, geteilte Objekte, Zuschauen, asymmetrisches Spielen.
   Darin: Zusammen spielen (Peer-to-Peer) · Chat: Text, und vor allem Codes · Sprechen: Stimmen im Raum · Die Welt teilen: Objekte und Portale · Zuschauen: First und Third Person · Asymmetrisches Spielen.

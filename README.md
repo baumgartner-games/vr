@@ -775,7 +775,7 @@ npm run preview  # gebautes Ergebnis lokal servieren
 npm test         # Jest — ein Lauf, gut eine halbe Minute
 npm run icons    # public/icon.svg → die PNG-Symbole der App (braucht Chromium)
 npm run fps      # Bildraten-Matrix gegen einen laufenden Dev-Server (braucht Chromium)
-npm run perf:kitchen  # Zeichenaufrufe der Küche, Rundumblick aus Augenhöhe
+npm run perf:worlds  # Zeichenaufrufe je Welt, Rundumblick aus Augenhöhe
 ```
 
 Der **Service Worker** meldet sich nur im fertigen Build an; im
@@ -824,13 +824,10 @@ die Grenzen der Messung stehen in
 [Quest-3-Referenz](docs/quest3-referenz.md). SwiftShader liefert dabei keine
 vorhersagbaren fps — nur Verhältnisse.
 
-**Wer** die Zeichenaufrufe verbraucht, zählt das Schwesterwerkzeug
-`npm run perf:kitchen` (`tools/perf-kitchen.mjs`): aus der Augenperspektive
-eines Kochs in der Küche, einmal um die eigene Achse, je Objekt, je Material,
-je Netz und je Blickrichtung — dazu die JavaScript-Zeit nach Aufrufern. Die
-**Zählwerte** gelten überall, die **Zeiten** nur auf dem Rechner, der misst;
-eine Bildrate für eine Brille fällt auch hier nicht ab (AGENTS.md, „Die
-Messstrecke der Küche").
+**Wie viele** Zeichenaufrufe jede Welt verbraucht, zählt
+`npm run perf:worlds` (`tools/perf-worlds.mjs`): je Welt acht Blickrichtungen
+aus Augenhöhe, dazu die JavaScript-Zeit von `world.update`. Die
+**Zählwerte** gelten überall, die **Zeiten** nur auf dem Rechner, der misst.
 
 Der Workflow [Browser smoke](.github/workflows/browser.yml) prüft den gebauten
 Stand zusätzlich mit Chromium und `--no-screenshots` in CI. Der Report bleibt dort

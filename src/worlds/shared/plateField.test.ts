@@ -10,7 +10,7 @@ import {
   type PlateArea,
 } from './plateField';
 import type { PlanSolid } from '../grid/solids';
-import { FIELD } from '../test/layout';
+import { SANDBOX_FIELD as FIELD } from '../test/sandboxPlan';
 import { TILE } from '../nav/navTile';
 
 /**
@@ -120,7 +120,7 @@ describe('plateAnchor', () => {
   });
 });
 
-describe('die Schürze der Testwelt', () => {
+describe('die Schürze der Sandbox', () => {
   /** Das Gelände in Metern — eine Kachel ist ein Meter (`nav/navTile.TILE`). */
   const field: PlateArea = {
     x: FIELD.x * TILE,

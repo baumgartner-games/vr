@@ -15,7 +15,7 @@ import { PortalRenderer } from './PortalRenderer';
  * in der Hand liegt — und gleich danach lief er noch einmal, weil
  * `WebGLRenderer.render` den Graphen ohnehin durchrechnet. In der Testwelt
  * waren das zwei Durchläufe über 6 556 Knoten je Bild statt einem
- * (`tools/perf-kitchen.mjs`, AGENTS.md _Die Messstrecke der Küche_).
+ * (`docs/agents/grafik.md`, _Die Messstrecke der Küche_).
  *
  * Der Test hält beide Hälften fest: ohne Portal keiner, mit Portal einer.
  * Gezählt wird am Wurzelknoten, denn genau der ist der teure.

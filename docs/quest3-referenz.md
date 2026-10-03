@@ -250,6 +250,9 @@ jedes Auge sie einzeln bezahlt.
 
 ### Nachgezählt: wer die Zeichenaufrufe verbraucht
 
+_(Die Küche der Sandbox und `perf:kitchen` sind seit Oktober 2026 gelöscht;
+die Zahlen hier sind die Messung ihrer Zeit. Heute zählt `npm run perf:worlds`.)_
+
 M3 und M4 benennen Posten, nicht Objekte. Welche Dinge die Aufrufe tatsächlich
 verbrauchen, zählt seit dem 17. September 2026 `npm run perf:kitchen`
 (`tools/perf-kitchen.mjs`) — aus der Augenperspektive eines Kochs in der Küche,

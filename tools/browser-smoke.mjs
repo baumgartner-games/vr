@@ -173,7 +173,7 @@ for (const name of browserNames) {
         //
         // **Welche Welt das ist, steht in `src/worlds/index.ts`**
         // (`DEFAULT_WORLD`) und hier abgeschrieben: Hier stand `hub`, und seit
-        // die Seite in der **Küche** der Sandbox aufmacht, steht hier `sandbox`.
+        // die Seite in der Sandbox aufmacht, steht hier `sandbox`.
         // Die Zahl lässt sich nicht importieren — geprüft wird die gebaute
         // Seite und nicht der Quelltext —, und ein Test, der jede Welt
         // durchgehen ließe, prüfte gar nichts mehr: Genau diese Zeile hat den

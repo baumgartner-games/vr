@@ -5,7 +5,6 @@ import { WORK_ALONE, WORK_SECONDS, advanceWork, onWork, workStage } from './kitc
 import { BURN_SECONDS, FRY_SECONDS, advanceStove, onStove } from './kitchenClock';
 import { dish, fryStage } from './kitchenRecipes';
 import { kitchenDeed, kitchenPrompt } from './kitchenCarry';
-import { beltDelivers, beltReleases } from './kitchenBelt';
 
 /**
  * **Was die sichere Kochstelle verspricht** (`kitchenGriddle.ts`).
@@ -97,19 +96,6 @@ describe('was `A` und die Bänder an der Kochstelle tun', () => {
       dish: dish('patty-cooked'),
     });
     expect(kitchenDeed(null, { kind: 'griddle' })).toEqual({ do: 'nothing' });
-  });
-
-  it('lässt ein Band hinschieben und ein anderes abholen', () => {
-    // **Das ist der Grund, warum sie keine Pfanne trägt.** Auf dem Herd steht
-    // die Pfanne, die Kachel ist belegt, und ein Band liefert dort nie ab;
-    // hier ist die Platte frei. Und heraus darf es auch — anders als vom Herd,
-    // wo ein Band sonst die einzige Pfanne der Küche mitnähme.
-    expect(beltDelivers('griddle')).toBe(true);
-    expect(beltReleases('griddle')).toBe(true);
-    expect(beltReleases('stove')).toBe(false);
-    // Solange sie brät, gibt sie nichts her — sonst führe ein halb gebratenes
-    // Patty auf das Brötchen.
-    expect(beltReleases('griddle', true)).toBe(false);
   });
 });
 
