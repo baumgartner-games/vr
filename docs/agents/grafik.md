@@ -579,20 +579,32 @@ einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
 Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
 einer Hand richtig liegt, entscheidet kein Jest-Test.
 
-## Quest-3-Blickfeld und Mensch als Boxen
+## Quest-3-Blickfeld, Sichtfeld hervorheben und Mensch als Boxen
 
-Zwei Häkchen, die **im Grafik-Menü bleiben** und nicht in die Werkstatt
-wandern (`core/playerGuides.ts`, beide ab Werk aus):
+Drei Häkchen, die **im Grafik-Menü bleiben** und nicht in die Werkstatt
+wandern (`core/playerGuides.ts`, alle ab Werk aus):
 
 - **Quest-3-Blickfeld** (`GraphicsSettings.showVrFrustum`). Gewünscht: _„den
   VR-Blickwinkel einer Quest 3 darstellen … wie bei Blender mit einem
-  Kamera-Frustum, damit ich auch sehe, wo die Augen wären"_. Eine gelbe
-  Pyramide aus Linien am Kopf (`PlayerRig.getHeadMatrix`), 110° × 96°
-  (`QUEST3_FOV`, beide Augen zusammen, wie Meta es angibt) und 1,2 m lang
-  (`FRUSTUM_LENGTH`), mit dem Dreieck über der Oberkante, das in Blender
-  „oben" heißt, und der Blickachse. Die Augen sind zwei Kugeln im
-  Augenabstand der Quest 3 (`QUEST3_IPD`, 63 mm): links blau, rechts rot.
-  Ohne Tiefenprüfung, wie die Hitboxen.
+  Kamera-Frustum, damit ich auch sehe, wo die Augen wären"_. Zuerst eine
+  eckige Pyramide aus Metas 110° × 96°; seit dem Kalibrieren ein **gerundeter
+  Kegel** aus dem eingestellten Rand (`questView.QUEST_VIEW`, Code
+  `QUEST_VIEW_CODE`) — _„Ich will dann diesen ‚kegel' der gerundet ist in der
+  welt sehen, statt der einfachen eckigen kamera perspektive."_ Der Rand
+  liegt auf einer Kugel 1,2 m ums Auge (`viewRim`, `FRUSTUM_LENGTH`), zwölf
+  gelbe Strahlen laufen gleichmäßig verteilt vom Auge hin, eine kaum getönte
+  Haut füllt den Kegel, dazu das Dreieck über dem Rand, das in Blender
+  „oben" heißt, und die Blickachse durch die gefühlte Null (10° unter
+  geradeaus). Die Augen sind zwei Kugeln im Augenabstand der Quest 3
+  (`QUEST3_IPD`, 63 mm): links blau, rechts rot. Ohne Tiefenprüfung, wie die
+  Hitboxen.
+- **Sichtfeld hervorheben** (`GraphicsSettings.highlightView`). Gewünscht:
+  _„wie bei der Taschenlampe der bereich etwas hervorgehoben …, sodass man
+  leicht erkennen kann von oben, was der spieler sehen würde"_. Ein
+  Spotlicht vom Kopf aus, auf die gefühlte Null gesenkt. Ein Spot kennt nur
+  runde Kegel; der Rand ist darum genähert (`viewCone`: halbe Breite 38,5°,
+  halbe Höhe 35°, der Lichtkegel nimmt ihr Mittel). Mit Schattenkarte hört
+  das Licht an der Wand auf, wie die Taschenlampe; ohne kostet sie nichts.
 - **Mensch als Boxen** (`GraphicsSettings.showBodyModel`). Gewünscht: _„den
   Menschen visuell darstellen … einfaches Modell, Boxen"_. Kopf, Hals,
   Rumpf, Arme, Hände und Beine als halbdurchsichtige Kästen in der **echten**
@@ -604,9 +616,10 @@ wandern (`core/playerGuides.ts`, beide ab Werk aus):
   Hüften hängen (`beltSettings`). Der Rumpf dreht mit dem Blick nach links
   und rechts, der Kopf nickt zusätzlich mit.
 
-Beide stehen auf `LAYER_SELF_ONLY` wie der eigene Körper: Von oben, im
+Alle stehen auf `LAYER_SELF_ONLY` wie der eigene Körper: Von oben, im
 Spiegel und durchs Portal sieht man sie, aus den eigenen Augen nicht — dort
-stünde man mitten in der Pyramide.
+stünde man mitten im Kegel. Das gilt auch für das Licht: three.js nimmt ein
+Licht nur in Bilder, deren Kamera seine Ebene sieht.
 
 ## Info-Ansichten: ein Optionsfeld für alle
 
