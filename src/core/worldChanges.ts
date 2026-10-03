@@ -108,6 +108,8 @@ export interface ElementChange {
   readonly z: number;
   /** Wohin die Vorderseite schaut. */
   readonly face: 'N' | 'E' | 'S' | 'W';
+  /** Auf welcher Etage (`ElementSpot.level`) — ohne Angabe im Erdgeschoss. */
+  readonly level?: number;
   /** In welcher Welt es steht. */
   readonly world?: string;
   /**
@@ -301,10 +303,19 @@ export function recordElement(
   z: number,
   face: 'N' | 'E' | 'S' | 'W',
   world?: string,
+  level = 0,
 ): void {
   load();
   if (!tracking) return;
-  changes.set(key, { kind: 'element', element, x, z, face, ...(world ? { world } : {}) });
+  changes.set(key, {
+    kind: 'element',
+    element,
+    x,
+    z,
+    face,
+    ...(level > 0 ? { level } : {}),
+    ...(world ? { world } : {}),
+  });
   save();
 }
 
@@ -550,7 +561,11 @@ function parseRow(row: unknown): WorldChange | null {
     if (face !== 'N' && face !== 'E' && face !== 'S' && face !== 'W') return null;
     const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
     const gone = data.gone === true ? { gone: true as const } : {};
-    return { kind: 'element', element: data.element, x, z, face, ...world, ...gone };
+    const level =
+      typeof data.level === 'number' && Number.isInteger(data.level) && data.level > 0
+        ? { level: data.level }
+        : {};
+    return { kind: 'element', element: data.element, x, z, face, ...level, ...world, ...gone };
   }
   if (typeof data.model === 'string' || typeof data.note === 'string') {
     const at = numbers(data.at, 3);
@@ -630,6 +645,7 @@ function toRow(change: WorldChange): unknown {
       x: change.x,
       z: change.z,
       face: change.face,
+      ...(change.level ? { level: change.level } : {}),
       ...world,
       ...gone,
     };

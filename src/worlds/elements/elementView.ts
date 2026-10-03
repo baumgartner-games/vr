@@ -34,7 +34,19 @@ export interface ElementHost {
    * **Zellen sperren und den unsichtbaren Kasten stellen** — sofort
    * (`GridWorld.blockSolid`). Mitte und Maße in Metern.
    */
-  blockSolid(cx: number, cz: number, w: number, d: number, height: number): SolidBlock;
+  blockSolid(
+    cx: number,
+    cz: number,
+    w: number,
+    d: number,
+    height: number,
+    level?: number,
+  ): SolidBlock;
+  /**
+   * **Wie hoch der Boden einer Etage liegt** (`ElementSpot.level`), in Metern
+   * — ohne die Antwort steht alles auf null.
+   */
+  floorY?(level: number): number;
   /**
    * **Das Bodenstück als festes Stück der Welt** (`PortalWorld.placeModel`):
    * die Mitte seiner Hülle auf `at`, gedreht um `yaw`.
@@ -124,18 +136,25 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   const [w, d] = spotSolid(spot);
   const block: SolidBlock =
     w > 0 && d > 0
-      ? host.blockSolid(centre.x, centre.z, w, d, element.height)
+      ? host.blockSolid(centre.x, centre.z, w, d, element.height, spot.level ?? 0)
       : { cells: [], mesh: new THREE.Mesh() };
   // Das Bild darf neben seinen Zellen stehen (`ElementSpot.offset`), die
   // Sperre nicht — sie steht schon.
   const [sx, sz] = spot.offset ?? [0, 0];
   // **Auf einer Ablage** (`ElementSpot.y`): alles um ihre Oberkante höher.
   const lift = spot.y ?? 0;
+  // **Auf einer Etage** (`ElementSpot.level`): auf ihrem Boden. Die Oberkante
+  // einer Ablage ist schon die ganze Höhe und zählt dann allein.
+  const level = spot.level ?? 0;
+  const ground = lift > 0 ? lift : level > 0 ? (host.floorY?.(level) ?? 0) : 0;
 
   const anchor = new THREE.Group();
   anchor.name = `element:${spot.id}`;
   const front = spotFront(spot);
-  anchor.position.set(front.x + sx, lift, front.z + sz);
+  anchor.position.set(front.x + sx, ground, front.z + sz);
+  // Damit es mit seiner Etage verschwindet (`core/cutaway.ts`), wie die
+  // Wände oben — der Anker hier, die Teile beim Hinlegen.
+  if (level > 0) anchor.userData.level = level;
   anchor.rotation.y = yaw;
   host.add(anchor);
 
@@ -152,7 +171,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   });
   if (!canLoadModels())
     return placed(
-      lift + FALLBACK_TOP,
+      ground + FALLBACK_TOP,
       element.parts.map(() => null),
     );
 
@@ -197,12 +216,12 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
       }
       base = host.placeModel(
         part.model,
-        new THREE.Vector3(x, size.y / 2, z),
+        new THREE.Vector3(x, ground + size.y / 2, z),
         yaw + (part.yaw ?? 0),
       );
       laid.push({
         holder: null,
-        top: size.y,
+        top: ground + size.y,
         scale: 1,
         tilt: [0, 0, 0],
         yaw: 0,
@@ -220,22 +239,23 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
     }
     if (part.wallpaper) paintWallpaper(model, part.wallpaper);
     const one = part.pose
-      ? layPosed(model, part, yaw, centre.x + sx, centre.z + sz, lift)
+      ? layPosed(model, part, yaw, centre.x + sx, centre.z + sz, ground)
       : part.inside
         ? layInside(model, laid[i - 1] ?? null)
-        : layOn(model, part, yaw, x, z, baseOf(part, i, laid, lift));
+        : layOn(model, part, yaw, x, z, baseOf(part, i, laid, ground));
     if (!one) {
       laid.push(null);
       views.push(null);
       return;
     }
+    if (one.holder && level > 0) one.holder.userData.level = level;
     if (one.holder && one.holder.parent === null) host.add(one.holder);
     laid.push(one);
     views.push(one.holder);
   });
 
   const surface = element.parts.findIndex((part) => part.surface);
-  const top = laid[surface >= 0 ? surface : 0]?.top ?? laid[0]?.top ?? lift + FALLBACK_TOP;
+  const top = laid[surface >= 0 ? surface : 0]?.top ?? laid[0]?.top ?? ground + FALLBACK_TOP;
   return placed(top, views);
 }
 

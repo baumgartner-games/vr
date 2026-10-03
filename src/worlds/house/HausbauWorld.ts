@@ -425,13 +425,15 @@ export class HausbauWorld extends TestRestaurantWorld {
    * Dann ist sie beim Hineinsehen im Weg; draußen gehört sie zum Haus, das man
    * ansieht.
    */
-  private underRoof(ctx: WorldContext): boolean {
+  private underRoof(): boolean {
     const graph = this.grid?.graph;
     if (!graph) return false;
     const level = this.level();
     if (level + 1 >= graph.levels.length) return false;
+    // Gefragt wird, wo die Etage gefragt wird (`levelProbe`): unter den Füßen,
+    // im Weltbau unter der Hand — senkt sie sich ins Haus, geht das Dach weg.
     return graph.has(
-      tileKey(Math.floor(ctx.rig.position.x), Math.floor(ctx.rig.position.z), level + 1),
+      tileKey(Math.floor(this.levelProbe.x), Math.floor(this.levelProbe.z), level + 1),
     );
   }
 
@@ -468,7 +470,7 @@ export class HausbauWorld extends TestRestaurantWorld {
     // **Mit der Ebenen-Leiste entscheidet sie** (`grid/levelBar.ts`): die
     // gewählte Etage, oder _von außen_ alle — und nicht, wo der Kran schwebt.
     if (this.levelBarOn) return view;
-    if (!view || !ctx || !graph || this.underRoof(ctx) || this.roofHides(ctx)) return view;
+    if (!view || !ctx || !graph || this.underRoof() || this.roofHides(ctx)) return view;
     // Ganz ist das Haus nur, wenn es über einem noch etwas gibt. Unscharf wird
     // es trotzdem unter der Etage, auf der man steht (`stand`).
     const top = graph.levels.length - 1;
@@ -483,7 +485,7 @@ export class HausbauWorld extends TestRestaurantWorld {
    */
   private cutAbove(ctx: WorldContext): void {
     const graph = this.grid?.graph;
-    const inside = !ctx.topDown && this.underRoof(ctx);
+    const inside = !ctx.topDown && this.underRoof();
     const level = this.level();
     const key =
       inside && graph ? `${level}|${graph.version}|${this.skinned.size}|${this.levelMarks}` : '';
