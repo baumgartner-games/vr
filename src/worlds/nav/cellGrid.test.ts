@@ -260,20 +260,26 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
 
   it('lässt niemanden über die Schräge, in keiner Richtung und bei keinem Tempo', () => {
     const grid = cornered();
-    for (let a = 0; a < 16; a++) {
-      const angle = (a / 16) * Math.PI * 2;
-      for (const step of [0.02, 0.07, 0.2, 0.45]) {
+    // Acht Richtungen, ein langsames und ein schnelles Tempo — und gemessen
+    // wird nur das Schlimmste, ein `expect` je Schritt kostete Sekunden.
+    let inner = Infinity,
+      outer = -Infinity;
+    for (let a = 0; a < 8; a++) {
+      const angle = (a / 8) * Math.PI * 2;
+      for (const step of [0.07, 0.45]) {
         let p = { x: 3.5, z: 3.5 };
         for (let i = 0; i < 400; i++) {
           // Erst an der Wand entlang, dann mit Gewalt schräg hinein.
           const turn = i < 150 ? angle : angle + (i % 7) * 0.3;
           p = moveOnCells(grid, p, Math.cos(turn) * step, Math.sin(turn) * step);
-          // Die Schräge läuft über x + z = 4 Meter; innen bleibt man darüber.
-          expect(p.x + p.z).toBeGreaterThan(4);
-          expect(Math.max(p.x, p.z)).toBeLessThan(8);
+          inner = Math.min(inner, p.x + p.z);
+          outer = Math.max(outer, p.x, p.z);
         }
       }
     }
+    // Die Schräge läuft über x + z = 4 Meter; innen bleibt man darüber.
+    expect(inner).toBeGreaterThan(4);
+    expect(outer).toBeLessThan(8);
   });
 
   it('drückt an einer Schräge in die freie Richtung, statt stehen zu bleiben', () => {

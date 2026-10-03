@@ -36,8 +36,8 @@ import { beltOffset } from '../worlds/portal/beltSettings';
  * dort wäre man mitten im Kegel. Das gilt auch für das Licht: three.js nimmt
  * ein Licht nur in Bilder, deren Kamera seine Ebene sieht.
  *
- * Die Rechnung (`viewRim`, `viewCone`, `bodyBoxes`) ist ohne Szene und hat
- * Jest daneben; die Klasse unten legt nur Linien, Kästen und Licht darauf.
+ * Die Rechnung (`viewRim`, `viewCone`, `viewMask`, `bodyBoxes`) ist ohne
+ * Szene; die Klasse unten legt nur Linien, Kästen und Licht darauf.
  */
 
 /** Der Augenabstand, mit dem die Quest 3 ausgeliefert wird, in Metern. */

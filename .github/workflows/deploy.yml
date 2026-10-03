@@ -29,14 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
+      # Kein eigener Typecheck mehr: `npm run build` ist `tsc --noEmit &&
+      # vite build` und bricht bei einem Typfehler genauso ab. Lint und Format
+      # laufen einmal die Woche (`lint.yml`) und nicht bei jedem Push.
 
       # **Jeder Pull Request erhöht den Patch** (`AGENTS.md`, die Version
       # steht auf der Startseite). Eine Regel, an die sich nur erinnert wird,
@@ -51,10 +46,9 @@ jobs:
           node tools/version-check.mjs FETCH_HEAD
 
       # Die Tests laufen hier und nicht nur auf dem Rechner dessen, der gerade
-      # committet: AGENTS.md verlangt sie vor jedem Push, und eine Regel, an die
-      # sich nur erinnert wird, ist keine. Es ist **ein** Lauf: Der Job
-      # `slow-tests` daneben ist weg, mit ihm die vierzehn Rundensimulationen
-      # (`docs/agents/tests.md`).
+      # committet. Es sind mit Absicht wenige: nur, was kritisch ist und im
+      # Browser nicht auffällt — Navigation, Greifen, Boden und Portale,
+      # Speicherstände, Netz, App-Hülle (`docs/agents/tests.md`).
       - name: Test
         run: npm test
 
