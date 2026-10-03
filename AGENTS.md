@@ -55,6 +55,26 @@ entweder komplett neue 3d Elemente bauen oder nur die 3d Elemente ohne Physik
 Info (2d Grid) platzieren in den Welten."_ Fehlt ein Element, kommt es in den
 Katalog, aus Dateien des Regals zusammengesetzt, und nicht in die Welt.
 
+**Bei sichtbaren Änderungen kommt ein Bild in den Chat.** Wer etwas baut,
+das man sieht — eine Welt, ein Möbel, eine Tafel, ein Menü, ein Effekt —,
+schickt am Ende ein bis zwei Screenshots davon direkt in die Unterhaltung
+(in Claude Code: `SendUserFile`), damit der Besitzer es am Handy sofort sieht.
+Gewünscht: _„bei visuellen features hier im chat immer ein foto gesendet
+werden soll von der sache (so 1-2 bilder), damit ich das am handy direkt sehen
+kann."_ Welche Ansicht:
+
+- **Betrifft es die Brille** (Hände, Menü-Ebene, Tafeln, alles, was nur in VR
+  so aussieht): mit der nachgestellten Quest, also `?xr=sim`
+  (`core/xrEmulator.ts`) — oder, wenn es nur um das Bild geht, mit der
+  _VR-Ansicht_ aus dem Menü _Spiel-Sicht_ (`core/vrView.ts`).
+- **Ist es allgemein** (eine Welt, Möbel, Böden, Wände): _Von oben_, so dass
+  man das Ganze auf einen Blick hat.
+
+Geschossen wird mit Playwright gegen `npm run dev` (Vorlage:
+`tools/avatar-shot.mjs`; ein vorinstallierter Chromium wird über
+`SMOKE_EXECUTABLE` gefunden). Die Bilder gehören in den Chat, nicht ins
+Repository.
+
 **Jeder Pull Request erhöht die Patch-Version.** Auf der Startseite steht
 `0.<Build>.<Patch>` aus `package.json` (siehe
 [Die Seite selbst](docs/agents/seite.md#die-version-auf-der-startseite)), und
