@@ -22,6 +22,11 @@ bekommt einen Branch zugewiesen —, nimmt den Umweg aus AGENTS.md und geht ihn
 zu Ende: Branch, Pull Request **ohne Draft**, nach grüner CI selbst mergen,
 Branch löschen. Ein offener Pull Request ist kein Ergebnis.
 
+**Bei visuellen Features 1–2 Bilder in den Chat** (`SendUserFile`), damit der
+Besitzer es am Handy sieht: was die Brille betrifft, mit der simulierten VR
+(`?xr=sim` oder _VR-Ansicht_), alles Allgemeine _von oben_. Näheres in
+AGENTS.md unter den Arbeitsregeln.
+
 **Tests nur für Kritisches** — oder für etwas, das **mehrfach** kaputtgegangen
 ist. Gewünscht: _„nur für kritische Punkte Tests, oder wenn etwas mehrfach
 auftritt, dass etwas nicht klappt."_ Kritisch heißt: Ein Fehler fällt im
