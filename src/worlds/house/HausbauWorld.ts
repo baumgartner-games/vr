@@ -279,7 +279,7 @@ export class HausbauWorld extends TestRestaurantWorld {
   } | null {
     const paper = wallpaperOfItem(id);
     const flooring = flooringOfItem(id);
-    if (!paper && !flooring && id !== 'stair') return null;
+    if (!paper && !flooring && id !== 'stair') return super.catalogItem(id);
     const model = ITEM_MODELS[id as KitchenItem];
     const label = ITEM_LABELS[id as KitchenItem];
     return {
@@ -304,7 +304,10 @@ export class HausbauWorld extends TestRestaurantWorld {
     const paper = wallpaperOfItem(id);
     const flooring = flooringOfItem(id);
     const stair = id === 'stair';
-    if (!paper && !flooring && !stair) return;
+    if (!paper && !flooring && !stair) {
+      super.takeCatalogItem(ctx, id, hand);
+      return;
+    }
     this.setCarried(dish(id as KitchenItem), hand ?? this.carriedHand);
     ctx.notify(
       paper

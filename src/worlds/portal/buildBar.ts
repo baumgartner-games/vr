@@ -1,3 +1,4 @@
+import { isTyping } from '../../core/textEntry';
 /**
  * **Die Werkzeugleiste des _Baukastens_** — der DOM-Teil, am Schirm und auf
  * dem Telefon. Rechnen tut hier nichts; gesammelt wird, was gedrückt wurde,
@@ -314,6 +315,8 @@ export class BuildBar {
 
   private readonly onKey = (event: KeyboardEvent): void => {
     if (this.bar.hidden || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+    // Im Suchfeld ist Strg+Z das Rückgängig des Texts, nicht das der Welt.
+    if (isTyping()) return;
     const key = event.key.toLowerCase();
     let kind: 'undo' | 'redo' | null = null;
     if (key === 'z') kind = event.shiftKey ? 'redo' : 'undo';

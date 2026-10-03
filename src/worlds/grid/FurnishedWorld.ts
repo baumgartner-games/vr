@@ -45,7 +45,15 @@ import { SprayJet } from '../test/zones/kitchenSpray';
 import { LeakJet } from '../test/zones/kitchenLeak';
 import { iceConeIn, stepIceCones } from '../shared/iceCone';
 import { WOBBLE } from '../shared/iceWobble';
-import type { Dish } from '../test/zones/kitchenRecipes';
+import {
+  dish,
+  ITEM_LABELS,
+  PLANT_ITEMS,
+  type Dish,
+  type KitchenItem,
+} from '../test/zones/kitchenRecipes';
+import { itemModel } from '../elements/itemModels';
+import type { MenuFact } from '../../ui/menu';
 import { atHandGrip } from '../portal/grabReach';
 
 const _rigAhead = new THREE.Vector3();
@@ -263,6 +271,30 @@ export abstract class FurnishedWorld extends GridWorld {
       ? { ...grounded(carried.from), x: at.x, z: at.z, face: at.face }
       : at;
     return this.furnishSpot(spot, keptStates(carried), carried.riders ?? []) ? spot : null;
+  }
+
+  /**
+   * **Die Pflanzen aus dem Katalog** (`kitchenRecipes.PLANT_ITEMS`) — Dinge für
+   * die Hand wie die Tomate: Die Kachel nimmt sie in die Hand, `A` stellt sie
+   * auf eine Ablage und nimmt sie dort wieder.
+   */
+  protected override catalogItem(id: string): {
+    label: string;
+    model: string;
+    preview?: string;
+    facts?: readonly MenuFact[];
+    crate?: string;
+  } | null {
+    if (!isPlant(id)) return null;
+    return { label: ITEM_LABELS[id], model: itemModel(id) };
+  }
+
+  protected override takeCatalogItem(ctx: WorldContext, id: string, hand: Handedness | null): void {
+    if (!isPlant(id)) return;
+    this.setCarried(dish(id), hand ?? this.carriedHand);
+    ctx.notify(
+      `${ITEM_LABELS[id]} in der Hand · mit A auf einen Tisch oder eine Arbeitsplatte stellen`,
+    );
   }
 
   protected override furnishBack(carried: CarriedElement): ElementSpot | null {
@@ -715,4 +747,9 @@ function grounded(spot: ElementSpot): ElementSpot {
   if (spot.y === undefined) return spot;
   const { y: _height, ...flat } = spot;
   return flat;
+}
+
+/** Ob eine Id eine der Pflanzen ist (`PLANT_ITEMS`). */
+function isPlant(id: string): id is KitchenItem {
+  return (PLANT_ITEMS as readonly string[]).includes(id);
 }

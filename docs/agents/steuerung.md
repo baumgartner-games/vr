@@ -265,6 +265,18 @@ rechte Stock war keine Wahl (er zielt), die Schultern auch nicht (Zoom).
   Kamera von oben (`TOP_DOWN_CAMERA_NAME`) — aus den Augen und in der Brille
   steht es, wie es gebaut ist.
 
+### Wer tippt, steuert nicht
+
+Solange ein Textfeld den Fokus hat — die Suchfelder von Modellregal, Katalog
+und Reitern, der Spitzname, der Chat —, sind seine Tasten Buchstaben und keine
+Befehle (`core/textEntry.isTyping`, das neben dem Tastenfeld der Brille auch
+den Fokus fragt). Gemeldet (Oktober 2026): _„Anscheinend schließt sich das Menü
+wenn ich mehr als 3 Buchstaben eintippe"_ — es war das `m` in `lamp`, die
+Taste des Menüs (`FlatControls`). Auf demselben Weg setzte ein `r` die Welt
+zurück (`PortalWorld.flatKeys`), und Strg+Z im Feld nahm die letzte
+Weltänderung zurück statt des Texts (`buildBar`). Wer eine neue Taste belegt,
+fragt `isTyping()`.
+
 ## Die Tabelle
 
 |                                                                                    | VR                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Desktop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Gamepad                                                                                                                                                                                                                                                                                                                                                                | Handy                                                                                                                                                           |

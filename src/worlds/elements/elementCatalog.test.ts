@@ -260,7 +260,9 @@ describe('der Möbelkatalog im Menü', () => {
     expect(new Set(all.map((folder) => folder.id)).size).toBe(all.length);
     for (const folder of all) {
       const inner = folder.folders?.length ?? 0;
-      expect(folder.elements.length + (folder.models?.length ?? 0) + inner).toBeGreaterThan(0);
+      expect(
+        folder.elements.length + (folder.models?.length ?? 0) + (folder.items?.length ?? 0) + inner,
+      ).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
       for (const id of folder.elements)
         expect([

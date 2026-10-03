@@ -220,7 +220,30 @@ export type KitchenItem =
    * **Die Treppe** (`house/stairPlan.ts`) — aus der Kiste oder dem Katalog in
    * die Hand, im Haus vor sich hingestellt; sie legt die Etage darüber an.
    */
-  | 'stair';
+  | 'stair'
+  /**
+   * **Die Pflanzen** (`elements/furnitureCatalog.ts`, Ordner _Möbel_ →
+   * _Pflanzen_) — die Kakteen aus _Furniture Bits_, doppelt so groß wie im
+   * Regal (`dishView.ITEM_SCALE`). Gewünscht (Oktober 2026): _„Die pflanzen
+   * alle bitte doppelt so groß und wieder aufnehmbar … So wie Tomaten und
+   * Salate der Spieler die wieder auf die Hand nehmen kann bzw. tragen
+   * kann."_ Also Dinge für die Hand wie die Tomate: aus dem Katalog in die
+   * Hand, mit `A` auf eine Ablage (Tisch, Arbeitsplatte) und wieder herunter.
+   * Sie werden nie zu Essen — wie die Zange: kein `TAKES`, kein `CHOPS`, kein
+   * Mülleimer.
+   */
+  | 'cactus-small-a'
+  | 'cactus-small-b'
+  | 'cactus-a'
+  | 'cactus-b';
+
+/** Die Pflanzen, in der Reihenfolge des Katalogs. */
+export const PLANT_ITEMS: readonly KitchenItem[] = [
+  'cactus-small-a',
+  'cactus-small-b',
+  'cactus-a',
+  'cactus-b',
+];
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -307,6 +330,10 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   'floor-wood-dark': 'Boden Dielen dunkel',
   'floor-stone': 'Boden Steinplatten',
   stair: 'Treppe',
+  'cactus-small-a': 'Kleiner Kaktus',
+  'cactus-small-b': 'Kleiner Kaktus mit Blüte',
+  'cactus-a': 'Kaktus',
+  'cactus-b': 'Kaktus mit Blüte',
 };
 
 /**

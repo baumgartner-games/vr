@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { dish, ITEM_RESTS, kitchenDeed } from '../test/zones/kitchenCarry';
+import { PLANT_ITEMS } from '../test/zones/kitchenRecipes';
+import { ITEM_SCALE } from './dishView';
+import { itemModel } from './itemModels';
 import { allFolders, elementById, FURNITURE_FOLDERS, hasElement } from './elementCatalog';
 import {
   FACES,
@@ -38,7 +41,7 @@ describe('Möbel im Katalog', () => {
       'Alles',
     ]);
     for (const folder of FURNITURE_BITS_FOLDER.folders!) {
-      expect(folder.elements.length).toBeGreaterThan(0);
+      expect(folder.elements.length + (folder.items?.length ?? 0)).toBeGreaterThan(0);
       if (folder.cover && 'element' in folder.cover)
         expect(folder.elements).toContain(folder.cover.element);
     }
@@ -68,14 +71,16 @@ describe('Möbel im Katalog', () => {
     const files = pack.root.dirs
       .find((one) => one.name === 'furniture-bits')!
       .files.map((one) => one.name.replace('.glb', ''));
-    const used = FURNITURE_BITS_ELEMENTS.map((one) =>
-      one.parts[0]!.model.replace('furniture-bits/', '').replace('.glb', ''),
-    );
-    const wall = files.filter((name) => !used.includes(name));
-    expect(wall.every((name) => /^(pictureframe_(large|medium|small)|shelf_)/.test(name))).toBe(
-      true,
-    );
-    expect(wall).toHaveLength(12);
+    const used = [
+      ...FURNITURE_BITS_ELEMENTS.flatMap((one) => one.parts.map((part) => part.model)),
+      ...PLANT_ITEMS.map((item) => itemModel(item)),
+    ].map((model) => model.replace('furniture-bits/', '').replace('.glb', ''));
+    const left = files.filter((name) => !used.includes(name));
+    // Die zwölf Wandstücke — und die Mauspads, die der Computer nicht braucht.
+    expect(
+      left.every((name) => /^(pictureframe_(large|medium|small)|shelf_|mousepad_)/.test(name)),
+    ).toBe(true);
+    expect(left.filter((name) => !name.startsWith('mousepad_'))).toHaveLength(12);
   });
 
   it('macht die Tische zu Ablagen und Flächen der Küche — ohne Brett', () => {
@@ -97,14 +102,9 @@ describe('Möbel im Katalog', () => {
 
   it('macht Monitore, Lampen, kleine Pflanzen, Becher und Bücher ablegbar — auf einer Zelle', () => {
     for (const id of [
-      'monitor',
-      'keyboard',
-      'mouse',
       'lamp-desk',
       'lamp-desk-headphones',
       'lamp-table',
-      'cactus-small-a',
-      'cactus-medium-b',
       'cup',
       'mug-a',
       'book-single',
@@ -117,6 +117,48 @@ describe('Möbel im Katalog', () => {
     // Was groß ist, bleibt auf dem Boden.
     for (const id of ['couch', 'bed-double-a', 'lamp-standing', 'desk'])
       expect(elementById(`furniture-${id}`).rests).toBeFalsy();
+  });
+
+  it('bietet Monitor, Tastatur, Maus und Mauspad nur noch als Computer an — eine Kachel, ablegbar', () => {
+    for (const gone of ['monitor', 'keyboard', 'mouse', 'mousepad-a', 'mousepad-large-a'])
+      expect(hasElement(`furniture-${gone}`)).toBe(false);
+    const computer = elementById('furniture-computer');
+    expect(computer).toMatchObject({ tiles: [1, 1], rests: true, kind: null });
+    expect(computer.parts.map((part) => part.model)).toEqual([
+      'furniture-bits/monitor.glb',
+      'furniture-bits/keyboard.glb',
+      'furniture-bits/mousepad_A.glb',
+      'furniture-bits/mouse.glb',
+    ]);
+    // Die Maus liegt auf dem Mauspad, alles bleibt auf der Kachel.
+    expect(computer.parts[3]!.on).toBe(2);
+    for (const part of computer.parts)
+      for (const at of part.at ?? [0, 0]) expect(Math.abs(at)).toBeLessThan(0.5);
+    // Auf den Schreibtisch (2 × 1 Kacheln) passen zwei.
+    const desk: ElementSpot = { id: 'd', element: 'furniture-desk', x: 0, z: 0 };
+    const one: ElementSpot = { id: 'c1', element: 'furniture-computer', x: 0, z: 0 };
+    const two: ElementSpot = { id: 'c2', element: 'furniture-computer', x: 1, z: 0 };
+    expect(fitsOnShelf(desk, one, new Set())).toBe(true);
+    expect(fitsOnShelf(desk, two, new Set(spotFootprintCells(one)))).toBe(true);
+  });
+
+  it('macht die Pflanzen zu Dingen für die Hand — doppelt so groß, ablegbar wie die Tomate', () => {
+    const plants = FURNITURE_BITS_FOLDER.folders!.find((one) => one.label === 'Pflanzen')!;
+    expect(plants.elements).toEqual([]);
+    expect(plants.items).toEqual(PLANT_ITEMS);
+    for (const item of PLANT_ITEMS) {
+      expect(ITEM_RESTS.has(item)).toBe(true);
+      expect(ITEM_SCALE[item]).toBe(2);
+      expect(itemModel(item)).toMatch(/^furniture-bits\/cactus_/);
+      expect(kitchenDeed(dish(item), { kind: 'top' })).toEqual({ do: 'place', dish: dish(item) });
+      // Wieder in die Hand.
+      expect(kitchenDeed(null, { kind: 'top', on: dish(item) })).toEqual({
+        do: 'take',
+        dish: dish(item),
+      });
+      // Kein Essen: nicht in den Mülleimer.
+      expect(kitchenDeed(dish(item), { kind: 'bin' }).do).not.toBe('place');
+    }
   });
 
   it('legt Teppiche wie einen Boden auf den Boden — sie sperren nichts', () => {

@@ -582,6 +582,10 @@ export function kitchenHandles(
     case 'floor-wood-dark':
     case 'floor-stone':
     case 'stair':
+    case 'cactus-small-a':
+    case 'cactus-small-b':
+    case 'cactus-a':
+    case 'cactus-b':
       return [];
   }
 }

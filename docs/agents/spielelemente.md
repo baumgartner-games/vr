@@ -371,8 +371,27 @@ höchstens 0,6 m im Quadrat misst, steht auf einer Zelle.
 | Merkmal | Was es heißt | Wer es hat |
 | ------- | ------------ | ---------- |
 | `shelf` — **Ablage** | Darauf stellt man ab, was ablegbar ist | die Tische, Schreibtische und Kommoden ohne Deko, die Arbeitsplatte (`counter`), der runde Tisch |
-| `rests` — **ablegbar** | Passt auf eine Ablage; fällt es dort hin, steht es obenauf, sonst auf dem Boden | Monitor, Tastatur, Maus, Mauspads, Spielkonsole, Tisch- und Schreibtischlampen, Becher, Tassen, Bücher, Bilderrahmen zum Hinstellen, Kissen, Kakteen |
+| `rests` — **ablegbar** | Passt auf eine Ablage; fällt es dort hin, steht es obenauf, sonst auf dem Boden | der Computer, Spielkonsole, Stiftebecher, Tisch- und Schreibtischlampen, Becher, Tassen, Bücher, Bilderrahmen zum Hinstellen, Kissen |
 | `floor` — **Bodenbelag** | Liegt flach, sperrt nichts (`solid: [0, 0]`), darauf stellt man, was man will | die sechs Teppiche |
+
+**Der Computer** (`furnitureCatalog.computer`) ersetzt Monitor, Tastatur, Maus
+und Mauspad als einzelne Teile — gewünscht: _„Bitte Monitor, Maus und Tastatur,
+Mauspad entfernen aus dem Katalog (als einzelne Gegenstände) und dafür einen
+Gegenstand 2x2 Computer (modern) anbieten (mit den vier Dingen)"_. Ein Element
+auf **einer Kachel, also 2 × 2 Zellen**, ablegbar: hinten der Monitor, vorn die
+Tastatur, rechts das Mauspad mit der Maus darauf. Auf den Schreibtisch passen
+zwei.
+
+**Die Pflanzen sind Dinge für die Hand** und keine Möbel mehr — gewünscht:
+_„Die pflanzen alle bitte doppelt so groß und wieder aufnehmbar … So wie
+Tomaten und Salate der Spieler die wieder auf die Hand nehmen kann bzw. tragen
+kann."_ Die vier Kakteen sind Dinge der Küche (`kitchenRecipes.PLANT_ITEMS`,
+Bild doppelt so groß: `dishView.ITEM_SCALE` 2). Der Ordner _Pflanzen_ führt sie
+als `items`: Die Kachel nimmt sie in die Hand (`FurnishedWorld.catalogItem` /
+`takeCatalogItem`; der Hausbau reicht alles, was nicht Tapete, Boden oder
+Treppe ist, dorthin weiter), `A` stellt sie auf eine Ablage, `A` nimmt sie
+wieder. Auf den Boden stellt man sie damit nicht mehr — Dinge der Küche liegen
+nur auf Flächen.
 
 **Für die Dinge der Küche dasselbe Merkmal** (`kitchenRecipes.ITEM_RESTS`):
 Pizza, Schinken, Käse, Teller, Pfanne, Feuerlöscher … — alles, was die Küche in

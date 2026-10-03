@@ -1,4 +1,5 @@
 import type { FurnitureFolder, GameElement } from './elementCatalog';
+import { PLANT_ITEMS } from '../test/zones/kitchenRecipes';
 
 /**
  * **Möbel im Katalog** — _Furniture Bits_ als Spielelemente. Gewünscht
@@ -15,7 +16,10 @@ import type { FurnitureFolder, GameElement } from './elementCatalog';
  *   (`kind: 'top'`): Darauf stellt man ab, was ablegbar ist, und legt ab, was
  *   man aus der Küche in der Hand hat — geschnitten wird darauf nicht.
  * - `small` — **ablegbar** (`GameElement.rests`), eine Zelle groß: auf eine
- *   Ablage oder auf den Boden.
+ *   Ablage oder auf den Boden. Der Computer ebenso, aber eine Kachel groß
+ *   (`computer`).
+ * - Die **Pflanzen** sind keine Elemente, sondern Dinge für die Hand
+ *   (`kitchenRecipes.PLANT_ITEMS`), wie Tomate und Salat.
  * - `rug` — ein **Bodenbelag** (`GameElement.floor`): sperrt nichts, darauf
  *   stellt man, was man will.
  *
@@ -81,6 +85,34 @@ function small(id: string, label: string, file: string): GameElement {
     kind: null,
     rests: true,
     parts: [{ model: furnitureBits(file) }],
+  };
+}
+
+/**
+ * **Der Computer** — Monitor, Tastatur, Mauspad und Maus als **ein** Ding auf
+ * einer Kachel (2 × 2 Zellen). Gewünscht: _„Bitte Monitor, Maus und Tastatur,
+ * Mauspad entfernen aus dem Katalog (als einzelne Gegenstände) und dafür einen
+ * Gegenstand 2x2 Computer (modern) anbieten (mit den vier Dingen)"_. Ablegbar
+ * wie die Tasse: Auf den Schreibtisch (2 × 1 Kacheln) passen zwei.
+ *
+ * Wie es auf der Kachel liegt, wenn es nach Süden schaut (vorn ist +z):
+ * hinten mittig der Monitor, vorn links die Tastatur, rechts daneben das
+ * Mauspad und darauf die Maus.
+ */
+function computer(): GameElement {
+  return {
+    id: 'furniture-computer',
+    label: 'Computer',
+    tiles: [1, 1],
+    height: BODY,
+    kind: null,
+    rests: true,
+    parts: [
+      { model: furnitureBits('monitor'), at: [0, -0.22] }, // 0,75 × 0,55 × 0,17
+      { model: furnitureBits('keyboard'), at: [-0.13, 0.14] }, // 0,38 × 0,08 × 0,22
+      { model: furnitureBits('mousepad_A'), at: [0.28, 0.14] }, // 0,40 × 0,01 × 0,30
+      { model: furnitureBits('mouse'), at: [0.28, 0.14], on: 2 }, // 0,13 × 0,09 × 0,17
+    ],
   };
 }
 
@@ -167,13 +199,7 @@ export const FURNITURE_BITS_ELEMENTS: readonly GameElement[] = [
     'lamp_desk_headphones',
   ), // 0,35 × 0,59 × 0,55
   // Schreibtisch & Technik
-  small('furniture-monitor', 'Monitor', 'monitor'), // 0,75 × 0,55 × 0,17
-  small('furniture-keyboard', 'Tastatur', 'keyboard'), // 0,38 × 0,08 × 0,22
-  small('furniture-mouse', 'Maus', 'mouse'), // 0,13 × 0,09 × 0,17
-  small('furniture-mousepad-a', 'Mauspad A', 'mousepad_A'), // 0,40 × 0,01 × 0,30
-  small('furniture-mousepad-b', 'Mauspad B', 'mousepad_B'), // 0,40 × 0,01 × 0,30
-  small('furniture-mousepad-large-a', 'Großes Mauspad A', 'mousepad_large_A'), // 0,70 × 0,01 × 0,40
-  small('furniture-mousepad-large-b', 'Großes Mauspad B', 'mousepad_large_B'), // 0,70 × 0,01 × 0,40
+  computer(), // 1 Kachel: Monitor, Tastatur, Mauspad, Maus
   small('furniture-gameconsole-handheld', 'Spielkonsole', 'gameconsole_handheld'), // 0,53 × 0,09 × 0,22
   small('furniture-cup-pencils', 'Stiftebecher', 'cup_pencils'), // 0,18 × 0,34 × 0,18
   // Kleinkram
@@ -186,11 +212,6 @@ export const FURNITURE_BITS_ELEMENTS: readonly GameElement[] = [
   small('furniture-pictureframe-standing-b', 'Bilderrahmen B', 'pictureframe_standing_B'), // 0,35 × 0,23 × 0,18
   small('furniture-pillow-a', 'Kissen A', 'pillow_A'), // 0,33 × 0,10 × 0,25
   small('furniture-pillow-b', 'Kissen B', 'pillow_B'), // 0,33 × 0,10 × 0,25
-  // Pflanzen
-  small('furniture-cactus-small-a', 'Kaktus, klein A', 'cactus_small_A'), // 0,25 × 0,28 × 0,25
-  small('furniture-cactus-small-b', 'Kaktus, klein B', 'cactus_small_B'), // 0,25 × 0,28 × 0,25
-  small('furniture-cactus-medium-a', 'Kaktus A', 'cactus_medium_A'), // 0,44 × 0,41 × 0,42
-  small('furniture-cactus-medium-b', 'Kaktus B', 'cactus_medium_B'), // 0,44 × 0,41 × 0,42
   // Teppiche
   rug('furniture-rug-rectangle-a', 'Teppich A', 'rug_rectangle_A', [2, 1]), // 1,50 × 0,05 × 1,00
   rug('furniture-rug-rectangle-b', 'Teppich B', 'rug_rectangle_B', [2, 1]), // 1,50 × 0,05 × 1,00
@@ -261,17 +282,7 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-lamp-desk',
     'furniture-lamp-desk-headphones',
   ],
-  desk: [
-    'furniture-monitor',
-    'furniture-keyboard',
-    'furniture-mouse',
-    'furniture-mousepad-a',
-    'furniture-mousepad-b',
-    'furniture-mousepad-large-a',
-    'furniture-mousepad-large-b',
-    'furniture-gameconsole-handheld',
-    'furniture-cup-pencils',
-  ],
+  desk: ['furniture-computer', 'furniture-gameconsole-handheld', 'furniture-cup-pencils'],
   small: [
     'furniture-cup',
     'furniture-mug-a',
@@ -282,12 +293,6 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-pictureframe-standing-b',
     'furniture-pillow-a',
     'furniture-pillow-b',
-  ],
-  plants: [
-    'furniture-cactus-small-a',
-    'furniture-cactus-small-b',
-    'furniture-cactus-medium-a',
-    'furniture-cactus-medium-b',
   ],
   rugs: [
     'furniture-rug-rectangle-a',
@@ -343,7 +348,7 @@ export const FURNITURE_BITS_FOLDER: FurnitureFolder = {
       id: 'furniture-desk',
       label: 'Schreibtisch & Technik',
       elements: FURNITURE_GROUPS['desk']!,
-      cover: { element: 'furniture-monitor' },
+      cover: { element: 'furniture-computer' },
     },
     {
       id: 'furniture-small',
@@ -354,8 +359,12 @@ export const FURNITURE_BITS_FOLDER: FurnitureFolder = {
     {
       id: 'furniture-plants',
       label: 'Pflanzen',
-      elements: FURNITURE_GROUPS['plants']!,
-      cover: { element: 'furniture-cactus-medium-a' },
+      // **Dinge für die Hand** und keine Möbel (`kitchenRecipes.PLANT_ITEMS`):
+      // Man nimmt sie wie die Tomate, trägt sie und stellt sie mit `A` auf eine
+      // Ablage — und nimmt sie dort wieder.
+      elements: [],
+      items: PLANT_ITEMS,
+      cover: { item: 'cactus-a' },
     },
     {
       id: 'furniture-rugs',
