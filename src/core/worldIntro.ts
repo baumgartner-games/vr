@@ -72,15 +72,6 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
       { action: 'menu', label: 'Menü' },
     ],
   },
-  editor: {
-    goal: 'Baue ein Level, während du darin stehst.',
-    first: 'Karte und Palette hängen am Gürtel — greifen holt sie heraus.',
-    tips: [
-      { action: 'move', label: 'Gehen' },
-      { action: 'use', label: 'Benutzen' },
-      { action: 'menu', label: 'Menü' },
-    ],
-  },
   sandbox: {
     goal: 'Der Sandkasten: neun Zonen auf einem Gelände — Türen, Effekte, Küche, Schießstand, Kartbahn, Kletterwand.',
     first: 'Norden Effekte und Küche, Osten Schießstand, Süden Gokart.',
