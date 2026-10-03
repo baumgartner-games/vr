@@ -444,8 +444,9 @@ wäre mir lieber als der kleiderschrank um das aussehen menü zu öffnen (wie be
 inventar menü)"_ — und dazu _„denk dran, dass es auch gehightligheted werden
 soll wenn man mit diesem interagieren will"_. Die **Garderobe** (`coat-rack`,
 `elements/coatRack.ts`, im Möbelkatalog unter _Möbel → Schränke_) ersetzt den
-Kleiderschrank der Sandbox; sie steht eine Kachel vor der Nordwand neben dem
-Startplatz (`zones/start.COAT_RACK_SPOT`, `TestWorld.spots`).
+Kleiderschrank der Sandbox. Sie stand dort neben dem Startplatz, bis die
+Sandbox im Oktober 2026 leer wurde; seitdem stellt man sie aus dem Katalog hin,
+wo man sie braucht.
 
 - **Eine Kachel, 2 × 2 Zellen, Körper 1,40 m** wie jedes Möbel. Sie ist
   1,40 m hoch; mit den Hüten reicht alles höchstens 0,49 m aus der Mitte.

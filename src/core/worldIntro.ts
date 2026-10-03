@@ -82,12 +82,48 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
     ],
   },
   sandbox: {
-    goal: 'Der Sandkasten: neun Zonen auf einem Gelände — Türen, Effekte, Küche, Schießstand, Kartbahn, Kletterwand.',
-    first: 'Norden Effekte und Küche, Osten Schießstand, Süden Gokart.',
+    goal: 'Der Sandkasten: eine leere Fläche zum Aufbauen und Ausprobieren.',
+    first: 'Im Menü unter Bauen und im Möbelkatalog: hinstellen, was du testen willst.',
     tips: [
       { action: 'move', label: 'Gehen' },
       { action: 'use', label: 'Benutzen' },
       { action: 'tools', label: 'Werkzeug' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
+  'test-kart': {
+    goal: 'Eine Kartbahn mit Boxengasse: zwei Karts, Rundenzeit, Lenkrad in der Hand oder Stick.',
+    first: 'Vor dir in der Box stehen die Karts — „Benutzen" setzt dich hinein.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'use', label: 'Einsteigen' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
+  'test-climb': {
+    goal: 'Eine Kletterwand mit Griffen aller Arten, Ausdauer und einem Sprungkissen davor.',
+    first: 'Greifen hält dich an der Wand — schlechte Griffe kosten Ausdauer.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'use', label: 'Benutzen' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
+  'test-range': {
+    goal: 'Ein Schießstand: drei Bahnen, Scheiben auf 5, 10 und 20 m, Punkte auf der Tafel.',
+    first: 'Die Pistole hängt am Gürtel; „Zurücksetzen" stellt die Scheiben wieder auf.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'tools', label: 'Pistole' },
+      { action: 'menu', label: 'Menü' },
+    ],
+  },
+  'test-effects': {
+    goal: 'Vier Effektquellen in einer Reihe: Rauch, Feuer, Funken, Wasser.',
+    first: 'Jeder Knopf löst die Düse hinter sich aus.',
+    tips: [
+      { action: 'move', label: 'Gehen' },
+      { action: 'use', label: 'Knopf drücken' },
       { action: 'menu', label: 'Menü' },
     ],
   },
