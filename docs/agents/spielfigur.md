@@ -454,9 +454,10 @@ Strecke, die niemand gelaufen ist, wäre eine Lüge. Gebaut ist der Effekt wie d
 Löschnebel in der Küche (`SprayJet`: geteilte Form, ein Material, Felder fester
 Länge, und wer nichts zeigt, kostet nichts), und die Wölkchen hängen in der
 **Welt** und nicht an der Figur — was ausgestoßen ist, bleibt liegen, sonst
-zöge man es hinter sich her wie einen Schal. Angehängt wird die Spur in der
-Testwelt (`TestWorld.trailDust`) und nicht in der Küche: Gestaubt wird, wo
-gelaufen wird, und gelaufen wird auf dem ganzen Gelände. Nur zu Fuß —
+zöge man es hinter sich her wie einen Schal. Angehängt wird die Spur in
+**jeder** Welt (`PortalWorld.trailDust`, seit Oktober 2026 — vorher nur in der
+Sandbox; gewünscht: _„beim spieler wenn er sich bewegt sollen auch die wolken
+kommen wie beim kran."_), unter dem Kopf und nicht am Rig. Nur zu Fuß —
 `PlayerRig.wishing` ist der Merker, den alle vier Steuerungen setzen, und
 `seated` schließt das Kart aus.
 

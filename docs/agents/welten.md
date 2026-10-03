@@ -446,7 +446,7 @@ unter altem Namen gelten weiter (`signs/signStore.storedSigns`).
 
 **Seit Oktober 2026 ist die Sandbox leer** (`test/SandboxWorld.ts`,
 `test/sandboxPlan.ts`): 40 × 40 begehbare Kacheln aus Prototyp-Platten um die
-Null, bebaubar, mit Staubspur und der Schürze, die mit der Figur wandert.
+Null, bebaubar, mit der Schürze, die mit der Figur wandert.
 Gewünscht: _„wir können die sandbox welt aufräumen … rennstrecke, kletterwand,
 schießstand, effekte … jedes davon in eine eigene test welt extrahieren. Der
 rest kann gelöscht werden davon. Ich will aber eine leere Sandbox welt

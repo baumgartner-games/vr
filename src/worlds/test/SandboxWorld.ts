@@ -1,6 +1,4 @@
-import * as THREE from 'three';
 import type { GridPlan } from '../grid/gridPlan';
-import { DustTrail } from '../shared/dustTrail';
 import { PLATE_TOP, PlateFloor } from '../shared/plateFloor';
 import { plateAnchor, plateCapacity, plateSpots, type PlateSpot } from '../shared/plateField';
 import { TILE } from '../nav/navTile';
@@ -18,8 +16,6 @@ import { ZoneWorld } from './ZoneWorld';
  * Öffnen so zurück, wie er war — derselbe Knopf räumt ihn weg.
  */
 export class SandboxWorld extends ZoneWorld {
-  /** **Der Staub hinter der Figur** (`shared/dustTrail.ts`) — von oben sieht man, dass sie läuft. */
-  private dust: DustTrail | null = null;
   /**
    * **Der Plattenboden draußen** (`shared/plateFloor.ts`) — die Schürze, die
    * mit der Figur wandert (`followPlates`). Auf der Fläche selbst legt die
@@ -74,7 +70,6 @@ export class SandboxWorld extends ZoneWorld {
   protected override buildProps(): void {
     super.buildProps();
     if (!this.context) return;
-    this.dust ??= new DustTrail(this.root);
     // Leer angelegt und so groß, wie sie je wird (`plateCapacity`); wo sie
     // liegt, entscheidet erst das erste Bild (`followPlates`).
     this.plates ??= new PlateFloor(this.root, PLATE_PROTOTYPE, [], {
@@ -85,7 +80,6 @@ export class SandboxWorld extends ZoneWorld {
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
-    this.trailDust(dt, ctx);
     this.followPlates(ctx);
   }
 
@@ -106,18 +100,7 @@ export class SandboxWorld extends ZoneWorld {
     );
   }
 
-  /** Gestaubt wird nur zu Fuß (`wishing`), nicht im Sitzen. */
-  private trailDust(dt: number, ctx: WorldContext): void {
-    const dust = this.dust;
-    if (!dust) return;
-    const rig = ctx.rig;
-    _feet.set(rig.position.x, rig.getFloorY(), rig.position.z);
-    dust.update(dt, _feet, rig.wishing && rig.seated <= 0.01);
-  }
-
   override dispose(ctx: WorldContext): void {
-    this.dust?.dispose();
-    this.dust = null;
     // **Vor `super.dispose`**: `disposeTree` kennt die Instanzpuffer eines
     // Bündels nicht (`shared/plateFloor.PlateFloor.dispose`).
     this.plates?.dispose();
@@ -126,6 +109,3 @@ export class SandboxWorld extends ZoneWorld {
     super.dispose(ctx);
   }
 }
-
-/** Einer für alle: Wer je Bild einen Vektor baut, baut je Bild einen Vektor. */
-const _feet = new THREE.Vector3();
