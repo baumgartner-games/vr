@@ -121,6 +121,26 @@ alle fünf ziehen in dieselbe Richtung wie der Abschnitt darüber:
   (kein `skipWaiting`). In der Zwischenzeit läuft die Seite aus dem alten
   Speicher weiter — was sie neu anfordert, hat ohnehin einen neuen Namen und
   kommt aus dem Netz.
+- **Und die laufende Sitzung erfährt davon — und fragt** (Oktober 2026,
+  gewünscht: _„Es soll im Hintergrund prüfen (wenn die App in den
+  Vordergrund kommt), ob eine neue Version da ist und mich über Modal/Menü
+  darüber informieren und fragen ob ich neuladen will, ich aber erstmal die
+  App normal weiter nutzen kann."_). Beim Start, bei jedem Zurückkommen in den
+  Vordergrund und halbstündlich holt `main.watchUpdates` die `index.html` am
+  Speicher vorbei und vergleicht ihre Kennung (`bgvr-build`) mit der eigenen
+  (`core/updateCheck.UpdateWatch`, höchstens einmal je Minute, ohne Netz
+  still). Ist sie anders, steht unten die Karte _Neue Version verfügbar_
+  (`ui/UpdatePrompt.ts`) mit **Jetzt neu laden** und **Später**, im Menü die
+  Statuszeile, und der Browser holt den neuen Service Worker schon
+  (`registration.update`). Neu geladen wird nur auf den Knopf; _Später_ fragt
+  beim nächsten Zurückkommen wieder. Bis dahin lud eine alte Sitzung erst
+  dann still neu, wenn sie eine Welt öffnen wollte, deren Datei es nicht mehr
+  gab (`core/staleBuild.ts`) — und stand danach auf der Startseite. Das gibt
+  es weiterhin, aber man ist vorher gefragt worden.
+- **Was das nicht abfängt**: Ein Telefon, das die App im Hintergrund
+  beendet (zu wenig Speicher, gerade bei WebGL), startet sie beim Zurückkommen
+  neu — auf der Startseite, als wäre sie frisch geöffnet. Davon erfährt der
+  Code nichts; das ist der andere Weg, „rausgeworfen" zu werden.
 - **Und die Prüfsumme an einem Modell ist ein Versprechen, keine Notiz.**
   Was `?v=<Prüfsumme>` trägt, holt der Service Worker nicht mehr nach, sondern
   beantwortet aus dem Speicher (`core/swRoutes.ts`, `isPinned`) — es kann sich

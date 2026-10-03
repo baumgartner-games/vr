@@ -4,6 +4,7 @@ import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import { FLOORINGS } from '../house/flooring';
 import { NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
 import { SPACE_ELEMENTS, SPACE_FOLDER } from './spaceCatalog';
+import { FURNITURE_BITS_ELEMENTS, FURNITURE_BITS_FOLDER } from './furnitureCatalog';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -214,6 +215,32 @@ export interface GameElement {
    * leere Gitter. Ohne Angabe wird ein Stapel nie leer (`stock: Infinity`).
    */
   readonly rack?: boolean;
+  /**
+   * **Eine Ablage** — darauf stellt man ab, was ablegbar ist (`rests`): den
+   * Monitor auf den Schreibtisch, die Lampe auf den Schrank, die Tasse auf die
+   * Arbeitsplatte. Gewünscht (Oktober 2026): _„Die Tische bitte behandeln wie
+   * Arbeitsplatten (also das man was drauf stellen kann (nicht dass man
+   * darauf schneiden kann))"_. Was darauf steht, sperrt keine Zellen (die
+   * sperrt die Ablage schon), steht auf ihrer Oberkante (`PlacedElement.top`)
+   * und geht mit, wenn man sie umstellt. Dinge der Küche legt man auf eine
+   * Ablage, wenn sie zugleich eine Fläche ist (`kind: 'top'`).
+   */
+  readonly shelf?: boolean;
+  /**
+   * **Ablegbar** — passt auf eine Ablage (`shelf`): Monitor, Tastatur, Maus,
+   * Tischlampe, Tasse, Bücher, kleine Pflanzen. Fällt es beim Hinstellen auf
+   * eine Ablage, steht es dort obenauf; sonst auf dem Boden wie jedes Möbel.
+   * Dasselbe Merkmal für die Dinge der Küche: `kitchenRecipes.ITEM_RESTS`.
+   */
+  readonly rests?: boolean;
+  /**
+   * **Ein Belag auf dem Boden** — der Teppich: Er liegt flach, sperrt nichts
+   * (`solid: [0, 0]`), und auf ihn stellt man, was man will, wie auf den
+   * Boden selbst. Gewünscht: _„dass man auf Teppiche noch etwas stellen kann
+   * (also so behandeln wie ein Boden auf Boden)"_. Beim Umstellen hebt der
+   * Kran zuerst, was darauf steht.
+   */
+  readonly floor?: boolean;
   /** Die Modelle, das erste steht auf dem Boden. */
   readonly parts: readonly ElementPart[];
 }
@@ -250,7 +277,10 @@ function piece(
   kind: ElementKind | null,
   parts: readonly ElementPart[],
   extra: Partial<
-    Pick<GameElement, 'work' | 'gives' | 'holds' | 'holdsOn' | 'tiles' | 'height' | 'lit' | 'rack'>
+    Pick<
+      GameElement,
+      'work' | 'gives' | 'holds' | 'holdsOn' | 'tiles' | 'height' | 'lit' | 'rack' | 'shelf'
+    >
   > = {},
 ): GameElement {
   return { id, label, tiles: [1, 1], height: BODY, kind, parts, ...extra };
@@ -593,7 +623,8 @@ export function wallFullOf(path: string): string | null {
  * Was zwei Welten gleich hinstellen, soll gleich aussehen.
  */
 export const ELEMENTS: readonly GameElement[] = [
-  piece('counter', 'Arbeitsplatte', 'top', [{ model: COUNTER }]),
+  // Die Arbeitsplatte ist auch eine Ablage für Möbel (`shelf`): Tasse, Lampe, Monitor.
+  piece('counter', 'Arbeitsplatte', 'top', [{ model: COUNTER }], { shelf: true }),
   // **Die Arbeitsplatte mit Schneidebrett** — gewünscht als ein gespeichertes
   // Element und nicht als Platte, auf die jede Welt selbst ein Brett legt.
   // Das Messer liegt flach (der Baukasten liefert es stehend) und quer, auf
@@ -825,6 +856,8 @@ export const ELEMENTS: readonly GameElement[] = [
     tiles: [2, 2],
     height: BODY,
     kind: null,
+    // Eine Ablage für Möbel (`shelf`): Tasse, Lampe, Bücher auf die Decke.
+    shelf: true,
     parts: [{ model: bits('table_round_B_tablecloth_red') }],
   },
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
@@ -832,6 +865,9 @@ export const ELEMENTS: readonly GameElement[] = [
   ...NATURE_ELEMENTS,
   // **Der Weltraum** — die Teile aus _Space Base Bits_ (`spaceCatalog.ts`).
   ...SPACE_ELEMENTS,
+  // **Die Möbel** — _Furniture Bits_: Tische als Ablage, Kleinkram, Teppiche
+  // (`furnitureCatalog.ts`).
+  ...FURNITURE_BITS_ELEMENTS,
 ];
 
 /**
@@ -1143,6 +1179,10 @@ export const KITCHEN_FOLDERS: readonly FurnitureFolder[] = [
  */
 export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   HOUSE_FOLDER,
+  // **Möbel** — gewünscht: _„Und nun furniture als Katalog Ordner aus
+  // Modelregal"_ (`furnitureCatalog.ts`). Gleich nach dem Haus: Erst die
+  // Wände, dann was hineinkommt.
+  FURNITURE_BITS_FOLDER,
   {
     id: 'restaurant',
     label: 'Restaurant',

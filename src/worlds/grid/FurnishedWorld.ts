@@ -13,22 +13,30 @@ import { HAND_SCALE, dishHold, dishInHand } from '../elements/dishHold';
 import {
   FURNITURE_CATALOGUE,
   FURNITURE_FOLDERS,
+  elementById,
   hasElement,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
 import {
+  fitsOnShelf,
+  riderPlace,
+  riderSpot,
   spotAround,
   spotCells,
+  spotCentre,
   spotCovers,
+  spotFootprintCells,
   spotTiles,
   yawFace,
   type CarriedElement,
   type ElementSpot,
+  type RiderPlace,
 } from '../elements/elementPlace';
 import type { ElementHost, PlacedElement } from '../elements/elementView';
 import { furnish } from '../elements/furnish';
 import { NATURE_CATALOGUE } from '../elements/natureCatalog';
 import { SPACE_CATALOGUE } from '../elements/spaceCatalog';
+import { FURNITURE_BITS_CATALOGUE } from '../elements/furnitureCatalog';
 import { StationLayer, type StationHost } from '../elements/stationLayer';
 import { DEFAULT_BURN, type StationState } from '../plateup/plateUpStations';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
@@ -111,6 +119,17 @@ export abstract class FurnishedWorld extends GridWorld {
   private furnished = 0;
   /** Was steht, als Spielelement — zum Umstellen im Bau-Modus (`liftElementAt`). */
   private readonly placed: PlacedElement[] = [];
+  /**
+   * **Was gerade hingestellt wird**, nach Id der Stelle — die Modelle laden
+   * noch. Eine Ablage muss schon gefunden werden, bevor sie steht: Eine
+   * eingefügte Liste nennt den Schreibtisch und gleich danach den Monitor.
+   */
+  private readonly pending = new Map<
+    string,
+    { readonly spot: ElementSpot; readonly ready: Promise<PlacedElement | null> }
+  >();
+  /** **Was auf welcher Ablage steht** — Id der Stelle → Id der Ablage. */
+  private readonly riding = new Map<string, string>();
 
   /**
    * **Die eigenen Stellen hinstellen** (`spots`) — aus `buildProps` der Welt,
@@ -195,6 +214,8 @@ export abstract class FurnishedWorld extends GridWorld {
     }
     this.elementDecor.length = 0;
     this.placed.length = 0;
+    this.pending.clear();
+    this.riding.clear();
     for (const template of this.templates.values()) dropMaterials(template);
     this.templates.clear();
     this.loading.clear();
@@ -206,12 +227,17 @@ export abstract class FurnishedWorld extends GridWorld {
   /**
    * **Der Möbelkatalog im Menü** (`PortalWorld.elementMenu`): Arbeitsplatte,
    * Schneidebrett, Herdplatte mit Pfanne, mit Topf und blank, Waschbecken,
-   * Eis und die Vorräte, dazu die Natur (`natureCatalog.ts`) und der Weltraum
-   * (`spaceCatalog.ts`) — hingestellt wie
+   * Eis und die Vorräte, dazu die Natur (`natureCatalog.ts`), der Weltraum
+   * (`spaceCatalog.ts`) und die Möbel (`furnitureCatalog.ts`) — hingestellt wie
    * jede Stelle aus `SPOTS`.
    */
   protected override elementCatalogue(): readonly string[] {
-    return [...FURNITURE_CATALOGUE, ...NATURE_CATALOGUE, ...SPACE_CATALOGUE];
+    return [
+      ...FURNITURE_CATALOGUE,
+      ...NATURE_CATALOGUE,
+      ...SPACE_CATALOGUE,
+      ...FURNITURE_BITS_CATALOGUE,
+    ];
   }
 
   /** Dazu die Unterordner je Gericht: Pizza, Burger, Eis, Waffeln, Suppe. */
@@ -234,14 +260,14 @@ export abstract class FurnishedWorld extends GridWorld {
     const id = carried.from?.id ?? `katalog-${++this.furnished}`;
     const at = spotAround(id, carried.id, x, z, yawFace(yaw));
     const spot: ElementSpot = carried.from
-      ? { ...carried.from, x: at.x, z: at.z, face: at.face }
+      ? { ...grounded(carried.from), x: at.x, z: at.z, face: at.face }
       : at;
-    return this.furnishSpot(spot, keptStates(carried)) ? spot : null;
+    return this.furnishSpot(spot, keptStates(carried), carried.riders ?? []) ? spot : null;
   }
 
   protected override furnishBack(carried: CarriedElement): ElementSpot | null {
-    const from = carried.from;
-    return from && this.furnishSpot(from, keptStates(carried)) ? from : null;
+    const from = carried.from && grounded(carried.from);
+    return from && this.furnishSpot(from, keptStates(carried), carried.riders ?? []) ? from : null;
   }
 
   protected override elementAt(x: number, z: number): string | null {
@@ -255,7 +281,29 @@ export abstract class FurnishedWorld extends GridWorld {
   protected override liftElementAt(x: number, z: number): CarriedElement | null {
     const placed = this.placedAt(x, z);
     if (!placed) return null;
+    // **Was auf einer Ablage steht, geht mit** (`CarriedElement.riders`) —
+    // von ihr aus gesehen, damit es nach dem Umstellen wieder an seiner
+    // Stelle auf ihr steht.
+    const riders = this.placed
+      .filter((one) => this.riding.get(one.spot.id) === placed.spot.id)
+      .map((one) => {
+        const place = riderPlace(placed.spot, one.spot);
+        this.takeAway(one);
+        return place;
+      });
+    const keep = this.takeAway(placed);
+    return {
+      id: placed.element.id,
+      from: placed.spot,
+      keep,
+      ...(riders.length > 0 ? { riders } : {}),
+    };
+  }
+
+  /** **Ein Element wegnehmen** — Stationen heraus (ihr Stand kommt zurück), Zellen frei, Bild weg. */
+  private takeAway(placed: PlacedElement): StationState[] {
     this.placed.splice(this.placed.indexOf(placed), 1);
+    this.riding.delete(placed.spot.id);
     const keep = this.stations?.remove(placed.anchor) ?? [];
     this.unblockSolid(placed.block);
     for (const object of [placed.anchor, ...placed.parts]) {
@@ -268,7 +316,7 @@ export abstract class FurnishedWorld extends GridWorld {
     void placed.base?.then((body) => {
       if (body) this.removeProp(body as PhysicsBody, false);
     });
-    return { id: placed.element.id, from: placed.spot, keep };
+    return keep;
   }
 
   /**
@@ -277,7 +325,48 @@ export abstract class FurnishedWorld extends GridWorld {
    * einer Kachel (`elementPlace.onCells`) sind vier Elemente.
    */
   private placedAt(x: number, z: number): PlacedElement | null {
-    return this.placed.find((one) => spotCovers(one.spot, x, z)) ?? null;
+    // **Von oben nach unten**: erst was auf einer Ablage steht, dann die
+    // Möbel, zuletzt der Teppich darunter (`GameElement.floor`).
+    const here = this.placed.filter((one) => spotCovers(one.spot, x, z));
+    const rank = (one: PlacedElement): number =>
+      (one.spot.y ?? 0) > 0 ? 0 : one.element.floor ? 2 : 1;
+    return here.sort((a, b) => rank(a) - rank(b))[0] ?? null;
+  }
+
+  /**
+   * **Die Ablage unter einer Stelle** (`GameElement.shelf`) — gestellt oder
+   * noch im Kommen, auf dem Boden, und ihre Grundfläche deckt die Mitte der
+   * Stelle.
+   */
+  private shelfUnder(
+    spot: ElementSpot,
+  ): { readonly spot: ElementSpot; readonly ready: Promise<PlacedElement | null> } | null {
+    const { x, z } = spotCentre(spot);
+    const standing = [
+      ...this.placed.map((one) => ({ spot: one.spot, ready: Promise.resolve(one) })),
+      ...this.pending.values(),
+    ];
+    return (
+      standing.find(
+        (one) =>
+          (one.spot.y ?? 0) === 0 &&
+          elementById(one.spot.element).shelf === true &&
+          spotCovers(one.spot, x, z),
+      ) ?? null
+    );
+  }
+
+  /** Die Zellen, die auf einer Ablage schon besetzt sind. */
+  private takenOn(shelf: string): Set<string> {
+    const taken = new Set<string>();
+    const spots = [
+      ...this.placed.map((one) => one.spot),
+      ...[...this.pending.values()].map((one) => one.spot),
+    ];
+    for (const spot of spots)
+      if (this.riding.get(spot.id) === shelf)
+        for (const cell of spotFootprintCells(spot)) taken.add(cell);
+    return taken;
   }
 
   /**
@@ -286,21 +375,76 @@ export abstract class FurnishedWorld extends GridWorld {
    * Zellen sind gesperrt, sobald das zurückkehrt, und mit Stationsart wird es
    * Station.
    */
-  protected override furnishSpot(spot: ElementSpot, keep: readonly StationState[] = []): boolean {
+  protected override furnishSpot(
+    spot: ElementSpot,
+    keep: readonly StationState[] = [],
+    riders: readonly RiderPlace[] = [],
+  ): boolean {
     if (!this.context || !hasElement(spot.element)) return false;
-    const inside = spotTiles(spot).every((tile) => {
+    const flat = grounded(spot);
+    // **Ablegbar und über einer Ablage** (`GameElement.rests`/`shelf`): obenauf,
+    // wenn dort auf ihr noch Platz ist. Sonst steht es auf dem Boden.
+    const shelf = elementById(flat.element).rests ? this.shelfUnder(flat) : null;
+    if (shelf) {
+      if (!fitsOnShelf(shelf.spot, flat, this.takenOn(shelf.spot.id))) return false;
+      this.riding.set(flat.id, shelf.spot.id);
+      this.track(
+        flat,
+        shelf.ready.then((under) =>
+          under && this.riding.get(flat.id) === shelf.spot.id
+            ? this.placeSpot({ ...flat, y: under.top }, keep)
+            : null,
+        ),
+      );
+      return true;
+    }
+    const inside = spotTiles(flat).every((tile) => {
       const [tx, tz] = tile.split(',').map(Number);
       return this.onGround(tx!, tz!);
     });
-    if (!inside || !this.cellsFree(spotCells(spot))) return false;
-    void furnish(
+    if (!inside || !this.cellsFree(spotCells(flat))) return false;
+    this.track(
+      flat,
+      this.placeSpot(flat, keep).then((placed) => {
+        // **Was auf der Ablage stand, kommt wieder darauf** — auf ihre neue
+        // Oberkante, mitgedreht (`riderSpot`), und in die Liste der
+        // Weltänderungen unter seiner alten Zeile.
+        if (placed && riders.length > 0) {
+          for (const place of riders) {
+            const rider = riderSpot(placed.spot, place, placed.top);
+            this.riding.set(rider.id, placed.spot.id);
+            this.track(rider, this.placeSpot(rider, []));
+            this.recordElementOf(rider);
+          }
+        }
+        return placed;
+      }),
+    );
+    return true;
+  }
+
+  /** Hinstellen — und, sobald es steht, in die Liste dessen, was steht. */
+  private placeSpot(
+    spot: ElementSpot,
+    keep: readonly StationState[],
+  ): Promise<PlacedElement | null> {
+    return furnish(
       this.elementHost(),
       [spot],
       this.furnishing(),
       (placed) => this.placed.push(placed),
       keep,
-    );
-    return true;
+    ).then((all) => all[0] ?? null);
+  }
+
+  /** Merken, was gerade hingestellt wird, bis es steht (`pending`). */
+  private track(spot: ElementSpot, ready: Promise<PlacedElement | null>): void {
+    const entry = { spot, ready };
+    this.pending.set(spot.id, entry);
+    void ready.then((placed) => {
+      if (this.pending.get(spot.id) === entry) this.pending.delete(spot.id);
+      if (!placed) this.riding.delete(spot.id);
+    });
   }
 
   /**
@@ -561,4 +705,14 @@ function dropMaterials(object: THREE.Object3D): void {
 /** Der Stand der Stationen, den ein umgestelltes Element mitbringt (`liftElementAt`). */
 function keptStates(carried: CarriedElement): readonly StationState[] {
   return Array.isArray(carried.keep) ? (carried.keep as StationState[]) : [];
+}
+
+/**
+ * **Eine Stelle ohne Höhe** — die Höhe (`ElementSpot.y`) rechnet die Welt
+ * beim Hinstellen neu aus, aus der Ablage, die dann darunter steht.
+ */
+function grounded(spot: ElementSpot): ElementSpot {
+  if (spot.y === undefined) return spot;
+  const { y: _height, ...flat } = spot;
+  return flat;
 }

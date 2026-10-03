@@ -32,6 +32,7 @@ import {
 } from './elementCatalog';
 import { NATURE_CATALOGUE } from './natureCatalog';
 import { SPACE_CATALOGUE } from './spaceCatalog';
+import { FURNITURE_BITS_CATALOGUE } from './furnitureCatalog';
 
 /** Der Index des Regals — `null`, wenn die gekauften Pakete fehlen. */
 function shelf(): Set<string> | null {
@@ -231,6 +232,7 @@ describe('der Möbelkatalog im Menü', () => {
   it('ordnet wie die Sims erst nach Bereich: Haus mit Wand, Tür, Fenster, Restaurant mit der Küche', () => {
     expect(FURNITURE_FOLDERS.map((folder) => folder.label)).toEqual([
       'Haus',
+      'Möbel',
       'Restaurant',
       'Natur',
       'Weltraum',
@@ -241,7 +243,7 @@ describe('der Möbelkatalog im Menü', () => {
     // Dazu die Wand zum Abreißen — dieselbe kurze Wand, gezogen nimmt sie weg.
     expect(HOUSE_FOLDER.erasers).toEqual([WALL_ERASER]);
     expect(WALL_ERASER).toBe(SHELF_WALL_HALF);
-    expect(FURNITURE_FOLDERS[1]!.folders).toBe(KITCHEN_FOLDERS);
+    expect(FURNITURE_FOLDERS.find((one) => one.id === 'restaurant')!.folders).toBe(KITCHEN_FOLDERS);
     expect(KITCHEN_FOLDERS.map((folder) => folder.label)).toEqual([
       'Allgemein',
       'Kochen',
@@ -261,7 +263,12 @@ describe('der Möbelkatalog im Menü', () => {
       expect(folder.elements.length + (folder.models?.length ?? 0) + inner).toBeGreaterThan(0);
       expect(new Set(folder.elements).size).toBe(folder.elements.length);
       for (const id of folder.elements)
-        expect([...FURNITURE_CATALOGUE, ...NATURE_CATALOGUE, ...SPACE_CATALOGUE]).toContain(id);
+        expect([
+          ...FURNITURE_CATALOGUE,
+          ...NATURE_CATALOGUE,
+          ...SPACE_CATALOGUE,
+          ...FURNITURE_BITS_CATALOGUE,
+        ]).toContain(id);
     }
   });
 

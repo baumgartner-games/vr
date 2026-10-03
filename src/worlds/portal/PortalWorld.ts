@@ -4526,7 +4526,7 @@ export class PortalWorld implements World {
   }
 
   /** Das hingestellte Element in die Liste der Weltänderungen (nur mit Häkchen). */
-  private recordElementOf(spot: ElementSpot): void {
+  protected recordElementOf(spot: ElementSpot): void {
     let key = this.elementKeys.get(spot.id);
     if (!key) {
       key = changeKey('element');

@@ -310,6 +310,25 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
 };
 
 /**
+ * **Ablegbar** — was man auf eine Ablage legen darf (eine Fläche der Küche
+ * oder einen Tisch, `elementCatalog.GameElement.shelf`): Pizza, Schinken,
+ * Teller, Pfanne, Feuerlöscher — alles, was die Küche in die Hand gibt.
+ * Dasselbe Merkmal wie `GameElement.rests` bei den Möbeln (Monitor, Maus,
+ * Tasse). Gewünscht (Oktober 2026): _„sollten wir bei Pizza, Salami, Mouse,
+ * Computer etc. die Eigenschaft hinzufügen, dass man diese auf Ablagen
+ * abstellen kann"_.
+ *
+ * **Nicht** ablegbar ist, was nur zum Bauen in der Hand liegt: Tapetenbahnen,
+ * Bodenplatten und die Treppe (`house/`) — die klebt man an die Wand oder legt
+ * sie in einen Raum, nicht auf den Tisch.
+ */
+export const ITEM_RESTS: ReadonlySet<KitchenItem> = new Set(
+  (Object.keys(ITEM_LABELS) as KitchenItem[]).filter(
+    (item) => !item.startsWith('wallpaper-') && !item.startsWith('floor-') && item !== 'stair',
+  ),
+);
+
+/**
  * **Ein Ding in der Hand, auf einer Ablage, in der Pfanne** — und was
  * darauf liegt.
  *

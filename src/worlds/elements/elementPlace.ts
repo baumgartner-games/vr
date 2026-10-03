@@ -47,6 +47,12 @@ export interface ElementSpot {
    * der der Stuhl zum größten Teil steht — das Gitter kennt nur ganze Zellen.
    */
   readonly offset?: readonly [number, number];
+  /**
+   * **Wie hoch es steht**, in Metern — die Oberkante der Ablage, auf der es
+   * steht (`GameElement.shelf`/`rests`). Ohne Angabe auf dem Boden. Was
+   * obenauf steht, sperrt keine Zellen (`spotSolid`): Die sperrt die Ablage.
+   */
+  readonly y?: number;
 }
 
 /** Das Element einer Stelle. */
@@ -143,6 +149,7 @@ export function spotCovers(spot: ElementSpot, x: number, z: number): boolean {
  * Baums (`GameElement.solid`). `[0, 0]`: nichts.
  */
 export function spotSolid(spot: ElementSpot): [number, number] {
+  if ((spot.y ?? 0) > 0) return [0, 0];
   const element = spotElement(spot);
   if (!element.solid) return spotSize(spot);
   const [w, d] = element.solid;
@@ -262,4 +269,87 @@ export interface CarriedElement {
   readonly from: ElementSpot | null;
   /** Was die Welt zum Wiederhinstellen mitgibt — der Stand seiner Stationen. */
   readonly keep: unknown;
+  /**
+   * **Was auf der Ablage stand** (`GameElement.shelf`) — von ihr aus gesehen
+   * (`riderPlace`), damit es mitgeht und nach dem Umstellen wieder dasteht,
+   * wo es auf ihr stand.
+   */
+  readonly riders?: readonly RiderPlace[];
+}
+
+/**
+ * **Wo etwas auf einer Ablage steht, von der Ablage aus gesehen** — Mitte als
+ * Versatz von ihrer Mitte, in ihrer Drehung (so, als schaute sie nach Süden),
+ * und die eigene Drehung gegen ihre. Damit geht es mit, wenn man die Ablage
+ * umstellt (`riderSpot`): Die Tasse bleibt an der linken Ecke des
+ * Schreibtischs, auch wenn der jetzt nach Osten schaut.
+ */
+export interface RiderPlace {
+  /** Die Id seiner Stelle — sie bleibt, damit die Liste der Weltänderungen dieselbe Zeile ändert. */
+  readonly id: string;
+  readonly element: string;
+  readonly label?: string;
+  readonly at: readonly [number, number];
+  /** Vierteldrehungen gegen die Ablage, 0 bis 3. */
+  readonly turns: number;
+}
+
+/** Vierteldrehungen einer Richtung, von Süden aus (`yawFace`). */
+function turnsOf(face: Face): number {
+  return ['S', 'E', 'N', 'W'].indexOf(face);
+}
+
+/** Was auf der Ablage `shelf` an der Stelle `rider` steht — von ihr aus gesehen. */
+export function riderPlace(shelf: ElementSpot, rider: ElementSpot): RiderPlace {
+  const from = spotCentre(shelf);
+  const to = spotCentre(rider);
+  // Zurückdrehen heißt: um die Gegenrichtung drehen (S↔S, E↔W, N↔N).
+  const back = (['S', 'W', 'N', 'E'] as const)[turnsOf(spotFace(shelf))]!;
+  const at = rotateOffset(back, [to.x - from.x, to.z - from.z]);
+  return {
+    id: rider.id,
+    element: rider.element,
+    ...(rider.label ? { label: rider.label } : {}),
+    at: [round(at[0]), round(at[1])],
+    turns: (turnsOf(spotFace(rider)) - turnsOf(spotFace(shelf)) + 4) % 4,
+  };
+}
+
+/**
+ * **Die Stelle des Mitgenommenen auf der umgestellten Ablage** — die
+ * Gegenrechnung zu `riderPlace`, mit der Höhe der Ablage (`top`).
+ */
+export function riderSpot(shelf: ElementSpot, place: RiderPlace, top: number): ElementSpot {
+  const id = place.id;
+  const centre = spotCentre(shelf);
+  const [ox, oz] = rotateOffset(spotFace(shelf), place.at);
+  const face = (['S', 'E', 'N', 'W'] as const)[(turnsOf(spotFace(shelf)) + place.turns) % 4]!;
+  const probe: ElementSpot = { id, element: place.element, x: 0, z: 0, face };
+  const [w, d] = spotSize(probe);
+  return {
+    ...probe,
+    ...(place.label ? { label: place.label } : {}),
+    x: round(centre.x + ox - w / 2),
+    z: round(centre.z + oz - d / 2),
+    y: top,
+  };
+}
+
+/** Auf Millimeter — Drehungen um Vierteldrehungen sollen keine Krümel lassen. */
+function round(value: number): number {
+  return Math.round(value * 1000) / 1000 + 0;
+}
+
+/**
+ * **Ob eine Stelle auf die Ablage passt** — jede Zelle ihrer Grundfläche liegt
+ * auf der Grundfläche der Ablage, und keine ist schon von etwas anderem
+ * obenauf belegt (`taken`, Zellen wie `spotFootprintCells`).
+ */
+export function fitsOnShelf(
+  shelf: ElementSpot,
+  rider: ElementSpot,
+  taken: ReadonlySet<string>,
+): boolean {
+  const room = new Set(spotFootprintCells(shelf));
+  return spotFootprintCells(rider).every((cell) => room.has(cell) && !taken.has(cell));
 }

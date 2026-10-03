@@ -129,11 +129,13 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   // Das Bild darf neben seinen Zellen stehen (`ElementSpot.offset`), die
   // Sperre nicht — sie steht schon.
   const [sx, sz] = spot.offset ?? [0, 0];
+  // **Auf einer Ablage** (`ElementSpot.y`): alles um ihre Oberkante höher.
+  const lift = spot.y ?? 0;
 
   const anchor = new THREE.Group();
   anchor.name = `element:${spot.id}`;
   const front = spotFront(spot);
-  anchor.position.set(front.x + sx, 0, front.z + sz);
+  anchor.position.set(front.x + sx, lift, front.z + sz);
   anchor.rotation.y = yaw;
   host.add(anchor);
 
@@ -150,7 +152,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   });
   if (!canLoadModels())
     return placed(
-      FALLBACK_TOP,
+      lift + FALLBACK_TOP,
       element.parts.map(() => null),
     );
 
@@ -160,7 +162,9 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   // hängen, und nur was dort hängt, bekommt den Saum.
   // Und eines mit eigener Sperre (`GameElement.solid`) auch: Als festes Stück
   // bekäme die ganze Krone eines Baums einen Körper, nicht nur der Stamm.
-  const fixed = !!first && plainFloor(first) && !elementLit(element) && !element.solid;
+  // Und was auf einer Ablage steht, ist nur Bild: Den Körper hat die Ablage.
+  const fixed =
+    !!first && plainFloor(first) && !elementLit(element) && !element.solid && lift === 0;
   // Alles auf einmal holen, gestellt wird danach der Reihe nach: Was obenauf
   // liegt, braucht die Oberkante dessen, worauf es liegt.
   const [size, ...models] = await Promise.all([
@@ -216,7 +220,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
     if (part.wallpaper) paintWallpaper(model, part.wallpaper);
     const one = part.inside
       ? layInside(model, laid[i - 1] ?? null)
-      : layOn(model, part, yaw, x, z, baseOf(part, i, laid));
+      : layOn(model, part, yaw, x, z, baseOf(part, i, laid, lift));
     if (!one) {
       laid.push(null);
       views.push(null);
@@ -228,7 +232,7 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   });
 
   const surface = element.parts.findIndex((part) => part.surface);
-  const top = laid[surface >= 0 ? surface : 0]?.top ?? laid[0]?.top ?? FALLBACK_TOP;
+  const top = laid[surface >= 0 ? surface : 0]?.top ?? laid[0]?.top ?? lift + FALLBACK_TOP;
   return placed(top, views);
 }
 
@@ -242,13 +246,13 @@ function plainFloor(part: ElementPart): boolean {
 }
 
 /** Worauf ein Teil steht: die Oberkante eines früheren, oder der Boden. */
-function baseOf(part: ElementPart, i: number, laid: readonly (Laid | null)[]): number {
+function baseOf(part: ElementPart, i: number, laid: readonly (Laid | null)[], ground = 0): number {
   const on = part.on ?? (part.stack ? i - 1 : null);
-  if (on === null) return 0;
+  if (on === null) return ground;
   // Kam das Teil darunter nicht, steht dieses auf der Höhe einer Platte —
   // nicht auf dem Boden, wo es im Kasten verschwände. Und was in einer Kiste
   // liegt, liegt um `sink` tiefer als ihr Rand.
-  return (laid[on]?.top ?? FALLBACK_TOP) - (part.sink ?? 0);
+  return (laid[on]?.top ?? ground + FALLBACK_TOP) - (part.sink ?? 0);
 }
 
 /**

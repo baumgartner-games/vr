@@ -39,6 +39,8 @@ import {
 import { APP_VERSION, versionLine } from './core/appVersion';
 import { ASSET_HASHES } from './core/assetVersion';
 import { readBuildId } from './core/buildId';
+import { UpdateWatch } from './core/updateCheck';
+import { UpdatePrompt } from './ui/UpdatePrompt';
 import {
   SHELF_INDEX,
   Throughput,
@@ -1561,7 +1563,51 @@ window.addEventListener('load', () => {
   whenIdle(() => void bootApp());
   // Und, sobald der Service Worker antwortet: nachsehen, ob noch etwas fehlt.
   watchFullState();
+  watchUpdates();
 });
+
+/** Wie oft nachgesehen wird, solange die App vorn liegt — halbstündlich. */
+const UPDATE_EVERY_MS = 30 * 60_000;
+
+/**
+ * **Gibt es eine neue Version?** (`core/updateCheck.ts`) — beim Start, bei
+ * jedem Zurückkommen in den Vordergrund und halbstündlich, solange die App
+ * vorn liegt. Gefunden heißt **gefragt**, nicht neu geladen: Die Karte
+ * (`ui/UpdatePrompt.ts`) bietet _Jetzt neu laden_ und _Später_, und bis dahin
+ * läuft alles weiter. Wer _Später_ sagt, wird beim nächsten Zurückkommen
+ * wieder gefragt. Nebenbei holt der Browser den neuen Service Worker schon
+ * (`registration.update`), damit das Neuladen schnell geht.
+ */
+function watchUpdates(): void {
+  if (!import.meta.env.PROD || !BUILD_ID) return;
+  let prompt: UpdatePrompt | null = null;
+  const ask = (): void => {
+    prompt ??= new UpdatePrompt(() => window.location.reload());
+    prompt.show();
+  };
+  const watch = new UpdateWatch({
+    current: BUILD_ID,
+    url: `${PAGE_BASE}index.html`,
+    fetch: (url, init) => fetch(url, init),
+    onNewer: () => {
+      void navigator.serviceWorker
+        ?.getRegistration()
+        .then((registration) => registration?.update())
+        .catch(() => undefined);
+      app?.notify('Neue Version verfügbar');
+      ask();
+    },
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (watch.newer) ask();
+    void watch.check();
+  });
+  setInterval(() => {
+    if (!document.hidden) void watch.check();
+  }, UPDATE_EVERY_MS);
+  void watch.check(true);
+}
 
 /**
  * **Was nach dem ersten Bild kommt, und in welcher Reihenfolge.**

@@ -88,6 +88,7 @@ import {
   isDishware,
   isFood,
   isStack,
+  ITEM_RESTS,
   layered,
   served,
   servesOne,
@@ -103,6 +104,7 @@ import { workStage, type WorkKind } from './kitchenWork';
 export {
   FREESTYLE,
   ITEM_LABELS,
+  ITEM_RESTS,
   RECIPES,
   STACK_ORDER,
   burnStage,
@@ -717,7 +719,8 @@ function onTop(held: Dish | null, on: Dish | null): KitchenDeed {
     return { do: 'combine', held: one, target: rest, moved: [one.item] };
   }
   if (!held) return on ? { do: 'take', dish: on } : { do: 'nothing' };
-  if (!on) return { do: 'place', dish: held };
+  // Nur was ablegbar ist (`ITEM_RESTS`) — die Tapetenbahn kommt nicht auf den Tisch.
+  if (!on) return ITEM_RESTS.has(held.item) ? { do: 'place', dish: held } : { do: 'nothing' };
   const both = combine(held, on);
   if (!both.ok) return { do: 'refuse', why: both.why };
   return { do: 'combine', held: both.held, target: both.target, moved: both.moved };

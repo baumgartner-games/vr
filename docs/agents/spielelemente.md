@@ -344,6 +344,68 @@ Hydroponik klein (Hydroponikbeet). Gezeichnet wird das Element
 (`FIXTURE_CATALOG`) — die Station hängt an diesen Maßen, nicht an den Kacheln
 des Katalogs.
 
+### Möbel: Tische als Ablage, Kleinkram obenauf, Teppiche als Boden
+
+Gewünscht (Oktober 2026): _„Und nun furniture als Katalog Ordner aus
+Modelregal. Wobei bitte gerne darauf achten, dass man auf Teppiche noch etwas
+stellen kann (also so behandeln wie ein Boden auf Boden). Monitore, desk
+lampen, kleine Blumen, Cup, Bücher auch auf Boden oder Tische stellen kann.
+Die Tische bitte behandeln wie Arbeitsplatten (also das man was drauf stellen
+kann (nicht dass man darauf schneiden kann)). Also sollten diese Katalog
+Elemente die Eigenschaft bekommen, dass man etwas darauf abstellen kann (wäre
+gut es als Flag bei solchen Objekten zu speichern […])."_
+
+Die Elemente stehen in `elements/furnitureCatalog.ts`, im Katalog als Bereich
+**Möbel** gleich nach dem Haus (`FURNITURE_BITS_FOLDER`): Sitzen, Tische,
+Betten, Schränke, Lampen, Schreibtisch & Technik, Kleinkram, Pflanzen,
+Teppiche, Alles — 62 der 74 Dateien aus _Furniture Bits_, Ids `furniture-…`.
+**Es fehlen die zwölf, die an eine Wand gehören** (Bilderrahmen groß, mittel,
+klein; die Wandregale): Ihr Ursprung sitzt in der Mitte, und an Wände hängt
+der Katalog noch nichts. **Maßstab des Regals** (0,5): Das Paket ist im Maß
+der Restaurant-Möbel gebaut, Schreibtisch, Tisch und Arbeitsplatte sind gleich
+hoch (0,5 m). Die Kacheln sind gemessen (Kommentar hinter jeder Zeile); was
+höchstens 0,6 m im Quadrat misst, steht auf einer Zelle.
+
+**Drei Merkmale am Element** (`GameElement`), je eines je Wunsch:
+
+| Merkmal | Was es heißt | Wer es hat |
+| ------- | ------------ | ---------- |
+| `shelf` — **Ablage** | Darauf stellt man ab, was ablegbar ist | die Tische, Schreibtische und Kommoden ohne Deko, die Arbeitsplatte (`counter`), der runde Tisch |
+| `rests` — **ablegbar** | Passt auf eine Ablage; fällt es dort hin, steht es obenauf, sonst auf dem Boden | Monitor, Tastatur, Maus, Mauspads, Spielkonsole, Tisch- und Schreibtischlampen, Becher, Tassen, Bücher, Bilderrahmen zum Hinstellen, Kissen, Kakteen |
+| `floor` — **Bodenbelag** | Liegt flach, sperrt nichts (`solid: [0, 0]`), darauf stellt man, was man will | die sechs Teppiche |
+
+**Für die Dinge der Küche dasselbe Merkmal** (`kitchenRecipes.ITEM_RESTS`):
+Pizza, Schinken, Käse, Teller, Pfanne, Feuerlöscher … — alles, was die Küche in
+die Hand gibt, **außer** Tapetenbahnen, Bodenplatten und Treppe (die gehören an
+die Wand oder in einen Raum). Eine Fläche (`kitchenCarry.onTop`) nimmt nur, was
+ablegbar ist. **Die Tische sind Flächen der Küche** (`kind: 'top'`): Darauf legt
+man Pizza oder Teller ab wie auf die Arbeitsplatte, geschnitten wird nicht
+(dafür gibt es `board`). Das Kleine (`rests`) dagegen ist ein Element und
+wird hingestellt wie jedes andere Möbel aus dem Katalog.
+
+**Wie etwas auf eine Ablage kommt** (`FurnishedWorld.furnishSpot`):
+
+- Fällt ein ablegbares Element über die Grundfläche einer Ablage
+  (`shelfUnder`, auch einer, die noch lädt — eine eingefügte Liste nennt den
+  Schreibtisch und gleich danach den Monitor), steht es auf ihrer Oberkante
+  (`ElementSpot.y` = `PlacedElement.top`) und **sperrt keine Zellen**
+  (`spotSolid` ist `[0, 0]`, sobald `y` gesetzt ist; die Ablage sperrt sie
+  schon). Es ist dann nur Bild, kein Stück der Welt.
+- Jede Zelle seiner Grundfläche muss auf der Ablage liegen und frei sein
+  (`fitsOnShelf`): zwei Tassen auf einer Zelle gehen nicht, ein Stuhl auf dem
+  Tisch auch nicht (er ist nicht ablegbar, und die Zellen sind gesperrt).
+- **Die Höhe wird nicht gespeichert**: Die Liste der Weltänderungen führt nur
+  `x`, `z`, `face`; beim Einfügen entscheidet, welche Ablage dann darunter
+  steht.
+- **Umstellen** (Kran): Gehoben wird **von oben nach unten** (`placedAt`) —
+  erst was auf der Ablage steht, dann das Möbel, zuletzt der Teppich. Wer die
+  Ablage hebt, nimmt mit, was darauf steht (`CarriedElement.riders`, von der
+  Ablage aus gesehen: `riderPlace`). Hingestellt kommt es wieder an dieselbe
+  Stelle auf ihr, mitgedreht (`riderSpot`), und in der Liste der
+  Weltänderungen ändert sich seine alte Zeile (`recordElementOf`).
+- Ein Teppich sperrt nichts; was auf ihm steht, steht auf dem Boden (die
+  0,05 m Teppich bleiben unberücksichtigt).
+
 ## Hinstellen
 
 **Eine Stelle (`ElementSpot`, `elementPlace.ts`)** ist, was ein Plan über ein
@@ -526,6 +588,10 @@ Möbelkatalog gibt **Spielelemente** her.
   Steine, Gras & Blumen, Holz und Alles (`NATURE_FOLDER`, siehe
   [Natur](#natur-bäume-sträucher-steine-gras-holz)). Unter einem Baum sperrt
   nur der Stamm.
+- **Möbel** steht seit Oktober 2026 gleich nach dem Haus: Sitzen, Tische,
+  Betten, Schränke, Lampen, Schreibtisch & Technik, Kleinkram, Pflanzen,
+  Teppiche und Alles (`FURNITURE_BITS_FOLDER`, siehe
+  [Möbel](#möbel-tische-als-ablage-kleinkram-obenauf-teppiche-als-boden)).
 - **Weltraum** ist seit Oktober 2026 der vierte: Module, Versorgung, Fracht,
   Fahrzeuge, Tunnel, Gelände und Alles (`SPACE_FOLDER`, siehe
   [Weltraum](#weltraum-alle-teile-aus-space-base-bits)).
@@ -1006,6 +1072,7 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | Datei                                 | Was darin steht                                                                                                                                                                                                                        |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`, `FURNITURE_CATALOGUE`/`FURNITURE_FOLDERS`. Kein three.js, kein Laden                                                                 |
+| `worlds/elements/furnitureCatalog.ts` | **Rein**: der Ordner _Möbel_ — `FURNITURE_BITS_ELEMENTS`, `FURNITURE_BITS_FOLDER`; Tische als Ablage (`shelf`, `kind: 'top'`), Kleinkram ablegbar (`rests`), Teppiche als Boden (`floor`) |
 | `worlds/elements/spaceCatalog.ts`     | **Rein**: der Ordner _Weltraum_ — `SPACE_ELEMENTS`, `SPACE_CATALOGUE`, `SPACE_FOLDER`, `SPACE_SCALE` (2 m je Einheit der Quelle); die Kacheln gemessen, `spaceCatalog.test.ts` misst nach |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |
