@@ -70,7 +70,7 @@ import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { elementTweakSpec } from '../elements/elementTweaks';
 import { KaykitDishView } from '../elements/dishView';
 import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipes';
-import { heldItemOf } from '../elements/dishHold';
+import { HAND_SCALE, heldItemOf } from '../elements/dishHold';
 import { loadItemModel } from '../elements/itemTemplate';
 
 import {
@@ -199,6 +199,7 @@ import {
   isDiagonal,
   MAX_TILES,
   placesOnGrid,
+  PLACE_SPEED,
   quarterYaw,
   tilesCovered,
   turnedHalf,
@@ -611,6 +612,12 @@ const PREVIEW_LIGHT = 0.45;
 
 /** Wie groß der Radiergummi in der Bildschirmhand gezeichnet wird. */
 const ERASER_SHOWN = 0.4;
+/**
+ * **So lang darf die längste Seite eines Dings in der Faust höchstens
+ * aussehen** (Meter), in der Brille (`shrinkInHand`) — ein Tisch ist dann ein
+ * Modell auf der Hand und keine Wand vor den Augen.
+ */
+const HAND_FIT = 0.35;
 /** Wie weit vor der Mitte des Schranks man beim Aussteigen steht (m). */
 const HIDE_STEP_OUT = 0.95;
 /** Wie viel vom Schrank man von innen sieht. */
@@ -1116,6 +1123,14 @@ interface HandGrab {
   poseId: string | null;
   /** Misst das Schütteln, solange die Flasche noch ihren Korken hat. */
   shake: ShakeMeter | null;
+  /**
+   * **Kam ohne gedrückten Grip in die Hand** — aus dem Katalog, dem Regal oder
+   * als nächste Kopie im _Baukasten_ (`spawnModel`). Dann klebt es, bis die
+   * Faust einmal zu- und wieder aufgeht: Erst dieses Loslassen stellt hin.
+   * Ohne das fiel es im ersten Bild aus der offenen Hand, und im _Baukasten_
+   * holte jedes Hinstellen die nächste Kopie, die gleich wieder fiel.
+   */
+  regrip: boolean;
 }
 
 /**
@@ -1390,6 +1405,12 @@ export class PortalWorld implements World {
    * nach oben wieder so groß wird (`shrinkScreenCarry`).
    */
   private shrunk: { entry: PhysicsBody; scale: THREE.Vector3 } | null = null;
+  /**
+   * **Was in der Brille in der Faust kleiner gezeichnet wird**, mit seiner
+   * echten Größe (`shrinkInHand`). Je Ding und nicht je Hand: Beide Hände
+   * können etwas tragen.
+   */
+  private readonly handShrunk = new Map<PhysicsBody, THREE.Vector3>();
   /**
    * **Wie groß das ist, was die Bildschirmhand trägt** — halbe Ausdehnung,
    * gemessen beim Zugreifen.
@@ -7325,7 +7346,7 @@ export class PortalWorld implements World {
         quaternion: entry.object.quaternion.clone(),
         // Was aus den Augen gerade halb so groß getragen wird, wird in seiner
         // echten Größe gemerkt (`shrinkScreenCarry`).
-        scale: (this.shrunk?.entry === entry ? this.shrunk.scale : entry.object.scale).clone(),
+        scale: this.realScale(entry).clone(),
         half: entry.halfExtents.clone(),
         velocity: new THREE.Vector3(linvel.x, linvel.y, linvel.z),
         spin: new THREE.Vector3(angvel.x, angvel.y, angvel.z),
@@ -8845,6 +8866,7 @@ export class PortalWorld implements World {
   protected removeProp(entry: PhysicsBody, share: boolean): void {
     const physics = this.physics;
     if (!physics) return;
+    this.handShrunk.delete(entry);
     // A dropped tool is a prop as far as the eraser is concerned, but it has
     // its own bookkeeping — freeing the mesh under it and leaving the tool in
     // the update loop is how a world ends up drawing a disposed geometry.
@@ -9481,7 +9503,25 @@ export class PortalWorld implements World {
       this.trackGripPress(controller, hand, anchor, dt);
 
       if (grab) {
-        if (!controller.squeeze.pressed) {
+        // Was ohne Faust in die Hand kam, gilt erst ab dem nächsten Zugreifen
+        // als gehalten (`HandGrab.regrip`).
+        if (grab.regrip && controller.squeeze.pressed) grab.regrip = false;
+        if (!controller.squeeze.pressed && !grab.regrip) {
+          // **Wegwerfen leert die Hand** — im _Baukasten_ kommt nach jedem
+          // Hinstellen die nächste Kopie, und die klebt (`regrip`). Wer ein
+          // frisches Stück mit Schwung loslässt, will es loswerden: Es
+          // verschwindet wie beim Wechseln (`letGo`), ohne Nachschub — das
+          // _Kran leeren_ der Brille.
+          if (
+            this.shelfFresh.has(grab.entry) &&
+            refillsCatalogue(gameMode()) &&
+            grab.velocity.length() > PLACE_SPEED
+          ) {
+            this.letGo(ctx, hand, grab);
+            this.dropReach(ctx, hand);
+            ctx.notify('Hand leer');
+            continue;
+          }
           this.release(ctx, hand, grab, true);
           this.dropReach(ctx, hand);
           continue;
@@ -10059,6 +10099,15 @@ export class PortalWorld implements World {
       if (near) {
         anchor.getWorldPosition(_hand);
         stretchGrab(near.handStart.position, _hand, this.nearScale, _point);
+      } else {
+        // **In der Faust kleiner** (`shrinkInHand`) — und um die Faust herum
+        // kleiner, nicht um die Mitte des Dings: Wer eine Tischkante packt,
+        // hält danach die kleine Tischkante und nicht Luft daneben.
+        const factor = this.shrinkInHand(grab.entry);
+        if (factor < 1) {
+          anchor.getWorldPosition(_hand);
+          _point.sub(_hand).multiplyScalar(factor).add(_hand);
+        }
       }
     }
 
@@ -10528,6 +10577,7 @@ export class PortalWorld implements World {
       poseId: grip ? kind : null,
       shake:
         kind === 'champagne' && entry.object.getObjectByName(CORK_NAME) ? new ShakeMeter() : null,
+      regrip: false,
     });
 
     const id = this.idOf(entry);
@@ -10587,6 +10637,7 @@ export class PortalWorld implements World {
     // Was aus den Augen halb so groß getragen wurde, ist beim Loslassen
     // wieder so groß wie im Raum (`shrinkScreenCarry`).
     if (this.shrunk?.entry === grab.entry) this.unshrinkScreenCarry();
+    this.unshrinkInHand(grab.entry);
     this.grabs.delete(hand);
     if (!drop) return;
     // **Die Wand zum Abreißen wird nie hingestellt** — losgelassen
@@ -12807,7 +12858,10 @@ export class PortalWorld implements World {
    */
   private ghostFix(entry: PhysicsBody): { x: number; y: number; z: number } {
     const stored = (entry.object.userData as { wallBase?: WallBase }).wallBase;
-    const real = stored?.scale ?? (this.shrunk?.entry === entry ? this.shrunk.scale : null);
+    const real =
+      stored?.scale ??
+      this.handShrunk.get(entry) ??
+      (this.shrunk?.entry === entry ? this.shrunk.scale : null);
     const now = entry.object.scale;
     if (!real) return { x: 1, y: 1, z: 1 };
     return {
@@ -13878,6 +13932,8 @@ export class PortalWorld implements World {
       const existing = this.grabs.get(hand);
       if (existing) this.letGo(ctx, hand, existing);
       this.attach(hand, anchor, entry);
+      const grab = this.grabs.get(hand);
+      if (grab?.entry === entry) grab.regrip = !controller!.squeeze.pressed;
     } else {
       // **Am Schirm und auf dem Telefon in die Bildschirmhand** — das ist der
       // ganze gemeldete Fehler: „Wenn ich ein Asset gewählt habe, hat der
@@ -15644,6 +15700,9 @@ export class PortalWorld implements World {
     axes: THREE.Vector3 | null = null,
   ): void {
     if (this.shrunk && this.shrunk.entry !== entry) this.unshrinkScreenCarry();
+    // Der Pfeiler einer gezogenen Wand übernimmt: erst die echte Größe zurück,
+    // damit sie als die echte gemerkt wird.
+    this.unshrinkInHand(entry);
     if (factor === 1 && !axes) {
       this.unshrinkScreenCarry();
       return;
@@ -15672,6 +15731,52 @@ export class PortalWorld implements World {
       HAND_POST_HEIGHT,
       half.z > 0 ? HAND_POST / (2 * half.z) : 1,
     );
+  }
+
+  /** Die echte Größe eines Dings, auch wenn es gerade kleiner gezeichnet wird. */
+  private realScale(entry: PhysicsBody): THREE.Vector3 {
+    return (
+      this.handShrunk.get(entry) ??
+      (this.shrunk?.entry === entry ? this.shrunk.scale : entry.object.scale)
+    );
+  }
+
+  /**
+   * **In der Faust kleiner, damit man noch etwas sieht** — gewünscht: _„für
+   * alles (außer Werkzeuge), dass wenn ich diese in der Hand halte, dass diese
+   * kleiner gerendert werden (wie beim Burger), damit ich in VR noch etwas
+   * sehen bzw. erkennen kann."_ Ein Tisch in Lebensgröße an der Faust nahm
+   * das halbe Blickfeld.
+   *
+   * Höchstens halb so groß wie in echt (`HAND_SCALE`, wie der Burger der
+   * Küche), und ein großes Stück so weit, dass seine längste Seite in
+   * `HAND_FIT` passt. Nur das Bild: Körper, Geist und Einrasten rechnen
+   * weiter mit der echten Größe, und beim Loslassen ist es sofort wieder so
+   * groß wie im Raum (`release` → `unshrinkInHand`).
+   *
+   * @returns um wie viel kleiner gezeichnet wird (1: gar nicht)
+   */
+  private shrinkInHand(entry: PhysicsBody): number {
+    // Der Pfeiler einer gezogenen Wand hat schon seine eigene Größe (`handPost`).
+    if (this.shrunk?.entry === entry) return 1;
+    const longest = 2 * Math.max(entry.halfExtents.x, entry.halfExtents.y, entry.halfExtents.z);
+    const factor = Math.min(HAND_SCALE, longest > 0 ? HAND_FIT / longest : 1);
+    let real = this.handShrunk.get(entry);
+    if (!real) {
+      real = entry.object.scale.clone();
+      this.handShrunk.set(entry, real);
+    }
+    entry.object.scale.copy(real).multiplyScalar(factor);
+    return factor;
+  }
+
+  /** Das Ding aus der Faust wieder in seiner echten Größe. */
+  private unshrinkInHand(entry: PhysicsBody): void {
+    const real = this.handShrunk.get(entry);
+    if (!real) return;
+    this.handShrunk.delete(entry);
+    entry.object.scale.copy(real);
+    entry.object.updateMatrixWorld(true);
   }
 
   /** Das Getragene wieder in seiner echten Größe. */

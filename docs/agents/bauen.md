@@ -77,6 +77,38 @@ in Weltmetern — aus 16 m Höhe greift man also nichts. Was gebaut werden soll,
 während man fliegt (zeigen und setzen wie der Kran am Schirm?), ist der
 nächste Schritt.
 
+## In der Brille: was aus dem Katalog kommt, klebt — und ist klein
+
+Gemeldet im Oktober 2026: _„im vr modus einrichten bzw. bauen klappt noch
+nicht korrekt. Es scheint wenn ich etwas mit grab gedrückt halte, dass ich
+dann durch grab loslassen es leider nicht platziere. Zudem sind z. B. tische
+viel zu groß in der hand."_
+
+- **Was ohne Faust in die Hand kommt, klebt** (`HandGrab.regrip`, gesetzt in
+  `spawnModel`): ein Stück aus dem Katalog oder Regal, mit dem Trigger im
+  Menü gewählt, und im _Baukasten_ die nächste Kopie nach dem Hinstellen.
+  Vorher galt dafür sofort „Grip offen = loslassen": Das Stück fiel im ersten
+  Bild aus der Hand, und im _Baukasten_ holte jedes Hinstellen die nächste
+  Kopie, die gleich wieder hingestellt wurde — eine Schleife aus „kein Platz"
+  und neuer Kopie, in der nie etwas ruhig in der Hand lag. Jetzt: einmal
+  greifen (Grip zu), hinhalten, Grip auf — erst dieses Loslassen stellt hin.
+- **Wegwerfen leert die Hand**: Ein frisches Stück im _Baukasten_, mit
+  Schwung losgelassen (schneller als `gridSnap.PLACE_SPEED`), verschwindet
+  ohne Nachschub (`letGo`) — das _Kran leeren_ der Brille.
+- **In der Faust kleiner** (`PortalWorld.shrinkInHand`). Gewünscht: _„für
+  alles (außer Werkzeuge), dass wenn ich diese in der hand halte, dass diese
+  kleiner gerendert werden (wie beim burger)"_. Höchstens halb so groß
+  (`dishHold.HAND_SCALE`, wie der Burger), und so, dass die längste Seite in
+  `HAND_FIT` (0,35 m) passt — ein Tisch von 1 m ist ein Modell auf der Hand.
+  Verkleinert wird um die Faust, nicht um die Mitte. Nur das Bild: Körper,
+  Geist und Einrasten rechnen mit der echten Größe, beim Loslassen ist es
+  sofort wieder groß (`release` → `unshrinkInHand`). Nicht beim Nahgreifen
+  (dort liegt es nicht in der Hand) und nicht für Werkzeuge (die sind keine
+  `grabs`).
+- **Nachgestellt** mit `?xr=sim`: Der Emulator liegt dann als
+  `globalThis.bgvrXr` bereit, Knöpfe und Hände lassen sich aus Playwright
+  setzen (`bgvrXr.controllers.right.updateButtonValue('squeeze', 1)`).
+
 ## Bauen, während man darin steht
 
 **Jede Gitterwelt lässt sich umbauen, ohne sie zu verlassen**
