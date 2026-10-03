@@ -21,3 +21,12 @@ Wessen Session gar nicht auf `main` pushen darf — Claude Code im Browser
 bekommt einen Branch zugewiesen —, nimmt den Umweg aus AGENTS.md und geht ihn
 zu Ende: Branch, Pull Request **ohne Draft**, nach grüner CI selbst mergen,
 Branch löschen. Ein offener Pull Request ist kein Ergebnis.
+
+**Tests nur für Kritisches** — oder für etwas, das **mehrfach** kaputtgegangen
+ist. Gewünscht: _„nur für kritische Punkte Tests, oder wenn etwas mehrfach
+auftritt, dass etwas nicht klappt."_ Kritisch heißt: Ein Fehler fällt im
+Browser nicht auf (Navigation, Greifen, Boden, Portale, Netz) oder zerstört
+etwas, das nicht zurückkommt (Speicherstände, App-Hülle). Ein Fehler, der zum
+ersten Mal auftritt, wird repariert, nicht mit einem Test versehen; erst beim
+zweiten Mal bekommt er einen. Die Liste und die Begründungen stehen in
+[Tests](docs/agents/tests.md).

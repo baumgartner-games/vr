@@ -27,8 +27,8 @@
  * (`gameMode.ts`): Wer nach dem Neuladen zwanzig Meter über dem Boden
  * aufwacht, wundert sich. Jede Sitzung und jede Welt fängt am Boden an.
  *
- * Kein three.js — die Rechnung prüft ein Test ohne Browser
- * (`buildFlight.test.ts`); geflogen wird in `PlayerRig.updateFlight`.
+ * Kein three.js — hier steht nur die Rechnung; geflogen wird in
+ * `PlayerRig.updateFlight`.
  */
 
 /**
