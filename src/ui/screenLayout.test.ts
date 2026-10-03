@@ -76,3 +76,22 @@ describe('screenCols', () => {
     expect(screenCols(true, 12)).toBe(12);
   });
 });
+
+/** Die Figur im Inventar ist eine Spalte des Bildschirms, nicht eine Tafel daneben. */
+describe('screenHead aside', () => {
+  const head = screenHead(6, { back: false, home: false, aside: true });
+
+  it('narrows the list and finds the button in the column', () => {
+    const plain = screenHead(6, { back: false, home: false });
+    expect(head.bodyW).toBeLessThan(plain.bodyW);
+    expect(controlAt(head, ...centre(head.aside!.button))).toEqual({ kind: 'aside' });
+    expect(plain.aside).toBeNull();
+  });
+
+  it('keeps the column inside the screen, below the head', () => {
+    const card = head.aside!.card;
+    expect(card.x + card.w).toBeLessThanOrEqual(SCREEN_W);
+    expect(card.y).toBe(SCREEN_BODY_TOP);
+    expect(head.aside!.figure.h).toBeGreaterThan(200);
+  });
+});
