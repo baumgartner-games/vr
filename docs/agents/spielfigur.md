@@ -576,13 +576,16 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   stark, beschlagen)"_, dazu _„atem_art: ganz flächig/realistisch"_ und
   _„darstellung: rechnerisch/bild"_.
   - **Stärke** (`core/visorBreath.ts`, mit Test): ein Atemzug alle vier
-    Sekunden, 1,5 s davon Ausatmen (der Beschlag wächst weich), danach
-    verdunstet er bis genau 0. _Aus_ ist das Visier wie es ist, _Leicht_ geht
-    von 0 bis 0,3, _Stark_ nie unter 0,3 (dem Gipfel von _Leicht_) bis 0,75,
-    _Beschlagen_ steht durchgehend auf 0,92. _Stark_ atmet dazu **schneller**,
-    ein Zug alle 1,3 s statt vier, rund 46 in der Minute wie unter Belastung
-    (`STRONG_PERIOD`; Ausatmen und Verdunsten schrumpfen im selben Verhältnis) —
-    gewünscht: _„Unter Belastung: Bis zu 40–50 Atemzüge/Min"_.
+    Sekunden. **Er kommt schnell und geht langsam** — gewünscht: _„von 100%,
+    ist der Atem da bei 30% und geht bis 70% weg"_: In den ersten 30 % des
+    Zugs (`EXHALE_SHARE`) wächst der Beschlag steil und läuft oben weich aus,
+    in den übrigen 70 % verdunstet er, oben zögernd, bis genau zum Ende des
+    Zugs. _Aus_ ist das Visier wie es ist, _Leicht_ geht von 0 bis 0,3,
+    _Stark_ von 0,45 (`STRONG_FLOOR`, gewünscht: _„dass nicht alles weg geht
+    sondern noch mehr bleibt"_) bis 0,75, _Beschlagen_ steht durchgehend auf
+    0,92. _Stark_ atmet dazu **schneller**, ein Zug alle 1,3 s, rund 46 in der
+    Minute wie unter Belastung (`STRONG_PERIOD`) — gewünscht: _„Unter
+    Belastung: Bis zu 40–50 Atemzüge/Min"_.
   - **Die Haut auf dem Glas** (`core/visorFog.ts`): ein zweites Netz mit
     derselben Geometrie wie das Visier, als Kind daran (`selfHelmet.fogVisors`
     — Glas ist, was durchsichtig ist), ein eigener Shader, milchig-kühles Weiß.

@@ -434,7 +434,7 @@ export interface GraphicsSettings {
  * - `off` — das Visier, wie es ist.
  * - `light` — im Takt eines ruhigen Atems ganz leicht beschlagen, dazwischen
  *   wieder klar.
- * - `strong` — nie ganz klar: Das Tal ist der Gipfel von `light`, der Gipfel
+ * - `strong` — nie ganz klar: Das Tal liegt über dem Gipfel von `light`, der Gipfel
  *   deutlich darüber, und der Atem geht schneller.
  * - `fogged` — durchgehend stark beschlagen, kaum noch durchsichtig.
  */

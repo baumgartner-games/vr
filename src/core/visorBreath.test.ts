@@ -3,6 +3,7 @@ import {
   EXHALE,
   FOGGED,
   LIGHT_PEAK,
+  STRONG_FLOOR,
   STRONG_PEAK,
   STRONG_PERIOD,
   breathFog,
@@ -43,9 +44,19 @@ describe('der Atem auf dem Visier', () => {
     expect(Math.max(...values)).toBeCloseTo(LIGHT_PEAK, 2);
   });
 
-  it('wird bei stark nie klarer als leicht auf dem Gipfel', () => {
+  it('kommt schnell und geht langsam: 30 % hinauf, 70 % hinab', () => {
+    // Nach der Hälfte des Ausatmens schon weit mehr als die Hälfte da …
+    expect(breathPulse(EXHALE / 2)).toBeGreaterThan(0.7);
+    // … nach der Hälfte des Verdunstens genau die Hälfte weg.
+    expect(breathPulse((EXHALE + BREATH_PERIOD) / 2)).toBeCloseTo(0.5);
+    // Hinab dauert länger als hinauf.
+    expect(BREATH_PERIOD - EXHALE).toBeGreaterThan(2 * EXHALE);
+  });
+
+  it('wird bei stark nie klarer als sein erhöhtes Tal, deutlich über leicht', () => {
+    expect(STRONG_FLOOR).toBeGreaterThan(LIGHT_PEAK);
     const values = TIMES.map((t) => breathFog('strong', t));
-    expect(Math.min(...values)).toBeGreaterThanOrEqual(LIGHT_PEAK - 1e-9);
+    expect(Math.min(...values)).toBeGreaterThanOrEqual(STRONG_FLOOR - 1e-9);
     expect(Math.max(...values)).toBeCloseTo(STRONG_PEAK, 2);
   });
 
@@ -55,7 +66,7 @@ describe('der Atem auf dem Visier', () => {
     // Der Gipfel kommt früher und kehrt nach einem kurzen Zug wieder.
     expect(breathFog('strong', exhale)).toBeCloseTo(STRONG_PEAK);
     expect(breathFog('strong', STRONG_PERIOD + exhale)).toBeCloseTo(STRONG_PEAK);
-    expect(breathFog('strong', STRONG_PERIOD - 1e-6)).toBeCloseTo(LIGHT_PEAK, 3);
+    expect(breathFog('strong', STRONG_PERIOD - 1e-6)).toBeCloseTo(STRONG_FLOOR, 3);
     // Und springt trotzdem nirgends.
     for (const t of TIMES) {
       expect(Math.abs(breathFog('strong', t + 0.005) - breathFog('strong', t))).toBeLessThan(0.02);
