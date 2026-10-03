@@ -25,9 +25,9 @@ import { LAYER_EYE } from './viewLayers';
  *   Augen hat (`KAYKIT_HEAD.eyeY`), quer in der Mitte, und der Helm wird auf
  *   eine Breite gebracht, in der ein echter Kopf Platz hat (`WIDTH`).
  *
- * Nur in der Brille (`App`): Am Schirm schaut man von oben, und in der
- * Ich-Sicht am Schirm stünde einem ein Helm vor der Nase, den man nicht
- * abnehmen kann.
+ * In der Brille und am Schirm in der Ansicht _Aus den Augen_ (`App`) —
+ * gewünscht, _„dann kann ich es auch am pc testen wie es dort aussieht"_. Von
+ * oben schaut eine andere Kamera, und die zeichnet die Ebene nicht.
  */
 
 /** Wie breit der Helm um den echten Kopf ist, in Metern. */

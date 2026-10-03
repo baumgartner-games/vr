@@ -566,8 +566,10 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   durchsichtig (Deckkraft 0,18 statt 0,5 außen).
 - Das Auge steht dort, wo der KayKit-Kopf die Augen hat (`KAYKIT_HEAD.eyeY`),
   quer in der Mitte; der Helm ist 40 cm breit.
-- Nur in der Brille und nicht beim Zuschauen (`App.step`); am Schirm schaut
-  man von oben.
+- In der Brille und am Schirm in der Ansicht _Aus den Augen_, nicht von oben
+  und nicht beim Zuschauen (`App.step`). Gewünscht: _„kannst du beim immersiv
+  hut das auch für ‚aus den augen' anzeigen lassen. Dann kann ich es auch am
+  pc testen"_.
 - Für die Raumstation reicht später `ctx.wear('flightHelmetImmersive')` —
   `App.applyAppearance` merkt sich auch einen geliehenen Hut (`lookHat`).
 

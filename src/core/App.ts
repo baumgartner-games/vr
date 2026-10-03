@@ -3481,11 +3481,13 @@ export class App {
     this.rig.getHeadMatrix(_head);
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);
     this.avatar.updateFromRig(dt, this.rig, this.input, _headLocal);
-    // **Der immersive Helm** (`core/selfHelmet.ts`): nur in der Brille, nur
-    // aus den eigenen Augen — wer zuschaut, schaut durch fremde.
+    // **Der immersive Helm** (`core/selfHelmet.ts`): in der Brille und am
+    // Schirm _aus den Augen_ — von oben sieht man ihn nicht, und wer zuschaut,
+    // schaut durch fremde.
+    const ownEyes = (presenting || !this.topDown) && !this.spectating;
     this.selfHelmet.update(
       this.camera,
-      presenting && !this.spectating && this.lookHat === IMMERSIVE_HAT ? IMMERSIVE_HAT : null,
+      ownEyes && this.lookHat === IMMERSIVE_HAT ? IMMERSIVE_HAT : null,
     );
     this.playerGuides.update(_head, this.rig.getFloorY());
     this.wristMenu.update(dt, this.input, _head);
