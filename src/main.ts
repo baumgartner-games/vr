@@ -1,5 +1,6 @@
 import './style.css';
 import { detectFlatRole, detectXRSupport } from './core/device';
+import { emulateQuest, emulationRequested } from './core/xrEmulator';
 import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
 import type { App } from './core/App';
 import type { NetPanel } from './ui/NetPanel';
@@ -472,15 +473,23 @@ refreshHaunt();
  */
 let headset = false;
 
-void detectXRSupport().then((support) => {
-  headset = support.immersiveVR;
-  app?.setXrReady(headset);
-  paintHudVr(app?.renderer.xr.isPresenting ?? false);
-  showStart();
-  setXrStatus(
-    support.immersiveVR ? 'VR-Gerät erkannt.' : (support.reason ?? 'Kein VR-Gerät gefunden.'),
-  );
-});
+// **`?xr=sim`**: erst die nachgestellte Quest einsetzen, dann fragen — dann
+// meldet sich eine Brille, und alles läuft wie mit einer (`core/xrEmulator.ts`).
+void (
+  emulationRequested(window.location.search)
+    ? emulateQuest().catch((error: unknown) => console.warn('[xr] Emulator fehlt', error))
+    : Promise.resolve()
+)
+  .then(() => detectXRSupport())
+  .then((support) => {
+    headset = support.immersiveVR;
+    app?.setXrReady(headset);
+    paintHudVr(app?.renderer.xr.isPresenting ?? false);
+    showStart();
+    setXrStatus(
+      support.immersiveVR ? 'VR-Gerät erkannt.' : (support.reason ?? 'Kein VR-Gerät gefunden.'),
+    );
+  });
 
 /** Dieselbe Zeile unter beiden Gesichtern der Seite. */
 function setXrStatus(text: string, error = false): void {

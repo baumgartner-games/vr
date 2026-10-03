@@ -113,15 +113,23 @@ export class XRMenuLayer {
     const canvas = this.panel.canvas;
     const { width, height } = this.panel.geometry.parameters;
     try {
-      const layer = binding.createQuadLayer({
+      // `clearOnAccess` steht noch nicht in den Typen, die Brille kennt es.
+      const init: XRQuadLayerInit & { clearOnAccess: boolean } = {
         space,
         viewPixelWidth: canvas.width,
         viewPixelHeight: canvas.height,
         layout: 'mono',
-        // Ganze Breite und Höhe in Metern, wie `XrCompositionLayerQuad.size`.
-        width,
-        height,
-      });
+        // **Halbe** Breite und Höhe: Die Quest liest die Maße als Halbachsen
+        // (so übergibt es auch three.js, `XRManager.createXRLayer`). Mit den
+        // ganzen Maßen war die Ebene doppelt so groß wie ihr Loch — das Menü
+        // stand stark vergrößert im Rahmen, die Kacheln am Rand abgeschnitten.
+        width: width / 2,
+        height: height / 2,
+        // Nicht bei jedem Zugriff leeren: Geschrieben wird nur, wenn sich die
+        // Leinwand geändert hat.
+        clearOnAccess: false,
+      };
+      const layer = binding.createQuadLayer(init);
       try {
         layer.quality = 'text-optimized';
       } catch {
@@ -162,17 +170,23 @@ export class XRMenuLayer {
     const binding = this.renderer.xr.getBinding();
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
     const sub = binding.getSubImage(layer, frame);
+    // **Nichts verstellen, was three.js sich merkt.** Es führt Buch über
+    // gebundene Texturen und Entpack-Schalter; also wird hier vorher gelesen
+    // und hinterher genau das wieder hergestellt. Nicht `renderer.resetState()`:
+    // Das vergisst mitten in der Sitzung auch das Ziel der Brille, und danach
+    // blieb das Bild der Szene schwarz (in der Simulation nachgestellt).
+    const bound = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
+    const flip = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL) as boolean;
+    const premultiply = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL) as boolean;
     gl.bindTexture(gl.TEXTURE_2D, sub.colorTexture);
     // Leinwand oben links, Textur unten links — und der Kompositor rechnet
     // mit vormultipliziertem Alpha.
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.panel.canvas);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    // three.js merkt sich gebundene Texturen; nach eigenem GL-Aufruf vergessen.
-    this.renderer.resetState();
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiply);
+    gl.bindTexture(gl.TEXTURE_2D, bound);
     this.drawn = this.panel.revision;
   }
 

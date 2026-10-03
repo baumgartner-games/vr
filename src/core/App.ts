@@ -83,6 +83,7 @@ import {
 import { clearInputConfig, inputConfig, saveInputConfig } from './inputStore';
 import type { InputPress } from './FlatControls';
 import { GraphicsQuality } from './GraphicsQuality';
+import { emulateQuest } from './xrEmulator';
 import { FrameStats } from './FrameStats';
 import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
@@ -911,6 +912,17 @@ export class App {
     await this.renderer.xr.setSession(session);
   }
 
+  /**
+   * **VR ohne Brille** — Metas Emulator einsetzen (`core/xrEmulator.ts`) und
+   * dann ganz normal eine Sitzung beginnen. Ab da meldet das Gerät eine Brille.
+   */
+  async enterSimulatedVR(): Promise<void> {
+    this.notify('VR-Simulation wird geladen …');
+    await emulateQuest();
+    this.setXrReady(true);
+    await this.enterVR();
+  }
+
   async endVR(): Promise<void> {
     await this.renderer.xr.getSession()?.end();
   }
@@ -1631,6 +1643,25 @@ export class App {
             else this.notify('Dieses Gerät meldet keine VR-Brille');
           },
         },
+        // **Ohne Brille: eine nachgestellte** (`core/xrEmulator.ts`) — eine
+        // Quest 3 im Browser, Kopf und Controller mit Maus und Tastatur.
+        ...(presenting || this.xrReady
+          ? []
+          : [
+              {
+                id: 'view:vr-sim',
+                label: 'VR simulieren',
+                sub: 'Eine Quest 3 im Browser — Kopf und Controller mit Maus und Tastatur',
+                icon: 'worlds' as const,
+                accent: 0xffb347,
+                run: () => {
+                  this.enterSimulatedVR().catch((error: unknown) => {
+                    console.warn('[xr] Simulation konnte nicht starten', error);
+                    this.notify('Die VR-Simulation konnte nicht starten');
+                  });
+                },
+              },
+            ]),
         {
           id: 'view:3d',
           label: SCREEN_VIEW_LABELS['3d'],

@@ -103,6 +103,13 @@ function bundleList(bundle: OutputBundle): string[] {
 }
 
 /**
+ * **Was zur nachgestellten Brille gehört** (`core/xrEmulator.ts`): ein eigener
+ * Chunk, geladen erst beim ersten _VR simulieren_ — und nicht in der Liste
+ * für _Alles herunterladen_: Eine Brille braucht ihn nie.
+ */
+const EMULATOR = /\/node_modules\/(iwer|@iwer|webxr-layers-polyfill)\//;
+
+/**
  * Dieselbe Lesart wie `HASHED` in `src/core/swRoutes.ts`: unterhalb von
  * `assets/`, und dort ein Hash am Ende des Namens.
  */
@@ -339,6 +346,7 @@ function offlineListPlugin(publicDir: string): Plugin {
       const built: [string, number][] = [];
       for (const [name, chunk] of Object.entries(bundle)) {
         if (name === 'sw.js' || name.endsWith('.map') || name === OFFLINE_MANIFEST) continue;
+        if (name.includes('xr-emulator')) continue;
         const source = chunk.type === 'chunk' ? chunk.code : chunk.source;
         built.push([name, typeof source === 'string' ? Buffer.byteLength(source) : source.length]);
       }
@@ -375,6 +383,11 @@ function offlineListPlugin(publicDir: string): Plugin {
  * gerade nicht benutzt wird, mitzuladen.
  */
 function manualChunks(id: string): string | undefined {
+  // **Der Emulator zuerst** (`core/xrEmulator.ts`): Die DevUI bringt ihr
+  // eigenes three.js mit (`@iwer/devui/node_modules/three`), und dessen Pfad
+  // enthält ebenfalls `/node_modules/three/build/` — es landete sonst im
+  // Chunk von three.js, den jeder beim Start lädt.
+  if (EMULATOR.test(id)) return 'xr-emulator';
   if (id.includes('/node_modules/three/build/')) return 'three';
   if (id.includes('/node_modules/@dimforge/')) return 'rapier';
   return undefined;
