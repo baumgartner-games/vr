@@ -89,7 +89,7 @@ import {
 import { clearInputConfig, inputConfig, saveInputConfig } from './inputStore';
 import type { InputPress } from './FlatControls';
 import { GraphicsQuality } from './GraphicsQuality';
-import { QUEST_EYE_ASPECT, QUEST_EYE_FOV, eyeBox, saveVrView, vrViewOn } from './vrView';
+import { QUEST_FRUSTUM, eyeBox, saveVrView, vrViewOn } from './vrView';
 import { FrameStats } from './FrameStats';
 import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
@@ -3489,13 +3489,32 @@ export class App {
         top: `${box.y}px`,
         width: `${box.width}px`,
         height: `${box.height}px`,
+        // Die Form, die man in der Brille sieht (`core/questView.ts`).
+        clipPath: QUEST_FRUSTUM.clipPath,
       });
-      this.camera.fov = QUEST_EYE_FOV;
-      this.camera.aspect = QUEST_EYE_ASPECT;
+      // **Schief zugeschnitten**: Das gemessene Sichtfeld reicht nach unten
+      // weiter als nach oben. Ein gerader Kegel so weit wie die größte Seite,
+      // davon nur der Ausschnitt (`setViewOffset`) — den Rest der Rechnung
+      // (Zeiger, Strahl) macht three.js damit von selbst richtig.
+      const { left, right, top, bottom } = QUEST_FRUSTUM;
+      const half = Math.max(-left, right);
+      const high = Math.max(top, -bottom);
+      const unit = 1000;
+      this.camera.fov = (2 * Math.atan(high) * 180) / Math.PI;
+      this.camera.aspect = half / high;
+      this.camera.setViewOffset(
+        2 * half * unit,
+        2 * high * unit,
+        (left + half) * unit,
+        (high - top) * unit,
+        (right - left) * unit,
+        (top - bottom) * unit,
+      );
     } else {
-      for (const key of ['inset', 'left', 'top', 'width', 'height'] as const) {
+      for (const key of ['inset', 'left', 'top', 'width', 'height', 'clipPath'] as const) {
         canvas.style[key] = '';
       }
+      this.camera.clearViewOffset();
       this.camera.fov = this.screenFov;
       this.camera.aspect = window.innerWidth / window.innerHeight;
     }

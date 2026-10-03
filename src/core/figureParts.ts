@@ -166,6 +166,12 @@ export const MODEL_HATS = {
     'Kalibrier-Helm · Immersiv',
     'Der immersive Helm mit farbigen Gradlinien im Blick — zum Ausmessen der Brille',
   ),
+  povImmersive: part(
+    SPACE_RANGER_FLIGHT,
+    ['SpaceRanger_Helmet'],
+    'Quest-3-Sicht · Immersiv',
+    'Der immersive Helm mit dem gemessenen Sichtfeld: grün sicher, orange außen, rot am Rand',
+  ),
   paladinHelmet: part(PALADIN_HELMET, ['Paladin_Helmet'], 'Helm des Paladins', 'Vom Paladin'),
   clownHat: part(CLOWN, ['Clown_Hat'], 'Clownshut', 'Vom Clown'),
   mechHead: part(COMBAT_MECH, ['CombatMech_Head'], 'Kopf des Kampfroboters', 'Vom Combat Mech'),
@@ -230,9 +236,17 @@ export const IMMERSIVE_HAT: ModelHatKind = 'flightHelmetImmersive';
  */
 export const CALIBRATION_HAT: ModelHatKind = 'calibrationImmersive';
 
+/**
+ * **Der Helm mit der Sicht der Quest 3** — derselbe immersive Helm, dazu die
+ * gemessenen Bereiche vor dem Auge (`core/questView.ts`,
+ * `viewCalibration.viewZones`): grün, was man sicher sieht, orange außen, rot
+ * am Rand. Gewünscht: _„bitte den Helm immersive Quest 3 pov"_.
+ */
+export const POV_HAT: ModelHatKind = 'povImmersive';
+
 /** Ob man diesen Hut in der Brille auch um den eigenen Kopf trägt (`core/selfHelmet.ts`). */
 export function isImmersiveHat(kind: string): kind is ModelHatKind {
-  return kind === IMMERSIVE_HAT || kind === CALIBRATION_HAT;
+  return kind === IMMERSIVE_HAT || kind === CALIBRATION_HAT || kind === POV_HAT;
 }
 
 // --- die Köpfe ----------------------------------------------------------------

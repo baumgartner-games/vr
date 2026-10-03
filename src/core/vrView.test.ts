@@ -1,12 +1,14 @@
-import { QUEST_EYE_ASPECT, eyeBox } from './vrView';
+import { QUEST_FRUSTUM, eyeBox } from './vrView';
+
+const QUEST_EYE_ASPECT = QUEST_FRUSTUM.aspect;
 
 describe('eyeBox', () => {
   it('steht mittig im breiten Fenster, so hoch wie es ist', () => {
-    const box = eyeBox(1600, 900);
+    const box = eyeBox(2400, 900);
     expect(box.height).toBe(900);
     expect(box.width).toBe(Math.round(900 * QUEST_EYE_ASPECT));
     expect(box.y).toBe(0);
-    expect(box.x * 2 + box.width).toBeCloseTo(1600, -1);
+    expect(box.x * 2 + box.width).toBeCloseTo(2400, -1);
   });
 
   it('steht mittig im hohen Fenster, so breit wie es ist', () => {

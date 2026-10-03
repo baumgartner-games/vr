@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { canLoadModels } from './chefFit';
-import { CALIBRATION_HAT, KAYKIT_HEAD, MODEL_HATS, type ModelHatKind } from './figureParts';
-import { disposeCalibration, viewCalibration } from './viewCalibration';
+import {
+  CALIBRATION_HAT,
+  KAYKIT_HEAD,
+  MODEL_HATS,
+  POV_HAT,
+  type ModelHatKind,
+} from './figureParts';
+import { disposeCalibration, viewCalibration, viewZones } from './viewCalibration';
 import { LAYER_EYE } from './viewLayers';
 import { graphics, onGraphicsChange, type GraphicsSettings } from './graphicsSettings';
 import { breathFog } from './visorBreath';
@@ -51,7 +57,7 @@ export class SelfHelmet {
   private camera: THREE.Camera | null = null;
   private era = 0;
   /** Das Gradnetz des Kalibrier-Helms (`core/viewCalibration.ts`) — sonst `null`. */
-  private calibration: THREE.Group | null = null;
+  private calibration: THREE.Object3D | null = null;
   /** Der Beschlag je Visierglas — leer, solange kein Helm hängt. */
   private fogs: VisorFog[] = [];
   /** Die Atemuhr, in Sekunden. */
@@ -101,9 +107,12 @@ export class SelfHelmet {
         this.helmet = helmet;
         // **Der Kalibrier-Helm** bringt sein Gradnetz mit — an der Kamera
         // selbst, nicht am Helm: Die Winkel gelten vom Auge aus.
-        if (kind === CALIBRATION_HAT) {
-          this.calibration = viewCalibration();
-          camera.add(this.calibration);
+        // **Der Helm mit der Sicht der Quest 3** die gemessenen Bereiche.
+        const overlay =
+          kind === CALIBRATION_HAT ? viewCalibration() : kind === POV_HAT ? viewZones(true) : null;
+        if (overlay) {
+          this.calibration = overlay;
+          camera.add(overlay);
         }
       });
   }

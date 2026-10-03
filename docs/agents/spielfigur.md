@@ -633,6 +633,29 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   Menü (`ORDER` 9,5). Bänder statt `THREE.Line`, die in der Brille als ein
   Bildpunkt flimmerte. Was man in der Quest abliest, kommt in die
   **VR-Ansicht** am Schirm (`core/vrView.ts`, siehe [Seite](seite.md)).
+- **Gemessen** im Oktober 2026 (`core/questView.ts`, mit Test), je Höhe von
+  wo bis wo man seitlich sieht: _„30, Rand oben · 20, -30 bis 30 · 10, -35
+  bis 35 · 0, -40 bis 40 · -10, -40 bis 40 · -20, -40 bis 40 · -30, -35 bis
+  35 · -40, -30 bis 30 · -45, -20 bis 20"_ (`QUEST_VIEW`; wie breit der Rand
+  oben ist, war nicht gesagt — 25°). Der **sichere Bereich**, rund 10° nach
+  innen: _„10, -30 bis 30 runter bis -35, -20 bis 20"_ (`QUEST_SAFE`). Die
+  Zahlen stehen im Raum der Kamera, wie sie abgelesen wurden.
+- **Die gefühlte Null liegt 10° tiefer** — _„Ich habe auch das Gefühl, dass
+  die null Höhe bei -10° liegt. Also den Bereich einzeichnen und dann
+  jedenfalls alles um 10 verschieben"_: Das Gradnetz des Kalibrier-Helms ist
+  um `GAZE_PITCH` (−10°) gedreht, seine Null liegt also dort, wo der Blick
+  von selbst hingeht. Die Bereiche bleiben, wo sie gemessen wurden, und
+  heißen in den neuen Zahlen 10 höher (oben 40, unten −35). Im Netz stehen
+  ihre Umrisse: rot das Sichtfeld, grün der sichere Bereich.
+- **Der Helm _Quest-3-Sicht · Immersiv_** (`figureParts.POV_HAT`,
+  `viewCalibration.viewZones`) — _„bitte den Helm immersive Quest 3 pov"_,
+  _„rote Linie am Rand, dick, dann rot bei dem Rand Bereich, dann orange bei
+  dem außen Bereich, und grün für den sicheren inneren Bereich"_: derselbe
+  immersive Helm, davor die Bereiche flächig — die dicke rote Linie auf dem
+  Rand, innen daran ein roter Streifen von `EDGE_BAND` (5°), orange bis zum
+  sicheren Bereich, der grün. Gemalt in Winkeln auf eine Leinwand (x = Azimut,
+  y = Höhe) auf einem Stück Kugel, dessen Texturkoordinaten genau diese
+  Winkel sind.
 - Für die Raumstation reicht später `ctx.wear('flightHelmetImmersive')` —
   `App.applyAppearance` merkt sich auch einen geliehenen Hut (`lookHat`).
 

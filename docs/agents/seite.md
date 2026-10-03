@@ -558,10 +558,14 @@ richtig, und gezielt wurde unsauber.
   `bgvr.vrView`). Gewünscht: _„auch will ich bei vr ansicht simmulieren bitte
   die steuerung wie in aus den augen beibehalten. Es ist nur eine option wie
   aus den augen dargestellt werden soll"_. Geändert wird nur das Bild:
-  - die Leinwand als Kasten im Seitenverhältnis eines Auges (0,935) mitten im
-    Fenster, drum herum schwarz (`eyeBox`), mit dessen Sichtfeld (96°
-    senkrecht) — die Zahlen sind ein Anfang, nachgemessen wird mit dem
-    **Kalibrier-Helm** (siehe [Spielfigur](spielfigur.md));
+  - das **gemessene Sichtfeld** der Quest 3 durch den immersiven Helm
+    (`core/questView.ts`, `viewFrustum`; gemessen mit dem Kalibrier-Helm,
+    siehe [Spielfigur](spielfigur.md)): oben 30°, unten 45°, seitlich bis
+    40°. Die Kamera ist dafür schief zugeschnitten (ein gerader Kegel so weit
+    wie die größte Seite, davon der Ausschnitt mit `setViewOffset` — Zeiger
+    und Strahl rechnen damit von selbst richtig), die Leinwand steht als
+    Kasten mitten im Fenster (`eyeBox`) und ist auf die Form der Messung
+    beschnitten (`clip-path`). Erst standen hier geschätzte 96° bei 0,935;
   - das Menü als **Bildschirm zwei Meter davor** (`GameMenu.presenting`),
     gezielt mit der Maus; `Tab` schlägt dort das Inventar auf;
   - die Tafeln der Brille statt Ladebildschirm, Willkommens-Karte und

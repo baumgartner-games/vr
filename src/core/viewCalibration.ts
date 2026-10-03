@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAYER_EYE } from './viewLayers';
+import { EDGE_BAND, GAZE_PITCH, QUEST_SAFE, QUEST_VIEW, outline, type ViewRow } from './questView';
 
 /**
  * **Das Gradnetz im Kalibrier-Helm** — farbige Linien in festen Winkeln vor
@@ -24,6 +25,14 @@ import { LAYER_EYE } from './viewLayers';
  *   darüber (`ORDER` unter `XRMenu.PANEL_ORDER`).
  * - Die Linien sind schmale Bänder und keine `THREE.Line`: Eine Linie ist in
  *   WebGL einen Bildpunkt breit, und das flimmert in der Brille.
+ * - **Die Null liegt 10° unter geradeaus** (`questView.GAZE_PITCH`) —
+ *   gewünscht: _„Ich habe auch das Gefühl, dass die null Höhe bei -10° liegt.
+ *   Also […] alles um 10 verschieben"_. Das ganze Netz ist darum gedreht.
+ *   Dazu stehen die gemessenen Umrisse darin: das Sichtfeld rot, der sichere
+ *   Bereich grün (`viewZones`, nur Linien).
+ *
+ * **Der Helm _Quest-3-Sicht · Immersiv_** (`figureParts.POV_HAT`) zeigt statt
+ * des Netzes die Bereiche selbst, flächig (`viewZones` mit `fill`).
  */
 
 /** Wie weit das Netz vor dem Auge liegt, in Metern. */
@@ -98,8 +107,14 @@ export function calibrationLines(): CalibrationLine[] {
 
 /** **Das Netz bauen** — eine Gruppe für die Kamera. */
 export function viewCalibration(): THREE.Group {
+  const holder = new THREE.Group();
+  holder.name = 'view-calibration';
+  // Die Bereiche, wie gemessen — im Raum der Kamera, nicht mitgedreht.
+  holder.add(viewZones(false));
   const group = new THREE.Group();
-  group.name = 'view-calibration';
+  // Die Null dorthin, wo sie sich anfühlt (`GAZE_PITCH`).
+  group.rotation.x = GAZE_PITCH * DEG;
+  holder.add(group);
   for (const line of calibrationLines()) {
     const points: THREE.Vector3[] = [];
     if (line.kind === 'vertical') {
@@ -128,7 +143,123 @@ export function viewCalibration(): THREE.Group {
     object.frustumCulled = false;
     object.renderOrder = ORDER;
   });
-  return group;
+  return holder;
+}
+
+/** Wie weit die Fläche der Bereiche reicht, im Raum der Kamera (Grad). */
+const ZONE_AZ = 60;
+const ZONE_TOP = 45;
+const ZONE_BOTTOM = -60;
+/** Bildpunkte je Grad auf der Leinwand der Bereiche. */
+const ZONE_PPD = 8;
+
+/**
+ * **Die gemessenen Bereiche** (`core/questView.ts`) — gewünscht: _„rote Linie
+ * am Rand, dick, dann rot bei dem Rand Bereich, dann orange bei dem außen
+ * Bereich, und grün für den sicheren inneren Bereich"_.
+ *
+ * Gemalt wird in Winkeln auf eine Leinwand (x = Azimut, y = Höhe), und die
+ * liegt auf einem Stück Kugel um das Auge, dessen Texturkoordinaten genau
+ * diese Winkel sind. So ist jede Kante dort, wo sie gemessen wurde. Mit
+ * `fill` flächig (rot `EDGE_BAND` Grad breit innen am Rand, orange bis zum
+ * sicheren Bereich, der grün), sonst nur die Umrisse.
+ */
+export function viewZones(fill: boolean): THREE.Object3D {
+  const holder = new THREE.Group();
+  holder.name = 'view-zones';
+  if (typeof document === 'undefined') return holder;
+  const width = ZONE_AZ * 2 * ZONE_PPD;
+  const height = (ZONE_TOP - ZONE_BOTTOM) * ZONE_PPD;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const g = canvas.getContext('2d');
+  if (!g) return holder;
+  const path = (rows: readonly ViewRow[]): Path2D => {
+    const shape = new Path2D();
+    outline(rows).forEach(([az, el], i) => {
+      const x = (az + ZONE_AZ) * ZONE_PPD;
+      const y = (ZONE_TOP - el) * ZONE_PPD;
+      if (i === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    });
+    shape.closePath();
+    return shape;
+  };
+  const view = path(QUEST_VIEW);
+  const safe = path(QUEST_SAFE);
+  if (fill) {
+    g.fillStyle = 'rgba(255, 154, 60, 0.22)';
+    g.fill(view);
+    // Der rote Randbereich: die Kante breit nachgezogen, aber nur innen.
+    g.save();
+    g.clip(view);
+    g.lineJoin = 'round';
+    g.lineWidth = EDGE_BAND * 2 * ZONE_PPD;
+    g.strokeStyle = 'rgba(255, 60, 60, 0.32)';
+    g.stroke(view);
+    g.restore();
+    // Der sichere Bereich ersetzt, was darunter gemalt ist, statt es zu mischen.
+    g.save();
+    g.clip(safe);
+    g.clearRect(0, 0, width, height);
+    g.fillStyle = 'rgba(94, 224, 160, 0.16)';
+    g.fill(safe);
+    g.restore();
+  }
+  g.lineJoin = 'round';
+  g.lineWidth = (fill ? 1.2 : 0.6) * ZONE_PPD;
+  g.strokeStyle = '#ff3c3c';
+  g.stroke(view);
+  g.lineWidth = (fill ? 0.5 : 0.4) * ZONE_PPD;
+  g.strokeStyle = '#5ee0a0';
+  g.stroke(safe);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const mesh = new THREE.Mesh(sphereStrip(), material);
+  mesh.name = 'view-zones-skin';
+  mesh.layers.set(LAYER_EYE);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = ORDER;
+  holder.add(mesh);
+  return holder;
+}
+
+/** Ein Stück Kugel um das Auge, die Texturkoordinaten in Winkeln (`viewZones`). */
+function sphereStrip(): THREE.BufferGeometry {
+  const cols = 48;
+  const rows = 42;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const index: number[] = [];
+  for (let j = 0; j <= rows; j++) {
+    const v = j / rows;
+    const el = ZONE_BOTTOM + (ZONE_TOP - ZONE_BOTTOM) * v;
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols;
+      const point = onSphere(-ZONE_AZ + ZONE_AZ * 2 * u, el, RADIUS * 1.001);
+      positions.push(point.x, point.y, point.z);
+      uvs.push(u, v);
+      if (i < cols && j < rows) {
+        const a = j * (cols + 1) + i;
+        index.push(a, a + 1, a + cols + 1, a + 1, a + cols + 2, a + cols + 1);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(index);
+  return geometry;
 }
 
 /** Ein schmales Band entlang der Punkte, zur Mitte der Kugel gedreht. */

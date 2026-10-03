@@ -1,3 +1,5 @@
+import { viewFrustum, type ViewFrustum } from './questView';
+
 /**
  * **VR-Ansicht am Schirm** — _Aus den Augen_, nur so gezeigt, wie es ein Auge
  * der Quest 3 sieht. Reine Zahlen und ein bisschen Speicher, kein three.js.
@@ -9,24 +11,21 @@
  * Kopf und Hände über dessen eigene Oberfläche — und damit eine andere
  * Steuerung. Jetzt ändert sich nur das Bild (`App.applyVrView`):
  *
- * - **Das Sichtfeld eines Auges**: senkrecht `QUEST_EYE_FOV` Grad, als Kasten
- *   im Seitenverhältnis `QUEST_EYE_ASPECT` mitten im Fenster (`eyeBox`), drum
- *   herum schwarz — so groß, wie es passt.
+ * - **Das gemessene Sichtfeld** (`core/questView.ts`): der Kasten darum mitten
+ *   im Fenster (`eyeBox`), so groß, wie es passt, die Kamera schief darauf
+ *   zugeschnitten (oben 30°, unten 45°, seitlich 40°) und die Leinwand auf
+ *   die Form der Messung beschnitten (`clip-path`); drum herum dunkel.
  * - **Das Menü als Bildschirm zwei Meter davor** (`GameMenu.presenting`), die
  *   Tafeln der Brille (`App.xrPreview`).
  *
  * Gesteuert wird weiter mit Maus und Tastatur wie _Aus den Augen_.
  *
- * Die Zahlen sind ein Anfang (dieselben wie im Küchenwerkzeug,
- * `tools/perf-kitchen.mjs`). Ob sie stimmen, zeigt der **Kalibrier-Helm**
- * (`core/viewCalibration.ts`): In der Brille ablesen, bis zu welcher Linie man
- * sieht, und hier nachstellen.
+ * Erst standen hier geschätzte 96° senkrecht bei 0,935; seit Oktober 2026
+ * gilt, was mit dem **Kalibrier-Helm** in der Brille abgelesen wurde.
  */
 
-/** Wie weit ein Auge der Quest 3 senkrecht sieht, in Grad. */
-export const QUEST_EYE_FOV = 96;
-/** Breite durch Höhe eines Auges der Quest 3. */
-export const QUEST_EYE_ASPECT = 0.935;
+/** Das Bild für das gemessene Sichtfeld. */
+export const QUEST_FRUSTUM: ViewFrustum = viewFrustum();
 
 export interface EyeBox {
   readonly x: number;
@@ -36,7 +35,7 @@ export interface EyeBox {
 }
 
 /** **Der Kasten für ein Auge** — so groß wie möglich, mittig im Fenster. */
-export function eyeBox(width: number, height: number, aspect = QUEST_EYE_ASPECT): EyeBox {
+export function eyeBox(width: number, height: number, aspect = QUEST_FRUSTUM.aspect): EyeBox {
   const w = Math.max(1, width);
   const h = Math.max(1, height);
   const boxW = Math.min(w, h * aspect);
