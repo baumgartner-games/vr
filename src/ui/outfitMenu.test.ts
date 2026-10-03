@@ -1,7 +1,8 @@
 /** @jest-environment jsdom */
 import { DEFAULT_APPEARANCE, appearance, saveAppearance } from '../core/appearance';
 import { FIGURE_CHEF, FIGURE_KINDS, FIGURE_PRESETS } from '../core/avatarFigures';
-import { HEADGEAR_KINDS } from '../core/headgear';
+import { WARDROBE_HATS } from '../core/headgear';
+import { FACE_KINDS } from '../core/figureParts';
 import type { MenuEntry } from './menu';
 import { OUTFIT_PAGE, OutfitDraft, isOutfitPage, outfitEntry } from './outfitMenu';
 import { PageMenu } from './PageMenu';
@@ -55,12 +56,16 @@ describe('Die Seite', () => {
     expect(child(entry, 'outfit:presets').children).toHaveLength(FIGURE_PRESETS.length);
   });
 
-  it('hat im Customizing den Hut, jedes Stück mit Vorschau — und keinen Koch mehr', () => {
+  it('hat im Customizing Hut und Kopf, jedes Stück mit Vorschau — und keinen Koch mehr', () => {
     const entry = outfitEntry(new OutfitDraft(), () => {});
     const custom = child(entry, 'outfit:custom');
-    expect(custom.children!.map((one) => one.label)).toEqual(['Hut']);
+    expect(custom.children!.map((one) => one.label)).toEqual(['Hut', 'Kopf']);
     const hats = custom.children![0]!.children!;
-    expect(hats).toHaveLength(HEADGEAR_KINDS.length);
+    expect(hats).toHaveLength(WARDROBE_HATS.length);
+    const faces = custom.children![1]!.children!;
+    expect(faces).toHaveLength(FACE_KINDS.length);
+    for (const piece of faces) expect(piece.preview).toBe(piece.id);
+    expect(faces.filter((one) => one.selected).map((one) => one.id)).toEqual(['outfit:face:own']);
     for (const piece of hats) expect(piece.preview).toBe(piece.id);
     expect(hats.filter((one) => one.selected).map((one) => one.id)).toEqual([
       `outfit:hat:${DEFAULT_APPEARANCE.hat}`,
@@ -79,8 +84,19 @@ describe('Die Seite', () => {
       'outfit:custom',
     ).children![0]!.children![1]!.run!(null);
     expect(draft.current.figure).toBe(knight);
-    expect(draft.current.hat).toBe(HEADGEAR_KINDS[1]);
+    expect(draft.current.hat).toBe(WARDROBE_HATS[1]);
     expect(picks).toBe(1);
+  });
+
+  it('setzt den Kopf, ohne Hut und Figur anzufassen', () => {
+    const draft = new OutfitDraft();
+    draft.set({ hat: 'mageHat' });
+    child(
+      outfitEntry(draft, () => {}),
+      'outfit:custom',
+    ).children![1]!.children![1]!.run!(null);
+    expect(draft.current.face).toBe(FACE_KINDS[1]);
+    expect(draft.current.hat).toBe('mageHat');
   });
 });
 

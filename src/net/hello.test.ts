@@ -89,6 +89,7 @@ describe('das Aussehen in der Anmeldung', () => {
         head: 'moustache',
         body: 'green',
         figure: 'skeletons/characters/Skeleton_Warrior.glb',
+        face: 'vampire',
       }),
     );
 
@@ -97,6 +98,7 @@ describe('das Aussehen in der Anmeldung', () => {
       head: 'moustache',
       body: 'green',
       figure: 'skeletons/characters/Skeleton_Warrior.glb',
+      face: 'vampire',
     });
   });
 

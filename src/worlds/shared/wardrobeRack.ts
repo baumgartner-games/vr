@@ -3,26 +3,33 @@ import { DEFAULT_APPEARANCE, type Appearance } from '../../core/appearance';
 import {
   BODY_KINDS,
   BODY_LABELS,
-  HEAD_KINDS,
-  HEAD_LABELS,
   HEAD_RADIUS,
-  HEAD_SUBS,
   bodyJacket,
   bodyTrim,
   buildBody,
   buildHead,
   type BodyKind,
-  type HeadKind,
 } from '../../core/avatarLook';
 import { cloth, trim } from '../../core/chefStyle';
 import { CHEF_EYE, canLoadModels } from '../../core/chefFit';
 import {
-  HEADGEAR_KINDS,
   HEADGEAR_LABELS,
   HEADGEAR_SUBS,
+  WARDROBE_HATS,
   buildHeadgear,
   type HeadgearKind,
 } from '../../core/headgear';
+import {
+  FACE_KINDS,
+  FACE_LABELS,
+  FACE_SUBS,
+  KAYKIT_HEAD,
+  MODEL_HATS,
+  facePart,
+  isModelHat,
+  type FaceKind,
+  type FigurePart,
+} from '../../core/figureParts';
 import { FIGURE_CHEF, FIGURE_KINDS, type FigureKind } from '../../core/avatarFigures';
 import { FIGURE_FACING } from '../../core/kaykitFigureFit';
 
@@ -80,7 +87,8 @@ export const RACK_PIECE_MIN = 0.3;
 export const RACK_PIECE_MAX = 0.45;
 
 /**
- * **Die drei Verkleinerungen** — je eine Zahl für Gesicht, Hut und Oberteil.
+ * **Die Verkleinerungen** — je eine Zahl für Hut und Oberteil (die Köpfe
+ * aus dem Regal rechnen vom Hut aus, `fetchPart`).
  *
  * `buildHead` und `buildHeadgear` rechnen in Kopfhalbmessern (32 cm,
  * `core/avatarLook.HEAD_RADIUS`), `buildBody` in Metern über der Rumpfkurve —
@@ -93,10 +101,6 @@ export const RACK_PIECE_MAX = 0.45;
  * Die Zahlen sind aus der größten Ausführung jedes Fachs zurückgerechnet, mit
  * `RACK_PIECE_MAX` als Deckel:
  *
- * - **Kopf, 0,55.** Der längste ist der Vollbart: 74 cm von der Bartspitze bis
- *   zum Schopf. Verkleinert sind das 41 cm. Nach unten kann kein Kopf
- *   durchfallen, weil alle vier dieselbe Nase haben und quer durch sie 73 cm
- *   tief sind — 40 cm auf der Kachel.
  * - **Hut, 0,44.** Das Basecap ist mit seinem Schirm 96 cm tief und damit das
  *   ausladendste Stück überhaupt; verkleinert 42 cm. Die Krone als kleinstes
  *   bleibt mit 32 cm noch über `RACK_PIECE_MIN`.
@@ -104,7 +108,6 @@ export const RACK_PIECE_MAX = 0.45;
  *   cm auf der Kachel — und das ist die **Breite**, nicht die Höhe: Ein
  *   Oberteil im Regal ist breiter als hoch, und das ist genau richtig so.
  */
-const HEAD_SCALE = 0.55;
 const HAT_SCALE = 0.44;
 const BODY_SCALE = 0.5;
 
@@ -269,10 +272,13 @@ export class WardrobeRack {
   pieces(look: Appearance): RackPiece[] {
     this.wear(look);
     return [
-      ...HEAD_KINDS.map((kind) =>
-        this.entry('head', kind, HEAD_LABELS[kind], HEAD_SUBS[kind], () => this.headPiece(kind)),
+      // **Der Kopf ist der einer Figur aus dem Regal** (`Appearance.face`),
+      // dieselbe Zeile wie in `ui/wardrobeRows.ts`. Die Gesichter des gebauten
+      // Kochs gibt es als Wahl nicht mehr.
+      ...FACE_KINDS.map((kind) =>
+        this.entry('face', kind, FACE_LABELS[kind], FACE_SUBS[kind], () => this.facePiece(kind)),
       ),
-      ...HEADGEAR_KINDS.map((kind) =>
+      ...WARDROBE_HATS.map((kind) =>
         this.entry('hat', kind, HEADGEAR_LABELS[kind], HEADGEAR_SUBS[kind], () =>
           this.hatPiece(kind),
         ),
@@ -367,18 +373,61 @@ export class WardrobeRack {
   // --- die drei Fächer ---------------------------------------------------------
 
   /**
-   * **Ein Gesicht auf der Kachel.** Der gebaute Kopf steht um seinen
-   * Mittelpunkt, also gut halb unter der Tischkante — `stand` schiebt ihn
-   * hoch, statt hier eine Zahl je Kopfsorte zu raten.
+   * **Ein Kopf aus dem Regal auf der Kachel** — für _Eigener_ der leere
+   * Ständer: Die Figur behält, was sie mitbringt.
    */
-  private headPiece(kind: HeadKind): THREE.Object3D {
-    return this.stand(
-      buildHead(kind),
-      HEAD_SCALE,
-      `rack-head-${kind}`,
-      this.look?.head === kind,
-      this.footSkin(),
-    );
+  private facePiece(kind: FaceKind): THREE.Object3D {
+    return this.partPiece(facePart(kind), `rack-face-${kind}`, this.look?.face === kind);
+  }
+
+  /**
+   * **Ein Stück aus einer Figur des Regals** (`core/figureParts.ts`) — Hut
+   * oder Kopf, wie bei den Figuren erst ein Platzhalter (der leere Ständer),
+   * dann das Stück, wenn es da ist (`fetchPart`).
+   */
+  private partPiece(part: FigurePart | null, name: string, worn: boolean): THREE.Group {
+    const group = new THREE.Group();
+    group.name = name;
+    const holder = new THREE.Group();
+    holder.name = 'rack-part-holder';
+    group.add(holder);
+    const stand = this.emptyStand();
+    stand.scale.multiplyScalar(HAT_SCALE);
+    this.place(stand);
+    holder.add(stand);
+    this.plinth(group, worn, this.footSkin());
+    if (part) this.fetchPart(part, holder);
+    return group;
+  }
+
+  /**
+   * **Das Stück bestellen**; kommt es an, tritt der Ständer ab.
+   *
+   * Verkleinert wie die gebauten Hüte (`HAT_SCALE`), nur vom KayKit-Kopf aus
+   * gerechnet (`KAYKIT_HEAD`) — und dann auf die Kachel begrenzt: Ein
+   * Magierhut ist breiter als jedes Basecap, eine Brille kleiner als jede
+   * Krone.
+   */
+  private fetchPart(part: FigurePart, holder: THREE.Group): void {
+    if (!canLoadModels()) return;
+    const era = this.era;
+    void import('../../core/figurePartModels')
+      .then(async (module) => module.loadFigurePart(part))
+      .then((piece) => {
+        if (!piece || era !== this.era) return;
+        piece.rotation.y = FIGURE_FACING;
+        piece.scale.multiplyScalar((HAT_SCALE * HEAD_RADIUS) / KAYKIT_HEAD.radius);
+        piece.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(piece);
+        const size = Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
+        if (size > RACK_PIECE_MAX) piece.scale.multiplyScalar(RACK_PIECE_MAX / size);
+        else if (size > 1e-4 && size < RACK_PIECE_MIN) {
+          piece.scale.multiplyScalar(RACK_PIECE_MIN / size);
+        }
+        for (const child of [...holder.children]) child.removeFromParent();
+        this.place(piece);
+        holder.add(piece);
+      });
   }
 
   /**
@@ -390,6 +439,8 @@ export class WardrobeRack {
    */
   private hatPiece(kind: HeadgearKind): THREE.Object3D {
     const look = this.look ?? DEFAULT_APPEARANCE;
+    if (isModelHat(kind))
+      return this.partPiece(MODEL_HATS[kind], `rack-hat-${kind}`, look.hat === kind);
     // **`buildHeadgear('none')` gibt `null`, und ein Loch im Regal ist keine
     // Wahl.** Im Menü war „Ohne" eine Zeile wie jede andere; hier wäre es eine
     // leere Kachel — und die sieht nicht aus wie eine Möglichkeit,

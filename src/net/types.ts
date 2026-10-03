@@ -48,6 +48,8 @@ export type NetMessage =
       head?: string;
       body?: string;
       figure?: string;
+      /** Der Kopf einer Figur aus dem Regal (`figureParts.asFace`). */
+      face?: string;
     }
   | { type: 'bye'; from: string }
   | { type: 'world'; from: string; world: string; since: number }

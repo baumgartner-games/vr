@@ -1,6 +1,7 @@
 import { DEFAULT_APPEARANCE } from '../core/appearance';
-import { BODY_KINDS, HEAD_KINDS } from '../core/avatarLook';
-import { HEADGEAR_KINDS } from '../core/headgear';
+import { BODY_KINDS } from '../core/avatarLook';
+import { WARDROBE_HATS } from '../core/headgear';
+import { FACE_KINDS } from '../core/figureParts';
 import { FIGURE_PATHS } from '../core/avatarFigures';
 import { wardrobeRows } from './wardrobeRows';
 
@@ -15,11 +16,11 @@ import { wardrobeRows } from './wardrobeRows';
 describe('Die Zeilen der Umkleide', () => {
   it('sind Kopf, Hut, Körper und Figur — in dieser Reihenfolge', () => {
     const rows = wardrobeRows(DEFAULT_APPEARANCE);
-    expect(rows.map((row) => row.slot)).toEqual(['head', 'hat', 'body', 'figure']);
+    expect(rows.map((row) => row.slot)).toEqual(['face', 'hat', 'body', 'figure']);
     expect(rows.map((row) => row.label)).toEqual(['Kopf', 'Hut', 'Körper', 'Figur']);
     expect(rows.map((row) => row.count)).toEqual([
-      HEAD_KINDS.length,
-      HEADGEAR_KINDS.length,
+      FACE_KINDS.length,
+      WARDROBE_HATS.length,
       BODY_KINDS.length,
       FIGURE_PATHS.length,
     ]);
@@ -28,7 +29,7 @@ describe('Die Zeilen der Umkleide', () => {
   it('schaltet die Figur weiter und lässt die anderen drei stehen', () => {
     const next = wardrobeRows(DEFAULT_APPEARANCE)[3]!.step(1);
     expect(next.figure).toBe(FIGURE_PATHS[1]);
-    expect(next.head).toBe(DEFAULT_APPEARANCE.head);
+    expect(next.face).toBe(DEFAULT_APPEARANCE.face);
     expect(next.hat).toBe(DEFAULT_APPEARANCE.hat);
     expect(next.body).toBe(DEFAULT_APPEARANCE.body);
   });
@@ -45,18 +46,30 @@ describe('Die Zeilen der Umkleide', () => {
   });
 
   it('sagt, der wievielte gerade gilt', () => {
-    const rows = wardrobeRows({ ...DEFAULT_APPEARANCE, hat: 'cap', head: 'beard', body: 'green' });
-    expect(rows[0]!.index).toBe(HEAD_KINDS.indexOf('beard'));
-    expect(rows[1]!.index).toBe(HEADGEAR_KINDS.indexOf('cap'));
+    const rows = wardrobeRows({
+      ...DEFAULT_APPEARANCE,
+      hat: 'mageHat',
+      face: 'ninja',
+      body: 'green',
+    });
+    expect(rows[0]!.index).toBe(FACE_KINDS.indexOf('ninja'));
+    expect(rows[1]!.index).toBe(WARDROBE_HATS.indexOf('mageHat'));
     expect(rows[2]!.index).toBe(BODY_KINDS.indexOf('green'));
-    expect(rows[0]!.value).toBe('Vollbart');
+    expect(rows[0]!.value).toBe('Ninja');
+    expect(rows[1]!.value).toBe('Magierhut');
+  });
+
+  it('holt einen Hut, den die Umkleide nicht mehr anbietet, an den Anfang', () => {
+    const row = wardrobeRows({ ...DEFAULT_APPEARANCE, hat: 'cap' })[1]!;
+    expect(row.index).toBe(-1);
+    expect(row.step(1).hat).toBe(WARDROBE_HATS[1]);
   });
 
   it('schaltet › einen weiter und ändert dabei nur das Eigene', () => {
     const look = { ...DEFAULT_APPEARANCE };
     const next = wardrobeRows(look)[1]!.step(1);
-    expect(next.hat).toBe(HEADGEAR_KINDS[1]);
-    expect(next.head).toBe(look.head);
+    expect(next.hat).toBe(WARDROBE_HATS[1]);
+    expect(next.face).toBe(look.face);
     expect(next.body).toBe(look.body);
   });
 
@@ -64,14 +77,14 @@ describe('Die Zeilen der Umkleide', () => {
   it('läuft mit ‹ im Kreis nach hinten', () => {
     const first = {
       ...DEFAULT_APPEARANCE,
-      hat: HEADGEAR_KINDS[0]!,
-      head: HEAD_KINDS[0]!,
+      hat: WARDROBE_HATS[0]!,
+      face: FACE_KINDS[0]!,
       body: BODY_KINDS[0]!,
       figure: FIGURE_PATHS[0]!,
     };
     const rows = wardrobeRows(first);
-    expect(rows[0]!.step(-1).head).toBe(HEAD_KINDS[HEAD_KINDS.length - 1]);
-    expect(rows[1]!.step(-1).hat).toBe(HEADGEAR_KINDS[HEADGEAR_KINDS.length - 1]);
+    expect(rows[0]!.step(-1).face).toBe(FACE_KINDS[FACE_KINDS.length - 1]);
+    expect(rows[1]!.step(-1).hat).toBe(WARDROBE_HATS[WARDROBE_HATS.length - 1]);
     expect(rows[2]!.step(-1).body).toBe(BODY_KINDS[BODY_KINDS.length - 1]);
   });
 

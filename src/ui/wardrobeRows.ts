@@ -1,13 +1,7 @@
 import { saveAppearance, type Appearance } from '../core/appearance';
-import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS } from '../core/headgear';
-import {
-  BODY_KINDS,
-  BODY_LABELS,
-  BODY_SUBS,
-  HEAD_KINDS,
-  HEAD_LABELS,
-  HEAD_SUBS,
-} from '../core/avatarLook';
+import { HEADGEAR_LABELS, HEADGEAR_SUBS, WARDROBE_HATS } from '../core/headgear';
+import { BODY_KINDS, BODY_LABELS, BODY_SUBS } from '../core/avatarLook';
+import { FACE_KINDS, FACE_LABELS, FACE_SUBS } from '../core/figureParts';
 import { FIGURE_PATHS, figureLabel, figureSub } from '../core/avatarFigures';
 
 /**
@@ -74,22 +68,27 @@ function around<T>(list: readonly T[], current: T, delta: number): T {
 export function wardrobeRows(look: Appearance): WardrobeRow[] {
   return [
     {
-      slot: 'head',
+      // **Der Kopf ist der einer Figur aus dem Regal** (`Appearance.face`) und
+      // nicht mehr das Gesicht des gebauten Kochs — den gibt es als Wahl nicht
+      // mehr, und auf eine Figur wirkte dessen Gesicht ohnehin nie.
+      slot: 'face',
       label: 'Kopf',
-      value: HEAD_LABELS[look.head],
-      sub: HEAD_SUBS[look.head],
-      index: HEAD_KINDS.indexOf(look.head),
-      count: HEAD_KINDS.length,
-      step: (delta) => saveAppearance({ head: around(HEAD_KINDS, look.head, delta) }),
+      value: FACE_LABELS[look.face],
+      sub: FACE_SUBS[look.face],
+      index: FACE_KINDS.indexOf(look.face),
+      count: FACE_KINDS.length,
+      step: (delta) => saveAppearance({ face: around(FACE_KINDS, look.face, delta) }),
     },
     {
+      // Nur, was die Umkleide anbietet (`WARDROBE_HATS`): Ein geliehener oder
+      // alter Hut steht bei `-1`, und das nächste › bringt ihn an den Anfang.
       slot: 'hat',
       label: 'Hut',
       value: HEADGEAR_LABELS[look.hat],
       sub: HEADGEAR_SUBS[look.hat],
-      index: HEADGEAR_KINDS.indexOf(look.hat),
-      count: HEADGEAR_KINDS.length,
-      step: (delta) => saveAppearance({ hat: around(HEADGEAR_KINDS, look.hat, delta) }),
+      index: WARDROBE_HATS.indexOf(look.hat),
+      count: WARDROBE_HATS.length,
+      step: (delta) => saveAppearance({ hat: around(WARDROBE_HATS, look.hat, delta) }),
     },
     {
       slot: 'body',
