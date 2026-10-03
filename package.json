@@ -1,7 +1,7 @@
 {
   "name": "baumgartner-vr",
   "private": true,
-  "version": "0.1.174",
+  "version": "0.1.175",
   "type": "module",
   "description": "WebXR playground: hub world, world/game selection and experimental VR prototypes.",
   "scripts": {
@@ -25,10 +25,13 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
+    "@iwer/devui": "^2.5.0",
     "@trystero-p2p/mqtt": "^0.25.4",
     "@trystero-p2p/torrent": "^0.25.4",
+    "iwer": "^2.5.0",
     "three": "^0.185.1",
-    "trystero": "^0.25.4"
+    "trystero": "^0.25.4",
+    "webxr-layers-polyfill": "^1.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

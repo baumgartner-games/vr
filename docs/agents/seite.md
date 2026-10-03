@@ -469,7 +469,16 @@ richtig, und gezielt wurde unsauber.
   (Farbe und Alpha 0, mit Tiefe); Modelle, Figur und Kreis davor zeichnet die
   Szene weiter darüber. Die Lage der Ebene wird in `onBeforeRender` des Panels
   gesetzt, damit sie beim Gehen nicht hinter dem Loch herhinkt. Ohne Layers
-  bleibt es die Textur. Abschaltbar unter _Grafik → Menü scharf (Brille)_
+  bleibt es die Textur. **Breite und Höhe der Ebene sind Halbachsen**
+  (`width: w / 2`) — so liest es die Quest, so übergibt es three.js
+  (`XRManager.createXRLayer`), so zeichnet es Metas Polyfill (±width). Mit
+  den ganzen Maßen war die Ebene doppelt so groß wie ihr Loch: _„stark
+  reingezoomt in dem menü rahmen und die kacheln zum teil außerhalb
+  abgeschnitten"_. Und nach dem Hochladen der Leinwand **kein
+  `renderer.resetState()`**: Es vergisst mitten in der Sitzung das Ziel der
+  Brille, und das Bild der Szene blieb schwarz; gesichert und
+  zurückgestellt werden nur Texturbindung und Entpack-Schalter. Beides ist
+  in der Simulation (unten) nachgestellt. Abschaltbar unter _Grafik → Menü scharf (Brille)_
   (`GraphicsSettings.menuLayer`) — auch am Schirm, falls es in der Brille
   einmal falsch aussieht. Dazu ist Foveated Rendering aus, solange das Menü
   offen ist (`GraphicsQuality.setMenuOpen`), und der Bildschirm ist ganz
@@ -521,7 +530,23 @@ richtig, und gezielt wurde unsauber.
   Jetzt trifft ein Panel nur sich (`PointerTarget.shallow`).
 - **`GameMenu`** (vormals `WristMenus`) entscheidet, welches Gesicht gilt:
   ohne Brille die Seite, mit Brille der Bildschirm.
-- **Am Schirm nachstellen**: in der Konsole `bgvr.gameMenu.presenting = true`,
+- **VR simulieren — eine Quest 3 im Browser** (`core/xrEmulator.ts`).
+  Gewünscht: _„bitte im browser die möglichkeit […] den ‚vr modus'
+  auszuprobieren auch wenn kein webxr unterstützt wird aber dann eben mit der
+  quest ansicht simuliert."_ Ohne Brille steht unter _Spiel-Sicht_ die Zeile
+  **VR simulieren** (`view:vr-sim`, `App.enterSimulatedVR`); oder die
+  Adresse trägt `?xr=sim`, dann meldet sich gleich beim Laden eine Brille und
+  der Knopf _VR_ tut, was er mit einer täte. Dahinter steckt Metas Emulator
+  **IWER** mit seiner **DevUI** (Kopf und Controller mit Maus und Tastatur)
+  und dem **Layers-Polyfill**, damit auch die Menü-Ebene läuft. Den Polyfill
+  setzt `emulateQuest` selbst nach `installRuntime` ein: IWERs eigenes
+  `polyfillLayers` überschreibt dessen `XRWebGLBinding` sofort wieder
+  (iwer 2.5.0). `forceInstall`, weil Chrome am Schreibtisch ein
+  `navigator.xr` ohne Brille hat. Alles liegt im Chunk `xr-emulator`
+  (`vite.config.ts`, `EMULATOR`) — auch das eigene three.js der DevUI, das
+  sonst im Chunk von three.js gelandet wäre —, wird erst beim ersten Gebrauch
+  geladen und steht nicht in der Liste für _Alles herunterladen_.
+- **Am Schirm nachstellen** (ohne Sitzung): in der Konsole `bgvr.gameMenu.presenting = true`,
   dann `bgvr.gameMenu.toggle(true)` — der Bildschirm steht dann zwei Meter
   vor der Kamera, und die Maus zielt.
 
