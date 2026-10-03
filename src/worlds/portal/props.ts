@@ -466,6 +466,11 @@ function stretchWall(model: THREE.Object3D, size: THREE.Vector3 | null): THREE.O
  * mesh, the collider and the mass can never drift apart — and both sides of a
  * session build the very same thing from the same `kind`.
  */
+/** Ob ein Name eine Sorte aus dem Beutel ist (`PROP_LABELS`). */
+export function isBagKind(value: string): value is BagKind {
+  return Object.prototype.hasOwnProperty.call(PROP_LABELS, value);
+}
+
 export function createPropShape(kind: BagKind): PropBlueprint {
   // Der Name kommt aus der Tabelle und nicht aus dem Bauplan: so kann ihn auch
   // ablesen, wer gar nichts bauen will (`PROP_LABELS`).

@@ -132,6 +132,24 @@ import {
   type WeldRequest,
 } from './tools';
 import { KeyPanel, type KeyPanelRequest } from '../../ui/KeyPanel';
+import {
+  deleteSaved,
+  loadSaved,
+  newPalette,
+  onPalettesChange,
+  palettes,
+  rename,
+  saveCurrent,
+  setSlot,
+  updatePalettes,
+  type PaletteItem,
+  type PaletteSlots,
+} from './tools/paintPalettes';
+import { PAINT_PALETTE_ACCENT, PAINT_PALETTE_PAGE } from './tools/PaintPaletteTool';
+import { PaletteBar } from './paletteBar';
+
+/** Die Id der Malpalette als Werkzeug (`tools/PaintPaletteTool.ts`). */
+const PAINT_PALETTE_TOOL = 'paint-palette';
 import { isTyping } from '../../core/textEntry';
 import {
   GRAB_POSE_ID,
@@ -158,6 +176,7 @@ import {
   BAG_ITEMS,
   createCompanionCube,
   createPropShape,
+  isBagKind,
   modelKind,
   modelPathOf,
   modelPropShape,
@@ -1468,6 +1487,16 @@ export class PortalWorld implements World {
   /** Der Schaum geknallter Flaschen, solange er fällt. */
   private readonly foams: Foam[] = [];
   private readonly spawned = new Set<PhysicsBody>();
+  /** Abmelden von den Änderungen der Malpalette (`paintPaletteMenu`). */
+  private offPalettes: (() => void) | null = null;
+  /** **Die Malpalette am Schirm** — die Reihe unten (`paletteBar.ts`). */
+  private paletteBar: PaletteBar | null = null;
+  /** Ob am Schirm die Malpalette gewählt ist: dann steht die Reihe, statt dass ein Werkzeug in der Hand liegt. */
+  private screenPalette = false;
+  /** Welches Fach gerade aus dem Katalog belegt wird — `null`: keines. */
+  private paletteAssign: number | null = null;
+  /** Ob das Menü fürs Belegen schon offen war — geht es danach zu, ist die Frage erledigt. */
+  private paletteAssignSeen = false;
   /**
    * **Was die Welt selbst aufgestellt hat** (`placeModel`) — die Wände aus dem
    * Regal in Haunting und im Wandparcours. Jedes Gerät baut sie aus demselben
@@ -2037,6 +2066,18 @@ export class PortalWorld implements World {
     this.bindFlatInput(ctx);
     // Die kleinen Modelle in den Menüzeilen kommen aus demselben Regal wie
     // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`XRMenu.ts`).
+    // Die Seite der Malpalette ist eine Momentaufnahme: neu bauen, sobald
+    // sich etwas auf ihr ändert (`paintPaletteMenu`).
+    this.offPalettes?.();
+    this.offPalettes = onPalettesChange(() => this.context?.refreshWorldMenu());
+    if (typeof document !== 'undefined' && !this.paletteBar) {
+      this.paletteBar = new PaletteBar({
+        onTake: (slot) => this.takePaletteSlot(slot),
+        onAssign: (slot) => this.assignPaletteSlot(slot),
+        onGrid: () => this.context?.menu.openSubmenu(`${PAINT_PALETTE_PAGE}:current`),
+        menuOpen: () => this.context?.menu.isOpen ?? false,
+      });
+    }
     ctx.menu.setModelFactory(
       (id) => this.menuModel(id),
       (id, height) => this.menuClips(id, height),
@@ -2058,6 +2099,7 @@ export class PortalWorld implements World {
     this.updateTools(dt, ctx);
     this.updateUsables(ctx);
     this.updateGrabs(dt, ctx);
+    this.updatePaletteBar(ctx);
     // **Und das Gitter unter dem, was getragen wird** — erst nachdem die Hände
     // nachgeführt sind, sonst zeigte es auf die Kachel des letzten Bildes.
     this.updatePlaceGrid(ctx);
@@ -2160,6 +2202,7 @@ export class PortalWorld implements World {
           run: (hand: Handedness | null) => this.spawnProp(ctx(), hand, kind),
         })),
       },
+      this.paintPaletteMenu(ctx),
       this.assetMenu(ctx),
       ...this.elementMenu(ctx),
       this.buildToolsMenu(),
@@ -4431,6 +4474,7 @@ export class PortalWorld implements World {
     hand: Handedness | null,
     yaw: number | null = null,
   ): void {
+    if (this.claimForPalette(ctx, `element:${id}`, elementById(id).label)) return;
     ctx.menu.toggle(false);
     const element = elementById(id);
     const carried: CarriedElement = { id, from: null, keep: null };
@@ -6143,6 +6187,10 @@ export class PortalWorld implements World {
     // Die Werkzeuge sterben gleich; ein Menü, das noch von ihnen abschreibt,
     // zeigt danach Netze, deren Geometrie freigegeben ist.
     ctx.menu.setModelFactory(null);
+    this.offPalettes?.();
+    this.offPalettes = null;
+    this.paletteBar?.dispose();
+    this.paletteBar = null;
     ctx.hands.setHeldTool('left', null);
     ctx.hands.setHeldTool('right', null);
 
@@ -8490,6 +8538,10 @@ export class PortalWorld implements World {
       conjureProp: (kind, hand) => {
         this.conjureProp(this.context!, kind, hand);
       },
+      heldItem: (hand, at) => this.heldItem(hand, at),
+      stashHeld: (hand) => this.stashHeld(hand),
+      takeItem: (ref, hand) => this.takeItem(ref, hand),
+      itemPreview: (ref) => this.itemPreview(ref),
       styleProp: (entry, style) => this.styleProp(entry, style, true),
       paintSurfaces: () => this.paintSurfaces(),
       inspectProp: (entry) => this.describeProp(entry),
@@ -13268,6 +13320,7 @@ export class PortalWorld implements World {
    * auf. Wer aus dem Beutel etwas holt, holt meistens noch etwas.
    */
   private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: BagKind): void {
+    if (this.claimForPalette(ctx, `prop:${kind}`, propLabel(kind))) return;
     ctx.menu.toggle(false);
     if (this.conjureProp(ctx, kind, hand)) this.reopenMenu = true;
   }
@@ -13495,6 +13548,7 @@ export class PortalWorld implements World {
     /** Als **Wand zum Abreißen** (`wallErasers`). */
     eraser = false,
   ): void {
+    if (!eraser && this.claimForPalette(ctx, `model:${path}`, propLabel(modelKind(path)))) return;
     ctx.menu.toggle(false);
     // **Erst fragen, ob daraus hier ein Möbel wird** — und nur sonst ein Fass
     // (`takeFurniture`).
@@ -13661,6 +13715,270 @@ export class PortalWorld implements World {
    * (eine fremde Id) und **„noch nicht"** (die Datei ist unterwegs) — es
    * fragt in einer halben Sekunde wieder (`ui/XRMenu.ts`, `PREVIEW_RETRY`).
    */
+  // --- die Malpalette (`tools/PaintPaletteTool.ts`) ------------------------
+
+  /**
+   * **Die Seite der Malpalette** — gewünscht: _„die malerpalette hat nochmal
+   * einen button um ein menü zu öffnen, in der liste ich dann die aktuelle
+   * palette speichern kann oder andere laden kann oder eine neue palette
+   * holen kann. Ich kann paletten auch einen namen geben und sehe in der
+   * liste die 9 items die darauf passen."_
+   *
+   * Oben die aktuelle Palette mit ihren neun Fächern (eine Kachel je Fach,
+   * mit dem Ding als Vorschau; ein Druck holt es), dann _Speichern_, _Neue
+   * Palette_, _Umbenennen_ und darunter jede gespeicherte — als Seite mit
+   * _Laden_, ihren neun Fächern und _Löschen_. Der Baum ist eine
+   * Momentaufnahme: Jede Änderung baut ihn neu (`onPalettesChange` in `init`).
+   */
+  private paintPaletteMenu(ctx: () => WorldContext): MenuEntry {
+    const state = palettes();
+    const accent = PAINT_PALETTE_ACCENT;
+    const summary = (slots: PaletteSlots): string => {
+      const names = slots.filter((slot): slot is PaletteItem => slot !== null).map((s) => s.label);
+      return names.length ? `${names.length}/9 · ${names.join(' · ')}` : 'Leer';
+    };
+    const tiles = (prefix: string, slots: PaletteSlots, take: boolean): MenuEntry[] =>
+      slots.map((item, place) => {
+        const preview = item ? this.paletteMenuPreview(item.ref) : null;
+        return {
+          id: `${prefix}:${place}`,
+          label: item ? item.label : `Fach ${place + 1}`,
+          caption: item ? `Fach ${place + 1}` : 'Leer',
+          icon: item ? ('bag' as const) : ('palette' as const),
+          accent: item ? accent : 0x6f7d99,
+          ...(preview ? { preview } : {}),
+          ...(take && item
+            ? { run: (hand: Handedness | null) => this.takeItem(item.ref, hand) }
+            : {}),
+        };
+      });
+    return {
+      id: PAINT_PALETTE_PAGE,
+      label: 'Malpalette',
+      sub: `${state.current.name} · ${summary(state.current.slots)}`,
+      icon: 'palette',
+      accent,
+      children: [
+        {
+          id: 'paint-palette:current',
+          label: `Aktuell: ${state.current.name}`,
+          sub: summary(state.current.slots),
+          caption: 'Die neun Fächer — ein Druck holt das Ding',
+          icon: 'palette',
+          accent,
+          grid: true,
+          children: tiles('paint-palette:current', state.current.slots, true),
+        },
+        {
+          id: 'paint-palette:save',
+          label: 'Aktuelle Palette speichern',
+          sub:
+            state.from === null
+              ? 'Als neue Palette in die Liste'
+              : `Über „${state.saved[state.from]?.name ?? ''}" in der Liste`,
+          icon: 'palette',
+          accent: 0x5ee0a0,
+          run: () => {
+            updatePalettes((now) => saveCurrent(now));
+            ctx().notify(`Malpalette gespeichert: ${palettes().current.name}`);
+          },
+        },
+        {
+          id: 'paint-palette:new',
+          label: 'Neue Palette',
+          sub: 'Leer anfangen — die aktuelle bleibt, wie sie gespeichert war',
+          icon: 'palette',
+          accent,
+          run: () => {
+            updatePalettes((now) => newPalette(now));
+            ctx().notify(`Neue Malpalette: ${palettes().current.name}`);
+          },
+        },
+        {
+          id: 'paint-palette:rename',
+          label: 'Umbenennen',
+          sub: state.current.name,
+          icon: 'palette',
+          accent,
+          run: () =>
+            this.askText({
+              title: 'Name der Palette',
+              value: palettes().current.name,
+              commit: (text) => updatePalettes((now) => rename(now, text)),
+            }),
+        },
+        ...state.saved.map((palette, index): MenuEntry => ({
+          id: `paint-palette:saved:${index}`,
+          label: palette.name,
+          sub: summary(palette.slots),
+          caption: index === state.from ? 'Gerade geladen' : 'Gespeichert',
+          icon: 'palette',
+          accent: index === state.from ? 0x5ee0a0 : 0x9fb3d0,
+          grid: true,
+          children: [
+            {
+              id: `paint-palette:saved:${index}:load`,
+              label: 'Laden',
+              caption: 'Als aktuelle Palette in die Hand',
+              icon: 'palette',
+              accent: 0x5ee0a0,
+              run: () => {
+                updatePalettes((now) => loadSaved(now, index));
+                ctx().notify(`Malpalette geladen: ${palette.name}`);
+              },
+            },
+            ...tiles(`paint-palette:saved:${index}`, palette.slots, false),
+            {
+              id: `paint-palette:saved:${index}:delete`,
+              label: 'Löschen',
+              caption: 'Aus der Liste nehmen',
+              icon: 'palette',
+              accent: 0xff6b6b,
+              run: () => {
+                updatePalettes((now) => deleteSaved(now, index));
+                ctx().notify(`Malpalette gelöscht: ${palette.name}`);
+              },
+            },
+          ],
+        })),
+      ],
+    };
+  }
+
+  /** Jedes Bild: die Reihe am Schirm zeigen, solange die Malpalette gewählt ist. */
+  private updatePaletteBar(ctx: WorldContext): void {
+    const bar = this.paletteBar;
+    if (!bar) return;
+    const state = palettes();
+    bar.update(
+      this.screenPalette && !ctx.renderer.xr.isPresenting,
+      state.current.name,
+      state.current.slots,
+    );
+    // **Belegen aus dem Katalog**: Geht das Menü zu, ohne dass gewählt wurde,
+    // ist die Frage erledigt — sonst landete das nächste Ding, das man sich
+    // irgendwann aus dem Katalog holt, unverhofft auf der Palette.
+    if (this.paletteAssign === null) return;
+    if (ctx.menu.isOpen) this.paletteAssignSeen = true;
+    else if (this.paletteAssignSeen) this.paletteAssign = null;
+  }
+
+  /** `1`–`9` am Schirm: das Ding dieses Fachs in die Hand — ein leeres Fach fragt nach seinem Inhalt. */
+  private takePaletteSlot(slot: number): void {
+    const item = palettes().current.slots[slot];
+    if (!item) {
+      this.assignPaletteSlot(slot);
+      return;
+    }
+    this.paletteBar?.select(slot);
+    this.takeItem(item.ref, null);
+  }
+
+  /**
+   * **Ein Fach aus dem Katalog belegen** — `1`–`9` lang gedrückt: Der
+   * Katalog geht auf, und was man darin wählt, kommt in dieses Fach statt in
+   * die Hand (`claimForPalette`). Ohne Katalog in dieser Welt das Regal.
+   */
+  private assignPaletteSlot(slot: number): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    this.paletteAssign = slot;
+    this.paletteAssignSeen = false;
+    ctx.menu.openSubmenu('elements');
+    if (!ctx.menu.isOpen) ctx.menu.openSubmenu('assets');
+    ctx.notify(`Malpalette · Fach ${slot + 1}: im Katalog wählen, was hinein soll`);
+  }
+
+  /**
+   * Wird gerade ein Fach belegt, kommt die Wahl aus Katalog, Regal oder Beutel
+   * dorthin — und nicht in die Hand. `true`, wenn sie so verbraucht wurde.
+   */
+  private claimForPalette(ctx: WorldContext, ref: string, label: string): boolean {
+    const slot = this.paletteAssign;
+    if (slot === null) return false;
+    this.paletteAssign = null;
+    updatePalettes((now) => setSlot(now, slot, { ref, label }));
+    ctx.menu.toggle(false);
+    ctx.notify(`Malpalette · Fach ${slot + 1}: ${label}`);
+    return true;
+  }
+
+  /** Welches Vorschaumodell eine Kachel der Malpalette zeigt (`menuModel`). */
+  private paletteMenuPreview(ref: string): string | null {
+    const cut = ref.indexOf(':');
+    const kind = ref.slice(0, cut);
+    const value = ref.slice(cut + 1);
+    if (kind === 'element') return `${ELEMENT_PREVIEW}${value}`;
+    if (kind === 'model') return `kaykit:${value}`;
+    return null;
+  }
+
+  /**
+   * **Was eine Hand trägt, als Adresse** (`paintPalettes.ts`): ein
+   * Spielelement über seine Id, ein Modell aus dem Regal über seinen Pfad,
+   * ein Ding aus dem Beutel über seine Sorte. `at` bekommt, wo es gerade ist.
+   */
+  private heldItem(hand: Handedness, at?: THREE.Vector3): { ref: string; label: string } | null {
+    const grab = this.grabs.get(hand);
+    if (!grab) return null;
+    if (at) grab.entry.object.getWorldPosition(at);
+    const carried = this.elementBodies.get(grab.entry);
+    if (carried && hasElement(carried.id)) {
+      return { ref: `element:${carried.id}`, label: elementById(carried.id).label };
+    }
+    const kind = (grab.entry.object.userData as { propKind?: PropKind }).propKind;
+    if (!kind) return null;
+    const path = modelPathOf(kind);
+    return path === null
+      ? { ref: `prop:${kind}`, label: propLabel(kind) }
+      : { ref: `model:${path}`, label: propLabel(kind) };
+  }
+
+  /**
+   * **Auf die Malpalette gelegt**: Was frisch aus Regal, Katalog oder Beutel
+   * kam, verschwindet ganz — wie beim Wechseln (`letGo`). Ein Stück, das
+   * schon in der Welt stand, fällt wie losgelassen: Weg nähme es nur der
+   * Radierer, und der schreibt es auch in die Liste der Weltänderungen.
+   */
+  private stashHeld(hand: Handedness): boolean {
+    const grab = this.grabs.get(hand);
+    const ctx = this.context;
+    if (!grab || !ctx) return false;
+    const fresh = this.shelfFresh.has(grab.entry) || this.spawned.has(grab.entry);
+    if (!fresh) {
+      this.release(ctx, hand, grab, true);
+      return true;
+    }
+    this.shelfFresh.delete(grab.entry);
+    this.release(ctx, hand, grab, false);
+    this.removeProp(grab.entry, true);
+    return true;
+  }
+
+  /** **Von der Malpalette geholt** — derselbe Weg wie aus Katalog, Regal oder Beutel. */
+  private takeItem(ref: string, hand: Handedness | null): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const cut = ref.indexOf(':');
+    const kind = ref.slice(0, cut);
+    const value = ref.slice(cut + 1);
+    if (kind === 'element' && hasElement(value)) this.takeElement(ctx, value, hand);
+    else if (kind === 'model') this.takeModel(ctx, value, hand);
+    else if (kind === 'prop' && isBagKind(value)) this.conjureProp(ctx, value, hand);
+  }
+
+  /** Das kleine Modell in einem Fach der Malpalette. */
+  private itemPreview(ref: string): THREE.Object3D | null {
+    const cut = ref.indexOf(':');
+    const kind = ref.slice(0, cut);
+    const value = ref.slice(cut + 1);
+    if (kind === 'element')
+      return hasElement(value) ? this.menuModel(`${ELEMENT_PREVIEW}${value}`) : null;
+    if (kind === 'model') return kaykitModelNow(value);
+    if (kind === 'prop' && isBagKind(value)) return createPropShape(value).mesh;
+    return null;
+  }
+
   private menuModel(id: string): THREE.Object3D | null {
     const path = kaykitPathOf(id);
     if (path !== null) return kaykitModelNow(path);
@@ -14635,7 +14953,7 @@ export class PortalWorld implements World {
     if (!this.screenToolOn) {
       this.screenToolOn = true;
       const id = this.screenTool();
-      const tool = id ? this.freshTool(id) : null;
+      const tool = id && id !== PAINT_PALETTE_TOOL ? this.freshTool(id) : null;
       if (tool) this.takeTool(ctx, fresh.state, tool);
     }
     const eye = !ctx.topDown;
@@ -14796,7 +15114,9 @@ export class PortalWorld implements World {
     // _„es kann nicht sein, dass ich eine Tomate und eine Pistole halte"_.
     // Werkzeug und Vorrat werden gleich behandelt: Was man nimmt, ersetzt,
     // was man hielt, und der Werkzeug-Knopf zeigt danach die leere Hand.
-    this.toolPick = null;
+    // Mit der Malpalette bleibt sie gewählt: Was man aus ihr nimmt, liegt in
+    // der Hand, und die Reihe steht weiter.
+    if (!this.screenPalette) this.toolPick = null;
     this.dropScreenTool();
 
     this.screenSpan = spanOf(entry.object);
@@ -15151,9 +15471,13 @@ export class PortalWorld implements World {
     const hand = this.screenHand;
     // Ohne Bildschirmhand (in der Brille) wird die Wahl nur gemerkt und gilt,
     // sobald es wieder eine gibt.
+    // **Die Malpalette ist am Schirm kein Ding in der Hand**, sondern die
+    // Reihe unten (`paletteBar.ts`): Die Hand bleibt frei für das, was man
+    // aus ihr nimmt.
+    this.screenPalette = id === PAINT_PALETTE_TOOL;
     if (!ctx || !hand || !this.screenToolOn) return;
     this.dropScreenTool();
-    const tool = id ? this.freshTool(id) : null;
+    const tool = id && !this.screenPalette ? this.freshTool(id) : null;
     if (tool) this.takeTool(ctx, hand.state, tool);
   }
 

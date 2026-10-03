@@ -1296,6 +1296,41 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     oder hinter einer Drohne geht er nicht: da gehört der Körper gerade jemand
     anderem (`tools/TeleportTool.ts`).
   - **Radiergummi**: löscht Objekte — für alle in der Sitzung.
+  - **Malpalette** (`tools/PaintPaletteTool.ts`, `tools/paintPalettes.ts`,
+    `portal/paletteBar.ts`, mit Tests) — gewünscht: _„ähnlich wie der
+    magische beutel […] gegenstände die ich in der anderen hand halte,
+    darauf ablegen um diese dort zu ‚speichern'. Ich kann die elemente dort
+    dann beliebig häufig rausnehmen, um z. B. in baumodus damit die welt
+    einzurichten."_ Anders als der Beutel **speichert** sie: neun Fächer,
+    jedes eine Adresse und kein Gegenstand (`element:<id>` Spielelement,
+    `model:<pfad>` Regalmodell, `prop:<sorte>` Beuteldings).
+    - **In der Brille** ein Holzbrett mit Daumenloch und neun Farbklecksen.
+      Trägt die andere Hand ein Ding über ein Fach und **lässt los**, merkt
+      sich das Fach, was es war, und das Ding verschwindet
+      (`ToolHost.heldItem`, `stashHeld`; frisch Geholtes ganz, ein schon
+      stehendes Stück fällt wie losgelassen). Das klappt, weil Werkzeuge vor
+      dem Loslassen der Griffe laufen (`updateTools` vor `updateGrabs`). Die
+      **leere** Hand über einem Fach (Finger oder Strahl) holt mit
+      **Greifen** ein frisches Stück (`takeItem`), **B/Y** leert das Fach.
+      Der runde Knopf auf dem Brett — oder der **Trigger der haltenden
+      Hand** — öffnet ihre Menüseite.
+    - **Die Menüseite** (`paint-palette`, unter _Bauen & Gestalten_): die
+      aktuelle Palette mit ihren neun Fächern als Kacheln (ein Druck holt das
+      Ding), _Aktuelle Palette speichern_ (über die geladene, sonst als
+      neue), _Neue Palette_, _Umbenennen_ und jede gespeicherte als Seite mit
+      _Laden_, ihren neun Fächern und _Löschen_. Gemerkt im Browser
+      (`bgvr.paintPalettes`); die Seite wird bei jeder Änderung neu gebaut
+      (`onPalettesChange` → `refreshWorldMenu`).
+    - **Am Schirm** ist sie kein Ding in der Hand, sondern eine **Reihe
+      unten** wie in Minecraft (`PaletteBar`), sobald man sie im
+      Werkzeug-Knopf wählt: `1`–`9` kurz (oder ein Tipp) holt das Ding in die
+      Hand, die Reihe bleibt; **lang** (`HOLD_MS`) öffnet den Katalog (sonst
+      das Regal), und was man dort wählt, kommt in dieses Fach statt in die
+      Hand (`claimForPalette` in `takeElement`, `takeModel`, `spawnProp`).
+      Geht das Menü ohne Wahl zu, ist die Frage erledigt. Der Knopf `▦`
+      daneben öffnet die neun als Kacheln — am Telefon der Weg zum Ausrüsten.
+      Die Ziffern gehören der Reihe nur, solange sie steht und kein Menü offen
+      ist.
   - **Magischer Beutel**: die Rasterseite des Handgelenk-Menüs als Gegenstand
     (`tools/MagicBagTool.ts`). Gehalten wird er **von außen am Saum**, wie ein
     Eimer am Rand: er hängt vor der Hand, sein Saum läuft durch den

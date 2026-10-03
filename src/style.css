@@ -116,6 +116,19 @@ html, body {
    der Mitte, auf dem Telefon oben unter der Kopfzeile — unten liegen dort Stöcke und Fläche. */
 .build-bar { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg); color: var(--hud-ink); font: 12px/1.2 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
 .build-bar[hidden] { display: none; }
+/* Die Malpalette am Schirm (`worlds/portal/paletteBar.ts`): neun Fächer unten, wie in Minecraft. */
+.palette-bar { position: fixed; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 44px); left: 50%; transform: translateX(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg); color: var(--hud-ink); font: 12px/1.2 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
+.palette-bar[hidden] { display: none; }
+.build-bar:not([hidden]) ~ .palette-bar { bottom: calc(max(16px, env(safe-area-inset-bottom)) + 140px); }
+.palette-bar__title { font-weight: 600; opacity: 0.85; }
+.palette-bar__row { display: flex; gap: 4px; align-items: stretch; }
+.palette-bar__cell, .palette-bar__grid { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; min-height: 52px; padding: 14px 4px 4px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-sm); background: var(--hud-raise); color: inherit; font: inherit; cursor: pointer; touch-action: none; user-select: none; }
+.palette-bar__grid { width: 44px; padding: 4px; font-size: 20px; }
+.palette-bar__cell--empty { opacity: 0.55; }
+.palette-bar__cell--on { border-color: #ff9f6b; box-shadow: 0 0 0 2px #ff9f6b inset; }
+.palette-bar__key { position: absolute; top: 3px; left: 5px; font-size: 10px; font-weight: 700; opacity: 0.7; }
+.palette-bar__label { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: center; word-break: break-word; font-size: 11px; }
+@media (max-width: 640px) { .palette-bar__cell { width: 34px; min-height: 40px; padding-top: 12px; } .palette-bar__label { display: none; } .palette-bar__grid { width: 40px; } }
 .build-bar__row { display: flex; align-items: stretch; gap: 4px; }
 .build-bar__gap { width: 1px; margin: 4px 3px; background: var(--hud-line); }
 .build-bar__btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 58px; min-height: 48px; padding: 4px 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-sm); background: var(--hud-raise); color: inherit; font: inherit; cursor: pointer; }

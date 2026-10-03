@@ -180,6 +180,8 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   // in _Die Sims_.
   { match: 'elements', group: 'bauen' },
   { match: 'bag', group: 'bauen' },
+  // Die Malpalette: was man darauf gelegt hat, und die gespeicherten Paletten.
+  { match: 'paint-palette', group: 'bauen' },
   // **Das Modellregal**: alle Rohmodelle zum Ansehen — kein Spielelement,
   // nichts mit Zweck, nur das Bild und der Steckbrief hinter dem ⓘ. Es stand
   // eine Weile als _Rohmodelle_ in der Werkstatt und war dort nicht zu

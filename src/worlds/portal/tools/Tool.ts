@@ -99,6 +99,22 @@ export interface ToolHost {
    * Hand ist, und bei allen in der Sitzung. Ohne Hand entsteht es vor dem Kopf.
    */
   conjureProp(kind: BagKind, hand: Handedness | null): void;
+  /**
+   * **Was diese Hand gerade trägt**, als Adresse für die Malpalette
+   * (`paintPalettes.ts`): `element:<id>`, `model:<pfad>` oder `prop:<sorte>`,
+   * dazu sein Name und wo es gerade ist. `null`, wenn sie nichts trägt.
+   */
+  heldItem(hand: Handedness, at?: THREE.Vector3): { ref: string; label: string } | null;
+  /**
+   * **Was die Hand trägt, auf die Malpalette legen**: Es verschwindet aus der
+   * Hand — frisch Geholtes ganz, ein schon stehendes Stück der Welt fällt
+   * wie losgelassen. `false`, wenn sie nichts trug.
+   */
+  stashHeld(hand: Handedness): boolean;
+  /** **Ein Ding von der Malpalette holen** — frisch, in genau diese Hand (oder die am Schirm). */
+  takeItem(ref: string, hand: Handedness | null): void;
+  /** Ein Vorschaumodell für eine Adresse — `null`: gibt es nicht, oder noch nicht. */
+  itemPreview(ref: string): THREE.Object3D | null;
   /** Farbe und/oder Material eines Props, für alle in der Sitzung. */
   styleProp(entry: PhysicsBody, style: PropStyle): void;
   /**

@@ -14,6 +14,7 @@ import { HandTool } from './HandTool';
 import { HolsterTool } from './HolsterTool';
 import { InspectTool } from './InspectTool';
 import { MagicBagTool } from './MagicBagTool';
+import { PaintPaletteTool } from './PaintPaletteTool';
 import { MapTool } from './MapTool';
 import { MirrorTool } from './MirrorTool';
 import { GravityGloveTool } from './GravityGloveTool';
@@ -45,6 +46,9 @@ export const TOOL_IDS = [
   // zum Einstellen der Faust, die alle anderen daran erben.
   'grip',
   'bag',
+  // Die Malpalette: was die andere Hand darauf legt, bleibt dort und lässt
+  // sich beliebig oft wieder herausnehmen (`PaintPaletteTool.ts`).
+  'paint-palette',
   'brush',
   // Die Staffelei: das Werkzeug, das eine Leinwand hinstellt — ohne sie hat
   // der Pinsel nur Kisten zum Anstreichen.
@@ -118,6 +122,8 @@ function buildTool(id: string): Tool | null {
       return new GripTool();
     case 'bag':
       return new MagicBagTool();
+    case 'paint-palette':
+      return new PaintPaletteTool();
     case 'brush':
       return new BrushTool();
     case 'easel':
