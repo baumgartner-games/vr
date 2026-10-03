@@ -49,7 +49,11 @@ Davor waren schon die vierzehn Rundensimulationen der langsamen Suite
 ## Die Regel, die bleibt
 
 **Eine neue Suite muss sich die Aufnahme verdienen** — sie gehört in eine Zeile
-der Tabelle oben, oder sie kommt nicht hinein. Wer eine aufnimmt, wiegt sie:
+der Tabelle oben, oder sie kommt nicht hinein. Die eine Ausnahme: **Was
+mehrfach kaputtgegangen ist**, bekommt einen Test, auch außerhalb der Tabelle.
+Ein Fehler beim ersten Mal wird repariert; beim zweiten Mal ist er ein Muster,
+und dann hält ein Test ihn fest (gewünscht: _„oder wenn etwas mehrfach
+auftritt, dass etwas nicht klappt"_). Wer eine aufnimmt, wiegt sie:
 mehr als ein paar Sekunden heißt, sie rechnet zu viel. Nachsehen, wohin die Zeit
 geht:
 
