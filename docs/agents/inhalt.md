@@ -59,7 +59,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     Geblieben ist der richtige Gedanke darin — **dass ein 2D-Gitter sagt, wo
     alles steht** —, und der wohnt längst woanders, nämlich im Kachelgitter
     (`worlds/grid/`, Kacheln, Ebenen, Bausteine, Einbauten) mit dem
-    Bauplatz als Editor (`worlds/editor/WorldEditor.ts`). Phaser und
+    Editor jeder Gitterwelt (`worlds/editor/WorldEditor.ts`; die Welt
+    Bauplatz ist seit Oktober 2026 weg, an ihrer Stelle steht _Weltbau_
+    im Reiter _Bauen_, siehe [Bauen](bauen.md)). Phaser und
     `src/world2d/` sind damit ersatzlos weg; der Weg dorthin und zurück steht
     in [dem Plan](../plan-2d-hub-interaktion.md).
   - **Wie die Kamera steht** (`topDownPose.ts`, ohne three.js, mit Test): Ziel

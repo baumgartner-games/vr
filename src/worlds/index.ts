@@ -18,18 +18,6 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./hub/HubWorld')).HubWorld(),
   },
   {
-    id: 'editor',
-    title: 'Bauplatz',
-    tagline: 'Level bauen, während man darin steht',
-    description:
-      'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Karte und Palette hängen am Gürtel. Gebaute Welten bleiben im Browser und lassen sich als Datei mitnehmen.',
-    accent: 0x39d0ff,
-    preview: 'worlds/editor.webp',
-    roles: ['vr', 'desktop'],
-    experimental: true,
-    load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
-  },
-  {
     id: 'sandbox',
     title: 'Sandbox',
     tagline: 'Leer — zum Aufbauen und Ausprobieren',

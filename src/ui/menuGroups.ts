@@ -174,6 +174,9 @@ export const MENU_PLACEMENT: readonly MenuPlacement[] = [
   // Bauen & Gestalten: der Modus zuerst — er entscheidet, ob man überhaupt
   // bauen darf —, dann, womit.
   { match: 'setting:game-mode', group: 'bauen' },
+  // Weltbau: die Welt von oben, in der Brille darüber fliegen
+  // (`core/buildFlight.ts`) — gleich nach dem Modus, weil er wie einer wirkt.
+  { match: 'build-flight', group: 'bauen' },
   { match: 'tools', group: 'bauen' },
   // Der Katalog vor allem anderen, womit man baut: Möbel mit Zweck, Wände,
   // Türen, Fenster (`PortalWorld.elementMenu`) — wie der Kauf- und Baumodus
