@@ -4,6 +4,7 @@ import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import { FLOORINGS } from '../house/flooring';
 import { NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
 import { SPACE_ELEMENTS, SPACE_FOLDER } from './spaceCatalog';
+import { CITY_ELEMENTS, CITY_FOLDER } from './cityCatalog';
 import { FURNITURE_BITS_ELEMENTS, FURNITURE_BITS_FOLDER } from './furnitureCatalog';
 
 /**
@@ -927,6 +928,7 @@ export const ELEMENTS: readonly GameElement[] = [
   ...NATURE_ELEMENTS,
   // **Der Weltraum** — die Teile aus _Space Base Bits_ (`spaceCatalog.ts`).
   ...SPACE_ELEMENTS,
+  ...CITY_ELEMENTS,
   // **Die Möbel** — _Furniture Bits_: Tische als Ablage, Kleinkram, Teppiche
   // (`furnitureCatalog.ts`).
   ...FURNITURE_BITS_ELEMENTS,
@@ -1258,6 +1260,10 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   // **Weltraum** — gewünscht: _„beim Katalog eine weiteren Ordner anlegen:
   // Weltraum und darin die Space base Teile einbauen"_ (`spaceCatalog.ts`).
   SPACE_FOLDER,
+  // **Stadt** — gewünscht: _„die großen Straßen-Elemente als Katalog-Ordner
+  // ‚Stadt' […], die aber eben einen Boden mit Möbeln darstellen"_
+  // (`cityCatalog.ts`).
+  CITY_FOLDER,
 ];
 
 /**

@@ -357,6 +357,62 @@ Hydroponik klein (Hydroponikbeet). Gezeichnet wird das Element
 (`FIXTURE_CATALOG`) — die Station hängt an diesen Maßen, nicht an den Kacheln
 des Katalogs.
 
+
+### Stadt: Straßen, Plätze und Häuser aus _City Builder Bits_
+
+Gewünscht (Oktober 2026): _„Ich will nun die großen Straßen-Elemente als
+Katalog-Ordner bekommen ‚Stadt', die aber eben einen Boden mit Möbeln
+darstellen (ein Preset also). Die Straßenteile müssen wir noch weiter
+verbessern durch Laternen und Ampeln […]. Ich wünsche mir damit dann schneller
+eine Stadt aufbauen zu können. Nimm gerne die Häuser mit auf als Elemente im
+Katalog, die auch entsprechend ihre Fläche benötigen."_ Die Elemente stehen in
+`elements/cityCatalog.ts`, im Katalog als Bereich **Stadt** (`CITY_FOLDER`):
+Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
+`city-…`.
+
+- **4 m je Einheit der Quelle** (`CITY_SCALE` = 8 auf das Regal). Das Paket ist
+  eine Modellstadt: Bei 0,5 wäre eine Straße 1 m breit und eine Laterne 48 cm.
+  So ist die Straße 8 × 8 m mit zwei Spuren, ein Auto 3,8 m, eine Laterne
+  3,8 m, ein Haus 6,6–12,2 m hoch.
+- **Alles Große auf 8 × 8 Kacheln** (`CITY_BLOCK`): Straßen, Gehweg, Parks und
+  Häuser rasten als gleiche Blöcke aneinander. Die Gerade läuft nach Süden;
+  gedreht wird beim Hinstellen wie jedes Element.
+- **Straßen und Plätze sind Boden mit Möbeln** (`floor`, `solid: [0, 0]`): Man
+  geht darüber und stellt darauf. Was an so einer Stelle steht, ist Teil des
+  Elements (`onSlab`: am Ursprung der Datei, auf der Platte) — der Vorschlag:
+  - _Straße mit Laternen_: zwei Laternen versetzt an beiden Bordsteinen, Arm
+    über der Fahrbahn; _Straße_ ohne alles für lange Strecken.
+  - _Zebrastreifen mit Ampeln_: je Seite eine Ampel mit Arm.
+  - _Straßenecke_ und _Kurve_: eine Laterne außen.
+  - _Einmündung_: eine Ampel; _Kreuzung_: zwei Ampelbrücken über Eck.
+  - _Allee_: die Gerade mit vier Bäumen an den Bordsteinen.
+  - _Gehweg_, _Park_, _Park mit Bäumen_ (mit Bank), _Park mit Büschen_,
+    _Parkweg_ (Bank, alte Laterne, Büsche).
+- **Die Platten sind eingelassen** (`flush` mit negativem Wert): In der Quelle
+  sind sie 40 cm dick. Die Oberkante liegt 16 cm (Straße) bzw. 10 cm (Gehweg,
+  Park) über dem Boden, die Fahrbahn also 8 cm. Weniger geht nicht: Die
+  Platten der Welt schieben ihren Tiefenwert nach vorn (`plateFloor`,
+  `polygonOffset`), und eine Fahrbahn 1 cm darüber war unsichtbar — nur die
+  Bordsteine schauten heraus.
+- **Die verzierten Parkplatten der Quelle gehen nicht** (`park_*_decorated_*`):
+  Eingelassen wird um die ganze Höhe der Hülle, und mit den Bäumen darin
+  versänke die Wiese. Deshalb die flache Platte und das Grün als eigene Teile.
+- **Häuser** (`house`): die Häuser **ohne** Sockel auf einer eingelassenen
+  Gehwegplatte. Gesperrt ist nur das Haus (`solid`, nachgemessen an der Datei
+  ohne Sockel), um es herum geht man auf dem Gehweg. Die Vorderseite schaut
+  wie bei jedem Element nach Süden — zur Straße hin drehen.
+- **Straßenmöbel, Autos, Grün** stehen auch einzeln: Laternen und Ampeln
+  sperren nur ihren Mast (eine Zelle), Autos zwei mal vier Kacheln, die
+  Stadtbäume (4 m Krone) nur ihren Stamm.
+
+| Teil | Maße (B × H × T) | Kacheln |
+| ---- | ---------------- | ------- |
+| Straße, Platz, Park | 8,0 × 0,4 (eingelassen) × 8,0 m | 8 × 8 |
+| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m auf Gehweg | 8 × 8 |
+| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 8 × 8 |
+| Laterne / Ampel mit Arm | 1,0 × 3,8 × 0,3 m | 1 × 1 |
+| Auto | 1,7 × 1,4 × 3,8 m | 2 × 4 |
+
 ### Möbel: Tische als Ablage, Kleinkram obenauf, Teppiche als Boden
 
 Gewünscht (Oktober 2026): _„Und nun furniture als Katalog Ordner aus
@@ -668,6 +724,9 @@ Möbelkatalog gibt **Spielelemente** her.
 - **Weltraum** ist seit Oktober 2026 der vierte: Module, Versorgung, Fracht,
   Fahrzeuge, Tunnel, Gelände und Alles (`SPACE_FOLDER`, siehe
   [Weltraum](#weltraum-alle-teile-aus-space-base-bits)).
+- **Stadt** steht seit Oktober 2026 dahinter: Straßen, Plätze & Parks, Häuser,
+  Straßenmöbel, Autos, Grün und Alles (`CITY_FOLDER`, siehe
+  [Stadt](#stadt-straßen-plätze-und-häuser-aus-city-builder-bits)).
 - **Erst der Bereich, dann die Art** (Ende September 2026, gewünscht:
   _„Katalog Ordner besser gruppieren (Haus, Restaurant, etc.) … Ggf wie bei
   Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** und
@@ -1178,6 +1237,7 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`, `FURNITURE_CATALOGUE`/`FURNITURE_FOLDERS`. Kein three.js, kein Laden                                                                 |
 | `worlds/elements/furnitureCatalog.ts` | **Rein**: der Ordner _Möbel_ — `FURNITURE_BITS_ELEMENTS`, `FURNITURE_BITS_FOLDER`; Tische als Ablage (`shelf`, `kind: 'top'`), Kleinkram ablegbar (`rests`), Teppiche als Boden (`floor`) |
 | `worlds/elements/spaceCatalog.ts`     | **Rein**: der Ordner _Weltraum_ — `SPACE_ELEMENTS`, `SPACE_CATALOGUE`, `SPACE_FOLDER`, `SPACE_SCALE` (2 m je Einheit der Quelle); die Kacheln gemessen, `spaceCatalog.test.ts` misst nach |
+| `worlds/elements/cityCatalog.ts`      | **Rein**: der Ordner _Stadt_ — `CITY_ELEMENTS`, `CITY_CATALOGUE`, `CITY_FOLDER`, `CITY_SCALE` (4 m je Einheit der Quelle), `CITY_BLOCK` (8 × 8 Kacheln); Straßen und Plätze als Boden mit Laternen und Ampeln |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |
 | `worlds/elements/elementFacts.ts`     | **Rein**: der Steckbrief hinter dem ⓘ im Möbelkatalog — `elementFacts`, `footprintRows` (die Belegung aus `■`), `partPlace` (wo ein Teil sitzt)                                                                                        |
