@@ -448,6 +448,11 @@ Kleiderschrank der Sandbox. Sie stand dort neben dem Startplatz, bis die
 Sandbox im Oktober 2026 leer wurde; seitdem stellt man sie aus dem Katalog hin,
 wo man sie braucht.
 
+**Im Suchfeld findet man sie auch als _Kleiderständer_** — gemeldet: _„nur
+finde ich es nicht unter ‚kleiderständer'"_. Ein Element kann dafür weitere
+Namen tragen (`GameElement.aka`); die Suche des Katalogs (`catalogSearch`)
+liest sie mit, wie die Ordnernamen.
+
 - **Eine Kachel, 2 × 2 Zellen, Körper 1,40 m** wie jedes Möbel. Sie ist
   1,40 m hoch; mit den Hüten reicht alles höchstens 0,49 m aus der Mitte.
 - **Aus einem einzigen Pfosten** (`dungeon/post.glb`, ein Garderobenständer

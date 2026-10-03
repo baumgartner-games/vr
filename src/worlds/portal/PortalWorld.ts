@@ -4390,7 +4390,13 @@ export class PortalWorld implements World {
           }),
           ...inside.map((id) => {
             const entry = tile(id, at);
-            rows.push({ key: `element:${id}`, name: entry.label, words: `${where} ${id}`, entry });
+            const aka = (elementById(id).aka ?? []).join(' ');
+            rows.push({
+              key: `element:${id}`,
+              name: entry.label,
+              words: `${where} ${id} ${aka}`,
+              entry,
+            });
             return entry;
           }),
         ];
@@ -4426,13 +4432,15 @@ export class PortalWorld implements World {
     const only = folders.length === 1 ? folders[0]!.children : undefined;
     const children = only ?? (folders.length > 0 ? folders : ids.map((id) => tile(id, 'elements')));
     if (folders.length === 0)
-      for (const entry of children)
+      for (const entry of children) {
+        const id = entry.id.slice(entry.id.indexOf(':') + 1);
         rows.push({
-          key: entry.id.slice(entry.id.indexOf(':') + 1),
+          key: id,
           name: entry.label,
-          words: entry.id,
+          words: `${entry.id} ${(elementById(id).aka ?? []).join(' ')}`,
           entry,
         });
+      }
     const root: MenuEntry = {
       id: 'elements',
       label: 'Katalog',
