@@ -500,9 +500,9 @@ richtig, und gezielt wurde unsauber.
   `renderer.resetState()`**: Es vergisst mitten in der Sitzung das Ziel der
   Brille, und das Bild der Szene blieb schwarz; gesichert und
   zurückgestellt werden nur Texturbindung und Entpack-Schalter. Beides ist
-  in der Simulation (unten) nachgestellt. Abschaltbar unter _Grafik → Menü scharf (Brille)_
-  (`GraphicsSettings.menuLayer`) — auch am Schirm, falls es in der Brille
-  einmal falsch aussieht. Dazu ist Foveated Rendering aus, solange das Menü
+  in der Simulation (unten) nachgestellt. Die Ebene ist immer an — der
+  frühere Schalter _Grafik → Menü scharf (Brille)_ ist weg, seit sie auf der
+  Quest zuverlässig klappt. Dazu ist Foveated Rendering aus, solange das Menü
   offen ist (`GraphicsQuality.setMenuOpen`), und der Bildschirm ist ganz
   deckend und rechteckig: Unter durchsichtigen Ecken läge nichts.
 - **Gezeichnet wie die Seite** (`UIPanel` mit `layout: 'screen'`, Maße in
