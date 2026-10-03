@@ -360,3 +360,47 @@ describe('Stationen auf Spielelementen', () => {
     expect(layer.leakingAt(new THREE.Vector3())).toBeNull();
   });
 });
+
+describe('Die Garderobe (`opens`)', () => {
+  it('macht keine Station, meldet sich einmal an, umrandet das ganze Möbel und öffnet Aussehen', () => {
+    const { host, usables } = world();
+    const opened: string[] = [];
+    const layer = new StationLayer({ ...host, open: (what) => opened.push(what) });
+    const rack = placed({ id: 'garderobe', element: 'coat-rack', x: 0, z: 0 });
+    // Zwei Teile als Bild, wie `placeElement` sie in die Welt hängt.
+    const parts = [new THREE.Group(), new THREE.Group()];
+    const scene = new THREE.Group();
+    for (const part of parts) scene.add(part);
+    scene.add(rack.anchor);
+    expect(layer.add({ ...rack, parts })).toBe(0);
+    expect(layer.states).toEqual([]);
+
+    const anchor = rack.anchor.children[0]!;
+    // Alle Teile hängen unter dem angemeldeten Anker: Der Saum
+    // (`highlightOf`, ohne eigenes `highlight`) umrandet so das ganze Möbel.
+    for (const part of parts) expect(part.parent).toBe(anchor);
+    const usable = usables.get(anchor)!;
+    expect(usable).not.toHaveProperty('highlight');
+    expect(usable.aimOnly).toBe(true);
+    expect(usable.usePrompt?.()).toBe('Aussehen ändern');
+
+    // Kein Bild meldet es um oder ab, auch weit weg nicht.
+    layer.step(0, FAR);
+    layer.step(0, MID);
+    expect(usables.get(anchor)).toBe(usable);
+
+    expect(usable.use(by)).toBe(true);
+    expect(opened).toEqual(['outfit']);
+
+    // Umstellen nimmt die Anmeldung mit.
+    expect(layer.remove(rack.anchor)).toEqual([]);
+    expect(usables.has(anchor)).toBe(false);
+  });
+
+  it('meldet sich gar nicht an, wenn die Welt keine Seiten aufmachen kann', () => {
+    const { host, usables } = world();
+    const layer = new StationLayer(host);
+    layer.add(placed({ id: 'garderobe', element: 'coat-rack', x: 0, z: 0 }));
+    expect(usables.size).toBe(0);
+  });
+});

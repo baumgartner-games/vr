@@ -7,17 +7,22 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 
 **Ein weißer Raum, in dem man aussucht** (`worlds/shared/construct.ts`) — der
 Raum aus _Matrix_, und zwar nur für den, der ihn betritt. Wer vor dem
-**Kleiderschrank** oder vor dem **Computer-Tisch** der Küche steht und `A`
-drückt, sieht die Welt um sich her verblassen: Ein Kachelboden kommt herauf,
-alles andere verschwindet, und nur der Gegenstand selbst bleibt stehen. Um die
-Figur herum fahren die Stücke zur Auswahl aus dem Boden — Kleidung am Schrank,
-Möbel am Rechner. Zurück geht es über denselben Gegenstand.
+**Computer-Tisch** der Küche steht und `A` drückt, sieht die Welt um sich her
+verblassen: Ein Kachelboden kommt herauf, alles andere verschwindet, und nur
+der Gegenstand selbst bleibt stehen. Um die Figur herum fahren die Möbel zur
+Auswahl aus dem Boden. Zurück geht es über denselben Gegenstand.
+
+Bis Oktober 2026 machte auch der **Kleiderschrank** der Sandbox so einen Raum
+auf, die Umkleide mit Gesichtern, Hüten, Oberteilen und Figuren im Ring. Sie
+ist restlos weg: An seiner Stelle steht die **Garderobe**, ein Spielelement,
+und `A` daran öffnet die Seite _Aussehen_ im Menü
+([Spielelemente](spielelemente.md#die-garderobe-a-öffnet-aussehen)).
 
 **Der Körper bleibt dabei in der alten Welt stehen**, und das ist keine
 Kulisse, sondern die Bedingung, unter der das Ganze überhaupt geht. Draußen
 steht die Figur weiter dort, wo sie stand, und die anderen im Raum sehen sie
-dort — sie sehen nur nicht, dass die gerade in einem weißen Nichts ihre Hüte
-sortiert.
+dort — sie sehen nur nicht, dass die gerade in einem weißen Nichts Möbel
+aussucht.
 
 **Herumgehen darf man trotzdem**, und seit September 2026 geht das auch: Ein
 Regal, um das man nicht herumgehen kann, ist ein Schaufenster. Drei Dinge
@@ -125,7 +130,7 @@ immer durchsichtig.
 **Was sich Anker und Welt teilen, bleibt unangetastet.** Was vom Anker aus
 erreichbar ist, kommt gar nicht erst in die Liste, auch wenn es sein Material
 mit der halben Welt teilt: Ein geteiltes Material gehört in dem Fall beiden, und
-die Welt mitzunehmen hieße, den Anker mitzunehmen. Sonst verblasste der Schrank
+die Welt mitzunehmen hieße, den Anker mitzunehmen. Sonst verblasste der Rechner
 mit, vor dem man steht.
 
 **Unten angekommen wird geräumt.** Ein Material auf Deckkraft 0 bleibt in der
@@ -141,13 +146,11 @@ hält, darf beim Verlassen nicht plötzlich dastehen.
 und kostete drei: Er verlöre seinen Platz im Baum und damit seine Weltmatrix,
 sein Kollisionskörper (`physics/`) bliebe zurück, und wer ihn zwischendurch
 sucht — Editor, Strahl, Nachbarzone — fände ihn woanders. Stehen lassen und beim
-Ausblenden übergehen kostet nichts davon. Beim Kleiderschrank ist der Anker die
-Gruppe des Einbaus, also die beiden Türen mit dem Spiegel; sein Korpus steht in
-`view.solids`, gehört damit der Welt und verblasst mit ihr.
+Ausblenden übergehen kostet nichts davon.
 
 **Eine halbe Sekunde, hin wie zurück** (`FADE_SECONDS`). Lang genug, dass man
 den Übergang als Übergang sieht und nicht als Bildfehler, kurz genug, dass
-niemand auf ihn wartet — wer zehnmal hintereinander in den Schrank sieht, wartet
+niemand auf ihn wartet — wer zehnmal hintereinander an den Rechner tritt, wartet
 sonst zehnmal. Gemalt wird aus Phase und Uhr, ohne eigenes Gedächtnis: `open01`
 ist der einzige Fortschritt, den es gibt, 0 ist die Welt und 1 ist das
 Konstrukt, und Boden, Deckkraft und Welle hängen alle daran. Damit ein
@@ -218,8 +221,7 @@ den Weg zurück. Dann kommt der erste Ring, **bis auf die Kreuzmitte**: Die vier
 Kacheln genau vor, hinter, links und rechts vom Anker bleiben leer, und damit
 bleiben vier Gassen offen, durch die man von der Mitte aus bis nach draußen
 sieht. Zwanzig Stücke fasst dieser Ring — und das reicht seit der Werkhalle für
-keinen der beiden Kataloge mehr: Der Möbelkatalog hat sechsundzwanzig Stücke,
-die Umkleide seit den Figuren **neunundzwanzig**, und was übrig bleibt, geht in
+den Möbelkatalog nicht mehr: Er hat sechsundzwanzig Stücke, und was übrig bleibt, geht in
 den nächsten Ring **zwei** Kacheln weiter draußen. Ein Ring direkt hinter dem
 anderen stünde in
 dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
@@ -230,9 +232,9 @@ Umbau beheben sollte.
 **Der Boden rastet dafür auf dem Kachelgitter der Welt ein**
 (`ConstructRoom.centre`). Die Mitte ist die Kachel, auf der der Anker steht, und
 nicht die Stelle, an der die Füße stehen. Vorher war es umgekehrt, und man sah
-es sofort: Der Kleiderschrank steht in der Welt mittig auf **seiner** Kachel,
+es sofort: Der Rechner steht in der Welt mittig auf **seiner** Kachel,
 ein Boden um die Füße herum liegt aber um jeden Betrag verschoben, den die Figur
-gerade vom Kachelrand entfernt steht — und dann steht der Schrank quer über
+gerade vom Kachelrand entfernt steht — und dann steht er quer über
 vieren. Weil Weltgitter und Konstruktboden dieselbe Kachelgröße haben
 (`nav/navTile.TILE`, 1 m), decken sie sich nach dem Einrasten vollständig.
 
@@ -282,42 +284,12 @@ Stück im selben Atemzug, und auch das ist richtig so: `A` soll nur meinen, was
 es sieht. Auf dem Rückweg entsteht gar nichts mehr — wer sich sofort wieder
 verdrückt, baut nichts, was er nie zu sehen bekommt.
 
-Dazu kommen zwei Zwischenspeicher, damit das **zweite** Öffnen gar nichts mehr
-kostet: Das Kleiderregal baut jedes Stück genau einmal und lässt danach nur noch
-den Reif wandern (`WardrobeRack.wear`), und der Möbelkatalog hält seine
-Miniaturen fest (`KitchenZone.minis`). Beim Regal war das obendrein ein Leck: Es
-baute je Öffnen siebzehn frische Geometrien samt Materialien, die niemand wieder
-freigab.
-
-**Ein viertes Fach: die Figuren** (`worlds/shared/wardrobeRack.figurePiece`,
-`core/avatarFigures.ts`). Neben Gesichtern, Hüten und Oberteilen stehen seit
-dem Umbau zwölf **Spielfiguren** im Ring — der Koch und elf Charaktere aus dem
-KayKit-Regal —, und wer eine benutzt, ist sie (siehe
-[Spielfigur](spielfigur.md), _Wie man aussieht_). Sie sind das erste, was auf
-einer Kachel des Konstrukts **nicht** aus Grundkörpern entsteht, sondern aus
-einer Datei, und daraus folgen zwei Dinge:
-
-- **Bis sie da ist, steht eine Spielfigur wie vom Brettspiel darauf** — Kegel
-  und Kugel, zwei geteilte Formen für alle zwölf. Eine leere Kachel sieht nicht
-  aus wie „wird noch", sondern wie „ist kaputt"; es ist dieselbe Überlegung wie
-  beim leeren Hutständer für _Ohne_. Ohne WebGL — im Test — bleibt der
-  Platzhalter für immer stehen, und genau deshalb lässt sich das Regal
-  weiterhin ohne Browser nachmessen.
-- **Ihre Höhe wird gemessen, nicht mit einer Zahl verkleinert.** Die drei
-  anderen Fächer haben je **eine** Verkleinerung, damit man die Stücke an ihren
-  Verhältnissen wiedererkennt (ein Zylinder ist höher als eine Krone). Bei
-  Figuren sagt der Größenunterschied nichts — er sagt nur, wer einen Spitzhut
-  trägt —, und welche Höhe eine Datei hat, weiß man erst, wenn sie da ist. Also
-  stehen sie alle 40 cm hoch auf ihrem Fuß, wie Zinnfiguren im Schaufenster.
-
-Im Regal steht dabei nur die **kuratierte Handvoll**. Die rund 85 Figuren der
-Sammlung hätten 85 Ständer gebraucht, also fünf Ringe; wer eine der übrigen
-will, nimmt den Weg über die Detailseite des Regals (_Als Figur tragen_, siehe
-[Das Modellregal](assetregal.md)).
+Dazu kommt ein Zwischenspeicher, damit das **zweite** Öffnen gar nichts mehr
+kostet: Der Möbelkatalog hält seine Miniaturen fest (`KitchenZone.minis`).
 
 **Zurück geht es über den Anker, und nur über ihn.** Alles andere ist unsichtbar
 und meldet sich deshalb gar nicht mehr (`PortalWorld.collectUsables`) — der
-Schrank dagegen verblasst ja nicht und ist damit der einzige Knopf, den es im
+Rechner dagegen verblasst ja nicht und ist damit der einzige Knopf, den es im
 weißen Raum noch gibt. Heraus kommt man an genau der Stelle, an der man
 hineingegangen ist; bewegt hat man sich nie. Macht ein Stück den Raum von innen
 zu, geschieht das **ein Bild später**: `pick` läuft mitten in der
@@ -326,17 +298,17 @@ abmeldet, über die diese Schleife gerade läuft, räumt dem eigenen `pick` den
 Boden unter den Füßen weg, bevor es zu Ende ist.
 
 **Und es gibt genau einen Raum je Welt** (`GridWorld.construct`), nicht einen je
-Schrank. Zwei offene Konstrukte hießen zwei Meinungen darüber, was gerade
+Rechner. Zwei offene Konstrukte hießen zwei Meinungen darüber, was gerade
 sichtbar ist: Der zweite blendete die Welt ein zweites Mal aus, merkte sich
 dabei die Deckkraft, die der erste gerade heruntergefahren hat, und stellte
 später genau **die** wieder her. Er hängt deshalb an der **Welt** und nicht an
-dem, was ihn aufmacht — der Kleiderschrank steht in der Startzone, die Möbel
-stehen in der Küche, der Boden gehört der Welt, und eine Zone kennt von alledem
+dem, was ihn aufmacht — die Möbel stehen in der Küche, der Boden gehört der
+Welt, und eine Zone kennt von alledem
 nur ihr eigenes Stück. Sie reicht ihre Auswahl herein und bekommt zurück, ob
 gerade einer offen steht (`ZoneHost.enterConstruct`, `leaveConstruct`,
 `inConstruct`); mehr braucht sie nicht, und mehr bekommt sie nicht. Entstehen
-tut der Raum erst beim ersten Öffnen: Eine Welt, in der niemand vor einen
-Schrank tritt, baut keinen Boden aus 225 Kacheln.
+tut der Raum erst beim ersten Öffnen: Eine Welt, in der niemand an den
+Rechner tritt, baut keinen Boden aus 225 Kacheln.
 
 **Wem was gehört**, ist die zweite Entscheidung: Die Stücke zur Auswahl kommen
 von außen und gehen beim Verlassen **unversehrt** zurück — der Raum hängt sie
@@ -347,8 +319,7 @@ Beim Weltwechsel wird deshalb **erst herausgegangen und dann abgerissen** —
 sonst bleibt eine Handvoll unsichtbarer Äste zurück, und das gesperrte Rig
 überlebt den Wechsel.
 
-**Geprüft wird das ohne Szene** (`shared/construct.test.ts`,
-`shared/wardrobeRack.test.ts`): dass jeder Platz aus `tileSlots` auf einer
+**Geprüft wird das ohne Szene** (`shared/construct.test.ts`): dass jeder Platz aus `tileSlots` auf einer
 Kachelmitte und auf dem Boden liegt, dass zwei Kacheln um die Mitte und die
 Kreuzmitte frei bleiben, dass die Ringe von innen nach außen füllen und der
 Boden mitwächst, dass der Boden auf der Kachel des **Ankers** einrastet und

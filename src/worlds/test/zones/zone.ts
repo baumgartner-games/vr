@@ -93,8 +93,7 @@ export interface ZoneHost {
    *
    * Er gehört der **Welt** und nicht der Zone, obwohl die Küche ihn aufmacht:
    * Er blendet alles aus, was nicht der Anker ist, und das ist mehr, als eine
-   * Zone kennt — der Kleiderschrank steht in der Startzone, die Möbel stehen
-   * in der Küche, der Boden gehört der Welt. Zwei Räume nebeneinander hießen
+   * Zone kennt — die Möbel stehen in der Küche, der Boden gehört der Welt. Zwei Räume nebeneinander hießen
    * zwei Meinungen darüber, was gerade sichtbar ist, und die zweite gewönne
    * beim Verlassen.
    *

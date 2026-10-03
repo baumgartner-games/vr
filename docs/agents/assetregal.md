@@ -564,9 +564,8 @@ Von oben nach unten, und alles in **einem** scrollenden Kasten:
    Knopf dieser Seite, der etwas **tut** statt etwas zu zeigen. Er macht aus
    dem Ding, das man gerade vor sich hat, die eigene Spielfigur
    (`saveAppearance({ figure })`, siehe [Spielfigur](spielfigur.md),
-   _Und eine vierte Zeile: die Figur_) — im Spiegel, im Kleiderschrank und für
-   alle im Raum. Er steht hier und nicht nur im Kleiderschrank, weil der dort
-   nur zwölf Ständer hat: Über diesen Weg ist **jede** der rund 85 Figuren der
+   _Und eine vierte Zeile: die Figur_) — im Spiegel und für alle im Raum. Über
+   diesen Weg ist **jede** der rund 85 Figuren der
    Sammlung wählbar, und man sieht sie vorher groß, mit Gitterboden, Hülle und
    der Bewegung, die man sich ausgesucht hat. Gezeigt wird er nach derselben
    Auskunft, nach der auch das Regal einsortiert (die Schublade _Figuren_,

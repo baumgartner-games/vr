@@ -115,8 +115,8 @@ export interface ChefHatLeaned extends ChefHatRing {
  *
  * Die Zahlen sind an der Vorlage abgelesen und an zwei Grenzen gestutzt:
  * unten an `CHEF_HAT_SEAT` (nichts rutscht über die Augen) und in der Breite
- * daran, dass das Stück im Kleiderschrank noch auf eine Kachel passt
- * (`worlds/shared/wardrobeRack.RACK_PIECE_MAX`).
+ * daran, dass das Stück noch auf eine Kachel passt — so stand es bis Oktober
+ * 2026 im Ring der Umkleide, die es nicht mehr gibt.
  */
 const RINGS: readonly ChefHatRing[] = [
   { y: CHEF_HAT_SEAT, radius: 0.98, fold: 0, wobble: 0, band: true },

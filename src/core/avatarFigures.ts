@@ -328,9 +328,6 @@ const PACKS: ReadonlyArray<{ sub: string; paths: readonly string[] }> = [
  * **Alle Figuren unter _Vorgefertigte_** (`ui/outfitMenu.ts`): erst die
  * kuratierten mit ihren deutschen Namen, dann die Pakete in ihrer Reihenfolge,
  * jede mit dem Namen, den das Regal ihr gibt (`humanLabel`).
- *
- * Der Kleiderschrank im Konstrukt nimmt weiter nur `FIGURE_KINDS` — gut
- * fünfzig Ständer sprengten seinen Ring.
  */
 export const FIGURE_PRESETS: readonly FigureKind[] = [
   ...FIGURE_KINDS,

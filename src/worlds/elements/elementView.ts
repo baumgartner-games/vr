@@ -211,16 +211,19 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
       views.push(null);
       return;
     }
-    const model = models[i] ?? null;
+    const loaded = models[i] ?? null;
+    const model = loaded && part.node ? pickNode(loaded, part.node) : loaded;
     if (!model) {
       laid.push(null);
       views.push(null);
       return;
     }
     if (part.wallpaper) paintWallpaper(model, part.wallpaper);
-    const one = part.inside
-      ? layInside(model, laid[i - 1] ?? null)
-      : layOn(model, part, yaw, x, z, baseOf(part, i, laid, lift));
+    const one = part.pose
+      ? layPosed(model, part, yaw, centre.x + sx, centre.z + sz, lift)
+      : part.inside
+        ? layInside(model, laid[i - 1] ?? null)
+        : layOn(model, part, yaw, x, z, baseOf(part, i, laid, lift));
     if (!one) {
       laid.push(null);
       views.push(null);
@@ -242,7 +245,100 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
  */
 function plainFloor(part: ElementPart): boolean {
   if (isBuiltPart(part.model)) return false;
-  return part.height === undefined && part.scale === undefined && part.tilt === undefined;
+  return (
+    part.height === undefined &&
+    part.scale === undefined &&
+    part.tilt === undefined &&
+    part.size === undefined &&
+    part.pose === undefined &&
+    part.node === undefined
+  );
+}
+
+/**
+ * **Nur ein Stück aus einer Datei** (`ElementPart.node`) — der Hut der Hexe,
+ * nicht die Hexe. Was an Knochen hängt, kommt in seiner Ruhelage, so wie es
+ * modelliert ist: ohne Skelett, als gewöhnliches Netz mit derselben Geometrie
+ * und demselben Material.
+ *
+ * @returns die Netze des Knotens in einer Gruppe — `null`, wenn es ihn nicht gibt
+ */
+function pickNode(model: THREE.Object3D, name: string): THREE.Object3D | null {
+  model.updateMatrixWorld(true);
+  const node = model.getObjectByName(name);
+  if (!node) return null;
+  const out = new THREE.Group();
+  out.name = `node:${name}`;
+  node.traverse((object) => {
+    const source = object as THREE.Mesh;
+    if (!source.isMesh) return;
+    const mesh = new THREE.Mesh(source.geometry, source.material);
+    mesh.name = source.name;
+    mesh.castShadow = source.castShadow;
+    mesh.receiveShadow = source.receiveShadow;
+    // Ein Netz an Knochen steht in seiner Ruhelage schon dort, wo die
+    // Geometrie es sagt; ein starres trägt seine Lage im Knoten.
+    if (!(object as THREE.SkinnedMesh).isSkinnedMesh)
+      source.matrixWorld.decompose(mesh.position, mesh.quaternion, mesh.scale);
+    out.add(mesh);
+  });
+  return out.children.length > 0 ? out : null;
+}
+
+/**
+ * **Ein Teil frei in den Raum stellen** (`ElementPart.pose`): auf Maß bringen
+ * (`size`, `height`, `fit`, `scale`), mit der Mitte seiner Unterseite in den
+ * Ursprung, drehen, auf `at` setzen, um die Mitte der Grundfläche strecken
+ * (`stretch`) — und das Ganze mit dem Element drehen.
+ */
+function layPosed(
+  model: THREE.Object3D,
+  part: ElementPart,
+  elementYaw: number,
+  x: number,
+  z: number,
+  y: number,
+): Laid | null {
+  const pose = part.pose!;
+  const holder = new THREE.Group();
+  holder.add(model);
+  let box = new THREE.Box3().setFromObject(holder);
+  if (box.isEmpty()) return null;
+  const raw = box.getSize(new THREE.Vector3());
+  const ratio = (want: number, have: number): number => (have > 1e-6 ? want / have : 1);
+  if (part.size)
+    holder.scale.set(
+      ratio(part.size[0], raw.x),
+      ratio(part.size[1], raw.y),
+      ratio(part.size[2], raw.z),
+    );
+  else if (part.height !== undefined) holder.scale.setScalar(ratio(part.height, raw.y));
+  else if (part.fit !== undefined) holder.scale.setScalar(ratio(part.fit, Math.max(raw.x, raw.z)));
+  else holder.scale.setScalar(part.scale ?? 1);
+  box = new THREE.Box3().setFromObject(holder);
+  holder.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+
+  const posed = new THREE.Group();
+  posed.add(holder);
+  posed.position.set(pose.at[0], pose.at[1], pose.at[2]);
+  if (pose.quat) posed.quaternion.set(pose.quat[0], pose.quat[1], pose.quat[2], pose.quat[3]);
+  else if (pose.rot) posed.rotation.set(pose.rot[0], pose.rot[1], pose.rot[2], 'YXZ');
+  const stretched = new THREE.Group();
+  stretched.add(posed);
+  if (part.stretch) stretched.scale.set(part.stretch[0], part.stretch[1], part.stretch[2]);
+  const outer = new THREE.Group();
+  outer.add(stretched);
+  outer.position.set(x, y, z);
+  outer.rotation.y = elementYaw;
+  const top = new THREE.Box3().setFromObject(outer).max.y;
+  return {
+    holder: outer,
+    top,
+    scale: 1,
+    tilt: [0, 0, 0],
+    yaw: elementYaw,
+    shift: new THREE.Vector3(),
+  };
 }
 
 /** Worauf ein Teil steht: die Oberkante eines früheren, oder der Boden. */

@@ -483,6 +483,10 @@ export abstract class FurnishedWorld extends GridWorld {
       dishView: (dish) => this.dishes?.view(dish) ?? new THREE.Group(),
       picked: (taken) => playPick(taken),
       warnTone: (fast) => playWarn(fast),
+      // Die Garderobe (`elements/coatRack.ts`): _Aussehen_ gehört der App.
+      open: (what) => {
+        if (what === 'outfit') this.context?.openOutfit();
+      },
     };
   }
 

@@ -79,6 +79,7 @@ Ein Eintrag `GameElement` in `ELEMENTS`:
 | `gives`  | Was eine Kiste oder ein Stapel hergibt, als Vorschlag. Die Stelle im Plan gewinnt (`ElementSpot.gives`)                                            |
 | `holds`  | Was zu Beginn **auf** der Station steht und mitgenommen werden kann, als `KitchenItem`: der Topf auf dem Herd (`stove-pot`). Kein Teil des Bilds   |
 | `lit`    | **Ob das Möbel selbst leuchten kann** — ohne Angabe jedes Element mit `kind` (`elementLit`). Dann sind alle Teile Bilder unter der Station         |
+| `opens`  | **Was `A` aufmacht**, wenn es keine Station ist: `'outfit'`, die Seite _Aussehen_ (die Garderobe). Dann leuchtet das ganze Möbel, sobald man darauf schaut |
 | `rack`   | **Ein Abtropfgitter wie in der Sandbox**: höchstens vier Teller, zu Beginn voll, einzeln in den Fächern gezeigt. Nur beim Tellerstapel             |
 | `parts`  | Die Rohmodelle, aus denen es besteht. Das erste steht auf dem Boden                                                                                |
 
@@ -120,6 +121,18 @@ Osten, z nach Süden, von der Mitte der Grundfläche aus.
   0,3 m zur Seite, und die Wurzeln reichen bis 0,25 m unter den Boden.
 - `surface`: Hier wird abgelegt (`PlacedElement.top`). Ohne diese Angabe ist
   es das erste Teil.
+- `node`: nur dieses Stück aus der Datei, etwa `'Witch_Hat'` aus der Hexe —
+  für das, was Figuren tragen und das Regal nicht einzeln hat. Was an
+  Knochen hängt, kommt in seiner Ruhelage, als gewöhnliches Netz.
+- `size`: auf Breite × Höhe × Tiefe gebracht, jede Achse für sich — derselbe
+  Pfosten als Stange, Fuß oder Haken.
+- `pose`: **frei in den Raum gestellt** statt auf den Boden oder ein Teil —
+  der Ursprung ist die Mitte der Unterseite, gedreht wird mit `quat` oder
+  `rot` (YXZ), gesetzt auf `at` (x, y, z von der Mitte der Grundfläche am
+  Boden). `at` (zweistellig), `stack`, `on` und `tilt` gelten dann nicht; der
+  Test verlangt das.
+- `stretch`: nach `pose` um die Mitte der Grundfläche gestreckt, je Achse ein
+  Faktor.
 
 **Kein Kistendeckel in der Liste.** Den stellt der Lader unter jede Kiste von
 selbst (`core/kaykitCrate.kaykitPlinth`). Zwei Deckel hießen eine Kiste zehn
@@ -423,6 +436,42 @@ wird hingestellt wie jedes andere Möbel aus dem Katalog.
   Weltänderungen ändert sich seine alte Zeile (`recordElementOf`).
 - Ein Teppich sperrt nichts; was auf ihm steht, steht auf dem Boden (die
   0,05 m Teppich bleiben unberücksichtigt).
+
+### Die Garderobe: `A` öffnet _Aussehen_
+
+Gewünscht (Oktober 2026): _„haben wir einen garderoben ständer als model? das
+wäre mir lieber als der kleiderschrank um das aussehen menü zu öffnen (wie bei
+inventar menü)"_ — und dazu _„denk dran, dass es auch gehightligheted werden
+soll wenn man mit diesem interagieren will"_. Die **Garderobe** (`coat-rack`,
+`elements/coatRack.ts`, im Möbelkatalog unter _Möbel → Schränke_) ersetzt den
+Kleiderschrank der Sandbox; sie steht eine Kachel vor der Nordwand neben dem
+Startplatz (`zones/start.COAT_RACK_SPOT`, `TestWorld.spots`).
+
+- **Eine Kachel, 2 × 2 Zellen, Körper 1,40 m** wie jedes Möbel. Sie ist
+  1,40 m hoch; mit den Hüten reicht alles höchstens 0,49 m aus der Mitte.
+- **Aus einem einzigen Pfosten** (`dungeon/post.glb`, ein Garderobenständer
+  fehlt im Regal): Stange und Manschette, vier Füße schräg von der Manschette
+  auf den Boden, je Seite zwei Haken — unten kurz und fast waagerecht (75° aus
+  dem Lot), oben lang und steil (25°), nach einem Referenzfoto des Besitzers.
+  Stange und Füße sind gestreckt (`stretch` 2 × 0,8 × 2), die Haken nicht.
+- **Daran hängt, was Figuren tragen** (`node`): hinten unten der Hut der Hexe
+  (`Witch_Hat`, 56 cm breit), vorn unten der Umhang des Schwarzen Ritters
+  (`BlackKnight_Cape`, 72 cm), rechts oben der Helm des Paladins
+  (`Paladin_Helmet`, 58 cm). Auf dem Kopf sind diese Hüte 0,9 bis 1,1 m breit —
+  der Kopf einer Figur misst 64 cm —, und so passten sie nicht auf eine Kachel.
+- **Die Lagen kommen aus einer Physikrechnung**, die nur dafür lief und nicht
+  im Repository steht: Jeder Hut fiel mit seinem Dreiecksnetz samt Innenseite
+  als Hitbox (Rapier) auf die Haken, bis er stillhing, und die Lage steht fest
+  in `pose.quat`. Der Helm ist innen geschlossen und rutschte nicht; er ist
+  von Hand gesetzt, der Umhang vom oberen an den unteren Haken gerückt.
+- **`A` öffnet _Aussehen_** (`GameElement.opens: 'outfit'`): Die
+  Stationsschicht macht daraus keine Station, sondern meldet das Element
+  einmal an (`StationLayer.add` → `addOpener`, `OPENER_REACH` = 0,5 m,
+  `aimOnly`), hängt **alle Teile** unter den Anker in der Mitte und lässt so
+  das ganze Möbel gelb umranden, sobald man darauf schaut. Der Druck geht
+  über `StationHost.open` an die Welt und von dort an
+  `WorldContext.openOutfit` — dieselbe Seite wie _Aussehen anpassen_ an der
+  Figur. Umstellen im Bau-Modus nimmt die Anmeldung mit (`StationLayer.remove`).
 
 ## Hinstellen
 

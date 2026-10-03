@@ -375,7 +375,7 @@ function relabel(entry: MenuEntry, place: MenuPlacement): MenuEntry {
  * **Der Weg zu einer Seite, wo immer sie steht** — für `openSubmenu`.
  *
  * Welten rufen `openSubmenu('bag')`, nachdem etwas aus dem Beutel genommen
- * wurde, die App `openSubmenu('look')` nach dem Kleiderschrank. Mit den
+ * wurde, die App `openSubmenu('look')` an der Garderobe. Mit den
  * Bereichen liegen diese Seiten eine Ebene tiefer, und der Aufrufer soll das
  * nicht wissen müssen: Gesucht wird in die Breite, höchstens `depth` Ebenen
  * tief — tief genug für Bereich → Eintrag → Unterseite, und flach genug, dass

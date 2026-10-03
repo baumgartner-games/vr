@@ -277,7 +277,7 @@ const RING_STEP = 2;
  * noch dort, wo sie waren, solange keins davor breiter geworden ist.
  *
  * `count` darf eine Zahl bleiben: Das sind dann lauter Stücke von einer
- * Kachel, und genau so ruft die Umkleide es auf (`GridWorld.openWardrobe`).
+ * Kachel.
  */
 export function tileSlots(
   count: number | readonly ConstructSize[],
@@ -1024,8 +1024,8 @@ export class ConstructRoom {
    *
    * Gerechnet wird über dem **Ursprung** des Ankers und nicht über seinem
    * Kasten: Ein Einbau steht mit seinem Ursprung auf der Kachelmitte
-   * (`GridWorld.buildFixtures`), sein Netz aber oft an der Kante davon (der
-   * Schrank steht an der Wand, `fixtures/wardrobe.edge`). Wer den Kasten
+   * (`GridWorld.buildFixtures`), sein Netz aber oft an der Kante davon (ein
+   * Einbau an der Wand). Wer den Kasten
    * mittelte, rastete deshalb ausgerechnet bei den Möbeln daneben ein, um die
    * es hier geht.
    */
