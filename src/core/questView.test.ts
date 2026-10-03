@@ -17,7 +17,7 @@ describe('die Sicht der Quest 3', () => {
     expect(inside(QUEST_VIEW, 41, 0)).toBe(false);
     expect(inside(QUEST_VIEW, 29, 20)).toBe(true);
     expect(inside(QUEST_VIEW, 31, 20)).toBe(false);
-    expect(inside(QUEST_VIEW, 0, 31)).toBe(false);
+    expect(inside(QUEST_VIEW, 0, 26)).toBe(false);
     expect(inside(QUEST_VIEW, 19, -45)).toBe(true);
     expect(inside(QUEST_VIEW, 0, -46)).toBe(false);
   });
@@ -28,9 +28,23 @@ describe('die Sicht der Quest 3', () => {
       // Mehr als der rote Randbereich bleibt zur Seite frei.
       expect(inside(QUEST_VIEW, az + Math.sign(az) * EDGE_BAND, el)).toBe(true);
     }
-    expect(inside(QUEST_SAFE, 29, 10)).toBe(true);
+    expect(inside(QUEST_SAFE, 29, -10)).toBe(true);
     expect(inside(QUEST_SAFE, 19, -35)).toBe(true);
-    expect(inside(QUEST_SAFE, 0, 11)).toBe(false);
+    expect(inside(QUEST_SAFE, 19, 15)).toBe(true);
+    expect(inside(QUEST_SAFE, 0, 16)).toBe(false);
+  });
+
+  it('ist oben das Spiegelbild von unten, um die gefühlte Null', () => {
+    for (const range of [QUEST_VIEW, QUEST_SAFE]) {
+      for (const row of range) {
+        const twin = range.find(
+          (other) => other.elevation - GAZE_PITCH === -(row.elevation - GAZE_PITCH),
+        );
+        expect(twin?.half).toBe(row.half);
+      }
+    }
+    expect(QUEST_VIEW[0]).toEqual({ elevation: 25, half: 20 });
+    expect(QUEST_VIEW[QUEST_VIEW.length - 1]).toEqual({ elevation: -45, half: 20 });
   });
 
   it('legt die gefühlte Null 10° unter geradeaus', () => {
@@ -41,7 +55,7 @@ describe('die Sicht der Quest 3', () => {
 
   it('schneidet die Ansicht am Schirm schief zu: unten weiter als oben', () => {
     const frustum = viewFrustum();
-    expect(frustum.top).toBeGreaterThan(Math.tan((30 * Math.PI) / 180) - 1e-9);
+    expect(frustum.top).toBeGreaterThan(Math.tan((25 * Math.PI) / 180) - 1e-9);
     expect(-frustum.bottom).toBeGreaterThan(frustum.top);
     expect(frustum.right).toBeCloseTo(Math.tan((40 * Math.PI) / 180));
     expect(frustum.left).toBeCloseTo(-frustum.right);

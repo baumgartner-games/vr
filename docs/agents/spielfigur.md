@@ -645,8 +645,15 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   jedenfalls alles um 10 verschieben"_: Das Gradnetz des Kalibrier-Helms ist
   um `GAZE_PITCH` (−10°) gedreht, seine Null liegt also dort, wo der Blick
   von selbst hingeht. Die Bereiche bleiben, wo sie gemessen wurden, und
-  heißen in den neuen Zahlen 10 höher (oben 40, unten −35). Im Netz stehen
+  heißen in den neuen Zahlen 10 höher. Im Netz stehen
   ihre Umrisse: rot das Sichtfeld, grün der sichere Bereich.
+- **Oben ist das Spiegelbild von unten** (`questView.mirrored`) — _„ab der
+  0° unteren Seite sollten wir so auf die obere Ebene spiegeln"_. Um die
+  gefühlte Null gerechnet ist gemessen: 0 ±40, −10 ±40, −20 ±35, −30 ±30,
+  −35 ±20; sicher 0 ±30, −10 ±30, −20 ±25, −25 ±20. Die obere Hälfte ist
+  dasselbe nach oben, das Sichtfeld reicht also von +35 bis −35, der sichere
+  Bereich von +25 bis −25 (in der Kamera: oben 25°/15°, unten −45°/−35°).
+  Die gemessene obere Hälfte war bis auf den Rand ohnehin dieselbe.
 - **Der Helm _Quest-3-Sicht · Immersiv_** (`figureParts.POV_HAT`,
   `viewCalibration.viewZones`) — _„bitte den Helm immersive Quest 3 pov"_,
   _„rote Linie am Rand, dick, dann rot bei dem Rand Bereich, dann orange bei

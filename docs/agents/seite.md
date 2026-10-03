@@ -560,7 +560,7 @@ richtig, und gezielt wurde unsauber.
   aus den augen dargestellt werden soll"_. Geändert wird nur das Bild:
   - das **gemessene Sichtfeld** der Quest 3 durch den immersiven Helm
     (`core/questView.ts`, `viewFrustum`; gemessen mit dem Kalibrier-Helm,
-    siehe [Spielfigur](spielfigur.md)): oben 30°, unten 45°, seitlich bis
+    siehe [Spielfigur](spielfigur.md)): oben 25°, unten 45°, seitlich bis
     40°. Die Kamera ist dafür schief zugeschnitten (ein gerader Kegel so weit
     wie die größte Seite, davon der Ausschnitt mit `setViewOffset` — Zeiger
     und Strahl rechnen damit von selbst richtig), die Leinwand steht als

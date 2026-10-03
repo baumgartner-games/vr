@@ -26,42 +26,54 @@ export interface ViewRow {
   readonly half: number;
 }
 
+/** Wo die gefühlte Null liegt, in Grad im Raum der Kamera (nach unten negativ). */
+export const GAZE_PITCH = -10;
+
 /**
- * **Das Sichtfeld**, von oben nach unten. Die oberste Zeile ist der Rand
- * („30, Rand oben"); wie breit er dort ist, wurde nicht gesagt — 25° setzt
- * die Verengung von 10° auf 20° fort.
+ * **Oben wie unten** — gewünscht: _„ab der 0° unteren Seite sollten wir so
+ * auf die obere Ebene spiegeln"_. Gemessen ist die untere Hälfte, in den
+ * Zahlen um die gefühlte Null (`GAZE_PITCH`); die obere ist ihr Spiegelbild,
+ * und alles steht danach im Raum der Kamera. Die gemessene obere Hälfte war
+ * bis auf den Rand ohnehin dieselbe (20 ±30, 10 ±35, 0 ±40 in der Kamera);
+ * der Rand oben rückt von 30° auf 25°.
  */
-export const QUEST_VIEW: readonly ViewRow[] = [
-  { elevation: 30, half: 25 },
-  { elevation: 20, half: 30 },
-  { elevation: 10, half: 35 },
+export function mirrored(below: readonly ViewRow[]): ViewRow[] {
+  const above = below
+    .filter((row) => row.elevation < 0)
+    .reverse()
+    .map((row) => ({ elevation: -row.elevation, half: row.half }));
+  return [...above, ...below].map((row) => ({
+    elevation: row.elevation + GAZE_PITCH,
+    half: row.half,
+  }));
+}
+
+/**
+ * **Das Sichtfeld**, von oben nach unten: die untere Hälfte, wie gemessen
+ * (hier schon um die gefühlte Null gerechnet: Kamera −10° ist 0), gespiegelt.
+ */
+export const QUEST_VIEW: readonly ViewRow[] = mirrored([
   { elevation: 0, half: 40 },
   { elevation: -10, half: 40 },
-  { elevation: -20, half: 40 },
-  { elevation: -30, half: 35 },
-  { elevation: -40, half: 30 },
-  { elevation: -45, half: 20 },
-];
+  { elevation: -20, half: 35 },
+  { elevation: -30, half: 30 },
+  { elevation: -35, half: 20 },
+]);
 
 /**
  * **Der sichere Bereich** — wo etwas stehen soll, das man immer sehen muss.
  * Gesagt waren oben und unten; dazwischen folgt er dem Sichtfeld mit 10°
- * Abstand.
+ * Abstand. Ebenso gespiegelt.
  */
-export const QUEST_SAFE: readonly ViewRow[] = [
-  { elevation: 10, half: 30 },
+export const QUEST_SAFE: readonly ViewRow[] = mirrored([
   { elevation: 0, half: 30 },
   { elevation: -10, half: 30 },
-  { elevation: -20, half: 30 },
-  { elevation: -30, half: 25 },
-  { elevation: -35, half: 20 },
-];
+  { elevation: -20, half: 25 },
+  { elevation: -25, half: 20 },
+]);
 
 /** Wie breit der rote Randbereich innen am Sichtfeld ist, in Grad. */
 export const EDGE_BAND = 5;
-
-/** Wo die gefühlte Null liegt, in Grad im Raum der Kamera (nach unten negativ). */
-export const GAZE_PITCH = -10;
 
 /** Eine Höhe im Raum der Kamera in den Zahlen des gedrehten Gradnetzes. */
 export function gazeElevation(elevation: number): number {

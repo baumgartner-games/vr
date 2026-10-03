@@ -13,7 +13,7 @@ import { viewFrustum, type ViewFrustum } from './questView';
  *
  * - **Das gemessene Sichtfeld** (`core/questView.ts`): der Kasten darum mitten
  *   im Fenster (`eyeBox`), so groß, wie es passt, die Kamera schief darauf
- *   zugeschnitten (oben 30°, unten 45°, seitlich 40°) und die Leinwand auf
+ *   zugeschnitten (oben 25°, unten 45°, seitlich 40°) und die Leinwand auf
  *   die Form der Messung beschnitten (`clip-path`); drum herum dunkel.
  * - **Das Menü als Bildschirm zwei Meter davor** (`GameMenu.presenting`), die
  *   Tafeln der Brille (`App.xrPreview`).
