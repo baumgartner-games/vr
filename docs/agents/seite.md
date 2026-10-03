@@ -453,10 +453,27 @@ menü kann dann genauso gerendert werden wie im web: Tab leisten oben, oben
 rechts der close button."_ Inventar und Katalog klappten am Arm nicht
 richtig, und gezielt wurde unsauber.
 
-- **Der Bildschirm** (`ui/XRMenu.ts`): 1,8 × 1,01 m, 16:9, beim Aufmachen
-  `MENU_DISTANCE` (2 m) waagerecht in Blickrichtung, 12 cm unter den Augen,
-  zum Kopf gedreht. Danach **steht er** — im Raum des Rigs: Gehen und Drehen
-  nehmen ihn mit, der Kopf nicht. Jedes Aufmachen stellt ihn neu hin.
+- **Der Bildschirm** (`ui/XRMenu.ts`): 2,25 × 1,27 m (erst 1,8 m, dann ein
+  Viertel größer), 16:9, beim Aufmachen `MENU_DISTANCE` (2 m) waagerecht in
+  Blickrichtung, 12 cm unter den Augen, zum Kopf gedreht. Danach **steht
+  er** — im Raum des Rigs: Gehen und Drehen nehmen ihn mit, der Kopf nicht.
+  Jedes Aufmachen stellt ihn neu hin.
+- **Scharf** — _„die schrift und alles in diesem menü [ist] nicht scharf
+  genug […] hoch skalieren vom rendering dort?"_ Ein Panel in der Szene wird
+  zweimal abgetastet: erst ins Bild jedes Auges (dessen Auflösung, an den
+  Rändern gröber durch Foveated Rendering), dann vom Kompositor durch die
+  Linsen. Deshalb zeigt die Brille das Menü jetzt als **Quad-Ebene**
+  (`ui/XRMenuLayer.ts`, WebXR Layers, `quality: 'text-optimized'`): Der
+  Kompositor liest die Leinwand selbst. Die Ebene liegt unter dem Bild der
+  Szene (`layers: [quad, projection]`), das Panel stanzt ein Loch hinein
+  (Farbe und Alpha 0, mit Tiefe); Modelle, Figur und Kreis davor zeichnet die
+  Szene weiter darüber. Die Lage der Ebene wird in `onBeforeRender` des Panels
+  gesetzt, damit sie beim Gehen nicht hinter dem Loch herhinkt. Ohne Layers
+  bleibt es die Textur. Abschaltbar unter _Grafik → Menü scharf (Brille)_
+  (`GraphicsSettings.menuLayer`) — auch am Schirm, falls es in der Brille
+  einmal falsch aussieht. Dazu ist Foveated Rendering aus, solange das Menü
+  offen ist (`GraphicsQuality.setMenuOpen`), und der Bildschirm ist ganz
+  deckend und rechteckig: Unter durchsichtigen Ecken läge nichts.
 - **Gezeichnet wie die Seite** (`UIPanel` mit `layout: 'screen'`, Maße in
   `ui/screenLayout.ts`, mit Test): oben ◀ ▶, die Reiter (Ikone links neben
   dem Wort) und ✕; darunter _Zurück_, Brotkrumen und Titel, rechts das Haus
@@ -491,10 +508,17 @@ richtig, und gezielt wurde unsauber.
 - **Die Werkzeuge kommen in der Brille aus dem Regal** (`tools`), als
   Kacheln: Greifen oder `A` legt eins in die Hand, der Trigger öffnet seine
   Einstellungen.
-- **Die Figur** steht rechts neben dem Bildschirm auf einer Tafel
-  (`ui/XRPlayerCard.ts`, `XRMenuOptions.aside`, im Ganzen vergrößert mit
-  `scale`): ein echtes kleines Modell im Raum, nur auf der Seite _Inventar_
-  zu sehen. _Aussehen anpassen_ öffnet _Figur_ im Menü.
+- **Die Figur ist eine Spalte des Bildschirms** wie am Schirm
+  (`PageOptions.aside`, `screenLayout.SCREEN_ASIDE_W`): Name, Aussehen und
+  _Aussehen anpassen_ zeichnet und bedient das Panel (Knopf `aside`), die
+  Figur selbst (`ui/XRPlayerCard.ts`) steht als kleines Modell vor ihrer
+  Fläche. Vorher stand sie als eigene Tafel daneben — _„scheint […] nicht
+  zum gleiche menü zu gehören […] Ich kann in diesem extra menü auch nicht
+  den button ‚aussehen anpassen' drücken"_.
+- **Der Punkt sprang**, sobald man auf die Figur oder ein Modell in einer
+  Kachel zeigte: Der Strahl prüfte das Panel samt seiner Kinder, und das
+  Panel las die Texturkoordinaten des Kindes als Stelle auf sich selbst.
+  Jetzt trifft ein Panel nur sich (`PointerTarget.shallow`).
 - **`GameMenu`** (vormals `WristMenus`) entscheidet, welches Gesicht gilt:
   ohne Brille die Seite, mit Brille der Bildschirm.
 - **Am Schirm nachstellen**: in der Konsole `bgvr.gameMenu.presenting = true`,

@@ -42,6 +42,14 @@ export const SCREEN_FOOTER_H = 58;
 /** Wie breit eine Kachel mindestens ist, bevor eine Spalte wegfällt. */
 const MIN_CELL_W = 210;
 const CELL_GAP = 16;
+/**
+ * **Die Spalte rechts neben der Liste** — die Figur im Inventar mit Name und
+ * _Aussehen anpassen_, wie am Schirm (`.pmenu__aside`, `ui/PlayerCard.ts`).
+ * Sie gehört zum Bildschirm und steht nicht als eigene Tafel daneben.
+ */
+export const SCREEN_ASIDE_W = 380;
+const ASIDE_GAP = 20;
+const ASIDE_BUTTON_H = 76;
 
 export interface Rect {
   readonly x: number;
@@ -52,7 +60,7 @@ export interface Rect {
 
 /** Ein Knopf im Kopf — oder ein Reiter mit seiner Stelle in der Reihe. */
 export type ScreenControl =
-  | { readonly kind: 'prev' | 'next' | 'close' | 'back' | 'home' }
+  | { readonly kind: 'prev' | 'next' | 'close' | 'back' | 'home' | 'aside' }
   | { readonly kind: 'tab'; readonly index: number };
 
 export interface ScreenHead {
@@ -62,6 +70,19 @@ export interface ScreenHead {
   readonly close: Rect;
   readonly back: Rect | null;
   readonly home: Rect | null;
+  /**
+   * Die Spalte rechts (`SCREEN_ASIDE_W`): die Karte im Ganzen, die Fläche,
+   * vor der die Figur steht, die Zeilen für Name und Aussehen und der Knopf.
+   */
+  readonly aside: {
+    readonly card: Rect;
+    readonly figure: Rect;
+    readonly titleY: number;
+    readonly subY: number;
+    readonly button: Rect;
+  } | null;
+  /** Wie breit die Liste ist — schmaler, wenn die Spalte daneben steht. */
+  readonly bodyW: number;
   /** Wo Brotkrumen und Titel stehen: links bündig ab `x`, so breit wie `w`. */
   readonly text: {
     readonly x: number;
@@ -78,7 +99,7 @@ export interface ScreenHead {
  */
 export function screenHead(
   tabCount: number,
-  options: { back: boolean; home: boolean },
+  options: { back: boolean; home: boolean; aside?: boolean },
   width = SCREEN_W,
 ): ScreenHead {
   const close: Rect = { x: width - SCREEN_PAD - BUTTON, y: TOP_Y, w: BUTTON, h: BUTTON };
@@ -101,6 +122,33 @@ export function screenHead(
     : null;
   const textX = back ? back.x + BUTTON + GAP * 2 : SCREEN_PAD + 6;
   const textRight = home ? home.x - GAP * 2 : width - SCREEN_PAD;
+  let aside: ScreenHead['aside'] = null;
+  const inner = width - SCREEN_PAD * 2;
+  if (options.aside) {
+    const x = width - SCREEN_PAD - SCREEN_ASIDE_W;
+    const card = {
+      x,
+      y: SCREEN_BODY_TOP,
+      w: SCREEN_ASIDE_W,
+      h: SCREEN_H - SCREEN_BODY_TOP - SCREEN_FOOTER_H,
+    };
+    const pad = 20;
+    const button = {
+      x: x + pad,
+      y: card.y + card.h - pad - ASIDE_BUTTON_H,
+      w: SCREEN_ASIDE_W - pad * 2,
+      h: ASIDE_BUTTON_H,
+    };
+    const subY = button.y - 22;
+    const titleY = subY - 38;
+    const figure = {
+      x: x + pad,
+      y: card.y + pad,
+      w: SCREEN_ASIDE_W - pad * 2,
+      h: titleY - 46 - card.y - pad,
+    };
+    aside = { card, figure, titleY, subY, button };
+  }
   return {
     prev,
     next,
@@ -108,6 +156,8 @@ export function screenHead(
     close,
     back,
     home,
+    aside,
+    bodyW: aside ? inner - SCREEN_ASIDE_W - ASIDE_GAP : inner,
     text: { x: textX, w: textRight - textX, crumbY: LINE_Y + 28, titleY: LINE_Y + 70 },
   };
 }
@@ -121,6 +171,7 @@ export function controlAt(head: ScreenHead, x: number, y: number): ScreenControl
   if (inside(head.next)) return { kind: 'next' };
   if (inside(head.back)) return { kind: 'back' };
   if (inside(head.home)) return { kind: 'home' };
+  if (inside(head.aside?.button ?? null)) return { kind: 'aside' };
   const index = head.tabs.findIndex((rect) => inside(rect));
   return index >= 0 ? { kind: 'tab', index } : null;
 }

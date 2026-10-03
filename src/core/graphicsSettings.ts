@@ -152,6 +152,13 @@ export interface GraphicsSettings {
    */
   showFps: boolean;
   /**
+   * **Das Menü in der Brille als Ebene des Kompositors** (`ui/XRMenuLayer.ts`):
+   * schärfere Schrift, weil die Brille die Leinwand selbst abtastet statt
+   * eines Bildes davon. Aus heißt: das Panel als Textur in der Szene, wie
+   * bis Oktober 2026 — für den Fall, dass eine Brille die Ebene falsch zeigt.
+   */
+  menuLayer: boolean;
+  /**
    * **Die Gitterlinien der Ebene, auf der man steht** — die Kanten der
    * Bodenkacheln, halbtransparent darübergelegt (`worlds/grid/GridWorld.ts`).
    *
@@ -641,6 +648,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   mode: 'simple',
   xrScale: 1,
   showFps: false,
+  menuLayer: true,
   gridLines: false,
   cellFootprints: false,
   showPosition: false,
@@ -822,6 +830,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     ? (raw.xrScale as XrScale)
     : DEFAULT_GRAPHICS.xrScale;
   const showFps = raw.showFps === true;
+  const menuLayer = raw.menuLayer !== false;
   const gridLines = raw.gridLines === true;
   const cellFootprints = raw.cellFootprints === true;
   const showPosition = raw.showPosition === true;
@@ -889,6 +898,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     mode,
     xrScale,
     showFps,
+    menuLayer,
     gridLines,
     cellFootprints,
     showPosition,

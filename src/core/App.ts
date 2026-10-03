@@ -28,7 +28,6 @@ import { outfitModel } from '../ui/outfitModels';
 import { PlayerCard } from '../ui/PlayerCard';
 import { tabbedMenu } from '../ui/menuTabs';
 import { XRPlayerCard } from '../ui/XRPlayerCard';
-import { MENU_SCREEN_H, MENU_SCREEN_W } from '../ui/XRMenu';
 import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
 import { topDownFit } from './topDownPose';
@@ -539,10 +538,6 @@ export class App {
       this.playerCard?.refresh();
     });
     this.xrCard = new XRPlayerCard({
-      panelWidth: MENU_SCREEN_W,
-      panelHeight: MENU_SCREEN_H,
-      // Gemessen war die Karte für ein Panel von 26 × 43 cm am Handgelenk.
-      scale: MENU_SCREEN_H / 0.43,
       name: () => this.net.name,
       onCustomize: () => this.openWardrobe(),
     });
@@ -554,14 +549,14 @@ export class App {
       title: 'Menü',
       footer: 'Zielen + Trigger/A · B/Y zurück',
       tabs: true,
-      aside: { page: INVENTORY_TAB, object: this.xrCard },
+      aside: { page: INVENTORY_TAB, card: this.xrCard },
       // Der Weg durchs Menü merkt sich den **Katalog** über das Neuladen
       // hinaus (`ui/menuRecall.ts`) — alles andere fängt nach einem Neustart
       // wieder oben an.
       nav: new MenuNav(catalogRecall()),
     });
     this.rig.add(this.gameMenu);
-    this.xrCard.attachPointer(this.pointer);
+    this.gameMenu.xr.useLayer(this.renderer, this.camera, () => graphics().menuLayer);
     this.pageMenu = new PageMenu({
       title: 'Menü',
       tabs: true,
@@ -1437,7 +1432,6 @@ export class App {
     this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
     this.gameMenu.attachPointer();
-    this.xrCard.attachPointer(this.pointer);
     // **Die Willkommens-Tafel der Brille gehört auch keiner Welt**, und ihr
     // Zeigerziel räumt `clear` genauso mit weg wie das der Tastatur. Es
     // stand bis hierhin nur einmal im Konstruktor — nach dem ersten
@@ -2409,6 +2403,21 @@ export class App {
           run: () => {
             const next = saveGraphics({ showFps: !graphics().showFps });
             this.frameStats.visible = next.showFps;
+            this.menuDirty = true;
+          },
+        },
+        {
+          // **Schärfer in der Brille** — das Menü als Ebene des Kompositors
+          // (`ui/XRMenuLayer.ts`). Am Schirm umschaltbar, falls es in der
+          // Brille einmal falsch aussieht und man dort nichts lesen kann.
+          id: 'gfx:menu-layer',
+          label: 'Menü scharf (Brille)',
+          sub: 'Die Brille zeichnet das Menü selbst — aus, falls es falsch aussieht',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.menuLayer,
+          run: () => {
+            saveGraphics({ menuLayer: !graphics().menuLayer });
             this.menuDirty = true;
           },
         },
@@ -3569,6 +3578,7 @@ export class App {
     );
     this.playerGuides.update(_head, this.rig.getFloorY());
     this.gameMenu.update(dt, this.input, _head);
+    this.quality.setMenuOpen(this.renderer.xr.isPresenting && this.gameMenu.xr.isOpen);
     this.xrCard.update(dt);
     this.updateXRGuide(dt, presenting || this.xrPreview);
     this.pointer.update(this.input, presenting);

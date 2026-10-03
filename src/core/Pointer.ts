@@ -77,6 +77,17 @@ export interface PointerTarget {
    * eine eindeutige Absicht. Sobald die Hand das Ziel verlässt, ist es frei.
    */
   exclusive?: boolean;
+  /**
+   * **Nur das Objekt selbst treffen, nicht seine Kinder.** Ab Werk zählt
+   * alles darunter mit (ein Werkzeug aus vielen Teilen).
+   *
+   * Ein Panel aus Leinwand darf das nicht: Seine Stelle liest es aus den
+   * Texturkoordinaten des Treffers (`PointerHit.uv`), und vor ihm stehen
+   * Kinder mit eigenen — die kleinen Modelle in den Kacheln, die Figur neben
+   * dem Inventar. Traf der Strahl eines davon, las das Panel dessen `uv` als
+   * Stelle auf sich selbst, und der Punkt sprang wild über den Bildschirm.
+   */
+  shallow?: boolean;
 }
 
 const _ray = new THREE.Ray();
@@ -407,7 +418,7 @@ export class Pointer {
         const owner = this.ownerOf(target);
         if (owner !== null && owner !== hand) continue;
       }
-      const intersections = this.raycaster.intersectObject(target.object, true);
+      const intersections = this.raycaster.intersectObject(target.object, target.shallow !== true);
       const first = intersections[0];
       if (!first) continue;
       if (best && first.distance >= best.hit.distance) continue;
