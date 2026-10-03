@@ -70,13 +70,14 @@ keinen Zielbranch und damit nichts zu prüfen; wer dort etwas ablädt, das
 jemand merken soll, erhöht sie trotzdem. Den mittleren Teil (`Build`) setzt
 von Hand, wer findet, dass etwas Großes fertig ist.
 
-Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
-und `npm test` — dieselben vier Schritte, die auch die CI macht
-(`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
-keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5960 Tests) — eine zweite,
-langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
-[Tests](docs/agents/tests.md)).
+Vor dem Push laufen `npm test` und `npm run build` — dieselben zwei Schritte,
+die auch die CI bei jedem Push macht (`.github/workflows/deploy.yml`); der
+Build enthält den Typecheck (`tsc --noEmit`). `npm test` prüft **nur das
+Kritische** und ist in unter zehn Sekunden durch — wer eine Suite dazutut, muss
+begründen, warum sie kritisch ist (siehe [Tests](docs/agents/tests.md)).
+**Lint und Format** laufen einmal die Woche in der CI (`lint.yml`) und nur,
+wenn sich seit dem letzten grünen Lauf etwas geändert hat; wer will, ruft
+`npm run lint` und `npm run format` trotzdem vorher selbst auf.
 
 ### Sessions, die nicht auf `main` pushen dürfen
 
@@ -86,7 +87,7 @@ main` ist dort nicht möglich, egal was ein paar Absätze weiter oben steht. Fü
 diese Sessions gilt deshalb der Umweg — aber vollständig, bis der Commit auf
 `main` steht:
 
-1. Auf dem zugewiesenen Branch entwickeln, die vier Prüfungen laufen lassen,
+1. Auf dem zugewiesenen Branch entwickeln, Tests und Build laufen lassen,
    pushen.
 2. Pull Request eröffnen, **nicht als Draft**. Ein Draft ist für GitHub keine
    fertige Arbeit: mergen lässt er sich nicht, und Auto-Merge lässt sich auf
@@ -147,7 +148,7 @@ Stichpunkten).
 
 ### Vor jedem Push
 
-- **[Tests](docs/agents/tests.md)** — Zwei Geschwindigkeiten, und was überhaupt geprüft wird.
+- **[Tests](docs/agents/tests.md)** — Nur das Kritische: was geprüft wird, was weg ist, und Lint einmal die Woche.
 
 ### Was es gibt
 

@@ -1,28 +1,16 @@
 /**
- * Jest runs the parts of the game that are pure maths — the remote grab above
- * all. Those modules deliberately avoid three.js and Rapier, so the tests need
- * no browser and no WebGL: plain TypeScript compiled to CommonJS.
+ * Jest prüft nur, was kritisch ist und im Browser nicht auffällt: Navigation,
+ * Greifen, Boden und Portale, Speicherstände, Netz und die App-Hülle — 26
+ * Suiten, unter zehn Sekunden (`docs/agents/tests.md`, dort auch die Liste und
+ * wo die gelöschten Suiten in der Geschichte liegen). Die Module darunter
+ * kommen ohne Renderer und WebGL aus: plain TypeScript, nach CommonJS
+ * übersetzt.
  *
- * **Drei Ausnahmen gibt es**, und alle drei haben sich verdient:
- * `npc/npcDirector.test.ts` prüft, woher Nachschub kommt, und dafür braucht
- * ein NPC einen Körper; `physics/playerFooting.test.ts` stellt den Spieler
- * selbst auf den Boden, bei fünf Bildraten, weil die Bildrate mitentschied, ob
- * er hindurchfiel; und `worlds/portal/portalFall.test.ts` lässt einen Zombie
- * und einen Würfel durch ein Bodenportal fallen, denn ob ein Körper durch
- * einen Boden fällt, entscheidet keine Rechnung, sondern eine Kollisionsmaske
- * in der Engine. Alle drei kosten zusammen ein paar Sekunden; alles andere
- * bleibt reine Rechnung.
- *
- * (Die vierte war `navlab/labPhysics.test.ts` — sie lief über die Quader des
- * Navigationslabors und ist mit dieser Welt gegangen.)
- *
- * **Eine Geschwindigkeit.** Hier standen einmal zwei: eine Liste `SLOW` mit
- * vierzehn Suiten, die ganze Runden ausspielten (Bot-Runden, das Training der
- * Gewichte, Schächte, Glättung), ein zweites Skript `test:slow` und ein
- * zweiter CI-Job daneben. Zusammen kosteten sie über acht Minuten Rechenzeit
- * für 214 Tests — und damit mehr als die 4776 Tests dieser Suite, die in gut
- * einer halben Minute durch sind. Sie sind weg (`docs/agents/tests.md`): Was
- * hier läuft, läuft in einem Lauf, und `npm test` ist alles, was es gibt.
+ * Zwei Suiten starten wirklich Rapier: `physics/playerFooting.test.ts` stellt
+ * den Spieler bei fünf Bildraten auf den Boden, und
+ * `worlds/portal/portalFall.test.ts` lässt einen Zombie und einen Würfel durch
+ * ein Bodenportal fallen — ob ein Körper durch einen Boden fällt, entscheidet
+ * eine Kollisionsmaske in der Engine und keine Rechnung.
  */
 module.exports = {
   // The suite does not need a system Watchman service; sandboxed macOS runs
