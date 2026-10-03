@@ -438,8 +438,30 @@ Vorschau.
   solange die Schleife läuft — vorher meldete das Anhalten im Hintergrund
   genau den Zuhörer ab, der sie beim Zurückkommen wieder starten sollte, und
   in den Kacheln blieben die Ikonen stehen.
-- **In der Brille nicht**: Dort bleibt _Aussehen_ am Handgelenk unter den
-  Einstellungen, und die Seite unter dem Inventar wird gar nicht erst gebaut.
+- **In der Brille dieselbe Seite** — gewünscht: _„Bei dem menü bei aussehen
+  anpassen, soll wie im web auch der charakter rechts weiterhin angezeigt
+  werden. Dazu sollen die einzelnen hut und co optionen nicht als elemente
+  sondern als kacheln mit vorschau gerendert werden."_ _Aussehen anpassen_
+  schlägt auch auf dem Bildschirm der Brille `OUTFIT_PAGE` auf (vorher
+  sprang es auf drei Zeilen unter den Einstellungen), mit denselben Kacheln
+  samt Modell. Die Figur bleibt rechts stehen (`XRMenuOptions.aside.pages`)
+  und trägt den Entwurf; die Spalte hat dort zwei Knöpfe, _Aussehen
+  speichern_ (gesperrt, solange nichts geändert ist) und _Aussehen
+  zurücksetzen_ (`PanelAside.buttons`, `screenHead` mit `aside: 2`,
+  `UIPanel.onAside`). Wer _Aussehen_ verlässt oder zumacht, verwirft den
+  Entwurf (`XRPlayerCard.onPage`). Die drei Zeilen unter _Einstellungen →
+  Aussehen_ bleiben daneben bestehen.
+- **_Details_ an der Figur** (`PlayerCard.onDetail`, `.pcard__detail`):
+  gewünscht: _„Bei dem charakter vorschau bild will ich einen button haben,
+  mit dem ich den charakter im detail ansehen kann wie bei katalog items."_
+  Der Knopf in der Ecke des Bilds schlägt `OUTFIT_DETAIL` auf — eine
+  versteckte Detailseite wie die eines Stücks im Katalog (drehen, zoomen,
+  Gitterboden, Hülle, Bewegung; die Bewegungen kommen über
+  `GameMenu.setExtraModels(…, outfitClips)`). Gezeigt wird die Figur, wie sie
+  im Regal steht; Hut und fremder Kopf stehen als Zeilen darunter, sie sitzen
+  erst am Körper im Spiel (`AvatarBody`). `findMenuPath` findet dafür auch
+  Seiten ohne Kinder, wenn sie ein Ding zeigen (`MenuEntry.detail`). Nur am
+  Schirm: Detailseiten gibt es in der Brille noch nicht.
 
 ### In der Brille: ein Bildschirm zwei Meter vor einem
 
@@ -530,22 +552,34 @@ richtig, und gezielt wurde unsauber.
   Jetzt trifft ein Panel nur sich (`PointerTarget.shallow`).
 - **`GameMenu`** (vormals `WristMenus`) entscheidet, welches Gesicht gilt:
   ohne Brille die Seite, mit Brille der Bildschirm.
-- **VR simulieren — eine Quest 3 im Browser** (`core/xrEmulator.ts`).
-  Gewünscht: _„bitte im browser die möglichkeit […] den ‚vr modus'
-  auszuprobieren auch wenn kein webxr unterstützt wird aber dann eben mit der
-  quest ansicht simuliert."_ Ohne Brille steht unter _Spiel-Sicht_ die Zeile
-  **VR simulieren** (`view:vr-sim`, `App.enterSimulatedVR`); oder die
-  Adresse trägt `?xr=sim`, dann meldet sich gleich beim Laden eine Brille und
-  der Knopf _VR_ tut, was er mit einer täte. Dahinter steckt Metas Emulator
-  **IWER** mit seiner **DevUI** (Kopf und Controller mit Maus und Tastatur)
-  und dem **Layers-Polyfill**, damit auch die Menü-Ebene läuft. Den Polyfill
-  setzt `emulateQuest` selbst nach `installRuntime` ein: IWERs eigenes
-  `polyfillLayers` überschreibt dessen `XRWebGLBinding` sofort wieder
-  (iwer 2.5.0). `forceInstall`, weil Chrome am Schreibtisch ein
-  `navigator.xr` ohne Brille hat. Alles liegt im Chunk `xr-emulator`
-  (`vite.config.ts`, `EMULATOR`) — auch das eigene three.js der DevUI, das
-  sonst im Chunk von three.js gelandet wäre —, wird erst beim ersten Gebrauch
-  geladen und steht nicht in der Liste für _Alles herunterladen_.
+- **VR-Ansicht — aus den Augen, wie in der Quest 3** (`core/vrView.ts`,
+  `App.applyVrView`, mit Test). Unter _Spiel-Sicht_ ohne Brille die Zeile
+  **VR-Ansicht** (`view:vr-view`, ein Häkchen, gemerkt im Browser unter
+  `bgvr.vrView`). Gewünscht: _„auch will ich bei vr ansicht simmulieren bitte
+  die steuerung wie in aus den augen beibehalten. Es ist nur eine option wie
+  aus den augen dargestellt werden soll"_. Geändert wird nur das Bild:
+  - die Leinwand als Kasten im Seitenverhältnis eines Auges (0,935) mitten im
+    Fenster, drum herum schwarz (`eyeBox`), mit dessen Sichtfeld (96°
+    senkrecht) — die Zahlen sind ein Anfang, nachgemessen wird mit dem
+    **Kalibrier-Helm** (siehe [Spielfigur](spielfigur.md));
+  - das Menü als **Bildschirm zwei Meter davor** (`GameMenu.presenting`),
+    gezielt mit der Maus; `Tab` schlägt dort das Inventar auf;
+  - die Tafeln der Brille statt Ladebildschirm, Willkommens-Karte und
+    Tastenhilfe (`App.previewingXR`, wie `bgvr.xrPreview`).
+
+  Von oben gilt sie nicht, in der Brille auch nicht; _Aus den Augen_ im Menü
+  schaltet sie aus.
+- **Metas Emulator gibt es nur noch über die Adresse** (`?xr=sim`,
+  `core/xrEmulator.ts`): eine echte Sitzung mit IWER, seiner DevUI (Kopf und
+  Controller mit Maus und Tastatur, also eine andere Steuerung) und dem
+  Layers-Polyfill für die Menü-Ebene. Den Polyfill setzt `emulateQuest`
+  selbst nach `installRuntime` ein: IWERs eigenes `polyfillLayers`
+  überschreibt dessen `XRWebGLBinding` sofort wieder (iwer 2.5.0).
+  `forceInstall`, weil Chrome am Schreibtisch ein `navigator.xr` ohne Brille
+  hat. Alles liegt im Chunk `xr-emulator` (`vite.config.ts`, `EMULATOR`) —
+  auch das eigene three.js der DevUI —, wird erst beim ersten Gebrauch
+  geladen und steht nicht in der Liste für _Alles herunterladen_. Die Zeile
+  _VR simulieren_ im Menü, die ihn startete, ist der VR-Ansicht gewichen.
 - **Am Schirm nachstellen** (ohne Sitzung): in der Konsole `bgvr.gameMenu.presenting = true`,
   dann `bgvr.gameMenu.toggle(true)` — der Bildschirm steht dann zwei Meter
   vor der Kamera, und die Maus zielt.

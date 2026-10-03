@@ -11,8 +11,11 @@
  * Quad-Ebene des Menüs (`ui/XRMenuLayer.ts`).
  *
  * Geladen wird beides **erst beim ersten Gebrauch** (dynamischer Import): Wer
- * nie simuliert, lädt kein Byte davon. Angeboten wird es nur, wenn keine
- * Brille gemeldet ist (`App.viewMenu`) oder die Adresse `?xr=sim` trägt.
+ * nie simuliert, lädt kein Byte davon. Zu haben ist es nur noch über die
+ * Adresse `?xr=sim`. Im Menü steht statt dessen die **VR-Ansicht**
+ * (`core/vrView.ts`): nur die Darstellung, gesteuert wie _Aus den Augen_ —
+ * gewünscht: _„Es ist nur eine option wie aus den augen dargestellt werden
+ * soll"_.
  */
 
 let installing: Promise<void> | null = null;

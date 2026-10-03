@@ -58,10 +58,15 @@ export interface Rect {
   readonly h: number;
 }
 
-/** Ein Knopf im Kopf — oder ein Reiter mit seiner Stelle in der Reihe. */
+const ASIDE_BUTTON_GAP = 14;
+
+/**
+ * Ein Knopf im Kopf — oder ein Reiter mit seiner Stelle in der Reihe, oder
+ * ein Knopf in der Spalte rechts mit seiner Stelle von oben.
+ */
 export type ScreenControl =
-  | { readonly kind: 'prev' | 'next' | 'close' | 'back' | 'home' | 'aside' }
-  | { readonly kind: 'tab'; readonly index: number };
+  | { readonly kind: 'prev' | 'next' | 'close' | 'back' | 'home' }
+  | { readonly kind: 'tab' | 'aside'; readonly index: number };
 
 export interface ScreenHead {
   readonly prev: Rect | null;
@@ -72,14 +77,16 @@ export interface ScreenHead {
   readonly home: Rect | null;
   /**
    * Die Spalte rechts (`SCREEN_ASIDE_W`): die Karte im Ganzen, die Fläche,
-   * vor der die Figur steht, die Zeilen für Name und Aussehen und der Knopf.
+   * vor der die Figur steht, die Zeilen für Name und Aussehen und die Knöpfe
+   * darunter, von oben nach unten — einer im Inventar (_Aussehen anpassen_),
+   * zwei unter _Aussehen_ (_Speichern_, _Zurücksetzen_).
    */
   readonly aside: {
     readonly card: Rect;
     readonly figure: Rect;
     readonly titleY: number;
     readonly subY: number;
-    readonly button: Rect;
+    readonly buttons: readonly Rect[];
   } | null;
   /** Wie breit die Liste ist — schmaler, wenn die Spalte daneben steht. */
   readonly bodyW: number;
@@ -96,10 +103,12 @@ export interface ScreenHead {
  * Der Kopf des Panels für so viele Reiter und mit diesen Knöpfen.
  *
  * Ohne Reiter fehlen auch ◀ ▶ — es gäbe nichts, wodurch sie blättern.
+ * `aside` ist die Zahl der Knöpfe in der Spalte rechts (`true` ist einer),
+ * ohne Angabe gibt es keine Spalte.
  */
 export function screenHead(
   tabCount: number,
-  options: { back: boolean; home: boolean; aside?: boolean },
+  options: { back: boolean; home: boolean; aside?: boolean | number },
   width = SCREEN_W,
 ): ScreenHead {
   const close: Rect = { x: width - SCREEN_PAD - BUTTON, y: TOP_Y, w: BUTTON, h: BUTTON };
@@ -124,7 +133,9 @@ export function screenHead(
   const textRight = home ? home.x - GAP * 2 : width - SCREEN_PAD;
   let aside: ScreenHead['aside'] = null;
   const inner = width - SCREEN_PAD * 2;
-  if (options.aside) {
+  const asideButtons =
+    options.aside === true ? 1 : Math.max(0, Math.floor(Number(options.aside ?? 0)));
+  if (options.aside !== undefined && options.aside !== false) {
     const x = width - SCREEN_PAD - SCREEN_ASIDE_W;
     const card = {
       x,
@@ -133,13 +144,13 @@ export function screenHead(
       h: SCREEN_H - SCREEN_BODY_TOP - SCREEN_FOOTER_H,
     };
     const pad = 20;
-    const button = {
-      x: x + pad,
-      y: card.y + card.h - pad - ASIDE_BUTTON_H,
-      w: SCREEN_ASIDE_W - pad * 2,
-      h: ASIDE_BUTTON_H,
-    };
-    const subY = button.y - 22;
+    const buttons: Rect[] = [];
+    let top = card.y + card.h - pad;
+    for (let index = 0; index < asideButtons; index++) {
+      top -= ASIDE_BUTTON_H + (index > 0 ? ASIDE_BUTTON_GAP : 0);
+      buttons.unshift({ x: x + pad, y: top, w: SCREEN_ASIDE_W - pad * 2, h: ASIDE_BUTTON_H });
+    }
+    const subY = top - 22;
     const titleY = subY - 38;
     const figure = {
       x: x + pad,
@@ -147,7 +158,7 @@ export function screenHead(
       w: SCREEN_ASIDE_W - pad * 2,
       h: titleY - 46 - card.y - pad,
     };
-    aside = { card, figure, titleY, subY, button };
+    aside = { card, figure, titleY, subY, buttons };
   }
   return {
     prev,
@@ -171,7 +182,8 @@ export function controlAt(head: ScreenHead, x: number, y: number): ScreenControl
   if (inside(head.next)) return { kind: 'next' };
   if (inside(head.back)) return { kind: 'back' };
   if (inside(head.home)) return { kind: 'home' };
-  if (inside(head.aside?.button ?? null)) return { kind: 'aside' };
+  const button = head.aside?.buttons.findIndex((rect) => inside(rect)) ?? -1;
+  if (button >= 0) return { kind: 'aside', index: button };
   const index = head.tabs.findIndex((rect) => inside(rect));
   return index >= 0 ? { kind: 'tab', index } : null;
 }
@@ -180,7 +192,7 @@ export function controlAt(head: ScreenHead, x: number, y: number): ScreenControl
 export function sameControl(a: ScreenControl | null, b: ScreenControl | null): boolean {
   if (a === null || b === null) return a === b;
   if (a.kind !== b.kind) return false;
-  return a.kind !== 'tab' || a.index === (b as { index: number }).index;
+  return !('index' in a) || a.index === (b as { index: number }).index;
 }
 
 /**

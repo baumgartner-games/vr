@@ -160,6 +160,12 @@ export const MODEL_HATS = {
     'Helm des Space Rangers · Immersiv',
     'Derselbe Helm — in der Brille auch um den eigenen Kopf',
   ),
+  calibrationImmersive: part(
+    SPACE_RANGER_FLIGHT,
+    ['SpaceRanger_Helmet'],
+    'Kalibrier-Helm · Immersiv',
+    'Der immersive Helm mit farbigen Gradlinien im Blick — zum Ausmessen der Brille',
+  ),
   paladinHelmet: part(PALADIN_HELMET, ['Paladin_Helmet'], 'Helm des Paladins', 'Vom Paladin'),
   clownHat: part(CLOWN, ['Clown_Hat'], 'Clownshut', 'Vom Clown'),
   mechHead: part(COMBAT_MECH, ['CombatMech_Head'], 'Kopf des Kampfroboters', 'Vom Combat Mech'),
@@ -216,6 +222,18 @@ export function isModelHat(kind: string): kind is ModelHatKind {
  * Helm des Space Rangers.
  */
 export const IMMERSIVE_HAT: ModelHatKind = 'flightHelmetImmersive';
+
+/**
+ * **Der Helm zum Ausmessen** — derselbe immersive Helm, dazu ein Gradnetz vor
+ * dem Auge (`core/viewCalibration.ts`). Für alle anderen wieder der Helm des
+ * Space Rangers.
+ */
+export const CALIBRATION_HAT: ModelHatKind = 'calibrationImmersive';
+
+/** Ob man diesen Hut in der Brille auch um den eigenen Kopf trägt (`core/selfHelmet.ts`). */
+export function isImmersiveHat(kind: string): kind is ModelHatKind {
+  return kind === IMMERSIVE_HAT || kind === CALIBRATION_HAT;
+}
 
 // --- die Köpfe ----------------------------------------------------------------
 

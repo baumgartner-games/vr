@@ -391,7 +391,8 @@ export function findMenuPath(
   for (let d = 0; d < depth && level.length > 0; d++) {
     const next: typeof level = [];
     for (const { entry, path } of level) {
-      if (entry.id === id && entry.children) return path;
+      // Eine Seite ist, was Kinder hat — oder ein Ding zeigt (`MenuEntry.detail`).
+      if (entry.id === id && (entry.children || entry.detail)) return path;
       for (const child of entry.children ?? [])
         next.push({ entry: child, path: [...path, child.id] });
     }

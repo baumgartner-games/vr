@@ -108,11 +108,12 @@ export interface XRMenuOptions {
    */
   tabs?: boolean;
   /**
-   * **Die Spalte rechts** — für genau eine Seite: die Figur im Inventar
-   * (`ui/XRPlayerCard.ts`). Name und Knopf zeichnet das Panel
-   * (`PageOptions.aside`), die Figur steht als Modell davor.
+   * **Die Spalte rechts** — für die Seiten, auf denen `pages` ja sagt: die
+   * Figur im Inventar und unter _Aussehen_ (`ui/XRPlayerCard.ts`). Name und
+   * Knöpfe zeichnet das Panel (`PageOptions.aside`), die Figur steht als
+   * Modell davor.
    */
-  aside?: { page: string; card: XRPlayerCard };
+  aside?: { pages: (page: string) => boolean; card: XRPlayerCard };
 }
 
 /**
@@ -145,7 +146,7 @@ export class XRMenu extends THREE.Group {
   /** Beim nächsten Bild vor den Kopf stellen — gesetzt beim Aufmachen. */
   private place = false;
   private readonly tabs: boolean;
-  private readonly aside: { page: string; card: XRPlayerCard } | null;
+  private readonly aside: { pages: (page: string) => boolean; card: XRPlayerCard } | null;
   /** Das Menü als Ebene des Kompositors (`useLayer`) — oder `null`, dann Textur. */
   private layer: { layer: XRMenuLayer; enabled: () => boolean } | null = null;
   private root: MenuEntry[] = [];
@@ -238,6 +239,7 @@ export class XRMenu extends THREE.Group {
       onSelect: (index, hand) => this.handleSelect(index, hand),
       onTab: (index) => this.showTab(index),
       onControl: (control) => this.handleControl(control),
+      onAside: (index) => this.aside?.card.press(index),
     });
     // Über der Welt, auch hinter einer Wand (`PANEL_ORDER`): undurchsichtig
     // mit ausgestanzten Ecken, damit es im Durchgang der festen Dinge nach
@@ -389,11 +391,8 @@ export class XRMenu extends THREE.Group {
   }
 
   /** Ein Knopf im Kopf des Bildschirms. */
-  private handleControl(control: 'prev' | 'next' | 'close' | 'back' | 'home' | 'aside'): void {
+  private handleControl(control: 'prev' | 'next' | 'close' | 'back' | 'home'): void {
     switch (control) {
-      case 'aside':
-        this.aside?.card.onCustomize();
-        return;
       case 'prev':
         this.stepTab(-1);
         return;
@@ -526,7 +525,10 @@ export class XRMenu extends THREE.Group {
     const aside = this.aside;
     if (!aside) return;
     const card = aside.card;
-    const anchor = this.open && this.page.id === aside.page ? this.panel.asideAnchor() : null;
+    const shown = this.open && aside.pages(this.page.id);
+    // Auch bei geschlossenem Menü: Wer zumacht, verlässt _Aussehen_.
+    card.onPage(this.open ? this.page.id : null);
+    const anchor = shown ? this.panel.asideAnchor() : null;
     if (anchor && card.parent !== this.panel) this.panel.add(card);
     if (card.parent !== this.panel) return;
     card.visible = anchor !== null;
@@ -617,7 +619,7 @@ export class XRMenu extends THREE.Group {
       // angehefteten Zeilen mehr, die im Raster eine ganze Kachelreihe kosten.
       back: this.stack.length > this.floor,
       home: this.homeDepth() >= 0,
-      ...(this.aside && page.id === this.aside.page ? { aside: this.aside.card.info() } : {}),
+      ...(this.aside && this.aside.pages(page.id) ? { aside: this.aside.card.info() } : {}),
       ...(this.tabs
         ? {
             tabs: this.root.map((entry) => ({

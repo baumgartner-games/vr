@@ -84,8 +84,22 @@ describe('screenHead aside', () => {
   it('narrows the list and finds the button in the column', () => {
     const plain = screenHead(6, { back: false, home: false });
     expect(head.bodyW).toBeLessThan(plain.bodyW);
-    expect(controlAt(head, ...centre(head.aside!.button))).toEqual({ kind: 'aside' });
+    expect(controlAt(head, ...centre(head.aside!.buttons[0]!))).toEqual({
+      kind: 'aside',
+      index: 0,
+    });
     expect(plain.aside).toBeNull();
+  });
+
+  it('stacks two buttons under Aussehen, each its own control, the figure still large', () => {
+    const two = screenHead(6, { back: true, home: false, aside: 2 });
+    const [save, reset] = two.aside!.buttons;
+    expect(save!.y + save!.h).toBeLessThan(reset!.y);
+    expect(reset!.y + reset!.h).toBeLessThanOrEqual(two.aside!.card.y + two.aside!.card.h);
+    expect(two.aside!.subY).toBeLessThan(save!.y);
+    expect(controlAt(two, ...centre(save!))).toEqual({ kind: 'aside', index: 0 });
+    expect(controlAt(two, ...centre(reset!))).toEqual({ kind: 'aside', index: 1 });
+    expect(two.aside!.figure.h).toBeGreaterThan(200);
   });
 
   it('keeps the column inside the screen, below the head', () => {

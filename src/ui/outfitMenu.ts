@@ -41,6 +41,16 @@ import type { MenuEntry } from './menu';
 /** Die Id der Seite unter dem Reiter _Inventar_. */
 export const OUTFIT_PAGE = 'outfit';
 
+/**
+ * **Die eigene Figur im Detail** — wie ein Stück im Katalog: groß, zum
+ * Drehen und Zoomen, mit Gitterboden und Bewegung (`MenuEntry.detail`,
+ * `ui/PageDetail.ts`). Gewünscht: _„Bei dem charakter vorschau bild will ich
+ * einen button haben, mit dem ich den charakter im detail ansehen kann wie
+ * bei katalog items."_ Hinein geht es über _Details_ an der Figur
+ * (`PlayerCard`); als Kachel steht sie nirgends (`hidden`).
+ */
+export const OUTFIT_DETAIL = `${OUTFIT_PAGE}:detail`;
+
 /** Vorschau-Ids der Kacheln: `outfit:<Fach>:<Wert>` (`ui/outfitModels.ts`). */
 export const OUTFIT_PREVIEW = 'outfit:';
 
@@ -169,6 +179,27 @@ export function outfitEntry(draft: OutfitDraft, picked: () => void): MenuEntry {
     grid: true,
     take: false,
     children: [
+      {
+        id: OUTFIT_DETAIL,
+        label: figureLabel(look.figure),
+        caption: 'Deine Figur im Detail',
+        icon: 'npc',
+        accent: ACCENT,
+        hidden: true,
+        full: true,
+        detail: {
+          // Die Figur selbst, wie sie im Regal steht — Hut und fremder Kopf
+          // sitzen erst am Körper im Spiel (`AvatarBody`) und stehen hier als
+          // Zeilen darunter.
+          preview: `${OUTFIT_PREVIEW}figure:${look.figure}`,
+          facts: [
+            { label: 'Figur', value: figureLabel(look.figure) },
+            { label: 'Hut', value: HEADGEAR_LABELS[look.hat] },
+            { label: 'Kopf', value: FACE_LABELS[look.face] },
+            { label: 'Datei', value: look.figure, copy: true },
+          ],
+        },
+      },
       {
         id: `${OUTFIT_PAGE}:presets`,
         label: 'Vorgefertigte',

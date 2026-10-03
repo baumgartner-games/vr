@@ -40,6 +40,11 @@ export interface PlayerCardOptions {
   dirty: () => boolean;
   /** _Aussehen anpassen_ wurde gedrückt. */
   onCustomize: () => void;
+  /**
+   * _Details_ an der Figur — sie groß ansehen, wie ein Stück im Katalog
+   * (`outfitMenu.OUTFIT_DETAIL`). Ohne Angabe gibt es den Knopf nicht.
+   */
+  onDetail?: () => void;
   /** _Aussehen speichern_ — mit dem Spitznamen aus dem Feld darüber. */
   onSave: (name: string) => void;
   /** _Aussehen zurücksetzen_. */
@@ -78,6 +83,16 @@ export class PlayerCard implements PageAside {
     this.stage = el('div', 'pcard__stage');
     this.stage.setAttribute('aria-hidden', 'true');
     this.stage.addEventListener('pointerdown', (event) => turnByDrag(event, this.stage, this.view));
+    // **Die Figur im Detail** — gewünscht: _„Bei dem charakter vorschau bild
+    // will ich einen button haben, mit dem ich den charakter im detail ansehen
+    // kann wie bei katalog items."_ In der Ecke des Bilds, und ein Druck
+    // darauf dreht die Figur nicht.
+    if (options.onDetail) {
+      const detail = button('pcard__detail', '⤢ Details', () => options.onDetail?.());
+      detail.title = 'Deine Figur im Detail ansehen';
+      detail.addEventListener('pointerdown', (event) => event.stopPropagation());
+      this.stage.append(detail);
+    }
 
     const text = el('div', 'pcard__text');
     this.nameEl = el('strong', 'pcard__name');

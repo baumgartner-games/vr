@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { canLoadModels } from './chefFit';
-import { KAYKIT_HEAD, MODEL_HATS, type ModelHatKind } from './figureParts';
+import { CALIBRATION_HAT, KAYKIT_HEAD, MODEL_HATS, type ModelHatKind } from './figureParts';
+import { disposeCalibration, viewCalibration } from './viewCalibration';
 import { LAYER_EYE } from './viewLayers';
 import { graphics, onGraphicsChange, type GraphicsSettings } from './graphicsSettings';
 import { breathFog } from './visorBreath';
@@ -49,6 +50,8 @@ export class SelfHelmet {
   private kind: ModelHatKind | null = null;
   private camera: THREE.Camera | null = null;
   private era = 0;
+  /** Das Gradnetz des Kalibrier-Helms (`core/viewCalibration.ts`) — sonst `null`. */
+  private calibration: THREE.Group | null = null;
   /** Der Beschlag je Visierglas — leer, solange kein Helm hängt. */
   private fogs: VisorFog[] = [];
   /** Die Atemuhr, in Sekunden. */
@@ -96,6 +99,12 @@ export class SelfHelmet {
         camera.layers.enable(LAYER_EYE);
         camera.add(helmet);
         this.helmet = helmet;
+        // **Der Kalibrier-Helm** bringt sein Gradnetz mit — an der Kamera
+        // selbst, nicht am Helm: Die Winkel gelten vom Auge aus.
+        if (kind === CALIBRATION_HAT) {
+          this.calibration = viewCalibration();
+          camera.add(this.calibration);
+        }
       });
   }
 
@@ -104,6 +113,8 @@ export class SelfHelmet {
     this.pending = false;
     for (const fog of this.fogs) fog.dispose();
     this.fogs = [];
+    if (this.calibration) disposeCalibration(this.calibration);
+    this.calibration = null;
     const helmet = this.helmet;
     this.helmet = null;
     if (!helmet) return;

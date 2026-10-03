@@ -91,7 +91,27 @@ export interface PageOptions {
 export interface PanelAside {
   readonly title: string;
   readonly sub: string;
-  readonly button: string;
+  /** Die Knöpfe darunter, von oben nach unten — der erste ist der grüne. */
+  readonly buttons: readonly PanelAsideButton[];
+}
+
+/** Ein Knopf in der Spalte rechts. Gesperrt ist er grau und tut nichts. */
+export interface PanelAsideButton {
+  readonly label: string;
+  readonly disabled?: boolean;
+}
+
+function sameAside(a: PanelAside, b: PanelAside): boolean {
+  return (
+    a.title === b.title &&
+    a.sub === b.sub &&
+    a.buttons.length === b.buttons.length &&
+    a.buttons.every(
+      (button, index) =>
+        button.label === b.buttons[index]!.label &&
+        Boolean(button.disabled) === Boolean(b.buttons[index]!.disabled),
+    )
+  );
 }
 
 /** Ein Reiter über der Seite (`PageOptions.tabs`). */
@@ -118,9 +138,11 @@ export interface PanelOptions {
   onTab?: (index: number, hand: Handedness | null) => void;
   /** Ein Knopf im Kopf des Bildschirms wurde gedrückt: ◀ ▶ ✕ ← ⌂. */
   onControl?: (
-    control: 'prev' | 'next' | 'close' | 'back' | 'home' | 'aside',
+    control: 'prev' | 'next' | 'close' | 'back' | 'home',
     hand: Handedness | null,
   ) => void;
+  /** Ein Knopf in der Spalte rechts, gezählt von oben (`PanelAside.buttons`). */
+  onAside?: (index: number, hand: Handedness | null) => void;
 }
 
 const CANVAS_W = 768;
@@ -199,6 +221,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private onSelect?: (index: number, hand: Handedness | null) => void;
   private onTab?: (index: number, hand: Handedness | null) => void;
   private onControl?: PanelOptions['onControl'];
+  private onAside?: PanelOptions['onAside'];
   private tabs: readonly PanelTab[] = [];
   private tab = -1;
   /** Der Reiter unter dem Strahl, oder `-1` (hochkant). */
@@ -242,6 +265,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.onSelect = options.onSelect;
     this.onTab = options.onTab;
     this.onControl = options.onControl;
+    this.onAside = options.onAside;
     this.name = 'ui-panel';
     this.renderOrder = 10;
     this.geometry.computeBoundingBox();
@@ -289,7 +313,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     if (this.screen) {
       this.head = screenHead(
         this.tabs.length,
-        { back: this.back, home: this.home, aside: this.aside !== null },
+        { back: this.back, home: this.home, ...this.asideHead() },
         this.cw,
       );
       this.cols = screenCols(this.grid, options.cols, this.bodyW + this.pad * 2);
@@ -511,7 +535,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       if (control) {
         this.flash = 0.18;
         if (control.kind === 'tab') this.onTab?.(control.index, hit.hand);
-        else this.onControl?.(control.kind, hit.hand);
+        else if (control.kind === 'aside') {
+          if (!this.aside?.buttons[control.index]?.disabled) {
+            this.onAside?.(control.index, hit.hand);
+          }
+        } else this.onControl?.(control.kind, hit.hand);
         return;
       }
     }
@@ -593,10 +621,21 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
    */
   setAside(aside: PanelAside): void {
     const was = this.aside;
-    if (!was) return;
-    if (was.title === aside.title && was.sub === aside.sub && was.button === aside.button) return;
+    if (!was || sameAside(was, aside)) return;
     this.aside = aside;
+    // Mehr oder weniger Knöpfe: Die Spalte teilt sich neu auf.
+    if (was.buttons.length !== aside.buttons.length && this.head) {
+      this.head = screenHead(
+        this.tabs.length,
+        { back: this.back, home: this.home, ...this.asideHead() },
+        this.cw,
+      );
+    }
     this.draw();
+  }
+
+  private asideHead(): { aside?: number } {
+    return this.aside ? { aside: this.aside.buttons.length } : {};
   }
 
   /**
@@ -905,20 +944,29 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.font = '400 24px system-ui, sans-serif';
     ctx.fillText(clip(ctx, aside.sub, room), cx, box.subY);
 
-    const hot = sameControl(this.hoverControl, { kind: 'aside' });
-    const button = box.button;
-    ctx.beginPath();
-    ctx.roundRect(button.x, button.y, button.w, button.h, button.h / 2);
-    ctx.fillStyle = hot && this.flash > 0 ? '#9af0c4' : hot ? '#7ae8b2' : '#5ee0a0';
-    ctx.fill();
-    if (hot) {
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#ffffff';
-      ctx.stroke();
-    }
-    ctx.fillStyle = '#062016';
-    ctx.font = '700 26px system-ui, sans-serif';
-    ctx.fillText(clip(ctx, aside.button, button.w - 30), cx, button.y + button.h / 2 + 10);
+    box.buttons.forEach((button, index) => {
+      const spec = aside.buttons[index];
+      if (!spec) return;
+      const hot = !spec.disabled && sameControl(this.hoverControl, { kind: 'aside', index });
+      // Der erste ist der grüne wie am Schirm (`.pcard__edit`), die übrigen
+      // sind umrandet (`.pcard__reset`).
+      const primary = index === 0;
+      ctx.beginPath();
+      ctx.roundRect(button.x, button.y, button.w, button.h, button.h / 2);
+      if (spec.disabled) ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      else if (primary) {
+        ctx.fillStyle = hot && this.flash > 0 ? '#9af0c4' : hot ? '#7ae8b2' : '#5ee0a0';
+      } else ctx.fillStyle = hot ? 'rgba(94, 224, 160, 0.22)' : 'rgba(255, 255, 255, 0.04)';
+      ctx.fill();
+      if (hot || !primary) {
+        ctx.lineWidth = hot ? 3 : 2;
+        ctx.strokeStyle = hot ? '#ffffff' : 'rgba(94, 224, 160, 0.7)';
+        ctx.stroke();
+      }
+      ctx.fillStyle = spec.disabled ? '#6f7d99' : primary ? '#062016' : '#bff5d9';
+      ctx.font = '700 26px system-ui, sans-serif';
+      ctx.fillText(clip(ctx, spec.label, button.w - 30), cx, button.y + button.h / 2 + 10);
+    });
     ctx.restore();
   }
 

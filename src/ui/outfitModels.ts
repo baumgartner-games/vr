@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HEADGEAR_KINDS, buildHeadgear, type HeadgearKind } from '../core/headgear';
-import { kaykitModelNow } from '../core/kaykitModel';
+import { kaykitClips, kaykitModelNow } from '../core/kaykitModel';
 import { MODEL_HATS, asFace, facePart, isModelHat } from '../core/figureParts';
 import { figurePartNow } from '../core/figurePartModels';
 import { OUTFIT_PREVIEW } from './outfitMenu';
@@ -36,6 +36,20 @@ export function outfitModel(id: string): THREE.Object3D | null {
   // _Ohne_ hat kein Modell — die Kachel zeigt dann ihre Ikone.
   const hat = buildHeadgear(value as HeadgearKind);
   return hat ? facing(hat) : null;
+}
+
+/**
+ * **Die Bewegungen einer Figur** — für ihre Detailseite (`OUTFIT_DETAIL`,
+ * `GameMenu.setExtraModels`), wie bei einer Figur im Katalog. `null` heißt
+ * „nicht meins".
+ */
+export function outfitClips(
+  id: string,
+  height: number | null,
+): Promise<THREE.AnimationClip[]> | null {
+  const figure = `${OUTFIT_PREVIEW}figure:`;
+  if (!id.startsWith(figure)) return null;
+  return kaykitClips(id.slice(figure.length), height);
 }
 
 /**

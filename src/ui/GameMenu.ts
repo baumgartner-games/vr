@@ -10,6 +10,15 @@ import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
 
 /**
+ * Bewegungen zu Modellen, die keiner Welt gehören — `null` heißt „nicht
+ * meins", dann fragt das Menü die Welt (`setExtraModels`).
+ */
+export type ExtraClipSource = (
+  id: string,
+  height: number | null,
+) => Promise<THREE.AnimationClip[]> | null;
+
+/**
  * **Das eine Menü, mit zwei Gesichtern** — und diese Klasse entscheidet,
  * welches gilt.
  *
@@ -42,6 +51,7 @@ export class GameMenu extends THREE.Group {
     forget: ((id: string) => void) | null;
   } = { factory: null, clips: null, forget: null };
   private extraModels: MenuModelFactory | null = null;
+  private extraClips: ExtraClipSource | null = null;
   /** Ob die Brille aufgesetzt ist (`App`, Sitzungsbeginn und -ende). */
   private immersive = false;
 
@@ -198,16 +208,23 @@ export class GameMenu extends THREE.Group {
    * (`ui/outfitModels.ts`). Gefragt wird zuerst hier, dann die Welt; und es
    * gilt auch in einer Welt, die selbst keine Fabrik abgibt.
    */
-  setExtraModels(factory: MenuModelFactory | null): void {
+  setExtraModels(factory: MenuModelFactory | null, clips: ExtraClipSource | null = null): void {
     this.extraModels = factory;
+    this.extraClips = clips;
     this.installModels();
   }
 
   private installModels(): void {
-    const { factory: world, clips, forget } = this.worldModels;
+    const { factory: world, clips: worldClips, forget } = this.worldModels;
     const extra = this.extraModels;
     const factory: MenuModelFactory | null =
       world && extra ? (id) => extra(id) ?? world(id) : (world ?? extra);
+    // Die Bewegungen auf der Detailseite: erst, was keiner Welt gehört (die
+    // eigene Figur unter _Aussehen_), dann die Welt.
+    const extraClips = this.extraClips;
+    const clips: MenuClipSource | null = extraClips
+      ? (id, height) => extraClips(id, height) ?? worldClips?.(id, height) ?? Promise.resolve([])
+      : worldClips;
     this.xr.setModelFactory(factory);
     this.page?.setPreviews(factory ? new PagePreviews(factory, clips, forget) : null);
   }

@@ -7,7 +7,7 @@ import { FlatControls, type TouchPads } from './FlatControls';
 import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
 import { SelfHelmet } from './selfHelmet';
-import { FACE_KINDS, FACE_LABELS, FACE_SUBS, IMMERSIVE_HAT } from './figureParts';
+import { FACE_KINDS, FACE_LABELS, FACE_SUBS, isImmersiveHat } from './figureParts';
 import { FreeLocomotion } from './Locomotion';
 import { GameMenu } from '../ui/GameMenu';
 import { MenuNav } from '../ui/menuNav';
@@ -23,8 +23,14 @@ import { introKeys } from './worldIntro';
 import { hintDevice } from './controlHints';
 import { LOADER_CAP_MS } from './loadProgress';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
-import { OUTFIT_PAGE, OutfitDraft, isOutfitPage, outfitEntry } from '../ui/outfitMenu';
-import { outfitModel } from '../ui/outfitModels';
+import {
+  OUTFIT_DETAIL,
+  OUTFIT_PAGE,
+  OutfitDraft,
+  isOutfitPage,
+  outfitEntry,
+} from '../ui/outfitMenu';
+import { outfitClips, outfitModel } from '../ui/outfitModels';
 import { PlayerCard } from '../ui/PlayerCard';
 import { tabbedMenu } from '../ui/menuTabs';
 import { XRPlayerCard } from '../ui/XRPlayerCard';
@@ -83,7 +89,7 @@ import {
 import { clearInputConfig, inputConfig, saveInputConfig } from './inputStore';
 import type { InputPress } from './FlatControls';
 import { GraphicsQuality } from './GraphicsQuality';
-import { emulateQuest } from './xrEmulator';
+import { QUEST_EYE_ASPECT, QUEST_EYE_FOV, eyeBox, saveVrView, vrViewOn } from './vrView';
 import { FrameStats } from './FrameStats';
 import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
@@ -275,6 +281,15 @@ export class App {
    * wie sie es mit Brille täten. Aus der Konsole: `bgvr.xrPreview = true`.
    */
   xrPreview = false;
+  /**
+   * **VR-Ansicht** — _Aus den Augen_, gezeigt wie ein Auge der Quest 3
+   * (`core/vrView.ts`, `applyVrView`): Sichtfeld und Seitenverhältnis eines
+   * Auges, das Menü als Bildschirm davor, die Tafeln der Brille. Gesteuert
+   * wird wie aus den Augen. Gemerkt im Browser.
+   */
+  private vrView = vrViewOn();
+  /** Das Sichtfeld aus den Augen ohne VR-Ansicht. */
+  private readonly screenFov: number;
   /** Die Startseite — solange sie steht, schweigt die Tastenhilfe. */
   private readonly landingEl: HTMLElement | null =
     typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('#landing');
@@ -463,6 +478,7 @@ export class App {
       0.05,
       700,
     );
+    this.screenFov = this.camera.fov;
     this.mirrors = new MirrorRenderer(this.renderer);
     this.levelBlur = new LevelBlur(this.renderer);
     this.stopLevelBlur = onGraphicsChange(() => {
@@ -519,6 +535,7 @@ export class App {
             edits: isOutfitPage,
             dirty: () => this.outfit.dirty,
             onCustomize: () => this.openWardrobe(),
+            onDetail: () => this.openWardrobe(OUTFIT_DETAIL),
             onSave: (name) => {
               this.outfit.save();
               // Der Name nur, wenn er sich geändert hat — `setPlayerName`
@@ -534,10 +551,22 @@ export class App {
     this.outfit.onChange(() => {
       this.menuDirty = true;
       this.playerCard?.refresh();
+      this.xrCard.refresh();
     });
+    // **In der Brille dieselbe Figur unter _Aussehen_** — mit dem Entwurf,
+    // Speichern und Zurücksetzen wie am Schirm (`ui/XRPlayerCard.ts`).
     this.xrCard = new XRPlayerCard({
       name: () => this.net.name,
+      look: () => this.outfit.current,
+      edits: isOutfitPage,
+      dirty: () => this.outfit.dirty,
       onCustomize: () => this.openWardrobe(),
+      onSave: () => {
+        this.outfit.save();
+        this.notify('Aussehen gespeichert');
+      },
+      onReset: () => this.outfit.reset(),
+      onLeave: () => this.outfit.discard(),
     });
     // **Ein Menü, mit Reitern, in der Brille wie am Schirm** — in der Brille
     // ein Bildschirm zwei Meter vor einem (`ui/XRMenu.ts`), gewünscht:
@@ -547,7 +576,10 @@ export class App {
       title: 'Menü',
       footer: 'Zielen + Trigger/A · B/Y zurück',
       tabs: true,
-      aside: { page: INVENTORY_TAB, card: this.xrCard },
+      aside: {
+        pages: (page) => page === INVENTORY_TAB || isOutfitPage(page),
+        card: this.xrCard,
+      },
       // Der Weg durchs Menü merkt sich den **Katalog** über das Neuladen
       // hinaus (`ui/menuRecall.ts`) — alles andere fängt nach einem Neustart
       // wieder oben an.
@@ -568,7 +600,10 @@ export class App {
     this.gameMenu.attachPage(this.pageMenu);
     // Die Stücke in den Kacheln unter _Aussehen_ — in jeder Welt, auch in
     // einer, die selbst keine Modelle für das Menü hat.
-    this.gameMenu.setExtraModels((id) => outfitModel(id));
+    this.gameMenu.setExtraModels(
+      (id) => outfitModel(id),
+      (id, height) => outfitClips(id, height),
+    );
     this.holdMenu = new HoldMenu({
       onToggle: (open) => {
         if (open || !this.holdReopens) return;
@@ -789,7 +824,7 @@ export class App {
     // **Der Ladebildschirm** — nur im Spiel am Schirm: Auf der Startseite sagt
     // der Knopf, wie weit es ist, und in der Brille gibt es kein DOM im Bild.
     const landing = this.landingEl !== null && !this.landingEl.hidden;
-    const xr = this.renderer.xr.isPresenting || this.xrPreview;
+    const xr = this.renderer.xr.isPresenting || this.previewingXR;
     const showLoader = this.loader !== null && !xr && !landing;
     if (showLoader) this.loader.begin(definition, again);
     // **In der Brille blendet es ab** (`ui/XRGuide.ts`) — mit einer Tafel im
@@ -907,17 +942,6 @@ export class App {
     };
     const session = await requestSession(navigator.xr, options);
     await this.renderer.xr.setSession(session);
-  }
-
-  /**
-   * **VR ohne Brille** — Metas Emulator einsetzen (`core/xrEmulator.ts`) und
-   * dann ganz normal eine Sitzung beginnen. Ab da meldet das Gerät eine Brille.
-   */
-  async enterSimulatedVR(): Promise<void> {
-    this.notify('VR-Simulation wird geladen …');
-    await emulateQuest();
-    this.setXrReady(true);
-    await this.enterVR();
   }
 
   async endVR(): Promise<void> {
@@ -1254,6 +1278,7 @@ export class App {
     this.avatar.showHands = on && !crane;
     if (on) this.topDownCamera.reset();
     else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
+    this.applyVrView();
   }
 
   /**
@@ -1293,7 +1318,8 @@ export class App {
     return toolEntries(choice, (id) => {
       choice.choose(id);
       this.toolShown = undefined;
-      this.pageMenu.toggle(false);
+      // Welches Gesicht das Menü auch trägt — Seite oder Bildschirm.
+      this.gameMenu.toggle(false);
     });
   }
 
@@ -1327,9 +1353,10 @@ export class App {
           ];
     // **_Aussehen_ als Seite unter dem Inventar**, aber nicht als Kachel
     // zwischen den Werkzeugen (`MenuEntry.hidden`): Hinein geht es über
-    // _Aussehen anpassen_ an der Figur. Nur am Schirm — in der Brille steht
-    // _Aussehen_ am Handgelenk unter den Einstellungen.
-    const outfit = presenting ? [] : [outfitEntry(this.outfit, () => (this.menuDirty = true))];
+    // _Aussehen anpassen_ an der Figur — am Schirm wie in der Brille, dort
+    // mit denselben Kacheln samt Vorschau (gewünscht: _„die einzelnen hut und
+    // co optionen nicht als elemente sondern als kacheln mit vorschau"_).
+    const outfit = [outfitEntry(this.outfit, () => (this.menuDirty = true))];
     return {
       id: INVENTORY_TAB,
       label: 'Inventar',
@@ -1354,6 +1381,12 @@ export class App {
     }
     if (!this.world || this.renderer.xr.isPresenting) return;
     if (this.menuDirty) this.refreshMenu();
+    // In der VR-Ansicht ist der Bildschirm das Menü (`applyVrView`).
+    if (this.gameMenu.presenting) {
+      if (this.gameMenu.isOpen) this.gameMenu.toggle(false);
+      else this.gameMenu.openSubmenu(INVENTORY_TAB);
+      return;
+    }
     this.pageMenu.openTab(INVENTORY_TAB);
   }
 
@@ -1640,23 +1673,25 @@ export class App {
             else this.notify('Dieses Gerät meldet keine VR-Brille');
           },
         },
-        // **Ohne Brille: eine nachgestellte** (`core/xrEmulator.ts`) — eine
-        // Quest 3 im Browser, Kopf und Controller mit Maus und Tastatur.
-        ...(presenting || this.xrReady
+        // **Ohne Brille: die VR-Ansicht** (`core/vrView.ts`) — aus den Augen,
+        // gezeigt wie in der Quest 3, gesteuert wie aus den Augen. Gewünscht:
+        // _„Es ist nur eine option wie aus den augen dargestellt werden
+        // soll"_. Metas Emulator mit eigener Steuerung gibt es weiter über
+        // die Adresse (`?xr=sim`, `core/xrEmulator.ts`).
+        ...(presenting
           ? []
           : [
               {
-                id: 'view:vr-sim',
-                label: 'VR simulieren',
-                sub: 'Eine Quest 3 im Browser — Kopf und Controller mit Maus und Tastatur',
+                id: 'view:vr-view',
+                label: 'VR-Ansicht',
+                sub: this.vrView
+                  ? 'An · aus den Augen wie in der Quest 3 · antippen schaltet aus'
+                  : 'Aus den Augen wie in der Quest 3: Sichtfeld eines Auges, Menü als Bildschirm',
+                caption: 'Nur die Darstellung — gesteuert wird wie aus den Augen',
                 icon: 'worlds' as const,
                 accent: 0xffb347,
-                run: () => {
-                  this.enterSimulatedVR().catch((error: unknown) => {
-                    console.warn('[xr] Simulation konnte nicht starten', error);
-                    this.notify('Die VR-Simulation konnte nicht starten');
-                  });
-                },
+                checked: this.vrView,
+                run: () => this.setVrView(!this.vrView),
               },
             ]),
         {
@@ -1666,7 +1701,10 @@ export class App {
           icon: 'worlds',
           accent: 0x4aa8ff,
           selected: !presenting && !flat,
-          run: () => this.setScreenView('3d'),
+          run: () => {
+            if (this.vrView) this.setVrView(false);
+            this.setScreenView('3d');
+          },
         },
         {
           id: 'view:2d',
@@ -2254,22 +2292,17 @@ export class App {
    *
    * Am Bildschirm ist es die Seite _Aussehen_ unter dem Reiter _Inventar_,
    * mit der Figur daneben (`ui/outfitMenu.ts`) — derselbe Weg wie über
-   * _Aussehen anpassen_ an der Figur. **In der Brille nicht**: Dort steht der Spiegel am
-   * Schrank und zeigt einen selbst, und die drei Zeilen gibt es längst — unter
-   * _Aussehen_ am Handgelenk. Ein zweites Canvas mit einer zweiten Figur davor
-   * wäre ein Bild von einem Spiegel neben einem Spiegel, und es kostete einen
-   * ganzen zweiten Renderer in der Sitzung, in der die Bilder am knappsten
-   * sind.
+   * _Aussehen anpassen_ an der Figur. **In der Brille dieselbe Seite** auf
+   * dem Bildschirm vor einem, die Figur als kleines Modell in der Spalte
+   * rechts (`ui/XRPlayerCard.ts`) — kein zweiter Renderer. Vorher sprang die
+   * Brille auf drei Zeilen unter den Einstellungen; gewünscht: _„soll wie im
+   * web auch der charakter rechts weiterhin angezeigt werden"_.
    */
-  private openWardrobe(): void {
-    if (this.renderer.xr.isPresenting) {
-      this.gameMenu.openSubmenu('look');
-      return;
-    }
+  private openWardrobe(page = OUTFIT_PAGE): void {
     if (!this.world) return;
     // Die Seite gibt es erst im frischen Baum (`inventoryEntry`).
     if (this.menuDirty) this.refreshMenu();
-    this.pageMenu.openSubmenu(OUTFIT_PAGE);
+    this.gameMenu.openSubmenu(page);
   }
 
   /**
@@ -3414,15 +3447,76 @@ export class App {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.topDownCamera.setAspect(width / height);
-    this.resizeWebBuffer();
+    this.applyVrView();
   };
+
+  /** **VR-Ansicht an oder aus** (`core/vrView.ts`) — immer aus den Augen. */
+  setVrView(on: boolean): void {
+    this.vrView = on;
+    saveVrView(on);
+    if (on && this.view !== '3d') this.setScreenView('3d');
+    this.applyVrView();
+    this.menuDirty = true;
+    this.notify(on ? 'VR-Ansicht: an' : 'VR-Ansicht: aus');
+  }
+
+  /** Ob die VR-Ansicht gerade gilt: gewählt, aus den Augen und ohne Brille. */
+  private get vrViewActive(): boolean {
+    return this.vrView && !this.renderer.xr.isPresenting && !this.topDown;
+  }
+
+  /** Ob die Brille am Schirm nachgestellt wird — von Hand (`xrPreview`) oder als VR-Ansicht. */
+  private get previewingXR(): boolean {
+    return this.xrPreview || this.vrViewActive;
+  }
+
+  /**
+   * **Die VR-Ansicht anwenden** — oder zurücknehmen: das Bild als Kasten in
+   * der Größe eines Auges (`eyeBox`) mit dessen Sichtfeld, und das Menü als
+   * Bildschirm vor einem (`GameMenu.presenting`). Gerufen bei jeder Änderung
+   * der Ansicht (`applyView`) und der Fenstergröße.
+   */
+  private applyVrView(): void {
+    if (typeof window === 'undefined') return;
+    const presenting = this.renderer.xr.isPresenting;
+    const on = this.vrViewActive;
+    const canvas = this.renderer.domElement;
+    if (on) {
+      const box = eyeBox(window.innerWidth, window.innerHeight);
+      Object.assign(canvas.style, {
+        inset: 'auto',
+        left: `${box.x}px`,
+        top: `${box.y}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+      });
+      this.camera.fov = QUEST_EYE_FOV;
+      this.camera.aspect = QUEST_EYE_ASPECT;
+    } else {
+      for (const key of ['inset', 'left', 'top', 'width', 'height'] as const) {
+        canvas.style[key] = '';
+      }
+      this.camera.fov = this.screenFov;
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+    }
+    this.camera.updateProjectionMatrix();
+    document.body.classList.toggle('vr-view', on);
+    // Das Menü als Bildschirm zwei Meter davor — wie in der Brille.
+    this.gameMenu.presenting = presenting || on;
+    this.resizeWebBuffer();
+  }
 
   /** Bound web fill cost in the station; XR keeps its own framebuffer settings. */
   private resizeWebBuffer(): void {
     if (this.renderer.xr.isPresenting) return;
     const cap = this.worldId === 'haunting' ? 1.25 : 2;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
-    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    const box = this.vrViewActive ? eyeBox(window.innerWidth, window.innerHeight) : null;
+    this.renderer.setSize(
+      box?.width ?? window.innerWidth,
+      box?.height ?? window.innerHeight,
+      false,
+    );
   }
 
   private onSessionStart = (): void => {
@@ -3533,7 +3627,7 @@ export class App {
     // Fenster mit (`FlatControls`).
     this.flat.enabled = !presenting && !this.spectating && !this.holdMenu.isOpen;
     if (!presenting) this.flat.update(dt);
-    this.updateHints(presenting || this.xrPreview);
+    this.updateHints(presenting || this.previewingXR);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.gameMenu.scrollHand;
@@ -3587,14 +3681,14 @@ export class App {
     const ownEyes = (presenting || !this.topDown) && !this.spectating;
     this.selfHelmet.update(
       this.camera,
-      ownEyes && this.lookHat === IMMERSIVE_HAT ? IMMERSIVE_HAT : null,
+      ownEyes && isImmersiveHat(this.lookHat) ? this.lookHat : null,
       dt,
     );
     this.playerGuides.update(_head, this.rig.getFloorY());
     this.gameMenu.update(dt, this.input, _head);
     this.quality.setMenuOpen(this.renderer.xr.isPresenting && this.gameMenu.xr.isOpen);
     this.xrCard.update(dt);
-    this.updateXRGuide(dt, presenting || this.xrPreview);
+    this.updateXRGuide(dt, presenting || this.previewingXR);
     this.pointer.update(this.input, presenting);
     this.net.update(dt, this.rig, this.input, this.elapsed);
     this.avatars.update(dt);

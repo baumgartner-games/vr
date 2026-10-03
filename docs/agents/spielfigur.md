@@ -617,6 +617,22 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   - **Nicht dabei** ist echte Lichtstreuung (Höfe um Lampen und
     Scheinwerfer): Die bräuchte einen eigenen Durchgang über das ganze Bild.
     Matt und diffus wird die Sicht durch die milchige Schicht trotzdem.
+- **Der Kalibrier-Helm** (`figureParts.CALIBRATION_HAT`,
+  `core/viewCalibration.ts`, mit Test) — gewünscht: _„damit du die kamera
+  sauber positionieren kannst, sollten wir einen hut immersive anlegen zum
+  kalibrieren der ansicht. Dabei sollen verschiedene horizontale und
+  vertikale linien in unterschiedlichen farben dargstellt werden. Ich nenne
+  dir dann bis wohin ich in der quest 3 sehen kann."_ Unter _Hut_ als
+  _Kalibrier-Helm · Immersiv_: derselbe immersive Helm (`isImmersiveHat`),
+  dazu an der Kamera ein Gradnetz auf einer Kugel von 1 m um das Auge —
+  senkrechte Linien alle 10° links und rechts, waagerechte darüber und
+  darunter, die Mitte grün, jede Zehnerstufe in ihrer Farbe (10 weiß, 20
+  gelb, 30 orange, 40 rot, 50 pink, 60 lila, 70 blau, 80 türkis) und mit
+  Schild (`←30°`, `30°→`, `↑20°`, `↓20°`). Ohne Tiefe über allem, auch über
+  dem Helm, damit man sieht, bei welchem Winkel die Schale anfängt; unter dem
+  Menü (`ORDER` 9,5). Bänder statt `THREE.Line`, die in der Brille als ein
+  Bildpunkt flimmerte. Was man in der Quest abliest, kommt in die
+  **VR-Ansicht** am Schirm (`core/vrView.ts`, siehe [Seite](seite.md)).
 - Für die Raumstation reicht später `ctx.wear('flightHelmetImmersive')` —
   `App.applyAppearance` merkt sich auch einen geliehenen Hut (`lookHat`).
 

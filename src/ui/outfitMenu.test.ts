@@ -52,7 +52,14 @@ describe('Die Seite', () => {
     expect(entry.id).toBe(OUTFIT_PAGE);
     expect(entry.hidden).toBe(true);
     expect(entry.grid).toBe(true);
-    expect(entry.children!.map((one) => one.label)).toEqual(['Vorgefertigte', 'Customizing']);
+    expect(entry.children!.filter((one) => !one.hidden).map((one) => one.label)).toEqual([
+      'Vorgefertigte',
+      'Customizing',
+    ]);
+    // Dazu, ohne Kachel: die eigene Figur im Detail (`OUTFIT_DETAIL`).
+    const detail = child(entry, 'outfit:detail');
+    expect(detail.hidden).toBe(true);
+    expect(detail.detail?.preview).toBe(`outfit:figure:${DEFAULT_APPEARANCE.figure}`);
     expect(child(entry, 'outfit:presets').children).toHaveLength(FIGURE_PRESETS.length);
   });
 
