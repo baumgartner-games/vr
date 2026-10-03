@@ -2618,11 +2618,11 @@ export class App {
         },
         {
           // **Wohin die Brille schaut** — `core/playerGuides.ts`: das
-          // Blickfeld einer Quest 3 als Pyramide am Kopf, wie die Kamera in
-          // Blender, und die beiden Augen darin.
+          // Blickfeld einer Quest 3 als gerundeter Kegel am Kopf, aus dem
+          // eingestellten Rand (`core/questView.ts`), und die beiden Augen.
           id: 'gfx:vr-frustum',
           label: 'Quest-3-Blickfeld',
-          sub: '110° × 96° als Pyramide am Kopf · mit beiden Augen',
+          sub: 'Der eingestellte Rand als runder Kegel am Kopf · mit beiden Augen',
           caption: 'Von oben, im Spiegel und durchs Portal zu sehen · ab Werk aus',
           icon: 'settings',
           accent: 0x6f7d99,
@@ -2631,6 +2631,23 @@ export class App {
             const next = saveGraphics({ showVrFrustum: !graphics().showVrFrustum });
             this.menuDirty = true;
             this.notify(next.showVrFrustum ? 'Quest-3-Blickfeld an' : 'Quest-3-Blickfeld aus');
+          },
+        },
+        {
+          // **Was der Spieler sieht, von oben** — `core/playerGuides.ts`: ein
+          // Licht vom Kopf aus, so weit wie das Sichtfeld der Quest 3, wie
+          // eine schwache Taschenlampe.
+          id: 'gfx:highlight-view',
+          label: 'Sichtfeld hervorheben',
+          sub: 'Hellt auf, was der Spieler mit der Quest 3 sehen würde',
+          caption: 'Von oben, im Spiegel und durchs Portal zu sehen · ab Werk aus',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.highlightView,
+          run: () => {
+            const next = saveGraphics({ highlightView: !graphics().highlightView });
+            this.menuDirty = true;
+            this.notify(next.highlightView ? 'Sichtfeld hervorgehoben' : 'Sichtfeld normal');
           },
         },
         {

@@ -259,11 +259,18 @@ export interface GraphicsSettings {
    */
   showHandles: boolean;
   /**
-   * **Das Blickfeld einer Quest 3 als Pyramide am Kopf** (`core/playerGuides.ts`)
-   * — wie die Kamera in Blender, mit den beiden Augen darin. Gewünscht, um zu
+   * **Das Blickfeld einer Quest 3 als gerundeter Kegel am Kopf**
+   * (`core/playerGuides.ts`) — aus dem eingestellten Rand (`core/questView.ts`),
+   * wie die Kamera in Blender, mit den beiden Augen darin. Gewünscht, um zu
    * sehen, wo die Augen in der Brille wären. Ab Werk aus.
    */
   showVrFrustum: boolean;
+  /**
+   * **Sichtfeld hervorheben** (`core/playerGuides.ts`) — ein Licht vom Kopf
+   * aus, so weit wie das Sichtfeld der Quest 3, damit man von oben sieht, was
+   * der Spieler sehen würde. Wie die Taschenlampe, nur schwächer. Ab Werk aus.
+   */
+  highlightView: boolean;
   /**
    * **Der Mensch als Boxen** (`core/playerGuides.ts`) — Kopf, Rumpf, Arme,
    * Beine und das Gürtelband in echter Augenhöhe; die Hände hängen fast bis
@@ -634,6 +641,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   wallOcclusion: 'ghostFront',
   showHandles: false,
   showVrFrustum: false,
+  highlightView: false,
   showBodyModel: false,
   shadows: 'simple',
   levelBlur: true,
@@ -817,6 +825,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     : DEFAULT_GRAPHICS.wallOcclusion;
   const showHandles = raw.showHandles === true;
   const showVrFrustum = raw.showVrFrustum === true;
+  const highlightView = raw.highlightView === true;
   const showBodyModel = raw.showBodyModel === true;
   // Die Schatten sind ab Werk **der Kreis**, und ein Stand von gestern kann
   // hier noch den alten Schalter stehen haben: `false` wird Aus, `true` wird
@@ -876,6 +885,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     wallOcclusion,
     showHandles,
     showVrFrustum,
+    highlightView,
     showBodyModel,
     shadows,
     levelBlur,
