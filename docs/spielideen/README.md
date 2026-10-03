@@ -7,34 +7,34 @@ Das ist bewusst etwas anderes als `docs/agents/`: Dort steht, **wie** etwas
 gebaut ist (Dateien, Klassen, Zahlen). Hier steht, **was** es sein soll — so,
 dass man es einem Freund vorlesen könnte.
 
-| Spiel | Datei | Stand |
-| --- | --- | --- |
-| Haunting / Orbital | [haunting.md](haunting.md) | spielbar, Spieleabend mit Freunden Mitte November 2026 |
-| Restaurant | [restaurant.md](restaurant.md) | Küche steht, Gastraum und Spielablauf werden neu aufgebaut |
+| Spiel | Datei | Stand | Einschätzung |
+| --- | --- | --- | --- |
+| Haunting / Orbital | [haunting.md](haunting.md) | spielbar | Spieleabend Mitte November 2026 |
+| Restaurant | [restaurant.md](restaurant.md) | Küche steht, Gastraum wird neu aufgebaut | Kern der Taverne |
+| Taverne in einer kleinen Stadt | [taverne.md](taverne.md) | Idee | **Empfehlung als Hauptspiel** |
+| Dungeon (vom Tisch, Tower Defense, Crawler) | [dungeon.md](dungeon.md) | Idee | zweite Wahl, Prototyp lohnt |
+| Leitstelle Feuerwehr/Polizei | [leitstelle.md](leitstelle.md) | Idee | später, braucht eine Stadt |
+| Wipeout: Handys gegen die Brille | [wipeout.md](wipeout.md) | Idee | Party-Modus für andere Spiele |
+| Apartment einrichten | [apartment.md](apartment.md) | Hausbau steht | Funktion, kein eigenes Spiel |
+| Raumstation und Schwerelosigkeit | [raumstation.md](raumstation.md) | Idee | Ausbau von Haunting nach November |
+| Stadtbau | [stadtbau.md](stadtbau.md) | Idee | nur als Schicht der Taverne |
+| Abenteuer von oben | [abenteuer.md](abenteuer.md) | Idee | zurückgestellt |
 
-Neue Ideen bekommen eine eigene Datei, auch wenn sie nur drei Zeilen hat. Ideen,
-die (noch) keine eigene Datei wert sind, stehen unten.
+Neue Ideen bekommen eine eigene Datei, auch wenn sie nur drei Zeilen hat.
 
-## Weitere Ideen (noch ohne eigene Datei)
+## Wonach bewertet wird
 
-Gesammelt im Oktober 2026 beim Durchsehen des Modellregals. Bewertet danach,
-was dieses Projekt besonders gut kann: **Hände in VR**, **eine Brille plus
-Handys im selben Raum**, **Zellgitter mit Bau-Modus**, **Diorama-Blick von oben
-in VR**.
+Gesammelt im Oktober 2026 beim Durchsehen des Modellregals. Die Modelle
+reichen für fast jedes Genre — deshalb wird nicht danach bewertet, sondern
+danach, was dieses Projekt besonders gut kann:
 
-- **Taverne in einer kleinen Stadt** — das Restaurant im Mittelalter-Gewand:
-  abends bedienen, tagsüber einrichten, in der Stadt Vorräte kaufen und nach
-  und nach neue Läden ansiedeln. Siehe [restaurant.md](restaurant.md#wohin-es-wachsen-kann).
-- **Dungeon vom Tisch aus** (Orcs Must Die / Dungeon Keeper, umgedreht): Der
-  VR-Spieler ist der Riese am Dungeon-Diorama und stellt mit den Händen Fallen
-  und Monster aufs Gitter, die Handys sind die Helden, die durch müssen.
-- **Leitstelle Feuerwehr/Polizei**: Leitstelle mit Karte am Handy, VR-Spieler
-  am Einsatzort (Feuerlöscher gibt es schon). Ähnliches Prinzip wie Haunting.
-- **Wipeout-Modus**: Handys versuchen, den VR-Spieler scheitern zu lassen.
-  Eher ein Party-Modus für ein bestehendes Spiel als ein eigenes.
-- **Sims-Apartment**: Wohnung einrichten — ist als Bau-Modus/Hausbau schon da,
-  eher Funktion als eigenes Spiel.
-- **Raumstation mit Schwerelosigkeit / Kerbal-artig**: Fortsetzung von
-  Haunting, sehr groß.
-- **City-Builder (Skylines) / Diablo / Pokémon von oben**: Bringen in VR wenig
-  Mehrwert gegenüber dem Bildschirm — vorerst zurückgestellt.
+1. **Hände in VR** — greifen, kochen, löschen, bauen.
+2. **Eine Brille plus Handys im selben Raum** — asymmetrisch, ohne Server.
+3. **Zellgitter mit Bau-Modus** — einrichten und ausbauen.
+4. **Diorama-Blick von oben in VR** — eine Welt auf dem Tisch zum Anfassen.
+
+Und dann: Wie viel ist schon gebaut, und wie groß wird es?
+
+Entschieden wird nicht im Kopf, sondern mit Leuten: von den zwei besten Ideen
+je einen Prototyp von einer Woche bauen, mit zwei, drei Leuten testen — was
+die zweite Runde auslöst, wird das Spiel.

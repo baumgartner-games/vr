@@ -162,7 +162,7 @@ Stichpunkten).
 ### Spielideen
 
 - **[Spielideen](docs/spielideen/README.md)** — Die Konzepte der Spiele in einfachem Markdown, eine Datei je Spiel: worum es geht, wie eine Runde läuft, was noch fehlt. Nicht wie es gebaut ist, sondern was es sein soll.
-  Darin: [Haunting / Orbital](docs/spielideen/haunting.md) (mit der Liste für den Spieleabend Mitte November 2026) · [Restaurant](docs/spielideen/restaurant.md) (mit der Taverne und der kleinen Stadt) · weitere Ideen ohne eigene Datei.
+  Darin: [Haunting / Orbital](docs/spielideen/haunting.md) (mit der Liste für den Spieleabend Mitte November 2026) · [Restaurant](docs/spielideen/restaurant.md) · [Taverne](docs/spielideen/taverne.md) · [Dungeon](docs/spielideen/dungeon.md) · [Leitstelle](docs/spielideen/leitstelle.md) · [Wipeout](docs/spielideen/wipeout.md) · [Apartment](docs/spielideen/apartment.md) · [Raumstation](docs/spielideen/raumstation.md) · [Stadtbau](docs/spielideen/stadtbau.md) · [Abenteuer](docs/spielideen/abenteuer.md).
 
 ### Steuerung
 

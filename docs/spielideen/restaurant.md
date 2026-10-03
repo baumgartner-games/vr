@@ -43,7 +43,8 @@ _Cooking Simulator VR_ / _Job Simulator_.
 
 ## Wohin es wachsen kann
 
-Ideen aus dem Oktober 2026, in der Reihenfolge, in der sie aufeinander aufbauen:
+Ideen aus dem Oktober 2026, in der Reihenfolge, in der sie aufeinander aufbauen
+(ausführlich in [Taverne](taverne.md) und [Wipeout](wipeout.md)):
 
 1. **Tische, Stühle, Gäste zurück** — als Spielelemente aus dem Katalog.
 2. **Zusammen kochen**: der Laden wird geteilt, eine zweite Person (Brille oder
