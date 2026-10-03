@@ -91,6 +91,7 @@ function pegs(i: number): ElementPart[] {
 export const COAT_RACK: GameElement = {
   id: 'coat-rack',
   label: 'Garderobe',
+  aka: ['Kleiderständer', 'Garderobenständer', 'Kleiderhaken', 'Aussehen', 'Kleidung'],
   tiles: [1, 1],
   height: 1.4,
   kind: null,

@@ -182,6 +182,11 @@ export interface GameElement {
   /** Wie es auf Deutsch heißt. */
   readonly label: string;
   /**
+   * **Weitere Namen für die Suche im Katalog** (`catalogSearch`) — wie man es
+   * sonst noch nennt. Die Garderobe fand unter _Kleiderständer_ nichts.
+   */
+  readonly aka?: readonly string[];
+  /**
    * **Die Grundfläche in Kacheln**, Breite × Tiefe, für ein Element, das nach
    * Süden schaut. Eine Kachel ist ein Meter und 2 × 2 Zellen. Fast alles ist
    * `[1, 1]`, auch das Band; der runde Tisch ist `[2, 2]`.
