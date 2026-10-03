@@ -2768,9 +2768,9 @@ export abstract class GridWorld extends PortalWorld {
    * zwischen allem anderen standen, und man kam beim Blättern durch sie
    * hindurch, wann immer man etwas anderes suchte.
    *
-   * Sie ist wieder weg. Was vom Bauen bleibt, steht dort, wo es hingehört: im
-   * **Bauplatz** (`editor/EditorWorld.ts`), wo Karte und Palette am Gürtel
-   * hängen statt in einem Menü. Und was die meisten am Menüpunkt eigentlich
+   * Sie ist wieder weg. Was vom Bauen bleibt, steht dort, wo es hingehört: in
+   * den Welten, die hier Ja sagen (die Sandbox), wo Karte und Palette am
+   * Gürtel hängen statt in einem Menü. Und was die meisten am Menüpunkt eigentlich
    * wollten — von oben sehen, wo man ist —, ist jetzt ein Werkzeug im Regal
    * (`portal/tools/MapTool.ts`) und in jeder Welt zu haben, nicht nur in einer
    * gerasterten.

@@ -37,8 +37,9 @@ WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente. Seit dem
 Umbau vom September 2026 stehen vier Welten darin, und das ist Absicht: Es
 waren siebzehn, jede prüfte eine Sache, und wer am Kern etwas änderte, lud
 siebzehn Welten hintereinander und hatte danach den Verdacht, die entscheidende
-vergessen zu haben. Geblieben sind der **Hub**, der **Bauplatz**, die
-**Testwelt** und **Haunting / Orbital**; alles, was die gelöschten Welten an
+vergessen zu haben. Geblieben sind der **Hub**, die **Testwelt** und
+**Haunting / Orbital** (der **Bauplatz** ist im Oktober 2026 weggefallen —
+sein Bearbeitungsmodus lebt in der Sandbox weiter); alles, was die gelöschten Welten an
 Rechnung mitbrachten — Kartphysik, Trefferwertung, Kletterhalt, Effektzahlen,
 Türmathematik —, steht weiter als Modul da und wird von der Testwelt benutzt.
 Dazugekommen ist seitdem das **Restaurant** (`#plateup`, bis Ende September
@@ -207,7 +208,7 @@ dasselbe wie `fasser`), und gemischt geht es auch: `holz kiste` findet
 Bedeutung, und im Steckbrief hinter dem ⓘ ist sie die erste Zeile.
 
 Dazu kommt
-ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
+ein **Bearbeitungsmodus** (in der Sandbox), in dem der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
 und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
 setzt sie beliebig oft, und in der zweiten Reihe liegen die **Bausteine**:
@@ -246,8 +247,8 @@ für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
 stehen — und durch ein **Portal** fallen sie wie jede Kiste: halb hier, halb
 drüben, und aus einem Sturz ins Bodenportal wird der Schwung aus der Wand) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
-räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Hub,
-Bauplatz und Testwelt stehen auf einer Fläche bis zum Horizont und **ohne
+räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Hub
+und Testwelt stehen auf einer Fläche bis zum Horizont und **ohne
 Dach**, damit die Kamera von oben hineinsieht; steht die Figur hinter einer
 Wand, wird die Wand für dieses Bild durchsichtig. Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht unter _Menü → Werkstatt → Welt-Physik_, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
@@ -1082,7 +1083,7 @@ Für dieses Projekt sortiert; der Stand ist September 2026.
 
 | Parameter            | Wirkung                                                                                                                                                           |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#test`              | startet direkt in dieser Welt (jede Welt-ID funktioniert: `hub`, `editor`, `test`, `haunting`)                                                                    |
+| `#test`              | startet direkt in dieser Welt (jede Welt-ID funktioniert: `hub`, `sandbox`, `plateup`, `haunting`)                                                                    |
 | `?world=test`        | dasselbe als Query-Parameter                                                                                                                                      |
 | `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` in die Startseite der Runde, die ihn beim Verbinden auch selbst hier ablegt |
 | `?net=local`         | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner                                                                                               |

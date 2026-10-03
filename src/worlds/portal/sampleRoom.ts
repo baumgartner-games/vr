@@ -12,9 +12,8 @@
  * nicht, weil hier eine Höhe steht.
  *
  * Alle Punkte sind relativ zur Mitte des Zimmers, in das der Raum gehört
- * (`PortalWorld.sampleRoomOrigin`) — im Bauplatz das Startzimmer
- * (`editor/starterGrid.ts`): acht mal acht Kacheln, Küchenzeile im
- * Nordwesten, Tisch in der Mitte, Tür im Süden, das Tor zum Hub im Osten.
+ * (`PortalWorld.sampleRoomOrigin`) — einst das Startzimmer des Bauplatzes
+ * (acht mal acht Kacheln); seit der weg ist, liefert keine Welt eine Mitte.
  * Die Reihenfolge zählt: erst der Tisch, dann die Tasse darauf.
  */
 
