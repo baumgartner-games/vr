@@ -184,6 +184,29 @@ function cases() {
     { id: 'pixel-0.85', label: 'Bildpuffer 0,85 (Stellvertreter)', graphics: {}, dpr: 0.85 },
     { id: 'pixel-0.7', label: 'Bildpuffer 0,7 (Stellvertreter)', graphics: {}, dpr: 0.7 },
   ];
+  // **Der Beschlag im immersiven Helm** (`core/visorFog.ts`): erst der Helm
+  // allein, dann sein Visier durchgehend und ganz flächig beschlagen — einmal
+  // gerechnet (Rauschen im Shader), einmal als Bild aus Tröpfchen. Flächig und
+  // `fogged`, damit jeder Bildpunkt des Glases in jedem Bild bezahlt wird und
+  // nicht ein Atemzug die Messung schaukelt. Der Vergleich, um den es geht,
+  // ist `visier-*` gegen `helm`, nicht gegen die Basis.
+  const helmet = { hat: 'flightHelmetImmersive' };
+  const fogged = { visorBreath: 'fogged', visorBreathStyle: 'flat' };
+  list.push(
+    { id: 'helm', label: 'Immersiver Helm, Visier klar', graphics: {}, look: helmet },
+    {
+      id: 'visier-rechnerisch',
+      label: 'Helm, Visier beschlagen · rechnerisch',
+      graphics: { ...fogged, visorBreathRender: 'computed' },
+      look: helmet,
+    },
+    {
+      id: 'visier-bild',
+      label: 'Helm, Visier beschlagen · Bild',
+      graphics: { ...fogged, visorBreathRender: 'image' },
+      look: helmet,
+    },
+  );
   for (const text of sizes) {
     const size = parseSize(text);
     if (size.width === baseSize.width && size.height === baseSize.height) continue;
@@ -228,6 +251,10 @@ async function measure(browser, world, item) {
   await context.route('**/@vite/client', (route) =>
     route.fulfill({ contentType: 'text/javascript', body: VITE_CLIENT_STUB }),
   );
+  await context.addInitScript((look) => {
+    if (look) localStorage.setItem('bgvr.look', JSON.stringify(look));
+    else localStorage.removeItem('bgvr.look');
+  }, item.look ?? null);
   await context.addInitScript((graphics) => {
     // Vollständig geschrieben und nicht zusammengeführt: Ein Rest aus einem
     // früheren Fall im selben Profil wäre eine stille Fehlmessung.
@@ -294,6 +321,22 @@ async function measure(browser, world, item) {
         watch.unref?.();
       }),
     ]);
+
+    // **Der Helm kommt nachgeladen** (`core/selfHelmet.ts`): Wer ihn messen
+    // will, wartet, bis er an der Kamera hängt — und ist der Beschlag gewählt,
+    // auch seine Haut darauf.
+    if (item.look?.hat) {
+      const wanted = item.graphics.visorBreath ? 'visor-fog' : null;
+      await page.waitForFunction(
+        (name) => {
+          const helmet = window.bgvr?.selfHelmet?.helmet;
+          if (!helmet) return false;
+          return !name || Boolean(helmet.getObjectByName(name));
+        },
+        wanted,
+        { timeout: 120000 },
+      );
+    }
 
     const sample = await page.evaluate(
       ({ warmup, seconds, minFrames, maxSeconds }) =>

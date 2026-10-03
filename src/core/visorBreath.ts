@@ -18,7 +18,10 @@ import type { VisorBreath } from './graphicsSettings';
  *
  * - `off` — 0.
  * - `light` — von 0 bis `LIGHT_PEAK` und zurück.
- * - `strong` — nie unter `LIGHT_PEAK`, mit jedem Atemzug bis `STRONG_PEAK`.
+ * - `strong` — nie unter `LIGHT_PEAK`, mit jedem Atemzug bis `STRONG_PEAK`,
+ *   und **schneller**: ein Zug alle `STRONG_PERIOD` Sekunden statt vier — wer
+ *   so stark beschlägt, atmet schwer. Gewünscht: _„bei stark bitte die
+ *   Frequenz erhöhen"_.
  * - `fogged` — durchgehend `FOGGED`.
  */
 
@@ -28,6 +31,12 @@ export const BREATH_PERIOD = 4;
 export const EXHALE = 1.5;
 /** Wie schnell der Beschlag danach verdunstet (Zeitkonstante, Sekunden). */
 const FADE = 0.8;
+/**
+ * **Ein Atemzug bei `strong`**, in Sekunden: gut 26 Züge in der Minute, ein
+ * angestrengter Atem. Ausatmen und Verdunsten schrumpfen im selben Verhältnis
+ * mit, damit die Form des Zugs dieselbe bleibt.
+ */
+export const STRONG_PERIOD = 2.3;
 
 export const LIGHT_PEAK = 0.3;
 export const STRONG_PEAK = 0.75;
@@ -38,15 +47,18 @@ export const FOGGED = 0.92;
  * danach abklingend — und so gestaucht, dass sie am Ende des Zugs genau
  * wieder bei 0 steht. Sonst spränge der Beschlag beim nächsten Zug.
  */
-export function breathPulse(time: number): number {
-  if (!Number.isFinite(time)) return 0;
-  const phase = ((time % BREATH_PERIOD) + BREATH_PERIOD) % BREATH_PERIOD;
-  if (phase < EXHALE) {
-    const x = phase / EXHALE;
+export function breathPulse(time: number, period = BREATH_PERIOD): number {
+  if (!Number.isFinite(time) || !(period > 0)) return 0;
+  const scale = period / BREATH_PERIOD;
+  const exhale = EXHALE * scale;
+  const fade = FADE * scale;
+  const phase = ((time % period) + period) % period;
+  if (phase < exhale) {
+    const x = phase / exhale;
     return x * x * (3 - 2 * x);
   }
-  const tail = Math.exp(-(BREATH_PERIOD - EXHALE) / FADE);
-  return (Math.exp(-(phase - EXHALE) / FADE) - tail) / (1 - tail);
+  const tail = Math.exp(-(period - exhale) / fade);
+  return (Math.exp(-(phase - exhale) / fade) - tail) / (1 - tail);
 }
 
 /** **Der Beschlag**, 0 (klar) bis 1 (milchig), für eine Stufe zu einer Zeit. */
@@ -57,7 +69,7 @@ export function breathFog(mode: VisorBreath, time: number): number {
     case 'light':
       return LIGHT_PEAK * breathPulse(time);
     case 'strong':
-      return LIGHT_PEAK + (STRONG_PEAK - LIGHT_PEAK) * breathPulse(time);
+      return LIGHT_PEAK + (STRONG_PEAK - LIGHT_PEAK) * breathPulse(time, STRONG_PERIOD);
     case 'fogged':
       return FOGGED;
   }

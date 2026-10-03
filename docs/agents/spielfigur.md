@@ -175,13 +175,14 @@ seinen Namen dafür. Diese drei gehören dem **Koch**:
   `core/headgear.ts`, `spread` in `chefHatVertices`).
 
   **Und sie passt auch auf fremde Köpfe.** `headgearFor(kind, headRadius,
-  tint)` liefert dieselbe Gruppe, auf `headRadius / HEAD_RADIUS` skaliert, und
+tint)` liefert dieselbe Gruppe, auf `headRadius / HEAD_RADIUS` skaliert, und
   `HEADGEAR_SEAT` (0,45) sagt, wie weit über der Kopf**mitte** der Rand
   aufsitzt. Wer sie an den Kopfknochen einer KayKit-Figur hängt, misst dessen
   Schädel, gibt die **kleinere** der beiden Hälften (Breite, Höhe) herein —
   in der Breite stecken die Ohren — und setzt die Gruppe in die Mitte der
   Hülle. Auf dem Modellkopf des Kochs ist genau das nachgestellt:
   `avatar-preview.html?built=model`.
+
 - **Körper** — fünf Kochjacken: weiß, rot, blau, grün, gestreift.
 
 **Alle drei Zeilen wirken auch auf das Modell**, und das ist nachgetragen
@@ -463,8 +464,7 @@ gelaufen wird, und gelaufen wird auf dem ganzen Gelände. Nur zu Fuß —
 ### Geliehen: eine Figur von der Welt, und der Raumhelm
 
 Eine Welt kann dem Spieler nicht nur einen Hut aufsetzen (`WorldContext.wear`),
-sondern auch **eine Figur leihen** (`WorldContext.dress`, seit September
-2026) — dieselbe Regel: `null` gibt die eigene zurück, gespeichert wird nichts
+sondern auch **eine Figur leihen** (`WorldContext.dress`, seit September 2026) — dieselbe Regel: `null` gibt die eigene zurück, gespeichert wird nichts
 (`App.dress`, `App.applyAppearance` legt beides über `appearance()`). Die
 Raumstation steckt den Techniker so in den **Space Ranger**
 (`avatarFigures.SPACE_RANGER`) und setzt ihm den **Raumhelm** auf
@@ -579,7 +579,10 @@ habe bei Haunting nutzen."_ So ist er gebaut:
     Sekunden, 1,5 s davon Ausatmen (der Beschlag wächst weich), danach
     verdunstet er bis genau 0. _Aus_ ist das Visier wie es ist, _Leicht_ geht
     von 0 bis 0,3, _Stark_ nie unter 0,3 (dem Gipfel von _Leicht_) bis 0,75,
-    _Beschlagen_ steht durchgehend auf 0,92.
+    _Beschlagen_ steht durchgehend auf 0,92. _Stark_ atmet dazu **schneller**,
+    ein Zug alle 2,3 s statt vier (`STRONG_PERIOD`; Ausatmen und Verdunsten
+    schrumpfen im selben Verhältnis) — gewünscht: _„bei stark bitte die
+    Frequenz erhöhen"_.
   - **Die Haut auf dem Glas** (`core/visorFog.ts`): ein zweites Netz mit
     derselben Geometrie wie das Visier, als Kind daran (`selfHelmet.fogVisors`
     — Glas ist, was durchsichtig ist), ein eigener Shader, milchig-kühles Weiß.
@@ -590,6 +593,17 @@ habe bei Haunting nutzen."_ So ist er gebaut:
     Projektion zog es sich an den gekrümmten Rändern zu Streifen); **Bild**
     ist ein einmal gemaltes Bild aus ein paar tausend Tröpfchen
     (`dropletImage`, Leinwand 512²), ein- und ausgeblendet.
+  - **Was es kostet** (`npm run fps -- --worlds=hub --cases=helm,visier-rechnerisch,visier-bild`,
+    durchgehend beschlagen und ganz flächig, damit jeder Bildpunkt des Glases
+    zählt): gegen den Helm mit klarem Visier am 3. Oktober 2026 in SwiftShader
+    _Rechnerisch_ +2 … +23 %, _Bild_ −3 … +13 %, Bild gegen Rechnerisch
+    0,79 … 1,10 — **kein Unterschied, der aus dem Rauschen herausragt.** Im
+    Shader ist _Rechnerisch_ drei Lagen Wertrauschen (24 `sin`-Hashes je
+    Bildpunkt), _Bild_ ein Texturzugriff; auf einer echten GPU, wo eine
+    durchsichtige Fläche über dem ganzen Blick an der Füllrate hängt, spricht
+    das für _Bild_. Eine Quest-Zahl gibt es noch nicht. Bei _Aus_ (und im
+    klaren Tal von _Leicht_) wird die Haut gar nicht gezeichnet
+    (`material.visible`), statt erst im Shader verworfen zu werden.
   - **Nicht dabei** ist echte Lichtstreuung (Höfe um Lampen und
     Scheinwerfer): Die bräuchte einen eigenen Durchgang über das ganze Bild.
     Matt und diffus wird die Sicht durch die milchige Schicht trotzdem.

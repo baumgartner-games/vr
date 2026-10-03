@@ -435,7 +435,7 @@ export interface GraphicsSettings {
  * - `light` — im Takt eines ruhigen Atems ganz leicht beschlagen, dazwischen
  *   wieder klar.
  * - `strong` — nie ganz klar: Das Tal ist der Gipfel von `light`, der Gipfel
- *   deutlich darüber.
+ *   deutlich darüber, und der Atem geht schneller.
  * - `fogged` — durchgehend stark beschlagen, kaum noch durchsichtig.
  */
 export type VisorBreath = 'off' | 'light' | 'strong' | 'fogged';
@@ -449,7 +449,7 @@ export const VISOR_BREATH_LABELS: Readonly<Record<VisorBreath, string>> = {
 export const VISOR_BREATH_SUBS: Readonly<Record<VisorBreath, string>> = {
   off: 'Das Visier, wie es ist',
   light: 'Mit jedem Ausatmen ganz leicht beschlagen, dazwischen klar',
-  strong: 'Nie ganz klar · mit jedem Ausatmen deutlich trüber',
+  strong: 'Nie ganz klar · schneller Atem, mit jedem Ausatmen deutlich trüber',
   fogged: 'Durchgehend stark beschlagen · kaum noch durchsichtig',
 };
 export function nextVisorBreath(mode: VisorBreath): VisorBreath {

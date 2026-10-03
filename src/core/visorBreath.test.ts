@@ -4,6 +4,7 @@ import {
   FOGGED,
   LIGHT_PEAK,
   STRONG_PEAK,
+  STRONG_PERIOD,
   breathFog,
   breathPulse,
 } from './visorBreath';
@@ -46,6 +47,19 @@ describe('der Atem auf dem Visier', () => {
     const values = TIMES.map((t) => breathFog('strong', t));
     expect(Math.min(...values)).toBeGreaterThanOrEqual(LIGHT_PEAK - 1e-9);
     expect(Math.max(...values)).toBeCloseTo(STRONG_PEAK, 2);
+  });
+
+  it('atmet bei stark schneller als bei leicht', () => {
+    expect(STRONG_PERIOD).toBeLessThan(BREATH_PERIOD);
+    const exhale = (EXHALE * STRONG_PERIOD) / BREATH_PERIOD;
+    // Der Gipfel kommt früher und kehrt nach einem kurzen Zug wieder.
+    expect(breathFog('strong', exhale)).toBeCloseTo(STRONG_PEAK);
+    expect(breathFog('strong', STRONG_PERIOD + exhale)).toBeCloseTo(STRONG_PEAK);
+    expect(breathFog('strong', STRONG_PERIOD - 1e-6)).toBeCloseTo(LIGHT_PEAK, 3);
+    // Und springt trotzdem nirgends.
+    for (const t of TIMES) {
+      expect(Math.abs(breathFog('strong', t + 0.005) - breathFog('strong', t))).toBeLessThan(0.02);
+    }
   });
 
   it('ist beschlagen durchgehend fast undurchsichtig', () => {

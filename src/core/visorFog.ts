@@ -75,9 +75,14 @@ float noise(vec3 p) {
 void main() {
   if (uFog <= 0.002) discard;
   vec2 p = clamp(vP, 0.0, 1.0);
-  float grain = uImage > 0.5
-    ? texture2D(uMap, vL.xy * 1.5).r
-    : 0.45 * noise(vL * 70.0) + 0.35 * noise(vL * 22.0) + 0.2 * noise(vL * 6.0);
+  // Ein echtes „if" und kein „?:" — den rechnen manche Treiber auf beiden
+  // Seiten aus, und dann bezahlte das Bild die drei Rauschlagen mit.
+  float grain;
+  if (uImage > 0.5) {
+    grain = texture2D(uMap, vL.xy * 1.5).r;
+  } else {
+    grain = 0.45 * noise(vL * 70.0) + 0.35 * noise(vL * 22.0) + 0.2 * noise(vL * 6.0);
+  }
 
   float cover = 1.0;
   float density = uFog;
@@ -141,6 +146,9 @@ export function visorFog(): VisorFog {
     },
     set(fog, style, render) {
       uniforms.uFog!.value = Math.min(Math.max(fog, 0), 1);
+      // Klar heißt gar nicht gezeichnet — nicht erst im Shader verworfen: Bei
+      // _Aus_ und im Tal von _Leicht_ kostet die Haut so keinen Zeichenaufruf.
+      material.visible = fog > 0.002;
       uniforms.uRealistic!.value = style === 'realistic' ? 1 : 0;
       const wantImage = render === 'image';
       if (wantImage && !image) image = dropletImage();
