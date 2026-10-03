@@ -2918,7 +2918,7 @@ export class App {
         label: 'VR-POV kalibrieren',
         sub: active
           ? 'Läuft · ☰ für Code und Schließen'
-          : 'Den Ausschnitt einstellen: ein Eckpunkt, gespiegelt zum Rechteck',
+          : 'Rand (gelb) und sicherer Bereich (grün) einstellen, gespiegelt',
         caption: 'Linker Stick verschiebt, rechter wählt, A fügt hinzu, B löscht',
         icon: 'settings',
         accent,
@@ -2965,8 +2965,8 @@ export class App {
           },
           {
             id: 'gfx:pov-reset',
-            label: 'Auf Rechteck zurücksetzen',
-            sub: 'Ein Eckpunkt, so weit wie das gemessene Sichtfeld',
+            label: 'Auf Vorgabe zurücksetzen',
+            sub: 'Der eingestellte Rand der Quest 3 und die Ecke des sicheren Bereichs',
             icon: 'settings',
             accent,
             run: () => {

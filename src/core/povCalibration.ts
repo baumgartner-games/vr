@@ -31,15 +31,45 @@ export interface PovPoint {
 export const MAX_ANGLE = 90;
 
 /**
- * Womit es anfängt: ein Rechteck etwas innerhalb des gemessenen Sichtfelds
- * (40° · 35°) — so ist es sicher zu sehen und wird nach außen geschoben.
+ * **Der Rand der Quest 3, wie in der Brille eingestellt** (am 3. Oktober
+ * 2026, `questView.QUEST_VIEW_CODE`) — damit fängt das Kalibrieren an, und
+ * daraus wird das Sichtfeld (`questView.QUEST_VIEW`). Davor fing es mit
+ * einem Rechteck aus einem Eckpunkt an (30° · 25°).
  */
-export const START_POINTS: readonly PovPoint[] = [{ az: 30, el: 25 }];
+export const START_POINTS: readonly PovPoint[] = [
+  { az: 2, el: 34.5 },
+  { az: 6.5, el: 35 },
+  { az: 15.5, el: 35 },
+  { az: 23.5, el: 32 },
+  { az: 22.5, el: 25.5 },
+  { az: 35.5, el: 17 },
+  { az: 37.5, el: 9 },
+  { az: 38.5, el: 1.5 },
+];
 
-/** Ein Ding, auf dem die Auswahl stehen kann: ein Punkt, oder die Mitte einer Kante. */
+/**
+ * **Die Ecke des sicheren Bereichs** — ein zweites Rechteck aus einem
+ * Eckpunkt, gespiegelt wie der Rand. Gewünscht: _„ein zusätzliches
+ * rechteck […] als save area, aber dafür nur eine ecke, dass man sieht wo
+ * der sichere Bereich ist"_. Anfangs ungefähr so weit wie der bisherige
+ * sichere Bereich.
+ */
+export const START_SAFE: PovPoint = { az: 25, el: 20 };
+
+/** Was eingestellt ist: der Rand und die Ecke des sicheren Bereichs. */
+export interface PovConfig {
+  readonly points: readonly PovPoint[];
+  readonly safe: PovPoint;
+}
+
+/**
+ * Ein Ding, auf dem die Auswahl stehen kann: ein Punkt, die Mitte einer
+ * Kante — oder die Ecke des sicheren Bereichs (`safe`, am Ende der Reihe).
+ */
 export type PovItem =
   | { readonly kind: 'point'; readonly index: number; readonly at: PovPoint }
-  | { readonly kind: 'add'; readonly index: number; readonly at: PovPoint };
+  | { readonly kind: 'add'; readonly index: number; readonly at: PovPoint }
+  | { readonly kind: 'safe'; readonly index: 0; readonly at: PovPoint };
 
 const clampAngle = (value: number): number => Math.min(MAX_ANGLE, Math.max(0, value));
 
@@ -60,7 +90,7 @@ export function polyline(points: readonly PovPoint[]): PovPoint[] {
  * `index` ist bei einer Mitte die Stelle, an der ein neuer Punkt eingefügt
  * würde.
  */
-export function items(points: readonly PovPoint[]): PovItem[] {
+export function items(points: readonly PovPoint[], safe?: PovPoint): PovItem[] {
   const line = polyline(points);
   const out: PovItem[] = [];
   for (let i = 0; i < line.length - 1; i++) {
@@ -69,6 +99,7 @@ export function items(points: readonly PovPoint[]): PovItem[] {
     out.push({ kind: 'add', index: i, at: { az: (a.az + b.az) / 2, el: (a.el + b.el) / 2 } });
     if (i < points.length) out.push({ kind: 'point', index: i, at: points[i]! });
   }
+  if (safe) out.push({ kind: 'safe', index: 0, at: safe });
   return out;
 }
 
@@ -110,6 +141,16 @@ export function fullOutline(points: readonly PovPoint[]): [number, number][] {
   return [...right, ...left];
 }
 
+/** Das Rechteck aus einer Ecke, im Uhrzeigersinn ab oben rechts. */
+export function rectOutline(corner: PovPoint): [number, number][] {
+  return [
+    [corner.az, corner.el],
+    [corner.az, -corner.el],
+    [-corner.az, -corner.el],
+    [-corner.az, corner.el],
+  ];
+}
+
 // --- der Code ----------------------------------------------------------------
 
 /**
@@ -118,13 +159,15 @@ export function fullOutline(points: readonly PovPoint[]): [number, number][] {
  * lässt sich auch decomprimieren."_
  *
  * Crockfords Base32 (ohne I, L, O, U — nichts, was man verwechselt), in
- * Vierergruppen: `P1` (die Fassung), die Zahl der Punkte, je Punkt zwei
- * Zeichen für `az` und zwei für `el` in halben Grad, und am Ende ein Zeichen
- * Prüfsumme. Ein Rechteck sind damit zwei Gruppen. `decodePov` nimmt ihn
+ * Vierergruppen: die Fassung, die Zahl der Punkte, je Punkt zwei Zeichen für
+ * `az` und zwei für `el` in halben Grad, und am Ende ein Zeichen Prüfsumme.
+ * `P1` ist nur der Rand; `P2` hat danach noch die Ecke des sicheren Bereichs
+ * (vier Zeichen mehr). `decodePov` nimmt ihn
  * auch klein geschrieben, mit Leerzeichen und mit I/L statt 1 und O statt 0.
  */
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const VERSION = 'P1';
+const VERSION_SAFE = 'P2';
 
 function digits(value: number, count: number): string {
   let out = '';
@@ -142,21 +185,26 @@ function checksum(body: string): string {
   return ALPHABET[sum]!;
 }
 
-export function encodePov(points: readonly PovPoint[]): string {
+export function encodePov(points: readonly PovPoint[], safe?: PovPoint): string {
   const count = Math.min(points.length, 31);
-  let body = VERSION + digits(count, 1);
-  for (const point of points.slice(0, count)) {
+  let body = (safe ? VERSION_SAFE : VERSION) + digits(count, 1);
+  const pair = (point: PovPoint): string => {
     const p = clampPoint(point);
-    body += digits(p.az * 2, 2) + digits(p.el * 2, 2);
-  }
+    return digits(p.az * 2, 2) + digits(p.el * 2, 2);
+  };
+  for (const point of points.slice(0, count)) body += pair(point);
+  if (safe) body += pair(safe);
   body += checksum(body);
   return body.match(/.{1,4}/g)!.join('-');
 }
 
-/** Den Code zurück in Punkte — `null`, wenn er nicht stimmt. */
-export function decodePov(code: string): PovPoint[] | null {
+/** Den Code zurück — `null`, wenn er nicht stimmt. Ohne Ecke (`P1`) ist `safe` `null`. */
+export function decodePovConfig(
+  code: string,
+): { points: PovPoint[]; safe: PovPoint | null } | null {
   const body = code.toUpperCase().replace(/[\s-]/g, '').replace(/[IL]/g, '1').replace(/O/g, '0');
-  if (!body.startsWith(VERSION) || body.length < VERSION.length + 2) return null;
+  const withSafe = body.startsWith(VERSION_SAFE);
+  if ((!withSafe && !body.startsWith(VERSION)) || body.length < VERSION.length + 2) return null;
   const sum = body[body.length - 1]!;
   const rest = body.slice(0, -1);
   if (checksum(rest) !== sum) return null;
@@ -170,37 +218,45 @@ export function decodePov(code: string): PovPoint[] | null {
     return value;
   };
   const count = read(VERSION.length, 1);
-  if (!(count >= 1) || rest.length !== VERSION.length + 1 + count * 4) return null;
-  const points: PovPoint[] = [];
-  for (let i = 0; i < count; i++) {
+  const pairs = count + (withSafe ? 1 : 0);
+  if (!(count >= 1) || rest.length !== VERSION.length + 1 + pairs * 4) return null;
+  const all: PovPoint[] = [];
+  for (let i = 0; i < pairs; i++) {
     const at = VERSION.length + 1 + i * 4;
     const az = read(at, 2) / 2;
     const el = read(at + 2, 2) / 2;
     if (!Number.isFinite(az) || !Number.isFinite(el)) return null;
-    points.push(clampPoint({ az, el }));
+    all.push(clampPoint({ az, el }));
   }
-  return points;
+  return withSafe
+    ? { points: all.slice(0, count), safe: all[count]! }
+    : { points: all, safe: null };
+}
+
+/** Nur der Rand aus dem Code. */
+export function decodePov(code: string): PovPoint[] | null {
+  return decodePovConfig(code)?.points ?? null;
 }
 
 // --- gemerkt -------------------------------------------------------------------
 
 const KEY = 'bgvr.povCalibration';
 
-/** Was zuletzt eingestellt war — sonst das Rechteck. */
-export function loadPov(): PovPoint[] {
+/** Was zuletzt eingestellt war — sonst der Rand der Quest 3. */
+export function loadPov(): PovConfig {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
-    const decoded = raw ? decodePov(raw) : null;
-    if (decoded) return decoded;
+    const decoded = raw ? decodePovConfig(raw) : null;
+    if (decoded) return { points: decoded.points, safe: decoded.safe ?? START_SAFE };
   } catch {
-    // Ohne Speicher gilt das Rechteck.
+    // Ohne Speicher gilt die Vorgabe.
   }
-  return [...START_POINTS];
+  return { points: [...START_POINTS], safe: START_SAFE };
 }
 
-export function savePov(points: readonly PovPoint[]): void {
+export function savePov(config: PovConfig): void {
   try {
-    globalThis.localStorage?.setItem(KEY, encodePov(points));
+    globalThis.localStorage?.setItem(KEY, encodePov(config.points, config.safe));
   } catch {
     // Ohne Speicher gilt die Einstellung bis zum Neuladen.
   }

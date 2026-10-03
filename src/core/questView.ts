@@ -1,3 +1,5 @@
+import { START_POINTS, fullOutline, type PovPoint } from './povCalibration';
+
 /**
  * **Was man in der Quest 3 durch den immersiven Helm sieht** — gemessen mit
  * dem Kalibrier-Helm (`core/viewCalibration.ts`) im Oktober 2026. Reine
@@ -48,17 +50,38 @@ export function mirrored(below: readonly ViewRow[]): ViewRow[] {
   }));
 }
 
+/** Ein Umriss als `[azimuth, elevation]` in Grad, im Raum der Kamera. */
+export type Outline = readonly (readonly [number, number])[];
+
 /**
- * **Das Sichtfeld**, von oben nach unten: die untere Hälfte, wie gemessen
- * (hier schon um die gefühlte Null gerechnet: Kamera −10° ist 0), gespiegelt.
+ * **Der Rand, wie in der Brille eingestellt** — mit _VR-POV kalibrieren_
+ * (`core/PovCalibrator.ts`) am 3. Oktober 2026, als Code
+ * `P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03K` (gewünscht: _„Bitte
+ * speichern als default […] für vr und als quest3 pov code für den Rand"_).
+ * Das letzte Zeichen ist dabei vertippt — die Prüfsumme verlangt `J`, und
+ * jede andere Lesart mit einem einzigen falschen Zeichen verschöbe einen
+ * Punkt um höchstens einen halben Grad oder auf 90°. Richtig heißt er
+ * `QUEST_VIEW_CODE`.
+ *
+ * Die Punkte des Viertels rechts oben, in Grad um die gefühlte Null, von oben
+ * Mitte nach rechts außen; gespiegelt an beiden Achsen (`povCalibration.fullOutline`).
  */
-export const QUEST_VIEW: readonly ViewRow[] = mirrored([
-  { elevation: 0, half: 40 },
-  { elevation: -10, half: 40 },
-  { elevation: -20, half: 35 },
-  { elevation: -30, half: 30 },
-  { elevation: -35, half: 20 },
-]);
+export const QUEST_VIEW_POINTS: readonly PovPoint[] = START_POINTS;
+
+/** Derselbe Rand als Code (`povCalibration.encodePov`). */
+export const QUEST_VIEW_CODE = 'P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03J';
+
+/** Punkte um die gefühlte Null als Umriss im Raum der Kamera. */
+export function cameraOutline(points: readonly PovPoint[]): [number, number][] {
+  return fullOutline(points).map(([az, el]): [number, number] => [az, el + GAZE_PITCH]);
+}
+
+/**
+ * **Das Sichtfeld** — der eingestellte Rand, ganz und im Raum der Kamera.
+ * Davor stand hier die Messung aus Zeilen (oben und unten ±40, ±35, ±30,
+ * ±20 um die gefühlte Null).
+ */
+export const QUEST_VIEW: Outline = cameraOutline(QUEST_VIEW_POINTS);
 
 /**
  * **Der sichere Bereich** — wo etwas stehen soll, das man immer sehen muss.
@@ -80,29 +103,29 @@ export function gazeElevation(elevation: number): number {
   return elevation - GAZE_PITCH;
 }
 
-/** Die Umrisslinie als `[azimuth, elevation]`, im Uhrzeigersinn ab oben links. */
+/** Die Umrisslinie aus Zeilen als `[azimuth, elevation]`, im Uhrzeigersinn ab oben links. */
 export function outline(rows: readonly ViewRow[]): [number, number][] {
   const right = rows.map((row): [number, number] => [row.half, row.elevation]);
   const left = [...rows].reverse().map((row): [number, number] => [-row.half, row.elevation]);
   return [...right, ...left];
 }
 
-/** Ob eine Richtung im Bereich liegt — zwischen zwei Zeilen geradlinig. */
-export function inside(rows: readonly ViewRow[], azimuth: number, elevation: number): boolean {
-  const top = rows[0]!.elevation;
-  const bottom = rows[rows.length - 1]!.elevation;
-  if (elevation > top || elevation < bottom) return false;
-  for (let i = 0; i < rows.length - 1; i++) {
-    const a = rows[i]!;
-    const b = rows[i + 1]!;
-    if (elevation <= a.elevation && elevation >= b.elevation) {
-      const t =
-        a.elevation === b.elevation ? 0 : (a.elevation - elevation) / (a.elevation - b.elevation);
-      return Math.abs(azimuth) <= a.half + (b.half - a.half) * t;
+/** Ob eine Richtung im Umriss liegt (gerade Kanten in Grad). */
+export function inside(shape: Outline, azimuth: number, elevation: number): boolean {
+  let hit = false;
+  for (let i = 0, j = shape.length - 1; i < shape.length; j = i++) {
+    const [ai, ei] = shape[i]!;
+    const [aj, ej] = shape[j]!;
+    if (ei > elevation !== ej > elevation) {
+      const at = ai + ((elevation - ei) * (aj - ai)) / (ej - ei);
+      if (azimuth < at) hit = !hit;
     }
   }
-  return false;
+  return hit;
 }
+
+/** Der sichere Bereich als Umriss (`QUEST_SAFE`). */
+export const QUEST_SAFE_OUTLINE: Outline = outline(QUEST_SAFE);
 
 /**
  * **Das Bild am Schirm für dieses Sichtfeld** (`App.applyVrView`): die
@@ -122,10 +145,10 @@ export interface ViewFrustum {
 
 const DEG = Math.PI / 180;
 
-export function viewFrustum(rows: readonly ViewRow[] = QUEST_VIEW): ViewFrustum {
+export function viewFrustum(shape: Outline = QUEST_VIEW): ViewFrustum {
   // Dicht abgetastet: Eine gerade Kante im Winkel ist auf der Bildebene krumm.
   const points: [number, number][] = [];
-  const ring = outline(rows);
+  const ring = shape;
   for (let i = 0; i < ring.length; i++) {
     const [a0, e0] = ring[i]!;
     const [a1, e1] = ring[(i + 1) % ring.length]!;

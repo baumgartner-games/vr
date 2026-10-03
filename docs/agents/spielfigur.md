@@ -633,6 +633,21 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   Menü (`ORDER` 9,5). Bänder statt `THREE.Line`, die in der Brille als ein
   Bildpunkt flimmerte. Was man in der Quest abliest, kommt in die
   **VR-Ansicht** am Schirm (`core/vrView.ts`, siehe [Seite](seite.md)).
+- **Der Rand ist seit dem 3. Oktober 2026 eingestellt** und nicht mehr aus
+  Zeilen gemessen: mit _VR-POV kalibrieren_ in der Brille, Code
+  `P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03K` — _„Bitte speichern als
+  default […] für vr und als quest3 pov code für den Rand. Den sicheren
+  Bereich kannst du wie davor nehmen."_ Das letzte Zeichen war vertippt (die
+  Prüfsumme verlangt `J`; jede andere Lesart mit einem falschen Zeichen
+  verschöbe einen Punkt um einen halben Grad oder auf 90°). Die acht Punkte
+  um die gefühlte Null: 2 · 34,5 — 6,5 · 35 — 15,5 · 35 — 23,5 · 32 — 22,5 ·
+  25,5 — 35,5 · 17 — 37,5 · 9 — 38,5 · 1,5 (`povCalibration.START_POINTS`,
+  `questView.QUEST_VIEW_POINTS`), gespiegelt zum ganzen Rand
+  (`QUEST_VIEW`, jetzt ein Umriss statt Zeilen; `inside` prüft Punkt im
+  Vieleck). Daraus kommen der Helm _Quest-3-Sicht_, die Umrisse im
+  Kalibrier-Helm und der Zuschnitt der VR-Ansicht. Der sichere Bereich ist
+  der bisherige (`QUEST_SAFE`); an seinen oberen Ecken liegt er wegen des
+  Knicks bei 22,5 · 25,5 nur gut 3° vom Rand.
 - **Gemessen** im Oktober 2026 (`core/questView.ts`, mit Test), je Höhe von
   wo bis wo man seitlich sieht: _„30, Rand oben · 20, -30 bis 30 · 10, -35
   bis 35 · 0, -40 bis 40 · -10, -40 bis 40 · -20, -40 bis 40 · -30, -35 bis
@@ -669,9 +684,15 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   eckpunkt den wir anpassen können (aus diesem eckpunkt wird das rechteck
   angezeigt (indem die anderen gespiegelt werden)"_. Die Zeile fängt sofort
   an; eingestellt werden nur die Punkte des Viertels rechts oben, in Grad um
-  die gefühlte Null, gespiegelt an beiden Achsen. Angefangen wird mit einem
-  Eckpunkt bei 30° · 25° (etwas innerhalb der Messung, damit er zu sehen
-  ist).
+  die gefühlte Null, gespiegelt an beiden Achsen. Angefangen wird mit dem
+  eingestellten Rand der Quest 3 (`START_POINTS`, siehe unten); einmal fing
+  es mit einem Eckpunkt bei 30° · 25° an.
+  - **Dazu ein grünes Rechteck für den sicheren Bereich** aus einer Ecke
+    (`START_SAFE`, 25° · 20°) — gewünscht: _„ein zusätzliches recht Eck […]
+    als save area, aber dafür nur eine ecke, dass man sieht wo der sichere
+    Bereich ist"_. Seine Ecke steht am Ende der Reihe des rechten Sticks;
+    verschieben ja, hinzufügen und löschen nicht. Der Code heißt dann `P2…`
+    (vier Zeichen mehr); `P1` ohne Ecke liest `decodePovConfig` weiter.
   - **Linker Stick** verschiebt den gewählten Punkt (12° je Sekunde voll
     ausgelenkt), **rechter Stick** wechselt die Auswahl der Reihe nach —
     Punkte und **die Mitte jeder Kante** (hohle Ringe): _„die anderen punkte,

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LAYER_EYE } from './viewLayers';
-import { EDGE_BAND, GAZE_PITCH, QUEST_SAFE, QUEST_VIEW, outline, type ViewRow } from './questView';
+import { EDGE_BAND, GAZE_PITCH, QUEST_SAFE_OUTLINE, QUEST_VIEW, type Outline } from './questView';
 
 /**
  * **Das Gradnetz im Kalibrier-Helm** — farbige Linien in festen Winkeln vor
@@ -176,9 +176,9 @@ export function viewZones(fill: boolean): THREE.Object3D {
   canvas.height = height;
   const g = canvas.getContext('2d');
   if (!g) return holder;
-  const path = (rows: readonly ViewRow[]): Path2D => {
+  const path = (outline: Outline): Path2D => {
     const shape = new Path2D();
-    outline(rows).forEach(([az, el], i) => {
+    outline.forEach(([az, el], i) => {
       const x = (az + ZONE_AZ) * ZONE_PPD;
       const y = (ZONE_TOP - el) * ZONE_PPD;
       if (i === 0) shape.moveTo(x, y);
@@ -188,7 +188,7 @@ export function viewZones(fill: boolean): THREE.Object3D {
     return shape;
   };
   const view = path(QUEST_VIEW);
-  const safe = path(QUEST_SAFE);
+  const safe = path(QUEST_SAFE_OUTLINE);
   if (fill) {
     g.fillStyle = 'rgba(255, 154, 60, 0.22)';
     g.fill(view);

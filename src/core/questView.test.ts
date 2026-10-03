@@ -1,50 +1,44 @@
 import {
   EDGE_BAND,
   GAZE_PITCH,
-  QUEST_SAFE,
+  QUEST_SAFE_OUTLINE,
   QUEST_VIEW,
+  QUEST_VIEW_CODE,
+  QUEST_VIEW_POINTS,
   gazeElevation,
   inside,
-  outline,
   viewFrustum,
 } from './questView';
+import { decodePov } from './povCalibration';
 import { POV_HAT, isImmersiveHat } from './figureParts';
 import { WARDROBE_HATS } from './headgear';
 
 describe('die Sicht der Quest 3', () => {
-  it('steht so da, wie sie gemessen wurde', () => {
-    expect(inside(QUEST_VIEW, 39, 0)).toBe(true);
-    expect(inside(QUEST_VIEW, 41, 0)).toBe(false);
-    expect(inside(QUEST_VIEW, 29, 20)).toBe(true);
-    expect(inside(QUEST_VIEW, 31, 20)).toBe(false);
-    expect(inside(QUEST_VIEW, 0, 26)).toBe(false);
-    expect(inside(QUEST_VIEW, 19, -45)).toBe(true);
-    expect(inside(QUEST_VIEW, 0, -46)).toBe(false);
+  it('ist der in der Brille eingestellte Rand', () => {
+    expect(decodePov(QUEST_VIEW_CODE)).toEqual(QUEST_VIEW_POINTS);
   });
 
-  it('hat den sicheren Bereich ganz im Sichtfeld, mit Abstand zum Rand', () => {
-    for (const [az, el] of outline(QUEST_SAFE)) {
+  it('liegt so, wie eingestellt — um die gefühlte Null gespiegelt', () => {
+    const at = (az: number, el: number): boolean => inside(QUEST_VIEW, az, el + GAZE_PITCH);
+    expect(at(37, 1)).toBe(true);
+    expect(at(39, 1)).toBe(false);
+    expect(at(37, -1)).toBe(true);
+    expect(at(-37, -1)).toBe(true);
+    expect(at(0, 34)).toBe(true);
+    expect(at(0, 36)).toBe(false);
+    expect(at(0, -34)).toBe(true);
+    expect(at(0, -36)).toBe(false);
+  });
+
+  it('hat den sicheren Bereich ganz im Sichtfeld', () => {
+    for (const [az, el] of QUEST_SAFE_OUTLINE) {
       expect(inside(QUEST_VIEW, az, el)).toBe(true);
-      // Mehr als der rote Randbereich bleibt zur Seite frei.
-      expect(inside(QUEST_VIEW, az + Math.sign(az) * EDGE_BAND, el)).toBe(true);
+      // Seitlich bleibt mindestens ein Rest Abstand — oben an den Ecken
+      // knapp (der Knick im Rand bei 22,5° · 25,5°), sonst mehr als der rote
+      // Randbereich.
+      expect(inside(QUEST_VIEW, az + Math.sign(az) * 3, el)).toBe(true);
     }
-    expect(inside(QUEST_SAFE, 29, -10)).toBe(true);
-    expect(inside(QUEST_SAFE, 19, -35)).toBe(true);
-    expect(inside(QUEST_SAFE, 19, 15)).toBe(true);
-    expect(inside(QUEST_SAFE, 0, 16)).toBe(false);
-  });
-
-  it('ist oben das Spiegelbild von unten, um die gefühlte Null', () => {
-    for (const range of [QUEST_VIEW, QUEST_SAFE]) {
-      for (const row of range) {
-        const twin = range.find(
-          (other) => other.elevation - GAZE_PITCH === -(row.elevation - GAZE_PITCH),
-        );
-        expect(twin?.half).toBe(row.half);
-      }
-    }
-    expect(QUEST_VIEW[0]).toEqual({ elevation: 25, half: 20 });
-    expect(QUEST_VIEW[QUEST_VIEW.length - 1]).toEqual({ elevation: -45, half: 20 });
+    expect(EDGE_BAND).toBe(5);
   });
 
   it('legt die gefühlte Null 10° unter geradeaus', () => {
@@ -55,9 +49,8 @@ describe('die Sicht der Quest 3', () => {
 
   it('schneidet die Ansicht am Schirm schief zu: unten weiter als oben', () => {
     const frustum = viewFrustum();
-    expect(frustum.top).toBeGreaterThan(Math.tan((25 * Math.PI) / 180) - 1e-9);
     expect(-frustum.bottom).toBeGreaterThan(frustum.top);
-    expect(frustum.right).toBeCloseTo(Math.tan((40 * Math.PI) / 180));
+    expect(frustum.right).toBeCloseTo(Math.tan((38.5 * Math.PI) / 180), 2);
     expect(frustum.left).toBeCloseTo(-frustum.right);
     expect(frustum.aspect).toBeGreaterThan(0.8);
     expect(frustum.aspect).toBeLessThan(1.4);

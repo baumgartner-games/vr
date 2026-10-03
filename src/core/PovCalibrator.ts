@@ -9,9 +9,12 @@ import {
   items,
   loadPov,
   movePoint,
+  rectOutline,
   removePoint,
   savePov,
   START_POINTS,
+  START_SAFE,
+  clampPoint,
   type PovPoint,
 } from './povCalibration';
 import type { XRInput } from './XRInput';
@@ -27,7 +30,9 @@ import type { XRInput } from './XRInput';
  * - Die Form hängt an der Kamera, um die gefühlte Null gedreht
  *   (`GAZE_PITCH`), ohne Tiefe über allem, nur das Menü darüber (`ORDER`).
  * - Die eingestellten Punkte sind weiße Scheiben, ihre Spiegelbilder kleine
- *   graue, die Mitten der Kanten hohle Ringe. Was gewählt ist, ist groß und
+ *   graue, die Mitten der Kanten hohle Ringe. **Der sichere Bereich** ist
+ *   ein zweites, grünes Rechteck aus einer Ecke (grüne Scheibe, am Ende der
+ *   Reihe): verschieben ja, hinzufügen und löschen nicht. Was gewählt ist, ist groß und
  *   gelb, mit seinen Gradzahlen daneben.
  * - **Linker Stick** verschiebt den gewählten Punkt (`SPEED` Grad je
  *   Sekunde, voll ausgelenkt), **rechter Stick** wechselt die Auswahl (rechts
@@ -51,7 +56,9 @@ const DOT_SELECTED = 0.024;
 const DEG = Math.PI / 180;
 
 export class PovCalibrator {
-  private points: PovPoint[] = loadPov();
+  private points: PovPoint[] = [...loadPov().points];
+  /** Die Ecke des sicheren Bereichs — ein zweites, grünes Rechteck. */
+  private safe: PovPoint = loadPov().safe;
   private selected = 1;
   private group: THREE.Group | null = null;
   private dirty = true;
@@ -66,7 +73,7 @@ export class PovCalibrator {
 
   /** Der Code der aktuellen Form (`povCalibration.encodePov`). */
   get code(): string {
-    return encodePov(this.points);
+    return encodePov(this.points, this.safe);
   }
 
   /** Anfangen — die Form an die Kamera. */
@@ -86,18 +93,23 @@ export class PovCalibrator {
   /** Aufhören — die Form weg, gemerkt bleibt sie (`savePov`). */
   stop(): void {
     if (!this.group) return;
-    savePov(this.points);
+    this.save();
     disposeCalibration(this.group);
     this.group = null;
     this.listenKeys(false);
   }
 
-  /** Zurück aufs Rechteck. */
+  /** Zurück auf die Vorgabe: den Rand der Quest 3 und die Ecke des sicheren Bereichs. */
   reset(): void {
     this.points = [...START_POINTS];
+    this.safe = START_SAFE;
     this.selected = 1;
     this.dirty = true;
-    savePov(this.points);
+    this.save();
+  }
+
+  private save(): void {
+    savePov({ points: this.points, safe: this.safe });
   }
 
   /** Jedes Bild. `paused`, solange das Menü offen ist. */
@@ -119,7 +131,7 @@ export class PovCalibrator {
   private steer(dt: number, input: XRInput): void {
     const left = input.get('left');
     const right = input.get('right');
-    const list = items(this.points);
+    const list = items(this.points, this.safe);
     this.selected = Math.min(Math.max(0, this.selected), list.length - 1);
 
     // Rechter Stick: wechseln, einmal je Ausschlag.
@@ -162,7 +174,7 @@ export class PovCalibrator {
     }
 
     // Linker Stick: verschieben (nach vorn ist am Stick negativ).
-    if (item.kind !== 'point') return;
+    if (item.kind === 'add') return;
     let dx = left ? left.thumbstick.x : 0;
     let dy = left ? -left.thumbstick.y : 0;
     if (this.keys.has('ArrowRight')) dx += 1;
@@ -170,13 +182,20 @@ export class PovCalibrator {
     if (this.keys.has('ArrowUp')) dy += 1;
     if (this.keys.has('ArrowDown')) dy -= 1;
     if (dx === 0 && dy === 0) return;
-    this.points = movePoint(this.points, item.index, dx * SPEED * dt, dy * SPEED * dt);
+    if (item.kind === 'safe') {
+      this.safe = clampPoint({
+        az: this.safe.az + dx * SPEED * dt,
+        el: this.safe.el + dy * SPEED * dt,
+      });
+    } else {
+      this.points = movePoint(this.points, item.index, dx * SPEED * dt, dy * SPEED * dt);
+    }
     this.changed();
   }
 
   private changed(): void {
     this.dirty = true;
-    savePov(this.points);
+    this.save();
   }
 
   // --- zeichnen -----------------------------------------------------------
@@ -190,31 +209,47 @@ export class PovCalibrator {
     const outline = fullOutline(this.points);
     const ring = [...outline, outline[0]!].map(([az, el]) => onSphere(az, el));
     group.add(band(ring, 0xffe14a));
+    // Der sichere Bereich: ein Rechteck aus seiner Ecke, grün.
+    const safeRing = rectOutline(this.safe);
+    group.add(
+      band(
+        [...safeRing, safeRing[0]!].map(([az, el]) => onSphere(az, el)),
+        0x5ee0a0,
+      ),
+    );
     // Das Kreuz durch die Mitte, dünn: Daran spiegelt sich alles.
     group.add(band([onSphere(-6, 0), onSphere(6, 0)], 0x5ee0a0));
     group.add(band([onSphere(0, -6), onSphere(0, 6)], 0x5ee0a0));
 
-    const list = items(this.points);
+    const list = items(this.points, this.safe);
     list.forEach((item, index) => {
       const chosen = index === this.selected;
       const { az, el } = item.at;
-      if (item.kind === 'point') {
+      if (item.kind !== 'add') {
         // Die Spiegelbilder — klein und grau, nicht zu wählen.
         for (const [a, e] of [
           [-az, el],
           [az, -el],
           [-az, -el],
         ] as const) {
-          group.add(dot(a, e, DOT * 0.7, 0x8a93a3, false));
+          group.add(dot(a, e, DOT * 0.7, item.kind === 'safe' ? 0x3f8f6a : 0x8a93a3, false));
         }
       }
       const size = chosen ? DOT_SELECTED : DOT;
-      const color = chosen ? 0xffe14a : item.kind === 'point' ? 0xffffff : 0x9fb3d0;
+      const color = chosen
+        ? 0xffe14a
+        : item.kind === 'point'
+          ? 0xffffff
+          : item.kind === 'safe'
+            ? 0x5ee0a0
+            : 0x9fb3d0;
       group.add(dot(az, el, size, color, item.kind === 'add'));
       if (chosen) {
         const text =
-          item.kind === 'point' ? `${az.toFixed(1)}° · ${el.toFixed(1)}°` : 'A: Punkt hinzufügen';
-        const sign = label(text, 0xffe14a, onSphere(Math.max(0, az - 12), el - 5), 2);
+          item.kind === 'add'
+            ? 'A: Punkt hinzufügen'
+            : `${item.kind === 'safe' ? 'sicher ' : ''}${az.toFixed(1)}° · ${el.toFixed(1)}°`;
+        const sign = label(text, 0xffe14a, onSphere(Math.max(0, az - 12), el - 5), 3);
         sign.scale.multiplyScalar(0.8);
         group.add(sign);
       }
