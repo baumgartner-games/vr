@@ -590,21 +590,30 @@ wandern (`core/playerGuides.ts`, alle ab Werk aus):
   eckige Pyramide aus Metas 110° × 96°; seit dem Kalibrieren ein **gerundeter
   Kegel** aus dem eingestellten Rand (`questView.QUEST_VIEW`, Code
   `QUEST_VIEW_CODE`) — _„Ich will dann diesen ‚kegel' der gerundet ist in der
-  welt sehen, statt der einfachen eckigen kamera perspektive."_ Der Rand
-  liegt auf einer Kugel 1,2 m ums Auge (`viewRim`, `FRUSTUM_LENGTH`), zwölf
-  gelbe Strahlen laufen gleichmäßig verteilt vom Auge hin, eine kaum getönte
-  Haut füllt den Kegel, dazu das Dreieck über dem Rand, das in Blender
-  „oben" heißt, und die Blickachse durch die gefühlte Null (10° unter
-  geradeaus). Die Augen sind zwei Kugeln im Augenabstand der Quest 3
-  (`QUEST3_IPD`, 63 mm): links blau, rechts rot. Ohne Tiefenprüfung, wie die
-  Hitboxen.
+  welt sehen, statt der einfachen eckigen kamera perspektive."_ Und weit:
+  _„können wir den sicht kegel wesentlich weiter laufen lassen, so erkenne
+  ich ja gar nicht, bis wohin der spieler sehen würde"_ — der Kegel reicht
+  10 m (`VIEW_REACH`), sein Rand liegt auf einer Kugel ums Auge (`viewRim`),
+  zwölf gelbe Strahlen laufen gleichmäßig verteilt hin, und eine kaum
+  getönte Haut füllt ihn. Rand und Strahlen haben **Tiefenprüfung**: Wo ein
+  Strahl im Boden oder in einer Wand verschwindet, endet dort der Blick. Am
+  Kopf sitzt ein naher Ring in Armlänge (`FRUSTUM_LENGTH`, 1,2 m) mit dem
+  Dreieck, das in Blender „oben" heißt, und der Blickachse durch die
+  gefühlte Null (10° unter geradeaus) — die ohne Tiefenprüfung, wie die
+  Augen: zwei Kugeln im Augenabstand der Quest 3 (`QUEST3_IPD`, 63 mm),
+  links blau, rechts rot.
 - **Sichtfeld hervorheben** (`GraphicsSettings.highlightView`). Gewünscht:
   _„wie bei der Taschenlampe der bereich etwas hervorgehoben …, sodass man
-  leicht erkennen kann von oben, was der spieler sehen würde"_. Ein
-  Spotlicht vom Kopf aus, auf die gefühlte Null gesenkt. Ein Spot kennt nur
-  runde Kegel; der Rand ist darum genähert (`viewCone`: halbe Breite 38,5°,
-  halbe Höhe 35°, der Lichtkegel nimmt ihr Mittel). Mit Schattenkarte hört
-  das Licht an der Wand auf, wie die Taschenlampe; ohne kostet sie nichts.
+  leicht erkennen kann von oben, was der spieler sehen würde"_ — und _„das
+  licht soll nur in diesem kegel sein, also auch nur das beleuchten, was der
+  spieler sehen würde"_. Ein Spotlicht vom Kopf aus, auf die gefühlte Null
+  gesenkt. Ein Spot kennt nur runde Kegel; sein Kegel umschließt deshalb
+  jede Ecke des Rands (`viewCone`), und eine **Maske** (`viewMask`, als
+  `SpotLight.map`) schneidet die genaue Form hinein: Jeder Bildpunkt der
+  Maske wird in seine Richtung zurückgerechnet und gegen `QUEST_VIEW`
+  geprüft. Die Schattenkamera des Spots trägt die Maske; ihr Oben folgt dem
+  Kopf, damit die Form mitkippt. Mit _Schatten voll_ hört das Licht an der
+  Wand auf, wie die Taschenlampe; sonst geht es hindurch.
 - **Mensch als Boxen** (`GraphicsSettings.showBodyModel`). Gewünscht: _„den
   Menschen visuell darstellen … einfaches Modell, Boxen"_. Kopf, Hals,
   Rumpf, Arme, Hände und Beine als halbdurchsichtige Kästen in der **echten**

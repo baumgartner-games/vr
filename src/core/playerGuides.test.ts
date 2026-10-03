@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import {
   FRUSTUM_LENGTH,
   HAND_CLEARANCE,
+  MASK_SIZE,
+  maskCoord,
+  viewMask,
   PlayerGuides,
   bodyBoxes,
   viewCone,
@@ -49,13 +52,40 @@ describe('Quest-3-Blickfeld', () => {
     );
   });
 
-  it('nähert das Sichtfeld als runden Kegel um die gefühlte Null', () => {
+  it('legt das Licht um die gefühlte Null und weit genug für jede Ecke', () => {
     const cone = viewCone();
     expect(cone.pitch).toBeCloseTo(GAZE_PITCH, 6);
     expect(cone.halfWidth).toBeCloseTo(38.5, 6);
     expect(cone.halfHeight).toBeCloseTo(35, 6);
-    expect(cone.angle).toBeGreaterThan(cone.halfHeight);
-    expect(cone.angle).toBeLessThan(cone.halfWidth);
+    expect(cone.angle).toBeGreaterThan(cone.halfWidth);
+    for (const [az, el] of QUEST_VIEW) {
+      const [i, j] = maskCoord(az, el, cone);
+      expect(i).toBeGreaterThanOrEqual(0);
+      expect(i).toBeLessThan(MASK_SIZE);
+      expect(j).toBeGreaterThanOrEqual(0);
+      expect(j).toBeLessThan(MASK_SIZE);
+    }
+  });
+
+  it('schneidet das Licht in die Form des Sichtfelds', () => {
+    const cone = viewCone();
+    const mask = viewMask(QUEST_VIEW, cone);
+    const at = (az: number, el: number): number => {
+      const [i, j] = maskCoord(az, el, cone);
+      return mask[(j * MASK_SIZE + i) * 4]!;
+    };
+    const top = Math.max(...QUEST_VIEW.map(([, e]) => e));
+    const bottom = Math.min(...QUEST_VIEW.map(([, e]) => e));
+    expect(at(0, cone.pitch)).toBe(255);
+    expect(at(0, top - 3)).toBe(255);
+    expect(at(0, top + 3)).toBe(0);
+    expect(at(0, bottom + 3)).toBe(255);
+    expect(at(0, bottom - 3)).toBe(0);
+    expect(at(cone.halfWidth - 3, cone.pitch)).toBe(255);
+    expect(at(cone.halfWidth + 3, cone.pitch)).toBe(0);
+    // Die Ecke außen am Rand liegt im runden Kegel, aber nicht im Sichtfeld.
+    expect(at(36, cone.pitch + 30)).toBe(0);
+    expect(at(-36, cone.pitch - 30)).toBe(0);
   });
 });
 
@@ -120,6 +150,7 @@ describe('PlayerGuides', () => {
     expect(spot).not.toBeNull();
     const light = spot! as THREE.SpotLight;
     expect(deg(light.angle)).toBeCloseTo(viewCone().angle, 6);
+    expect(light.map).toBeInstanceOf(THREE.DataTexture);
     expect(light.layers.isEnabled(0)).toBe(false);
     // Die Achse zeigt auf die gefühlte Null.
     const aim = light.target.position;
