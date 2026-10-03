@@ -70,9 +70,9 @@ export class SelfHelmet {
     }
     if (this.fogs.length === 0) return;
     if (Number.isFinite(dt) && dt > 0) this.time += dt;
-    const { visorBreath, visorBreathStyle, visorBreathRender } = this.settings;
+    const { visorBreath, visorBreathStyle } = this.settings;
     const fog = breathFog(visorBreath, this.time);
-    for (const one of this.fogs) one.set(fog, visorBreathStyle, visorBreathRender);
+    for (const one of this.fogs) one.set(fog, visorBreathStyle);
   }
 
   dispose(): void {
@@ -156,9 +156,38 @@ export function fitAroundEye(piece: THREE.Group): THREE.Group {
 }
 
 /**
+ * **Wann Glas und Beschlag gezeichnet werden: vor dem Menü.** Gewünscht: _„dass
+ * das menü weiterhin über dem bild atem gerendert wird"_. Der Bildschirm in
+ * der Brille (`ui/XRMenu.ts`) steht zwar zwei Meter draußen, zeichnet aber im
+ * Durchgang der **festen** Dinge mit `PANEL_ORDER` und `AlwaysDepth` über
+ * alles. Durchsichtiges kommt in three.js immer erst danach — Glas und
+ * Beschlag lägen so milchig über dem Menü und über dem Loch, durch das die
+ * Brille die scharfe Menü-Ebene zeigt. Deshalb stehen beide im festen
+ * Durchgang, kurz vor dem Panel (`GLASS_ORDER`, `FOG_ORDER`), und mischen
+ * trotzdem (`CustomBlending`, ohne Tiefe zu schreiben): Erst die Welt, dann
+ * Glas und Beschlag darüber, dann das Menü über allem.
+ */
+export const GLASS_ORDER = 8;
+export const FOG_ORDER = 9;
+
+/** Ein Material, das im festen Durchgang zeichnet und trotzdem durchscheint. */
+export function blendBeforeMenu(material: THREE.Material): void {
+  material.transparent = false;
+  material.blending = THREE.CustomBlending;
+  material.blendEquation = THREE.AddEquation;
+  material.blendSrc = THREE.SrcAlphaFactor;
+  material.blendDst = THREE.OneMinusSrcAlphaFactor;
+  material.blendSrcAlpha = THREE.OneFactor;
+  material.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
+  material.depthWrite = false;
+  material.needsUpdate = true;
+}
+
+/**
  * **Auf jedes Glas eine Haut für den Beschlag** (`core/visorFog.ts`). Glas ist,
  * was durchsichtig ist — beim Space Ranger genau das Visier. Die Haut hängt
- * als Kind am Glas, teilt seine Geometrie und liegt damit genau darauf.
+ * als Kind am Glas, teilt seine Geometrie und liegt damit genau darauf. Beide
+ * zeichnen vor dem Menü (`blendBeforeMenu`).
  */
 export function fogVisors(helmet: THREE.Object3D): VisorFog[] {
   const glass: THREE.Mesh[] = [];
@@ -169,13 +198,17 @@ export function fogVisors(helmet: THREE.Object3D): VisorFog[] {
     if (materials.some((material) => material.transparent)) glass.push(mesh);
   });
   return glass.map((mesh) => {
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) if (material.transparent) blendBeforeMenu(material);
+    mesh.renderOrder = GLASS_ORDER;
     const fog = visorFog();
     fog.fit(mesh.geometry);
     const skin = new THREE.Mesh(mesh.geometry, fog.material);
     skin.name = 'visor-fog';
     skin.layers.set(LAYER_EYE);
     skin.frustumCulled = false;
-    skin.renderOrder = mesh.renderOrder + 1;
+    blendBeforeMenu(fog.material);
+    skin.renderOrder = FOG_ORDER;
     mesh.add(skin);
     return fog;
   });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { VisorBreathRender, VisorBreathStyle } from './graphicsSettings';
+import type { VisorBreathStyle } from './graphicsSettings';
 
 /**
  * **Der Beschlag auf dem Visier** — eine zweite Haut über dem Glas des
@@ -17,10 +17,12 @@ import type { VisorBreathRender, VisorBreathStyle } from './graphicsSettings';
  *   warme Atem auf die kalte Scheibe trifft, und wächst von dort fächer- oder
  *   pilzförmig nach oben und zu den Seiten; nahe am Ursprung dichter, am Rand
  *   ausgefranst. Mit dem Beschlag wächst auch die Fläche.
- * - **Rechnerisch** — ein feines Rauschen in drei Größen, wie winzige
- *   Tröpfchen und Nebel; keine Textur.
- * - **Bild** — dasselbe als einmal gemaltes Bild aus Tröpfchen
- *   (`dropletImage`), das ein- und ausgeblendet wird.
+ *
+ * Die Körnung ist **ein einmal gemaltes Bild aus Tröpfchen** (`dropletImage`),
+ * das ein- und ausgeblendet wird. Das gerechnete Rauschen daneben
+ * (_Rechnerisch_, drei Lagen Wertrauschen je Bildpunkt) ist wieder weg —
+ * gewünscht: _„den atem rechnerisch raus haben wollen, dafür den atem bild
+ * drin behalten"_; ein Texturzugriff ist auf der Brille der billigere Weg.
  *
  * Die Farbe ist ein kühles Milchweiß: Die Sicht nach draußen wird matt und
  * diffus, Kontraste verschwimmen. Echte **Lichtstreuung** — Höfe um Lampen und
@@ -75,14 +77,8 @@ float noise(vec3 p) {
 void main() {
   if (uFog <= 0.002) discard;
   vec2 p = clamp(vP, 0.0, 1.0);
-  // Ein echtes „if" und kein „?:" — den rechnen manche Treiber auf beiden
-  // Seiten aus, und dann bezahlte das Bild die drei Rauschlagen mit.
-  float grain;
-  if (uImage > 0.5) {
-    grain = texture2D(uMap, vL.xy * 1.5).r;
-  } else {
-    grain = 0.45 * noise(vL * 70.0) + 0.35 * noise(vL * 22.0) + 0.2 * noise(vL * 6.0);
-  }
+  // Ohne Bild (Jest, keine Leinwand) bleibt die Körnung neutral.
+  float grain = uImage > 0.5 ? texture2D(uMap, vL.xy * 1.5).r : 0.5;
 
   float cover = 1.0;
   float density = uFog;
@@ -105,7 +101,7 @@ export interface VisorFog {
   readonly material: THREE.ShaderMaterial;
   /** Die Lage auf dem Glas: aus der Hülle der Geometrie des Visiers. */
   fit(geometry: THREE.BufferGeometry): void;
-  set(fog: number, style: VisorBreathStyle, render: VisorBreathRender): void;
+  set(fog: number, style: VisorBreathStyle): void;
   dispose(): void;
 }
 
@@ -144,16 +140,15 @@ export function visorFog(): VisorFog {
       const size = box.getSize(uniforms.uBoxSize!.value as THREE.Vector3);
       size.set(Math.max(size.x, 1e-4), Math.max(size.y, 1e-4), Math.max(size.z, 1e-4));
     },
-    set(fog, style, render) {
+    set(fog, style) {
       uniforms.uFog!.value = Math.min(Math.max(fog, 0), 1);
       // Klar heißt gar nicht gezeichnet — nicht erst im Shader verworfen: Bei
       // _Aus_ und im Tal von _Leicht_ kostet die Haut so keinen Zeichenaufruf.
       material.visible = fog > 0.002;
       uniforms.uRealistic!.value = style === 'realistic' ? 1 : 0;
-      const wantImage = render === 'image';
-      if (wantImage && !image) image = dropletImage();
-      uniforms.uImage!.value = wantImage && image ? 1 : 0;
-      uniforms.uMap!.value = wantImage ? image : null;
+      if (material.visible && !image) image = dropletImage();
+      uniforms.uImage!.value = image ? 1 : 0;
+      uniforms.uMap!.value = image;
     },
     dispose() {
       material.dispose();

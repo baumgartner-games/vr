@@ -99,11 +99,8 @@ import {
   VISOR_BREATH_SUBS,
   VISOR_BREATH_STYLE_LABELS,
   VISOR_BREATH_STYLE_SUBS,
-  VISOR_BREATH_RENDER_LABELS,
-  VISOR_BREATH_RENDER_SUBS,
   nextVisorBreath,
   nextVisorBreathStyle,
-  nextVisorBreathRender,
   SCREEN_PADS_SUBS,
   SQUISH_SCALE_LABELS,
   SQUISH_SCALE_SUBS,
@@ -2857,8 +2854,9 @@ export class App {
    * **Visier / Atem** — der Beschlag im immersiven Helm des Space Rangers
    * (`core/selfHelmet.ts`, `core/visorBreath.ts`, `core/visorFog.ts`).
    * Gewünscht: _„simuliere: visiere/atem (aus, leicht, stark, beschlagen)"_,
-   * dazu _„atem_art: ganz flächig/realistisch"_ und _„darstellung:
-   * rechnerisch/bild"_. Drei Zeilen, jede schaltet im Kreis; zu sehen nur mit
+   * dazu _„atem_art: ganz flächig/realistisch"_. Zwei Zeilen, jede schaltet
+   * im Kreis (die dritte, _Rechnerisch ↔ Bild_, ist weg: nur noch das Bild,
+   * `core/visorFog.ts`); zu sehen nur mit
    * _Helm des Space Rangers · Immersiv_ aus den eigenen Augen.
    */
   private visorMenu(accent: number): MenuEntry {
@@ -2866,7 +2864,7 @@ export class App {
     return {
       id: 'gfx:visor',
       label: 'Visier / Atem',
-      sub: `${VISOR_BREATH_LABELS[settings.visorBreath]} · ${VISOR_BREATH_STYLE_LABELS[settings.visorBreathStyle]} · ${VISOR_BREATH_RENDER_LABELS[settings.visorBreathRender]}`,
+      sub: `${VISOR_BREATH_LABELS[settings.visorBreath]} · ${VISOR_BREATH_STYLE_LABELS[settings.visorBreathStyle]}`,
       caption: 'Beschlag im immersiven Helm des Space Rangers',
       icon: 'sphere',
       accent,
@@ -2897,21 +2895,6 @@ export class App {
             });
             this.menuDirty = true;
             this.notify(`Atem-Art: ${VISOR_BREATH_STYLE_LABELS[next.visorBreathStyle]}`);
-          },
-        },
-        {
-          id: 'gfx:visor-breath-render',
-          label: `Darstellung: ${VISOR_BREATH_RENDER_LABELS[settings.visorBreathRender]}`,
-          sub: VISOR_BREATH_RENDER_SUBS[settings.visorBreathRender],
-          caption: 'Rechnerisch ↔ Bild',
-          icon: 'sphere',
-          accent,
-          run: () => {
-            const next = saveGraphics({
-              visorBreathRender: nextVisorBreathRender(graphics().visorBreathRender),
-            });
-            this.menuDirty = true;
-            this.notify(`Atem-Darstellung: ${VISOR_BREATH_RENDER_LABELS[next.visorBreathRender]}`);
           },
         },
       ],

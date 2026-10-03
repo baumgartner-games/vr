@@ -14,7 +14,6 @@ import {
   VISOR_BREATHS,
   clampGraphics,
   nextVisorBreath,
-  nextVisorBreathRender,
   nextVisorBreathStyle,
   type VisorBreath,
 } from './graphicsSettings';
@@ -85,26 +84,22 @@ describe('der Atem auf dem Visier', () => {
 });
 
 describe('die Einstellungen unter Visier / Atem', () => {
-  it('sind ab Werk aus, realistisch und gerechnet', () => {
+  it('sind ab Werk aus und realistisch', () => {
     expect(DEFAULT_GRAPHICS.visorBreath).toBe('off');
     expect(DEFAULT_GRAPHICS.visorBreathStyle).toBe('realistic');
-    expect(DEFAULT_GRAPHICS.visorBreathRender).toBe('computed');
   });
 
   it('machen aus Unsinn die Vorgabe und lassen Gültiges stehen', () => {
     expect(clampGraphics({ visorBreath: 'nebel' as never }).visorBreath).toBe('off');
     expect(clampGraphics({ visorBreathStyle: 'x' as never }).visorBreathStyle).toBe('realistic');
-    expect(clampGraphics({ visorBreathRender: 'x' as never }).visorBreathRender).toBe('computed');
     expect(
       clampGraphics({
         visorBreath: 'strong',
         visorBreathStyle: 'flat',
-        visorBreathRender: 'image',
       }),
     ).toMatchObject({
       visorBreath: 'strong',
       visorBreathStyle: 'flat',
-      visorBreathRender: 'image',
     });
   });
 
@@ -115,6 +110,5 @@ describe('die Einstellungen unter Visier / Atem', () => {
     expect(seen).toEqual(['off', 'light', 'strong', 'fogged']);
     expect(nextVisorBreath('fogged')).toBe('off');
     expect(nextVisorBreathStyle(nextVisorBreathStyle('flat'))).toBe('flat');
-    expect(nextVisorBreathRender(nextVisorBreathRender('image'))).toBe('image');
   });
 });

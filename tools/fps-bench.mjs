@@ -185,25 +185,17 @@ function cases() {
     { id: 'pixel-0.7', label: 'Bildpuffer 0,7 (Stellvertreter)', graphics: {}, dpr: 0.7 },
   ];
   // **Der Beschlag im immersiven Helm** (`core/visorFog.ts`): erst der Helm
-  // allein, dann sein Visier durchgehend und ganz flächig beschlagen — einmal
-  // gerechnet (Rauschen im Shader), einmal als Bild aus Tröpfchen. Flächig und
-  // `fogged`, damit jeder Bildpunkt des Glases in jedem Bild bezahlt wird und
-  // nicht ein Atemzug die Messung schaukelt. Der Vergleich, um den es geht,
-  // ist `visier-*` gegen `helm`, nicht gegen die Basis.
+  // allein, dann sein Visier durchgehend und ganz flächig beschlagen — damit
+  // jeder Bildpunkt des Glases in jedem Bild bezahlt wird und nicht ein
+  // Atemzug die Messung schaukelt. Der Vergleich, um den es geht, ist
+  // `visier` gegen `helm`, nicht gegen die Basis.
   const helmet = { hat: 'flightHelmetImmersive' };
-  const fogged = { visorBreath: 'fogged', visorBreathStyle: 'flat' };
   list.push(
     { id: 'helm', label: 'Immersiver Helm, Visier klar', graphics: {}, look: helmet },
     {
-      id: 'visier-rechnerisch',
-      label: 'Helm, Visier beschlagen · rechnerisch',
-      graphics: { ...fogged, visorBreathRender: 'computed' },
-      look: helmet,
-    },
-    {
-      id: 'visier-bild',
-      label: 'Helm, Visier beschlagen · Bild',
-      graphics: { ...fogged, visorBreathRender: 'image' },
+      id: 'visier',
+      label: 'Helm, Visier beschlagen',
+      graphics: { visorBreath: 'fogged', visorBreathStyle: 'flat' },
       look: helmet,
     },
   );

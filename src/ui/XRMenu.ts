@@ -72,7 +72,7 @@ const MENU_DROP = 0.12;
  * Gruppe gilt in three.js für alles darin, aber nur bis zur nächsten Gruppe;
  * darum bekommt jede Gruppe eines Modells die Stufe einzeln (`overlay`).
  */
-const PANEL_ORDER = 10;
+export const PANEL_ORDER = 10;
 const PREVIEW_ORDER = 11;
 
 /**

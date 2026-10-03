@@ -421,8 +421,6 @@ export interface GraphicsSettings {
   visorBreath: VisorBreath;
   /** Ganz flächig oder realistisch von unten Mitte aus. */
   visorBreathStyle: VisorBreathStyle;
-  /** Gerechnet im Shader oder als Bild aus Tröpfchen. */
-  visorBreathRender: VisorBreathRender;
 }
 
 /** Stock oder Steuerkreuz (`GraphicsSettings.movePad`). */
@@ -469,21 +467,6 @@ export const VISOR_BREATH_STYLE_SUBS: Readonly<Record<VisorBreathStyle, string>>
 };
 export function nextVisorBreathStyle(style: VisorBreathStyle): VisorBreathStyle {
   return style === 'flat' ? 'realistic' : 'flat';
-}
-
-/** **Womit** er gezeichnet wird: gerechnet (Rauschen im Shader) oder als Bild. */
-export type VisorBreathRender = 'computed' | 'image';
-export const VISOR_BREATH_RENDERS = ['computed', 'image'] as const;
-export const VISOR_BREATH_RENDER_LABELS: Readonly<Record<VisorBreathRender, string>> = {
-  computed: 'Rechnerisch',
-  image: 'Bild',
-};
-export const VISOR_BREATH_RENDER_SUBS: Readonly<Record<VisorBreathRender, string>> = {
-  computed: 'Feiner Nebel aus Rauschen im Shader · ohne Textur',
-  image: 'Ein Bild aus Tröpfchen, ein- und ausgeblendet',
-};
-export function nextVisorBreathRender(render: VisorBreathRender): VisorBreathRender {
-  return render === 'computed' ? 'image' : 'computed';
 }
 
 export type MovePad = 'stick' | 'dpad';
@@ -673,7 +656,6 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   movePad: 'stick',
   visorBreath: 'off',
   visorBreathStyle: 'realistic',
-  visorBreathRender: 'computed',
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -889,11 +871,6 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const visorBreathStyle = VISOR_BREATH_STYLES.includes(raw.visorBreathStyle as VisorBreathStyle)
     ? (raw.visorBreathStyle as VisorBreathStyle)
     : DEFAULT_GRAPHICS.visorBreathStyle;
-  const visorBreathRender = VISOR_BREATH_RENDERS.includes(
-    raw.visorBreathRender as VisorBreathRender,
-  )
-    ? (raw.visorBreathRender as VisorBreathRender)
-    : DEFAULT_GRAPHICS.visorBreathRender;
   return {
     mode,
     xrScale,
@@ -923,7 +900,6 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     movePad,
     visorBreath,
     visorBreathStyle,
-    visorBreathRender,
   };
 }
 

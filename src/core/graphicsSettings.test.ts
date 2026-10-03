@@ -76,7 +76,6 @@ describe('Grafikeinstellungen', () => {
       movePad: 'stick',
       visorBreath: 'off',
       visorBreathStyle: 'realistic',
-      visorBreathRender: 'computed',
     });
   });
 

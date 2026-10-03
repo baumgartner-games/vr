@@ -570,11 +570,13 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   und nicht beim Zuschauen (`App.step`). Gewünscht: _„kannst du beim immersiv
   hut das auch für ‚aus den augen' anzeigen lassen. Dann kann ich es auch am
   pc testen"_.
-- **Das Visier beschlägt**, wenn man will: _Grafik → Visier / Atem_ mit drei
-  Zeilen, jede im Kreis (`graphicsSettings.visorBreath`, `visorBreathStyle`,
-  `visorBreathRender`). Gewünscht: _„simuliere: visiere/atem (aus, leicht,
-  stark, beschlagen)"_, dazu _„atem_art: ganz flächig/realistisch"_ und
-  _„darstellung: rechnerisch/bild"_.
+- **Das Visier beschlägt**, wenn man will: _Grafik → Visier / Atem_ mit zwei
+  Zeilen, jede im Kreis (`graphicsSettings.visorBreath`, `visorBreathStyle`).
+  Gewünscht: _„simuliere: visiere/atem (aus, leicht, stark, beschlagen)"_,
+  dazu _„atem_art: ganz flächig/realistisch"_. Eine dritte Zeile
+  _Darstellung: Rechnerisch ↔ Bild_ gab es kurz; geblieben ist nur das Bild
+  (_„den atem rechnerisch raus haben wollen, dafür den atem bild drin
+  behalten"_).
   - **Stärke** (`core/visorBreath.ts`, mit Test): ein Atemzug alle vier
     Sekunden. **Er kommt schnell und geht langsam** — gewünscht: _„von 100%,
     ist der Atem da bei 30% und geht bis 70% weg"_: In den ersten 30 % des
@@ -592,21 +594,26 @@ habe bei Haunting nutzen."_ So ist er gebaut:
     _Ganz flächig_ ist überall gleich; _Realistisch_ beginnt unten Mitte über
     Mund und Nase und wächst fächerförmig nach oben und zu den Seiten, dichter
     am Ursprung, ausgefranst am Rand, und mit dem Beschlag wächst die Fläche.
-  - **Rechnerisch** ist ein Rauschen in drei Größen im Raum des Glases (in der
-    Projektion zog es sich an den gekrümmten Rändern zu Streifen); **Bild**
-    ist ein einmal gemaltes Bild aus ein paar tausend Tröpfchen
-    (`dropletImage`, Leinwand 512²), ein- und ausgeblendet.
-  - **Was es kostet** (`npm run fps -- --worlds=hub --cases=helm,visier-rechnerisch,visier-bild`,
-    durchgehend beschlagen und ganz flächig, damit jeder Bildpunkt des Glases
-    zählt): gegen den Helm mit klarem Visier am 3. Oktober 2026 in SwiftShader
-    _Rechnerisch_ +2 … +23 %, _Bild_ −3 … +13 %, Bild gegen Rechnerisch
-    0,79 … 1,10 — **kein Unterschied, der aus dem Rauschen herausragt.** Im
-    Shader ist _Rechnerisch_ drei Lagen Wertrauschen (24 `sin`-Hashes je
-    Bildpunkt), _Bild_ ein Texturzugriff; auf einer echten GPU, wo eine
-    durchsichtige Fläche über dem ganzen Blick an der Füllrate hängt, spricht
-    das für _Bild_. Eine Quest-Zahl gibt es noch nicht. Bei _Aus_ (und im
-    klaren Tal von _Leicht_) wird die Haut gar nicht gezeichnet
-    (`material.visible`), statt erst im Shader verworfen zu werden.
+  - **Die Körnung ist ein Bild** aus ein paar tausend Tröpfchen
+    (`dropletImage`, Leinwand 512²), ein- und ausgeblendet, im Raum des
+    Glases (in der Projektion zog sie sich an den gekrümmten Rändern zu
+    Streifen). Das gerechnete Rauschen (_Rechnerisch_, drei Lagen
+    Wertrauschen, 24 `sin`-Hashes je Bildpunkt) ist weg. Gemessen
+    (`npm run fps -- --worlds=hub --cases=helm,visier`, durchgehend
+    beschlagen und ganz flächig) lagen beide im Oktober 2026 in SwiftShader
+    im Rauschen beieinander; auf einer echten GPU, wo eine durchsichtige
+    Fläche über dem ganzen Blick an der Füllrate hängt, ist ein Texturzugriff
+    der billigere Weg. Bei _Aus_ (und im klaren Tal von _Leicht_) wird die
+    Haut gar nicht gezeichnet (`material.visible`).
+  - **Das Menü bleibt darüber** (`selfHelmet.blendBeforeMenu`, mit Test) —
+    gewünscht: _„dass das menü weiterhin über dem bild atem gerendert
+    wird"_. Der Bildschirm in der Brille zeichnet im Durchgang der festen
+    Dinge (`XRMenu.PANEL_ORDER`, `AlwaysDepth`); Durchsichtiges käme in
+    three.js immer danach und läge milchig über ihm und über dem Loch der
+    Menü-Ebene. Glas und Beschlag sind deshalb fest (`transparent: false`),
+    mischen aber selbst (`CustomBlending`, ohne Tiefe) und zeichnen mit
+    `GLASS_ORDER` 8 und `FOG_ORDER` 9 kurz vor dem Panel: erst die Welt,
+    dann Glas und Beschlag, dann das Menü.
   - **Nicht dabei** ist echte Lichtstreuung (Höfe um Lampen und
     Scheinwerfer): Die bräuchte einen eigenen Durchgang über das ganze Bild.
     Matt und diffus wird die Sicht durch die milchige Schicht trotzdem.
