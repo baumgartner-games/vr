@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { DEFAULT_APPEARANCE, type Appearance } from '../../core/appearance';
-import { BODY_KINDS, BODY_LABELS, HEAD_KINDS, HEAD_LABELS, HEAD_SUBS } from '../../core/avatarLook';
-import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS } from '../../core/headgear';
+import { BODY_KINDS, BODY_LABELS } from '../../core/avatarLook';
+import { HEADGEAR_LABELS, HEADGEAR_SUBS, WARDROBE_HATS } from '../../core/headgear';
+import { FACE_KINDS, FACE_LABELS, FACE_SUBS } from '../../core/figureParts';
 import { FIGURE_KINDS } from '../../core/avatarFigures';
 import { RACK_PIECE_MAX, RACK_PIECE_MIN, WardrobeRack, type RackPiece } from './wardrobeRack';
 
@@ -23,13 +24,13 @@ const OUTFITS: Array<[string, Appearance]> = [
   ['die Auslieferung', DEFAULT_APPEARANCE],
   [
     'barhäuptig, aber gestreift',
-    { ...DEFAULT_APPEARANCE, hat: 'none', head: 'moustache', body: 'striped' },
+    { ...DEFAULT_APPEARANCE, hat: 'none', face: 'clown', body: 'striped' },
   ],
-  ['Krone und Vollbart', { ...DEFAULT_APPEARANCE, hat: 'crown', head: 'beard', body: 'red' }],
   [
-    'Kochmütze zur blauen Jacke',
-    { ...DEFAULT_APPEARANCE, hat: 'chef', head: 'freckles', body: 'blue' },
+    'Magierhut und Ninjakopf',
+    { ...DEFAULT_APPEARANCE, hat: 'mageHat', face: 'ninja', body: 'red' },
   ],
+  ['Kochmütze zur blauen Jacke', { ...DEFAULT_APPEARANCE, hat: 'chef', face: 'own', body: 'blue' }],
 ];
 
 /** Der Kasten um ein Stück, mit aufgefrischten Weltmatrizen. */
@@ -61,20 +62,20 @@ describe('was auf dem Regal steht', () => {
     const pieces = rack.pieces(DEFAULT_APPEARANCE);
 
     expect(pieces).toHaveLength(
-      HEAD_KINDS.length + HEADGEAR_KINDS.length + BODY_KINDS.length + FIGURE_KINDS.length,
+      FACE_KINDS.length + WARDROBE_HATS.length + BODY_KINDS.length + FIGURE_KINDS.length,
     );
     // Gesicht, Hut, Oberteil, Figur — abgeschrieben von `ui/wardrobeRows.ts`,
     // und genau deshalb steht es hier noch einmal: Wer die eine Reihenfolge
     // ändert, soll über die andere stolpern.
     expect(pieces.map((piece) => piece.slot)).toEqual([
-      ...HEAD_KINDS.map(() => 'head'),
-      ...HEADGEAR_KINDS.map(() => 'hat'),
+      ...FACE_KINDS.map(() => 'face'),
+      ...WARDROBE_HATS.map(() => 'hat'),
       ...BODY_KINDS.map(() => 'body'),
       ...FIGURE_KINDS.map(() => 'figure'),
     ]);
     expect(pieces.map((piece) => piece.value)).toEqual([
-      ...HEAD_KINDS,
-      ...HEADGEAR_KINDS,
+      ...FACE_KINDS,
+      ...WARDROBE_HATS,
       ...BODY_KINDS,
       ...FIGURE_KINDS.map((kind) => kind.path),
     ]);
@@ -89,14 +90,14 @@ describe('was auf dem Regal steht', () => {
   it('nimmt Namen und Zeile aus den Katalogen und erfindet keine', () => {
     const rack = new WardrobeRack();
     for (const piece of rack.pieces(DEFAULT_APPEARANCE)) {
-      if (piece.slot === 'head') {
-        expect(HEAD_KINDS).toContain(piece.value);
-        expect(piece.label).toBe(HEAD_LABELS[piece.value as (typeof HEAD_KINDS)[number]]);
-        expect(piece.sub).toBe(HEAD_SUBS[piece.value as (typeof HEAD_KINDS)[number]]);
+      if (piece.slot === 'face') {
+        expect(FACE_KINDS).toContain(piece.value);
+        expect(piece.label).toBe(FACE_LABELS[piece.value as (typeof FACE_KINDS)[number]]);
+        expect(piece.sub).toBe(FACE_SUBS[piece.value as (typeof FACE_KINDS)[number]]);
       } else if (piece.slot === 'hat') {
-        expect(HEADGEAR_KINDS).toContain(piece.value);
-        expect(piece.label).toBe(HEADGEAR_LABELS[piece.value as (typeof HEADGEAR_KINDS)[number]]);
-        expect(piece.sub).toBe(HEADGEAR_SUBS[piece.value as (typeof HEADGEAR_KINDS)[number]]);
+        expect(WARDROBE_HATS).toContain(piece.value);
+        expect(piece.label).toBe(HEADGEAR_LABELS[piece.value as (typeof WARDROBE_HATS)[number]]);
+        expect(piece.sub).toBe(HEADGEAR_SUBS[piece.value as (typeof WARDROBE_HATS)[number]]);
       } else if (piece.slot === 'body') {
         expect(BODY_KINDS).toContain(piece.value);
         expect(piece.label).toBe(BODY_LABELS[piece.value as (typeof BODY_KINDS)[number]]);
@@ -120,7 +121,7 @@ describe('was die Figur anhat', () => {
 
     expect(worn).toHaveLength(4);
     expect(worn.map((piece) => [piece.slot, piece.value])).toEqual([
-      ['head', look.head],
+      ['face', look.face],
       ['hat', look.hat],
       ['body', look.body],
       ['figure', look.figure],
@@ -139,8 +140,8 @@ describe('was die Figur anhat', () => {
     const rack = new WardrobeRack();
     for (const piece of rack.pieces({
       ...DEFAULT_APPEARANCE,
-      hat: 'tophat',
-      head: 'beard',
+      hat: 'witchHat',
+      face: 'vampire',
       body: 'green',
     })) {
       expect(worn(piece)).toEqual([piece.worn]);
@@ -156,11 +157,11 @@ describe('was die Figur anhat', () => {
       head: 'round',
       body: 'white',
     });
-    const after = rack.pieces({ ...DEFAULT_APPEARANCE, hat: 'cap', head: 'round', body: 'white' });
+    const after = rack.pieces({ ...DEFAULT_APPEARANCE, hat: 'clownHat', body: 'white' });
     const hats = (pieces: RackPiece[]): string[] =>
       pieces.filter((piece) => piece.slot === 'hat' && piece.worn).map((piece) => piece.value);
     expect(hats(before)).toEqual(['none']);
-    expect(hats(after)).toEqual(['cap']);
+    expect(hats(after)).toEqual(['clownHat']);
     rack.dispose();
   });
 });
@@ -248,11 +249,11 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
       head: 'round',
       body: 'white',
     });
-    const hat = pieces.find((piece) => piece.value === 'cap')!;
+    const hat = pieces.find((piece) => piece.value === 'clownHat')!;
     // Gebaut wird nur dieses eine, und es trägt keinen Reif.
     expect(worn(hat)).toEqual([false]);
 
-    rack.wear({ ...DEFAULT_APPEARANCE, hat: 'cap', head: 'round', body: 'white' });
+    rack.wear({ ...DEFAULT_APPEARANCE, hat: 'clownHat', body: 'white' });
     expect(worn(hat)).toEqual([true]);
     // Und das Stück, das erst jetzt gebaut wird, weiß es auch.
     const off = pieces.find((piece) => piece.value === 'none')!;

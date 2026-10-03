@@ -410,9 +410,14 @@ Vorschau.
   Mannequin (`FIGURE_DEFAULT`); ein gespeichertes oder angesagtes `'chef'`
   wird dazu (`appearance.clampAppearance`). Gebaut wird der Koch weiter: Er
   steht da, solange eine Figur noch lädt, und ohne WebGL.
-- **_Customizing_** ist, was eine Figur dazu trägt: der **Hut**, je Stück
-  eine Kachel. Kopf und Jacke gab es nur am Koch und sind mit ihm gegangen;
-  am Handgelenk schalten die Zeilen jetzt _Figur_ und _Hut_.
+- **_Customizing_** ist, was eine Figur dazu trägt: der **Hut** und —
+  getrennt davon — der **Kopf**, je Stück eine Kachel mit dem Stück aus dem
+  Regal als Vorschau (`figurePartNow`). Unter _Hut_ stehen seit Oktober 2026
+  nur noch _Ohne_, die Kochmütze und die Hüte der KayKit-Figuren, unter
+  _Kopf_ _Eigener_ und die Köpfe der Figuren (siehe
+  [Hüte und Köpfe aus den Figuren](spielfigur.md#hüte-und-köpfe-aus-den-figuren)).
+  Kopf und Jacke des Kochs sind mit ihm gegangen; am Handgelenk schalten die
+  Zeilen jetzt _Figur_, _Hut_ und _Kopf_.
 - **Der Spitzname** steht unter _Aussehen_ als Feld über den Knöpfen
   (`PlayerCard`, `.pcard__nick`) und wird mit _Aussehen speichern_ (oder
   `Enter`) gesetzt — `App.setPlayerName`, also gemerkt und allen im Raum neu

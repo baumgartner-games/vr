@@ -8,6 +8,7 @@ import {
   type HeadKind,
 } from './avatarLook';
 import { asFigure, FIGURE_CHEF, FIGURE_DEFAULT, figureLabel } from './avatarFigures';
+import { asFace, FACE_LABELS, type FaceKind } from './figureParts';
 
 /**
  * **Wie man aussieht** — die eigene Erscheinung, so wie `graphicsSettings` das
@@ -48,6 +49,13 @@ export interface Appearance {
    * (`headgearFor`).
    */
   figure: string;
+  /**
+   * **Der Kopf einer Figur aus dem Regal** (`core/figureParts.ts`): `own`
+   * ist der, den sie mitbringt, sonst der Kopf einer anderen Figur — getrennt
+   * vom Hut wählbar. Nicht zu verwechseln mit `head`, dem Gesicht des
+   * gebauten Kochs.
+   */
+  face: FaceKind;
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
@@ -55,6 +63,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   head: 'round',
   body: 'white',
   figure: FIGURE_DEFAULT,
+  face: 'own',
 };
 
 /** Ein Aussehen, bei dem jeder Wert erlaubt ist. */
@@ -66,6 +75,7 @@ export function clampAppearance(look: Partial<Appearance> | undefined): Appearan
     // **Der Koch ist keine Wahl mehr** (`avatarFigures.FIGURE_CHEF`): Wer ihn
     // noch gespeichert hat oder ansagt, läuft als Auslieferung herum.
     figure: retired(asFigure(look?.figure)),
+    face: asFace(look?.face),
   };
 }
 
@@ -86,7 +96,10 @@ function retired(figure: string): string {
  */
 export function appearanceSummary(look: Appearance): string {
   const hat = look.hat === 'none' ? 'ohne Hut' : HEADGEAR_LABELS[look.hat];
-  if (look.figure !== FIGURE_CHEF) return `${figureLabel(look.figure)} · ${hat}`;
+  if (look.figure !== FIGURE_CHEF) {
+    const face = look.face === 'own' ? '' : ` · Kopf: ${FACE_LABELS[look.face]}`;
+    return `${figureLabel(look.figure)}${face} · ${hat}`;
+  }
   return `${HEAD_LABELS[look.head]} · ${hat} · ${BODY_LABELS[look.body]}`;
 }
 

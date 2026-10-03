@@ -6,6 +6,8 @@ import { Pointer } from './Pointer';
 import { FlatControls, type TouchPads } from './FlatControls';
 import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
+import { SelfHelmet } from './selfHelmet';
+import { FACE_KINDS, FACE_LABELS, FACE_SUBS, IMMERSIVE_HAT } from './figureParts';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { MenuNav } from '../ui/menuNav';
@@ -318,6 +320,10 @@ export class App {
 
   private readonly handVisuals: HandVisuals;
   private readonly avatar: PlayerAvatar;
+  /** Der Helm um den eigenen Kopf in der Brille (`core/selfHelmet.ts`). */
+  private readonly selfHelmet = new SelfHelmet();
+  /** Der Hut, den die eigene Figur gerade trägt — auch ein geliehener. */
+  private lookHat: HeadgearKind = 'none';
   /**
    * Was eine Welt dem Spieler gerade aufgesetzt hat (`WorldContext.wear`), oder
    * `null` — dann gilt die Einstellung (`core/appearance.ts`).
@@ -1350,6 +1356,7 @@ export class App {
     this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
+    this.selfHelmet.dispose();
     this.keys.dispose();
     this.flat.dispose();
     this.topDownCamera.dispose();
@@ -2145,7 +2152,7 @@ export class App {
    * aufsetzt, trägt sie im Gokart auch, und alle im Raum sehen sie
    * (`net/NetSession.ts`).
    *
-   * **Zwei Zeilen, jede schaltet im Kreis** — Figur und Hut. Bis Oktober 2026
+   * **Drei Zeilen, jede schaltet im Kreis** — Figur, Hut und Kopf. Bis Oktober 2026
    * waren es Kopf, Hut und Körper des Kochs; den gibt es als Wahl nicht mehr.
    * Was gewählt ist, steht im Untertitel, und in aller Kürze noch einmal unter
    * der Überschrift (`appearanceSummary`). Am Schirm steht dasselbe als
@@ -2187,6 +2194,13 @@ export class App {
           const hat = nextHeadgear(look.hat);
           saveAppearance({ hat });
           return HEADGEAR_LABELS[hat];
+        }),
+        // Der Kopf einer anderen Figur, getrennt vom Hut (`figureParts`).
+        cycle('look:face', 'Kopf', FACE_SUBS[look.face], () => {
+          const at = FACE_KINDS.indexOf(look.face);
+          const face = FACE_KINDS[(at + 1) % FACE_KINDS.length]!;
+          saveAppearance({ face });
+          return FACE_LABELS[face];
         }),
       ],
     };
@@ -2252,12 +2266,14 @@ export class App {
     const own = appearance();
     const look = { ...own, hat: this.worn ?? own.hat, figure: this.dressed ?? own.figure };
     this.avatar.setLook(look);
+    this.lookHat = look.hat;
     const known = this.net.look;
     if (
       known.hat === look.hat &&
       known.head === look.head &&
       known.body === look.body &&
-      known.figure === look.figure
+      known.figure === look.figure &&
+      known.face === look.face
     ) {
       return;
     }
@@ -3465,6 +3481,12 @@ export class App {
     this.rig.getHeadMatrix(_head);
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);
     this.avatar.updateFromRig(dt, this.rig, this.input, _headLocal);
+    // **Der immersive Helm** (`core/selfHelmet.ts`): nur in der Brille, nur
+    // aus den eigenen Augen — wer zuschaut, schaut durch fremde.
+    this.selfHelmet.update(
+      this.camera,
+      presenting && !this.spectating && this.lookHat === IMMERSIVE_HAT ? IMMERSIVE_HAT : null,
+    );
     this.playerGuides.update(_head, this.rig.getFloorY());
     this.wristMenu.update(dt, this.input, _head);
     this.xrCard.update(dt);

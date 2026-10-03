@@ -198,6 +198,7 @@ export class NetSession {
       head: this.look.head,
       body: this.look.body,
       figure: this.look.figure,
+      face: this.look.face,
     });
   }
 
@@ -369,6 +370,7 @@ export class NetSession {
           head: message.head as Appearance['head'],
           body: message.body as Appearance['body'],
           figure: message.figure,
+          face: message.face as Appearance['face'],
         });
         peer.world = message.world;
         setSeniority(peer, message.since);

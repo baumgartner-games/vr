@@ -5,7 +5,8 @@ import {
   saveAppearance,
   type Appearance,
 } from '../core/appearance';
-import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS } from '../core/headgear';
+import { HEADGEAR_LABELS, HEADGEAR_SUBS, WARDROBE_HATS } from '../core/headgear';
+import { FACE_KINDS, FACE_LABELS, FACE_SUBS } from '../core/figureParts';
 import { FIGURE_PRESETS, figureLabel } from '../core/avatarFigures';
 import type { MenuEntry } from './menu';
 
@@ -27,7 +28,8 @@ import type { MenuEntry } from './menu';
  * **Vorgefertigt sind die Figuren** (`core/avatarFigures.FIGURE_PRESETS`):
  * fertige Gestalten aus dem Regal, die ihre eigene Haut mitbringen — alle
  * aus den Figurenpaketen. **Customizing ist, was eine Figur dazu trägt**: der
- * Hut, der auf jedem Kopfknochen sitzt. Kopf und Jacke gab es hier nur für
+ * Hut, der auf jedem Kopfknochen sitzt, und — getrennt davon — der Kopf einer
+ * anderen Figur (`core/figureParts.ts`). Kopf und Jacke gab es hier nur für
  * den Koch aus zwei Kugeln, und den gibt es als Wahl nicht mehr (gewünscht:
  * _„Ich will den originalen charakter nicht mehr haben"_).
  *
@@ -145,13 +147,17 @@ export function outfitEntry(draft: OutfitDraft, picked: () => void): MenuEntry {
     },
   });
 
-  const hats = HEADGEAR_KINDS.map((kind) =>
+  const hats = WARDROBE_HATS.map((kind) =>
     item('hat', kind, HEADGEAR_LABELS[kind], HEADGEAR_SUBS[kind], { hat: kind }),
+  );
+  const faces = FACE_KINDS.map((kind) =>
+    item('face', kind, FACE_LABELS[kind], FACE_SUBS[kind], { face: kind }),
   );
   const figures = FIGURE_PRESETS.map((kind) =>
     item('figure', kind.path, kind.label, kind.sub, { figure: kind.path }),
   );
   const hatPreview = `${OUTFIT_PREVIEW}hat:${look.hat}`;
+  const facePreview = `${OUTFIT_PREVIEW}face:${look.face}`;
 
   return {
     id: OUTFIT_PAGE,
@@ -194,6 +200,17 @@ export function outfitEntry(draft: OutfitDraft, picked: () => void): MenuEntry {
             grid: true,
             take: false,
             children: hats,
+          },
+          {
+            id: `${OUTFIT_PAGE}:face`,
+            label: 'Kopf',
+            caption: FACE_LABELS[look.face],
+            icon: 'npc',
+            accent: ACCENT,
+            preview: facePreview,
+            grid: true,
+            take: false,
+            children: faces,
           },
         ],
       },

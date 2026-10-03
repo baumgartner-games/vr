@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 import { markBlobShadow } from './blobShadow';
 import { buildHeadgear, headgearFor, type HeadgearKind } from './headgear';
+import {
+  MODEL_HATS,
+  facePart,
+  isModelHat,
+  partRegion,
+  type FaceKind,
+  type FigurePart,
+} from './figureParts';
 import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
 import {
   FIGURE_CHEF,
@@ -56,14 +64,19 @@ export interface AvatarBodyOptions {
  * Körper selbst gehören und die nächste Jacke überleben sollen (`keep`).
  */
 function disposeTree(root: THREE.Object3D, keep?: ReadonlySet<THREE.Material>): void {
-  root.traverse((object) => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
+  // **Was dem Regal gehört, bleibt** (`userData.sharedAssets`): Ein Hut oder
+  // Kopf aus einer Figur teilt Geometrie und Material mit der Vorlage im
+  // Speicher (`core/figurePartModels.ts`) — wer sie hier freigäbe, nähme sie
+  // jeder anderen Kopie weg.
+  if ((root.userData as { sharedAssets?: boolean }).sharedAssets) return;
+  const mesh = root as THREE.Mesh;
+  if (mesh.isMesh) {
     mesh.geometry.dispose();
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if (material && !keep?.has(material)) material.dispose();
     }
-  });
+  }
+  for (const child of root.children) disposeTree(child, keep);
 }
 
 /**
@@ -444,6 +457,15 @@ export class AvatarBody extends THREE.Group {
   private figureArms: [THREE.Object3D | null, THREE.Object3D | null] = [null, null];
   /** Der Hut auf ihrem Kopfknochen — sie hat ja keinen `head`-Knoten wie der Koch. */
   private figureHat: THREE.Group | null = null;
+  /** Der fremde Kopf auf ihrem Kopfknochen (`Appearance.face`), oder `null`. */
+  private figureFace: THREE.Group | null = null;
+  /**
+   * **Die wievielte Bestellung für Hut und Kopf gerade gilt** — ein Stück aus
+   * dem Regal kommt asynchron, und wer inzwischen weitergeschaltet hat, will
+   * den Nachzügler nicht mehr (dasselbe Muster wie `figureEra`).
+   */
+  private hatEra = 0;
+  private faceEra = 0;
   /** Ihr geglättetes Tempo, aus dem `gait` den Gang wählt. */
   private figurePace = 0;
 
@@ -719,6 +741,7 @@ export class AvatarBody extends THREE.Group {
     this.applyBodyVisible();
     // Der Hut muss an den neuen Kopf — er hing bis eben am Kopf des Kochs.
     this.setHeadgear(this.look.hat, true);
+    this.fitFigureFace(this.look.face);
   }
 
   /**
@@ -730,6 +753,7 @@ export class AvatarBody extends THREE.Group {
    */
   private dropFigure(): void {
     this.dropFigureHat();
+    this.dropFigureFace();
     this.figureHeadBone = null;
     this.figureArms = [null, null];
     this.figureHeadY = 0;
@@ -745,10 +769,137 @@ export class AvatarBody extends THREE.Group {
   }
 
   private dropFigureHat(): void {
+    this.hatEra++;
     if (!this.figureHat) return;
     this.figureHat.removeFromParent();
     disposeTree(this.figureHat, this.kept);
     this.figureHat = null;
+  }
+
+  private dropFigureFace(): void {
+    this.faceEra++;
+    if (!this.figureFace) return;
+    this.figureFace.removeFromParent();
+    this.figureFace = null;
+  }
+
+  /**
+   * **Ein Stück aus dem Regal an den Kopfknochen** (`core/figurePartModels.ts`)
+   * — ein Hut oder ein Kopf einer anderen Figur.
+   *
+   * Es steht schon im Raum eines Kopfknochens desselben Skeletts und braucht
+   * deshalb **keine** Rechnung: keinen Halbmesser, keine Verschiebung, keinen
+   * herausgerechneten Maßstab wie die gebauten Hüte (`fitFigureHat`). Der
+   * Maßstab der Figur wirkt auf das Stück genau so wie auf ihren eigenen
+   * Kopf — und genau so soll es sein.
+   *
+   * `done` bekommt das Stück, wenn es angekommen und angehängt ist und noch
+   * gemeint war; sonst wird es weggeworfen.
+   */
+  private fetchFigurePart(
+    part: FigurePart,
+    era: () => number,
+    done: (piece: THREE.Group) => void,
+  ): void {
+    if (!canLoadModels()) return;
+    const asked = era();
+    void import('./figurePartModels')
+      .then(async (module) => module.loadFigurePart(part))
+      .then((piece) => {
+        if (!piece) return;
+        const bone = this.figureHeadBone;
+        if (this.gone || asked !== era() || !bone) return;
+        piece.traverse((object) => (object.layers.mask = this.layers.mask));
+        bone.add(piece);
+        done(piece);
+      });
+  }
+
+  /** **Einen Hut aus dem Regal aufsetzen** — auf einer Figur aus dem Regal. */
+  private fitFigurePart(kind: HeadgearKind): void {
+    this.dropFigureHat();
+    if (!isModelHat(kind) || !this.figure) return;
+    this.fetchFigurePart(
+      MODEL_HATS[kind],
+      () => this.hatEra,
+      (piece) => (this.figureHat = piece),
+    );
+  }
+
+  /**
+   * **Einen fremden Kopf aufsetzen** (`Appearance.face`) — oder den eigenen
+   * zurückgeben. Was am eigenen hängt, weicht dabei (`applyFigureHides`).
+   */
+  private fitFigureFace(kind: FaceKind): void {
+    this.dropFigureFace();
+    this.applyFigureHides();
+    const part = facePart(kind);
+    if (!part || !this.figure) return;
+    this.fetchFigurePart(
+      part,
+      () => this.faceEra,
+      (piece) => (this.figureFace = piece),
+    );
+  }
+
+  /**
+   * **Was an der Figur selbst weicht.**
+   *
+   * - Ein **fremder Hut** nimmt den eigenen ab: Ein Ritter mit Magierhut trägt
+   *   ihn nicht über dem Helm. Die einzige Ausnahme ist eine Figur, deren
+   *   „Hut" ihr Kopf ist (`Paladin_with_Helmet` hat unter dem Helm nichts) —
+   *   die bliebe sonst kopflos.
+   * - Ein **fremder Kopf** nimmt den eigenen samt allem, was daran hängt:
+   *   Helm, Brille, Kapuze und was sonst starr am Kopfknochen sitzt. Das alles
+   *   ist auf den eigenen geschnitten.
+   *
+   * Gelesen wird am Namen des Teils (`figureParts.partRegion`); ein `null`
+   * dort bleibt immer stehen — Rumpf, Arme, Umhang.
+   */
+  private applyFigureHides(): void {
+    const figure = this.figure;
+    if (!figure) return;
+    const bone = this.figureHeadBone;
+    const ownFace = this.look.face === 'own';
+    const hat = this.look.hat !== 'none';
+    const parts: {
+      object: THREE.Object3D;
+      region: ReturnType<typeof partRegion>;
+      rigid: boolean;
+    }[] = [];
+    let hasHead = false;
+    figure.root.traverse((object) => {
+      if (!(object as THREE.Mesh).isMesh) return;
+      // Der Name des **Teils**: Ein Netz mit zwei Materialien steckt als
+      // `Necromancer_Head_1` unter einer Gruppe `Necromancer_Head`.
+      const owner =
+        object.parent && !(object.parent as THREE.Bone).isBone && /_\d+$/.test(object.name)
+          ? object.parent
+          : object;
+      const region = partRegion(owner.name);
+      if (region === 'head') hasHead = true;
+      let rigid = false;
+      for (let up = object.parent; up; up = up.parent) {
+        if (up === bone) rigid = true;
+      }
+      parts.push({ object, region, rigid });
+    });
+    for (const { object, region, rigid } of parts) {
+      // Was dieser Körper selbst angehängt hat — fremder Hut, fremder Kopf —,
+      // steht nie zur Wahl.
+      if (this.isOwnPiece(object)) continue;
+      let hide = false;
+      if (!ownFace) hide = region !== null || rigid;
+      else if (hat && hasHead) hide = region === 'hat';
+      object.visible = !hide;
+    }
+  }
+
+  private isOwnPiece(object: THREE.Object3D): boolean {
+    for (let up: THREE.Object3D | null = object; up; up = up.parent) {
+      if (up === this.figureHat || up === this.figureFace) return true;
+    }
+    return false;
   }
 
   /**
@@ -940,8 +1091,16 @@ export class AvatarBody extends THREE.Group {
     // gelten wieder, sobald jemand zum Koch zurückschaltet. Der **Hut** ist
     // die Ausnahme: Er sitzt auf dem Kopfknochen und geht überall mit.
     const swap = look.figure !== this.look.figure;
-    this.look = { ...this.look, head: look.head, body: look.body, figure: look.figure };
+    const faceSwap = look.face !== this.look.face;
+    this.look = {
+      ...this.look,
+      head: look.head,
+      body: look.body,
+      figure: look.figure,
+      face: look.face,
+    };
     if (swap) this.changeFigure(look.figure);
+    else if (faceSwap) this.fitFigureFace(look.face);
     this.applyModelLook();
     // `force`, wenn die Figur gewechselt hat: Derselbe Hut muss dann an einen
     // anderen Kopf, und ohne das bliebe er am alten hängen.
@@ -954,7 +1113,10 @@ export class AvatarBody extends THREE.Group {
     // Der Hut trägt die Anzugfarbe, wo er eine trägt — also neu bauen, sonst
     // hätte ein Spieler, der die Rolle wechselt, einen Helm von vorhin auf.
     // Schürze und Halstuch teilen sich dieses Material und folgen von selbst.
-    if (this.look.hat !== 'none') this.setHeadgear(this.look.hat, true);
+    // Die Hüte aus dem Regal tragen ihre eigenen Farben — sie bleiben sitzen.
+    if (this.look.hat !== 'none' && !isModelHat(this.look.hat)) {
+      this.setHeadgear(this.look.hat, true);
+    }
   }
 
   /**
@@ -1050,7 +1212,9 @@ export class AvatarBody extends THREE.Group {
     // „Die Kochmütze sollten wir beim Kleiderschrank auch einbauen — zusätzlich
     // auf Charaktere setzen können."
     if (this.figure) {
-      this.fitFigureHat(kind);
+      if (isModelHat(kind)) this.fitFigurePart(kind);
+      else this.fitFigureHat(kind);
+      this.applyFigureHides();
       return;
     }
     this.dropFigureHat();
