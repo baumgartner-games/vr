@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { ElementSpot } from '../elements/elementPlace';
+import { COAT_RACK_SPOT } from './zones/start';
 import { FurnishedWorld } from '../grid/FurnishedWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
@@ -357,12 +359,19 @@ export class TestWorld extends FurnishedWorld {
     this.root.add(createSky(0x6ea8e8, 0xdbe7f2));
   }
 
+  /** **Was die Sandbox selbst hinstellt** — die Garderobe am Start. */
+  protected override spots(): readonly ElementSpot[] {
+    return [COAT_RACK_SPOT];
+  }
+
   /** **Hier entsteht das Leben der Zonen** — Requisiten, Uhren, Anmeldungen. */
   protected override buildProps(): void {
     const ctx = this.context;
     if (!ctx || !this.physics) return;
     const host = this.zoneHost();
     for (const zone of this.zones) zone.build(ctx, host);
+    // Die Garderobe am Start (`zones/start.COAT_RACK_SPOT`) — ein Spielelement.
+    this.furnishSpots();
     // **Der Wandparcours aus dem Regal** (`zones/wallLab.ts`). Steht schon ein
     // Stück an seiner Stelle, kommt kein zweites (`placeModel`).
     for (const wall of [...wallLabModels(), ...kitchenWallModels()])
@@ -571,9 +580,12 @@ export class TestWorld extends FurnishedWorld {
       },
       addUsable: (object, usable, options) => this.addUsable(object, usable, options),
       removeUsable: (object) => this.removeUsable(object),
-      enterConstruct: (options) => this.enterConstruct(options),
-      leaveConstruct: () => this.leaveConstruct(),
-      inConstruct: () => this.inConstruct,
+      openCatalogue: () => {
+        const menu = this.context?.menu;
+        if (!menu) return;
+        menu.openSubmenu('elements');
+        if (!menu.isOpen) menu.openSubmenu('assets');
+      },
       notify: (message) => this.announce(message),
       announce: (message) => this.announce(message),
       askNumber: (options) => this.askNumber(options),

@@ -8,9 +8,8 @@ import type { FloorCorner } from '../grid/solids';
  * Ein Modell aus dem Regal (`props.ModelKind`) ist ein **Möbel**: ein Fass, ein
  * Zaun, eine Truhe, eine Wand. Die Möbel dieses Spiels stehen auf Kacheln und
  * schauen in eine der vier Himmelsrichtungen — die Küche tut es
- * (`test/zones/kitchenPlan.Spot`), der Editor tut es (`grid/gridTool.ts`), und
- * der Konstrukt-Raum stellt seine Auswahl aus demselben Grund in
- * Vierteldrehungen hin (`shared/construct.slotTurn`). Wer aus dem Regal eine
+ * (`test/zones/kitchenPlan.Spot`), und der Editor tut es (`grid/gridTool.ts`).
+ * Wer aus dem Regal eine
  * Reihe Fässer hinstellt, will genau das: eine **Reihe**, und keine Sammlung
  * schräg stehender Fässer, die sich um ein paar Zentimeter verfehlen.
  *

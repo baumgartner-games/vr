@@ -85,6 +85,16 @@ describe('Spielelemente — der Katalog', () => {
     for (const element of ELEMENTS) {
       const [first, ...rest] = element.parts;
       expect(first!.stack || first!.inside || first!.on !== undefined).toBeFalsy();
+      // Frei gestellt (`pose`) heißt: weder auf dem Boden noch auf einem
+      // Teil — und dann auch nichts davon dazu.
+      for (const part of element.parts.filter((one) => one.pose))
+        expect([part.stack, part.inside, part.on !== undefined, part.at, part.tilt]).toEqual([
+          undefined,
+          undefined,
+          false,
+          undefined,
+          undefined,
+        ]);
       rest.forEach((part, k) => {
         const i = k + 1;
         if (part.on !== undefined) {
@@ -367,7 +377,8 @@ describe('der Möbelkatalog im Menü', () => {
   });
 
   it('lässt jedes Möbel mit Zweck selbst leuchten — Kisten, Mülleimer, Arbeitsplatte —, Tisch und Band nicht', () => {
-    for (const element of ELEMENTS) expect(elementLit(element)).toBe(element.kind !== null);
+    for (const element of ELEMENTS)
+      expect(elementLit(element)).toBe(element.kind !== null || element.opens !== undefined);
   });
 
   it('macht den Tellerstapel zum Abtropfgitter wie in der Sandbox: leeres Gitter, Teller zählt die Station', () => {

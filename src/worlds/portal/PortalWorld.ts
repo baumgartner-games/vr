@@ -7059,19 +7059,6 @@ export class PortalWorld implements World {
    * und genau um so viel landete man bisher neben dem Ziel, beim Start einer
    * Runde auch schon einmal in einer Wand.
    */
-  /**
-   * **Den Körper durch die Welt gehen lassen** (`PhysicsLocomotion.ghost`) —
-   * der Konstrukt-Raum fragt danach (`GridWorld.syncConstructBody`).
-   *
-   * Eine Methode und kein öffentliches Feld, weil die Fortbewegung dieser Welt
-   * gehört und nicht ihren Erben: Sie entsteht beim `init` und ist beim
-   * Weltwechsel wieder weg (`this.locomotion`), und wer sie zwischendurch
-   * anfasst, soll das nicht auf einem `null` tun müssen.
-   */
-  protected setPlayerGhost(on: boolean): void {
-    if (this.locomotion) this.locomotion.ghost = on;
-  }
-
   protected movePlayerTo(ctx: WorldContext, at: THREE.Vector3, yaw?: number): void {
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
     ctx.rig.placeFeetAt(_point.copy(at), yaw ?? _euler.y);
@@ -8890,8 +8877,7 @@ export class PortalWorld implements World {
    * **Wo die Figur mit den Sohlen steht**, in Weltmetern — waagerecht der
    * Kopf, senkrecht der Boden des Rigs.
    *
-   * `protected`, weil das Konstrukt dieselbe Rechnung braucht
-   * (`GridWorld.syncConstructBody`): In der Brille steht der Ursprung des Rigs
+   * `protected`, weil Erben dieselbe Rechnung brauchen: In der Brille steht der Ursprung des Rigs
    * in der Mitte des Spielraums und der Mensch irgendwo darin, und
    * `position.y` trägt Ducken und Sitzen mit sich herum, die die Füße nicht
    * anheben. Zwei Rechnungen für dieselbe Frage wären zwei Gelegenheiten,
@@ -14496,12 +14482,9 @@ export class PortalWorld implements World {
    * **Wie weit `A` reicht**, in Metern — und warum das eine Methode ist.
    *
    * Für alles, was auf zwei Beinen zu einem Knopf hingeht, ist die Antwort
-   * `USE_REACH`: eine Armlänge und eine halbe, und keine Welt hat je etwas
-   * anderes gebraucht. Es gibt aber einen Zustand, in dem niemand hingeht —
-   * der Konstrukt-Raum sperrt das Rig, damit die Figur draußen stehen bleibt,
-   * wo die anderen Spieler sie sehen (`shared/construct.ts`). Was dort im Ring
-   * steht, ist dann weiter weg als jede Armlänge, und ohne diesen Haken sähe
-   * man eine Auswahl, die sich nicht bedienen lässt.
+   * `USE_REACH`: eine Armlänge und eine halbe. Eine Methode bleibt es, damit
+   * eine Welt mit einer Auswahl außer Armlänge (bis Oktober 2026 der
+   * Konstrukt-Raum) sie verlängern kann.
    *
    * Sie steht hier und nicht als zweite Auswahl daneben, weil es genau **eine**
    * Auswahl geben soll: Der Saum, die Auflösung der Eingabe und der Druck
@@ -14559,7 +14542,7 @@ export class PortalWorld implements World {
    *
    * Gewünscht war es so: _„als Kran will ich keine Physik haben, also auch
    * durch Wände und über Arbeitsplatten fliegen können."_ Das gibt es schon,
-   * für den Konstrukt-Raum (`PhysicsLocomotion.ghost`): keine Kapsel, keine
+   * seit dem Konstrukt-Raum (`PhysicsLocomotion.ghost`): keine Kapsel, keine
    * Schwerkraft, das Rig geht dorthin, wohin der Stock zeigt. Gesetzt wird es
    * jedes Bild, weil jedes `resync` es abschaltet.
    *

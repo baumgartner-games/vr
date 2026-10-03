@@ -132,7 +132,48 @@ export interface ElementPart {
    * Bild wird die Tapete.
    */
   readonly wallpaper?: string;
+  /**
+   * **Nur dieses Stück aus der Datei** — der Name eines Knotens, etwa
+   * `'Witch_Hat'` aus der Hexe. Für das, was eine Figur trägt und das Regal
+   * nicht einzeln hat: Hüte, Helme, Umhänge. Ein Stück an Knochen steht so da,
+   * wie es modelliert ist (die Ruhelage), ohne die Figur darum.
+   */
+  readonly node?: string;
+  /**
+   * **Auf diese Maße gebracht**, Breite × Höhe × Tiefe in Metern — jede Achse
+   * für sich, vor `pose`. Für Stangen und Haken aus einem Pfosten: derselbe
+   * Pfosten, dünn und lang oder kurz und dick.
+   */
+  readonly size?: readonly [number, number, number];
+  /**
+   * **Frei in den Raum gestellt** statt auf den Boden oder auf ein Teil —
+   * für das, was hängt oder schräg absteht: die Haken einer Garderobe und was
+   * an ihnen hängt. Der Ursprung des Teils ist die Mitte seiner Unterseite,
+   * wie es aus dem Regal kommt (nach `size`, `height`, `fit`). Dann wird
+   * gedreht — `quat` (x, y, z, w) oder `rot` (Bogenmaß, Reihenfolge YXZ wie
+   * `Euler.order`) — und auf `at` gesetzt: x nach Osten, y nach oben, z nach
+   * Süden, von der Mitte der Grundfläche am Boden aus. `at`, `stack`, `on`
+   * und `tilt` gelten dann nicht.
+   */
+  readonly pose?: {
+    readonly at: readonly [number, number, number];
+    readonly rot?: readonly [number, number, number];
+    readonly quat?: readonly [number, number, number, number];
+  };
+  /**
+   * **Und danach gestreckt**, um die Mitte der Grundfläche am Boden — je Achse
+   * ein Faktor. Nur mit `pose`. So bekommen Stange und Füße der Garderobe ihre
+   * Breite, ohne dass sich die Haken mit verziehen.
+   */
+  readonly stretch?: readonly [number, number, number];
 }
+
+/**
+ * **Was `A` an einem Element aufmacht**, wenn es keine Station der Küche ist
+ * — eine Seite im Menü. `'outfit'`: _Aussehen_ (`WorldContext.openOutfit`),
+ * die Garderobe.
+ */
+export type ElementOpens = 'outfit';
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
 export interface GameElement {
@@ -207,6 +248,13 @@ export interface GameElement {
    * Element mit genau einer Station. `false`: Das Möbel leuchtet nie.
    */
   readonly lit?: boolean;
+  /**
+   * **Was `A` daran aufmacht**, wenn es keine Station der Küche ist
+   * (`ElementOpens`) — die Garderobe öffnet _Aussehen_. Das ganze Element
+   * leuchtet dann, sobald man darauf schaut (`elementLit`,
+   * `StationLayer.add`).
+   */
+  readonly opens?: ElementOpens;
   /**
    * **Ein Abtropfgitter wie in der Sandbox** — höchstens vier Teller
    * (`kitchenCarry.CLEAN_STACK_MAX`), zu Beginn voll, und wer einen
@@ -1210,11 +1258,12 @@ export function elementById(id: string): GameElement {
 
 /**
  * **Ob das Möbel selbst den Saum bekommen kann** (`GameElement.lit`) — ohne
- * Angabe jedes Element mit Zweck. Was nur im Weg steht (Tisch, Band), wird
- * nie gemeint und bleibt ein festes Stück der Welt.
+ * Angabe jedes Element mit Zweck: eine Station der Küche oder etwas, das eine
+ * Seite aufmacht (`opens`). Was nur im Weg steht (Tisch, Band), wird nie
+ * gemeint und bleibt ein festes Stück der Welt.
  */
 export function elementLit(element: GameElement): boolean {
-  return element.lit ?? element.kind !== null;
+  return element.lit ?? (element.kind !== null || element.opens !== undefined);
 }
 
 /** Ob es ein Element dieses Namens gibt. */

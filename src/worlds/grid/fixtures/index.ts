@@ -142,17 +142,7 @@ export type FixtureEvent =
    * `GridWorld` macht daraus eine Seite im Menü, mit Markdown und mit einem
    * Zurück (`GridWorld.readAloud`).
    */
-  | { type: 'read'; title: string; text: string; markdown: boolean }
-  /**
-   * **Mach die Umkleide auf** (`ui/outfitMenu.ts`, `WorldContext.openWardrobe`).
-   *
-   * Das einzige Ereignis ohne Inhalt, und das ist Absicht: Der Kleiderschrank
-   * weiß nicht, wer davorsteht, was der gerade anhat und ob es am Bildschirm
-   * eine Seite oder in der Brille eine Menüseite wird. Er weiß, dass jemand
-   * ihn aufgemacht hat — alles andere gehört dem, der die Umkleide besitzt
-   * (`App`), und geht über den Weltkontext dorthin.
-   */
-  | { type: 'wardrobe' };
+  | { type: 'read'; title: string; text: string; markdown: boolean };
 
 /**
  * Die Geräusche, die es gibt — Namen und keine Frequenzen.

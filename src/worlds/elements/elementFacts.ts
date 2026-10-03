@@ -114,6 +114,13 @@ export function elementBlockedCells(element: GameElement): number {
  */
 export function partPlace(part: ElementPart, index: number): string {
   const words: string[] = [];
+  if (part.node) words.push(`nur ${part.node}`);
+  // Frei gestellt (`ElementPart.pose`): nicht auf dem Boden, nicht auf einem Teil.
+  if (part.pose) {
+    words.push(`frei, ${metres(part.pose.at[1])} über dem Boden`);
+    if (part.stretch) words.push('gestreckt');
+    return words.join(' · ');
+  }
   if (part.inside) words.push(`in Teil ${index}`);
   else if (part.on !== undefined) words.push(`auf Teil ${part.on + 1}`);
   else if (part.stack) words.push(`obenauf auf Teil ${index}`);

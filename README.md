@@ -51,7 +51,7 @@ Minute zu Fuß abzulaufen. **Die Seite macht mit ihr auf, und zwar in der
 Küche** — dort wird gearbeitet, und der Umweg über Hub, Menü und dreißig Meter
 Fußweg war bei jedem Start derselbe. Der Hub ist deshalb nicht weg, nur nicht
 mehr der Anfang: `#hub` in der Adresse führt hin, und das Tor am Startplatz tut
-es auch. Vom Startplatz mit Tor und Kleiderschrank geht es
+es auch. Vom Startplatz mit Tor und Garderobe geht es
 nach Norden zu vier **Effektquellen** (Rauch, Feuer, Funken, Wasser, je ein
 Knopf davor), nach Nordwesten an eine **Türwand** mit Schiebetür, Flügeltür und
 Drucktür samt Knopf, Hebel und Druckplatte, nach Nordosten eine **Treppe** auf
@@ -272,11 +272,9 @@ großer Kopf mit Augen und Nase, zwei schwebende Hände, keine Arme und keine
 Beine, weil von zwölf Metern Höhe ein Skelett nur zwei graue Striche ist. Drei
 Zeilen stellen sie ein: vier **Köpfe**, acht **Hüte** von der Kochmütze bis zur
 Krone und fünf **Kochjacken**. Alle drei gehen über das Netz, alle im Raum
-sehen, als was man herumläuft — und wer lieber vor einem Spiegel wechselt,
-stellt sich an den **Kleiderschrank**: Ein Druck auf `A`, und die Welt verblasst
-— man steht in seinem Schrank, die siebzehn Sachen stehen greifbar um einen
-herum, und der Spiegel an der Tür zeigt sofort, wie es an einem aussieht. Noch
-ein Druck auf den Schrank, und man steht wieder da, wo man stand.
+sehen, als was man herumläuft — und in der Sandbox steht neben dem Startplatz
+eine **Garderobe** mit Hexenhut, Ritterhelm und Umhang: Ein Druck auf `A`, und
+die Seite _Aussehen_ geht auf.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -1135,7 +1133,7 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
 | Küche: Radio | an der Westwand, neben der Tomatenausgabe: `A` macht an, `A` macht aus — und jedes Anmachen ist ein Sender weiter | dito mit `E` | dito mit `A` |
 | Küche: Ton wählen | vor dem Schneidebrett und vor der Ausgabetheke: linker Knopf schaltet den Ton weiter, rechter spielt ihn vor | dito mit `E` | dito mit `A` |
-| Aussehen                      | Menü → _Figur_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |
+| Aussehen                      | Menü → _Figur_: Kopf, Hut, Körper — oder an der Garderobe der Sandbox `A`, dann geht dieselbe Seite auf                                                          | dito                                                                   | dito                     |
 | Hitboxen                      | Menü → Werkstatt → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
 | Gitterlinien                  | Menü → Werkstatt → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
 | Zurücksetzen                  | `B` / `Y` oder Menü → _Name der Welt_ → Zurücksetzen                                                                                                                          | `R` oder dito                                                          | Menü → _Name der Welt_ → Zurücksetzen |

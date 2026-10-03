@@ -1614,8 +1614,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   **Norden ist oben und die Mitte ist der Startplatz.** Die Himmelsrichtung ist
   die Wegbeschreibung — wer eine Zone sucht, sucht eine Richtung:
 
-  - **Start und Tor** (Mitte): Startplatz, ein Schild, der **Kleiderschrank**
-    und drei Kacheln weiter das Tor zurück in den Hub.
+  - **Start und Tor** (Mitte): Startplatz, ein Schild, die **Garderobe** (`A`
+    öffnet _Aussehen_) und drei Kacheln weiter das Tor zurück in den Hub.
   - **Effektquellen** (Norden): vier Düsen nebeneinander — Rauch, Feuer,
     Funken, Wasser —, je ein Knopf eine Kachel davor. Dieselben Zahlen wie im
     alten Effektlabor (`effects/effectKinds.ts`), importiert und nicht
@@ -1761,10 +1761,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     ihm liegt, mit dem, was von der Pfeilseite kommt). Die anderen zwei Spalten
     bleiben leer: Genau dafür ist die Halle da. **Der Schauraum dahinter ist
     weg** (September 2026): siebzehn Kacheln, auf denen jedes Katalogstück noch
-    einmal einzeln und beschriftet stand. Denselben Katalog gibt es seit dem
-    Konstrukt-Raum am **Rechner** — dort steht man mitten darin und hat jedes
-    Stück in Reichweite, statt daran vorbeizulaufen —, und zwei Kataloge
-    nebeneinander sind einer zu viel. Die Zone ist damit von siebenunddreißig
+    einmal einzeln und beschriftet stand. Einen Katalog gibt es am
+    **Rechner** (heute der Katalog im Menü), und zwei Kataloge nebeneinander
+    sind einer zu viel. Die Zone ist damit von siebenunddreißig
     auf zwanzig Kacheln geschrumpft (Küche plus Werkhalle). **Angefasst wird mit `A`**, und ein
     roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
     in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt — das
@@ -1800,8 +1799,8 @@ im Spiel also zwei Kacheln —, und in eine
     Er war die Antwort auf die Frage, die ihn gebaut hat — was von dem
     gekauften Baukasten können wir brauchen? —, und die ist beantwortet: Die
     Zutaten der ersten Küche kommen heute aus diesem Katalog
-    (`zones/kitchenProps.ts`), durchblättern lässt er sich im Konstrukt-Raum,
-    und ein Raum zum Ansehen daneben kostete nur Wege. Mit der Zone sind
+    (`zones/kitchenProps.ts`), und ein Raum zum Ansehen daneben kostete nur
+    Wege. Mit der Zone sind
     `zones/diner.ts`, `zones/dinerPlan.ts`, das Rechteck `DINER`, der Gang
     dorthin und der Eintrag _Zweite Küche_ im Sprungmenü gegangen; **der
     Katalog bleibt**.
@@ -2077,161 +2076,25 @@ im Spiel also zwei Kacheln —, und in eine
   hier steht eine Wand, an der man die Rechnung ausprobiert, und kein
   Lehrpfad.
 
-- **Der Kleiderschrank und die Umkleide** (`grid/fixtures/wardrobe.ts`,
-  `worlds/shared/wardrobeRack.ts`): der erste Einbau, der nicht die Welt ändert,
-  sondern **den Spieler**.
+- **Die Garderobe** (`worlds/elements/coatRack.ts`, Oktober 2026): Neben dem
+  Startplatz der Sandbox steht ein Garderobenständer, und `A` daran öffnet die
+  Seite _Aussehen_ im Menü (`WorldContext.openOutfit`), am Schirm wie in der
+  Brille. Wer darauf schaut, sieht den ganzen Ständer gelb umrandet. Er ist ein
+  **Spielelement** und sperrt seine Kachel selbst; wie er gebaut ist, steht in
+  [Spielelemente](spielelemente.md#die-garderobe-a-öffnet-aussehen).
 
-  Er steht an einer Kante wie ein Regal — eine Kachel breit, einen halben Meter
-  tief, 2,1 m hoch —, ist fest und benutzbar, und auf einer seiner beiden
-  Türfronten hängt ein **Spiegel** (`worlds/shared/Mirror.ts`, derselbe wie am
-  Standspiegel). Wer davorsteht und `A` drückt, steht im nächsten Augenblick
-  **in** seinem Kleiderschrank: Die Welt verblasst, ein weißer Kachelboden kommt
-  herauf, und um die Figur herum fahren die Sachen aus dem Boden, die sie
-  anziehen kann (siehe _Der Konstrukt-Raum_).
+  **Davor stand dort der Kleiderschrank** (ein Einbau, `fixtures/wardrobe.ts`),
+  und ein Druck darauf öffnete eine **Umkleide** im Konstrukt-Raum: Die Welt
+  verblasste, und Gesichter, Hüte, Oberteile und Figuren fuhren im Ring aus dem
+  Boden (`shared/wardrobeRack.ts`, davor drei Zeilen aus `ui/wardrobeRows.ts`).
+  Gewünscht war dann: _„haben wir einen garderoben ständer als model? das wäre
+  mir lieber als der kleiderschrank um das aussehen menü zu öffnen (wie bei
+  inventar menü)"_ und _„Bitte löschenden umkleide Raum restlos"_. Schrank,
+  Umkleide und Kleiderregal sind deshalb gelöscht; ein gespeicherter Grundriss,
+  der den Schrank noch trägt, verliert ihn beim Laden
+  (`zones/start.fitStart`, `OLD_WARDROBE`). Wer die alte Fassung nachlesen
+  will: `git show 49dfe5b:src/worlds/shared/wardrobeRack.ts`.
 
-  **Er tut das über ein Ereignis und nicht selbst.** `use` meldet
-  `{ type: 'wardrobe' }`, und was daraus wird, entscheidet die Welt:
-  `GridWorld.openWardrobe` bekommt den Schrank als **Anker** dazu
-  (`view.handle ?? view.object`) und macht damit das Konstrukt auf — ohne ihn
-  wüsste es weder, was stehen bleibt, noch, worauf man drücken muss, um wieder
-  herauszukommen. Ein zweiter Druck auf denselben Schrank führt hinaus. Eine
-  Einbau-Art, die `saveAppearance` riefe, wäre dagegen eine, die man ohne
-  Speicher nicht mehr prüfen kann — und sie wüsste Dinge, die sie nichts
-  angehen: wer davorsteht, was der anhat, und ob daraus ein Regal, eine Seite
-  am Bildschirm oder eine Menüseite in der Brille wird. Es ist das einzige
-  `FixtureEvent` **ohne Inhalt**, und genau das ist die Nachricht: Jemand hat
-  den Schrank aufgemacht.
-
-  **Der Spiegel brauchte dafür keinen neuen Bau-Kontext.** Der erste Verdacht
-  war, `FixtureBuild` um einen Haken für Spiegel zu erweitern — der
-  Standspiegel sieht ja so aus, als bräuchte er Renderer, Szene und Kamera. Er
-  braucht sie nicht: Eine `MirrorSurface` ist ein gewöhnliches Mesh, und wer ihr
-  ihr Bild malt, **sucht sie im Szenengraphen** (`MirrorRenderer.render` über
-  `collectMirrors`). Ein Spiegel, der in `ctx.group` hängt, bekommt sein Bild
-  also von selbst, und der Vertrag der Einbauten bleibt so klein, wie sein
-  Kommentar es verspricht. Er kostet nur eines: **Freigeben** — das Glas hält
-  ein eigenes Material, und erst dessen `dispose` meldet dem Zähler der Spiegel,
-  dass es eines weniger ist.
-
-  **Korpus in `solids`, Türen im Bild.** Dieselbe Teilung wie bei jedem Einbau,
-  der aufhält: Was Körper hat, gehört in `solids` — dort wird es aus der Palette
-  der Welt gebaut, bekommt Physik und wird von oben durchsichtig, wenn es die
-  Figur verdeckt. Die beiden Türfronten sind das, was man **anfasst**, und
-  hängen deshalb in der Gruppe: Was dort hängt, bekommt den gelben Saum, und
-  ein Schrank, bei dem der ganze Kasten leuchtet, sagt weniger als einer, bei
-  dem die Türen leuchten. Dieselbe Teilung entscheidet im Konstrukt, was stehen
-  bleibt: Der **Anker** ist die Gruppe, also stehen Türen und Spiegel im weißen
-  Raum, während der Korpus mit der Welt verblasst, zu der er gehört.
-
-  **Er meldet sich aus einem Meter**, nicht mehr aus 0,7 m (`use.radius`). Der
-  Halbmesser ist der Zylinder, den der Strahl treffen muss
-  (`core/usable.pickUsable`), und 0,7 m maßen genau die beiden Türblätter — mehr
-  hängt ja nicht in der Gruppe. Wer schräg davorstand, zielte daran vorbei und
-  sah nichts leuchten, während jedes Küchenmöbel drei Meter weiter schon von der
-  Seite antwortet: Ein Möbel ohne eigene Angabe bekommt die Ausdehnung seines
-  Netzes (`PortalWorld.addUsable`, `objectRadius`), bei einer Küchenzeile auf
-  einer Kachel gut 0,7 m, bei der Ausgabetheke über zwei Kacheln das Doppelte.
-  Ein Meter ist die halbe Diagonale der Kachel plus eine Handbreit — und damit
-  antwortet der Schrank aus derselben Entfernung und unter denselben Winkeln wie
-  alles andere, vor dem man stehen kann.
-
-  **Die Umkleide ist kein Blatt mehr, sondern ein Regal**
-  (`worlds/shared/wardrobeRack.ts`). Bis eben klappte ein Druck auf den Schrank
-  eine Liste mit Pfeilen auf, und eine Liste mit Pfeilen ist die eine Bedienung,
-  von der man in einer Brille nichts hat: Man sieht das Kleidungsstück nicht,
-  man liest seinen Namen. Jetzt stehen die **siebzehn** Sachen als Sachen da —
-  vier Gesichter, acht Hüte, fünf Oberteile, in genau der Reihenfolge, in der
-  `ui/wardrobeRows.ts` seine drei Zeilen baut. Zwei Umkleiden, die dieselben
-  Sachen verschieden sortieren, driften nach der zweiten neuen Mütze
-  auseinander, und dann sucht man im Regal an der Stelle, an der im Menü etwas
-  anderes stand.
-
-  Jedes Stück wird **einmal gebaut** und danach wiederverwendet (`made`), und
-  zwar erst in dem Bild, in dem es aus dem Boden kommt: Siebzehn Avatarteile je
-  Öffnen kosteten knapp eine Zehntelsekunde am Stück — genau die Pause nach dem
-  Druck auf den Schrank — und hinterließen siebzehn frische Geometrien samt
-  Materialien, die niemand wieder freigab (`buildHead` und die beiden anderen
-  bauen alles neu). Herausgegeben wird deshalb erst die **Auskunft** (Fach,
-  Name, ob man es anhat) und das Netz auf Abruf (`RackPiece.object`).
-
-  Jedes Stück ist **handgroß** (30 bis 45 cm) und steht auf seinem eigenen Fuß,
-  und die drei Verkleinerungen sind je eine Zahl pro Fach (0,55 für Köpfe, 0,44
-  für Hüte, 0,5 für Oberteile), aus dem größten Stück des Fachs
-  zurückgerechnet. **Eine** Zahl je Fach und keine Normierung Stück für Stück:
-  Ein Zylinder ist höher als eine Krone, ein Bauhelm breiter als eine Mütze, und
-  genau daran erkennt man sie auch verkleinert wieder. Der Rumpf wird dabei auf
-  knapp zwei Drittel gestaucht (`BODY_STAND`) — in voller Höhe ist er eine
-  kopflose Figur, gestaucht ist er eine **Büste**, und so stellen
-  Kleidergeschäfte Oberteile hin. Für `none` steht ein **leerer Hutständer**
-  dort, Pfosten und Knauf: `buildHeadgear('none')` gibt `null`, und ein leeres
-  Brett sähe nicht nach einer Möglichkeit aus, sondern nach einer Lücke — dabei
-  ist ausgerechnet _Barhäuptig_ die Auslieferung, und wer einen Hut wieder
-  absetzen will, muss auch etwas **benutzen** können.
-
-  **Was man anhat, trägt einen Reif um den Fuß** (`rack-worn`), flach, warm und
-  selbstleuchtend. `RackPiece.worn` sagt es dem Aufrufer, aber ein Regal, in dem
-  man erst etwas anvisieren muss, um zu erfahren, ob man es schon trägt, ist
-  wieder ein Menü; ein Ring sagt es auf einen Blick und aus jeder Richtung, Text
-  kann das nicht. Beim Anziehen **wandert** er, statt dass das Regal neu gebaut
-  wird (`GridWorld.wearable`) — siebzehn Netze für eine Marke wegzuwerfen wäre
-  das eine, die Auffahrt aus dem Boden ein zweites Mal vorzuführen das andere.
-  Dafür bekommt **jedes** Stück seinen Reif, und sichtbar ist einer: Wandern
-  kann nur, was da ist. Ein Ring, den es erst beim nächsten Neubau gäbe, wäre
-  nach dem ersten Kleiderwechsel bei **keinem** Stück mehr zu sehen — der alte
-  ginge aus, ein neuer entstünde nie. Wandern lässt ihn seit September 2026 das
-  Regal selbst (`WardrobeRack.wear`) und nicht mehr eine Schleife im Aufrufer:
-  Es weiß, welche Stücke schon gebaut sind, und es merkt sich das Aussehen für
-  die, die erst noch aufzufahren haben. Wer alle Stücke eines Fachs anfasste, um
-  einen Ring umzuschalten, baute genau die vorzeitig, die der Raum gerade
-  langsam nachreicht.
-  Und der Raum bleibt dabei **offen**: Wer sich umzieht, probiert, und wer
-  probiert, will den nächsten Hut sehen, ohne zweimal durch eine halbe Sekunde
-  Überblendung zu gehen (`ConstructItem.pick` gibt `false`).
-
-  **Der Spiegel an der Tür ist die Rückmeldung** und kein Zierrat. Er ist mit
-  den Türen das Einzige, was nicht verblasst, und er zeigt die Figur in dem, was
-  sie gerade angezogen hat — deshalb braucht dieses Regal keine zweite Szene und
-  keine Figur in Nahaufnahme daneben. Und **das Aussehen hängt weiter am
-  Spieler** und nicht an der Welt (`core/appearance.ts`): `saveAppearance`
-  speichert sofort, der eigene Körper und das Netz hören über
-  `onAppearanceChange` zu, und angesagt wird es in der **Anmeldung** und nicht
-  in der Pose (`hello`, Felder `hat`, `head`, `body` — siehe _Wie man
-  aussieht_). Wer sich hier umzieht, läuft auch in der nächsten Welt so herum.
-
-  **Ohne Konstrukt geht es ins Menü** — der Rückfall. Ohne Netz kein
-  Konstrukt: `GridWorld.openWardrobe` bekommt den Schrank als Anker
-  mitgereicht, und wenn keiner da ist, geht es über `ctx.openWardrobe()` —
-  am Bildschirm auf die Seite _Aussehen_ unter dem Reiter _Inventar_ (siehe
-  [Die Seite selbst](seite.md#aussehen-im-inventar)), in der Brille auf die
-  Seite _Aussehen_ am Handgelenk. Das ist kein Notbehelf, sondern die ehrliche
-  Antwort: Ein Schrank ohne sichtbaren Korpus wäre im Konstrukt ein weißer
-  Raum mit nichts darin.
-
-  **Bis Oktober 2026 war das am Bildschirm ein eigener Kasten**
-  (`ui/WardrobeMenu.ts`, weg): drei Zeilen mit ‹ und ›, rechts die Figur in
-  Nahaufnahme, unten _Fertig_. Gewünscht war es anders: _„bitte auch das menü
-  voll machen. Und zudem will ich dass es in dem tab menü eingebunden
-  bleibt"_. Von ihm übrig ist die kleine Szene der Figur
-  (`ui/previewScene.ts`) — ein eigener Renderer, der nur läuft, solange man
-  sie sieht —, und mit ihr die Lehre über die **Kamera**: Sie hängt an den
-  Maßen der Figur (`CHEF_HEIGHT`) und nicht an denen des Spielers. Die Zahlen
-  stammten einmal aus der Zeit, in der der Avatar so hoch war wie sein
-  Spieler; die Kamera schaute damit einen halben Meter über den Hut hinweg,
-  und man suchte Köpfe aus, die man nicht sah.
-
-  **In der Brille gibt es keine zweite Figur.** Fällt der Schrank dort auf
-  den Rückfall, springt `App.openWardrobe` an die Seite _Aussehen_ am
-  Handgelenk und baut kein zweites Canvas auf: Eine zweite Figur vor der Nase
-  wäre ein Bild von einem Spiegel neben einem Spiegel.
-
-  **Die Zeilen sind eine eigene Datei** (`ui/wardrobeRows.ts`) und aus demselben
-  Grund, aus dem `init`/`step` einer Einbau-Art rein sind: Was eine Zeile
-  schaltet, ist eine Rechnung über drei Listen, und die prüft ein Test in
-  Millisekunden. Was daraus für ein Knopf wird — DOM am Bildschirm, Menüzeile am
-  Handgelenk, ein Stück auf einem Brett —, ist eine zweite Frage. Dieselbe
-  Grenze läuft durch das Regal: `wardrobeRack.ts` liefert die Stücke und die
-  Auskunft, was Anziehen heißt; wohin sie kommen und wer den Raum wieder
-  zumacht, entscheidet `worlds/shared/construct.ts`.
 - **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
   man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
   Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum

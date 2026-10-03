@@ -396,8 +396,8 @@ Vorschau.
 - **Eine Seite unter dem Reiter _Inventar_** (`ui/outfitMenu.ts`,
   `OUTFIT_PAGE`), aber keine Kachel zwischen den Werkzeugen:
   `MenuEntry.hidden` hält sie aus der Liste, `openSubmenu` findet sie
-  trotzdem. Hinein geht es über _Aussehen anpassen_ an der Figur und über den
-  Kleiderschrank ohne Konstrukt (`App.openWardrobe`). Vollbild wie alles im
+  trotzdem. Hinein geht es über _Aussehen anpassen_ an der Figur und über die
+  Garderobe in der Sandbox (`App.openOutfit`). Vollbild wie alles im
   Menü.
 - **_Vorgefertigte_** sind die Figuren (`avatarFigures.FIGURE_PRESETS`):
   die kuratierten mit deutschen Namen, dann **alle** Figuren der Pakete

@@ -1,12 +1,11 @@
 import { GridPlan } from '../grid/gridPlan';
 import { readWorld, writeWorld } from '../grid/worldFile';
 // Damit die Arten bekannt sind: Tür, Tor, Knopf, Hebel, Platte, Lampe,
-// Schild, Effektquelle. Die Umkleide (`wardrobe`) fehlt absichtlich — das
-// Paket dazu läuft parallel, und dieser Test darf sie nicht verlangen.
+// Schild, Effektquelle.
 import '../grid/fixtures/kinds';
 import { flowField, findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { DIR_E, DIR_W, keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_W, keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
 import { KART_START, PIT_LANE } from '../kart/kartCourse';
 import {
   CLIMB,
@@ -28,7 +27,7 @@ import { fitTest, testPlan } from './testPlan';
 import { DECK, STAIR_FOOT, STAIR_LANDING, STAIR_LENGTH, STAIR_X } from './zones/podium';
 import { DOORS, YARD } from './zones/interact';
 import { EMITTERS } from './zones/effects';
-import { HUB_GATE, GATE_TILE } from './zones/start';
+import { COAT_RACK_SPOT, HUB_GATE, GATE_TILE, OLD_WARDROBE, fitStart } from './zones/start';
 import { SPIKES } from './zones/navigation';
 import { BERM } from './zones/range';
 import { KITCHEN_SPOTS } from './zones/kitchen';
@@ -225,21 +224,25 @@ describe('Start und Tor', () => {
   });
 
   /**
-   * **Der Kleiderschrank steht im Plan, auch wenn dieses Programm ihn noch
-   * nicht kennt.**
-   *
-   * Die Art `wardrobe` gehört dem Paket _Umkleide_, das parallel läuft. Eine
-   * unbekannte Art fällt beim Lesen **nicht** weg (anders als ein unbekannter
-   * Baustein) — sie bleibt stehen und wird nur beim Bauen übersprungen und
-   * gemeldet. Deshalb verlangt dieser Test die Art nicht, sondern nur, dass sie
-   * im Grundriss steht: Ein Schrank, den ein älteres Programm still
-   * verschluckte, wäre nach dem nächsten Speichern weg.
+   * **Der Kleiderschrank ist weg, die Garderobe steht davor** — als
+   * Spielelement (`COAT_RACK_SPOT`), nicht als Einbau. Auch ein gespeicherter
+   * Grundriss mit dem alten Schrank verliert ihn (`fitStart`).
    */
-  it('setzt den Kleiderschrank neben den Start, ohne seine Art zu verlangen', () => {
-    const wardrobe = plan.fixtures().find((one) => one.kind === 'wardrobe');
-    expect(wardrobe).toBeDefined();
-    expect(Math.abs(wardrobe!.x - SPAWN.x)).toBeLessThanOrEqual(4);
-    expect(Math.abs(wardrobe!.z - SPAWN.z)).toBeLessThanOrEqual(4);
+  it('stellt die Garderobe neben den Start — auf freien Boden, und keinen Kleiderschrank mehr', () => {
+    expect(plan.fixtures().some((one) => one.kind === 'wardrobe')).toBe(false);
+    expect(Math.abs(COAT_RACK_SPOT.x - SPAWN.x)).toBeLessThanOrEqual(4);
+    expect(Math.abs(COAT_RACK_SPOT.z - SPAWN.z)).toBeLessThanOrEqual(4);
+    const tile = tileKey(COAT_RACK_SPOT.x, COAT_RACK_SPOT.z, 0);
+    expect(plan.graph.has(tile)).toBe(true);
+    expect(plan.blocksOn(tile)).toEqual([]);
+    expect(plan.fixturesOn(tile)).toEqual([]);
+  });
+
+  it('nimmt den alten Kleiderschrank aus einem gespeicherten Grundriss', () => {
+    const old = testPlan();
+    old.putFixture({ id: OLD_WARDROBE, kind: 'wardrobe', x: -3, z: -4, dir: DIR_N, props: {} });
+    fitStart(old);
+    expect(old.fixture(OLD_WARDROBE)).toBeNull();
   });
 
   it('hängt ein Schild mit einer Begrüßung daneben', () => {

@@ -160,19 +160,19 @@ export interface WorldContext {
    */
   dress?(figure: string | null): void;
   /**
-   * **Die Umkleide aufmachen** (`ui/outfitMenu.ts`).
+   * **_Aussehen_ aufmachen** (`ui/outfitMenu.ts`).
    *
-   * Sie gehört `App` und keiner Welt, aus demselben Grund wie das Aussehen
-   * selbst: Wer sich vor dem Schrank in der Testwelt umzieht, läuft auch im
-   * Hub so herum. Eine Welt sagt deshalb nur, **dass** jemand davorsteht und
-   * gedrückt hat — der Kleiderschrank meldet `{ type: 'wardrobe' }`, und
-   * `GridWorld` reicht es hierher weiter. Später ruft Haunting dieselbe Zeile.
+   * Die Seite gehört `App` und keiner Welt, aus demselben Grund wie das
+   * Aussehen selbst: Wer sich an der Garderobe der Sandbox umzieht, läuft
+   * auch im Hub so herum. Eine Welt sagt deshalb nur, **dass** jemand davor
+   * steht und gedrückt hat — die Garderobe (`elements/coatRack.ts`, über
+   * `StationHost.open`) ruft diese Zeile.
    *
    * Wie sie aussieht, entscheidet die Ansicht: am Bildschirm eine Seite mit
-   * der Figur in Nahaufnahme, in der Brille die Seite _Aussehen_ am
-   * Handgelenk — dort steht die Figur ja schon im Spiegel am Schrank.
+   * der Figur in Nahaufnahme, in der Brille dieselbe Seite vor einem, die Figur
+   * als kleines Modell daneben.
    */
-  openWardrobe(): void;
+  openOutfit(): void;
   /**
    * **_Halten einstellen_ aufmachen** (`ui/HoldMenu.ts`) — die Seite hinter
    * dem Knopf auf der Detailseite eines Möbels: das Ding in der Luft, der

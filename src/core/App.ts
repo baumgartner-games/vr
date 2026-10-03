@@ -308,7 +308,7 @@ export class App {
    * _Inventar_ (`ui/outfitMenu.ts`). Sie gehört `App` und keiner Welt, genau
    * wie das Aussehen selbst (`core/appearance.ts`): Wer sich in der Testwelt
    * umzieht, läuft im Hub ebenso herum. Eine Welt macht sie über den
-   * Weltkontext auf (`WorldContext.openWardrobe`) und weiß sonst nichts von
+   * Weltkontext auf (`WorldContext.openOutfit`) und weiß sonst nichts von
    * ihr.
    */
   private readonly outfit = new OutfitDraft();
@@ -542,8 +542,8 @@ export class App {
             look: () => this.outfit.current,
             edits: isOutfitPage,
             dirty: () => this.outfit.dirty,
-            onCustomize: () => this.openWardrobe(),
-            onDetail: () => this.openWardrobe(OUTFIT_DETAIL),
+            onCustomize: () => this.openOutfit(),
+            onDetail: () => this.openOutfit(OUTFIT_DETAIL),
             onSave: (name) => {
               this.outfit.save();
               // Der Name nur, wenn er sich geändert hat — `setPlayerName`
@@ -568,7 +568,7 @@ export class App {
       look: () => this.outfit.current,
       edits: isOutfitPage,
       dirty: () => this.outfit.dirty,
-      onCustomize: () => this.openWardrobe(),
+      onCustomize: () => this.openOutfit(),
       onSave: () => {
         this.outfit.save();
         this.notify('Aussehen gespeichert');
@@ -772,7 +772,7 @@ export class App {
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
       dress: (figure) => this.dress(figure),
-      openWardrobe: () => this.openWardrobe(),
+      openOutfit: () => this.openOutfit(),
       openHoldEditor: (subject) => this.openHoldEditor(subject),
     };
   }
@@ -2296,8 +2296,8 @@ export class App {
    * verschiedenen Hüten, je nachdem, wen man fragt.
    */
   /**
-   * **Die Umkleide aufmachen** — je Ansicht auf einem anderen Weg
-   * (`WorldContext.openWardrobe`, `worlds/grid/fixtures/wardrobe.ts`).
+   * **_Aussehen_ aufmachen** — je Ansicht auf einem anderen Weg
+   * (`WorldContext.openOutfit`; die Garderobe, `worlds/elements/coatRack.ts`).
    *
    * Am Bildschirm ist es die Seite _Aussehen_ unter dem Reiter _Inventar_,
    * mit der Figur daneben (`ui/outfitMenu.ts`) — derselbe Weg wie über
@@ -2307,7 +2307,7 @@ export class App {
    * Brille auf drei Zeilen unter den Einstellungen; gewünscht: _„soll wie im
    * web auch der charakter rechts weiterhin angezeigt werden"_.
    */
-  private openWardrobe(page = OUTFIT_PAGE): void {
+  private openOutfit(page = OUTFIT_PAGE): void {
     if (!this.world) return;
     // Die Seite gibt es erst im frischen Baum (`inventoryEntry`).
     if (this.menuDirty) this.refreshMenu();

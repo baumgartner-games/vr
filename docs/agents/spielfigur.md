@@ -6,7 +6,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 ## Wie man aussieht
 
 _Menü → Figur_ (früher _Aussehen_; der Bereich öffnet es direkt,
-`ui/menuGroups.ts`) und der **Kleiderschrank** — vier Zeilen, und dahinter die
+`ui/menuGroups.ts`) und die **Garderobe** in der Sandbox, an der `A` dieselbe
+Seite öffnet — vier Zeilen, und dahinter die
 ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
 `core/headgear.ts`, `core/avatarFigures.ts`).
 
@@ -347,7 +348,7 @@ dort steht deshalb immer der Koch — ein Jest-Test hält das fest.
 schaltet durch eine **kuratierte Liste** von zwölf (Koch, Mannequin, Ritter,
 Barbar, Magier, Waldläufer, Schurke, Roboter Eins und Zwei, Skelett-Krieger,
 Ninja, Space Ranger) — eine Zeile, die man 85-mal drücken müsste, ist keine
-Auswahl, und 85 Ständer sprengten den Ring im Kleiderschrank. Wer eine der
+Auswahl. Wer eine der
 übrigen will, schlägt sie im Regal auf und drückt dort auf der **Detailseite**
 den Knopf **_Als Figur tragen_** (`ui/menu.MenuDetail.action`,
 `kaykitIndex.figureAction`). Er steht nur bei dem, was in der Schublade
@@ -427,13 +428,11 @@ mehr, steht aber da, solange eine Figur lädt.
 _Aussehen_ im Menü (am Schirm unter dem Reiter _Inventar_ als Kacheln mit
 Vorschau, gespeichert erst mit _Aussehen speichern_ — siehe
 [Aussehen im Inventar](seite.md#aussehen-im-inventar); am Handgelenk Zeilen,
-die im Kreis schalten) und die **Umkleide** am
-Kleiderschrank — und die ist keine Liste mehr, sondern ein **Regal im
-Konstrukt**, in dem dieselben neunundzwanzig Sachen als Sachen dastehen und der
-Spiegel an der Tür zeigt, was man gerade angezogen hat (siehe
-_Der Konstrukt-Raum_ und _Der Kleiderschrank und die Umkleide_). Im Regal
-wird sofort gespeichert (`saveAppearance`), und wer zuhören will, hängt sich an
-`onAppearanceChange` — der eigene Körper und das Netz tun genau das.
+die im Kreis schalten); die **Garderobe** in der Sandbox öffnet genau diese
+Seite. Bis Oktober 2026 gab es daneben die **Umkleide** am Kleiderschrank, ein
+Regal im Konstrukt-Raum; sie ist gelöscht. Wer zuhören will, wenn sich das
+Aussehen ändert, hängt sich an `onAppearanceChange` — der eigene Körper und
+das Netz tun genau das.
 
 **Von innen ist ein Helm etwas anderes als von außen.** Außen eine Schale,
 innen ein **Rahmen**: ein Kreisring vor dem Auge (`visorFrame`), dessen Loch
@@ -526,7 +525,7 @@ Stück im Raum des Kopfknochens: Für ein gehäutetes ist das
 weil alle Figuren desselben Skeletts denselben Kopfknochen haben, sitzt das
 Stück auf jeder von ihnen so, wie es auf seiner eigenen sitzt — ohne
 Halbmesser, ohne Verschiebung (`AvatarBody.fetchFigurePart`). Auf dem
-gebauten Koch und im Regal des Konstrukts wird vom KayKit-Kopf aus
+gebauten Koch wird vom KayKit-Kopf aus
 umgerechnet (`KAYKIT_HEAD`: Mitte 0,5 über dem Knochen, halbe Breite 0,54).
 
 **Was an der Figur weicht** (`AvatarBody.applyFigureHides`, gelesen am Namen

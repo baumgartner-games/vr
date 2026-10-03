@@ -1,4 +1,5 @@
 import type { GridPlan } from '../../grid/gridPlan';
+import type { ElementSpot } from '../../elements/elementPlace';
 import { DIR_N, DIR_S, DIR_W } from '../../nav/navTile';
 import { findWorld } from '../../index';
 import { START } from '../layout';
@@ -7,8 +8,8 @@ import { START } from '../layout';
  * **Start und Tor** — die Mitte des Geländes.
  *
  * Neun mal neun Kacheln, und von hier geht es in jede Himmelsrichtung. Was
- * hier steht, ist mit Absicht wenig: ein Schild, das sagt, wo man ist, der
- * Kleiderschrank an der Wand daneben und drei Kacheln weiter das Tor zurück in
+ * hier steht, ist mit Absicht wenig: ein Schild, das sagt, wo man ist, die
+ * Garderobe vor der Wand daneben und drei Kacheln weiter das Tor zurück in
  * den Hub. Wer ankommt, soll das Gelände sehen und nicht die Möblierung des
  * Startplatzes.
  *
@@ -25,7 +26,28 @@ import { START } from '../layout';
 /** Die Kennungen dieser Zone. Vergeben und nicht gewachsen (AGENTS, _Einbauten_). */
 export const HUB_GATE = 'tor-hub';
 export const START_SIGN = 'schild-start';
-export const WARDROBE = 'schrank-start';
+/**
+ * **Der Kleiderschrank, den es nicht mehr gibt** — ein Einbau, den ältere
+ * gespeicherte Grundrisse noch tragen. `fitStart` nimmt ihn heraus; an seiner
+ * Stelle steht die Garderobe (`COAT_RACK_SPOT`).
+ */
+export const OLD_WARDROBE = 'schrank-start';
+
+/**
+ * **Die Garderobe** (`elements/coatRack.ts`) — `A` öffnet _Aussehen_.
+ *
+ * Eine Kachel vor der Nordwand, wo bis Oktober 2026 der Kleiderschrank an der
+ * Wand stand, und nicht direkt daran: Hinten hängt der Hexenhut, und der
+ * stäke sonst in der Wand. Ein Spielelement und kein Einbau — es sperrt seine
+ * vier Zellen selbst (`FurnishedWorld.spots`).
+ */
+export const COAT_RACK_SPOT: ElementSpot = {
+  id: 'garderobe-start',
+  element: 'coat-rack',
+  x: -3,
+  z: START.z + 1,
+  face: 'S',
+};
 
 /** Wo das Tor steht: drei Kacheln südlich des Startpunkts. */
 export const GATE_TILE = { x: 0, z: 3 } as const;
@@ -64,25 +86,10 @@ export function stampStart(plan: GridPlan): void {
 export function fitStart(plan: GridPlan): void {
   const north = START.z;
 
-  /**
-   * **Der Kleiderschrank** (`grid/fixtures/wardrobe.ts`) — an der Wand neben
-   * dem Start, wo man ihn beim Ankommen sieht.
-   *
-   * Die Art gehört dem Paket _Umkleide_. Solange es sie in diesem Programm
-   * nicht gibt, steht der Einbau im Plan und wird beim Bauen übersprungen und
-   * gemeldet (`GridWorld.buildFixtures`, `console.warn`) — genau dafür ist die
-   * Registry so gebaut, und genau deshalb verlangt der Test daneben **nicht**,
-   * dass die Art bekannt ist. Ein Schrank, den ein älteres Programm still
-   * verschluckte, wäre nach dem nächsten Speichern weg.
-   */
-  plan.putFixture({
-    id: WARDROBE,
-    kind: 'wardrobe',
-    x: -3,
-    z: north,
-    dir: DIR_N,
-    props: {},
-  });
+  // **Der Kleiderschrank ist weg** — die Garderobe steht als Spielelement
+  // davor (`COAT_RACK_SPOT`). Ein gespeicherter Grundriss von früher trägt
+  // ihn noch; dort käme er sonst als unbekannte Art und eine Warnung zurück.
+  plan.takeFixture(OLD_WARDROBE);
 
   // Das Schild an derselben Wand, auf der anderen Seite der Lücke.
   plan.putFixture({

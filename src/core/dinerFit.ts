@@ -6,8 +6,7 @@
  * die Zone ist wieder weg (`worlds/test/layout.ts`), der Katalog nicht. Aus
  * ihm kommen die **Zutaten** der Küche — Brötchen, Patty, Salat, Tomate,
  * Teller, Kisten (`worlds/test/zones/kitchenProps.ts`) —, mehrere ihrer Möbel
- * (`core/kitchenFit.ts`, `file: 'diner'`), und im Konstrukt-Raum steht er zum
- * Durchblättern (`worlds/shared/construct.ts`).
+ * (`core/kitchenFit.ts`, `file: 'diner'`).
  *
  * Dieselbe Teilung wie bei der Küche (`core/kitchenFit.ts` neben
  * `core/kitchenModel.ts`) und aus demselben Grund: Der Lader braucht

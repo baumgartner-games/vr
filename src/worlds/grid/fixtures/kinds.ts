@@ -8,7 +8,6 @@ import { LEVER } from './lever';
 import { MARK_GO, MARK_START, MARK_STOP } from './mark';
 import { PLATE } from './plate';
 import { SIGN } from './sign';
-import { WARDROBE } from './wardrobe';
 
 /**
  * **Die Anmeldung** — eine Zeile je Art, und sonst steht hier nichts.
@@ -36,7 +35,6 @@ registerKind(BUTTON);
 registerKind(LEVER);
 registerKind(PLATE);
 registerKind(LAMP);
-registerKind(WARDROBE);
 registerKind(MARK_START);
 registerKind(MARK_GO);
 registerKind(MARK_STOP);
@@ -51,4 +49,4 @@ export function paletteKinds(): readonly FixtureKind<unknown>[] {
   return fixtureKinds();
 }
 
-export { BUTTON, DOOR, EMITTER, GATE, LAMP, LEVER, PLATE, SIGN, WARDROBE };
+export { BUTTON, DOOR, EMITTER, GATE, LAMP, LEVER, PLATE, SIGN };

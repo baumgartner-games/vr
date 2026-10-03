@@ -37,7 +37,7 @@ import {
   type StationKind,
 } from '../test/zones/kitchenCarry';
 import { dish, type Dish, type KitchenItem } from '../test/zones/kitchenRecipes';
-import { elementLit, type GameElement } from './elementCatalog';
+import { elementLit, type ElementOpens, type GameElement } from './elementCatalog';
 import { spotElement, spotGives, type ElementSpot } from './elementPlace';
 import { dishKey } from './dishView';
 import type { PlacedElement } from './elementView';
@@ -308,7 +308,22 @@ export interface StationHost {
   warnTone?(fast: boolean): void;
   /** Zufall 0…1 — ohne Angabe `Math.random` (Tests reichen einen festen). */
   random?(): number;
+  /**
+   * **Eine Seite im Menü aufmachen** (`GameElement.opens`) — die Garderobe
+   * öffnet _Aussehen_. Ohne Angabe meldet sich so ein Element nicht an.
+   */
+  open?(what: ElementOpens): void;
 }
+
+/**
+ * **Wie weit `A` an einem Element reicht, das eine Seite aufmacht**, in Metern
+ * um die Mitte seiner Grundfläche — eine Kachel breit, wie die Garderobe mit
+ * ihren Haken.
+ */
+export const OPENER_REACH = 0.5;
+
+/** Was ein Druck dort bewirkt — der Satz zum Saum (`Usable.usePrompt`). */
+const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = { outfit: 'Aussehen ändern' };
 
 /** Wie die Station gerade gebaut ist. */
 interface StationView {
@@ -359,6 +374,11 @@ const _w = new THREE.Vector3();
 export class StationLayer {
   private stations: StationState[] = [];
   private readonly views: StationView[] = [];
+  /**
+   * **Was eine Seite aufmacht** (`GameElement.opens`) — keine Station, also
+   * auch keine Uhr und kein Stand: einmal angemeldet, und es bleibt dabei.
+   */
+  private readonly openers: THREE.Group[] = [];
   private lastHand: Handedness | null = null;
 
   /**
@@ -422,6 +442,10 @@ export class StationLayer {
    * @returns wie viele Stationen es wurden
    */
   add(placed: PlacedElement, keep: readonly StationState[] = []): number {
+    if (placed.element.opens) {
+      this.addOpener(placed, placed.element.opens);
+      return 0;
+    }
     const slots = elementStations(placed.spot);
     const [, depth] = placed.element.tiles;
     for (const slot of slots) {
@@ -472,6 +496,37 @@ export class StationLayer {
   }
 
   /**
+   * **Ein Element, das eine Seite aufmacht** (`GameElement.opens`): die
+   * Garderobe. Angemeldet wird in der Mitte der Grundfläche, und zwar
+   * einmal — es gibt keine Tat, die sich ändert. Alle Teile hängen darunter
+   * (`attach`, sie bleiben stehen, wo sie stehen), damit der gelbe Saum das
+   * ganze Möbel umrandet, sobald man darauf schaut.
+   */
+  private addOpener(placed: PlacedElement, what: ElementOpens): void {
+    const [, depth] = placed.element.tiles;
+    const anchor = new THREE.Group();
+    anchor.name = `opens:${placed.spot.id}`;
+    anchor.position.set(0, 0, -depth / 2);
+    placed.anchor.add(anchor);
+    for (const part of placed.parts) if (part) anchor.attach(part);
+    this.openers.push(anchor);
+    if (!this.host.open) return;
+    this.host.addUsable(
+      anchor,
+      {
+        use: () => {
+          this.host.open?.(what);
+          return true;
+        },
+        usePrompt: () => OPENS_PROMPT[what],
+        interaction: { kind: 'press' },
+        aimOnly: true,
+      },
+      { radius: OPENER_REACH, half: 1.8 },
+    );
+  }
+
+  /**
    * **Die Stationen eines Elements herausnehmen** — es wird umgestellt
    * (Bau-Modus). Abgemeldet, Balken und Liegendes weg; zurück kommt ihr
    * Stand, damit `add` an der neuen Stelle damit weitermacht.
@@ -479,6 +534,12 @@ export class StationLayer {
    * @param anchor der Anker des Elements (`PlacedElement.anchor`)
    */
   remove(anchor: THREE.Object3D): StationState[] {
+    for (let i = this.openers.length - 1; i >= 0; i--) {
+      const opener = this.openers[i]!;
+      if (opener.parent !== anchor) continue;
+      this.host.removeUsable(opener);
+      this.openers.splice(i, 1);
+    }
     const out: StationState[] = [];
     for (let i = this.views.length - 1; i >= 0; i--) {
       const view = this.views[i]!;
@@ -842,6 +903,8 @@ export class StationLayer {
 
   /** Abmelden und abräumen — die Anker gehen mit ihren Elementen. */
   dispose(): void {
+    for (const opener of this.openers) this.host.removeUsable(opener);
+    this.openers.length = 0;
     for (const view of this.views) {
       this.host.removeUsable(view.anchor);
       view.content?.removeFromParent();
