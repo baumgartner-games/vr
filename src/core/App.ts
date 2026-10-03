@@ -36,7 +36,7 @@ import { tabbedMenu } from '../ui/menuTabs';
 import { XRPlayerCard } from '../ui/XRPlayerCard';
 import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
-import { topDownFit } from './topDownPose';
+import { TOP_DOWN_TILT, TOP_DOWN_TILT_MAX, TOP_DOWN_TILT_MIN, topDownFit } from './topDownPose';
 import { isCrane, screenTopDown } from './crane';
 import { gameMode, onGameMode } from './gameMode';
 import { BUILD_SCALE, buildFlight, onBuildFlight, setBuildFlight } from './buildFlight';
@@ -497,6 +497,8 @@ export class App {
       this.levelBlurOn = now.levelBlur;
       this.levelBlurAboveOn = now.levelBlurAbove;
       if (!this.levelBlurOn && !this.levelBlurAboveOn) this.levelBlur.release();
+      // Der Blickwinkel von oben hängt am selben Zuhörer — eine Zeile, kein zweiter.
+      this.topDownCamera.setTilt(now.topDownTilt);
     });
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
@@ -522,6 +524,8 @@ export class App {
       this.pointer.add(this.xrGuide.asPointerTarget());
     }
     this.topDownCamera = new TopDownCamera(canvas);
+    // Wie steil sie schaut, steht unter _Grafik → Blickwinkel von oben_.
+    this.topDownCamera.setTilt(graphics().topDownTilt);
     // Die Kamera von oben kennt zwei Dinge, die die Eingabe braucht: wo die
     // Figur auf dem Schirm steht (dahin zielt die Maus) und den Zoom auf den
     // Bumpern. Deshalb steht sie eine Zeile früher als die Steuerung.
@@ -874,7 +878,11 @@ export class App {
       this.topDownCamera.startZoom(
         definition.topDownSpan === undefined
           ? null
-          : topDownFit(definition.topDownSpan, window.innerWidth / Math.max(1, window.innerHeight)),
+          : topDownFit(
+              definition.topDownSpan,
+              window.innerWidth / Math.max(1, window.innerHeight),
+              this.topDownCamera.tilt,
+            ),
       );
       this.resizeWebBuffer();
       this.world = next;
@@ -2731,6 +2739,7 @@ export class App {
           this.menuDirty = true;
           this.notify(message);
         }),
+        this.tiltMenu(accent),
         {
           // **Was mit den Wänden des eigenen Raums passiert** — von oben
           // (`worlds/grid/roomWalls.ts`, `wallCut.ts`): durchsichtig (ab
@@ -3106,6 +3115,80 @@ export class App {
             this.notify(`Atem-Art: ${VISOR_BREATH_STYLE_LABELS[next.visorBreathStyle]}`);
           },
         },
+      ],
+    };
+  }
+
+  /**
+   * **Wie steil die Ansicht _Von oben_ schaut** — eine Seite mit vier Knöpfen
+   * (±5°, ±10°), einem zurück auf die Vorgabe und, nur am Schirm, dem Schalter
+   * für das freie Kippen mit der rechten Maustaste (`FlatControls`).
+   * Gewünscht: _„bei Ansicht von oben noch den Winkel anpassen / einstellen
+   * können"_. Gerechnet wird in `core/topDownPose.ts` (`clampTilt`, 20–90°).
+   */
+  private tiltMenu(accent: number): MenuEntry {
+    const settings = graphics();
+    const tilt = settings.topDownTilt;
+    const step = (delta: number): MenuEntry => ({
+      id: `gfx:tilt${delta > 0 ? '+' : '-'}${Math.abs(delta)}`,
+      label: `${delta > 0 ? 'Steiler' : 'Flacher'} ${delta > 0 ? '+' : '−'}${Math.abs(delta)}°`,
+      sub: `Jetzt ${tilt}° · ${TOP_DOWN_TILT_MIN}° flach bis ${TOP_DOWN_TILT_MAX}° senkrecht`,
+      icon: 'settings',
+      accent,
+      run: () => {
+        const next = saveGraphics({ topDownTilt: graphics().topDownTilt + delta });
+        this.menuDirty = true;
+        this.notify(`Blickwinkel von oben: ${next.topDownTilt}°`);
+      },
+    });
+    return {
+      id: 'gfx:tilt',
+      label: `Blickwinkel von oben: ${tilt}°`,
+      sub: 'Wie steil die Kamera auf die Figur schaut · ab Werk 55°',
+      caption: `±5° und ±10° · ${TOP_DOWN_TILT_MIN}° flach bis ${TOP_DOWN_TILT_MAX}° senkrecht`,
+      icon: 'settings',
+      accent,
+      children: [
+        step(10),
+        step(-10),
+        step(5),
+        step(-5),
+        {
+          id: 'gfx:tilt-reset',
+          label: `Zurück auf ${TOP_DOWN_TILT}°`,
+          sub: 'Der Winkel, unter dem die Ansicht von oben immer stand',
+          icon: 'settings',
+          accent,
+          run: () => {
+            const next = saveGraphics({ topDownTilt: TOP_DOWN_TILT });
+            this.menuDirty = true;
+            this.notify(`Blickwinkel von oben: ${next.topDownTilt}°`);
+          },
+        },
+        // **Nur am Schirm**: Eine Maus hat die Brille nicht.
+        ...(this.renderer.xr.isPresenting
+          ? []
+          : [
+              {
+                id: 'gfx:tilt-drag',
+                label: 'Rechtsklick ziehen: frei kippen',
+                sub: 'Rechte Maustaste halten und hoch/runter ziehen stellt den Winkel stufenlos ein',
+                caption:
+                  'Nur von oben und nur mit der Maus · als Kran bleibt rechts die Abrissbombe',
+                icon: 'settings' as const,
+                accent,
+                checked: settings.tiltDrag,
+                run: () => {
+                  const next = saveGraphics({ tiltDrag: !graphics().tiltDrag });
+                  this.menuDirty = true;
+                  this.notify(
+                    next.tiltDrag
+                      ? 'Rechtsklick kippt den Blickwinkel'
+                      : 'Rechtsklick kippt nicht mehr',
+                  );
+                },
+              },
+            ]),
       ],
     };
   }

@@ -23,9 +23,15 @@ import {
   type KeyAction,
 } from './inputMap';
 import { inputConfig, onInputConfigChange } from './inputStore';
-import { graphics, onGraphicsChange } from './graphicsSettings';
+import { graphics, onGraphicsChange, saveGraphics } from './graphicsSettings';
 import { dpadDirection } from './dpad';
-import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
+import {
+  TOP_DOWN_TILT_MAX,
+  TOP_DOWN_TILT_MIN,
+  pinchFactor,
+  yawFromDirection,
+  type Vec2,
+} from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
 import {
   CRANE_TWIST_HOLD,
@@ -216,6 +222,12 @@ export class FlatControls {
    * schießt, schösse sonst nie (`chordButtons`).
    */
   private mouseButtons = 0;
+  /**
+   * **Die rechte Maustaste kippt gerade das Bild** (`GraphicsSettings.tiltDrag`)
+   * — die Neigung in Grad, mit Nachkommastellen, damit langsames Ziehen nicht
+   * an der Rundung hängen bleibt. `null`: es kippt niemand.
+   */
+  private tiltDrag: number | null = null;
   /** Wo der Mauszeiger zuletzt stand, in CSS-Punkten. `null`: noch nie bewegt. */
   private mouse: { x: number; y: number } | null = null;
   /**
@@ -361,6 +373,7 @@ export class FlatControls {
     // Trigger, der über den Ansichtswechsel liegen bleibt, feuert weiter.
     this.mouseFire = false;
     this.mouseSight = false;
+    this.endTiltDrag();
     this.rig.sighting = false;
     this.rig.paintHeld = false;
     this.firePointer = null;
@@ -989,6 +1002,7 @@ export class FlatControls {
       this.mouseFire = false;
       this.rig.paintHeld = false;
       this.mouseSight = false;
+      this.endTiltDrag();
       this.mouseButtons = 0;
       this.rig.sighting = false;
       this.rig.useHeld = false;
@@ -1024,6 +1038,12 @@ export class FlatControls {
           // **Rechts holt der Kran die Abrissbombe** (`core/craneBomb.ts`) —
           // ob er sie bekommt, entscheidet die Welt (nur im _Baukasten_).
           if (event.button === 2 && this.craneOn) this.rig.requestBomb();
+          // **Rechts halten und ziehen kippt das Bild** — wenn es unter
+          // _Grafik → Blickwinkel von oben_ eingeschaltet ist (ab Werk aus).
+          else if (event.button === 2 && this.view && graphics().tiltDrag) {
+            this.tiltDrag = this.view.tilt;
+            this.canvas.setPointerCapture?.(event.pointerId);
+          }
           if (event.button === 0) {
             if (this.rig.carrying) {
               this.pressMouseUse();
@@ -1122,6 +1142,14 @@ export class FlatControls {
         this.mouse = { x: event.clientX, y: event.clientY };
         this.aimedWithStick = false;
         this.chordButtons(event.buttons);
+        if (this.tiltDrag !== null && this.view) {
+          if ((event.buttons & 2) === 0) this.endTiltDrag();
+          else {
+            // Nach unten ziehen heißt steiler — man zieht die Kamera über die Figur.
+            this.tiltDrag = clampTiltDrag(this.tiltDrag + event.movementY * TILT_DRAG_SPEED);
+            this.view.setTilt(this.tiltDrag);
+          }
+        }
         if (this.pointerLocked) this.look(event.movementX, event.movementY);
         return;
       }
@@ -1162,6 +1190,7 @@ export class FlatControls {
         if (event.button === 0) this.mouseFire = false;
         if (event.button === 0) this.rig.paintHeld = false;
         if (event.button === 2) this.mouseSight = false;
+        if ((event.buttons & 2) === 0) this.endTiltDrag();
         this.mouseButtons = event.buttons;
       }
       if (event.pointerId === this.stickPointer) {
@@ -1195,6 +1224,21 @@ export class FlatControls {
     };
     this.on(this.canvas, 'pointerup', end);
     this.on(this.canvas, 'pointercancel', end);
+    // Ein Rechtsklick, der das Bild kippt, öffnet kein Kontextmenü darüber.
+    this.on(this.canvas, 'contextmenu', (event: Event) => {
+      if (this.topDownOn && graphics().tiltDrag) event.preventDefault();
+    });
+  }
+
+  /**
+   * **Das Kippen mit der rechten Maustaste ist vorbei** — der Winkel, bei dem
+   * losgelassen wurde, wird die Einstellung (`saveGraphics`), damit ihn das
+   * Menü zeigt und der nächste Besuch ihn noch kennt.
+   */
+  private endTiltDrag(): void {
+    if (this.tiltDrag === null) return;
+    this.tiltDrag = null;
+    if (this.view) saveGraphics({ topDownTilt: this.view.tilt });
   }
 
   /**
@@ -1330,6 +1374,13 @@ export class FlatControls {
   private setPressed(el: HTMLElement | null, down: boolean): void {
     el?.classList.toggle('is-down', down);
   }
+}
+
+/** Grad je Bildpunkt, den die rechte Maustaste zieht — 200 px sind 50°. */
+const TILT_DRAG_SPEED = 0.25;
+
+function clampTiltDrag(tilt: number): number {
+  return Math.max(TOP_DOWN_TILT_MIN, Math.min(TOP_DOWN_TILT_MAX, tilt));
 }
 
 const _ground: Vec2 = { x: 0, z: 0 };
