@@ -95,6 +95,15 @@ import {
   SHADOW_MODE_SUBS,
   GRAPHICS_MODE_SUBS,
   SCREEN_PADS_LABELS,
+  VISOR_BREATH_LABELS,
+  VISOR_BREATH_SUBS,
+  VISOR_BREATH_STYLE_LABELS,
+  VISOR_BREATH_STYLE_SUBS,
+  VISOR_BREATH_RENDER_LABELS,
+  VISOR_BREATH_RENDER_SUBS,
+  nextVisorBreath,
+  nextVisorBreathStyle,
+  nextVisorBreathRender,
   SCREEN_PADS_SUBS,
   SQUISH_SCALE_LABELS,
   SQUISH_SCALE_SUBS,
@@ -2676,6 +2685,7 @@ export class App {
           },
         },
         this.animationMenu(accent),
+        this.visorMenu(accent),
         {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
@@ -2803,6 +2813,71 @@ export class App {
    * Vier Regler mit drei verschiedenen Leitern wären vier, die man einzeln
    * lernen muss.
    */
+  /**
+   * **Visier / Atem** — der Beschlag im immersiven Helm des Space Rangers
+   * (`core/selfHelmet.ts`, `core/visorBreath.ts`, `core/visorFog.ts`).
+   * Gewünscht: _„simuliere: visiere/atem (aus, leicht, stark, beschlagen)"_,
+   * dazu _„atem_art: ganz flächig/realistisch"_ und _„darstellung:
+   * rechnerisch/bild"_. Drei Zeilen, jede schaltet im Kreis; zu sehen nur mit
+   * _Helm des Space Rangers · Immersiv_ aus den eigenen Augen.
+   */
+  private visorMenu(accent: number): MenuEntry {
+    const settings = graphics();
+    return {
+      id: 'gfx:visor',
+      label: 'Visier / Atem',
+      sub: `${VISOR_BREATH_LABELS[settings.visorBreath]} · ${VISOR_BREATH_STYLE_LABELS[settings.visorBreathStyle]} · ${VISOR_BREATH_RENDER_LABELS[settings.visorBreathRender]}`,
+      caption: 'Beschlag im immersiven Helm des Space Rangers',
+      icon: 'sphere',
+      accent,
+      children: [
+        {
+          id: 'gfx:visor-breath',
+          label: `Visier / Atem: ${VISOR_BREATH_LABELS[settings.visorBreath]}`,
+          sub: VISOR_BREATH_SUBS[settings.visorBreath],
+          caption: 'Aus → Leicht → Stark → Beschlagen · nur mit dem immersiven Helm',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ visorBreath: nextVisorBreath(graphics().visorBreath) });
+            this.menuDirty = true;
+            this.notify(`Visier / Atem: ${VISOR_BREATH_LABELS[next.visorBreath]}`);
+          },
+        },
+        {
+          id: 'gfx:visor-breath-style',
+          label: `Atem-Art: ${VISOR_BREATH_STYLE_LABELS[settings.visorBreathStyle]}`,
+          sub: VISOR_BREATH_STYLE_SUBS[settings.visorBreathStyle],
+          caption: 'Ganz flächig ↔ Realistisch',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              visorBreathStyle: nextVisorBreathStyle(graphics().visorBreathStyle),
+            });
+            this.menuDirty = true;
+            this.notify(`Atem-Art: ${VISOR_BREATH_STYLE_LABELS[next.visorBreathStyle]}`);
+          },
+        },
+        {
+          id: 'gfx:visor-breath-render',
+          label: `Darstellung: ${VISOR_BREATH_RENDER_LABELS[settings.visorBreathRender]}`,
+          sub: VISOR_BREATH_RENDER_SUBS[settings.visorBreathRender],
+          caption: 'Rechnerisch ↔ Bild',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              visorBreathRender: nextVisorBreathRender(graphics().visorBreathRender),
+            });
+            this.menuDirty = true;
+            this.notify(`Atem-Darstellung: ${VISOR_BREATH_RENDER_LABELS[next.visorBreathRender]}`);
+          },
+        },
+      ],
+    };
+  }
+
   private animationMenu(accent: number): MenuEntry {
     const settings = graphics();
     return {
@@ -3490,6 +3565,7 @@ export class App {
     this.selfHelmet.update(
       this.camera,
       ownEyes && this.lookHat === IMMERSIVE_HAT ? IMMERSIVE_HAT : null,
+      dt,
     );
     this.playerGuides.update(_head, this.rig.getFloorY());
     this.gameMenu.update(dt, this.input, _head);

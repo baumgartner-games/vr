@@ -407,9 +407,78 @@ export interface GraphicsSettings {
    * Tempo; der Stock bleibt die Voreinstellung.
    */
   movePad: MovePad;
+  /**
+   * **Beschlag im immersiven Helm** (`core/visorBreath.ts`) — wie stark der
+   * eigene Atem das Visier beschlägt.
+   */
+  visorBreath: VisorBreath;
+  /** Ganz flächig oder realistisch von unten Mitte aus. */
+  visorBreathStyle: VisorBreathStyle;
+  /** Gerechnet im Shader oder als Bild aus Tröpfchen. */
+  visorBreathRender: VisorBreathRender;
 }
 
 /** Stock oder Steuerkreuz (`GraphicsSettings.movePad`). */
+/**
+ * **Visier / Atem** — der Beschlag im immersiven Helm des Space Rangers
+ * (`figureParts.IMMERSIVE_HAT`, `core/selfHelmet.ts`). Gewünscht:
+ * _„simuliere: visiere/atem (aus, leicht, stark, beschlagen)"_.
+ *
+ * - `off` — das Visier, wie es ist.
+ * - `light` — im Takt eines ruhigen Atems ganz leicht beschlagen, dazwischen
+ *   wieder klar.
+ * - `strong` — nie ganz klar: Das Tal ist der Gipfel von `light`, der Gipfel
+ *   deutlich darüber.
+ * - `fogged` — durchgehend stark beschlagen, kaum noch durchsichtig.
+ */
+export type VisorBreath = 'off' | 'light' | 'strong' | 'fogged';
+export const VISOR_BREATHS = ['off', 'light', 'strong', 'fogged'] as const;
+export const VISOR_BREATH_LABELS: Readonly<Record<VisorBreath, string>> = {
+  off: 'Aus',
+  light: 'Leicht',
+  strong: 'Stark',
+  fogged: 'Beschlagen',
+};
+export const VISOR_BREATH_SUBS: Readonly<Record<VisorBreath, string>> = {
+  off: 'Das Visier, wie es ist',
+  light: 'Mit jedem Ausatmen ganz leicht beschlagen, dazwischen klar',
+  strong: 'Nie ganz klar · mit jedem Ausatmen deutlich trüber',
+  fogged: 'Durchgehend stark beschlagen · kaum noch durchsichtig',
+};
+export function nextVisorBreath(mode: VisorBreath): VisorBreath {
+  return VISOR_BREATHS[(VISOR_BREATHS.indexOf(mode) + 1) % VISOR_BREATHS.length]!;
+}
+
+/** **Wie** der Beschlag liegt: ganz flächig, oder von unten Mitte aus wachsend. */
+export type VisorBreathStyle = 'flat' | 'realistic';
+export const VISOR_BREATH_STYLES = ['flat', 'realistic'] as const;
+export const VISOR_BREATH_STYLE_LABELS: Readonly<Record<VisorBreathStyle, string>> = {
+  flat: 'Ganz flächig',
+  realistic: 'Realistisch',
+};
+export const VISOR_BREATH_STYLE_SUBS: Readonly<Record<VisorBreathStyle, string>> = {
+  flat: 'Das ganze Visier gleichmäßig trüb',
+  realistic: 'Beginnt unten Mitte über Mund und Nase, wächst fächerförmig nach oben',
+};
+export function nextVisorBreathStyle(style: VisorBreathStyle): VisorBreathStyle {
+  return style === 'flat' ? 'realistic' : 'flat';
+}
+
+/** **Womit** er gezeichnet wird: gerechnet (Rauschen im Shader) oder als Bild. */
+export type VisorBreathRender = 'computed' | 'image';
+export const VISOR_BREATH_RENDERS = ['computed', 'image'] as const;
+export const VISOR_BREATH_RENDER_LABELS: Readonly<Record<VisorBreathRender, string>> = {
+  computed: 'Rechnerisch',
+  image: 'Bild',
+};
+export const VISOR_BREATH_RENDER_SUBS: Readonly<Record<VisorBreathRender, string>> = {
+  computed: 'Feiner Nebel aus Rauschen im Shader · ohne Textur',
+  image: 'Ein Bild aus Tröpfchen, ein- und ausgeblendet',
+};
+export function nextVisorBreathRender(render: VisorBreathRender): VisorBreathRender {
+  return render === 'computed' ? 'image' : 'computed';
+}
+
 export type MovePad = 'stick' | 'dpad';
 export const MOVE_PADS = ['stick', 'dpad'] as const;
 
@@ -594,6 +663,9 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   idleSquishSpeed: 1,
   screenPads: 'auto',
   movePad: 'stick',
+  visorBreath: 'off',
+  visorBreathStyle: 'realistic',
+  visorBreathRender: 'computed',
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -802,6 +874,17 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const movePad = MOVE_PADS.includes(raw.movePad as MovePad)
     ? (raw.movePad as MovePad)
     : DEFAULT_GRAPHICS.movePad;
+  const visorBreath = VISOR_BREATHS.includes(raw.visorBreath as VisorBreath)
+    ? (raw.visorBreath as VisorBreath)
+    : DEFAULT_GRAPHICS.visorBreath;
+  const visorBreathStyle = VISOR_BREATH_STYLES.includes(raw.visorBreathStyle as VisorBreathStyle)
+    ? (raw.visorBreathStyle as VisorBreathStyle)
+    : DEFAULT_GRAPHICS.visorBreathStyle;
+  const visorBreathRender = VISOR_BREATH_RENDERS.includes(
+    raw.visorBreathRender as VisorBreathRender,
+  )
+    ? (raw.visorBreathRender as VisorBreathRender)
+    : DEFAULT_GRAPHICS.visorBreathRender;
   return {
     mode,
     xrScale,
@@ -828,6 +911,9 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     idleSquishSpeed,
     screenPads,
     movePad,
+    visorBreath,
+    visorBreathStyle,
+    visorBreathRender,
   };
 }
 

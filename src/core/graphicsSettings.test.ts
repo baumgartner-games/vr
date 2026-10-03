@@ -72,6 +72,9 @@ describe('Grafikeinstellungen', () => {
       screenPads: 'auto',
       // Links unten der Stock — das Steuerkreuz ist die Wahl im Menü.
       movePad: 'stick',
+      visorBreath: 'off',
+      visorBreathStyle: 'realistic',
+      visorBreathRender: 'computed',
     });
   });
 

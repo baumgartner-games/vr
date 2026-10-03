@@ -570,6 +570,29 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   und nicht beim Zuschauen (`App.step`). Gewünscht: _„kannst du beim immersiv
   hut das auch für ‚aus den augen' anzeigen lassen. Dann kann ich es auch am
   pc testen"_.
+- **Das Visier beschlägt**, wenn man will: _Grafik → Visier / Atem_ mit drei
+  Zeilen, jede im Kreis (`graphicsSettings.visorBreath`, `visorBreathStyle`,
+  `visorBreathRender`). Gewünscht: _„simuliere: visiere/atem (aus, leicht,
+  stark, beschlagen)"_, dazu _„atem_art: ganz flächig/realistisch"_ und
+  _„darstellung: rechnerisch/bild"_.
+  - **Stärke** (`core/visorBreath.ts`, mit Test): ein Atemzug alle vier
+    Sekunden, 1,5 s davon Ausatmen (der Beschlag wächst weich), danach
+    verdunstet er bis genau 0. _Aus_ ist das Visier wie es ist, _Leicht_ geht
+    von 0 bis 0,3, _Stark_ nie unter 0,3 (dem Gipfel von _Leicht_) bis 0,75,
+    _Beschlagen_ steht durchgehend auf 0,92.
+  - **Die Haut auf dem Glas** (`core/visorFog.ts`): ein zweites Netz mit
+    derselben Geometrie wie das Visier, als Kind daran (`selfHelmet.fogVisors`
+    — Glas ist, was durchsichtig ist), ein eigener Shader, milchig-kühles Weiß.
+    _Ganz flächig_ ist überall gleich; _Realistisch_ beginnt unten Mitte über
+    Mund und Nase und wächst fächerförmig nach oben und zu den Seiten, dichter
+    am Ursprung, ausgefranst am Rand, und mit dem Beschlag wächst die Fläche.
+  - **Rechnerisch** ist ein Rauschen in drei Größen im Raum des Glases (in der
+    Projektion zog es sich an den gekrümmten Rändern zu Streifen); **Bild**
+    ist ein einmal gemaltes Bild aus ein paar tausend Tröpfchen
+    (`dropletImage`, Leinwand 512²), ein- und ausgeblendet.
+  - **Nicht dabei** ist echte Lichtstreuung (Höfe um Lampen und
+    Scheinwerfer): Die bräuchte einen eigenen Durchgang über das ganze Bild.
+    Matt und diffus wird die Sicht durch die milchige Schicht trotzdem.
 - Für die Raumstation reicht später `ctx.wear('flightHelmetImmersive')` —
   `App.applyAppearance` merkt sich auch einen geliehenen Hut (`lookHat`).
 
