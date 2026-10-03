@@ -33,10 +33,8 @@ describe('die Sicht der Quest 3', () => {
   it('hat den sicheren Bereich ganz im Sichtfeld', () => {
     for (const [az, el] of QUEST_SAFE_OUTLINE) {
       expect(inside(QUEST_VIEW, az, el)).toBe(true);
-      // Seitlich bleibt mindestens ein Rest Abstand — oben an den Ecken
-      // knapp (der Knick im Rand bei 22,5° · 25,5°), sonst mehr als der rote
-      // Randbereich.
-      expect(inside(QUEST_VIEW, az + Math.sign(az) * 3, el)).toBe(true);
+      // Seitlich bleibt mehr als der rote Randbereich frei.
+      expect(inside(QUEST_VIEW, az + Math.sign(az) * EDGE_BAND, el)).toBe(true);
     }
     expect(EDGE_BAND).toBe(5);
   });

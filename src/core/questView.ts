@@ -56,12 +56,9 @@ export type Outline = readonly (readonly [number, number])[];
 /**
  * **Der Rand, wie in der Brille eingestellt** — mit _VR-POV kalibrieren_
  * (`core/PovCalibrator.ts`) am 3. Oktober 2026, als Code
- * `P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03K` (gewünscht: _„Bitte
- * speichern als default […] für vr und als quest3 pov code für den Rand"_).
- * Das letzte Zeichen ist dabei vertippt — die Prüfsumme verlangt `J`, und
- * jede andere Lesart mit einem einzigen falschen Zeichen verschöbe einen
- * Punkt um höchstens einen halben Grad oder auf 90°. Richtig heißt er
- * `QUEST_VIEW_CODE`.
+ * `QUEST_VIEW_CODE` (gewünscht: _„Bitte speichern als default […] für vr und
+ * als quest3 pov code für den Rand"_). Zuerst kam er mit einem Tippfehler
+ * (`…-D1K2-…`); die Prüfsumme fiel auf, und richtig ist `…-Y1K2-…`.
  *
  * Die Punkte des Viertels rechts oben, in Grad um die gefühlte Null, von oben
  * Mitte nach rechts außen; gespiegelt an beiden Achsen (`povCalibration.fullOutline`).
@@ -69,7 +66,7 @@ export type Outline = readonly (readonly [number, number])[];
 export const QUEST_VIEW_POINTS: readonly PovPoint[] = START_POINTS;
 
 /** Derselbe Rand als Code (`povCalibration.encodePov`). */
-export const QUEST_VIEW_CODE = 'P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03J';
+export const QUEST_VIEW_CODE = 'P180-4250-D260-Z261-F201-Y1K2-7122-B0J2-D03K';
 
 /** Punkte um die gefühlte Null als Umriss im Raum der Kamera. */
 export function cameraOutline(points: readonly PovPoint[]): [number, number][] {

@@ -635,19 +635,18 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   **VR-Ansicht** am Schirm (`core/vrView.ts`, siehe [Seite](seite.md)).
 - **Der Rand ist seit dem 3. Oktober 2026 eingestellt** und nicht mehr aus
   Zeilen gemessen: mit _VR-POV kalibrieren_ in der Brille, Code
-  `P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03K` — _„Bitte speichern als
+  `P180-4250-D260-Z261-F201-Y1K2-7122-B0J2-D03K` — _„Bitte speichern als
   default […] für vr und als quest3 pov code für den Rand. Den sicheren
-  Bereich kannst du wie davor nehmen."_ Das letzte Zeichen war vertippt (die
-  Prüfsumme verlangt `J`; jede andere Lesart mit einem falschen Zeichen
-  verschöbe einen Punkt um einen halben Grad oder auf 90°). Die acht Punkte
-  um die gefühlte Null: 2 · 34,5 — 6,5 · 35 — 15,5 · 35 — 23,5 · 32 — 22,5 ·
-  25,5 — 35,5 · 17 — 37,5 · 9 — 38,5 · 1,5 (`povCalibration.START_POINTS`,
-  `questView.QUEST_VIEW_POINTS`), gespiegelt zum ganzen Rand
-  (`QUEST_VIEW`, jetzt ein Umriss statt Zeilen; `inside` prüft Punkt im
-  Vieleck). Daraus kommen der Helm _Quest-3-Sicht_, die Umrisse im
-  Kalibrier-Helm und der Zuschnitt der VR-Ansicht. Der sichere Bereich ist
-  der bisherige (`QUEST_SAFE`); an seinen oberen Ecken liegt er wegen des
-  Knicks bei 22,5 · 25,5 nur gut 3° vom Rand.
+  Bereich kannst du wie davor nehmen."_ Zuerst kam er mit `D1K2` statt
+  `Y1K2`; die Prüfsumme fiel auf, und genau diese Lesart war eine der
+  möglichen. Die acht Punkte um die gefühlte Null: 2 · 34,5 — 6,5 · 35 —
+  15,5 · 35 — 23,5 · 32 — 31 · 25,5 — 35,5 · 17 — 37,5 · 9 — 38,5 · 1,5
+  (`povCalibration.START_POINTS`, `questView.QUEST_VIEW_POINTS`),
+  gespiegelt zum ganzen Rand (`QUEST_VIEW`, ein Umriss statt Zeilen;
+  `inside` prüft Punkt im Vieleck). Daraus kommen der Helm _Quest-3-Sicht_,
+  die Umrisse im Kalibrier-Helm und der Zuschnitt der VR-Ansicht. Der
+  sichere Bereich ist der bisherige (`QUEST_SAFE`), mit mehr als 5° Abstand
+  zum Rand.
 - **Gemessen** im Oktober 2026 (`core/questView.ts`, mit Test), je Höhe von
   wo bis wo man seitlich sieht: _„30, Rand oben · 20, -30 bis 30 · 10, -35
   bis 35 · 0, -40 bis 40 · -10, -40 bis 40 · -20, -40 bis 40 · -30, -35 bis

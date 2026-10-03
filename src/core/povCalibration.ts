@@ -41,7 +41,7 @@ export const START_POINTS: readonly PovPoint[] = [
   { az: 6.5, el: 35 },
   { az: 15.5, el: 35 },
   { az: 23.5, el: 32 },
-  { az: 22.5, el: 25.5 },
+  { az: 31, el: 25.5 },
   { az: 35.5, el: 17 },
   { az: 37.5, el: 9 },
   { az: 38.5, el: 1.5 },

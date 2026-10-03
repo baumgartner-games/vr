@@ -58,7 +58,7 @@ describe('VR-POV kalibrieren', () => {
   });
 
   it('fängt mit dem eingestellten Rand der Quest 3 an', () => {
-    expect(decodePov('P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03J')).toEqual(START_POINTS);
+    expect(decodePov('P180-4250-D260-Z261-F201-Y1K2-7122-B0J2-D03K')).toEqual(START_POINTS);
   });
 
   it('macht einen Code zum Abtippen und liest ihn zurück', () => {
@@ -89,6 +89,7 @@ describe('VR-POV kalibrieren', () => {
     const wrong = code.slice(0, 3) + (code[3] === 'A' ? 'B' : 'A') + code.slice(4);
     expect(decodePov(wrong)).toBeNull();
     expect(decodePov('kein code')).toBeNull();
+    // So kam er zuerst: ein Zeichen falsch, die Prüfsumme merkt es.
     expect(decodePov('P180-4250-D260-Z261-F201-D1K2-7122-B0J2-D03K')).toBeNull();
   });
 });
