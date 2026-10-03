@@ -30,6 +30,53 @@ Wer die alte Fassung nachlesen will:
 `git show 49dfe5b:src/worlds/shared/construct.ts` und dieses Kapitel im selben
 Stand (`git show 49dfe5b:docs/agents/bauen.md`).
 
+## Weltbau: von oben, auch in der Brille — und der Bauplatz ist weg
+
+Die Welt **Bauplatz** (`worlds/editor/EditorWorld.ts`, `#editor`) ist im
+Oktober 2026 gelöscht worden, samt Startzimmer (`editor/starterGrid.ts`),
+Vorschaubild und Messstrecke. Gewünscht: _„die welt bauplatz kann bitte weg.
+stattdessen dachte ich an einen welt bau modus, wo man einfach wie bei ‚von
+oben' zuschaut, also auch in vr."_ Der Editor selbst (`editor/WorldEditor.ts`
+und was daran hängt) bleibt — er gehört jeder Gitterwelt, nicht dem Bauplatz.
+Die alte Welt: `git show 7fd7c4f:src/worlds/editor/EditorWorld.ts`.
+
+**Weltbau** ist ein Haken im Reiter _Bauen_, gleich unter dem Spielmodus
+(`build-flight`, `core/buildFlight.ts`), gilt in jeder Welt und wird nicht
+gespeichert; ein Weltwechsel landet.
+
+- **Am Schirm** heißt Weltbau: von oben (`App.topDown` fragt `buildFlight()`
+  neben `screenTopDown`) — mit Zoom und Drehen, wie es die Ansicht schon kann.
+- **In der Brille** wächst **das Gestell** um `BUILD_SCALE` (10), und die Welt
+  bleibt, wie sie ist (`PlayerRig.startFlight`). Gewünscht war genau das:
+  _„die welt soll nicht kleiner werden, nur die eigenen bewegungen in vr
+  (also entfernungen der hand) oder neigung/bewegung des kopfes werden
+  skaliert, damit die berechnungen in der welt gleich bleiben"_. Ein
+  Zentimeter Kopfbewegung ist zehn Zentimeter in der Welt, der Augenabstand
+  auch, und so sieht man die Welt wie ein Modell auf dem Tisch — jede Wand,
+  Zelle und Physik bleibt in ihren echten Metern. Wer mit 1,60 m dasteht,
+  schaut aus 16 m herunter; der Kopf bleibt über der Stelle, an der er war.
+- **Gesteuert** wird nur mit den Sticks (`PlayerRig.updateFlight`,
+  `buildFlight.flightStep`): **links** fliegt waagerecht, vorn ist, wohin der
+  Kopf schaut; **rechts vor/zurück** steigt und sinkt, zwischen 2 und 150 m
+  Augenhöhe über dem Boden, auf dem man abgehoben hat; **rechts quer** dreht
+  wie immer (Snap oder gleitend, `updateTurn`). Das Tempo geht mit der Höhe,
+  wie beim Kran. Kein Laufen, kein Springen — die Fortbewegung und die
+  Physikkapsel bleiben am Boden stehen, und `endFlight` stellt das Gestell
+  genau dorthin zurück, wo es abgehoben hat (`locomotion.resync`).
+- **Das Menü wächst mit**: Es hängt am Gestell (`GameMenu`), und die
+  Menü-Ebene rechnet relativ zu ihm (`XRMenuLayer`) — es steht so groß und
+  scharf wie immer. Der Zeigestrahl reicht deshalb `12 × scale` Meter weit
+  und wird in den Maßen der Hand gezeichnet (`Pointer.updateXrRay`).
+- **Die anderen** sehen den Riesen nicht: Solange man fliegt, wird keine
+  eigene Pose gesendet (`net.visible`), wie beim Zuschauen. Zuschauen, Brille
+  absetzen und Weltwechsel landen (`App.syncFlight`).
+
+**Offen:** Greifen und Hinstellen aus der Luft. Die Hände sind zehnmal so
+groß, die Reichweiten der Welt (`core/usable`, die Saum- und Griffradien) aber
+in Weltmetern — aus 16 m Höhe greift man also nichts. Was gebaut werden soll,
+während man fliegt (zeigen und setzen wie der Kran am Schirm?), ist der
+nächste Schritt.
+
 ## Bauen, während man darin steht
 
 **Jede Gitterwelt lässt sich umbauen, ohne sie zu verlassen**

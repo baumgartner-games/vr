@@ -32,7 +32,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   scene = new THREE.Scene();
-  const rig = { camera: new THREE.PerspectiveCamera(), parent: scene } as unknown as PlayerRig;
+  const rig = {
+    camera: new THREE.PerspectiveCamera(),
+    parent: scene,
+    scale: new THREE.Vector3(1, 1, 1),
+  } as unknown as PlayerRig;
   const canvas = {
     addEventListener: () => {},
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),

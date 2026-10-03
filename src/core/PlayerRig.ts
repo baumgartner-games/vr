@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Handedness, XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
+import { flightStep } from './buildFlight';
 import {
   EYE_SCALE_RANGE,
   STANDING_EYE,
@@ -198,6 +199,17 @@ export class PlayerRig extends THREE.Group {
    * andere an dieser Hand bleibt normal, es ist nur der Stick.
    */
   menuStick: Handedness | null = null;
+  /**
+   * **Weltbau** (`core/buildFlight.ts`): wie groß das Gestell gerade ist, auf
+   * welchem Boden losgeflogen wurde und wo es vorher stand — `null` am Boden.
+   * Gesetzt wird es von `startFlight`, zurückgestellt von `endFlight`.
+   */
+  private flight: {
+    readonly scale: number;
+    readonly floor: number;
+    readonly position: THREE.Vector3;
+    readonly quaternion: THREE.Quaternion;
+  } | null = null;
 
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
@@ -602,7 +614,7 @@ export class PlayerRig extends THREE.Group {
     _mat.decompose(this.position, this.quaternion, _scale);
     _euler.setFromQuaternion(this.quaternion, 'YXZ');
     this.quaternion.setFromEuler(_euler.set(0, _euler.y, 0));
-    this.scale.set(1, 1, 1);
+    this.scale.setScalar(this.flight?.scale ?? 1);
     this.updateMatrixWorld(true);
     this.locomotion.teleport?.(this, transform);
   }
@@ -667,6 +679,11 @@ export class PlayerRig extends THREE.Group {
       return;
     }
 
+    if (this.flight) {
+      this.updateFlight(dt, input, presenting, this.flight.floor);
+      return;
+    }
+
     if (presenting) {
       const left = input.get('left');
       this.updateStance(dt, input);
@@ -718,28 +735,114 @@ export class PlayerRig extends THREE.Group {
     this.intentJump = false;
     this.intentSprint = false;
 
-    if (presenting && !this.locked && this.menuStick !== 'right') {
-      const turn = input.get('right')?.thumbstick.x ?? 0;
-      if (this.turnMode === 'smooth') {
-        const magnitude = Math.abs(turn);
-        if (magnitude > 0.18) {
-          const angle =
-            -Math.sign(turn) * Math.min(1, (magnitude - 0.18) / 0.82) * this.smoothTurnSpeed * dt;
-          this.rotateAroundHead(angle);
-          turnWalkFrame(this.walkFrame, angle);
-        }
-        this.snapArmed = magnitude < 0.35;
-      } else if (this.snapArmed && Math.abs(turn) > 0.7) {
-        const angle = -Math.sign(turn) * this.snapAngle;
+    if (presenting && !this.locked && this.menuStick !== 'right') this.updateTurn(dt, input);
+  }
+
+  /** Der rechte Stick quer: Snap oder gleitend, um den Kopf herum. */
+  private updateTurn(dt: number, input: XRInput): void {
+    const turn = input.get('right')?.thumbstick.x ?? 0;
+    if (this.turnMode === 'smooth') {
+      const magnitude = Math.abs(turn);
+      if (magnitude > 0.18) {
+        const angle =
+          -Math.sign(turn) * Math.min(1, (magnitude - 0.18) / 0.82) * this.smoothTurnSpeed * dt;
         this.rotateAroundHead(angle);
-        // Der Snap dreht den ganzen Spieler; die gemerkte Laufrichtung dreht
-        // mit, sonst liefe man nach der Drehung seitwärts weiter.
         turnWalkFrame(this.walkFrame, angle);
-        this.snapArmed = false;
-      } else if (Math.abs(turn) < 0.35) {
-        this.snapArmed = true;
       }
+      this.snapArmed = magnitude < 0.35;
+    } else if (this.snapArmed && Math.abs(turn) > 0.7) {
+      const angle = -Math.sign(turn) * this.snapAngle;
+      this.rotateAroundHead(angle);
+      // Der Snap dreht den ganzen Spieler; die gemerkte Laufrichtung dreht
+      // mit, sonst liefe man nach der Drehung seitwärts weiter.
+      turnWalkFrame(this.walkFrame, angle);
+      this.snapArmed = false;
+    } else if (Math.abs(turn) < 0.35) {
+      this.snapArmed = true;
     }
+  }
+
+  /** Ob gerade im Weltbau geflogen wird (`startFlight`). */
+  get flying(): boolean {
+    return this.flight !== null;
+  }
+
+  /**
+   * **Abheben in den Weltbau** (`core/buildFlight.ts`): Das Gestell wächst um
+   * `scale`, die Welt bleibt, wie sie ist. Die Füße bleiben dabei auf dem
+   * Boden des Spielraums, der Kopf steigt also von allein auf die
+   * vergrößerte Augenhöhe — wer mit 1,60 m dasteht, schaut bei zehn aus 16 m.
+   * Damit der Kopf über derselben Stelle bleibt, wird um ihn herum gewachsen.
+   */
+  startFlight(scale: number): void {
+    if (this.flight || !(scale > 0)) return;
+    this.updateMatrixWorld(true);
+    const floor = this.getFloorY();
+    this.flight = {
+      scale,
+      floor,
+      position: this.position.clone(),
+      quaternion: this.quaternion.clone(),
+    };
+    this.getHeadPosition(_head);
+    this.position.y = floor;
+    this.scale.setScalar(scale);
+    this.updateMatrixWorld(true);
+    // Waagerecht wieder unter den Kopf von vorher: Der Kopf steht selten über
+    // dem Ursprung des Spielraums, und gewachsen wird um den Ursprung.
+    this.getHeadPosition(_delta);
+    this.position.x += _head.x - _delta.x;
+    this.position.z += _head.z - _delta.z;
+    this.updateMatrixWorld(true);
+  }
+
+  /**
+   * **Zurück auf den Boden** — dorthin, wo man abgehoben hat, so groß wie
+   * vorher. Geflogen ist nur die Kamera; der Körper (die Kapsel der Physik)
+   * ist stehen geblieben und wird nur nachgezogen, damit er sicher dort ist.
+   */
+  endFlight(): void {
+    const flight = this.flight;
+    if (!flight) return;
+    this.flight = null;
+    this.scale.setScalar(1);
+    this.position.copy(flight.position);
+    this.quaternion.copy(flight.quaternion);
+    this.updateMatrixWorld(true);
+    this.locomotion.resync?.(this);
+  }
+
+  /**
+   * **Ein Bild Weltbau**: Linker Stick fliegt waagerecht, rechter Stick vor
+   * und zurück steigt und sinkt, quer dreht er wie immer
+   * (`buildFlight.flightStep`). Kein Laufen, kein Springen, keine Physik —
+   * die Fortbewegung bekommt in der Luft nichts zu tun.
+   */
+  private updateFlight(dt: number, input: XRInput, presenting: boolean, floor: number): void {
+    this.intent.set(0, 0, 0);
+    this.intentJump = false;
+    this.intentSprint = false;
+    this.sprintedNow = false;
+    this.wished = false;
+    if (!presenting || this.locked) return;
+    const left = this.menuStick === 'left' ? null : input.get('left')?.thumbstick;
+    const right = this.menuStick === 'right' ? null : input.get('right')?.thumbstick;
+    this.getHeadForward(_forward);
+    this.getHeadPosition(_head);
+    const step = flightStep(
+      left ?? { x: 0, y: 0 },
+      right?.y ?? 0,
+      yawOfForward(_forward.x, _forward.z),
+      _head.y - floor,
+      dt,
+    );
+    if (step.x !== 0 || step.y !== 0 || step.z !== 0) {
+      this.position.x += step.x;
+      this.position.y += step.y;
+      this.position.z += step.z;
+      this.updateMatrixWorld(true);
+    }
+    if (right) this.updateTurn(dt, input);
   }
 
   /** Walking speed right now — sprinting is a factor on top of it. */

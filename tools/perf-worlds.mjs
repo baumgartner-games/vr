@@ -92,27 +92,6 @@ const SCENARIOS = [
     yaw: 180,
   },
   {
-    id: 'editor',
-    title: 'Bauplatz',
-    hash: 'editor',
-    // Der Beispielraum des Baukastens, sofern es ihn gibt — gesucht wird eine
-    // Methode, die danach klingt, damit die Strecke nicht bricht, wenn sie
-    // anders heißt oder (noch) fehlt.
-    setup: () => {
-      const world = globalThis.bgvr.world;
-      const names = [];
-      for (let o = world; o && o !== Object.prototype; o = Object.getPrototypeOf(o))
-        names.push(...Object.getOwnPropertyNames(o));
-      const hit = names.find((name) => /sample|beispiel|example|demoRoom/i.test(name));
-      if (hit && typeof world[hit] === 'function') {
-        world[hit]();
-        return hit;
-      }
-      return null;
-    },
-    sim: 3,
-  },
-  {
     id: 'seating',
     title: 'Sandbox, Sitzecke mit NPCs',
     // Neben dem Eingang der Sitzecke: Wer näher als 30 m kommt, lässt die

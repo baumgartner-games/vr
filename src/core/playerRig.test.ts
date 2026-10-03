@@ -563,3 +563,51 @@ describe('PlayerRig.jumpLock — wo nicht gesprungen wird', () => {
     expect(jumps).toEqual([true]);
   });
 });
+
+/**
+ * **Weltbau** (`PlayerRig.startFlight`, `core/buildFlight.ts`): Das Gestell
+ * wächst, die Welt nicht. Der Kopf bleibt über derselben Stelle, steigt auf
+ * die vergrößerte Augenhöhe — und beim Landen steht alles wieder, wie es war.
+ */
+describe('PlayerRig im Weltbau', () => {
+  function stick(x: number, y: number): Parameters<PlayerRig['update']>[1] {
+    const thumbstick = { x, y };
+    return {
+      get: (hand: string) => (hand === 'left' ? { thumbstick } : { thumbstick: { x: 0, y: 0 } }),
+    } as unknown as Parameters<PlayerRig['update']>[1];
+  }
+
+  it('wächst um den Kopf herum und landet, wo es abgehoben hat', () => {
+    const player = rig();
+    player.camera.position.set(1.4, 1.6, 0.9);
+    player.placeAt(new THREE.Vector3(3, 0.25, 7), 0.4);
+    const before = player.getHeadPosition(new THREE.Vector3());
+
+    player.startFlight(10);
+    expect(player.flying).toBe(true);
+    const head = player.getHeadPosition(new THREE.Vector3());
+    expect(head.x).toBeCloseTo(before.x);
+    expect(head.z).toBeCloseTo(before.z);
+    expect(head.y).toBeCloseTo(0.25 + 16);
+
+    player.endFlight();
+    expect(player.flying).toBe(false);
+    expect(player.scale.x).toBe(1);
+    const after = player.getHeadPosition(new THREE.Vector3());
+    expect(after.distanceTo(before)).toBeCloseTo(0);
+  });
+
+  it('fliegt mit dem linken Stick, ohne die Fortbewegung zu fragen', () => {
+    const player = rig();
+    player.camera.position.set(0, 1.6, 0);
+    const apply = jest.fn();
+    player.locomotion = { apply };
+    player.startFlight(10);
+    const start = player.getHeadPosition(new THREE.Vector3());
+    player.update(0.5, stick(0, -1), true);
+    const moved = player.getHeadPosition(new THREE.Vector3());
+    expect(moved.z).toBeLessThan(start.z - 1);
+    expect(moved.y).toBeCloseTo(start.y);
+    expect(apply).not.toHaveBeenCalled();
+  });
+});

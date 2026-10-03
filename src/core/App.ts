@@ -39,6 +39,7 @@ import { TopDownCamera } from './TopDownCamera';
 import { topDownFit } from './topDownPose';
 import { isCrane, screenTopDown } from './crane';
 import { gameMode, onGameMode } from './gameMode';
+import { BUILD_SCALE, buildFlight, onBuildFlight, setBuildFlight } from './buildFlight';
 import {
   SCREEN_VIEW_LABELS,
   SCREEN_VIEW_SUBS,
@@ -438,6 +439,8 @@ export class App {
   private stopFullscreenWatch: (() => void) | null = null;
   /** Meldet das Zuhören am Spielmodus wieder ab (`core/crane.ts`). */
   private readonly stopGameModeWatch: () => void;
+  /** Abmelden vom Weltbau (`core/buildFlight.ts`). */
+  private readonly stopBuildFlightWatch: () => void;
   /** Dasselbe für die Zeile, die zeigt, was gerade am Pad anliegt (`inputsMenu`). */
   private liveInput: MenuEntry | null = null;
   /** Welche Zeile des Eingaben-Menüs gerade auf einen Druck wartet, wenn eine. */
@@ -664,6 +667,12 @@ export class App {
     // einrichtet, ist der Kran und sieht am Schirm von oben; mit _Spielen_
     // kommt die eigene Wahl zurück.
     this.stopGameModeWatch = onGameMode(() => {
+      this.applyView();
+      this.menuDirty = true;
+    });
+    // **Weltbau schaltet die Ansicht auch** (`core/buildFlight.ts`): am
+    // Schirm von oben, in der Brille wächst das Gestell (`syncFlight`).
+    this.stopBuildFlightWatch = onBuildFlight(() => {
       this.applyView();
       this.menuDirty = true;
     });
@@ -1257,7 +1266,7 @@ export class App {
    */
   get topDown(): boolean {
     return (
-      screenTopDown(this.view, gameMode()) &&
+      (screenTopDown(this.view, gameMode()) || buildFlight()) &&
       !this.renderer.xr.isPresenting &&
       !this.world?.ownsFlat &&
       !this.spectating
@@ -1409,6 +1418,7 @@ export class App {
     this.stopFullscreenWatch?.();
     this.stopFullscreenWatch = null;
     this.stopGameModeWatch();
+    this.stopBuildFlightWatch();
     this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
@@ -1447,6 +1457,10 @@ export class App {
   // --- internals ----------------------------------------------------------
 
   private unloadWorld(): void {
+    // **Weltbau gehört der Welt, in der man abgehoben hat** — gelandet wird
+    // noch in ihr, solange ihre Physik den Körper nachziehen kann.
+    setBuildFlight(false);
+    this.syncFlight(false);
     if (this.world) {
       try {
         this.world.dispose(this.context);
@@ -1545,6 +1559,7 @@ export class App {
     const flat: MenuEntry[] = [
       ...worlds,
       this.viewMenu(),
+      this.buildFlightEntry(),
       this.networkMenu(),
       this.movementMenu(),
       this.inputsMenu(),
@@ -1641,6 +1656,37 @@ export class App {
    * oben sieht, ist jetzt die Welt selbst, und gebaut wird sie im Bauplatz
    * (`editor/WorldEditor.ts`).
    */
+  /**
+   * **Weltbau** — eine Zeile im Reiter _Bauen_, ein Haken (`core/buildFlight.ts`).
+   * In der Brille fliegt man darüber, am Schirm sieht man von oben.
+   */
+  private buildFlightEntry(): MenuEntry {
+    const on = buildFlight();
+    const presenting = this.renderer.xr.isPresenting;
+    return {
+      id: 'build-flight',
+      label: 'Weltbau',
+      sub: on
+        ? presenting
+          ? 'An · linker Stick fliegt, rechter Stick hoch und runter, quer dreht'
+          : 'An · von oben · antippen landet wieder'
+        : 'Die Welt von oben, in der Brille darüber fliegen — die Welt bleibt groß',
+      icon: 'worlds',
+      accent: 0x39d0ff,
+      checked: on,
+      run: () => {
+        const now = setBuildFlight(!buildFlight());
+        this.notify(
+          now
+            ? this.renderer.xr.isPresenting
+              ? 'Weltbau · linker Stick fliegt, rechter Stick hoch und runter'
+              : 'Weltbau · von oben'
+            : 'Weltbau aus · zurück am Boden',
+        );
+      },
+    };
+  }
+
   private viewMenu(): MenuEntry {
     const flat = this.view === '2d';
     const presenting = this.renderer.xr.isPresenting;
@@ -2115,6 +2161,18 @@ export class App {
    * Nur **in der Brille** und **nicht von oben**: Am Bildschirm setzt das Spiel
    * die Kamera selbst, und die Ansicht von oben hängt an keiner Kopfhöhe.
    */
+  /**
+   * **Weltbau in der Brille** (`core/buildFlight.ts`): abheben, wenn er an
+   * ist und man in der Brille steht, und landen, sobald eines davon nicht
+   * mehr stimmt — auch beim Zuschauen, das das Gestell selbst trägt.
+   */
+  private syncFlight(presenting: boolean): void {
+    const wanted = buildFlight() && presenting && !this.spectating;
+    if (wanted === this.rig.flying) return;
+    if (wanted) this.rig.startFlight(BUILD_SCALE);
+    else this.rig.endFlight();
+  }
+
   private fitEyes(presenting: boolean): void {
     this.rig.eyeScale = presenting && !this.topDown ? this.xrEyeScale : 1;
   }
@@ -3689,6 +3747,9 @@ export class App {
     this.gameMenu.presenting = false;
     this.applyView();
     setImmersive(false);
+    // Ohne Brille wird nicht geflogen: zurück auf den Boden, bevor die
+    // Tastatur das Gestell übernimmt (`syncFromRig`).
+    this.syncFlight(false);
     if (this.rig.paused) {
       // Spectating in VR carried the rig around; the body has to catch up.
       this.rig.paused = false;
@@ -3767,6 +3828,7 @@ export class App {
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.gameMenu.scrollHand;
     this.fitEyes(presenting);
+    this.syncFlight(presenting);
     this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
     const context = this.context;
@@ -3793,7 +3855,8 @@ export class App {
 
     // Whoever is watching somebody else is a camera, not a player: the others
     // must not see a body standing around while its owner is spectating.
-    this.net.visible = !following;
+    // Und wer im Weltbau als Riese über der Welt schwebt, auch nicht.
+    this.net.visible = !following && !this.rig.flying;
 
     if (this.spectating && !this.spectator.following) this.releaseCamera();
     if (this.spectating !== this.spectator.following) {
