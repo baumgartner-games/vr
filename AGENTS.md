@@ -55,6 +55,26 @@ entweder komplett neue 3d Elemente bauen oder nur die 3d Elemente ohne Physik
 Info (2d Grid) platzieren in den Welten."_ Fehlt ein Element, kommt es in den
 Katalog, aus Dateien des Regals zusammengesetzt, und nicht in die Welt.
 
+**Bei sichtbaren Änderungen kommt ein Bild in den Chat.** Wer etwas baut,
+das man sieht — eine Welt, ein Möbel, eine Tafel, ein Menü, ein Effekt —,
+schickt am Ende ein bis zwei Screenshots davon direkt in die Unterhaltung
+(in Claude Code: `SendUserFile`), damit der Besitzer es am Handy sofort sieht.
+Gewünscht: _„bei visuellen features hier im chat immer ein foto gesendet
+werden soll von der sache (so 1-2 bilder), damit ich das am handy direkt sehen
+kann."_ Welche Ansicht:
+
+- **Betrifft es die Brille** (Hände, Menü-Ebene, Tafeln, alles, was nur in VR
+  so aussieht): mit der nachgestellten Quest, also `?xr=sim`
+  (`core/xrEmulator.ts`) — oder, wenn es nur um das Bild geht, mit der
+  _VR-Ansicht_ aus dem Menü _Spiel-Sicht_ (`core/vrView.ts`).
+- **Ist es allgemein** (eine Welt, Möbel, Böden, Wände): _Von oben_, so dass
+  man das Ganze auf einen Blick hat.
+
+Geschossen wird mit Playwright gegen `npm run dev` (Vorlage:
+`tools/avatar-shot.mjs`; ein vorinstallierter Chromium wird über
+`SMOKE_EXECUTABLE` gefunden). Die Bilder gehören in den Chat, nicht ins
+Repository.
+
 **Jeder Pull Request erhöht die Patch-Version.** Auf der Startseite steht
 `0.<Build>.<Patch>` aus `package.json` (siehe
 [Die Seite selbst](docs/agents/seite.md#die-version-auf-der-startseite)), und
@@ -70,13 +90,14 @@ keinen Zielbranch und damit nichts zu prüfen; wer dort etwas ablädt, das
 jemand merken soll, erhöht sie trotzdem. Den mittleren Teil (`Build`) setzt
 von Hand, wer findet, dass etwas Großes fertig ist.
 
-Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
-und `npm test` — dieselben vier Schritte, die auch die CI macht
-(`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
-keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5929 Tests) — eine zweite,
-langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
-[Tests](docs/agents/tests.md)).
+Vor dem Push laufen `npm test` und `npm run build` — dieselben zwei Schritte,
+die auch die CI bei jedem Push macht (`.github/workflows/deploy.yml`); der
+Build enthält den Typecheck (`tsc --noEmit`). `npm test` prüft **nur das
+Kritische** und ist in unter zehn Sekunden durch — wer eine Suite dazutut, muss
+begründen, warum sie kritisch ist (siehe [Tests](docs/agents/tests.md)).
+**Lint und Format** laufen einmal die Woche in der CI (`lint.yml`) und nur,
+wenn sich seit dem letzten grünen Lauf etwas geändert hat; wer will, ruft
+`npm run lint` und `npm run format` trotzdem vorher selbst auf.
 
 ### Sessions, die nicht auf `main` pushen dürfen
 
@@ -86,7 +107,7 @@ main` ist dort nicht möglich, egal was ein paar Absätze weiter oben steht. Fü
 diese Sessions gilt deshalb der Umweg — aber vollständig, bis der Commit auf
 `main` steht:
 
-1. Auf dem zugewiesenen Branch entwickeln, die vier Prüfungen laufen lassen,
+1. Auf dem zugewiesenen Branch entwickeln, Tests und Build laufen lassen,
    pushen.
 2. Pull Request eröffnen, **nicht als Draft**. Ein Draft ist für GitHub keine
    fertige Arbeit: mergen lässt er sich nicht, und Auto-Merge lässt sich auf
@@ -147,7 +168,7 @@ Stichpunkten).
 
 ### Vor jedem Push
 
-- **[Tests](docs/agents/tests.md)** — Zwei Geschwindigkeiten, und was überhaupt geprüft wird.
+- **[Tests](docs/agents/tests.md)** — Nur das Kritische: was geprüft wird, was weg ist, und Lint einmal die Woche.
 
 ### Was es gibt
 
@@ -194,7 +215,7 @@ Stichpunkten).
   Darin: Wie man aussieht (mit Hüte und Köpfe aus den Figuren und dem immersiven Helm) · Was vor einem und an der Hand steht (Brille) · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.
   Darin: Wer hier herumläuft · Charakter: übernehmen, vormachen, nachspielen · Wie sich NPCs orientieren · Verhalten: Plätze aufsuchen, warten, ausweichen.
-- **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, die leere Sandbox und die vier Zonen-Testwelten (Rennstrecke, Kletterwand, Schießstand, Effekte), Ordner von Welten und die Test Navigation, und wie Portale und Spiegel rechnen.
+- **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, Sandbox (vormals Testwelt), Ordner von Welten und die Test Navigation, und wie Portale und Spiegel rechnen.
   Darin: Welten auf dem Kachelgitter · Eine neue Welt hinzufügen · Wie die Portale funktionieren · Wie die Spiegel funktionieren.
 - **[Zusammen spielen](docs/agents/netzwerk.md)** — Peer-to-Peer, Chat, Stimmen, geteilte Objekte, Zuschauen, asymmetrisches Spielen.
   Darin: Zusammen spielen (Peer-to-Peer) · Chat: Text, und vor allem Codes · Sprechen: Stimmen im Raum · Die Welt teilen: Objekte und Portale · Zuschauen: First und Third Person · Asymmetrisches Spielen.

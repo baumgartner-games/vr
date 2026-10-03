@@ -1,0 +1,81 @@
+name: Lint (wöchentlich)
+
+# **Lint und Format laufen einmal die Woche und nicht bei jedem Push.** Sie
+# kosteten im Job `Build` zusammen fast eine Minute — bei jedem Push und jedem
+# Pull Request, für Befunde, die nichts kaputt machen. Hier laufen sie montags
+# früh (und auf Knopfdruck), und nur, wenn sich seit dem letzten grünen Lauf
+# etwas geändert hat: Den geprüften Commit hält `.github/lint-commit` fest.
+# Steht dort schon der Stand von `main`, gibt es nichts zu tun.
+#
+# Schlägt ein Lauf fehl, wird die Datei nicht fortgeschrieben, und GitHub
+# meldet den roten Lauf — repariert wird mit `npm run lint` und
+# `npm run format` (`AGENTS.md`, „Linter und Formatierer").
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lint
+  cancel-in-progress: false
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # Verglichen wird der Inhalt und nicht die Commit-Nummer: Der Commit, der
+      # die Datei fortschreibt, ändert sonst selbst den Stand, und der nächste
+      # Lauf fände jedes Mal etwas Neues.
+      - name: Schon geprüft?
+        id: seen
+        run: |
+          set -euo pipefail
+          last=$(cat .github/lint-commit 2>/dev/null || true)
+          if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null \
+            && git diff --quiet "$last" HEAD -- . ':!.github/lint-commit'; then
+            echo "Seit $last hat sich nichts geändert."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.seen.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.seen.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.seen.outputs.skip != 'true'
+        run: npm run lint
+
+      - name: Format check
+        if: steps.seen.outputs.skip != 'true'
+        run: npm run format:check
+
+      - name: Geprüften Commit festhalten
+        if: steps.seen.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > .github/lint-commit
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add .github/lint-commit
+          git commit -m "Lint: $(git rev-parse --short HEAD) geprüft [skip ci]"
+          # Ist `main` während des Laufs weitergegangen, kommt die Zeile oben drauf.
+          git pull --rebase origin main
+          git push origin HEAD:main
