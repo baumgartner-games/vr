@@ -7,12 +7,13 @@
  *   npm run perf:worlds -- --url=http://127.0.0.1:5183/
  *   npm run perf:worlds -- --url=… --only=hub,plateup --shots
  *
- * **Die kleine Schwester von `npm run perf:kitchen`** (`tools/perf-kitchen.mjs`)
- * und dieselbe Seitenvorbereitung: HMR abgeklemmt, Service Worker aus,
- * Grafikeinstellungen vollständig geschrieben, aus den Augen und nicht von
- * oben. Die Küchenstrecke fragt **wer** in einer Welt die Aufrufe verbraucht
- * und geht dafür tief; diese hier fragt **wie viel** jede Welt verbraucht, und
- * geht dafür breit — die Testküche steht als Bezug in derselben Liste.
+ * Seitenvorbereitung wie bei `npm run fps`: HMR abgeklemmt, Service Worker
+ * aus, Grafikeinstellungen vollständig geschrieben, aus den Augen und nicht
+ * von oben. Die Frage ist **wie viel** jede Welt verbraucht, und dafür geht
+ * die Strecke breit — die leere Sandbox steht als Bezug in derselben Liste.
+ * (Die Schwester, die in der Küche der alten Sandbox fragte, **wer** die
+ * Aufrufe verbraucht, `tools/perf-kitchen.mjs`, ist im Oktober 2026 mit der
+ * Küche gegangen.)
  *
  * Je Welt: laden, einschwingen, das Vorbereitende tun (den Laden öffnen, die
  * Besucher einlassen …), ein paar Sekunden Spielzeit laufen lassen, und dann
@@ -26,7 +27,7 @@
  * Rechner und taugen zum Vergleich der Welten untereinander, nicht als Bildzeit
  * einer Quest.
  *
- * Optionen: `--url=…`, `--only=kitchen,hub,…`, `--frames=2`, `--shots`
+ * Optionen: `--url=…`, `--only=sandbox,hub,…`, `--frames=2`, `--shots`
  * (Bildschirmfotos je Welt nach `--output`), `--ab` (danach dieselbe Szene
  * noch einmal im Zustand vor der Optimierung — ohne die Bündel aus
  * `shared/staticDecor.ts`, in Haunting ohne den Raum-Culler — Zahlen und
@@ -73,13 +74,8 @@ await mkdir(output, { recursive: true });
  * einen Schritt höchstens gehen), `yaw` die Blickrichtung des Fotos.
  */
 const SCENARIOS = [
-  {
-    id: 'kitchen',
-    title: 'Testküche (Bezug)',
-    search: '?at=kitchen',
-    hash: 'sandbox',
-    sim: 1,
-  },
+  { id: 'sandbox', title: 'Sandbox, leer (Bezug)', hash: 'sandbox', sim: 1 },
+  { id: 'restaurant', title: 'Test Restaurant, Burgerküche', hash: 'test-restaurant', sim: 1 },
   { id: 'hub', title: 'Hub (Lobby-Deko)', hash: 'hub', sim: 1 },
   {
     id: 'plateup',
@@ -91,16 +87,7 @@ const SCENARIOS = [
     sim: 2,
     yaw: 180,
   },
-  {
-    id: 'seating',
-    title: 'Sandbox, Sitzecke mit NPCs',
-    // Neben dem Eingang der Sitzecke: Wer näher als 30 m kommt, lässt die
-    // Besucher herein (`test/zones/seating.ts`).
-    search: '?at=-16,1',
-    hash: 'sandbox',
-    sim: 20,
-    yaw: 180,
-  },
+  { id: 'kart', title: 'Test Rennstrecke', hash: 'test-kart', sim: 2 },
   {
     id: 'haunting',
     title: 'Haunting, Übungsrunde',
@@ -170,7 +157,7 @@ export class ErrorOverlay extends HTMLElement {}
 
 /**
  * **Der Zähler im Renderer** — `renderBufferDirect` ist die Stelle, durch die
- * jeder Zeichenaufruf geht (`perf-kitchen.mjs` erklärt es im Langen). Getrennt
+ * jeder Zeichenaufruf geht. Getrennt
  * nach Hauptbild, Schatten und Renderziel (Spiegel, Portalsicht).
  */
 function instrument(keyDepth) {

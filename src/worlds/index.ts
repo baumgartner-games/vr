@@ -20,14 +20,16 @@ export const WORLDS: WorldDefinition[] = [
   {
     id: 'sandbox',
     title: 'Sandbox',
-    tagline: 'Neun Zonen, ein Gelände',
+    tagline: 'Leer — zum Aufbauen und Ausprobieren',
     description:
-      'Der Sandkasten: Türen in drei Betriebsarten, vier Effektquellen, eine Treppe auf ein Podest, Wegsuche mit Kiste und Stacheln, ein Schießstand ohne Dach, eine Kartbahn mit zwei Karts in der Box, eine Kletterwand mit Sprungkissen und drei Portaltafeln. A benutzt alles, B stellt alles zurück — und gebaut werden darf hier auch.',
+      'Eine leere Fläche aus Prototyp-Platten. Hier wird gebaut und getestet: Möbel aus dem Katalog hinstellen, Wände ziehen, Böden legen. Was du baust, bleibt im Browser; „Original wiederherstellen" macht sie wieder leer.',
     accent: 0x5ee0a0,
     preview: 'worlds/sandbox.webp',
+    // Die ganze Fläche von oben, Rand bis Rand.
+    topDownSpan: 42,
     roles: ['vr', 'desktop', 'handheld'],
     test: true,
-    load: async () => new (await import('./test/TestWorld')).TestWorld(),
+    load: async () => new (await import('./test/SandboxWorld')).SandboxWorld(),
   },
   {
     id: 'test-navigation',
@@ -59,6 +61,58 @@ export const WORLDS: WorldDefinition[] = [
     folder: 'test',
     load: async () =>
       new (await import('./testrestaurant/TestRestaurantWorld')).TestRestaurantWorld(),
+  },
+  {
+    id: 'test-kart',
+    title: 'Test Rennstrecke',
+    tagline: 'Kartbahn mit Boxengasse',
+    description:
+      'Eine Kartbahn mit zwei Karts in der Box: einsteigen mit A, Gas, Bremse, Lenkung per Stick oder mit dem Lenkrad in der Hand, Rundenzeit und Klemmbrett im Kart. B stellt die Karts zurück in die Box.',
+    accent: 0xff7a59,
+    preview: 'worlds/test-kart.webp',
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./test/KartTestWorld')).KartTestWorld(),
+  },
+  {
+    id: 'test-climb',
+    title: 'Test Kletterwand',
+    tagline: 'Griffe, Ausdauer, Sprungkissen',
+    description:
+      'Acht Meter Wand mit Griffen aller Arten — gute halten, schlechte kosten Ausdauer. Davor ein Sprungkissen und eine Rampe. Greifen hält dich an der Wand.',
+    accent: 0x7cd67c,
+    preview: 'worlds/test-climb.webp',
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./test/ClimbTestWorld')).ClimbTestWorld(),
+  },
+  {
+    id: 'test-range',
+    title: 'Test Schießstand',
+    tagline: 'Drei Bahnen, Scheiben auf 5, 10 und 20 m',
+    description:
+      'Ein Schießstand ohne Dach: drei Bahnen, Scheiben, die zerspringen, eine Stahlplatte und die Tafel mit den Punkten. Die Pistole hängt am Gürtel, B stellt die Scheiben wieder auf.',
+    accent: 0xe0c050,
+    preview: 'worlds/test-range.webp',
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./test/RangeTestWorld')).RangeTestWorld(),
+  },
+  {
+    id: 'test-effects',
+    title: 'Test Effekte',
+    tagline: 'Rauch, Feuer, Funken, Wasser',
+    description:
+      'Vier Effektquellen in einer Reihe, vor jeder ein Knopf: A löst die Düse dahinter aus.',
+    accent: 0x59c8ff,
+    preview: 'worlds/test-effects.webp',
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./test/EffectsTestWorld')).EffectsTestWorld(),
   },
   {
     id: 'hausbau',
@@ -101,19 +155,12 @@ export const WORLDS: WorldDefinition[] = [
 
 /**
  * **Wo man landet, wenn die Adresse nichts sagt** — die Sandbox (bis September
- * 2026 _Testwelt_, `WORLD_ALIASES`), und dort die
- * Küche (`test/TestWorld.spawnPoint`).
+ * 2026 _Testwelt_, `WORLD_ALIASES`).
  *
- * Hier stand der Hub, und das war richtig, solange er der Ort war, an dem
- * etwas passiert: eine ruhige Halle mit einem Menü an der Wand, von der aus
- * man sich eine Welt aussucht. Gearbeitet wird aber seit Monaten in der
- * **Küche** — sie ist die Zone, in der gebaut, geprüft und gespielt wird —,
- * und jeder Start im Hub war derselbe Umweg: Menü auf, Testwelt wählen, laden,
- * und dann noch dreißig Meter nach Norden laufen.
- *
- * Der Hub ist damit nicht weg, sondern nur nicht mehr der Anfang: `#hub` in
- * der Adresse führt weiter dorthin, und das Tor am Startplatz der Testwelt tut
- * es auch (`test/zones/start.ts`).
+ * Hier stand der Hub, bis in der Sandbox die Küche lag, in der monatelang
+ * gebaut und geprüft wurde. Die Küche ist seit Oktober 2026 weg und die
+ * Sandbox leer — sie ist der Ort, an dem etwas aufgebaut und ausprobiert wird
+ * (`test/SandboxWorld.ts`). `#hub` in der Adresse führt weiter in den Hub.
  */
 export const DEFAULT_WORLD = 'sandbox';
 

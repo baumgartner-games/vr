@@ -444,6 +444,33 @@ führen in die Sandbox, ein Umbau unter `vr-welt:test` zieht beim ersten Laden
 nach `vr-welt:sandbox` um (`grid/worldStore.adoptFormer`), und die Schilder
 unter altem Namen gelten weiter (`signs/signStore.storedSigns`).
 
+**Seit Oktober 2026 ist die Sandbox leer** (`test/SandboxWorld.ts`,
+`test/sandboxPlan.ts`): 40 × 40 begehbare Kacheln aus Prototyp-Platten um die
+Null, bebaubar, mit Staubspur und der Schürze, die mit der Figur wandert.
+Gewünscht: _„wir können die sandbox welt aufräumen … rennstrecke, kletterwand,
+schießstand, effekte … jedes davon in eine eigene test welt extrahieren. Der
+rest kann gelöscht werden davon. Ich will aber eine leere Sandbox welt
+behalten, in der ich etwas aufbauen und testen kann."_ Die vier Zonen sind
+jetzt eigene Welten im Ordner _Test_ — **Test Rennstrecke** (`test-kart`),
+**Test Kletterwand** (`test-climb`), **Test Schießstand** (`test-range`),
+**Test Effekte** (`test-effects`) —, alle auf derselben Basis
+(`test/ZoneWorld.ts`) mit ihren Grundrissen in `test/zoneWorlds.ts`. Die Zonen
+selbst (`test/zones/kart.ts`, `climb.ts`, `range.ts`, `effects.ts`) rechnen
+weiter in Kacheln des alten Geländes (`test/layout.ts`); jede Welt legt ihren
+Boden dorthin, wo ihre Zone steht. `?at=x,z` in der Adresse gilt in allen
+fünf (`test/spawnAt.ts`).
+
+Gelöscht sind Küche samt Werkhalle, Interaktionen, Podest mit Treppe,
+Portaltafeln, Wandparcours, Startplatz mit Tor zum Hub und Garderobe sowie
+das Sprungmenü _Zu einer Zone_ — und mit der Küche `tools/perf-kitchen.mjs`.
+Die Navigation-Zone bleibt als Baukasten der Test Navigation
+(`test/zones/navigation.ts`), und die Küchen-Module, aus denen die
+Spielelemente und `FurnishedWorld` leben (`kitchenRecipes`, `kitchenCarry`,
+`kitchenGauge`, `kitchenSpray` …), bleiben unter `test/zones/` liegen. Wer
+etwas Gelöschtes nachlesen will: `git show 54667d5:src/worlds/test/<Datei>`.
+Wo in den Kapiteln von der _Testwelt_, ihren neun oder elf Zonen oder der
+Küche der Sandbox die Rede ist, ist dieser Stand vor Oktober 2026 gemeint.
+
 **Welten können in einem Ordner stehen** (`WorldDefinition.folder`,
 `worlds/index.WORLD_FOLDERS`). Gewünscht: _„eine Test Ordner Welt …, wenn ich
 drauf drücke habe ich Auswahl eine erste und einzige Welt: Test Navigation
@@ -547,23 +574,12 @@ Puppen stehen auf ihrer blauen Platte, keine stirbt.
 
 ## Womit die Seite aufmacht
 
-**Ohne Adresse landet man in der Sandbox (vormals Testwelt), und dort in der Küche**
-(`worlds/index.DEFAULT_WORLD`, `test/TestWorld.spawnPoint`,
-`test/layout.KITCHEN_SPAWN`). Hier stand der Hub, und er war richtig, solange
-er der Ort war, an dem etwas passiert: eine ruhige Halle mit einem Menü an der
-Wand. Gearbeitet wird aber in der Küche, und jeder Start war derselbe Umweg —
-Menü auf, Testwelt wählen, laden, dreißig Meter nach Norden laufen.
-
-Drei Zahlen hängen daran, und sie stehen deshalb an **einer** Stelle
-(`layout.KITCHEN_SPAWN`): die Ankunft der Welt, das Ziel im Sprungmenü
-(`ZONE_TILES`) und `?at=kitchen` in der Adresse (`spawnAt.ts`). Eine Küche, die
-umzieht, nimmt alle drei mit; zwei Zahlen, die auseinanderlaufen, wären ein
-Startplatz in einer Wand. Ein Test rechnet nach, dass die Kachel begehbar ist
-und dass man von ihr in jede Zone kommt (`testPlan.test.ts`).
-
-Der Hub ist damit nicht weg, nur nicht mehr der Anfang: `#hub` in der Adresse
-führt hin, und das Tor am Startplatz der Testwelt tut es auch
-(`test/zones/start.ts`).
+**Ohne Adresse landet man in der Sandbox**, in der Mitte ihrer leeren Fläche
+(`worlds/index.DEFAULT_WORLD`, `test/sandboxPlan.SANDBOX_SPAWN`). Hier stand
+der Hub, bis in der Sandbox die Küche lag, in der monatelang gebaut und
+geprüft wurde; seit Oktober 2026 ist sie leer und der Ort, an dem etwas
+aufgebaut und ausprobiert wird. `?at=x,z` setzt einen auf eine andere Kachel
+(`test/spawnAt.ts`), `#hub` in der Adresse führt in den Hub.
 
 ## Eine neue Welt hinzufügen
 
