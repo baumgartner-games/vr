@@ -236,6 +236,14 @@ export class FlatControls {
   private readonly craneTouch = { x: 0, y: 0 };
   /** Ob Maus oder Finger dem Kran schon einmal gezeigt haben, wohin. */
   private craneAimed = false;
+  /**
+   * **Der Kran wartet, bis jemand zeigt** — gesetzt beim Einschalten. Bis die
+   * Maus sich auf dem Bild bewegt, ein Finger tippt oder der Stock das Bild
+   * fährt, bleibt er, wo die Figur stand. Gemeldet: _„durch das aktivieren
+   * [wird] der spieler oben links im bildschirm gesetzt, weil da die maus
+   * ist"_ — die letzte Mausstelle vor dem Klick ins Menü.
+   */
+  private craneHold = false;
   /** Wie oft `R` seit dem letzten Bild gedrückt wurde — mit Richtung (`crane`). */
   private craneTurns = 0;
   /**
@@ -397,6 +405,9 @@ export class FlatControls {
     this.craneTurns = 0;
     this.craneTwist = null;
     this.view?.detach(on);
+    // Die alte Mausstelle gilt nicht mehr: Sie liegt meist über dem Menü.
+    this.mouse = null;
+    this.craneHold = on;
     // **Der Kran steht auf einem Viertel, von Anfang an** — sonst übernähme
     // er die Laufrichtung der Figur, und jede Vierteldrehung mit `R` bliebe
     // um genau diesen Rest schief zu den Platten.
@@ -610,12 +621,15 @@ export class FlatControls {
     // — mit dem Pad —, fliegt der Kran in die Bildmitte, und der linke Stock
     // fährt ihn mit dem Bild.
     const screen = this.cranePointer !== null ? this.craneTouch : this.mouse;
+    if (screen || step.x !== 0 || step.z !== 0) this.craneHold = false;
     if (screen) this.craneAimed = true;
-    const hit = !this.craneAimed
-      ? view.centrePoint(floorY, _hit)
-      : screen
-        ? view.groundPoint(screen.x, screen.y, floorY, _hit)
-        : null;
+    const hit = this.craneHold
+      ? null
+      : !this.craneAimed
+        ? view.centrePoint(floorY, _hit)
+        : screen
+          ? view.groundPoint(screen.x, screen.y, floorY, _hit)
+          : null;
     // **`R` gehalten: Der Kran bleibt stehen, und die Maus zeigt die Drehung**
     // (`crane.craneAimYaw`) — vom Kran zum Zeiger, auf Achtel gerastet.
     const twist = this.craneTwist;

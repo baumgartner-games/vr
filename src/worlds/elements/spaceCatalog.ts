@@ -53,6 +53,25 @@ function space(
 }
 
 /**
+ * **Der Schutzschrank aus _Haunting_** — der Spind, in dem man sich
+ * versteckt (`haunting/world3d/stationProps.LOCKER_MODEL`). Gewünscht:
+ * _„aus haunting den locker (schrank) in welchem man sich verstecken kann
+ * bitte auch in katalog bekommen (gerne auch unter weltall)"_. `A` steigt
+ * hinein, noch einmal `A` wieder heraus (`GameElement.opens`, `'hide'`).
+ * Zwei Meter hoch wie in der Station; darüber springt niemand.
+ */
+export const SPACE_LOCKER: GameElement = {
+  id: 'space-locker',
+  label: 'Schutzschrank',
+  aka: ['Locker', 'Spind', 'Schrank', 'Verstecken', 'Haunting'],
+  tiles: [1, 1],
+  height: 2,
+  kind: null,
+  opens: 'hide',
+  parts: [{ model: 'prototype-bits/Locker.glb', height: 2 }],
+};
+
+/**
  * **Die Elemente des Weltraums** — im Katalog unter _Weltraum_
  * (`SPACE_FOLDER`), nach Art: Module, Versorgung, Fracht, Fahrzeuge, Tunnel,
  * Gelände. Gemessen bei 2 m je Einheit: Breite × Höhe × Tiefe.
@@ -163,6 +182,7 @@ export const SPACE_ELEMENTS: readonly GameElement[] = [
   space('space-rock-b', 'Mondstein B', 'rock_B', [2, 2]), // 1,39 × 0,80 × 1,61
   space('space-rocks-a', 'Mondsteine A', 'rocks_A', [3, 4]), // 2,63 × 0,71 × 3,29
   space('space-rocks-b', 'Mondsteine B', 'rocks_B', [4, 4]), // 3,76 × 2,13 × 3,48
+  SPACE_LOCKER,
 ];
 
 /** Die Ids in der Reihenfolge des Katalogs. */
@@ -192,6 +212,7 @@ const SPACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'space-roofmodule-solarpanels',
   ],
   supply: [
+    'space-locker',
     'space-water-storage',
     'space-farm-small',
     'space-farm-large',
