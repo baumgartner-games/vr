@@ -2036,7 +2036,7 @@ export class PortalWorld implements World {
     this.warmBullet();
     this.bindFlatInput(ctx);
     // Die kleinen Modelle in den Menüzeilen kommen aus demselben Regal wie
-    // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`WristMenu.ts`).
+    // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`XRMenu.ts`).
     ctx.menu.setModelFactory(
       (id) => this.menuModel(id),
       (id, height) => this.menuClips(id, height),
@@ -5819,7 +5819,7 @@ export class PortalWorld implements World {
       icon: preview?.icon ?? 'tools',
       accent: preview?.accent ?? 0x9d7bff,
       // Statt der Strichzeichnung das Werkzeug selbst, klein und langsam
-      // drehend (`WristMenu.updatePreviews`). Bei sechs Handschuhen und drei
+      // drehend (`XRMenu.updatePreviews`). Bei sechs Handschuhen und drei
       // Pistolen ist eine Ikone bald keine Auskunft mehr.
       preview: id,
       run: (hand) => this.equipTool(this.context!, hand, id),
@@ -13333,7 +13333,7 @@ export class PortalWorld implements World {
    * Paketen, und niemand schreibt dafür achtzehnhundert Menüzeilen. Also
    * zeigt es, was auf der Platte liegt, Ordner für Ordner — wie ein
    * Dateibrowser, nur dass in jeder Kachel das Ding selbst steht und sich
-   * dreht (`core/kaykitIndex.ts` baut den Baum, `ui/WristMenu.ts` die
+   * dreht (`core/kaykitIndex.ts` baut den Baum, `ui/XRMenu.ts` die
    * Vorschau).
    *
    * **Geladen wird erst beim Aufschlagen** (`onOpen`): Der Index ist ein paar
@@ -13659,7 +13659,7 @@ export class PortalWorld implements World {
    * wie eh und je, Ids aus dem Asset-Regal der Lader. `null` heißt dabei
    * zweierlei, und das Menü behandelt beides gleich richtig: „gibt es nicht"
    * (eine fremde Id) und **„noch nicht"** (die Datei ist unterwegs) — es
-   * fragt in einer halben Sekunde wieder (`ui/WristMenu.ts`, `PREVIEW_RETRY`).
+   * fragt in einer halben Sekunde wieder (`ui/XRMenu.ts`, `PREVIEW_RETRY`).
    */
   private menuModel(id: string): THREE.Object3D | null {
     const path = kaykitPathOf(id);
@@ -15228,7 +15228,7 @@ export class PortalWorld implements World {
 
   private handleReset(ctx: WorldContext): void {
     if (!ctx.renderer.xr.isPresenting) return;
-    // Im offenen Menü ist `B`/`Y` _Zurück_ (`WristMenu.updateBack`) — und
+    // Im offenen Menü ist `B`/`Y` _Zurück_ (`XRMenu.updateBack`) — und
     // eine Welt, die dabei zurückgesetzt wird, wäre ein teures Zurück.
     if (ctx.menu.isOpen) return;
     for (const controller of ctx.input.controllers) {

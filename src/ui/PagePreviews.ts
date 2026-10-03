@@ -15,13 +15,13 @@ import {
   type PagePreviewLayer,
   type Sheet,
 } from './previewGrid';
-import type { MenuModelFactory } from './WristMenu';
+import type { MenuModelFactory } from './XRMenu';
 
 /**
  * **Das Regal auf dem Telefon: in jeder Kachel das Modell selbst, schräg von
  * vorn und stehend** (`PREVIEW_YAW`; bis September 2026 drehte es sich).
  *
- * In der Brille macht das Panel am Handgelenk es schon lange (`WristMenu.ts`,
+ * In der Brille macht das Panel am Handgelenk es schon lange (`XRMenu.ts`,
  * `updatePreviews`); im Browserfenster standen dieselben Kacheln leer, weil
  * `PageMenu.ts` von `MenuEntry.preview` nichts wusste. Der Besitzer wollte
  * genau das, was er in der Brille sieht, auch auf dem Telefon: zwei Spalten,

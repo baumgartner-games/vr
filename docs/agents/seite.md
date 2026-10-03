@@ -193,7 +193,7 @@ Gut zwanzig Zeilen gleichen Gewichts, und die Hitboxen der Physik standen im
 Grafik-Menü zwischen _Schatten_ und _Vollbild_.
 
 Jetzt hat die Wurzel **wenige Hauptbereiche**, am Schirm (`ui/PageMenu.ts`)
-und am Handgelenk (`ui/WristMenu.ts`) dieselben, weil beide denselben Baum
+und in der Brille (`ui/XRMenu.ts`) dieselben, weil beide denselben Baum
 lesen:
 
 | Bereich | Was darin steht (Id) |
@@ -269,7 +269,7 @@ Drei Regeln halten den Baum ehrlich (`groupMenu`):
   enden, wie gewollt. In der Brille fehlen unter _Einstellungen → Grafik_
   jetzt _Bildschirm-Steuerung_ und _Vollbild_ — beide tun dort nichts
   (`App.graphicsMenu`, wie die Links in einen neuen Tab).
-- **`WristMenus.back()`** ist dieselbe Treppe für jede Taste, die „zurück"
+- **`GameMenu.back()`** ist dieselbe Treppe für jede Taste, die „zurück"
   heißen soll (`B` am Pad, in der Brille), egal welches Gesicht des Menüs
   gerade oben ist; `false` heißt, es war gar nichts offen. Die Belegung
   selbst gehört `core/inputMap.ts` — hier steht nur, was gerufen wird.
@@ -307,7 +307,7 @@ In älteren Kapiteln steht oft noch der alte Weg; so heißt er jetzt:
 **Es gibt nur noch dieses eine Menü.** Gewünscht: _„können wir noch zudem das
 Burger-Menü-Icon oben links ändern, sodass dann das Menü geöffnet wird damit?
 Das alte Menü brauchen wir dann ja nicht mehr."_ Burger oben links, `M`, ☰ am
-Pad und ☰ am Handgelenk öffnen es dort, wo man zuletzt war; `Tab`, `Y` und der
+Pad und ☰ am Controller öffnen es dort, wo man zuletzt war; `Tab`, `Y` und der
 Werkzeugknopf öffnen es immer auf dem Inventar. **LB/RB wechseln am Pad den
 Reiter** (`PadScope.tab`, `PageMenu.stepTab`), `1`–`9` an der Tastatur.
 
@@ -365,7 +365,7 @@ zweiter Druck auf denselben Reiter führt an seinen Anfang). Den Baum baut
 
 Die drei hinteren sind **dieselben Einträge** wie im großen Menü
 (`findMenuEntry` aus der gruppierten Wurzel), also dieselben Schalter und
-dieselben Kacheln samt Modellen (`WristMenus.attachSidePage` gibt dem
+dieselben Kacheln samt Modellen (`GameMenu.attachSidePage` gibt dem
 Inventar eine eigene Vorschauschicht).
 
 - **Auf geht es immer auf dem Inventar** — `Tab`, `Y` am Pad, der Knopf
@@ -423,7 +423,7 @@ Vorschau.
   `Enter`) gesetzt — `App.setPlayerName`, also gemerkt und allen im Raum neu
   angesagt.
 - **Die Vorschau in den Kacheln** baut `ui/outfitModels.ts` aus denselben
-  Bausteinen wie den Avatar; sie hängt über `WristMenus.setExtraModels` vor
+  Bausteinen wie den Avatar; sie hängt über `GameMenu.setExtraModels` vor
   der Fabrik der Welt und gilt deshalb in jeder Welt. Der Koch trägt seine
   Zusammenstellung in der Vorschau-Id (`chefPreview`), sonst behielte die
   Kachel nach einer Wahl das alte Bild.
@@ -441,29 +441,65 @@ Vorschau.
 - **In der Brille nicht**: Dort bleibt _Aussehen_ am Handgelenk unter den
   Einstellungen, und die Seite unter dem Inventar wird gar nicht erst gebaut.
 
-### In der Brille: dasselbe Menü am Handgelenk
+### In der Brille: ein Bildschirm zwei Meter vor einem
 
-Gewünscht: _„In der Brille könnte man ein Menü öffnen über das Handgelenk.
-Das Menü kann dann gleich aussehen wie beim PC."_ Der runde ☰-Knopf am
-Handgelenk öffnet dasselbe Menü mit denselben Reitern (`WristMenuOptions.tabs`)
-und **demselben Weg** wie die Seite am Schirm. Wer am PC im Katalog stand,
-steht nach dem Aufsetzen dort auch am Arm. (Eine Woche lang gab es dafür einen
-zweiten, grünen Beutel-Knopf daneben; mit dem einen Menü ist er wieder weg.)
+Erst hing das Menü am Handgelenk (gewünscht: _„In der Brille könnte man ein
+Menü öffnen über das Handgelenk. Das Menü kann dann gleich aussehen wie beim
+PC."_). Im Oktober 2026 kam die Gegenrede: _„das menü fliegt nicht mehr an
+dem handgelenk (ja coole idee, aber doch irgendwie unhandlich). Stattdessen
+fliegt das menü dann vor ihm (etwa 2 meter entfernt). Dabei kann das menü
+ruhig breiter sein wie z. B. im 16:9 format wie bei einem pc bildschirm. Das
+menü kann dann genauso gerendert werden wie im web: Tab leisten oben, oben
+rechts der close button."_ Inventar und Katalog klappten am Arm nicht
+richtig, und gezielt wurde unsauber.
 
-- **Die Reiter** zeichnet das Panel selbst (`UIPanel`, `PageOptions.tabs`):
-  eine Reihe unter dem Titel, der offene unterstrichen, ein Trigger darauf
-  wechselt (`WristMenu.showTab`, merkt sich die Tiefe je Reiter). `B`/`Y`
-  geht zurück und auf der Seite eines Reiters zu.
+- **Der Bildschirm** (`ui/XRMenu.ts`): 1,8 × 1,01 m, 16:9, beim Aufmachen
+  `MENU_DISTANCE` (2 m) waagerecht in Blickrichtung, 12 cm unter den Augen,
+  zum Kopf gedreht. Danach **steht er** — im Raum des Rigs: Gehen und Drehen
+  nehmen ihn mit, der Kopf nicht. Jedes Aufmachen stellt ihn neu hin.
+- **Gezeichnet wie die Seite** (`UIPanel` mit `layout: 'screen'`, Maße in
+  `ui/screenLayout.ts`, mit Test): oben ◀ ▶, die Reiter (Ikone links neben
+  dem Wort) und ✕; darunter _Zurück_, Brotkrumen und Titel, rechts das Haus
+  (_Von vorne_). Zurück und Haus sind **Knöpfe im Kopf** wie am Schirm und
+  keine angehefteten Zeilen mehr. Kacheln stehen in so vielen Spalten, wie
+  passen (`screenCols`, mindestens 210 Bildpunkte je Kachel), Zeilen in zwei.
+- **◀ ▶ ganz links** blättern durch die Reiter, am Ende wieder vorn — am
+  Schirm dieselben zwei Knöpfe (`.pmenu__step-tab`), dieselbe Rechnung
+  (`menuNav.tabStep`). Welcher Reiter wie tief offen war, merkt sich der Weg
+  selbst (`MenuNav.showTab`), also Seite und Brille gemeinsam.
+- **Über der Welt.** Zwei Meter sind in einem kleinen Raum weiter als bis zur
+  Wand. Das Panel ist undurchsichtig (Ecken per `alphaTest`), zeichnet mit
+  `renderOrder` 10 nach allem Festen und mit `depthFunc = AlwaysDepth` —
+  nicht `depthTest = false`, denn ohne Tiefenprüfung schreibt WebGL auch
+  keine Tiefe, und dann schienen Fenster dahinter durch. Die kleinen Modelle
+  davor bekommen Stufe 11 auf **jede** Gruppe (`renderOrder` einer Gruppe
+  gilt in three.js nur bis zur nächsten Gruppe) und stehen ganz vor dem
+  Panel statt zur Hälfte darin.
+- **Eine Hand zielt.** _„immer andere elemente in dem menü aktiv gehovert
+  […] Meine vermutung ist, dass der andere controller daran schuld war"_ —
+  so war es: Beide Strahlen meldeten jedes Bild ihr `onHover`, und rechts
+  gewann. Das Panel ist jetzt ein **exklusives Ziel** des Zeigers
+  (`PointerTarget.exclusive`): Es gehört der Hand, die zuerst darauf zeigt;
+  der Strahl der anderen geht hindurch; ein Druck (Trigger, `A`, Greifen)
+  der anderen übernimmt es; wer weggeht, gibt es frei.
+- **Ein Kreis, wo der Strahl aufsetzt** (`UIPanel.marker`): ein Ring als
+  Kind des Panels, ohne die Leinwand neu zu zeichnen. Der Strahl selbst
+  endet am Panel.
+- **Aufmachen**: ☰ am linken Controller, oder der runde Knopf an einem der
+  beiden Handgelenke (`ui/WristButton.ts`) — er öffnet nur noch, das Menü
+  steht vor einem. `B`/`Y` gehen eine Seite zurück und ganz oben zu.
 - **Die Werkzeuge kommen in der Brille aus dem Regal** (`tools`), als
   Kacheln: Greifen oder `A` legt eins in die Hand, der Trigger öffnet seine
-  Einstellungen — wie bisher im Regal am Handgelenk.
-- **Die Figur** steht rechts neben dem Panel auf einer Tafel
-  (`ui/XRPlayerCard.ts`, `WristMenuOptions.aside`): ein echtes kleines Modell
-  im Raum, kein zweiter Renderer, nur auf der Seite _Inventar_ zu sehen.
-  _Aussehen anpassen_ öffnet _Figur_ im Menü am Handgelenk.
-- **Am Schirm nachstellen**: in der Konsole `bgvr.wristMenu.presenting = true`,
-  dann `bgvr.wristMenu.menu('left').toggle(true)` — das Panel hängt dann vor
-  der Ansicht aus den Augen.
+  Einstellungen.
+- **Die Figur** steht rechts neben dem Bildschirm auf einer Tafel
+  (`ui/XRPlayerCard.ts`, `XRMenuOptions.aside`, im Ganzen vergrößert mit
+  `scale`): ein echtes kleines Modell im Raum, nur auf der Seite _Inventar_
+  zu sehen. _Aussehen anpassen_ öffnet _Figur_ im Menü.
+- **`GameMenu`** (vormals `WristMenus`) entscheidet, welches Gesicht gilt:
+  ohne Brille die Seite, mit Brille der Bildschirm.
+- **Am Schirm nachstellen**: in der Konsole `bgvr.gameMenu.presenting = true`,
+  dann `bgvr.gameMenu.toggle(true)` — der Bildschirm steht dann zwei Meter
+  vor der Kamera, und die Maus zielt.
 
 ## Menü → Eingaben
 
@@ -691,7 +727,7 @@ gebaute Grundriss vor einem Sternenfeld, gerechnet von
 [Haunting](haunting.md)). **Eine neue Welt ohne Bild** bekommt eine Fläche in ihrer
 Akzentfarbe; wer ein Bild will, nimmt die Welt im Browser auf (Hände und
 Handgelenk-Knopf ausblenden: `bgvr.handVisuals.hidden = true`,
-`bgvr.wristMenu.visible = false`), verkleinert auf 480 × 270 und trägt den
+`bgvr.gameMenu.visible = false`), verkleinert auf 480 × 270 und trägt den
 Pfad als `preview` ein.
 
 ## Vom ersten Öffnen bis ins Spiel: der Weg eines neuen Spielers

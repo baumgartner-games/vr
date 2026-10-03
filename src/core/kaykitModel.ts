@@ -135,7 +135,7 @@ const templates = new Map<string, Promise<THREE.Object3D | null>>();
 /**
  * Was davon schon **fertig** ist. Dieselbe Auskunft wie oben, nur ohne
  * Warten: Die Vorschau im Menü wird je Bild gefragt und kann nicht `await`
- * sagen (`ui/WristMenu.ts`, `MenuModelFactory`).
+ * sagen (`ui/XRMenu.ts`, `MenuModelFactory`).
  */
 const ready = new Map<string, THREE.Object3D>();
 

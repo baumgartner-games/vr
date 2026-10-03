@@ -384,7 +384,7 @@ leere Zeile.
 
 ## Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt
 
-Am Handgelenk zeichnet das Panel seine Vorschauen selbst (`ui/WristMenu.ts`):
+Am Handgelenk zeichnet das Panel seine Vorschauen selbst (`ui/XRMenu.ts`):
 eine Leinwand, ein Bild, fertig. Im Browserfenster ist das Menü dagegen DOM
 (`ui/PageMenu.ts`, siehe [Die Seite selbst](./seite.md)), und ein Knopf im DOM
 kann kein Fass drehen. Die Seite hält deshalb nur den **Platz** frei — ein
@@ -446,7 +446,7 @@ Zwei Kleinigkeiten hängen daran:
   aus der rohen Geometrie gerechnet, und die liegt bei einer quantisierten
   Figur ganz woanders als die Figur — eine Kachel, die je nach Blickwinkel leer
   bleibt, wäre der nächste Fehlerbericht.
-- **Das Handgelenk rechnet jetzt mit.** `ui/WristMenu.ts` hatte eine eigene,
+- **Das Handgelenk rechnet jetzt mit.** `ui/XRMenu.ts` hatte eine eigene,
   wortgleiche Fassung dieser Rechnung; derselbe Fehler steckte darin, und er
   wäre in der Brille ein zweites Mal zu finden gewesen. Sie ist weg, das Panel
   ruft `menuMiniature`.
@@ -792,7 +792,7 @@ nur die Seite liest — dieselbe Aufteilung wie beim Suchfeld (_Und ein Suchfeld
 vorlesen oder abtippen — und genau darum ging es dem Auftraggeber. Nur steht
 sie nicht im Steckbrief: Den gibt es in der Brille nicht. Sie steht im
 **Fähnchen über dem Panel**, das anzeigt, worauf der Strahl gerade liegt
-(`WristMenu.updateCaption`). Das Fähnchen trug bisher nur die Bildunterschrift
+(`XRMenu.updateCaption`). Das Fähnchen trug bisher nur die Bildunterschrift
 (die deutsche Bedeutung); im **Raster** kommt jetzt der Untertitel der Kachel
 dazu — und der ist bei einer Modellkachel die Adresse.
 
@@ -818,7 +818,7 @@ Drei Stufen, und jede ist nötig:
 1. **Der Index kommt beim Aufschlagen**, nicht beim Weltstart. Er ist ein paar
    hundert Kilobyte groß, und wer heute nur Portale schießt, soll sie nicht
    herunterladen. Dafür gibt es `MenuEntry.onOpen`: Beide Bedienflächen rufen
-   es, bevor sie eine Ebene tiefer gehen (`ui/WristMenu.ts`, `ui/PageMenu.ts`).
+   es, bevor sie eine Ebene tiefer gehen (`ui/XRMenu.ts`, `ui/PageMenu.ts`).
    Bis der Index da ist, steht im Regal eine graue Zeile _Lädt …_; gibt es ihn
    nicht, steht dort _Kein Modellregal_. **Werfen darf dabei nichts** — ein
    Checkout ohne die gekauften Pakete ist ein normaler Zustand, kein Fehler.
@@ -843,7 +843,7 @@ Drei Stufen, und jede ist nötig:
    aufgesetzt: Nur so vergisst die Grafikkarte Geometrie und Texturen, die
    sie für die Vorschau hochgeladen hatte. Vorher wuchs beides mit jedem
    Modell, an dem man je vorbeigescrollt war, bis das Telefon aufgab. Die
-   Brille (`WristMenu`) räumt weiter nur den Rahmen weg.
+   Brille (`XRMenu`) räumt weiter nur den Rahmen weg.
 5. **Auch was nur gefragt war, geht wieder** (Oktober 2026, gemeldet: _„da
    bei modelregal es bei zu langem scrollen abstürzt"_). Entladen wurde bis
    dahin nur, was schon gezeichnet war. Wer schnell scrollt, fragt aber jede
@@ -867,7 +867,7 @@ Drei Stufen, und jede ist nötig:
 ### Der Vertrag der Modellfabrik: `null` heißt „noch nicht"
 
 Das Menü fragt die Welt nach dem kleinen Modell zu einer Id
-(`MenuModelFactory`, gesetzt mit `WristMenus.setModelFactory`). Diese Frage
+(`MenuModelFactory`, gesetzt mit `GameMenu.setModelFactory`). Diese Frage
 kommt aus einer Zeichenschleife und kann nicht warten — eine Datei, die erst
 geholt wird, kann sie also nicht abwarten.
 

@@ -194,7 +194,7 @@ export class PlayerRig extends THREE.Group {
    *
    * Wer aufs Panel zeigt und mit dem Stick blättert, will blättern — und nicht
    * nebenbei durch den Raum laufen oder sich wegdrehen. Das Menü sagt jede
-   * Frame, welche Hand es gerade braucht (`WristMenus.scrollHand`); alles
+   * Frame, welche Hand es gerade braucht (`GameMenu.scrollHand`); alles
    * andere an dieser Hand bleibt normal, es ist nur der Stick.
    */
   menuStick: Handedness | null = null;

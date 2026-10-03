@@ -18,7 +18,7 @@ import {
  * **Das Optionsfeld einer Info-Ansicht** — eine Menüseite, dieselbe für jede.
  *
  * Gebaut wird ein gewöhnlicher `MenuEntry` mit Kindern, mehr nicht: Er hängt
- * am Handgelenk (`ui/WristMenu.ts`) genauso wie auf der Seite
+ * am Handgelenk (`ui/XRMenu.ts`) genauso wie auf der Seite
  * (`ui/PageMenu.ts`), und wer das Hauptmenü umbaut, hängt ihn dort ein, wo er
  * hinpasst — er kennt weder die Grafik noch die NPC-Seite, in denen er heute
  * steht. Die Zeilen sind immer dieselben fünf in derselben Reihenfolge, und
