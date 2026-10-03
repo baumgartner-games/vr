@@ -171,9 +171,10 @@ export interface ElementPart {
 /**
  * **Was `A` an einem Element aufmacht**, wenn es keine Station der Küche ist
  * — eine Seite im Menü. `'outfit'`: _Aussehen_ (`WorldContext.openOutfit`),
- * die Garderobe.
+ * die Garderobe. `'hide'`: hineinsteigen und sich verstecken
+ * (`PortalWorld.hideIn`), der Schutzschrank.
  */
-export type ElementOpens = 'outfit';
+export type ElementOpens = 'outfit' | 'hide';
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
 export interface GameElement {
@@ -609,6 +610,14 @@ export const WALL_ERASER = SHELF_WALL_HALF;
  * (gemeldet: _„das wand icon lädt nicht? dafür bei wand abreißen"_).
  */
 export const WALL_ERASER_PREVIEW = 'dungeon/wall_broken.glb';
+
+/**
+ * **Der Radiergummi des Katalogs** — was er berührt, ist weg: Möbel und
+ * Elemente, nicht der Boden (`PortalWorld.eraseUnder`). Einen Radiergummi hat
+ * das Regal nicht; in der Hand liegt der Mülleimer, mit dem Verbotszeichen
+ * auf der Kachel.
+ */
+export const ELEMENT_ERASER = 'block-bits/trashcan.glb';
 
 /**
  * **Der Ordner _Haus_** — Wand, Tür und Fenster direkt darin. Welten, die mehr

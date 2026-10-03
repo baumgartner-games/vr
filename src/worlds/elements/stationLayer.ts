@@ -312,7 +312,7 @@ export interface StationHost {
    * **Eine Seite im Menü aufmachen** (`GameElement.opens`) — die Garderobe
    * öffnet _Aussehen_. Ohne Angabe meldet sich so ein Element nicht an.
    */
-  open?(what: ElementOpens): void;
+  open?(what: ElementOpens, anchor: THREE.Object3D): void;
 }
 
 /**
@@ -323,7 +323,10 @@ export interface StationHost {
 export const OPENER_REACH = 0.5;
 
 /** Was ein Druck dort bewirkt — der Satz zum Saum (`Usable.usePrompt`). */
-const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = { outfit: 'Aussehen ändern' };
+const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = {
+  outfit: 'Aussehen ändern',
+  hide: 'Verstecken',
+};
 
 /** Wie die Station gerade gebaut ist. */
 interface StationView {
@@ -515,7 +518,7 @@ export class StationLayer {
       anchor,
       {
         use: () => {
-          this.host.open?.(what);
+          this.host.open?.(what, anchor);
           return true;
         },
         usePrompt: () => OPENS_PROMPT[what],

@@ -533,6 +533,23 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   `craneVelocity`); wer nur ein Pad hat, bekommt ihn in der Bildmitte
   (`centrePoint`). Ein Finger, der losgelassen wird, lässt den Kran stehen,
   wo er ist. Gilt für _Einrichten_ und _Baukasten_ — beide sind der Kran.
+- **Beim Einschalten bleibt der Kran, wo die Figur steht** (`craneHold`,
+  Oktober 2026). Gemeldet: _„durch das aktivieren [wird] der spieler oben
+  links im bildschirm gesetzt, weil da die maus ist"_ — die letzte Mausstelle
+  vor dem Klick ins Menü. `FlatControls.crane` vergisst sie deshalb; erst eine
+  neue Mausbewegung, ein Finger oder der Stock fahren ihn los.
+- **Die Figur bleibt als Geist stehen** (`PlayerAvatar.setCrane`). Gewünscht:
+  _„der spieler wird ghost und ich kann diesen mit dem kran auch umsetzen"_.
+  Der Körper bleibt halb durchsichtig dort, wo man zum Kran wurde
+  (`leaveBehind`, `setGhostly`); der Kran hängt am Rig und nicht mehr an der
+  Figur. Ein Klick mit leerem Kran über ihr nimmt sie an den Haken, der
+  nächste setzt sie ab (`PortalWorld.liftFigure`). Wer aufhört, Kran zu sein,
+  steht wieder in seiner Figur — nicht dort, wo der Kran zuletzt war.
+- **Den Kran leer machen**: Rechtsklick mit vollem Haken oder der Knopf _Kran
+  leeren_ unten rechts (`craneEmpty.ts`, `PortalWorld.emptyCrane`). Gewünscht,
+  _„damit ich nicht ewig ein objekt lege"_. Ein frisches Stück aus dem
+  Katalog verschwindet, ein aufgehobenes fällt, die Figur wird abgesetzt.
+  Mit leerem Haken holt der Rechtsklick wie bisher die Bombe.
 - **Gedreht wird mit `R`** (`craneTurn`, ein Achtel, `Shift`+`R` zurück —
   zweimal ist ein Viertel) oder mit dem rechten Stock (die Nase zeigt dorthin,
   auf das nächste Achtel gerastet). Achtel, seit Wände auch unter 45° stehen:
@@ -589,7 +606,8 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   fliegen können."_ Das ist der kollisionsfreie Körper des Konstrukt-Raums
   (`PhysicsLocomotion.ghost`), jedes Bild neu gesetzt, weil jedes `resync` ihn
   abschaltet. **Das Ende ist die Arbeit**: Wer über dem Herd aufhört, Kran zu
-  sein, stünde im Herd. `PhysicsLocomotion.land` sucht in Ringen
+  sein, stünde im Herd. Zurück geht es in die stehen gebliebene Figur
+  (siehe oben); steht dort inzwischen etwas, sucht `PhysicsLocomotion.land` in Ringen
   (`playerClearance.landingOffsets`, bis 3 m) die nächste Stelle, an der die
   Kapsel frei steht und Boden unter sich hat — gegen alles Feste, nicht gegen
   Gegenstände, die ohnehin weichen. Findet sich keine, geht es zurück an den

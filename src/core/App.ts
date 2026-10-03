@@ -1279,7 +1279,7 @@ export class App {
     // **Von oben und beim Einrichten ist man der Kran** (`core/crane.ts`) —
     // der Koch tritt ab, samt seinen Händen.
     const crane = on && isCrane(gameMode());
-    this.avatar.crane = crane;
+    this.avatar.setCrane(crane, this.rig.getHeadMatrix(_head));
     // Und als Kran fahren die Tasten das Bild, der Zeiger stellt den Kran
     // (`FlatControls.crane`).
     this.flat.crane = crane;
