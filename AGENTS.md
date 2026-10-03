@@ -159,6 +159,11 @@ Stichpunkten).
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Küche und Gastraum, im September 2026 neu aus dem Möbelkatalog: Fliesen, Dielen, die Regalwände der Test Navigation auf den Fugen (auch im Katalog unter _Wände_, _Türen_, _Fenster_), die Küche als Spielelemente, noch ohne Tische und Gäste (`plateup/plateUpRoom.ts`). Darunter das Spiel nach _PlateUp!_, wie es bis dahin war (Commit `56462b6`).
   Darin: Neu aus dem Möbelkatalog · Das Spiel bis September 2026 · Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
+### Spielideen
+
+- **[Spielideen](docs/spielideen/README.md)** — Die Konzepte der Spiele in einfachem Markdown, eine Datei je Spiel: worum es geht, wie eine Runde läuft, was noch fehlt. Nicht wie es gebaut ist, sondern was es sein soll.
+  Darin: [Haunting / Orbital](docs/spielideen/haunting.md) (mit der Liste für den Spieleabend Mitte November 2026) · [Restaurant](docs/spielideen/restaurant.md) (mit der Taverne und der kleinen Stadt) · weitere Ideen ohne eigene Datei.
+
 ### Steuerung
 
 - **[Steuerung](docs/agents/steuerung.md)** — Das einheitliche Schema (gleiche Absicht, gleicher Knopf), Menüs mit dem Pad, die Tastenhilfe — und die Tabelle: welche Taste, welcher Knopf, welcher Stick, in jeder der drei Ansichten.
