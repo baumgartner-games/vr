@@ -453,6 +453,7 @@ import { npcSettings, saveNpcSettings } from './tools/gearStore';
 import { withBrain, withKind } from '../npc/npcSettings';
 import { LANDING_CLEARANCE, needsRescue, rescueHeight } from '../shared/fallRescue';
 import { FallTrail, fallReportText } from '../shared/fallTrail';
+import { DustTrail } from '../shared/dustTrail';
 import { FallReport } from '../../ui/fallReport';
 import {
   EARTH_GRAVITY,
@@ -1636,6 +1637,13 @@ export class PortalWorld implements World {
   /** Die letzten Stellen des Spielers — für den Bericht nach einem Sturz (`shared/fallTrail.ts`). */
   private readonly fallTrail = new FallTrail();
   private readonly fallReport = new FallReport();
+  /**
+   * **Der Staub hinter der Figur** (`shared/dustTrail.ts`) — in jeder Welt,
+   * nicht nur in der Sandbox. Gewünscht: _„beim spieler wenn er sich bewegt
+   * sollen auch die wolken kommen wie beim kran."_ Angelegt beim ersten Bild,
+   * weil erst dann die Wurzel der Welt in der Szene hängt.
+   */
+  private dust: DustTrail | null = null;
   /** Die Fläche bis zum Horizont, unter allem, was die Welt sonst baut. */
   private horizonFloor: THREE.Mesh | null = null;
   /** Läuft, wenn jemand die Welt-Physik umstellt. */
@@ -2158,11 +2166,28 @@ export class PortalWorld implements World {
     this.updateAim(ctx);
     this.applyViewOverride(ctx);
     this.updateFallRescue(ctx, dt);
+    this.trailDust(dt, ctx);
     this.updateHitboxes();
     this.stepWorldBatch(dt, ctx);
     // Zuletzt: was die Welt für sich selbst tut. Dieselbe Zeile läuft in der
     // laufenden Vorschau ohne alles darüber (`stepPreview`).
     this.simulate(dt);
+  }
+
+  /**
+   * **Gestaubt wird nur zu Fuß** (`wishing`), nicht im Sitzen — nach der
+   * Sturzrettung, damit ein Versetzen als Sprung zählt (`DUST_JUMP`) und
+   * nicht als Lauf. Der Kran staubt auf demselben Weg: Er fliegt mit einem
+   * Wunsch (`FlatControls`).
+   */
+  private trailDust(dt: number, ctx: WorldContext): void {
+    const rig = ctx.rig;
+    this.dust ??= new DustTrail(this.root);
+    // Unter dem Kopf und nicht am Rig: In der Brille steht man selten in der
+    // Mitte seiner Spielfläche.
+    rig.getHeadPosition(_dustFeet);
+    _dustFeet.y = rig.getFloorY();
+    this.dust.update(dt, _dustFeet, rig.wishing && rig.seated <= 0.01);
   }
 
   menu(): MenuEntry[] {
@@ -6124,6 +6149,8 @@ export class PortalWorld implements World {
 
   dispose(ctx: WorldContext): void {
     this.fallReport.dispose();
+    this.dust?.dispose();
+    this.dust = null;
     for (const foam of this.foams) foam.dispose();
     this.foams.length = 0;
     // Die Hand am Schirm hängt am **Rig** und nicht an der Welt: Sie überlebte
@@ -16477,3 +16504,6 @@ function createGhostTarget(): THREE.Group {
   group.add(post);
   return group;
 }
+
+/** Wo die Füße stehen — für die Staubspur (`trailDust`), einer für alle Bilder. */
+const _dustFeet = new THREE.Vector3();
