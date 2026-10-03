@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SCREEN_ASPECT, UIPanel } from './UIPanel';
+import type { XRPlayerCard } from './XRPlayerCard';
+import { XRMenuLayer } from './XRMenuLayer';
 import { TextPlane } from './TextPlane';
 import type { MenuEntry } from './menu';
 import { findMenuPath } from './menuGroups';
@@ -50,11 +52,12 @@ const SWIPE_SLOP = 0.02;
  *
  * Gewünscht: _„Stattdessen fliegt das menü dann vor ihm (etwa 2 meter
  * entfernt). Dabei kann das menü ruhig breiter sein wie z. B. im 16:9 format
- * wie bei einem pc bildschirm."_ 1,8 m auf 2 m sind gut 48° — so viel wie ein
- * Monitor am Schreibtisch, und eine Zeile Text (36 Bildpunkte der Leinwand,
- * 4 cm) steht gut einen Grad hoch.
+ * wie bei einem pc bildschirm."_ Erst 1,8 m, dann ein Viertel größer, weil
+ * die Schrift zu klein und zu weich war: 2,25 m auf 2 m sind gut 58°, eine
+ * Zeile Text (36 Bildpunkte der Leinwand, 5 cm) steht fast anderthalb Grad
+ * hoch. Scharf macht sie aber erst die Ebene (`XRMenuLayer`).
  */
-export const MENU_SCREEN_W = 1.8;
+export const MENU_SCREEN_W = 2.25;
 export const MENU_SCREEN_H = MENU_SCREEN_W * SCREEN_ASPECT;
 export const MENU_DISTANCE = 2;
 /** Wie weit die Mitte des Bildschirms unter den Augen steht. */
@@ -105,10 +108,11 @@ export interface XRMenuOptions {
    */
   tabs?: boolean;
   /**
-   * **Etwas, das neben dem Panel steht** — für genau eine Seite: die Figur im
-   * Inventar (`ui/XRPlayerCard.ts`). Es hängt am Panel und steht mit ihm.
+   * **Die Spalte rechts** — für genau eine Seite: die Figur im Inventar
+   * (`ui/XRPlayerCard.ts`). Name und Knopf zeichnet das Panel
+   * (`PageOptions.aside`), die Figur steht als Modell davor.
    */
-  aside?: { page: string; object: THREE.Object3D };
+  aside?: { page: string; card: XRPlayerCard };
 }
 
 /**
@@ -141,7 +145,9 @@ export class XRMenu extends THREE.Group {
   /** Beim nächsten Bild vor den Kopf stellen — gesetzt beim Aufmachen. */
   private place = false;
   private readonly tabs: boolean;
-  private readonly aside: { page: string; object: THREE.Object3D } | null;
+  private readonly aside: { page: string; card: XRPlayerCard } | null;
+  /** Das Menü als Ebene des Kompositors (`useLayer`) — oder `null`, dann Textur. */
+  private layer: { layer: XRMenuLayer; enabled: () => boolean } | null = null;
   private root: MenuEntry[] = [];
   private rootTitle = 'Menü';
   /** Ob **Greifen** auf der obersten Seite auch auswählt — ein Regal tut das. */
@@ -278,6 +284,16 @@ export class XRMenu extends THREE.Group {
     this.clearPreviews();
   }
 
+  /**
+   * **Schärfer in der Brille**: das Panel als Quad-Ebene des Kompositors
+   * zeigen (`XRMenuLayer`), solange `enabled` es erlaubt — eine Einstellung
+   * unter Grafik.
+   */
+  useLayer(renderer: THREE.WebGLRenderer, camera: THREE.Camera, enabled: () => boolean): void {
+    this.layer?.layer.dispose();
+    this.layer = { layer: new XRMenuLayer(renderer, camera, this.panel), enabled };
+  }
+
   /** (Re-)registers the menu with the pointer, e.g. after a world switch. */
   attachPointer(): void {
     this.pointer.remove(this.panel);
@@ -373,8 +389,11 @@ export class XRMenu extends THREE.Group {
   }
 
   /** Ein Knopf im Kopf des Bildschirms. */
-  private handleControl(control: 'prev' | 'next' | 'close' | 'back' | 'home'): void {
+  private handleControl(control: 'prev' | 'next' | 'close' | 'back' | 'home' | 'aside'): void {
     switch (control) {
+      case 'aside':
+        this.aside?.card.onCustomize();
+        return;
       case 'prev':
         this.stepTab(-1);
         return;
@@ -463,6 +482,8 @@ export class XRMenu extends THREE.Group {
     this.updatePreviews(dt);
     this.updateAside();
 
+    this.layer?.layer.update(this.open && this.layer.enabled());
+
     this.updateCaption();
     if (this.caption.visible) {
       this.caption.position
@@ -497,15 +518,24 @@ export class XRMenu extends THREE.Group {
   }
 
   /**
-   * **Das Ding neben dem Panel** (`XRMenuOptions.aside`): an das Panel
-   * gehängt, sichtbar nur auf seiner Seite.
+   * **Die Figur in der Spalte rechts** (`XRMenuOptions.aside`): ans Panel
+   * gehängt, vor die Fläche, die das Panel für sie freilässt — nur auf ihrer
+   * Seite zu sehen.
    */
   private updateAside(): void {
     const aside = this.aside;
     if (!aside) return;
-    const show = this.open && this.page.id === aside.page;
-    if (show && aside.object.parent !== this.panel) this.panel.add(aside.object);
-    if (aside.object.parent === this.panel) aside.object.visible = show;
+    const card = aside.card;
+    const anchor = this.open && this.page.id === aside.page ? this.panel.asideAnchor() : null;
+    if (anchor && card.parent !== this.panel) this.panel.add(card);
+    if (card.parent !== this.panel) return;
+    card.visible = anchor !== null;
+    if (!anchor) return;
+    card.place(anchor.x, anchor.y, anchor.height);
+    this.panel.setAside(card.info());
+    // Jedes Bild: Die Figur lädt ihr Modell nach, und eine neue Gruppe darin
+    // fiele sonst auf Stufe 0 zurück und hinter das Panel (`PANEL_ORDER`).
+    overlay(card, PREVIEW_ORDER);
   }
 
   /**
@@ -542,6 +572,7 @@ export class XRMenu extends THREE.Group {
   dispose(): void {
     this.unwatchNav();
     this.clearPreviews();
+    this.layer?.layer.dispose();
     this.pointer.remove(this.panel);
     this.panel.dispose();
     this.caption.dispose();
@@ -586,6 +617,7 @@ export class XRMenu extends THREE.Group {
       // angehefteten Zeilen mehr, die im Raster eine ganze Kachelreihe kosten.
       back: this.stack.length > this.floor,
       home: this.homeDepth() >= 0,
+      ...(this.aside && page.id === this.aside.page ? { aside: this.aside.card.info() } : {}),
       ...(this.tabs
         ? {
             tabs: this.root.map((entry) => ({

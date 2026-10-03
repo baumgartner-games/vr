@@ -79,6 +79,19 @@ export interface PageOptions {
   back?: boolean;
   /** Nur im Bildschirm-Format: das Haus rechts im Kopf (_Von vorne_). */
   home?: boolean;
+  /**
+   * Nur im Bildschirm-Format: **die Spalte rechts** — die Figur im Inventar
+   * (`ui/screenLayout.ts`, `SCREEN_ASIDE_W`). Die Figur selbst ist ein Modell
+   * davor (`asideAnchor`); gezeichnet werden hier Name, Zeile und Knopf.
+   */
+  aside?: PanelAside;
+}
+
+/** Was in der Spalte rechts steht (`PageOptions.aside`). */
+export interface PanelAside {
+  readonly title: string;
+  readonly sub: string;
+  readonly button: string;
 }
 
 /** Ein Reiter über der Seite (`PageOptions.tabs`). */
@@ -105,7 +118,7 @@ export interface PanelOptions {
   onTab?: (index: number, hand: Handedness | null) => void;
   /** Ein Knopf im Kopf des Bildschirms wurde gedrückt: ◀ ▶ ✕ ← ⌂. */
   onControl?: (
-    control: 'prev' | 'next' | 'close' | 'back' | 'home',
+    control: 'prev' | 'next' | 'close' | 'back' | 'home' | 'aside',
     hand: Handedness | null,
   ) => void;
 }
@@ -194,6 +207,9 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private head: ScreenHead | null = null;
   private back = false;
   private home = false;
+  private aside: PanelAside | null = null;
+  /** Zählt jedes Neuzeichnen — woran eine Ebene sieht, dass sie neu muss. */
+  revision = 0;
   /** Der Knopf oder Reiter im Kopf unter dem Strahl (Bildschirm). */
   private hoverControl: ScreenControl | null = null;
 
@@ -264,15 +280,19 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.tab = options.tab ?? -1;
     this.entries = entries;
     this.grid = options.grid ?? false;
-    this.cols = this.screen
-      ? screenCols(this.grid, options.cols, this.cw)
-      : Math.max(1, Math.floor(options.cols ?? GRID_COLS));
+    this.cols = Math.max(1, Math.floor(options.cols ?? GRID_COLS));
     this.pinned = Math.min(Math.max(0, Math.floor(options.pinned ?? 0)), entries.length);
     this.hint = options.hint ?? '';
     this.back = options.back ?? false;
     this.home = options.home ?? false;
+    this.aside = options.aside ?? null;
     if (this.screen) {
-      this.head = screenHead(this.tabs.length, { back: this.back, home: this.home }, this.cw);
+      this.head = screenHead(
+        this.tabs.length,
+        { back: this.back, home: this.home, aside: this.aside !== null },
+        this.cw,
+      );
+      this.cols = screenCols(this.grid, options.cols, this.bodyW + this.pad * 2);
     }
     this.scroll = pageScroll({
       previousKey: this.pageKey,
@@ -415,6 +435,10 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   asPointerTarget(): PointerTarget {
     return {
       object: this,
+      // Nur das Panel selbst: Ein Kind (ein Modell in einer Kachel) hat eigene
+      // Texturkoordinaten, und die hier als Stelle zu lesen ließ den Punkt
+      // springen (`PointerTarget.shallow`).
+      shallow: true,
       onHover: (hit) => {
         this.hovered.hand = hit.hand;
         if (hit.uv) this.hovered.v = hit.uv.y;
@@ -435,6 +459,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       },
       onSelect: (hit) => this.handleSelect(hit),
     };
+  }
+
+  /** Die Leinwand selbst — für eine Ebene des Kompositors (`XRMenuLayer`). */
+  get canvas(): HTMLCanvasElement {
+    return this.ctx.canvas;
   }
 
   /** Redraws after an entry changed, e.g. a toggle. */
@@ -553,9 +582,36 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     return this.grid ? this.cols : this.rowCols;
   }
 
-  /** Wie breit der Inhalt ist — rechts Platz für den Rollbalken. */
+  /** Wie breit der Inhalt ist — schmaler, wenn rechts die Spalte steht. */
   private get bodyW(): number {
-    return this.cw - this.pad * 2;
+    return this.head ? this.head.bodyW : this.cw - this.pad * 2;
+  }
+
+  /**
+   * Die Spalte rechts mit neuem Text — Name oder Aussehen haben sich
+   * geändert. Gezeichnet wird nur, wenn sich wirklich etwas geändert hat.
+   */
+  setAside(aside: PanelAside): void {
+    const was = this.aside;
+    if (!was) return;
+    if (was.title === aside.title && was.sub === aside.sub && was.button === aside.button) return;
+    this.aside = aside;
+    this.draw();
+  }
+
+  /**
+   * Wo die Figur in der Spalte rechts steht — Mitte unten und Höhe der Fläche,
+   * in Metern im Raum des Panels. `null` ohne Spalte.
+   */
+  asideAnchor(): { x: number; y: number; height: number } | null {
+    const figure = this.head?.aside?.figure;
+    if (!figure || !this.aside) return null;
+    const bottom = this.anchorOf(figure.x + figure.w / 2, figure.y + figure.h, 0);
+    return {
+      x: bottom.x,
+      y: bottom.y,
+      height: (figure.h / this.ch) * this.geometry.parameters.height,
+    };
   }
 
   /** Die Stelle einer Zeile im sichtbaren Teil der Liste. */
@@ -659,8 +715,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.clearRect(0, 0, this.cw, this.ch);
 
     ctx.beginPath();
-    ctx.roundRect(0, 0, this.cw, cardH, 40);
-    ctx.fillStyle = 'rgba(9, 14, 26, 0.93)';
+    // Der Bildschirm ist ein Rechteck und ganz deckend: Als Ebene des
+    // Kompositors (`XRMenuLayer`) läge unter durchsichtigen Ecken nichts —
+    // sie wären schwarz.
+    if (this.screen) ctx.rect(1.5, 1.5, this.cw - 3, cardH - 3);
+    else ctx.roundRect(0, 0, this.cw, cardH, 40);
+    ctx.fillStyle = this.screen ? 'rgb(9, 14, 26)' : 'rgba(9, 14, 26, 0.93)';
     ctx.fill();
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(140, 180, 255, 0.35)';
@@ -732,6 +792,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     }
 
     this.texture.needsUpdate = true;
+    this.revision++;
   }
 
   /**
@@ -799,6 +860,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     });
     ctx.restore();
 
+    this.drawAside();
+
     const text = head.text;
     ctx.fillStyle = '#8ea0c4';
     ctx.font = '600 22px system-ui, sans-serif';
@@ -811,6 +874,52 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       text.x,
       this.crumb ? text.titleY : (text.crumbY + text.titleY) / 2 + 8,
     );
+  }
+
+  /** Die Spalte rechts: Karte, Name, Zeile und Knopf — die Figur steht als Modell davor. */
+  private drawAside(): void {
+    const box = this.head?.aside;
+    const aside = this.aside;
+    if (!box || !aside) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(box.card.x, box.card.y, box.card.w, box.card.h, 24);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(box.figure.x, box.figure.y, box.figure.w, box.figure.h, 18);
+    ctx.fillStyle = 'rgba(20, 30, 52, 0.9)';
+    ctx.fill();
+
+    const cx = box.card.x + box.card.w / 2;
+    const room = box.card.w - 40;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 34px system-ui, sans-serif';
+    ctx.fillText(clip(ctx, aside.title, room), cx, box.titleY);
+    ctx.fillStyle = '#93a3c4';
+    ctx.font = '400 24px system-ui, sans-serif';
+    ctx.fillText(clip(ctx, aside.sub, room), cx, box.subY);
+
+    const hot = sameControl(this.hoverControl, { kind: 'aside' });
+    const button = box.button;
+    ctx.beginPath();
+    ctx.roundRect(button.x, button.y, button.w, button.h, button.h / 2);
+    ctx.fillStyle = hot && this.flash > 0 ? '#9af0c4' : hot ? '#7ae8b2' : '#5ee0a0';
+    ctx.fill();
+    if (hot) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#062016';
+    ctx.font = '700 26px system-ui, sans-serif';
+    ctx.fillText(clip(ctx, aside.button, button.w - 30), cx, button.y + button.h / 2 + 10);
+    ctx.restore();
   }
 
   /** Ein runder Knopf im Kopf mit seinem Zeichen — wie `.pmenu__nav` am Schirm. */
@@ -924,7 +1033,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const ctx = this.ctx;
     const top = this.bodyTop - 6;
     const height = cardH - this.footerH - top;
-    const x = this.cw - 24;
+    const x = this.pad + this.bodyW - 10;
     const rows = this.entries.length - this.pinned;
     const portion = this.pageSize / rows;
     const thumb = Math.max(40, height * portion);
