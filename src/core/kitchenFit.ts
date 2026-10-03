@@ -708,10 +708,8 @@ const CRATE_LID_SUNK = 0.002;
  * Frage, an der man sich hier vertut: `Spot.gives` gehört dem **Platz**
  * (`worlds/test/zones/kitchenPlan.ts`), der Katalog beschreibt das **Möbel**.
  * Ein `serve-counter`, dessen Netz vom `gives` seines Platzes abhinge, wäre
- * ein Möbel, das an zwei Stellen verschieden aussieht — und im Möbelmenü am
- * Computer (`shared/construct.ts`) ließe es sich gar nicht zeigen, weil dort
- * kein Platz danebensteht. Vier Kisten dagegen kann man dort aufstellen,
- * ansehen und einzeln in die Küche setzen.
+ * ein Möbel, das an zwei Stellen verschieden aussieht. Vier Kisten dagegen
+ * kann man aufstellen, ansehen und einzeln in die Küche setzen.
  *
  * **Keine Ablage.** Auf einer offenen Kiste voller Tomaten liegt kein Teller;
  * sie braucht `worktop` auch nicht, um zu wirken — was `gives` trägt, ist eine

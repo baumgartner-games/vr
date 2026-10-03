@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import {
-  KITCHEN_PIECES,
   POT_BOWL,
   SINK_BOWL,
   kitchenDeck,
@@ -100,7 +99,6 @@ import {
   copierField,
   pieceSide,
 } from './kitchenDesk';
-import type { ConstructItem } from '../../shared/construct';
 import { KitchenFloor } from './kitchenFloor';
 import { buildKitchenNotice } from './kitchenNotice';
 import type { SignBoard } from '../../signs/SignBoard';
@@ -532,22 +530,6 @@ const GHOST_BLOCKED = 0xe5361c;
 const GHOST_HEIGHT = 0.6;
 
 /**
- * **Um wie viel eine Miniatur kleiner ist als ihr Möbel** — ein Faktor und
- * keine Zielgröße.
- *
- * Vier Fünftel: Ein Möbel von einer Kachel steht damit auf 0,8 m seiner
- * Kachel, und ringsum bleibt ein Zehntel Meter Luft zum Nachbarn. Zwei
- * Kacheln werden zu 1,6 m auf zwei Kacheln — dieselbe Luft, dieselbe
- * Verkleinerung.
- *
- * **Derselbe Faktor für alle, und das ist der Punkt.** Vorher war das eine
- * Zielgröße: jedes Stück auf 0,8 m längste Kante. Damit war im Regal jedes
- * Möbel gleich groß, und die Frage, für die man den Katalog aufmacht — passt
- * das noch neben das da? — war aus dem Bild verschwunden.
- */
-const MINI_SIZE = 0.8;
-
-/**
  * **Und wie klein die Vorlage auf der Kopierfläche wird**, als Faktor auf das
  * Katalogmaß (`core/kitchenFit.kitchenPieceScale`).
  *
@@ -559,11 +541,8 @@ const MINI_SIZE = 0.8;
  * Ausgabetheke auf der Platte sichtbar, und man sieht der Vorlage an, was man
  * kopiert.
  *
- * **Und sie hängt bewusst nicht an `MINI_SIZE`**, obwohl beide „klein" heißen:
  * `layOnPlate` rechnet `kitchenPieceScale(piece) * MINI_SCALE` und fasst das
- * Katalogmaß nie an. Wer die Miniaturen im Katalog wachsen lässt, weil der
- * Konstrukt-Raum seine Stücke weiter auseinanderstellt, lässt die
- * Kopierfläche deshalb in Ruhe — ihr Feld ist dasselbe geblieben.
+ * Katalogmaß nie an.
  */
 const MINI_SCALE = 1 / 3;
 
@@ -1125,22 +1104,6 @@ export class KitchenZone implements TestZone {
    * und keine Geometrie.
    */
   private readonly models = new Map<string, THREE.Object3D>();
-  /**
-   * **Die fertigen Miniaturen** — je Katalogstück eine, gebaut beim ersten
-   * Öffnen des Katalogs und danach immer wieder dieselbe.
-   *
-   * Ohne diese Karte baute `openCatalogue` bei **jedem** Öffnen achtzehn
-   * Miniaturen neu, und keine davon ist billig: ein `clone(true)` über den
-   * ganzen GLTF-Baum plus ein `Box3.setFromObject`, das jeden Scheitelpunkt
-   * darin anfasst. Genau das war die Pause vor dem ersten Regal.
-   *
-   * **Ausleihen ist erlaubt und vorgesehen**: Der Konstrukt-Raum hängt die
-   * Stücke beim Betreten in seine Bühne und beim Verlassen wieder aus
-   * (`shared/construct.ConstructRoom.settle`) — er gibt sie unversehrt zurück
-   * und räumt nichts davon weg. Ort und Sichtbarkeit setzt er bei jedem Öffnen
-   * neu, es bleibt also auch nichts von der letzten Vorstellung hängen.
-   */
-  private readonly minis = new Map<string, THREE.Object3D>();
   /**
    * **Was auf welcher Kopierfläche steht** — ein Eintrag je belegtem Kopierer.
    *
@@ -3155,16 +3118,6 @@ export class KitchenZone implements TestZone {
     for (const copier of [...this.plates.keys()]) this.clearCopy(copier);
     this.plates.clear();
     this.models.clear();
-    // **Die Miniaturen nur aushängen, nicht freigeben.** Sie sind Klone der
-    // Vorlagen (`miniature`), und `Object3D.clone` teilt Formen und Materialien
-    // mit dem Original: Wer sie über einen `dispose`-Gang schickte, nähme dem
-    // Schauraum und jedem gebauten Möbel die Netze unter den Füßen weg. Was
-    // ihnen wirklich gehört, ist ein Knoten je Stück, und den holt sich der
-    // Sammler von selbst, sobald die Karte leer ist. Aus dem Baum müssen sie
-    // trotzdem: Steht die Zone ab, während der Katalog noch offen ist, hängen
-    // sie in der Bühne des Konstrukt-Raums.
-    for (const mini of this.minis.values()) mini.removeFromParent();
-    this.minis.clear();
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
@@ -3272,8 +3225,8 @@ export class KitchenZone implements TestZone {
       liftedFrom: null,
     };
     const foot = this.standAt(furnish);
-    // **Das erste Netz je Sorte wird die Vorlage** (`models`) — aus ihm klont
-    // der Möbelkatalog seine Miniaturen (`miniature`).
+    // **Das erste Netz je Sorte wird die Vorlage** (`models`) — aus ihm klont,
+    // wer dasselbe Möbel noch einmal braucht (`takeFromCatalogue`).
     if (!this.models.has(piece.name)) this.models.set(piece.name, model);
     this.furniture.push(furnish);
     // **Das Wasser gehört dem Möbel und nicht der Station**: Ein Spülbecken
@@ -5455,23 +5408,14 @@ export class KitchenZone implements TestZone {
   private useDesk(furnish: Furnish, by?: UseSource): boolean {
     const world = this.world;
     if (!world) return false;
-    // **Im Konstrukt zählt die Seite nicht mehr.** Dort ist der Tisch das
-    // Einzige, was noch dasteht, und damit der einzige Weg zurück — wer ihn
-    // von hinten anfasst, will hinaus und nicht einen Tisch aufheben, der in
-    // einem weißen Raum steht.
-    if (world.inConstruct()) {
-      world.leaveConstruct();
-      return true;
-    }
     const { dx, dz } = this.towards(furnish);
-    if (pieceSide(furnish.turn, dx, dz) === 'front') return this.openCatalogue(furnish);
+    if (pieceSide(furnish.turn, dx, dz) === 'front') return this.openCatalogue();
     if (this.editing) return this.liftPiece(furnish, by);
     world.notify(`${furnish.piece.label}: von vorn bedienen, von der Seite umbauen`);
     return true;
   }
 
   private deskPrompt(furnish: Furnish): string {
-    if (this.world?.inConstruct()) return 'Zurück in die Küche';
     const { dx, dz } = this.towards(furnish);
     if (pieceSide(furnish.turn, dx, dz) === 'front') {
       return this.handsFull() ? 'Erst die Hände frei machen' : 'Möbelkatalog öffnen';
@@ -5482,99 +5426,44 @@ export class KitchenZone implements TestZone {
   }
 
   private deskGrip(furnish: Furnish): 'press' | 'grab' {
-    if (this.world?.inConstruct()) return 'press';
     const { dx, dz } = this.towards(furnish);
     if (pieceSide(furnish.turn, dx, dz) === 'front') return 'press';
     return this.editing ? 'grab' : 'press';
   }
 
   /**
-   * **Der Möbelkatalog** — das Konstrukt, in dem die Küche zur Auswahl steht.
+   * **Der Möbelkatalog** — am Rechner geht der Katalog im Menü auf
+   * (`ZoneHost.openCatalogue`), derselbe wie unter dem Reiter _Katalog_, und
+   * was man darin wählt, hat man in der Hand.
    *
-   * Die Welt verblasst, der Tisch bleibt stehen, und um die Figur herum fahren
-   * die Möbel als Miniaturen aus dem Boden (`worlds/shared/construct.ts`).
-   * Wer eines anfasst, hat es in der Hand und steht im selben Augenblick
-   * wieder in der Küche — genau dort, wo er vor dem Tisch stand, denn bewegt
-   * hat er sich nie.
+   * Bis Oktober 2026 öffnete der Rechner dafür einen eigenen weißen Raum, den
+   * Konstrukt-Raum, mit den Möbeln der Küche als Miniaturen im Ring. Gewünscht:
+   * _„dem kostrukt raum kannst du auch komplett entfernen bitte"_ — er ist weg,
+   * und es gibt einen Katalog statt zwei.
    *
    * **Mit vollen Händen geht er nicht auf**, und das ist keine Schikane: Die
    * Figur trägt genau **ein** Ding vor dem Bauch (`carryInHands`), Essen und
-   * Möbel teilen sich diesen Platz. Wer mit einem Brötchen in der Hand ein
-   * Möbel zöge, bekäme ein Möbel, das dreißig Meter neben ihm herflöge, weil
-   * es niemand hinstellt.
-   *
-   * **Gezeigt wird, was geladen ist**, und nicht, was im Katalog steht: Ohne
-   * WebGL und ohne Modelldatei gibt es keine Netze, und ein Regal aus leeren
-   * Gruppen wäre ein weißer Raum, in dem man nichts findet. Die gebauten
-   * Stücke (Bänder, Tisch, Kopierer) stehen immer darin — sie hängen an keiner
-   * Datei.
+   * Möbel teilen sich diesen Platz.
    */
-  private openCatalogue(furnish: Furnish): boolean {
+  private openCatalogue(): boolean {
     const world = this.world;
     if (!world) return false;
     if (this.handsFull()) {
       world.notify('Erst die Hände frei machen');
       return true;
     }
-    // **Der Katalog zeigt den Katalog** — jedes Stück, das in
-    // `core/kitchenFit.KITCHEN_PIECES` steht, und keine zweite Liste daneben.
-    //
-    // Vorher stand hier ein Filter auf `this.models`: gezeigt wurde nur, wovon
-    // beim Aufbauen der Küche schon eine Vorlage angefallen war. Das ging gut,
-    // solange der Schauraum jedes Stück genau einmal aufstellt (ein Test hält
-    // das fest) — aber es koppelte den Katalog an den **Aufbau** statt an den
-    // Katalog, und wer ein Möbel eintrug, ohne es irgendwo hinzustellen, fand
-    // es hier nicht wieder. Jetzt holt sich die Miniatur ihre Vorlage selbst,
-    // wenn sie fehlt, und der Raum ist ohne Zutun aktuell.
-    const items: ConstructItem[] = KITCHEN_PIECES.map((piece) => {
-      const [w, d] = piece.tiles;
-      return {
-        // **Gebaut wird erst beim Auffahren** (`ConstructItem.object`):
-        // zweiundzwanzig Miniaturen in einem Bild waren genau die Pause nach
-        // dem Druck auf den Rechner.
-        object: () => this.miniature(piece.name),
-        label: piece.label,
-        body: `${w} × ${d} Kachel${w * d === 1 ? '' : 'n'} · ${piece.height.toFixed(2)} m hoch`,
-        // **So viele Kacheln, wie es im Spiel belegt.** Der Raum stellt es auf
-        // ebenso viele, und die Miniatur wird auf diese Fläche skaliert — ein
-        // Mülleimer neben einer Ausgabetheke sieht damit aus wie ein Mülleimer
-        // neben einer Ausgabetheke.
-        tiles: { w, d },
-        pick: () => {
-          this.takeFromCatalogue(piece);
-          // `true` heißt: Der Raum geht zu. Ein Möbel in der Hand hat in einem
-          // Regal voller Möbel nichts mehr zu suchen, und hinstellen will man
-          // es ohnehin draußen.
-          return true;
-        },
-      };
-    });
-    world.enterConstruct({
-      anchor: furnish.model,
-      at: this.rig?.position ?? furnish.model.position,
-      items,
-      title: 'Möbelkatalog — greif dir eines',
-    });
+    world.openCatalogue();
     return true;
   }
 
   /**
    * **Eine Vorlage klonen, so dass man den Klon auch sieht.**
    *
-   * Der eine Handgriff, der hier dazugehört, ist `visible = true`, und er ist
-   * kein Aberglaube. Der Konstrukt-Raum blendet beim Betreten jedes oberste
-   * Kind der Weltgruppe aus (`shared/construct.ConstructRoom.hideList`, und
-   * ausgeführt wird es in `paint`, sobald die Deckkraft unten ist) — und die
-   * Vorlagen in `models` sind genau solche Kinder: Sie sind die Möbel des
-   * Schauraums, die `place` an `world.root` gehängt hat. Wer währenddessen
-   * klont, klont ein ausgeblendetes Netz, und `Object3D.clone` nimmt die
-   * Flagge mit.
-   *
-   * Beim Verlassen wird das **Original** wieder sichtbar, weil es auf der
-   * Liste `hidden` steht — der Klon nicht: Er ist erst nach dem Ausblenden
-   * entstanden und stand nie darauf. Ein Möbel, das man aus dem Katalog nahm,
-   * war deshalb hinterher weder in der Hand noch auf seiner Kachel zu sehen,
-   * obwohl es beides gab und beides funktionierte.
+   * Der eine Handgriff, der hier dazugehört, ist `visible = true`: Eine
+   * Vorlage in `models` kann gerade ausgeblendet sein (sie ist ein Möbel der
+   * Küche wie jedes andere), und `Object3D.clone` nimmt die Flagge mit. Ein
+   * Möbel, das man so nahm, wäre weder in der Hand noch auf seiner Kachel zu
+   * sehen, obwohl es beides gäbe.
    *
    * Nur die Wurzel und nicht der ganze Baum: Ausgeblendet wird der oberste
    * Knoten, und was darunter aus eigenen Gründen unsichtbar ist, soll es
@@ -5585,89 +5474,6 @@ export class KitchenZone implements TestZone {
     const model = source.clone(true);
     model.visible = true;
     return model;
-  }
-
-  /**
-   * **Eine Miniatur eines Katalogstücks** — geklont, nicht gebaut, und nur
-   * einmal.
-   *
-   * Auf ein Maß gerechnet und nicht auf einen festen Faktor: Zwischen einem
-   * Mülleimer (45 cm) und einer Ausgabetheke über zwei Kacheln liegt der Faktor
-   * vier, und mit einem festen Maßstab wäre entweder die Theke zu groß für ihre
-   * Kachel oder der Eimer ein Krümel. Der Ursprung wandert dabei nach **unten
-   * in die Mitte**, weil der Konstrukt-Raum seine Stücke auf eine Kachelmitte
-   * stellt und sie nicht an ihrem Modellursprung aufhängt.
-   *
-   * **Gebaut wird beim ersten Mal, danach kommt dieselbe Miniatur zurück**
-   * (`minis`) — das kostet nichts und spart die Pause vor dem ersten Regal.
-   * Gemerkt wird aber nur, was fertig geworden ist: Ein Möbel, dessen Datei
-   * beim ersten Öffnen noch lud, soll beim zweiten doch noch im Katalog
-   * stehen und nicht an einem leeren Eintrag hängenbleiben.
-   */
-  private miniature(name: string): THREE.Object3D {
-    const ready = this.minis.get(name);
-    if (ready) return ready;
-    const holder = new THREE.Group();
-    holder.name = `kitchen-mini-${name}`;
-    this.minis.set(name, holder);
-
-    const piece = kitchenPiece(name);
-    if (!piece) return holder;
-    const template = this.models.get(name) ?? (piece.built ? this.buildPiece(piece) : null);
-    if (template) {
-      this.fitMini(holder, template);
-      return holder;
-    }
-
-    // **Keine Vorlage? Dann holt sie sich der Katalog selbst.** Bisher fiel ein
-    // Stück, das noch nirgends stand, ersatzlos aus dem Katalog — und wer ein
-    // Möbel eintrug, ohne es im Schauraum aufzustellen, suchte hier vergebens.
-    // Die Gruppe steht schon im Regal; das Netz wandert hinein, sobald es da
-    // ist. Wer in der Zwischenzeit auf die leere Kachel drückt, bekommt das
-    // Möbel trotzdem (`takeFromCatalogue` lädt denselben Weg).
-    if (canLoadModels()) {
-      void import('../../../core/kitchenModel').then(async (module) => {
-        if (this.gone) return;
-        const model = await module.kitchenModel(name);
-        if (!model || this.gone) return;
-        if (!this.models.has(name)) this.models.set(name, model);
-        this.fitMini(holder, model);
-      });
-    }
-    return holder;
-  }
-
-  /**
-   * **Die Miniatur in ihre Gruppe stellen** — geschrumpft, aber nicht
-   * eingeebnet.
-   *
-   * **Ein Maßstab für alle**, und das ist die Änderung: Vorher wurde jedes
-   * Stück auf 0,8 m **längste Kante** normiert. Nebeneinander sahen ein
-   * Mülleimer und eine zwei Kacheln breite Ausgabetheke damit gleich groß aus
-   * — die Form stimmte, die Größe log, und die Kachelzahl kam im Bild gar
-   * nicht vor. Jetzt schrumpft jedes Stück um **denselben Faktor**: Was im
-   * Spiel doppelt so breit ist, ist es auch im Regal, und weil der Raum ihm
-   * dort auch zwei Kacheln gibt (`ConstructItem.tiles`), passt es genau
-   * hinein.
-   *
-   * Der Ursprung kommt dabei unten in die Mitte — die Zusage, auf der der
-   * Konstrukt-Raum aufsetzt (`shared/construct.raise`).
-   */
-  private fitMini(holder: THREE.Object3D, template: THREE.Object3D): void {
-    const model = this.cloneModel(template);
-    if (!model) return;
-    model.position.set(0, 0, 0);
-    model.rotation.set(0, 0, 0);
-    model.scale.set(1, 1, 1);
-    const box = new THREE.Box3().setFromObject(model);
-    if (box.isEmpty()) return;
-    model.scale.setScalar(MINI_SIZE);
-    model.position.set(
-      (-(box.min.x + box.max.x) / 2) * MINI_SIZE,
-      -box.min.y * MINI_SIZE,
-      (-(box.min.z + box.max.z) / 2) * MINI_SIZE,
-    );
-    holder.add(model);
   }
 
   /**
@@ -5731,7 +5537,7 @@ export class KitchenZone implements TestZone {
    *
    * Also greift die Küche zu, wenn die Adresse eines ihrer Möbel meint
    * (`core/kitchenShelf.ts`) — und dann entsteht nicht das Fass, sondern
-   * genau das Stück, das auch im Konstrukt-Raum im Regal stünde, mitsamt
+   * genau das Stück der Küche, mitsamt
    * Station, Ablage und Uhr (`takeFromCatalogue`).
    *
    * **Nur, wer in der Küche steht.** Eine Vorratskiste auf der Wiese hätte
@@ -5773,9 +5579,8 @@ export class KitchenZone implements TestZone {
     // machte daraus ein Fass neben dem getragenen Herd.
     this.scrapFresh();
     if (this.lifted || this.handsFull()) return false;
-    // **Geklont wird über `cloneModel`** und nicht über `clone(true)`: Der
-    // Griff in den Katalog geschieht im Konstrukt-Raum, und dort ist die
-    // Vorlage gerade ausgeblendet. Das gebaute Stück braucht das nicht — es
+    // **Geklont wird über `cloneModel`** und nicht über `clone(true)`: Die
+    // Vorlage kann gerade ausgeblendet sein. Das gebaute Stück braucht das nicht — es
     // entsteht als frische Gruppe und hat mit der Welt nie etwas zu tun gehabt.
     const model = piece.built
       ? this.buildPiece(piece)

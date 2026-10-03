@@ -148,7 +148,8 @@ Gitterwelt eine Tür wollte, baute sie noch einmal.
 Seit P3 gibt es die zweite Sorte Ding auf der Kachel: den **Einbau**
 (`grid/fixtures/`). Dieselbe Kachel, dieselbe Blickrichtung wie ein Baustein,
 dazu eine **Art** (`sign`, später `gate`, `emitter`, `door`, `button`, `lever`,
-`plate`, `lamp` und `wardrobe`), eine **Kennung** und ein paar
+`plate` und `lamp`; den Kleiderschrank `wardrobe` gab es bis Oktober 2026),
+eine **Kennung** und ein paar
 **Eigenschaften** (`target`, `hold`, `text`, …). Er steht im Grundriss, im Weltformat und in der Palette des
 Editors — und `GridWorld` kennt dabei keine einzige Art beim Namen, sondern nur
 die Registry.
@@ -168,16 +169,15 @@ Zweck:
   hineinschieben. Wer beides in einem machte, baute die Tür sechzigmal in der
   Sekunde neu.
 
-**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet **sechs** Sachen,
+**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet **fünf** Sachen,
 und `GridWorld` verteilt sie: `trigger` an eine Kennung, `goto` an den
 Weltkontext (genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect`
 an eine Wolke an seiner Kachel (`effects/Burst.ts` mit den Zahlen aus
 `effects/effectKinds.ts` — Tür-Staub beim Aufgehen, Funken, wenn eine Kugel
 einen Knopf trifft, Rauch aus der Düse), `read` an eine **Menüseite** (siehe
-_Das Schild ist ein Aushang_) — und `wardrobe` an `ctx.openWardrobe()`.
-Das letzte ist das einzige **ohne Inhalt**, und das ist Absicht: Der
-Kleiderschrank weiß nicht, wer davorsteht und was daraus wird, er weiß nur,
-dass jemand ihn aufgemacht hat (siehe _Der Kleiderschrank und die Umkleide_).
+_Das Schild ist ein Aushang_). Bis Oktober 2026 kam als sechste `wardrobe`
+dazu, der Kleiderschrank; seine Nachfolgerin, die Garderobe, ist kein Einbau,
+sondern ein Spielelement ([Spielelemente](spielelemente.md#die-garderobe-a-öffnet-aussehen)).
 Das ist der Unterschied
 zwischen einem Knopf, den ein Test in
 einer Millisekunde prüft, und einem, der eine Tür in der Hand hält. Und
@@ -365,9 +365,8 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   Knopf, um den ein NPC einen Bogen macht und vor den man sich nicht mehr
   stellen kann. Sie rücken dafür an die **Kante** ihrer Kachel statt in die
   Mitte — in der Mitte stünde die Figur in ihnen, sobald sie drückt. Der
-  **Kleiderschrank** ist die Ausnahme: Er ist ein Möbel und hält auf, und
-  deshalb steht sein Korpus in `view.solids` (siehe _Der Kleiderschrank und
-  die Umkleide_).
+  **Kleiderschrank** war bis Oktober 2026 die Ausnahme: ein Möbel, das
+  aufhält, mit seinem Korpus in `view.solids`. Möbel sind heute Spielelemente.
 - **Die Schiebetür des Gitters (`slidingDoor.ts`) bleibt, wie sie ist.** Sie
   schaltet ein Blatt zwischen auf und zu und baut es dabei neu; eine Tür, die
   _fährt_, braucht ein Blatt, das jedes Bild woanders steht. Beides in einem
@@ -747,12 +746,12 @@ Beutel die ganze Welt in jede dieser Briefmarken.
 
 Die Flächen werden **in der Szene gesucht** und tragen sich nicht in eine Liste
 ein: Spiegel stecken in Werkzeugen, in Beutel-Objekten, in Miniaturen davon und
-seit dem **Kleiderschrank** auch in einem Einbau auf dem Gitter, und die wandern
+bis Oktober 2026 auch in einem Einbau auf dem Gitter (dem Kleiderschrank), und die wandern
 zwischen Hand, Gürtel, Regal, Wand und Papierkorb. Eine Liste, die davon nichts
 mitbekommt, zeigt irgendwann auf etwas, das längst weg ist.
 
 **Genau deshalb kostet ein Spiegel im Grundriss keine Zeile Vertrag.** Der
-Kleiderschrank (`grid/fixtures/wardrobe.ts`) hängt eine `MirrorSurface` in die
+Kleiderschrank (`grid/fixtures/wardrobe.ts`, bis Oktober 2026) hängte eine `MirrorSurface` in die
 Gruppe der Welt, und mehr tut er nicht: Der Renderer steht einmal in `App`,
 läuft über die ganze Szene und findet sie. Ein Haken für Spiegel in
 `FixtureBuild` hätte jeder Art Renderer, Szene und Kamera in die Hand gegeben,

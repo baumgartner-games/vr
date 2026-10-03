@@ -298,8 +298,8 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
     // **Ein Hut aus dem Regal** kommt nach, umgerechnet vom KayKit-Kopf auf
     // diesen (`fitModelHat`). Auf einer Figur aus dem Regal nimmt ihn
     // `AvatarBody` gar nicht von hier, sondern hängt ihn direkt an ihren
-    // Kopfknochen — hier landet er nur auf dem gebauten Koch und im Regal des
-    // Konstrukts. Bis dahin, und ohne die gekauften Pakete für immer, ist die
+    // Kopfknochen — hier landet er nur auf dem gebauten Koch. Bis dahin, und
+    // ohne die gekauften Pakete für immer, ist die
     // Gruppe leer.
     if (canLoadModels()) void fitModelHat(group, kind);
     return group;

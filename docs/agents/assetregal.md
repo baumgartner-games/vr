@@ -564,9 +564,8 @@ Von oben nach unten, und alles in **einem** scrollenden Kasten:
    Knopf dieser Seite, der etwas **tut** statt etwas zu zeigen. Er macht aus
    dem Ding, das man gerade vor sich hat, die eigene Spielfigur
    (`saveAppearance({ figure })`, siehe [Spielfigur](spielfigur.md),
-   _Und eine vierte Zeile: die Figur_) — im Spiegel, im Kleiderschrank und für
-   alle im Raum. Er steht hier und nicht nur im Kleiderschrank, weil der dort
-   nur zwölf Ständer hat: Über diesen Weg ist **jede** der rund 85 Figuren der
+   _Und eine vierte Zeile: die Figur_) — im Spiegel und für alle im Raum. Über
+   diesen Weg ist **jede** der rund 85 Figuren der
    Sammlung wählbar, und man sieht sie vorher groß, mit Gitterboden, Hülle und
    der Bewegung, die man sich ausgesucht hat. Gezeigt wird er nach derselben
    Auskunft, nach der auch das Regal einsortiert (die Schublade _Figuren_,
@@ -1008,8 +1007,7 @@ auf (`PortalWorld.screenCatch`).
 Ein Modell aus dem Regal ist ein **Möbel**: ein Fass, ein Zaun, eine Truhe,
 eine Wand. Die Möbel dieses Spiels stehen auf Kacheln und schauen in eine der
 vier Himmelsrichtungen — die Küche tut es (`test/zones/kitchenPlan.Spot`), der
-Editor tut es (`grid/gridTool.ts`), und der Konstrukt-Raum stellt seine Auswahl
-aus demselben Grund in Vierteldrehungen hin. Wer aus dem Regal eine Reihe
+Editor tut es (`grid/gridTool.ts`). Wer aus dem Regal eine Reihe
 Fässer hinstellt, will genau das: eine **Reihe** und keine Sammlung schräg
 stehender Fässer, die sich um ein paar Zentimeter verfehlen.
 
@@ -1195,8 +1193,8 @@ Vorratskiste mit Brötchen hinstelle oder Herd, Waschbecken etc."
 
 `core/kitchenShelf.ts` schließt die Lücke: dreizehn Zeilen, links eine
 Adresse, rechts ein Möbel des Küchenkatalogs. Steht die Figur **in der Küche**
-und nimmt eine davon, entsteht statt des Fasses das Stück, das auch im
-Konstrukt-Raum im Regal stünde — mitsamt Station, Ablage und Uhr
+und nimmt eine davon, entsteht statt des Fasses das Stück der Küche —
+mitsamt Station, Ablage und Uhr
 (`KitchenZone.takeShelfPiece` → `takeFromCatalogue`). Es liegt dann in den
 Händen wie jedes andere Möbel im Umbau und wird mit `A` hingestellt.
 

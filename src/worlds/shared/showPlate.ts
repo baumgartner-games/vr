@@ -5,9 +5,9 @@ import { TextPlane } from '../../ui/TextPlane';
  * **Das Schild vor einem Schaustück** — Name und Maß, am Boden an der
  * Vorderkante seiner Kachel.
  *
- * Eine Datei für zwei Schauräume: den der Küche (`test/zones/kitchen.ts`) und
- * den Möbelkatalog im Konstrukt-Raum (`shared/construct.ts`). Ein dritter kam
- * aus der zweiten Küche und ist mit ihr gegangen. Zweimal dieselben fünf
+ * Eine Datei für die Schauräume: heute der der Küche (`test/zones/kitchen.ts`);
+ * der Möbelkatalog im Konstrukt-Raum und ein dritter aus der zweiten Küche
+ * sind gegangen. Zweimal dieselben fünf
  * Zeilen wären zweimal die Gelegenheit, ein Schild anders zu setzen als seine
  * Nachbarn — und man sieht das erst, wenn man mit der Brille davorsteht.
  *

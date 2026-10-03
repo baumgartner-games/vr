@@ -109,8 +109,7 @@ getrennt von Darstellung.
 Zone, die **zweite Küche** (`worlds/test/zones/diner.ts`, `dinerPlan.ts`, ein
 Restaurant über der ersten im Norden); sie ist entfernt. Gebraucht wird der
 Katalog trotzdem jeden Tag: Aus ihm kommen die **Zutaten** der Küche —
-Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`) —,
-und durchblättern lässt er sich im Konstrukt-Raum (`shared/construct.ts`). Ein
+Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`). Ein
 Baukasten braucht keinen eigenen Raum, sobald das Spiel ihn benutzt.
 
 ## Der dritte Katalog: die Wundertüte
@@ -1945,8 +1944,8 @@ Und das sind die Regeln, die darin stehen:
   größer; ab z = 4 geht man geradeaus hinüber. Hinter ihr lag bis September
   2026 der **Schauraum**, und jedes neue Katalogstück ließ die Zone um eine
   weitere Spalte wachsen (`layout.KITCHEN` war zuletzt 37 breit). Den gibt es
-  nicht mehr — der Möbelkatalog steht am Rechner (_Bauen_, _Der
-  Konstrukt-Raum_) —, und die Zone ist seitdem **20** Kacheln breit: zwölf
+  nicht mehr — der Möbelkatalog geht am Rechner im Menü auf —, und die Zone
+  ist seitdem **20** Kacheln breit: zwölf
   Küche, acht Halle. Darin steht
   eine **Burgerstraße**, die vorn vier Vorratskisten hat und hinten einen
   **Burger Deluxe** (`kitchenRecipes.RECIPES`: Brötchen, gebratenes Patty,
@@ -2284,50 +2283,17 @@ Und das sind die Regeln, die darin stehen:
     Wimpernschlag lang ohne Rechner da — er wird gebaut, bevor irgendeine Datei
     angefragt ist, und bekommt seinen Anker sofort und sein Modell, sobald es
     ankommt (`DeskKit.fillComputer`).
-- **Der Möbelkatalog ist das Konstrukt hinter dem Bildschirm** (`openCatalogue`,
-  siehe _Der Konstrukt-Raum_). Die Küche verblasst, der Tisch bleibt stehen, und
-  ringsum fahren alle Katalogstücke als **Miniaturen** aus dem Boden. Wer eines
-  anfasst, hat es in der Hand und steht im selben Augenblick wieder in der Küche
-  — an genau der Stelle, an der er vor dem Tisch stand, denn bewegt hat er sich
-  nie. Im Konstrukt zählt die Seite dann nicht mehr: Dort ist der Tisch das
-  Einzige, was noch dasteht, und damit der einzige Weg zurück.
+- **Der Möbelkatalog geht hinter dem Bildschirm auf** (`openCatalogue`): Vorn
+  am Rechner schlägt `A` den Katalog im Menü auf (`ZoneHost.openCatalogue`),
+  denselben wie unter dem Reiter _Katalog_. Bis Oktober 2026 war es ein eigener
+  weißer Raum mit den Küchenmöbeln als Miniaturen im Ring (der Konstrukt-Raum,
+  siehe _Bauen_), samt Miniaturen-Speicher (`miniature`, `minis`, `MINI_SIZE`);
+  der ist gelöscht.
   **Mit vollen Händen geht er nicht auf.** Die Figur trägt genau **ein** Ding
-  vor dem Bauch (`carryInHands`), Essen und Möbel teilen sich diesen Platz. Wer
-  mit einem Brötchen in der Hand ein Möbel zöge, bekäme ein Möbel, das dreißig
-  Meter neben ihm herflöge, weil es niemand hinstellt.
-  - **Die Miniaturen werden geklont, nicht gebaut** (`miniature`). Von jeder
-    Sorte merkt sich die Zone das erste Netz, das ohnehin gebaut wird — und weil
-    ein Katalogstück, das im Aufbau fehlt, sich seine Vorlage selbst holt
-    (siehe _Bauen_, „Und der Katalog zeigt den Katalog"), ist diese Sammlung
-    vollständig, ohne dass jemand eine zweite Liste führt. Geklont wird mit
-    `Object3D.clone()`, Formen und Materialien bleiben also **geteilt**: eine
-    Miniatur kostet einen Knoten und keine Geometrie. Ein zweiter Ladevorgang
-    nur für Miniaturen wäre dieselbe Datei ein zweites Mal — 32 MB für ein
-    Regal. Geklont wird **einmal** und danach aufgehoben (`minis`): Achtzehn
-    Klone samt `Box3` je Öffnen waren die Hälfte der Pause vor dem ersten Regal.
-  - **Ein Klon eines ausgeblendeten Netzes ist ausgeblendet** (`cloneModel`).
-    Der Konstrukt-Raum setzt beim Betreten jedes oberste Kind der Weltgruppe auf
-    `visible = false` — und die Vorlagen in `models` sind genau solche Kinder.
-    Beim Verlassen wird das **Original** wieder sichtbar, weil es auf der Liste
-    `hidden` steht; ein Klon, der erst danach entstand, steht dort nie drauf und
-    bleibt für immer unsichtbar. Ein Möbel aus dem Katalog war deshalb weder in
-    der Hand noch auf seiner Kachel zu sehen, obwohl es beides gab und beides
-    funktionierte. Jeder Klon bekommt seine Sichtbarkeit jetzt an **einer**
-    Stelle zurück, und zwar nur auf der Wurzel: Was darunter aus eigenen Gründen
-    unsichtbar ist, soll es bleiben.
-  - **Auf 80 cm gerechnet, nicht auf einen festen Faktor** (`MINI_SIZE`, längste
-    Kante). Jedes Stück steht allein auf einer Kachel, und eine Kachel ist einen
-    Meter breit (`shared/construct.TILE_SIZE`): 80 cm lassen zu jeder Seite eine
-    Handbreit Luft zur Fuge, und der Nachbar steht ohnehin einen ganzen Meter
-    weiter. Die Zahl darf sich damit danach richten, was man **sieht**, statt
-    danach, was noch dazwischenpasst — und sehen muss man es aus drei, vier
-    Metern, denn so weit steht der Ring vom Anker weg. Bis September 2026 waren
-    es 28 cm, gerechnet auf den Abstand zweier Bretter im alten Bogen. Und
-    zwischen einem Mülleimer (45 cm) und einer Ausgabetheke über zwei Kacheln
-    liegt der Faktor vier: Mit einem festen Maßstab wäre entweder die Theke zu
-    groß für ihre Kachel oder der Eimer ein Krümel. Der Ursprung wandert dabei
-    nach unten in die Mitte, weil der Konstrukt-Raum seine Stücke auf eine
-    Kachelmitte stellt und nicht an ihrem Modellursprung aufhängt.
+  vor dem Bauch (`carryInHands`), Essen und Möbel teilen sich diesen Platz.
+  - **Ein Klon eines ausgeblendeten Netzes ist ausgeblendet** (`cloneModel`):
+    Jeder Klon einer Vorlage aus `models` bekommt seine Sichtbarkeit an **einer**
+    Stelle zurück, und zwar nur auf der Wurzel.
   - **Ein Stück aus dem Katalog entsteht neu und bekommt trotzdem eine
     Heimatkachel** (`takeFromCatalogue`, `freeTile`). Das ist kein Beiwerk:
     `B`/`Y` stellt jedes getragene Möbel heim, und eines ohne Zuhause landete
@@ -2482,11 +2448,7 @@ Und das sind die Regeln, die darin stehen:
   Mit einem Möbel in der Hand hört der **Kopierer** weiter zu (auf ihn legt man
   es ja), der **Rechner** nicht — dort holt man eines, und zwei auf einmal trägt
   niemand; abgemeldet gewinnt stattdessen der Bauplatz vor den Füßen, und das
-  ist auch das, was man dann will. **Im Konstrukt schweigt der Kopierer von
-  selbst**, ohne dass ihn jemand abmeldet: Die Auswahl übergeht, was unsichtbar
-  ist (`PortalWorld.collectUsables`), und der Raum blendet alles aus außer dem
-  Anker. Genau deshalb bleibt umgekehrt der **Rechner** ansprechbar — er ist der
-  Anker und damit der Weg zurück.
+  ist auch das, was man dann will.
 - **Nicht schießbar** (`addUsable`, `shot: 0`): Eine Kugel, die den Topf vom
   Herd holt, ist ein Scherz und keine Regel.
 - **Was in Jest steht und was nicht.** Die Regeln, die Uhren, die Rezepte, der

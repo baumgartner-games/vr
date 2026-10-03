@@ -255,8 +255,9 @@ export class PhysicsLocomotion implements Locomotion {
   phaseMask = 0;
 
   /**
-   * **Durch alles hindurch, ohne Schwerkraft** — der Konstrukt-Raum, und sonst
-   * niemand (`worlds/shared/construct.ts`, `GridWorld.syncConstructBody`).
+   * **Durch alles hindurch, ohne Schwerkraft** — der Kran
+   * (`PortalWorld.updateCraneFlight`). Entstanden ist es für den Konstrukt-Raum
+   * (bis Oktober 2026), daher die Begründung darunter.
    *
    * Der weiße Raum blendet die Welt aus, statt den Spieler wegzuschicken. Die
    * **Kollisionskörper** dieser Welt bleiben dabei aber stehen, und wer sich in
@@ -418,7 +419,7 @@ export class PhysicsLocomotion implements Locomotion {
 
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
     if (dt <= 0 || this.disposed) return;
-    // **Im Konstrukt hört die Welt hier auf** (`ghost`). Vor allem anderen,
+    // **Ohne Körper hört die Welt hier auf** (`ghost`). Vor allem anderen,
     // damit von der Welt wirklich nichts mehr durchschlägt: keine Kapsel, die
     // nachgeführt wird, kein Boden, der gesucht wird, kein Beugen, das
     // begrenzt wird.

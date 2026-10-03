@@ -368,7 +368,7 @@ export function partRegion(name: string): PartRegion {
  * **Der KayKit-Kopf im Raum seines Knochens**, nachgemessen an Ritter, Space
  * Ranger, Clown und Mannequin: Er steht über dem Knochen, seine Mitte gut
  * einen halben Meter darüber, seine halbe Breite um 0,54 (Einheiten der
- * Datei). Die gebaute Kochmütze und das Regal im Konstrukt brauchen das, um
+ * Datei). Die gebaute Kochmütze braucht das, um
  * ein Stück vom KayKit-Kopf auf einen anderen Kopf umzurechnen
  * (`headgear.ts`); auf einer Figur aus dem Regal hängt es einfach am Knochen.
  */

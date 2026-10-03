@@ -1,4 +1,5 @@
 import type { FurnitureFolder, GameElement } from './elementCatalog';
+import { COAT_RACK } from './coatRack';
 
 /**
  * **Möbel im Katalog** — _Furniture Bits_ als Spielelemente. Gewünscht
@@ -261,6 +262,8 @@ export const FURNITURE_BITS_ELEMENTS: readonly GameElement[] = [
   ), // 1,50 × 0,05 × 1,00
   rug('furniture-rug-oval-a', 'Ovaler Teppich A', 'rug_oval_A', [2, 1]), // 1,50 × 0,05 × 1,00
   rug('furniture-rug-oval-b', 'Ovaler Teppich B', 'rug_oval_B', [2, 1]), // 1,50 × 0,05 × 1,00
+  // Aus einem Pfosten und den Hüten der Figuren (`coatRack.ts`): `A` öffnet _Aussehen_.
+  COAT_RACK,
 ];
 
 /** Die Ids in der Reihenfolge des Katalogs. */
@@ -303,6 +306,7 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-bed-double-b',
   ],
   cabinets: [
+    'coat-rack',
     'furniture-cabinet-small',
     'furniture-cabinet-medium',
     'furniture-cabinet-small-decorated',
