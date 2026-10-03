@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { canLoadModels } from './chefFit';
 import { KAYKIT_HEAD, MODEL_HATS, type ModelHatKind } from './figureParts';
 import { LAYER_EYE } from './viewLayers';
+import { graphics, onGraphicsChange, type GraphicsSettings } from './graphicsSettings';
+import { breathFog } from './visorBreath';
+import { visorFog, type VisorFog } from './visorFog';
 
 /**
  * **Der Helm um den eigenen Kopf** — für den Spieler in der Brille, und nur
@@ -28,6 +31,11 @@ import { LAYER_EYE } from './viewLayers';
  * In der Brille und am Schirm in der Ansicht _Aus den Augen_ (`App`) —
  * gewünscht, _„dann kann ich es auch am pc testen wie es dort aussieht"_. Von
  * oben schaut eine andere Kamera, und die zeichnet die Ebene nicht.
+ *
+ * **Und das Visier beschlägt**, wenn man es will (_Grafik → Visier / Atem_,
+ * `graphicsSettings.visorBreath`): Auf jedem Glas des Helms liegt eine zweite
+ * Haut (`core/visorFog.ts`), wie dicht, rechnet `core/visorBreath.ts` im Takt
+ * eines ruhigen Atems.
  */
 
 /** Wie breit der Helm um den echten Kopf ist, in Metern. */
@@ -41,22 +49,35 @@ export class SelfHelmet {
   private kind: ModelHatKind | null = null;
   private camera: THREE.Camera | null = null;
   private era = 0;
+  /** Der Beschlag je Visierglas — leer, solange kein Helm hängt. */
+  private fogs: VisorFog[] = [];
+  /** Die Atemuhr, in Sekunden. */
+  private time = 0;
+  /** Die Einstellung, gemerkt statt je Bild aus dem Speicher gelesen. */
+  private settings: GraphicsSettings = graphics();
+  private readonly stopGraphics = onGraphicsChange(() => (this.settings = graphics()));
 
   /**
    * **Je Bild**: `kind` ist der Hut, um den es geht, oder `null` — dann ist
    * nichts an der Kamera.
    */
-  update(camera: THREE.Camera, kind: ModelHatKind | null): void {
+  update(camera: THREE.Camera, kind: ModelHatKind | null, dt = 0): void {
     if (kind !== this.kind || camera !== this.camera) {
       this.drop();
       this.kind = kind;
       this.camera = camera;
       if (kind) this.fetch(camera, kind);
     }
+    if (this.fogs.length === 0) return;
+    if (Number.isFinite(dt) && dt > 0) this.time += dt;
+    const { visorBreath, visorBreathStyle, visorBreathRender } = this.settings;
+    const fog = breathFog(visorBreath, this.time);
+    for (const one of this.fogs) one.set(fog, visorBreathStyle, visorBreathRender);
   }
 
   dispose(): void {
     this.drop();
+    this.stopGraphics();
     this.kind = null;
     this.camera = null;
   }
@@ -71,6 +92,7 @@ export class SelfHelmet {
         this.pending = false;
         if (!piece || era !== this.era) return;
         const helmet = fitAroundEye(piece);
+        this.fogs = fogVisors(helmet);
         camera.layers.enable(LAYER_EYE);
         camera.add(helmet);
         this.helmet = helmet;
@@ -80,6 +102,8 @@ export class SelfHelmet {
   private drop(): void {
     this.era++;
     this.pending = false;
+    for (const fog of this.fogs) fog.dispose();
+    this.fogs = [];
     const helmet = this.helmet;
     this.helmet = null;
     if (!helmet) return;
@@ -129,4 +153,30 @@ export function fitAroundEye(piece: THREE.Group): THREE.Group {
     mesh.material = Array.isArray(mesh.material) ? own : own[0]!;
   });
   return holder;
+}
+
+/**
+ * **Auf jedes Glas eine Haut für den Beschlag** (`core/visorFog.ts`). Glas ist,
+ * was durchsichtig ist — beim Space Ranger genau das Visier. Die Haut hängt
+ * als Kind am Glas, teilt seine Geometrie und liegt damit genau darauf.
+ */
+export function fogVisors(helmet: THREE.Object3D): VisorFog[] {
+  const glass: THREE.Mesh[] = [];
+  helmet.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    if (materials.some((material) => material.transparent)) glass.push(mesh);
+  });
+  return glass.map((mesh) => {
+    const fog = visorFog();
+    fog.fit(mesh.geometry);
+    const skin = new THREE.Mesh(mesh.geometry, fog.material);
+    skin.name = 'visor-fog';
+    skin.layers.set(LAYER_EYE);
+    skin.frustumCulled = false;
+    skin.renderOrder = mesh.renderOrder + 1;
+    mesh.add(skin);
+    return fog;
+  });
 }
