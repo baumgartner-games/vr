@@ -306,7 +306,6 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-bed-double-b',
   ],
   cabinets: [
-    'coat-rack',
     'furniture-cabinet-small',
     'furniture-cabinet-medium',
     'furniture-cabinet-small-decorated',
@@ -353,7 +352,10 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
 export const FURNITURE_BITS_FOLDER: FurnitureFolder = {
   id: 'furniture',
   label: 'Möbel',
-  elements: [],
+  // Die Garderobe steht direkt in _Möbel_, vor den Ordnern, und nicht unter
+  // _Schränke_ — gewünscht: _„die garderobe raus aus schränke aber in
+  // ‚Möbel'"_.
+  elements: ['coat-rack'],
   cover: { element: 'furniture-couch-pillows' },
   folders: [
     {
