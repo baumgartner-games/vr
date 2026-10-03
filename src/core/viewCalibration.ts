@@ -141,7 +141,8 @@ export function viewCalibration(): THREE.Group {
   group.traverse((object) => {
     object.layers.set(LAYER_EYE);
     object.frustumCulled = false;
-    object.renderOrder = ORDER;
+    // Nur an den Netzen — auf einer Gruppe läge sonst alles darin über dem Menü.
+    if (!(object as THREE.Group).isGroup) object.renderOrder = ORDER;
   });
   return holder;
 }
@@ -263,7 +264,7 @@ function sphereStrip(): THREE.BufferGeometry {
 }
 
 /** Ein schmales Band entlang der Punkte, zur Mitte der Kugel gedreht. */
-function band(points: readonly THREE.Vector3[], color: number): THREE.Mesh {
+export function band(points: readonly THREE.Vector3[], color: number): THREE.Mesh {
   const positions: number[] = [];
   const index: number[] = [];
   const tangent = new THREE.Vector3();
@@ -297,27 +298,27 @@ function band(points: readonly THREE.Vector3[], color: number): THREE.Mesh {
 }
 
 /** Ein Schild mit der Gradzahl, als Sprite (immer zum Auge gedreht). */
-function label(text: string, color: number, at: THREE.Vector3): THREE.Object3D {
+export function label(text: string, color: number, at: THREE.Vector3, wide = 1): THREE.Object3D {
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ depthTest: false, depthWrite: false, toneMapped: false }),
   );
   sprite.position.copy(at);
-  sprite.scale.set(LABEL_H * 2, LABEL_H, 1);
+  sprite.scale.set(LABEL_H * 2 * wide, LABEL_H, 1);
   if (typeof document === 'undefined') return sprite;
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
+  canvas.width = 256 * wide;
   canvas.height = 128;
   const g = canvas.getContext('2d');
   if (!g) return sprite;
   g.fillStyle = 'rgba(6, 10, 20, 0.7)';
   g.beginPath();
-  g.roundRect(8, 16, 240, 96, 24);
+  g.roundRect(8, 16, canvas.width - 16, 96, 24);
   g.fill();
   g.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
   g.font = '700 64px system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(text, 128, 66);
+  g.fillText(text, canvas.width / 2, 66);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   sprite.material.map = texture;

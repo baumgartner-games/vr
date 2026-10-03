@@ -90,6 +90,7 @@ import { clearInputConfig, inputConfig, saveInputConfig } from './inputStore';
 import type { InputPress } from './FlatControls';
 import { GraphicsQuality } from './GraphicsQuality';
 import { QUEST_FRUSTUM, eyeBox, saveVrView, vrViewOn } from './vrView';
+import { PovCalibrator } from './PovCalibrator';
 import { FrameStats } from './FrameStats';
 import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
@@ -231,6 +232,9 @@ async function requestSession(xr: XRSystem, options: XRSessionInit): Promise<XRS
   return xr.requestSession('immersive-vr', options);
 }
 
+/** Die Seite hinter _VR-POV kalibrieren_ (`App.povMenu`). */
+const POV_PAGE = 'gfx:pov-page';
+
 export class App {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -288,6 +292,10 @@ export class App {
    * wird wie aus den Augen. Gemerkt im Browser.
    */
   private vrView = vrViewOn();
+  /** **VR-POV kalibrieren** (`core/PovCalibrator.ts`, _Grafik_). */
+  private readonly povCalibrator = new PovCalibrator();
+  /** Ob unter _VR-POV kalibrieren_ der Code schon gezeigt wird. */
+  private povShowCode = false;
   /** Das Sichtfeld aus den Augen ohne VR-Ansicht. */
   private readonly screenFov: number;
   /** Die Startseite — solange sie steht, schweigt die Tastenhilfe. */
@@ -1405,6 +1413,7 @@ export class App {
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
     this.selfHelmet.dispose();
+    this.povCalibrator.dispose();
     this.keys.dispose();
     this.flat.dispose();
     this.topDownCamera.dispose();
@@ -2756,6 +2765,7 @@ export class App {
         },
         this.animationMenu(accent),
         this.visorMenu(accent),
+        ...this.povMenu(accent),
         {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
@@ -2892,6 +2902,112 @@ export class App {
    * `core/visorFog.ts`); zu sehen nur mit
    * _Helm des Space Rangers · Immersiv_ aus den eigenen Augen.
    */
+  /**
+   * **VR-POV kalibrieren** (`core/PovCalibrator.ts`) — gewünscht: _„im menü
+   * grafik (vr pov kalibrieren) […] beim anwählen will ich dann starten"_.
+   * Die Zeile fängt sofort an und stellt das Menü auf die Seite dahinter
+   * (`POV_PAGE`, ohne Kachel): Wer ☰ drückt, landet dort — _„in der mitte
+   * beim menü auf schließen oder auf ‚konfig code anzeigen'"_.
+   */
+  private povMenu(accent: number): MenuEntry[] {
+    const active = this.povCalibrator.active;
+    const code = this.povCalibrator.code;
+    return [
+      {
+        id: 'gfx:pov',
+        label: 'VR-POV kalibrieren',
+        sub: active
+          ? 'Läuft · ☰ für Code und Schließen'
+          : 'Den Ausschnitt einstellen: ein Eckpunkt, gespiegelt zum Rechteck',
+        caption: 'Linker Stick verschiebt, rechter wählt, A fügt hinzu, B löscht',
+        icon: 'settings',
+        accent,
+        run: () => this.startPov(),
+      },
+      {
+        id: POV_PAGE,
+        label: 'VR-POV kalibrieren',
+        sub: active ? 'Läuft' : 'Aus',
+        icon: 'settings',
+        accent,
+        hidden: true,
+        children: [
+          active
+            ? {
+                id: 'gfx:pov-go',
+                label: 'Weiter kalibrieren',
+                sub: 'Menü zu, die Sticks gehören wieder den Punkten',
+                icon: 'settings',
+                accent,
+                run: () => this.gameMenu.toggle(false),
+              }
+            : {
+                id: 'gfx:pov-start',
+                label: 'Kalibrieren starten',
+                sub: 'Mit der zuletzt eingestellten Form',
+                icon: 'settings',
+                accent,
+                run: () => this.startPov(),
+              },
+          {
+            id: 'gfx:pov-code',
+            label: this.povShowCode ? `Code: ${code}` : 'Konfig-Code anzeigen',
+            sub: this.povShowCode
+              ? 'Zum Abtippen und Weitergeben · lässt sich zurückrechnen'
+              : 'Ein kurzer Code für die eingestellte Form',
+            icon: 'settings',
+            accent: 0xffe14a,
+            run: () => {
+              this.povShowCode = true;
+              this.menuDirty = true;
+              this.notify(`VR-POV-Code: ${this.povCalibrator.code}`);
+            },
+          },
+          {
+            id: 'gfx:pov-reset',
+            label: 'Auf Rechteck zurücksetzen',
+            sub: 'Ein Eckpunkt, so weit wie das gemessene Sichtfeld',
+            icon: 'settings',
+            accent,
+            run: () => {
+              this.povCalibrator.reset();
+              this.povShowCode = false;
+              this.menuDirty = true;
+            },
+          },
+          ...(active
+            ? [
+                {
+                  id: 'gfx:pov-close',
+                  label: 'Schließen',
+                  sub: 'Kalibrieren beenden · die Form bleibt gemerkt',
+                  icon: 'settings' as const,
+                  accent: 0xff6b6b,
+                  run: () => {
+                    this.povCalibrator.stop();
+                    this.menuDirty = true;
+                    this.gameMenu.toggle(false);
+                    this.notify('VR-POV kalibrieren beendet');
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    ];
+  }
+
+  /** Kalibrieren anfangen, das Menü auf seine Seite stellen und zumachen. */
+  private startPov(): void {
+    this.povCalibrator.start(this.camera);
+    this.povShowCode = false;
+    this.menuDirty = true;
+    this.refreshMenu();
+    this.gameMenu.openSubmenu(POV_PAGE);
+    this.gameMenu.toggle(false);
+    this.notify('VR-POV kalibrieren · ☰ öffnet Code und Schließen');
+  }
+
   private visorMenu(accent: number): MenuEntry {
     const settings = graphics();
     return {
@@ -3690,6 +3806,11 @@ export class App {
     // while it is — otherwise the character controller fights the camera.
     // A world may freeze the body too (the drone flies the view away).
     this.rig.paused = (this.spectating && presenting) || this.rig.frozen;
+    // **VR-POV kalibrieren**: Die Sticks gehören den Punkten, solange das
+    // Menü zu ist (`core/PovCalibrator.ts`).
+    const calibrating = this.povCalibrator.active && !this.gameMenu.isOpen;
+    if (calibrating) this.rig.paused = true;
+    this.povCalibrator.update(dt, this.input, !calibrating);
 
     this.rig.getHeadMatrix(_head);
     _headLocal.copy(this.rig.matrixWorld).invert().multiply(_head);

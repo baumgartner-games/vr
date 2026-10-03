@@ -663,6 +663,36 @@ habe bei Haunting nutzen."_ So ist er gebaut:
   sicheren Bereich, der grün. Gemalt in Winkeln auf eine Leinwand (x = Azimut,
   y = Höhe) auf einem Stück Kugel, dessen Texturkoordinaten genau diese
   Winkel sind.
+- **VR-POV kalibrieren** (_Grafik_, `core/PovCalibrator.ts`,
+  `core/povCalibration.ts`, mit Test) — gewünscht: _„beim anwählen will ich
+  dann starten mit einem rechteck welches ich sehe, aber nur mit einem
+  eckpunkt den wir anpassen können (aus diesem eckpunkt wird das rechteck
+  angezeigt (indem die anderen gespiegelt werden)"_. Die Zeile fängt sofort
+  an; eingestellt werden nur die Punkte des Viertels rechts oben, in Grad um
+  die gefühlte Null, gespiegelt an beiden Achsen. Angefangen wird mit einem
+  Eckpunkt bei 30° · 25° (etwas innerhalb der Messung, damit er zu sehen
+  ist).
+  - **Linker Stick** verschiebt den gewählten Punkt (12° je Sekunde voll
+    ausgelenkt), **rechter Stick** wechselt die Auswahl der Reihe nach —
+    Punkte und **die Mitte jeder Kante** (hohle Ringe): _„die anderen punkte,
+    welche noch hinzufügbar sind, sind immer mittig auf den linien"_. **A**
+    macht aus einer Mitte einen Punkt, **B** löscht einen (der letzte
+    bleibt). Gewählt ist groß und gelb, mit Gradzahlen daneben;
+    Spiegelbilder sind klein und grau. Die Sticks gehören solange den
+    Punkten (`rig.paused`). Am Schirm in der VR-Ansicht: Pfeiltasten, `Q`/`E`,
+    `Enter`, `Entf`.
+  - **☰ öffnet die Seite dahinter** (`gfx:pov-page`, ohne Kachel): _Weiter
+    kalibrieren_, _Konfig-Code anzeigen_, _Auf Rechteck zurücksetzen_,
+    _Schließen_. Solange das Menü offen ist, ruhen die Punkte, die Form liegt
+    unter dem Menü (Stufe nur an den Netzen, nicht an der Gruppe).
+  - **Der Code** (`encodePov`/`decodePov`): Crockfords Base32 ohne I, L, O,
+    U, in Vierergruppen — `P1`, Zahl der Punkte, je Punkt `az` und `el` in
+    halben Grad mit je zwei Zeichen, ein Prüfzeichen. Ein Rechteck ist
+    `P1xx-xxx` (8 Zeichen), jeder weitere Punkt kostet vier. Abgetippt geht
+    er auch klein, mit Leerzeichen und mit I/L/O statt 1/0; ein Tippfehler
+    fällt an der Prüfsumme auf. Gemerkt wird die Form im Browser
+    (`bgvr.povCalibration`). Zum Übernehmen: Code an `decodePov`, die Punkte
+    in `questView.QUEST_VIEW` eintragen.
 - Für die Raumstation reicht später `ctx.wear('flightHelmetImmersive')` —
   `App.applyAppearance` merkt sich auch einen geliehenen Hut (`lookHat`).
 
