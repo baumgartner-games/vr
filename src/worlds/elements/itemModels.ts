@@ -134,12 +134,6 @@ export const ITEM_MODELS: Readonly<Record<KitchenItem, string | readonly string[
   // **Die Treppe**: dieselbe Stufenfolge, mit der der Plan jede Treppe zeigt
   // (`grid/blocks.BLOCK_MODELS.stairs`).
   stair: 'prototype-bits/Primitive_Stairs_Half.glb',
-  // **Die Pflanzen** — die Kakteen aus _Furniture Bits_ (doppelt so groß:
-  // `dishView.ITEM_SCALE`).
-  'cactus-small-a': 'furniture-bits/cactus_small_A.glb',
-  'cactus-small-b': 'furniture-bits/cactus_small_B.glb',
-  'cactus-a': 'furniture-bits/cactus_medium_A.glb',
-  'cactus-b': 'furniture-bits/cactus_medium_B.glb',
 };
 
 /**

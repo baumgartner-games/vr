@@ -1,9 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { dish, ITEM_RESTS, kitchenDeed } from '../test/zones/kitchenCarry';
-import { PLANT_ITEMS } from '../test/zones/kitchenRecipes';
-import { ITEM_SCALE } from './dishView';
-import { itemModel } from './itemModels';
+import { movesFurniture } from '../../core/gameMode';
 import { allFolders, elementById, FURNITURE_FOLDERS, hasElement } from './elementCatalog';
 import {
   FACES,
@@ -20,6 +18,7 @@ import {
   FURNITURE_BITS_CATALOGUE,
   FURNITURE_BITS_ELEMENTS,
   FURNITURE_BITS_FOLDER,
+  PLANT_SCALE,
 } from './furnitureCatalog';
 
 const ALL = new Set(FURNITURE_BITS_CATALOGUE);
@@ -71,10 +70,9 @@ describe('Möbel im Katalog', () => {
     const files = pack.root.dirs
       .find((one) => one.name === 'furniture-bits')!
       .files.map((one) => one.name.replace('.glb', ''));
-    const used = [
-      ...FURNITURE_BITS_ELEMENTS.flatMap((one) => one.parts.map((part) => part.model)),
-      ...PLANT_ITEMS.map((item) => itemModel(item)),
-    ].map((model) => model.replace('furniture-bits/', '').replace('.glb', ''));
+    const used = FURNITURE_BITS_ELEMENTS.flatMap((one) => one.parts.map((part) => part.model)).map(
+      (model) => model.replace('furniture-bits/', '').replace('.glb', ''),
+    );
     const left = files.filter((name) => !used.includes(name));
     // Die zwölf Wandstücke — und die Mauspads, die der Computer nicht braucht.
     expect(
@@ -142,23 +140,28 @@ describe('Möbel im Katalog', () => {
     expect(fitsOnShelf(desk, two, new Set(spotFootprintCells(one)))).toBe(true);
   });
 
-  it('macht die Pflanzen zu Dingen für die Hand — doppelt so groß, ablegbar wie die Tomate', () => {
+  it('stellt die Pflanzen doppelt so groß hin — ablegbar, und aufgenommen nur beim Einrichten', () => {
     const plants = FURNITURE_BITS_FOLDER.folders!.find((one) => one.label === 'Pflanzen')!;
-    expect(plants.elements).toEqual([]);
-    expect(plants.items).toEqual(PLANT_ITEMS);
-    for (const item of PLANT_ITEMS) {
-      expect(ITEM_RESTS.has(item)).toBe(true);
-      expect(ITEM_SCALE[item]).toBe(2);
-      expect(itemModel(item)).toMatch(/^furniture-bits\/cactus_/);
-      expect(kitchenDeed(dish(item), { kind: 'top' })).toEqual({ do: 'place', dish: dish(item) });
-      // Wieder in die Hand.
-      expect(kitchenDeed(null, { kind: 'top', on: dish(item) })).toEqual({
-        do: 'take',
-        dish: dish(item),
-      });
-      // Kein Essen: nicht in den Mülleimer.
-      expect(kitchenDeed(dish(item), { kind: 'bin' }).do).not.toBe('place');
+    expect(plants.elements).toEqual([
+      'furniture-cactus-small-a',
+      'furniture-cactus-small-b',
+      'furniture-cactus-a',
+      'furniture-cactus-b',
+    ]);
+    for (const id of plants.elements) {
+      const plant = elementById(id);
+      expect(plant).toMatchObject({ rests: true, kind: null });
+      expect(plant.parts[0]!.scale).toBe(PLANT_SCALE);
+      expect(plant.parts[0]!.model).toMatch(/^furniture-bits\/cactus_/);
     }
+    expect(PLANT_SCALE).toBe(2);
+    // Die kleinen auf einer Zelle, die großen (0,88 m) auf einer Kachel.
+    expect(elementById('furniture-cactus-small-a').tiles).toEqual([0.5, 0.5]);
+    expect(elementById('furniture-cactus-a').tiles).toEqual([1, 1]);
+    // Keine Station: Beim Spielen tut `A` daran nichts, und umgestellt wird
+    // nur, wo Möbel sich bewegen (`movesFurniture`) — beim Einrichten.
+    expect(movesFurniture('play')).toBe(false);
+    expect(movesFurniture('arrange')).toBe(true);
   });
 
   it('legt Teppiche wie einen Boden auf den Boden — sie sperren nichts', () => {

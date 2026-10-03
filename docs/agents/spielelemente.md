@@ -371,7 +371,7 @@ höchstens 0,6 m im Quadrat misst, steht auf einer Zelle.
 | Merkmal | Was es heißt | Wer es hat |
 | ------- | ------------ | ---------- |
 | `shelf` — **Ablage** | Darauf stellt man ab, was ablegbar ist | die Tische, Schreibtische und Kommoden ohne Deko, die Arbeitsplatte (`counter`), der runde Tisch |
-| `rests` — **ablegbar** | Passt auf eine Ablage; fällt es dort hin, steht es obenauf, sonst auf dem Boden | der Computer, Spielkonsole, Stiftebecher, Tisch- und Schreibtischlampen, Becher, Tassen, Bücher, Bilderrahmen zum Hinstellen, Kissen |
+| `rests` — **ablegbar** | Passt auf eine Ablage; fällt es dort hin, steht es obenauf, sonst auf dem Boden | der Computer, Spielkonsole, Stiftebecher, Tisch- und Schreibtischlampen, Becher, Tassen, Bücher, Bilderrahmen zum Hinstellen, Kissen, Kakteen |
 | `floor` — **Bodenbelag** | Liegt flach, sperrt nichts (`solid: [0, 0]`), darauf stellt man, was man will | die sechs Teppiche |
 
 **Der Computer** (`furnitureCatalog.computer`) ersetzt Monitor, Tastatur, Maus
@@ -382,16 +382,15 @@ auf **einer Kachel, also 2 × 2 Zellen**, ablegbar: hinten der Monitor, vorn die
 Tastatur, rechts das Mauspad mit der Maus darauf. Auf den Schreibtisch passen
 zwei.
 
-**Die Pflanzen sind Dinge für die Hand** und keine Möbel mehr — gewünscht:
-_„Die pflanzen alle bitte doppelt so groß und wieder aufnehmbar … So wie
-Tomaten und Salate der Spieler die wieder auf die Hand nehmen kann bzw. tragen
-kann."_ Die vier Kakteen sind Dinge der Küche (`kitchenRecipes.PLANT_ITEMS`,
-Bild doppelt so groß: `dishView.ITEM_SCALE` 2). Der Ordner _Pflanzen_ führt sie
-als `items`: Die Kachel nimmt sie in die Hand (`FurnishedWorld.catalogItem` /
-`takeCatalogItem`; der Hausbau reicht alles, was nicht Tapete, Boden oder
-Treppe ist, dorthin weiter), `A` stellt sie auf eine Ablage, `A` nimmt sie
-wieder. Auf den Boden stellt man sie damit nicht mehr — Dinge der Küche liegen
-nur auf Flächen.
+**Die Pflanzen** (die vier Kakteen) stehen **doppelt so groß** wie im Regal
+(`furnitureCatalog.PLANT_SCALE`, die kleinen auf einer Zelle, die großen mit
+0,88 m auf einer Kachel) und sind ablegbar: auf den Boden oder eine Ablage.
+Gewünscht: _„Die pflanzen alle bitte doppelt so groß und wieder aufnehmbar"_ —
+und dann genauer: _„nur aufnehmbar während des Modus Einrichtung, nicht
+spielen"_. Aufgenommen werden sie deshalb wie jedes Möbel mit dem Kran im
+Modus _Einrichten_ (`movesFurniture`); beim _Spielen_ tut `A` an ihnen nichts.
+Einen Tag lang waren sie Dinge der Küche (wie die Tomate, beim Spielen in die
+Hand) — das war das Gegenteil des Gewünschten und ist zurückgenommen.
 
 **Für die Dinge der Küche dasselbe Merkmal** (`kitchenRecipes.ITEM_RESTS`):
 Pizza, Schinken, Käse, Teller, Pfanne, Feuerlöscher … — alles, was die Küche in

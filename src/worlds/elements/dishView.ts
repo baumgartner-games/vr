@@ -123,12 +123,6 @@ export const ITEM_SCALE: Readonly<Partial<Record<KitchenItem, number>>> = {
   'floor-wood': 0.35,
   'floor-wood-dark': 0.35,
   'floor-stone': 0.35,
-  // Die Pflanzen doppelt so groß wie im Regal — gewünscht: _„Die pflanzen
-  // alle bitte doppelt so groß"_.
-  'cactus-small-a': 2,
-  'cactus-small-b': 2,
-  'cactus-a': 2,
-  'cactus-b': 2,
 };
 
 /**

@@ -1,5 +1,4 @@
 import type { FurnitureFolder, GameElement } from './elementCatalog';
-import { PLANT_ITEMS } from '../test/zones/kitchenRecipes';
 
 /**
  * **Möbel im Katalog** — _Furniture Bits_ als Spielelemente. Gewünscht
@@ -18,8 +17,7 @@ import { PLANT_ITEMS } from '../test/zones/kitchenRecipes';
  * - `small` — **ablegbar** (`GameElement.rests`), eine Zelle groß: auf eine
  *   Ablage oder auf den Boden. Der Computer ebenso, aber eine Kachel groß
  *   (`computer`).
- * - Die **Pflanzen** sind keine Elemente, sondern Dinge für die Hand
- *   (`kitchenRecipes.PLANT_ITEMS`), wie Tomate und Salat.
+ * - `plant` — ablegbar wie `small`, doppelt so groß (`PLANT_SCALE`).
  * - `rug` — ein **Bodenbelag** (`GameElement.floor`): sperrt nichts, darauf
  *   stellt man, was man will.
  *
@@ -113,6 +111,35 @@ function computer(): GameElement {
       { model: furnitureBits('mousepad_A'), at: [0.28, 0.14] }, // 0,40 × 0,01 × 0,30
       { model: furnitureBits('mouse'), at: [0.28, 0.14], on: 2 }, // 0,13 × 0,09 × 0,17
     ],
+  };
+}
+
+/**
+ * **So viel größer stehen die Pflanzen** als im Regal — gewünscht: _„Die
+ * pflanzen alle bitte doppelt so groß"_.
+ */
+export const PLANT_SCALE = 2;
+
+/**
+ * **Eine Pflanze** — ablegbar wie die Tasse (auf den Boden oder eine Ablage),
+ * doppelt so groß (`PLANT_SCALE`). Aufnehmen wie jedes Möbel: im Modus
+ * _Einrichten_ mit dem Kran, beim _Spielen_ nicht — gewünscht: _„nur
+ * aufnehmbar während des Modus Einrichtung, nicht spielen"_.
+ */
+function plant(
+  id: string,
+  label: string,
+  file: string,
+  tiles: readonly [number, number],
+): GameElement {
+  return {
+    id,
+    label,
+    tiles,
+    height: BODY,
+    kind: null,
+    rests: true,
+    parts: [{ model: furnitureBits(file), scale: PLANT_SCALE }],
   };
 }
 
@@ -212,6 +239,11 @@ export const FURNITURE_BITS_ELEMENTS: readonly GameElement[] = [
   small('furniture-pictureframe-standing-b', 'Bilderrahmen B', 'pictureframe_standing_B'), // 0,35 × 0,23 × 0,18
   small('furniture-pillow-a', 'Kissen A', 'pillow_A'), // 0,33 × 0,10 × 0,25
   small('furniture-pillow-b', 'Kissen B', 'pillow_B'), // 0,33 × 0,10 × 0,25
+  // Pflanzen — doppelt so groß wie im Regal (`PLANT_SCALE`)
+  plant('furniture-cactus-small-a', 'Kleiner Kaktus', 'cactus_small_A', ONE_CELL), // 0,50 × 0,56 × 0,50
+  plant('furniture-cactus-small-b', 'Kleiner Kaktus mit Blüte', 'cactus_small_B', ONE_CELL), // 0,50 × 0,56 × 0,50
+  plant('furniture-cactus-a', 'Kaktus', 'cactus_medium_A', [1, 1]), // 0,88 × 0,82 × 0,84
+  plant('furniture-cactus-b', 'Kaktus mit Blüte', 'cactus_medium_B', [1, 1]), // 0,88 × 0,82 × 0,84
   // Teppiche
   rug('furniture-rug-rectangle-a', 'Teppich A', 'rug_rectangle_A', [2, 1]), // 1,50 × 0,05 × 1,00
   rug('furniture-rug-rectangle-b', 'Teppich B', 'rug_rectangle_B', [2, 1]), // 1,50 × 0,05 × 1,00
@@ -294,6 +326,12 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-pillow-a',
     'furniture-pillow-b',
   ],
+  plants: [
+    'furniture-cactus-small-a',
+    'furniture-cactus-small-b',
+    'furniture-cactus-a',
+    'furniture-cactus-b',
+  ],
   rugs: [
     'furniture-rug-rectangle-a',
     'furniture-rug-rectangle-b',
@@ -359,12 +397,8 @@ export const FURNITURE_BITS_FOLDER: FurnitureFolder = {
     {
       id: 'furniture-plants',
       label: 'Pflanzen',
-      // **Dinge für die Hand** und keine Möbel (`kitchenRecipes.PLANT_ITEMS`):
-      // Man nimmt sie wie die Tomate, trägt sie und stellt sie mit `A` auf eine
-      // Ablage — und nimmt sie dort wieder.
-      elements: [],
-      items: PLANT_ITEMS,
-      cover: { item: 'cactus-a' },
+      elements: FURNITURE_GROUPS['plants']!,
+      cover: { element: 'furniture-cactus-a' },
     },
     {
       id: 'furniture-rugs',
