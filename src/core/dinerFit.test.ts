@@ -47,9 +47,7 @@ describe('der Katalog der zweiten Küche', () => {
    * **Mindestens eine Kachel, höchstens zwei**, und die Kachelzahl ist das
    * **gerundete** Maß.
    *
-   * Beides hängt an dem, was aus `tiles` eine Reihe packt — der Möbelkatalog
-   * im Konstrukt-Raum stellt neben jedes Stück eine Kachel Luft
-   * (`worlds/shared/construct.ts`). Ein Stück, das drei Kacheln belegte,
+   * Beides hängt an dem, was aus `tiles` eine Reihe packt. Ein Stück, das drei Kacheln belegte,
    * sprengte keine Reihe — aber ein Stück, dessen Kachelzahl nicht zu seinem
    * Maß passt, stünde entweder im Nachbarn oder mit zwei Metern Luft daneben.
    */

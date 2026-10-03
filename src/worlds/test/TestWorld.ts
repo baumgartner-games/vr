@@ -580,9 +580,12 @@ export class TestWorld extends FurnishedWorld {
       },
       addUsable: (object, usable, options) => this.addUsable(object, usable, options),
       removeUsable: (object) => this.removeUsable(object),
-      enterConstruct: (options) => this.enterConstruct(options),
-      leaveConstruct: () => this.leaveConstruct(),
-      inConstruct: () => this.inConstruct,
+      openCatalogue: () => {
+        const menu = this.context?.menu;
+        if (!menu) return;
+        menu.openSubmenu('elements');
+        if (!menu.isOpen) menu.openSubmenu('assets');
+      },
       notify: (message) => this.announce(message),
       announce: (message) => this.announce(message),
       askNumber: (options) => this.askNumber(options),

@@ -1761,10 +1761,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     ihm liegt, mit dem, was von der Pfeilseite kommt). Die anderen zwei Spalten
     bleiben leer: Genau dafür ist die Halle da. **Der Schauraum dahinter ist
     weg** (September 2026): siebzehn Kacheln, auf denen jedes Katalogstück noch
-    einmal einzeln und beschriftet stand. Denselben Katalog gibt es seit dem
-    Konstrukt-Raum am **Rechner** — dort steht man mitten darin und hat jedes
-    Stück in Reichweite, statt daran vorbeizulaufen —, und zwei Kataloge
-    nebeneinander sind einer zu viel. Die Zone ist damit von siebenunddreißig
+    einmal einzeln und beschriftet stand. Einen Katalog gibt es am
+    **Rechner** (heute der Katalog im Menü), und zwei Kataloge nebeneinander
+    sind einer zu viel. Die Zone ist damit von siebenunddreißig
     auf zwanzig Kacheln geschrumpft (Küche plus Werkhalle). **Angefasst wird mit `A`**, und ein
     roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
     in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt — das
@@ -1800,8 +1799,8 @@ im Spiel also zwei Kacheln —, und in eine
     Er war die Antwort auf die Frage, die ihn gebaut hat — was von dem
     gekauften Baukasten können wir brauchen? —, und die ist beantwortet: Die
     Zutaten der ersten Küche kommen heute aus diesem Katalog
-    (`zones/kitchenProps.ts`), durchblättern lässt er sich im Konstrukt-Raum,
-    und ein Raum zum Ansehen daneben kostete nur Wege. Mit der Zone sind
+    (`zones/kitchenProps.ts`), und ein Raum zum Ansehen daneben kostete nur
+    Wege. Mit der Zone sind
     `zones/diner.ts`, `zones/dinerPlan.ts`, das Rechteck `DINER`, der Gang
     dorthin und der Eintrag _Zweite Küche_ im Sprungmenü gegangen; **der
     Katalog bleibt**.

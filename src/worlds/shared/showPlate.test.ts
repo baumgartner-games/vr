@@ -4,9 +4,8 @@ import { TILE } from '../nav/navTile';
 /**
  * **Das Schild vor einem Schaustück, nachgerechnet.**
  *
- * Zwei Schauräume benutzen dieselbe Rechnung (`zones/kitchen.ts`,
- * `shared/construct.ts`), und keiner von ihnen läuft in
- * Jest — die Zone braucht WebGL, der Konstrukt-Raum ein `document`. Was hier
+ * Der Schauraum der Küche benutzt die Rechnung (`zones/kitchen.ts`), und er
+ * läuft nicht in Jest — die Zone braucht WebGL. Was hier
  * geprüft wird, ist deshalb die **Stelle**, an der ein Schild landet, und nicht,
  * wie es aussieht.
  */

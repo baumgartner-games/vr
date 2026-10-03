@@ -455,8 +455,8 @@ oder wenn die Fortbewegung den Sprung überhört (`Locomotion.canJump`:
 die Leertaste fehlt in der Zeile.
 
 **Die Sperre sitzt im Gestell und nicht in einer Steuerung** — anders als
-`PlayerRig.locked`, das nur in der Brille hält (siehe [Bauen](./bauen.md), der
-Konstrukt-Raum). Jeder Sprungwunsch, von welcher Hand oder Taste auch immer,
+`PlayerRig.locked`, das nur in der Brille hält (das musste der Konstrukt-Raum
+lernen, siehe [Bauen](./bauen.md)). Jeder Sprungwunsch, von welcher Hand oder Taste auch immer,
 landet zuerst in `intentJump`; dort steht die eine Prüfung, und beim Verlassen
 der Welt räumt `standUp` sie wieder weg.
 

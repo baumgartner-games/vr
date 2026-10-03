@@ -874,7 +874,7 @@ export class FoodKit {
     // und Material darin gehören der geladenen Datei und werden von jedem
     // Möbel derselben Quelle mitbenutzt (`core/dinerModel.ts`); wer sie hier
     // freigäbe, nähme jedem anderen Leser derselben Datei seine Netze weg —
-    // dem Möbelkatalog im Konstrukt-Raum zum Beispiel. Ein neuer `warm()`-Lauf
+    // den Möbeln der Küche zum Beispiel. Ein neuer `warm()`-Lauf
     // holt sie aus demselben Zwischenspeicher zurück.
     this.nodes.clear();
     this.warming = null;

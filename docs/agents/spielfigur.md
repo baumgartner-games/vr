@@ -525,7 +525,7 @@ Stück im Raum des Kopfknochens: Für ein gehäutetes ist das
 weil alle Figuren desselben Skeletts denselben Kopfknochen haben, sitzt das
 Stück auf jeder von ihnen so, wie es auf seiner eigenen sitzt — ohne
 Halbmesser, ohne Verschiebung (`AvatarBody.fetchFigurePart`). Auf dem
-gebauten Koch und im Regal des Konstrukts wird vom KayKit-Kopf aus
+gebauten Koch wird vom KayKit-Kopf aus
 umgerechnet (`KAYKIT_HEAD`: Mitte 0,5 über dem Knochen, halbe Breite 0,54).
 
 **Was an der Figur weicht** (`AvatarBody.applyFigureHides`, gelesen am Namen

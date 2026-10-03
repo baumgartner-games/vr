@@ -92,7 +92,6 @@ import {
   type CoverTile,
   type FloorTops,
 } from '../shared/floorCover';
-import { ConstructRoom, type ConstructOptions } from '../shared/construct';
 import type { FloorCorner, PlanSolid, PlanSolidKind } from './solids';
 import { halfFloorGeometry } from './halfFloor';
 import type { WorldContext } from '../../core/types';
@@ -453,45 +452,6 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected levelMarks = 0;
   private readonly levelScratch: PhysicsBody[] = [];
-
-  /**
-   * **Der Konstrukt-Raum dieser Welt** (`shared/construct.ts`) — und es gibt
-   * genau einen.
-   *
-   * Er hängt an der Welt und nicht an dem, was ihn aufmacht, weil er die Welt
-   * ausblendet: Zwei davon gleichzeitig hießen zwei Meinungen darüber, was
-   * gerade sichtbar ist, und die zweite gewönne beim Verlassen. Die Küche
-   * macht ihn über ihren Rechner auf (`test/zones/kitchen.ts`).
-   *
-   * Er entsteht erst beim ersten Öffnen: Eine Welt, in der niemand an den
-   * Rechner tritt, baut keinen Boden aus zweihundert Kacheln.
-   */
-  private construct: ConstructRoom | null = null;
-
-  /**
-   * **Wo die Figur stand, als sie das Konstrukt betrat** — Weltmeter, Fußhöhe.
-   * `null` heißt: Es ist gerade keines offen.
-   *
-   * Das ist die Zusage, auf der der ganze Raum beruht: **Der Körper bleibt in
-   * der alten Welt stehen.** Im Konstrukt darf man herumgehen — es ist ein
-   * eigener Raum, und ein Regal, um das man nicht herumgehen kann, ist ein
-   * Schaufenster —, aber dieses Gehen gehört dem weißen Raum und nicht der
-   * Küche darunter. Beim Verlassen kommt die Figur deshalb genau hierher
-   * zurück (`syncConstructBody`), und was sie mitbringt, ist nur ihre
-   * Blickrichtung.
-   *
-   * **Versucht wurde es vorher andersherum**, mit `PlayerRig.locked`: Wer
-   * drinsteht, soll sich gar nicht erst bewegen können. Das hielt aber nur in
-   * der Brille — `locked` schaltet dort den Stock, den Sprung und die Drehung
-   * ab (`PlayerRig.update`), und am Bildschirm wie am Telefon läuft die Figur
-   * über `FlatControls.setIntent` daran vorbei. Man lief also doch, und zwar
-   * durch eine Welt, die man nicht mehr sah: in die Küchenzeile, die als
-   * unsichtbare Wand im Weg stand, und beim Verlassen stand man woanders. Eine
-   * zweite Sperre in der Eingabeschicht hätte das geflickt; eine gemerkte
-   * Stelle plus ein kollisionsfreier Körper (`PhysicsLocomotion.ghost`) macht
-   * daraus die Sache, die gemeint war.
-   */
-  private constructHome: THREE.Vector3 | null = null;
 
   /**
    * **Der Grundriss dieser Welt.** Das Einzige, was eine Gitterwelt wirklich
@@ -1958,129 +1918,6 @@ export abstract class GridWorld extends PortalWorld {
     this.openReading = true;
   }
 
-  /**
-   * **Den Konstrukt-Raum aufmachen** — der Weg hinein für den Rechner der
-   * Küche (`test/zones/kitchen.ts` über `ZoneHost.enterConstruct`).
-   *
-   * Er merkt sich dabei, wo die Figur steht: Dorthin kommt sie beim Verlassen
-   * zurück, und dort sehen die anderen sie die ganze Zeit
-   * (`constructHome`, `syncConstructBody`). Alles Übrige macht der Raum
-   * selbst.
-   */
-  protected enterConstruct(options: ConstructOptions): void {
-    const room = (this.construct ??= new ConstructRoom({
-      root: this.root,
-      addUsable: (object, usable, use) => this.addUsable(object, usable, use),
-      removeUsable: (object) => this.removeUsable(object),
-      notify: (message) => this.announce(message),
-    }));
-    // **Die Füße und nicht der Ursprung des Rigs.** `ConstructOptions.at` ist
-    // als Fußhöhe verabredet, und in der Brille liegen die beiden um so viel
-    // auseinander, wie man von der Mitte seines Spielraums entfernt steht —
-    // beim Ducken kommt die Höhe dazu. Der Boden des weißen Raums legt sich
-    // danach, also läge er sonst unter oder über den Sohlen.
-    const feet = this.playerFeet(_feet);
-    room.enter(feet ? { ...options, at: feet } : options);
-    this.syncConstructBody();
-  }
-
-  /** **Und wieder hinaus** — die Welt kommt zurück, die Figur geht an ihren Platz. */
-  protected leaveConstruct(): void {
-    this.construct?.leave();
-    this.syncConstructBody();
-  }
-
-  /**
-   * **Der Körper folgt dem Raum und nicht dem Handgriff.**
-   *
-   * Es gibt zwei Wege hinaus, und nur einer geht über `leaveConstruct`: Ein
-   * Stück, dessen Griff `true` meldet — der Möbelkatalog am Rechner der Küche
-   * tut das —, schließt den Raum **von innen** (`ConstructRoom.update`). Wer
-   * den Körper nur beim ausdrücklichen Verlassen zurückholte, ließe nach so
-   * einem Griff eine Figur stehen, die durch Wände geht, und niemand fände den
-   * Grund dafür. Also wird jedes Bild nachgezogen: Der Raum sagt, ob er offen
-   * ist, und der Körper richtet sich danach.
-   *
-   * Drei Dinge hängen daran, und sie gehören zusammen:
-   *
-   * - **Die Stelle** (`constructHome`), an die es zurückgeht. Gemerkt wird sie
-   *   beim ersten Bild, in dem der Raum offen steht, und zurückgegeben wird
-   *   sie über `movePlayerTo` — also über denselben Weg, den auch die Rettung
-   *   aus der Tiefe und das Teleport-Werkzeug nehmen, samt `resync` für die
-   *   Kapsel. **Ohne Blickrichtung**: Wer sich im Konstrukt umgedreht hat,
-   *   steht danach zwar wieder an seinem Platz, sieht aber weiter dorthin, wo
-   *   er zuletzt hinsah. Alles andere wäre ein Ruck ohne Anlass.
-   * - **Der kollisionsfreie Körper** (`PhysicsLocomotion.ghost`). Die Welt ist
-   *   ausgeblendet, ihre Kollisionskörper stehen aber noch — ohne das hier
-   *   liefe man im leeren Weiß gegen unsichtbare Wände.
-   * - **Die Pose im Netz** (`NetSession.poseAnchor`). Die anderen sollen
-   *   weiter eine Figur sehen, die vor ihrem Schrank steht und sich umsieht,
-   *   und nicht eine, die durch die Küche schwebt.
-   */
-  private syncConstructBody(): void {
-    const ctx = this.context;
-    if (!ctx) return;
-    if (this.construct?.open) {
-      if (!this.constructHome) {
-        const feet = this.playerFeet(new THREE.Vector3());
-        if (!feet) return;
-        this.constructHome = feet;
-        ctx.net.poseAnchor = ctx.rig.getHeadPosition(new THREE.Vector3());
-      }
-      this.setPlayerGhost(true);
-      // **Der Raum hört an seinem Boden auf** (`ConstructRoom.keepInside`).
-      // Ohne Schwerkraft und ohne Kollisionen hält einen sonst nichts davon
-      // ab, über den Rand hinaus in ein weißes Nichts zu laufen, in dem es
-      // kein Merkmal gibt, an dem man den Rückweg fände. Geklemmt wird das
-      // Rig und nicht die Kapsel: Die steht ohnehin still (siehe oben).
-      const feet = this.playerFeet(_feet);
-      if (feet && this.construct.keepInside(feet)) {
-        ctx.rig.getHeadPosition(_head);
-        ctx.rig.position.x += feet.x - _head.x;
-        ctx.rig.position.z += feet.z - _head.z;
-        ctx.rig.updateMatrixWorld(true);
-      }
-      return;
-    }
-    const home = this.constructHome;
-    if (!home) return;
-    this.constructHome = null;
-    ctx.net.poseAnchor = null;
-    // `movePlayerTo` ohne Winkel behält die Blickrichtung — und sein `resync`
-    // setzt die Kapsel wieder unter den Kopf und schaltet `ghost` ab.
-    this.movePlayerTo(ctx, home);
-  }
-
-  /** Ob gerade ein Konstrukt offen ist — die Küche fragt danach. */
-  protected get inConstruct(): boolean {
-    return this.construct?.open ?? false;
-  }
-
-  /**
-   * **Im Konstrukt reicht `A` bis zum letzten Stück** (`ConstructRoom.reach`).
-   *
-   * Sonst gilt überall dieselbe Armlänge und eine halbe wie in jeder anderen
-   * Welt. Die Ausnahme hängt am Zuschnitt des Raums und nicht am Geschmack:
-   * Die Auswahl steht dort im Ring, drei Kacheln weiter draußen und einmal
-   * herum. Hingehen darf man (`syncConstructBody`), aber wer für jedes Stück
-   * drei Schritte und eine halbe Drehung braucht, sieht sich zwei an und hört
-   * auf.
-   *
-   * Gefährlich wird die längere Reichweite dabei nicht: Im Konstrukt ist außer
-   * dem Anker und der Auswahl nichts mehr sichtbar, und was unsichtbar ist,
-   * steht gar nicht erst zur Wahl (`PortalWorld.collectUsables`).
-   */
-  protected override useReach(): number {
-    const room = this.construct;
-    return room?.open ? Math.max(super.useReach(), room.reach) : super.useReach();
-  }
-
-  /** Dasselbe für das Zeigen in der Brille — siehe `useReach`. */
-  protected override handUseRange(): number {
-    const room = this.construct;
-    return room?.open ? Math.max(super.handUseRange(), room.reach) : super.handUseRange();
-  }
-
   // --- die Effekte ----------------------------------------------------------
 
   /**
@@ -3026,12 +2863,6 @@ export abstract class GridWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.editor?.update(ctx);
-    // **Vor allem anderen der Konstrukt-Raum**: Er blendet aus und wieder ein,
-    // und was in diesem Bild noch über Sichtbarkeit entscheidet (die
-    // Wandgeister, die Schnittebene von oben), soll auf dem Stand rechnen, den
-    // er gerade hergestellt hat.
-    this.construct?.update(dt);
-    this.syncConstructBody();
     this.stepBursts(dt);
     this.stepLevelBar(ctx);
     this.trackLevel(ctx);
@@ -3248,14 +3079,6 @@ export abstract class GridWorld extends PortalWorld {
     // wird nur dieser Fall: Sonst bekäme jede Welt, die man einmal betreten
     // hat, einen gespeicherten Stand, den niemand angelegt hat.
     if (this.editor?.editing) this.saveWorld(true);
-    // **Erst heraus, dann abreißen.** Wer die Welt verlässt, während das
-    // Konstrukt offen steht, ließe sonst eine Handvoll unsichtbarer Äste
-    // zurück — und einen Körper, der durch Wände geht und dessen Pose im Netz
-    // an einer Stelle klebt, die es gleich nicht mehr gibt. Beides überlebt
-    // den Weltwechsel, der Raum nicht.
-    this.leaveConstruct();
-    this.construct?.dispose();
-    this.construct = null;
     this.shelfView?.dispose();
     this.shelfView = null;
     this.shelfMaterial?.dispose();
@@ -3626,8 +3449,6 @@ const SIGN_PAGE = 'grid:sign';
 
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
-/** Der Kopf, wenn das Rig um den Versatz zwischen Kopf und Ursprung zu schieben ist. */
-const _head = new THREE.Vector3();
 const _spot = new THREE.Vector3();
 /** Wo die Kamera steht, die das Bild zeichnet — für das Ghosting. */
 const _eye = new THREE.Vector3();

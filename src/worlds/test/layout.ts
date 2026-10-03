@@ -123,9 +123,9 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  *
  * **Hinter der Halle lag einmal ein Schauraum**, in dem jedes Möbel des
  * Katalogs einzeln stand und beschriftet war — siebzehn Kacheln Breite nur
- * dafür. Den Katalog gibt es jetzt am Rechner (`shared/construct.ts`): Wer vor
- * dem Computer-Tisch `A` drückt, steht mitten in ihm und hat jedes Stück in
- * Reichweite, statt daran vorbeizulaufen. Die Zone ist damit wieder auf
+ * dafür. Den Katalog gibt es jetzt am Rechner: Wer vor dem Computer-Tisch `A`
+ * drückt, hat ihn im Menü (`kitchen.openCatalogue`), statt an jedem Stück
+ * vorbeizulaufen. Die Zone ist damit wieder auf
  * zwanzig Kacheln geschrumpft.
  *
  * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
@@ -165,9 +165,8 @@ export const KITCHEN_SPAWN = { x: KITCHEN.x + 1, z: KITCHEN.z + 7 } as const;
  *
  * **Der Katalog bleibt** (`core/dinerFit.ts`, `core/dinerModel.ts`,
  * `public/models/diner.glb`): Aus ihm kommen die Zutaten der ersten Küche —
- * Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`) —,
- * und im Konstrukt-Raum steht er als Möbelkatalog zum Durchblättern
- * (`shared/construct.ts`). Ein zweiter eingerichteter Raum dafür war es, was
+ * Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`).
+ * Ein zweiter eingerichteter Raum dafür war es, was
  * nicht mehr gebraucht wurde, nicht der Baukasten selbst.
  *
  * Das Gelände (`FIELD`) behält seine Ausdehnung nach Norden: Es wächst mit

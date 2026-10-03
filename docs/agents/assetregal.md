@@ -1007,8 +1007,7 @@ auf (`PortalWorld.screenCatch`).
 Ein Modell aus dem Regal ist ein **Möbel**: ein Fass, ein Zaun, eine Truhe,
 eine Wand. Die Möbel dieses Spiels stehen auf Kacheln und schauen in eine der
 vier Himmelsrichtungen — die Küche tut es (`test/zones/kitchenPlan.Spot`), der
-Editor tut es (`grid/gridTool.ts`), und der Konstrukt-Raum stellt seine Auswahl
-aus demselben Grund in Vierteldrehungen hin. Wer aus dem Regal eine Reihe
+Editor tut es (`grid/gridTool.ts`). Wer aus dem Regal eine Reihe
 Fässer hinstellt, will genau das: eine **Reihe** und keine Sammlung schräg
 stehender Fässer, die sich um ein paar Zentimeter verfehlen.
 
@@ -1194,8 +1193,8 @@ Vorratskiste mit Brötchen hinstelle oder Herd, Waschbecken etc."
 
 `core/kitchenShelf.ts` schließt die Lücke: dreizehn Zeilen, links eine
 Adresse, rechts ein Möbel des Küchenkatalogs. Steht die Figur **in der Küche**
-und nimmt eine davon, entsteht statt des Fasses das Stück, das auch im
-Konstrukt-Raum im Regal stünde — mitsamt Station, Ablage und Uhr
+und nimmt eine davon, entsteht statt des Fasses das Stück der Küche —
+mitsamt Station, Ablage und Uhr
 (`KitchenZone.takeShelfPiece` → `takeFromCatalogue`). Es liegt dann in den
 Händen wie jedes andere Möbel im Umbau und wird mit `A` hingestellt.
 

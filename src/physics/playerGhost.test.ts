@@ -1,11 +1,8 @@
 /**
- * **Der Körper im Konstrukt** — mit echtem Rapier, wie beim Boden nebenan
- * (`playerFooting.test.ts`).
- *
- * Der weiße Raum (`worlds/shared/construct.ts`) blendet die Welt **aus**,
- * statt den Spieler wegzuschicken. Ihre Kollisionskörper bleiben dabei stehen,
- * und genau das war der Befund aus der Brille: unsichtbare Wände in einem
- * leeren Raum, gegen die man läuft, und eine Figur, die danach woanders steht.
+ * **Der Körper, der durch alles geht** (`PhysicsLocomotion.ghost`) — mit
+ * echtem Rapier, wie beim Boden nebenan (`playerFooting.test.ts`). Der Kran
+ * fliegt so (`PortalWorld.updateCraneFlight`); entstanden ist es für den
+ * Konstrukt-Raum, den es seit Oktober 2026 nicht mehr gibt.
  *
  * Nachgemessen wird deshalb dreierlei, und alle drei sind die Sorte Fehler, die
  * man erst merkt, wenn man drinsteht: dass die Wand ohne `ghost` hält, dass sie
@@ -77,7 +74,7 @@ function walkEast(walk: (dt: number, speedX: number) => void): void {
   for (let i = 0; i < 120; i++) walk(1 / 60, 3);
 }
 
-describe('Der Körper im Konstrukt (`PhysicsLocomotion.ghost`)', () => {
+describe('Der Körper ohne Kollision (`PhysicsLocomotion.ghost`)', () => {
   it('bleibt ohne ihn an der Küchenzeile hängen', async () => {
     const { rig, walk } = await stage();
     walkEast(walk);
@@ -114,7 +111,7 @@ describe('Der Körper im Konstrukt (`PhysicsLocomotion.ghost`)', () => {
 
   it('hört auf, sobald jemand das Rig versetzt', async () => {
     // `resync` ist immer die Ansage „das Rig steht jetzt woanders" — und genau
-    // damit holt das Konstrukt die Figur zurück. Bliebe `ghost` danach stehen,
+    // damit landet der Kran. Bliebe `ghost` danach stehen,
     // liefe man in der echten Küche weiter durch Wände, ohne dass es jemandem
     // auffiele, bis der erste Sprung ins Leere geht.
     const { rig, loco, walk } = await stage();

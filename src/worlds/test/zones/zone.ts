@@ -1,7 +1,6 @@
 import type * as THREE from 'three';
 import type { WorldContext } from '../../../core/types';
 import type { Usable } from '../../../core/usable';
-import type { ConstructOptions } from '../../shared/construct';
 import type { PhysicsBody, PhysicsWorld } from '../../../physics/PhysicsWorld';
 import type { RoutineHost } from '../../npc/NpcRoutine';
 import type { Npc } from '../../npc/Npc';
@@ -88,22 +87,10 @@ export interface ZoneHost {
   removeUsable(object: THREE.Object3D): void;
 
   /**
-   * **Den Konstrukt-Raum aufmachen** (`worlds/shared/construct.ts`) — der
-   * weiße Raum, in dem man aussucht, während die Figur draußen stehen bleibt.
-   *
-   * Er gehört der **Welt** und nicht der Zone, obwohl die Küche ihn aufmacht:
-   * Er blendet alles aus, was nicht der Anker ist, und das ist mehr, als eine
-   * Zone kennt — die Möbel stehen in der Küche, der Boden gehört der Welt. Zwei Räume nebeneinander hießen
-   * zwei Meinungen darüber, was gerade sichtbar ist, und die zweite gewönne
-   * beim Verlassen.
-   *
-   * Die Zone reicht deshalb nur ihre Auswahl herein und bekommt zurück, ob
-   * gerade einer offen steht — mehr braucht sie nicht, und mehr bekommt sie
-   * nicht.
+   * **Den Möbelkatalog im Menü aufschlagen** — der Rechner der Küche tut es
+   * (`kitchen.openCatalogue`). Was man darin wählt, hat man in der Hand.
    */
-  enterConstruct(options: ConstructOptions): void;
-  leaveConstruct(): void;
-  inConstruct(): boolean;
+  openCatalogue(): void;
 
   /** Eine Zeile ans Handgelenk. */
   notify(message: string): void;
