@@ -3,7 +3,7 @@
  * three.js, ohne Leinwand, ohne Browser.
  *
  * Das Regal zeigt am Handgelenk in jeder Kachel das Modell selbst
- * (`ui/WristMenu.ts`); auf dem Telefon tut es das jetzt auch
+ * (`ui/XRMenu.ts`); auf dem Telefon tut es das jetzt auch
  * (`ui/PagePreviews.ts`). Was daran **wehtun** kann, ist nicht das Zeichnen,
  * sondern die Buchführung: Wer wird wann wieder gefragt, wer ist zu sehen, wer
  * gibt sein Modell wieder her. Genau das steht hier — als reine Funktion und
@@ -76,7 +76,7 @@ export const PREVIEW_RETRY = 0.5;
  * automatisch drehen in der Vorschau"_. Ein Achtel zur Seite: Die Vorderseite
  * (`+z`, wohin ein Möbel schaut) zeigt zum Betrachter, und eine Seite sieht
  * man mit, sonst wäre eine Arbeitsplatte nur ein Rechteck. Dieselbe Zahl am
- * Handgelenk (`ui/WristMenu.ts`).
+ * Handgelenk (`ui/XRMenu.ts`).
  */
 export const PREVIEW_YAW = -Math.PI / 5;
 

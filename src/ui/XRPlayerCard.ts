@@ -12,7 +12,7 @@ import { TextPlane } from './TextPlane';
  * Gewünscht war: „In der Brille könnte man ein Menü öffnen über das
  * Handgelenk. Das Menü kann dann gleich aussehen wie beim PC." Am PC steht
  * rechts neben den Kacheln die Figur mit _Aussehen anpassen_; hier steht sie
- * genauso rechts neben dem Panel (`WristMenuOptions.aside`), nur ohne
+ * genauso rechts neben dem Panel (`XRMenuOptions.aside`), nur ohne
  * zweiten Renderer: Sie ist ein **echtes kleines Modell im Raum**, eine
  * Handspanne hoch auf einer dunklen Tafel, und dreht sich langsam. Ein
  * zweites Canvas wäre in der Brille genau der Renderer zu viel
@@ -26,6 +26,13 @@ export interface XRPlayerCardOptions {
   panelWidth: number;
   /** Wie hoch es ist. */
   panelHeight: number;
+  /**
+   * **Wie groß die Karte im Ganzen ist** — `1` für ihr Maß neben dem
+   * schmalen Panel, das früher am Handgelenk hing. Neben dem Bildschirm zwei
+   * Meter vor einem (`XRMenu`) wird sie im Ganzen vergrößert, statt jede Zahl
+   * hier neu zu setzen.
+   */
+  scale?: number;
   /** Wie der Spieler heißt. */
   name: () => string;
   /** _Aussehen anpassen_ wurde gedrückt. */
@@ -64,9 +71,13 @@ export class XRPlayerCard extends THREE.Group {
     this.onCustomize = options.onCustomize;
     this.visible = false;
 
-    const height = options.panelHeight;
+    const k = options.scale ?? 1;
+    // In ihrem eigenen, unvergrößerten Maß gerechnet; die Vergrößerung macht
+    // daraus die Höhe des Panels.
+    const height = options.panelHeight / k;
+    this.scale.setScalar(k);
     // Rechts neben dem Panel, oben bündig mit ihm.
-    this.position.set(options.panelWidth / 2 + GAP + CARD_W / 2, 0, 0);
+    this.position.set(options.panelWidth / 2 + (GAP + CARD_W / 2) * k, 0, 0);
 
     this.plate = new THREE.Mesh(
       new THREE.PlaneGeometry(CARD_W, height),

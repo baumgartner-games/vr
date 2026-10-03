@@ -5,7 +5,7 @@ import { OUTFIT_PREVIEW } from './outfitMenu';
 
 /**
  * **Das Stück in der Kachel** — die Vorschau-Fabrik für _Aussehen_
- * (`ui/outfitMenu.ts`, `WristMenus.setExtraModels`).
+ * (`ui/outfitMenu.ts`, `GameMenu.setExtraModels`).
  *
  * Die Figuren kommen aus dem Modellregal (`kaykitModelNow`, `null` heißt
  * „noch nicht"), so wie sie dastehen; die Hüte aus demselben Baukasten wie am

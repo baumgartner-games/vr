@@ -235,7 +235,7 @@ export function isOutline(object: THREE.Object3D): boolean {
  * Sagt für ein Ding ab: Es bekommt keinen Saum, auch im Comic nicht.
  *
  * Für Abschriften, die zwar in der Szene hängen, aber keine Gegenstände sind —
- * die **kleinen Modelle in den Menüzeilen** (`ui/WristMenu.ts`) sind das eine
+ * die **kleinen Modelle in den Menüzeilen** (`ui/XRMenu.ts`) sind das eine
  * Beispiel, das es gibt. Sie leihen sich Geometrie und Material vom Werkzeug
  * und werden bei jeder Änderung des Menüs neu gebaut; ein Saum daran wäre ein
  * Material pro Neubau, das niemand mehr wegräumt.

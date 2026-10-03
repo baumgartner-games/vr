@@ -3,6 +3,20 @@ import type { PointerHit, PointerTarget } from '../core/Pointer';
 import type { Handedness } from '../core/XRInput';
 import { drawMenuIcon, type MenuEntry } from './menu';
 import { pageScroll } from './pageScroll';
+import {
+  SCREEN_BODY_TOP,
+  SCREEN_FOOTER_H,
+  SCREEN_H,
+  SCREEN_PAD,
+  SCREEN_W,
+  controlAt,
+  sameControl,
+  screenCols,
+  screenHead,
+  type Rect,
+  type ScreenControl,
+  type ScreenHead,
+} from './screenLayout';
 
 /** Everything about a page except its title and its rows. */
 export interface PageOptions {
@@ -61,6 +75,10 @@ export interface PageOptions {
   tabs?: readonly PanelTab[];
   /** Welcher Reiter gerade offen ist, als Index in `tabs`. */
   tab?: number;
+  /** Nur im Bildschirm-Format: der Knopf _Zurück_ links im Kopf. */
+  back?: boolean;
+  /** Nur im Bildschirm-Format: das Haus rechts im Kopf (_Von vorne_). */
+  home?: boolean;
 }
 
 /** Ein Reiter über der Seite (`PageOptions.tabs`). */
@@ -72,18 +90,32 @@ export interface PanelTab {
 
 export interface PanelOptions {
   width?: number;
+  /**
+   * **Hochkant** (der Normalfall, für die Tafeln an Werkzeugen) oder als
+   * **Bildschirm** in 16:9 mit dem Kopf der Seite am Schirm: ◀ ▶, Reiter, ✕,
+   * darunter Zurück, Titel und Haus (`ui/screenLayout.ts`). So steht das
+   * Menü in der Brille vor dem Spieler (`XRMenu`).
+   */
+  layout?: 'portrait' | 'screen';
   title?: string;
   footer?: string;
   /** Eigenschaft statt Methode: Sie wird gespeichert und später einzeln gerufen. */
   onSelect?: (index: number, hand: Handedness | null) => void;
   /** Ein Reiter wurde gedrückt (`PageOptions.tabs`). */
   onTab?: (index: number, hand: Handedness | null) => void;
+  /** Ein Knopf im Kopf des Bildschirms wurde gedrückt: ◀ ▶ ✕ ← ⌂. */
+  onControl?: (
+    control: 'prev' | 'next' | 'close' | 'back' | 'home',
+    hand: Handedness | null,
+  ) => void;
 }
 
 const CANVAS_W = 768;
 const CANVAS_H = 1280;
-/** Wie hoch ein Panel im Verhältnis zu seiner Breite ist. */
+/** Wie hoch ein Panel im Verhältnis zu seiner Breite ist (hochkant). */
 export const PANEL_ASPECT = CANVAS_H / CANVAS_W;
+/** Und im Bildschirm-Format: 16:9. */
+export const SCREEN_ASPECT = SCREEN_H / SCREEN_W;
 const PAD = 34;
 const HEADER_H = 150;
 const FOOTER_H = 76;
@@ -100,6 +132,8 @@ function now(): number {
 
 const ROW_H = 122;
 const ROW_GAP = 14;
+/** Zwischen zwei Spalten von Zeilen (nur im Bildschirm-Format). */
+const ROW_COL_GAP = 18;
 
 /** Spalten im Raster, wo keine Seite etwas anderes sagt (`PageOptions.cols`). */
 const GRID_COLS = 3;
@@ -107,10 +141,8 @@ const GRID_GAP = 16;
 /** Wie hoch eine Kachel über ihre Breite hinaus ist: die Zeile mit dem Namen. */
 const CELL_LABEL_H = 44;
 
-/** Die Breite einer Kachel folgt der Spaltenzahl, die Höhe ihr. */
-function cellWidth(cols: number): number {
-  return Math.floor((CANVAS_W - PAD * 2 - GRID_GAP * (cols - 1)) / cols);
-}
+/** Der Kreis, wo der Strahl auf dem Panel aufsetzt — Radius in Bruchteilen der Panelbreite. */
+const MARKER_R = 0.009;
 
 /**
  * A canvas-textured panel that shows a page of menu entries — as a list, or as
@@ -120,6 +152,19 @@ function cellWidth(cols: number): number {
 export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly texture: THREE.CanvasTexture;
+  /** Hochkant oder Bildschirm (`PanelOptions.layout`). */
+  private readonly screen: boolean;
+  /** Die Leinwand in Bildpunkten. */
+  private readonly cw: number;
+  private readonly ch: number;
+  private readonly pad: number;
+  /**
+   * **Der Kreis, wo der Strahl aufsetzt** — gewünscht: _„ich will dann ja mit
+   * einem strahl sehen auf welches element ich zeige (und am bildschirm
+   * erscheint zusätzlich dort ein kleiner kreis)"_. Ein Ring als Kind des
+   * Panels, kein Neuzeichnen der Leinwand: Er wandert jedes Bild mit.
+   */
+  private readonly marker: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   private entries: MenuEntry[] = [];
   private grid = false;
   /** Spalten dieser Seite; die Breite einer Kachel hängt daran. */
@@ -140,17 +185,27 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private flash = 0;
   private onSelect?: (index: number, hand: Handedness | null) => void;
   private onTab?: (index: number, hand: Handedness | null) => void;
+  private onControl?: PanelOptions['onControl'];
   private tabs: readonly PanelTab[] = [];
   private tab = -1;
-  /** Der Reiter unter dem Strahl, oder `-1`. */
+  /** Der Reiter unter dem Strahl, oder `-1` (hochkant). */
   private hoverTab = -1;
+  /** Der Kopf des Bildschirms (`ui/screenLayout.ts`), neu bei jeder Seite. */
+  private head: ScreenHead | null = null;
+  private back = false;
+  private home = false;
+  /** Der Knopf oder Reiter im Kopf unter dem Strahl (Bildschirm). */
+  private hoverControl: ScreenControl | null = null;
 
   constructor(options: PanelOptions = {}) {
+    const screen = options.layout === 'screen';
+    const cw = screen ? SCREEN_W : CANVAS_W;
+    const ch = screen ? SCREEN_H : CANVAS_H;
     const width = options.width ?? 0.3;
-    const height = (width * CANVAS_H) / CANVAS_W;
+    const height = (width * ch) / cw;
     const canvas = document.createElement('canvas');
-    canvas.width = CANVAS_W;
-    canvas.height = CANVAS_H;
+    canvas.width = cw;
+    canvas.height = ch;
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 8;
@@ -160,15 +215,40 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false }),
     );
 
+    this.screen = screen;
+    this.cw = cw;
+    this.ch = ch;
+    this.pad = screen ? SCREEN_PAD : PAD;
     this.texture = texture;
     this.ctx = canvas.getContext('2d')!;
     this.title = options.title ?? '';
     this.footer = options.footer ?? '';
     this.onSelect = options.onSelect;
     this.onTab = options.onTab;
+    this.onControl = options.onControl;
     this.name = 'ui-panel';
     this.renderOrder = 10;
     this.geometry.computeBoundingBox();
+
+    const r = width * MARKER_R;
+    this.marker = new THREE.Mesh(
+      new THREE.RingGeometry(r * 0.55, r, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        toneMapped: false,
+      }),
+    );
+    this.marker.name = 'ui-panel-marker';
+    this.marker.renderOrder = 13;
+    this.marker.visible = false;
+    // Der Ring ist kein Ziel: Ein Strahl, der ihn träfe, träfe das Panel nicht.
+    this.marker.raycast = () => {};
+    this.add(this.marker);
+
+    if (screen) this.head = screenHead(0, { back: false, home: false }, cw);
     this.draw();
   }
 
@@ -184,9 +264,16 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.tab = options.tab ?? -1;
     this.entries = entries;
     this.grid = options.grid ?? false;
-    this.cols = Math.max(1, Math.floor(options.cols ?? GRID_COLS));
+    this.cols = this.screen
+      ? screenCols(this.grid, options.cols, this.cw)
+      : Math.max(1, Math.floor(options.cols ?? GRID_COLS));
     this.pinned = Math.min(Math.max(0, Math.floor(options.pinned ?? 0)), entries.length);
     this.hint = options.hint ?? '';
+    this.back = options.back ?? false;
+    this.home = options.home ?? false;
+    if (this.screen) {
+      this.head = screenHead(this.tabs.length, { back: this.back, home: this.home }, this.cw);
+    }
     this.scroll = pageScroll({
       previousKey: this.pageKey,
       key,
@@ -222,7 +309,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   /**
    * Wo das Bild eines Eintrags gerade sitzt — in Metern, im Raum des Panels.
    *
-   * Damit stellt `WristMenu` die kleinen Modelle vor die richtige Stelle, ohne
+   * Damit stellt `XRMenu` die kleinen Modelle vor die richtige Stelle, ohne
    * etwas über Kacheln, Kopfbalken und Blätterstand wissen zu müssen. `null`
    * für alles, was gerade **nicht zu sehen** ist; daran hängt drüben auch, was
    * geladen wird und was wieder weggeräumt werden darf.
@@ -238,7 +325,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     // Der Kopfbalken ist immer eine Zeile, auch über einem Raster.
     if (index < this.pinned) {
       return this.anchorOf(
-        PAD + 58,
+        this.pad + 58,
         this.headerH + index * (ROW_H + ROW_GAP) + ROW_H / 2,
         ROW_H * 0.6,
       );
@@ -246,17 +333,14 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const slot = index - this.pinned - this.scroll;
     if (slot < 0 || slot >= this.visibleCount) return null;
     if (!this.grid) {
-      return this.anchorOf(
-        PAD + 58,
-        this.bodyTop + slot * (ROW_H + ROW_GAP) + ROW_H / 2,
-        ROW_H * 0.6,
-      );
+      const rect = this.rowRect(slot);
+      return this.anchorOf(rect.x + 58, rect.y + ROW_H / 2, ROW_H * 0.6);
     }
     const cellW = this.cellW;
     const column = slot % this.cols;
     const row = Math.floor(slot / this.cols);
     return this.anchorOf(
-      PAD + column * (cellW + GRID_GAP) + cellW / 2,
+      this.pad + column * (cellW + GRID_GAP) + cellW / 2,
       this.bodyTop + row * (this.cellH + GRID_GAP) + cellW / 2,
       // Etwas kleiner als das Quadrat: Ein Modell, das die Kachel ausfüllt,
       // ragt beim Drehen über ihren Rand hinaus.
@@ -269,9 +353,9 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const width = this.geometry.parameters.width;
     const height = this.geometry.parameters.height;
     return {
-      x: (x / CANVAS_W - 0.5) * width,
-      y: (0.5 - y / CANVAS_H) * height,
-      size: (size / CANVAS_H) * height,
+      x: (x / this.cw - 0.5) * width,
+      y: (0.5 - y / this.ch) * height,
+      size: (size / this.ch) * height,
     };
   }
 
@@ -285,7 +369,10 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
    * @returns true, wenn sich wirklich etwas bewegt hat
    */
   scrollTo(offset: number): boolean {
-    const next = THREE.MathUtils.clamp(Math.round(offset), 0, this.maxScroll);
+    // Immer auf den Anfang einer Reihe: Zwei Spalten, die um eins versetzt
+    // anfangen, schieben jede Kachel beim Blättern in die andere Spalte.
+    const step = this.perRow;
+    const next = THREE.MathUtils.clamp(Math.round(offset / step) * step, 0, this.maxScroll);
     if (next === this.scroll) return false;
     this.scroll = next;
     this.hover = -1;
@@ -302,7 +389,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
    */
   scrollBy(rows: number): boolean {
     if (!this.scrollable) return false;
-    return this.scrollTo(this.scroll + rows * (this.grid ? this.cols : 1));
+    return this.scrollTo(this.scroll + rows * this.perRow);
   }
 
   setStatus(status: string): void {
@@ -331,12 +418,19 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       onHover: (hit) => {
         this.hovered.hand = hit.hand;
         if (hit.uv) this.hovered.v = hit.uv.y;
-        this.setHoverTab(hit.uv ? this.tabAt(hit.uv) : -1);
+        this.showMarker(hit);
+        if (this.screen) {
+          this.setHoverControl(hit.uv ? this.controlAt(hit.uv) : null);
+        } else {
+          this.setHoverTab(hit.uv ? this.tabAt(hit.uv) : -1);
+        }
         this.setHover(hit.uv ? this.indexAt(hit.uv) : -1);
       },
       onBlur: () => {
         this.hovered.hand = null;
+        this.marker.visible = false;
         this.setHoverTab(-1);
+        this.setHoverControl(null);
         this.setHover(-1);
       },
       onSelect: (hit) => this.handleSelect(hit),
@@ -367,10 +461,32 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.geometry.dispose();
     this.material.dispose();
     this.texture.dispose();
+    this.marker.geometry.dispose();
+    this.marker.material.dispose();
+  }
+
+  /** Der Ring an die Stelle, an der der Strahl aufsetzt — eine Spur vor dem Panel. */
+  private showMarker(hit: PointerHit): void {
+    if (hit.poke || !hit.uv) {
+      this.marker.visible = false;
+      return;
+    }
+    const { width, height } = this.geometry.parameters;
+    this.marker.position.set((hit.uv.x - 0.5) * width, (hit.uv.y - 0.5) * height, 0.002);
+    this.marker.visible = true;
   }
 
   private handleSelect(hit: PointerHit): void {
-    const tab = hit.uv ? this.tabAt(hit.uv) : -1;
+    if (this.screen) {
+      const control = hit.uv ? this.controlAt(hit.uv) : null;
+      if (control) {
+        this.flash = 0.18;
+        if (control.kind === 'tab') this.onTab?.(control.index, hit.hand);
+        else this.onControl?.(control.kind, hit.hand);
+        return;
+      }
+    }
+    const tab = !this.screen && hit.uv ? this.tabAt(hit.uv) : -1;
     if (tab >= 0) {
       this.flash = 0.18;
       this.onTab?.(tab, hit.hand);
@@ -396,12 +512,28 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
+  private setHoverControl(control: ScreenControl | null): void {
+    if (sameControl(this.hoverControl, control)) return;
+    this.hoverControl = control;
+    this.draw();
+  }
+
+  /** Der Knopf im Kopf an dieser Stelle (Bildschirm). */
+  private controlAt(uv: THREE.Vector2): ScreenControl | null {
+    return this.head ? controlAt(this.head, uv.x * this.cw, (1 - uv.y) * this.ch) : null;
+  }
+
   /** Wo die Liste anfängt: unter dem Titel — und unter den Reitern, wenn es welche gibt. */
   private get headerH(): number {
+    if (this.screen) return SCREEN_BODY_TOP;
     return this.tabs.length > 0 ? HEADER_H + TAB_H : HEADER_H;
   }
 
-  /** Der Reiter unter dieser Stelle, oder `-1`. */
+  private get footerH(): number {
+    return this.screen ? SCREEN_FOOTER_H : FOOTER_H;
+  }
+
+  /** Der Reiter unter dieser Stelle, oder `-1` (hochkant). */
   private tabAt(uv: THREE.Vector2): number {
     if (this.tabs.length === 0) return -1;
     const x = uv.x * CANVAS_W - PAD;
@@ -411,9 +543,39 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     return Math.min(this.tabs.length - 1, Math.floor(x / width));
   }
 
+  /** Wie viele Zeilen nebeneinander stehen — hochkant eine, als Bildschirm zwei. */
+  private get rowCols(): number {
+    return this.screen ? screenCols(false) : 1;
+  }
+
+  /** Wie viele Einträge eine Reihe weiterschiebt. */
+  private get perRow(): number {
+    return this.grid ? this.cols : this.rowCols;
+  }
+
+  /** Wie breit der Inhalt ist — rechts Platz für den Rollbalken. */
+  private get bodyW(): number {
+    return this.cw - this.pad * 2;
+  }
+
+  /** Die Stelle einer Zeile im sichtbaren Teil der Liste. */
+  private rowRect(slot: number): Rect {
+    const cols = this.rowCols;
+    const gutter = this.scrollable ? 18 : 0;
+    const w = (this.bodyW - gutter - ROW_COL_GAP * (cols - 1)) / cols;
+    const column = slot % cols;
+    const row = Math.floor(slot / cols);
+    return {
+      x: this.pad + column * (w + ROW_COL_GAP),
+      y: this.bodyTop + row * (ROW_H + ROW_GAP),
+      w,
+      h: ROW_H,
+    };
+  }
+
   /** Die Breite einer Kachel auf dieser Seite. */
   private get cellW(): number {
-    return cellWidth(this.cols);
+    return Math.floor((this.bodyW - GRID_GAP * (this.cols - 1)) / this.cols);
   }
 
   /** Und ihre Höhe: quadratisch für das Bild, plus die Zeile mit dem Namen. */
@@ -428,25 +590,29 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** How many entries fit on one page — der Kopfbalken nimmt Platz weg. */
   private get pageSize(): number {
-    const body = CANVAS_H - this.bodyTop - FOOTER_H;
+    const body = this.ch - this.bodyTop - this.footerH;
     return this.grid
       ? Math.max(this.cols, Math.floor(body / (this.cellH + GRID_GAP)) * this.cols)
-      : Math.max(1, Math.floor(body / (ROW_H + ROW_GAP)));
+      : Math.max(1, Math.floor(body / (ROW_H + ROW_GAP))) * this.rowCols;
   }
 
   /** The furthest down this page can go without scrolling past its last row. */
   private get maxScroll(): number {
-    return Math.max(0, this.entries.length - this.pinned - this.pageSize);
+    const rows = this.entries.length - this.pinned;
+    const over = Math.max(0, rows - this.pageSize);
+    // Auf eine ganze Reihe aufgerundet — sonst fängt die letzte Seite mitten
+    // in einer Reihe an.
+    return Math.ceil(over / this.perRow) * this.perRow;
   }
 
   private get visibleCount(): number {
-    return Math.min(this.entries.length - this.pinned - this.scroll, this.pageSize);
+    return Math.max(0, Math.min(this.entries.length - this.pinned - this.scroll, this.pageSize));
   }
 
   private indexAt(uv: THREE.Vector2): number {
-    const x = uv.x * CANVAS_W;
-    let y = (1 - uv.y) * CANVAS_H - this.headerH;
-    if (y < 0 || x < PAD || x > CANVAS_W - PAD) return -1;
+    const x = uv.x * this.cw;
+    let y = (1 - uv.y) * this.ch - this.headerH;
+    if (y < 0 || x < this.pad || x > this.cw - this.pad) return -1;
 
     if (this.pinned > 0) {
       const row = Math.floor(y / (ROW_H + ROW_GAP));
@@ -457,36 +623,43 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     if (this.grid) {
       const cellW = this.cellW;
       const cellH = this.cellH;
-      const column = Math.floor((x - PAD) / (cellW + GRID_GAP));
+      const column = Math.floor((x - this.pad) / (cellW + GRID_GAP));
       const row = Math.floor(y / (cellH + GRID_GAP));
       if (column < 0 || column >= this.cols || row < 0) return -1;
-      if ((x - PAD) % (cellW + GRID_GAP) > cellW) return -1;
+      if ((x - this.pad) % (cellW + GRID_GAP) > cellW) return -1;
       if (y % (cellH + GRID_GAP) > cellH) return -1;
       const index = row * this.cols + column;
       return index < this.visibleCount ? this.pinned + this.scroll + index : -1;
     }
 
-    const index = Math.floor(y / (ROW_H + ROW_GAP));
-    if (index < 0 || index >= this.visibleCount) return -1;
-    if (y % (ROW_H + ROW_GAP) > ROW_H) return -1;
-    return this.pinned + this.scroll + index;
+    const absY = y + this.bodyTop;
+    for (let slot = 0; slot < this.visibleCount; slot++) {
+      const rect = this.rowRect(slot);
+      if (x >= rect.x && x <= rect.x + rect.w && absY >= rect.y && absY <= rect.y + rect.h) {
+        return this.pinned + this.scroll + slot;
+      }
+    }
+    return -1;
   }
 
   private cardHeight(): number {
+    // Ein Bildschirm bleibt ein Bildschirm, auch wenn die Seite kurz ist.
+    if (this.screen) return this.ch;
     const count = this.visibleCount;
     const body = this.grid
       ? Math.ceil(count / this.cols) * (this.cellH + GRID_GAP)
       : count * (ROW_H + ROW_GAP);
-    return Math.min(CANVAS_H, this.bodyTop + body + FOOTER_H);
+    return Math.min(this.ch, this.bodyTop + body + this.footerH);
   }
 
   private draw(): void {
     const ctx = this.ctx;
     const cardH = this.cardHeight();
-    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const pad = this.pad;
+    ctx.clearRect(0, 0, this.cw, this.ch);
 
     ctx.beginPath();
-    ctx.roundRect(0, 0, CANVAS_W, cardH, 40);
+    ctx.roundRect(0, 0, this.cw, cardH, 40);
     ctx.fillStyle = 'rgba(9, 14, 26, 0.93)';
     ctx.fill();
     ctx.lineWidth = 3;
@@ -495,24 +668,32 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#8ea0c4';
-    ctx.font = '600 26px system-ui, sans-serif';
-    ctx.fillText(
-      fitText(ctx, this.crumb ? this.crumb.toUpperCase() : 'BAUMGARTNER VR', CANVAS_W - PAD * 2),
-      PAD,
-      62,
-    );
+    if (this.screen) {
+      this.drawScreenHead();
+    } else {
+      ctx.fillStyle = '#8ea0c4';
+      ctx.font = '600 26px system-ui, sans-serif';
+      ctx.fillText(
+        fitText(ctx, this.crumb ? this.crumb.toUpperCase() : 'BAUMGARTNER VR', this.cw - pad * 2),
+        pad,
+        62,
+      );
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '700 46px system-ui, sans-serif';
-    ctx.fillText(this.title, PAD, 118);
-    this.drawTabs();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 46px system-ui, sans-serif';
+      ctx.fillText(this.title, pad, 118);
+      this.drawTabs();
+    }
 
     // Der Kopfbalken zuerst: er steht, egal wie weit die Liste darunter
     // gescrollt ist — auf einer Rasterseite genauso, dort als Zeile über den
     // Kacheln.
     for (let i = 0; i < this.pinned; i++) {
-      this.drawRow(this.entries[i]!, this.headerH + i * (ROW_H + ROW_GAP), i === this.hover);
+      this.drawRow(
+        this.entries[i]!,
+        { x: pad, y: this.headerH + i * (ROW_H + ROW_GAP), w: this.bodyW, h: ROW_H },
+        i === this.hover,
+      );
     }
 
     for (let i = 0; i < this.visibleCount; i++) {
@@ -523,12 +704,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
         const row = Math.floor(i / this.cols);
         this.drawCell(
           entry,
-          PAD + column * (this.cellW + GRID_GAP),
+          pad + column * (this.cellW + GRID_GAP),
           this.bodyTop + row * (this.cellH + GRID_GAP),
           index === this.hover,
         );
       } else {
-        this.drawRow(entry, this.bodyTop + i * (ROW_H + ROW_GAP), index === this.hover);
+        this.drawRow(entry, this.rowRect(i), index === this.hover);
       }
     }
     this.drawScrollbar(cardH);
@@ -538,7 +719,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       // Eine lange Seite unter einer anderen (angeheftetes _Zurück_): Blättern
       // und Zurück in einer Zeile — `B`/`Y` ist sonst nirgends zu lesen.
       (this.scrollable
-        ? this.pinned > 0
+        ? this.pinned > 0 || this.back
           ? 'Stick oder wischen blättert · B/Y zurück'
           : 'Stick oder Trigger halten und wischen blättert'
         : '') ||
@@ -547,10 +728,150 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     if (footer) {
       ctx.fillStyle = this.status ? '#9fd0ff' : '#71809e';
       ctx.font = '400 24px system-ui, sans-serif';
-      ctx.fillText(clip(ctx, footer, CANVAS_W - PAD * 2), PAD, cardH - 34);
+      ctx.fillText(clip(ctx, footer, this.cw - pad * 2), pad, cardH - (this.screen ? 22 : 34));
     }
 
     this.texture.needsUpdate = true;
+  }
+
+  /**
+   * **Der Kopf des Bildschirms** — wie die Seite am Schirm: ◀ ▶ und die
+   * Reiter oben, ✕ rechts; darunter Zurück, der Weg und der Titel, das Haus.
+   */
+  private drawScreenHead(): void {
+    const head = this.head;
+    if (!head) return;
+    const ctx = this.ctx;
+    const hot = (control: ScreenControl): boolean => sameControl(this.hoverControl, control);
+
+    if (head.prev) this.drawRoundButton(head.prev, 'prev', hot({ kind: 'prev' }));
+    if (head.next) this.drawRoundButton(head.next, 'next', hot({ kind: 'next' }));
+    this.drawRoundButton(head.close, 'close', hot({ kind: 'close' }));
+    if (head.back) this.drawRoundButton(head.back, 'back', hot({ kind: 'back' }));
+    if (head.home) this.drawRoundButton(head.home, 'home', hot({ kind: 'home' }));
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    head.tabs.forEach((rect, index) => {
+      const tab = this.tabs[index]!;
+      const accent = toCss(tab.accent ?? 0x4aa8ff);
+      const on = index === this.tab;
+      const over = hot({ kind: 'tab', index });
+      ctx.beginPath();
+      ctx.roundRect(rect.x + TAB_GAP / 2, rect.y, rect.w - TAB_GAP, rect.h, 18);
+      ctx.fillStyle = on
+        ? 'rgba(140, 170, 230, 0.2)'
+        : over
+          ? 'rgba(140, 170, 230, 0.16)'
+          : 'rgba(140, 170, 230, 0.06)';
+      ctx.fill();
+      if (over) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = accent;
+        ctx.stroke();
+      }
+      if (on) {
+        ctx.fillStyle = accent;
+        ctx.fillRect(rect.x + TAB_GAP / 2 + 14, rect.y + rect.h - 6, rect.w - TAB_GAP - 28, 6);
+      }
+      // Ikone links neben dem Wort, wie am Schreibtisch (`.pmenu__tab`).
+      // Erst kleiner, dann ohne Ikone, dann gekürzt: „Einstellungen" soll
+      // ganz dastehen.
+      const room = rect.w - TAB_GAP - 24;
+      const fits = (px: number, withIcon: boolean): boolean => {
+        ctx.font = `600 ${px}px system-ui, sans-serif`;
+        return ctx.measureText(tab.label).width <= room - (withIcon ? 44 : 0);
+      };
+      const icon = Boolean(tab.icon) && [28, 25].some((px) => fits(px, true));
+      if (!icon) [28, 25, 22].some((px) => fits(px, false));
+      const label = clip(ctx, tab.label, icon ? room - 44 : room);
+      const textW = ctx.measureText(label).width;
+      const total = textW + (icon ? 44 : 0);
+      let x = rect.x + rect.w / 2 - total / 2;
+      if (icon && tab.icon) {
+        drawMenuIcon(ctx, tab.icon, x + 18, rect.y + rect.h / 2, 36, accent);
+        x += 44;
+      }
+      ctx.fillStyle = on || over ? '#ffffff' : '#8ea0c4';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, x, rect.y + rect.h / 2 + 10);
+      ctx.textAlign = 'center';
+    });
+    ctx.restore();
+
+    const text = head.text;
+    ctx.fillStyle = '#8ea0c4';
+    ctx.font = '600 22px system-ui, sans-serif';
+    if (this.crumb)
+      ctx.fillText(fitText(ctx, this.crumb.toUpperCase(), text.w), text.x, text.crumbY);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 42px system-ui, sans-serif';
+    ctx.fillText(
+      clip(ctx, this.title, text.w),
+      text.x,
+      this.crumb ? text.titleY : (text.crumbY + text.titleY) / 2 + 8,
+    );
+  }
+
+  /** Ein runder Knopf im Kopf mit seinem Zeichen — wie `.pmenu__nav` am Schirm. */
+  private drawRoundButton(
+    rect: Rect,
+    glyph: 'prev' | 'next' | 'close' | 'back' | 'home',
+    hot: boolean,
+  ): void {
+    const ctx = this.ctx;
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+    const r = rect.w / 2;
+    const active = hot && this.flash > 0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
+    ctx.fillStyle = active
+      ? 'rgba(140, 170, 230, 0.5)'
+      : hot
+        ? 'rgba(140, 170, 230, 0.3)'
+        : 'rgba(140, 170, 230, 0.12)';
+    ctx.fill();
+    ctx.lineWidth = hot ? 3 : 2;
+    ctx.strokeStyle = hot ? '#ffffff' : 'rgba(255,255,255,0.18)';
+    ctx.stroke();
+
+    ctx.save();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const s = r * 0.36;
+    ctx.beginPath();
+    switch (glyph) {
+      case 'prev':
+      case 'back':
+        ctx.moveTo(cx + s * 0.45, cy - s);
+        ctx.lineTo(cx - s * 0.55, cy);
+        ctx.lineTo(cx + s * 0.45, cy + s);
+        break;
+      case 'next':
+        ctx.moveTo(cx - s * 0.45, cy - s);
+        ctx.lineTo(cx + s * 0.55, cy);
+        ctx.lineTo(cx - s * 0.45, cy + s);
+        break;
+      case 'close':
+        ctx.moveTo(cx - s, cy - s);
+        ctx.lineTo(cx + s, cy + s);
+        ctx.moveTo(cx + s, cy - s);
+        ctx.lineTo(cx - s, cy + s);
+        break;
+      case 'home':
+        ctx.moveTo(cx - s, cy - s * 0.1);
+        ctx.lineTo(cx, cy - s);
+        ctx.lineTo(cx + s, cy - s * 0.1);
+        ctx.lineTo(cx + s, cy + s);
+        ctx.lineTo(cx - s, cy + s);
+        ctx.closePath();
+        break;
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   /**
@@ -602,12 +923,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     if (!this.scrollable) return;
     const ctx = this.ctx;
     const top = this.bodyTop - 6;
-    const height = cardH - FOOTER_H - top;
-    const x = CANVAS_W - 24;
+    const height = cardH - this.footerH - top;
+    const x = this.cw - 24;
     const rows = this.entries.length - this.pinned;
     const portion = this.pageSize / rows;
     const thumb = Math.max(40, height * portion);
-    const travel = (height - thumb) * (this.scroll / Math.max(1, rows - this.pageSize));
+    const travel = (height - thumb) * (this.scroll / Math.max(1, this.maxScroll));
 
     ctx.beginPath();
     ctx.roundRect(x, top, 9, height, 5);
@@ -619,13 +940,15 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.fill();
   }
 
-  private drawRow(entry: MenuEntry, y: number, hovered: boolean): void {
+  private drawRow(entry: MenuEntry, rect: Rect, hovered: boolean): void {
     const ctx = this.ctx;
     const accent = toCss(entry.accent ?? 0x4aa8ff);
     const active = hovered && this.flash > 0;
+    const { x, y } = rect;
+    const right = x + rect.w;
 
     ctx.beginPath();
-    ctx.roundRect(PAD, y, CANVAS_W - PAD * 2 - (this.scrollable ? 18 : 0), ROW_H, 24);
+    ctx.roundRect(x, y, rect.w, ROW_H, 24);
     ctx.fillStyle = active
       ? withAlpha(accent, 0.45)
       : hovered
@@ -636,25 +959,24 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.strokeStyle = hovered ? accent : 'rgba(255,255,255,0.12)';
     ctx.stroke();
 
-    let textX = PAD + 30;
+    let textX = x + 30;
     if (entry.preview) {
       // Der Platz bleibt frei: davor steht ein kleines Modell im Raum
-      // (`WristMenu.updatePreviews`), und eine Strichzeichnung darunter wäre
+      // (`XRMenu.updatePreviews`), und eine Strichzeichnung darunter wäre
       // nur Unruhe.
-      textX = PAD + 100;
+      textX = x + 100;
     } else if (entry.icon) {
-      drawMenuIcon(ctx, entry.icon, PAD + 58, y + ROW_H / 2, 52, accent);
-      textX = PAD + 100;
+      drawMenuIcon(ctx, entry.icon, x + 58, y + ROW_H / 2, 52, accent);
+      textX = x + 100;
     } else {
       ctx.beginPath();
-      ctx.roundRect(PAD + 18, y + 22, 8, ROW_H - 44, 4);
+      ctx.roundRect(x + 18, y + 22, 8, ROW_H - 44, 4);
       ctx.fillStyle = accent;
       ctx.fill();
-      textX = PAD + 46;
+      textX = x + 46;
     }
 
-    const rightEdge =
-      CANVAS_W - PAD - (entry.children ? 60 : entry.checked !== undefined ? 110 : 30);
+    const rightEdge = right - (entry.children ? 60 : entry.checked !== undefined ? 110 : 30);
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 36px system-ui, sans-serif';
     ctx.fillText(clip(ctx, entry.label, rightEdge - textX), textX, y + (entry.sub ? 52 : 74));
@@ -668,7 +990,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     if (entry.checked !== undefined) {
       const width = 74;
       const height = 38;
-      const left = CANVAS_W - PAD - 24 - width;
+      const left = right - 24 - width;
       const top = y + ROW_H / 2 - height / 2;
       ctx.beginPath();
       ctx.roundRect(left, top, width, height, height / 2);
@@ -689,13 +1011,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       ctx.lineWidth = 5;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(CANVAS_W - PAD - 46, y + ROW_H / 2 - 14);
-      ctx.lineTo(CANVAS_W - PAD - 32, y + ROW_H / 2);
-      ctx.lineTo(CANVAS_W - PAD - 46, y + ROW_H / 2 + 14);
+      ctx.moveTo(right - 46, y + ROW_H / 2 - 14);
+      ctx.lineTo(right - 32, y + ROW_H / 2);
+      ctx.lineTo(right - 46, y + ROW_H / 2 + 14);
       ctx.stroke();
     } else if (entry.selected) {
       ctx.beginPath();
-      ctx.arc(CANVAS_W - PAD - 34, y + ROW_H / 2, 9, 0, Math.PI * 2);
+      ctx.arc(right - 34, y + ROW_H / 2, 9, 0, Math.PI * 2);
       ctx.fillStyle = accent;
       ctx.fill();
     }
@@ -704,11 +1026,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       ctx.font = '600 20px system-ui, sans-serif';
       const width = ctx.measureText(entry.badge).width + 26;
       ctx.beginPath();
-      ctx.roundRect(CANVAS_W - PAD - 70 - width, y + 18, width, 34, 17);
+      ctx.roundRect(right - 70 - width, y + 18, width, 34, 17);
       ctx.fillStyle = withAlpha(accent, 0.25);
       ctx.fill();
       ctx.fillStyle = accent;
-      ctx.fillText(entry.badge, CANVAS_W - PAD - 70 - width + 13, y + 42);
+      ctx.fillText(entry.badge, right - 70 - width + 13, y + 42);
     }
   }
 
@@ -732,7 +1054,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.stroke();
 
     // Das obere Quadrat der Kachel gehört dem Bild — und wo ein **Modell**
-    // davorsteht (`WristMenu.updatePreviews`), bleibt es leer: Eine
+    // davorsteht (`XRMenu.updatePreviews`), bleibt es leer: Eine
     // Strichzeichnung darunter wäre nur Unruhe, genau wie in einer Zeile.
     if (entry.icon && !entry.preview) {
       drawMenuIcon(ctx, entry.icon, x + cellW / 2, y + cellW / 2, cellW * 0.52, accent);

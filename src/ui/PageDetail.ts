@@ -5,7 +5,7 @@ import { DETAIL_POSE, detailDrag, detailGutter, detailZoom, type DetailPose } fr
 import { CHEF_HEIGHT } from '../core/chefFit';
 import { DETAIL_OVERLAY, DETAIL_PLAYER, PREVIEW_RETRY } from './previewGrid';
 import type { DetailCells, DetailFacts, DetailOptions, DetailView } from './previewGrid';
-import type { MenuModelFactory } from './WristMenu';
+import type { MenuModelFactory } from './XRMenu';
 
 /**
  * **Ein Stück aus dem Regal, groß und zum Anfassen.**

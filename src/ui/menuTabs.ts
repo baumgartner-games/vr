@@ -4,7 +4,7 @@ import { catalogSearch, type CatalogRow } from '../worlds/elements/catalogSearch
 
 /**
  * **Das Menü als Reiter** — wie oben in _Die Sims_: eine Reihe über der Seite,
- * und die Wurzel selbst schlägt niemand auf (`PageMenu` und `WristMenu` mit
+ * und die Wurzel selbst schlägt niemand auf (`PageMenu` und `XRMenu` mit
  * `tabs`).
  *
  * Gewünscht war erst ein Inventar hinter `Tab` mit vier Reitern (Inventar,

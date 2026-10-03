@@ -1,4 +1,4 @@
-import { MenuNav, walkPath } from './menuNav';
+import { MenuNav, tabStep, walkPath } from './menuNav';
 import type { MenuEntry } from './menu';
 
 const TREE: MenuEntry[] = [
@@ -235,5 +235,48 @@ describe('MenuNav mit Merkzettel', () => {
     nav.push('assets');
     nav.goTo(['assets']);
     expect(note.saved).toEqual([]);
+  });
+});
+
+/**
+ * **Das Gedächtnis je Reiter liegt im Weg** und nicht in einem Gesicht des
+ * Menüs — Seite und Bildschirm in der Brille merken sich dieselbe Tiefe.
+ */
+describe('MenuNav.showTab', () => {
+  it('comes back to where the tab was left', () => {
+    const nav = new MenuNav();
+    nav.goTo(['tools', 'tool:pistol']);
+    nav.showTab('move');
+    expect(nav.path).toEqual(['move']);
+    nav.push('move:posture');
+    nav.showTab('tools');
+    expect(nav.path).toEqual(['tools', 'tool:pistol']);
+    nav.showTab('move');
+    expect(nav.path).toEqual(['move', 'move:posture']);
+  });
+
+  it('a press on the open tab goes to its start — unless it only opens the menu', () => {
+    const nav = new MenuNav();
+    nav.goTo(['tools', 'tool:pistol']);
+    nav.showTab('tools', false);
+    expect(nav.path).toEqual(['tools', 'tool:pistol']);
+    nav.showTab('tools');
+    expect(nav.path).toEqual(['tools']);
+  });
+});
+
+describe('tabStep', () => {
+  const ids = ['inventar', 'elements', 'spielen'];
+
+  it('steps right and left, and wraps round at both ends', () => {
+    expect(tabStep(ids, 'inventar', 1)).toBe('elements');
+    expect(tabStep(ids, 'spielen', 1)).toBe('inventar');
+    expect(tabStep(ids, 'inventar', -1)).toBe('spielen');
+  });
+
+  it('starts at an end when no tab is open, and has nothing without tabs', () => {
+    expect(tabStep(ids, undefined, 1)).toBe('inventar');
+    expect(tabStep(ids, 'weg', -1)).toBe('spielen');
+    expect(tabStep([], 'inventar', 1)).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ import type { NavRecall } from './menuRecall';
  * was ihre Beschriftung ändert —, und ein festgehaltener Eintrag wäre nach dem
  * ersten Tastendruck ein Gespenst. Ids überleben das.
  *
- * Kein three.js: was daraus für ein Panel wird, steht in `WristMenu.ts`.
+ * Kein three.js: was daraus für ein Panel wird, steht in `XRMenu.ts`.
  */
 export class MenuNav {
   private steps: string[] = [];
@@ -47,6 +47,8 @@ export class MenuNav {
    * geteilte Seite gerade beseitigt hat, nur eine Ebene kleiner.
    */
   private readonly scrolls = new Map<string, number>();
+  /** Wie tief man in jedem Reiter stand, nach seiner Id (`showTab`). */
+  private readonly tabPaths = new Map<string, readonly string[]>();
 
   /**
    * @param recall wo ein Katalogweg über das Neuladen hinweg liegt, oder
@@ -145,6 +147,29 @@ export class MenuNav {
    * weil das Verzeichnis noch lädt, und ein gekürzter Weg ist keine
    * Entscheidung.
    */
+  /**
+   * **Einen Reiter aufschlagen** — dort, wo man in ihm zuletzt stand.
+   *
+   * Gehört hierher und nicht in ein Gesicht des Menüs: Seite (`PageMenu`) und
+   * Panel in der Brille (`XRMenu`) lesen denselben Weg, also merken sie sich
+   * auch dieselbe Tiefe je Reiter. Vorher hatte jedes seine eigene Liste, und
+   * wer am Schirm drei Ebenen tief im Katalog stand, fing in der Brille beim
+   * Reiterwechsel wieder oben an.
+   *
+   * @param restart ob ein Druck auf den Reiter, in dem man schon steht, an
+   *                seinen Anfang führt — beim Draufdrücken ja, beim bloßen
+   *                Aufmachen des Menüs auf diesem Reiter nicht
+   */
+  showTab(id: string, restart = true): void {
+    const path = this.steps;
+    if (path[0] === id) {
+      if (restart && path.length > 1) this.goTo([id]);
+      return;
+    }
+    if (path.length > 0) this.tabPaths.set(path[0]!, [...path]);
+    this.goTo(this.tabPaths.get(id) ?? [id]);
+  }
+
   private remember(): void {
     const recall = this.recall;
     const at = recall ? this.steps.indexOf(recall.root) : -1;
@@ -226,4 +251,19 @@ function findDetail(entries: readonly MenuEntry[], id: string): MenuEntry | unde
 
 function samePath(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+/**
+ * **Der Reiter neben dem offenen** — für ◀ ▶ links in der Reiterleiste und
+ * LB/RB am Pad. Am Ende geht es vorn weiter. `null` ohne Reiter.
+ */
+export function tabStep(
+  ids: readonly string[],
+  current: string | undefined,
+  step: -1 | 1,
+): string | null {
+  if (ids.length === 0) return null;
+  const at = current === undefined ? -1 : ids.indexOf(current);
+  if (at < 0) return ids[step > 0 ? 0 : ids.length - 1]!;
+  return ids[(at + step + ids.length) % ids.length]!;
 }

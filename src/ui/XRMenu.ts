@@ -1,26 +1,20 @@
 import * as THREE from 'three';
-import { UIPanel } from './UIPanel';
+import { SCREEN_ASPECT, UIPanel } from './UIPanel';
 import { TextPlane } from './TextPlane';
 import type { MenuEntry } from './menu';
 import { findMenuPath } from './menuGroups';
-import { MenuNav } from './menuNav';
+import { MenuNav, tabStep } from './menuNav';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
 import { menuMiniature } from './menuMiniature';
 import { PREVIEW_YAW } from './previewGrid';
 
-const _wrist = new THREE.Vector3();
 const _head = new THREE.Vector3();
-const _dir = new THREE.Vector3();
-const _handUp = new THREE.Vector3();
-const _roll = new THREE.Vector3();
-const _offset = new THREE.Vector3();
-const _panelUp = new THREE.Vector3();
+const _forward = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _mat = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
-const _delta = new THREE.Quaternion();
 
 interface Page {
   title: string;
@@ -35,18 +29,6 @@ interface Page {
   /** Id of the entry this page belongs to, for reopening it later. */
   id: string;
 }
-
-const BACK: MenuEntry = { id: 'menu:back', label: 'Zurück', icon: 'back', accent: 0x6f7d99 };
-/**
- * **Von vorne durch den Katalog** — dieselbe Zeile, die am Schirm ein Knopf im
- * Kopf ist (`MenuEntry.home`, `ui/PageMenu.ts`).
- *
- * Sie steht neben *Zurück* und bleibt wie diese oben stehen, egal wie weit man
- * unten ist: Aus viertausendfünfhundert Kacheln mit dem Stick zurückzublättern,
- * nur um wieder nach oben zu kommen, ist genau die Falle, gegen die das
- * Festhalten der ersten Zeilen erfunden wurde.
- */
-const HOME: MenuEntry = { id: 'menu:home', label: 'Von vorne', icon: 'reset', accent: 0x6f7d99 };
 
 /** Stick deflection that counts as "scroll", and the one that re-arms it. */
 const SCROLL_ON = 0.55;
@@ -63,8 +45,32 @@ const SCROLL_REPEAT = 0.16;
  */
 const SWIPE_SLOP = 0.02;
 
-/** Wie breit das Panel am Handgelenk ist, in Metern. */
-export const WRIST_PANEL_W = 0.26;
+/**
+ * **Wie breit der Bildschirm ist und wie weit weg er steht**, in Metern.
+ *
+ * Gewünscht: _„Stattdessen fliegt das menü dann vor ihm (etwa 2 meter
+ * entfernt). Dabei kann das menü ruhig breiter sein wie z. B. im 16:9 format
+ * wie bei einem pc bildschirm."_ 1,8 m auf 2 m sind gut 48° — so viel wie ein
+ * Monitor am Schreibtisch, und eine Zeile Text (36 Bildpunkte der Leinwand,
+ * 4 cm) steht gut einen Grad hoch.
+ */
+export const MENU_SCREEN_W = 1.8;
+export const MENU_SCREEN_H = MENU_SCREEN_W * SCREEN_ASPECT;
+export const MENU_DISTANCE = 2;
+/** Wie weit die Mitte des Bildschirms unter den Augen steht. */
+const MENU_DROP = 0.12;
+/**
+ * Worauf alles am Bildschirm gezeichnet wird: **über** der Welt.
+ *
+ * Zwei Meter sind in einem kleinen Raum weiter als bis zur Wand. Das Panel
+ * zeichnet deshalb ohne Tiefenprüfung, nach allem anderen, und schreibt dabei
+ * seine eigene Tiefe — die kleinen Modelle davor (eine Stufe später) messen
+ * sich dann am Panel und nicht an der Wand dahinter. `renderOrder` einer
+ * Gruppe gilt in three.js für alles darin, aber nur bis zur nächsten Gruppe;
+ * darum bekommt jede Gruppe eines Modells die Stufe einzeln (`overlay`).
+ */
+const PANEL_ORDER = 10;
+const PREVIEW_ORDER = 11;
 
 /**
  * Baut ein kleines Modell zu einer Vorschau-Id, oder `null`, wenn es dazu
@@ -85,83 +91,57 @@ export type MenuModelFactory = (id: string) => THREE.Object3D | null;
  */
 const PREVIEW_RETRY = 0.5;
 
-export interface WristMenuOptions {
+export interface XRMenuOptions {
   title?: string;
   footer?: string;
-  /** Which wrist it rides on. Both hands carry one; see `WristMenus`. */
-  hand?: Handedness;
-  /**
-   * Wo im Baum man ist — von beiden Händen geteilt. Ohne einen gemeinsamen
-   * Weg fängt die zweite Hand jedes Mal ganz oben an.
-   */
+  /** Wo im Baum man ist — geteilt mit der Seite am Schirm. */
   nav?: MenuNav;
-  /** Opened or closed — the pair uses it to keep only one panel up. */
   /** Eigenschaft statt Methode: Sie wird gespeichert und später einzeln gerufen. */
-  onToggle?: (menu: WristMenu, open: boolean) => void;
+  onToggle?: (open: boolean) => void;
   /**
-   * Woran das Panel hängt.
-   *
-   * `wrist` ist der Normalfall: es reitet auf einem Handgelenk und kippt mit
-   * ihm. `view` hängt es **frei in die Luft vor den Kopf** und blendet den
-   * runden Knopf aus — für ein Menü, das etwas anderes aufmacht und das man
-   * nicht am Arm haben will, weil beide Hände gerade etwas anderes tun. Es ist
-   * derselbe Aufbau wie im Flat-Modus, in dem es ohnehin schon kein
-   * Handgelenk gibt, an das es sich hängen könnte.
-   */
-  anchor?: 'wrist' | 'view';
-  /**
-   * **Die Einträge der Wurzel sind Reiter** — wie im Inventar am Schirm
-   * (`PageMenu`, `tabs`). Die Wurzel selbst schlägt niemand auf; die Reihe
-   * steht unter dem Titel (`UIPanel`, `PageOptions.tabs`).
+   * **Die Einträge der Wurzel sind Reiter** — wie am Schirm (`PageMenu`,
+   * `tabs`). Die Wurzel selbst schlägt niemand auf; die Reihe steht oben im
+   * Kopf (`ui/screenLayout.ts`).
    */
   tabs?: boolean;
   /**
    * **Etwas, das neben dem Panel steht** — für genau eine Seite: die Figur im
-   * Inventar (`ui/XRPlayerCard.ts`). Das Ding hängt am Panel der Hand, die
-   * gerade offen ist, und folgt ihm durch jede Neigung.
+   * Inventar (`ui/XRPlayerCard.ts`). Es hängt am Panel und steht mit ihm.
    */
   aside?: { page: string; object: THREE.Object3D };
 }
 
 /**
- * The menu button rides on a hand; pressing it opens a panel that keeps
- * following that hand, tilting along with it. The other hand points and selects.
+ * **Das Menü in der Brille: ein Bildschirm, zwei Meter vor einem.**
  *
- * There is one of these per wrist (`WristMenus`), because which hand is free
- * depends entirely on what the other one is doing — and a menu you can only
- * reach with the hand that is currently holding a pistol is no menu at all.
+ * Bis Oktober 2026 hing es am Handgelenk und kippte mit der Hand mit —
+ * _„ja coole idee, aber doch irgendwie unhandlich"_. Jetzt fliegt es beim
+ * Aufmachen vor den Spieler, in Augenhöhe und zwei Meter weit, und **bleibt
+ * dort stehen** (im Raum des Rigs: Gehen und Drehen nehmen es mit, der Kopf
+ * nicht). Gezeichnet wird es wie die Seite am Schirm, im Querformat: oben
+ * ◀ ▶, die Reiter und ✕, darunter Zurück, Titel und Haus (`UIPanel` mit
+ * `layout: 'screen'`).
+ *
+ * Gezielt wird mit **einer** Hand: Das Panel ist ein exklusives Ziel des
+ * Zeigers (`PointerTarget.exclusive`) — es gehört der Hand, die zuerst darauf
+ * zeigt; die andere übernimmt es mit einem Druck. Wo der Strahl aufsetzt,
+ * steht ein kleiner Kreis (`UIPanel.marker`).
  */
-export class WristMenu extends THREE.Group {
+export class XRMenu extends THREE.Group {
   readonly panel: UIPanel;
-  readonly button: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>;
-  /**
-   * **Den runden Knopf ausblenden** — gesetzt von `WristMenus`, solange ohne
-   * Brille die Seite das Menü trägt. Dort hing der Knopf sonst an der
-   * Blickrichtung, rechts unter der Bildmitte: am Schirm ein zweites ☰
-   * neben dem oben links, am Telefon halb über den Rand geschoben, und ein
-   * Klick darauf öffnete das Menü als Panel in der Szene statt als Seite.
-   */
-  buttonHidden = false;
   /** One line about the entry under the pointer, floating over the panel. */
   private readonly caption: TextPlane;
   private captionText = '';
   /** Die kleine zweite Zeile darin — im Raster der Untertitel der Kachel. */
   private captionBody = '';
 
-  /** Which hand carries the menu. */
-  readonly hand: Handedness;
-  /** Am Handgelenk oder frei vor dem Kopf. */
-  readonly anchor: 'wrist' | 'view';
-  private readonly onToggle: ((menu: WristMenu, open: boolean) => void) | null;
+  private readonly onToggle: ((open: boolean) => void) | null;
 
   private open = false;
+  /** Beim nächsten Bild vor den Kopf stellen — gesetzt beim Aufmachen. */
+  private place = false;
   private readonly tabs: boolean;
   private readonly aside: { page: string; object: THREE.Object3D } | null;
-  /** Wie tief man in jedem Reiter stand, nach seiner Id. */
-  private readonly tabPaths = new Map<string, readonly string[]>();
-  private buttonTexture: THREE.CanvasTexture;
-  private buttonCanvas: HTMLCanvasElement;
-  private buttonHot = false;
   private root: MenuEntry[] = [];
   private rootTitle = 'Menü';
   /** Ob **Greifen** auf der obersten Seite auch auswählt — ein Regal tut das. */
@@ -170,12 +150,6 @@ export class WristMenu extends THREE.Group {
   /** Der geteilte Weg durch den Baum — beide Handgelenke lesen denselben. */
   private readonly nav: MenuNav;
   private readonly unwatchNav: () => void;
-  /**
-   * Hand pose at the moment the menu opened. The panel starts upright from
-   * there and only tilts by however much the wrist has turned since — trying
-   * to derive "up" from the hand every frame is what made it keel over.
-   */
-  private tiltRef: THREE.Quaternion | null = null;
   /** Seconds until the held stick scrolls another row; 0 while it is idle. */
   private scrollTimer = 0;
   private scrollArmed = true;
@@ -239,68 +213,59 @@ export class WristMenu extends THREE.Group {
 
   constructor(
     private readonly pointer: Pointer,
-    options: WristMenuOptions = {},
+    options: XRMenuOptions = {},
   ) {
     super();
-    this.hand = options.hand ?? 'left';
-    this.anchor = options.anchor ?? 'wrist';
     this.nav = options.nav ?? new MenuNav();
     this.onToggle = options.onToggle ?? null;
     this.tabs = options.tabs ?? false;
     this.aside = options.aside ?? null;
-    this.name = `wrist-menu-${this.hand}`;
-    // Die andere Hand ist eine Ebene tiefer gegangen: dieselbe Seite hier.
+    this.name = 'xr-menu';
+    // Die Seite am Schirm ist eine Ebene tiefer gegangen: dieselbe Seite hier.
     this.unwatchNav = this.nav.onChange(() => this.applyNav());
 
-    this.buttonCanvas = document.createElement('canvas');
-    this.buttonCanvas.width = 256;
-    this.buttonCanvas.height = 256;
-    this.buttonTexture = new THREE.CanvasTexture(this.buttonCanvas);
-    this.buttonTexture.colorSpace = THREE.SRGBColorSpace;
-
-    this.button = new THREE.Mesh(
-      new THREE.CircleGeometry(0.026, 32),
-      new THREE.MeshBasicMaterial({
-        map: this.buttonTexture,
-        transparent: true,
-        toneMapped: false,
-        depthWrite: false,
-      }),
-    );
-    this.button.name = `wrist-menu-button-${this.hand}`;
-    this.button.renderOrder = 12;
-    this.button.geometry.computeBoundingBox();
-    this.add(this.button);
-
     this.panel = new UIPanel({
-      width: WRIST_PANEL_W,
+      width: MENU_SCREEN_W,
+      layout: 'screen',
       title: options.title ?? 'Menü',
-      footer: options.footer ?? 'Andere Hand: zielen + Trigger/A',
+      footer: options.footer ?? 'Zielen + Trigger/A · B/Y zurück',
       onSelect: (index, hand) => this.handleSelect(index, hand),
       onTab: (index) => this.showTab(index),
+      onControl: (control) => this.handleControl(control),
     });
+    // Über der Welt, auch hinter einer Wand (`PANEL_ORDER`): undurchsichtig
+    // mit ausgestanzten Ecken, damit es im Durchgang der festen Dinge nach
+    // ihnen kommt und seine Tiefe für die Modelle davor schreibt.
+    const material = this.panel.material;
+    material.transparent = false;
+    material.alphaTest = 0.5;
+    // Nicht `depthTest = false`: Ohne Tiefenprüfung schreibt WebGL auch keine
+    // Tiefe, und dann zeichnen sich Fenster dahinter über das Panel.
+    material.depthFunc = THREE.AlwaysDepth;
+    material.needsUpdate = true;
+    this.panel.renderOrder = PANEL_ORDER;
     this.panel.visible = false;
     this.add(this.panel);
 
     // A grid cell has room for two words. What the thing actually does goes
     // here instead, above the panel, while the pointer rests on it.
     this.caption = new TextPlane({
-      width: 0.3,
+      width: 1.1,
       // Etwas höher als eine Zeile: Im Raster steht unter der Überschrift
       // noch der Untertitel der Kachel (`updateCaption`), und eine Tafel, die
       // ihn erst auf ein Viertel verkleinern muss, damit er hineinpasst,
       // zeigt ihn zwar an, aber niemandem.
-      height: 0.08,
+      height: 0.26,
       title: '',
       accent: 0x9fd0ff,
       align: 'center',
+      front: true,
     });
     this.caption.visible = false;
-    this.caption.renderOrder = 11;
+    this.caption.renderOrder = PREVIEW_ORDER + 1;
     this.add(this.caption);
 
     this.attachPointer();
-    this.drawButton();
   }
 
   /**
@@ -315,23 +280,9 @@ export class WristMenu extends THREE.Group {
 
   /** (Re-)registers the menu with the pointer, e.g. after a world switch. */
   attachPointer(): void {
-    this.pointer.remove(this.button);
     this.pointer.remove(this.panel);
-    // Both hands have a laser now, and this menu rides on one of them: its own
-    // ray would sweep across its own button and panel every time the wrist
-    // turns, and would then swallow that hand's trigger. The other hand aims —
-    // that is what the footer has been saying all along.
-    const own = (hand: Handedness | null) => hand === this.hand;
-    this.pointer.add({
-      object: this.button,
-      // Only the trigger (or A) opens it — brushing past must not toggle it.
-      pokeable: false,
-      ignore: own,
-      onHover: () => this.setButtonHot(true),
-      onBlur: () => this.setButtonHot(false),
-      onSelect: () => this.toggle(),
-    });
-    this.pointer.add({ ...this.panel.asPointerTarget(), pokeable: false, ignore: own });
+    // **Exklusiv**: nur die Hand, die zielt — nicht beide abwechselnd.
+    this.pointer.add({ ...this.panel.asPointerTarget(), pokeable: false, exclusive: true });
   }
 
   /**
@@ -391,8 +342,7 @@ export class WristMenu extends THREE.Group {
     // **Mit Reitern wird die Wurzel nie aufgeschlagen** — wer dort ankäme,
     // steht im ersten Reiter (wie `PageMenu.applyNav`).
     if (this.tabs && this.stack.length < 2 && this.root.length > 0) {
-      const first = this.root[0]!.id;
-      this.nav.goTo(this.tabPaths.get(first) ?? [first]);
+      this.nav.showTab(this.root[0]!.id, false);
       return;
     }
     this.applyPage();
@@ -403,19 +353,62 @@ export class WristMenu extends THREE.Group {
     return this.tabs ? 2 : 1;
   }
 
-  /** Ein Reiter wurde gedrückt: dorthin, wo man in ihm zuletzt stand. */
+  /** Ein Reiter wurde gedrückt: dorthin, wo man in ihm zuletzt stand (`MenuNav.showTab`). */
   private showTab(index: number): void {
     const entry = this.root[index];
     if (!entry) return;
-    const path = this.nav.path;
     this.keepScroll();
-    if (path[0] === entry.id) {
-      // Ein Druck auf den offenen Reiter führt an seinen Anfang.
-      if (path.length > 1) this.nav.goTo([entry.id]);
-      return;
+    this.nav.showTab(entry.id);
+  }
+
+  /** **◀ ▶** links in der Reiterleiste — und LB/RB, wer sie belegt. */
+  stepTab(step: -1 | 1): void {
+    const next = tabStep(
+      this.root.map((entry) => entry.id),
+      this.nav.path[0],
+      step,
+    );
+    const index = next === null ? -1 : this.root.findIndex((entry) => entry.id === next);
+    if (index >= 0) this.showTab(index);
+  }
+
+  /** Ein Knopf im Kopf des Bildschirms. */
+  private handleControl(control: 'prev' | 'next' | 'close' | 'back' | 'home'): void {
+    switch (control) {
+      case 'prev':
+        this.stepTab(-1);
+        return;
+      case 'next':
+        this.stepTab(1);
+        return;
+      case 'close':
+        this.toggle(false);
+        return;
+      case 'back':
+        this.goBack();
+        return;
+      case 'home':
+        this.goHome();
+        return;
     }
-    if (path.length > 0) this.tabPaths.set(path[0]!, path);
-    this.nav.goTo(this.tabPaths.get(entry.id) ?? [entry.id]);
+  }
+
+  /** Eine Seite zurück — ganz oben macht es zu. */
+  goBack(): void {
+    if (this.stack.length > this.floor) {
+      this.keepScroll();
+      this.nav.pop();
+    } else this.toggle(false);
+  }
+
+  /** Zurück an den Anfang des Katalogs (`MenuEntry.home`), ohne achtmal _Zurück_. */
+  private goHome(): void {
+    const depth = this.homeDepth();
+    if (depth < 0) return;
+    this.keepScroll();
+    // `stack[depth]` gehört zu `nav.path[depth - 1]` — die Wurzel steht im
+    // Stapel, aber nicht im Weg.
+    this.nav.goTo(this.nav.path.slice(0, depth));
   }
 
   setStatus(status: string): void {
@@ -430,11 +423,10 @@ export class WristMenu extends THREE.Group {
     const wasOpen = this.open;
     this.open = force ?? !this.open;
     this.panel.visible = this.open;
-    // Every fresh opening re-centres the tilt on however the hand is held now.
-    if (this.open !== wasOpen) this.tiltRef = null;
-    // Aufmachen heißt: dahin, wo die andere Hand aufgehört hat — Seite *und*
-    // Zeile. Das Panel behält sonst seine eigene Blätterstellung von vorhin.
+    // Aufmachen heißt: dahin, wo man aufgehört hat — Seite *und* Zeile; und
+    // der Bildschirm fliegt neu vor den Kopf, wohin man jetzt schaut.
     if (this.open && !wasOpen) {
+      this.place = true;
       this.swipe = null;
       this.pending = null;
       this.panel.scrollTo(this.nav.scrollOf(this.page.id));
@@ -444,8 +436,7 @@ export class WristMenu extends THREE.Group {
     // of a list, one level up — and the title on the panel plus the *Zurück*
     // row say plainly where you are.
     if (!this.open) this.keepScroll();
-    this.drawButton();
-    if (this.open !== wasOpen) this.onToggle?.(this, this.open);
+    if (this.open !== wasOpen) this.onToggle?.(this.open);
   }
 
   /** Repaints the open page — a row whose label changed under the pointer. */
@@ -460,92 +451,54 @@ export class WristMenu extends THREE.Group {
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {
     this.lastInput = input;
     this.panel.update(dt);
+    this.panel.visible = this.open;
 
-    // Everything is computed in this group's space (the player rig), where the
-    // controller and joint poses already live.
-    this.updateMatrixWorld(true);
-    _local.copy(this.matrixWorld).invert().multiply(headWorld);
-    _head.setFromMatrixPosition(_local);
+    if (this.place) this.placeBefore(headWorld);
 
-    this.updateGrabTake(input);
     this.updateBack(input);
+    this.updateGrabTake(input);
     this.updateScroll(dt, input);
     this.updateSwipe(input);
     this.updatePending(input);
     this.updatePreviews(dt);
     this.updateAside();
 
-    const controller = this.anchor === 'view' ? null : input.get(this.hand);
-    const anchor = controller?.tracked ? wristObject(controller.isHand, controller) : null;
-
-    // Ein freies Menü hat keinen Knopf: es wird von woanders aufgemacht, und
-    // ein Knopf, der im Nichts schwebt, wäre nur ein Ding im Weg.
-    this.button.visible = this.anchor !== 'view' && !this.buttonHidden;
-    this.panel.visible = this.open;
-
-    if (anchor) {
-      _wrist.copy(anchor.position);
-      // The hand's own up axis carries the button on the back of the hand.
-      _handUp.set(0, 1, 0).applyQuaternion(anchor.quaternion);
-      if (Math.abs(_handUp.dot(_dir.copy(_head).sub(_wrist).normalize())) > 0.97) {
-        _handUp.copy(_up);
-      }
-
-      _dir.copy(_head).sub(_wrist);
-      const distance = _dir.length() || 1;
-      _dir.divideScalar(distance);
-
-      _roll.copy(_handUp);
-      this.button.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
-      faceTowards(this.button, _head, _roll);
-
-      // The panel starts upright above the wrist and tilts by however far the
-      // wrist has turned since it was opened — no absolute hand axis involved,
-      // so it can never flip over on its own.
-      this.tiltRef ??= anchor.quaternion.clone();
-      _delta.copy(anchor.quaternion).multiply(_quat.copy(this.tiltRef).invert());
-      _panelUp.copy(_up).applyQuaternion(_delta);
-      if (Math.abs(_panelUp.dot(_dir)) > 0.97) _panelUp.copy(_up);
-
-      this.panel.position.copy(_wrist).addScaledVector(_dir, 0.08).addScaledVector(_panelUp, 0.2);
-      faceTowards(this.panel, _head, _panelUp);
-
-      this.updateCaption();
-      if (this.caption.visible) {
-        this.caption.position
-          .copy(this.panel.position)
-          .addScaledVector(_panelUp, this.panelHeight / 2 + 0.05);
-        faceTowards(this.caption, _head, _panelUp);
-      }
-      return;
-    }
-
-    this.tiltRef = null;
-
-    // No tracked hand (desktop/phone), or a menu that never had one: dock it
-    // to the view instead. Ein freies Menü hängt eine Handbreit weiter weg —
-    // es ist nichts, was man nebenbei am Arm hat, sondern etwas, vor dem man
-    // steht.
-    const reach = this.anchor === 'view' ? -0.72 : -0.62;
-    _quat.setFromRotationMatrix(_local);
-    this.button.position.copy(_head).add(_offset.set(0.2, -0.16, -0.55).applyQuaternion(_quat));
-    this.button.quaternion.copy(_quat);
-    this.panel.position.copy(_head).add(_offset.set(0, -0.02, reach).applyQuaternion(_quat));
-    this.panel.quaternion.copy(_quat);
-
     this.updateCaption();
     if (this.caption.visible) {
       this.caption.position
-        .copy(this.panel.position)
-        .add(_offset.set(0, this.panelHeight / 2 + 0.05, 0).applyQuaternion(_quat));
-      this.caption.quaternion.copy(_quat);
+        .set(0, MENU_SCREEN_H / 2 + 0.17, 0)
+        .applyQuaternion(this.panel.quaternion);
+      this.caption.position.add(this.panel.position);
+      this.caption.quaternion.copy(this.panel.quaternion);
     }
   }
 
   /**
-   * **Das Ding neben dem Panel** (`WristMenuOptions.aside`): an das Panel der
-   * offenen Hand gehängt, sichtbar nur auf seiner Seite. Beide Handgelenke
-   * teilen sich dasselbe Ding; wer es gerade nicht trägt, lässt es in Ruhe.
+   * **Vor den Kopf stellen** — waagerecht in Blickrichtung, `MENU_DISTANCE`
+   * weit und etwas unter den Augen, zum Kopf gedreht. Gerechnet im Raum
+   * dieser Gruppe (des Rigs): Danach steht der Bildschirm still, auch wenn
+   * man den Kopf wendet, und kommt beim Gehen mit.
+   */
+  private placeBefore(headWorld: THREE.Matrix4): void {
+    this.place = false;
+    this.updateMatrixWorld(true);
+    _local.copy(this.matrixWorld).invert().multiply(headWorld);
+    _head.setFromMatrixPosition(_local);
+    _quat.setFromRotationMatrix(_local);
+    _forward.set(0, 0, -1).applyQuaternion(_quat);
+    _forward.y = 0;
+    // Senkrecht nach oben oder unten geschaut: dann eben geradeaus im Rig.
+    if (_forward.lengthSq() < 1e-4) _forward.set(0, 0, -1);
+    _forward.normalize();
+    this.panel.position.copy(_head).addScaledVector(_forward, MENU_DISTANCE);
+    this.panel.position.y -= MENU_DROP;
+    _mat.lookAt(_head, this.panel.position, _up);
+    this.panel.quaternion.setFromRotationMatrix(_mat);
+  }
+
+  /**
+   * **Das Ding neben dem Panel** (`XRMenuOptions.aside`): an das Panel
+   * gehängt, sichtbar nur auf seiner Seite.
    */
   private updateAside(): void {
     const aside = this.aside;
@@ -553,11 +506,6 @@ export class WristMenu extends THREE.Group {
     const show = this.open && this.page.id === aside.page;
     if (show && aside.object.parent !== this.panel) this.panel.add(aside.object);
     if (aside.object.parent === this.panel) aside.object.visible = show;
-  }
-
-  /** How tall the panel is in metres, for putting the caption above it. */
-  private get panelHeight(): number {
-    return this.panel.geometry.parameters.height;
   }
 
   /**
@@ -594,11 +542,7 @@ export class WristMenu extends THREE.Group {
   dispose(): void {
     this.unwatchNav();
     this.clearPreviews();
-    this.pointer.remove(this.button);
     this.pointer.remove(this.panel);
-    this.button.geometry.dispose();
-    this.button.material.dispose();
-    this.buttonTexture.dispose();
     this.panel.dispose();
     this.caption.dispose();
     this.removeFromParent();
@@ -610,10 +554,9 @@ export class WristMenu extends THREE.Group {
     return this.stack[this.stack.length - 1]!;
   }
 
+  /** Was auf der Seite steht — _Zurück_ und _Von vorne_ sind Knöpfe im Kopf. */
   private displayed(): MenuEntry[] {
-    const entries = this.page.entries;
-    if (this.stack.length <= this.floor) return entries;
-    return this.homeDepth() < 0 ? [BACK, ...entries] : [BACK, HOME, ...entries];
+    return this.page.entries;
   }
 
   /**
@@ -639,16 +582,10 @@ export class WristMenu extends THREE.Group {
       // the top every time you took a tool or stepped a setting.
       key: page.id,
       scroll: this.nav.scrollOf(page.id),
-      // Die *Zurück*-Zeile bleibt als Kopf stehen, egal wie weit man unten
-      // ist. Eine lange Seite, aus der man nur wieder herauskommt, indem man
-      // erst blind nach oben blättert, ist eine Falle.
-      //
-      // *Von vorne* steht daneben — aber **nur auf einer Listenseite**. Ein
-      // festgehaltener Kopfbalken kostet im Raster eine ganze Kachelreihe:
-      // Zwei Zeilen über zwei Spalten ließen von vier Kacheln je Seite zwei
-      // übrig, und ein Katalog, durch den man in Zweierschritten blättert, ist
-      // keiner mehr. Im Raster fährt *Von vorne* deshalb als erste Kachel mit.
-      pinned: this.stack.length > this.floor ? (this.homeDepth() < 0 || this.page.grid ? 1 : 2) : 0,
+      // **Zurück und Von vorne sind Knöpfe im Kopf** wie am Schirm — keine
+      // angehefteten Zeilen mehr, die im Raster eine ganze Kachelreihe kosten.
+      back: this.stack.length > this.floor,
+      home: this.homeDepth() >= 0,
       ...(this.tabs
         ? {
             tabs: this.root.map((entry) => ({
@@ -689,7 +626,7 @@ export class WristMenu extends THREE.Group {
     const { index, hand } = this.panel.hovered;
     if (!hand) return;
     const entry = this.displayed()[index];
-    if (!entry || entry === BACK || entry === HOME || !entry.run) return;
+    if (!entry || !entry.run) return;
 
     const controller = input.get(hand);
     if (!controller?.tracked) return;
@@ -713,10 +650,7 @@ export class WristMenu extends THREE.Group {
     if (!this.open) return;
     for (const controller of input.controllers) {
       if (!controller.tracked || !controller.secondary.justPressed) continue;
-      if (this.stack.length > this.floor) {
-        this.keepScroll();
-        this.nav.pop();
-      } else this.toggle(false);
+      this.goBack();
       return;
     }
   }
@@ -733,7 +667,7 @@ export class WristMenu extends THREE.Group {
    */
   get scrollHand(): Handedness | null {
     if (!this.open || !this.panel.scrollable) return null;
-    return this.panel.hovered.hand ?? (this.hand === 'left' ? 'right' : 'left');
+    return this.panel.hovered.hand ?? 'right';
   }
 
   /**
@@ -866,20 +800,6 @@ export class WristMenu extends THREE.Group {
     const entry = this.displayed()[index];
     if (!entry) return;
 
-    if (entry === BACK) {
-      this.keepScroll();
-      this.nav.pop();
-      return;
-    }
-    if (entry === HOME) {
-      const depth = this.homeDepth();
-      if (depth < 0) return;
-      this.keepScroll();
-      // `stack[depth]` gehört zu `nav.path[depth - 1]` — die Wurzel steht im
-      // Stapel, aber nicht im Weg.
-      this.nav.goTo(this.nav.path.slice(0, depth));
-      return;
-    }
     if (entry.children) {
       if (this.page.take && !viaTrigger) return;
       // **Bevor** der Weg umgestellt wird: Wer erst beim Aufschlagen etwas
@@ -929,7 +849,9 @@ export class WristMenu extends THREE.Group {
       const preview = this.preview(id, anchor.size);
       if (!preview) continue;
       preview.visible = true;
-      preview.position.set(anchor.x, anchor.y, 0.004);
+      // Ganz vor dem Panel und nicht zur Hälfte darin: Das Panel schreibt
+      // seine Tiefe (`PANEL_ORDER`), und was dahinter liegt, wäre weg.
+      preview.position.set(anchor.x, anchor.y, anchor.size / 2 + 0.004);
       preview.rotation.y = PREVIEW_YAW;
     }
     for (const [id, preview] of [...this.previews]) {
@@ -970,6 +892,7 @@ export class WristMenu extends THREE.Group {
     this.asked.delete(id);
     existing?.model.removeFromParent();
     const model = menuMiniature(source, size);
+    overlay(model, PREVIEW_ORDER);
     model.visible = false;
     this.panel.add(model);
     this.previews.set(id, { model, size });
@@ -984,55 +907,6 @@ export class WristMenu extends THREE.Group {
     }
     this.previews.clear();
     this.asked.clear();
-  }
-
-  // --- button -------------------------------------------------------------
-
-  private setButtonHot(hot: boolean): void {
-    if (this.buttonHot === hot) return;
-    this.buttonHot = hot;
-    this.drawButton();
-  }
-
-  private drawButton(): void {
-    const ctx = this.buttonCanvas.getContext('2d')!;
-    const size = this.buttonCanvas.width;
-    ctx.clearRect(0, 0, size, size);
-
-    const glow = ctx.createRadialGradient(128, 128, 40, 128, 128, 126);
-    glow.addColorStop(0, this.open ? 'rgba(255, 157, 61, 0.95)' : 'rgba(74, 168, 255, 0.95)');
-    glow.addColorStop(1, 'rgba(8, 14, 26, 0.9)');
-    ctx.beginPath();
-    ctx.arc(128, 128, 124, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
-    ctx.fill();
-
-    ctx.lineWidth = this.buttonHot ? 12 : 7;
-    ctx.strokeStyle = this.buttonHot ? '#ffffff' : 'rgba(255,255,255,0.75)';
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 14;
-    ctx.lineCap = 'round';
-    if (this.open) {
-      ctx.beginPath();
-      ctx.moveTo(88, 88);
-      ctx.lineTo(168, 168);
-      ctx.moveTo(168, 88);
-      ctx.lineTo(88, 168);
-      ctx.stroke();
-    } else {
-      for (let i = 0; i < 3; i++) {
-        const y = 94 + i * 34;
-        ctx.beginPath();
-        ctx.moveTo(86, y);
-        ctx.lineTo(170, y);
-        ctx.stroke();
-      }
-    }
-
-    this.buttonTexture.needsUpdate = true;
   }
 }
 
@@ -1051,16 +925,9 @@ function pageOf(entry: MenuEntry): Page {
   };
 }
 
-function wristObject(isHand: boolean, controller: { hand: THREE.XRHandSpace; grip: THREE.Group }) {
-  if (isHand) {
-    const wrist = controller.hand.joints['wrist'];
-    return wrist && wrist.visible ? wrist : null;
-  }
-  return controller.grip.visible ? controller.grip : null;
-}
-
-/** Points an object's +Z at a target, rolling around the given up axis. */
-function faceTowards(object: THREE.Object3D, target: THREE.Vector3, up: THREE.Vector3): void {
-  _mat.lookAt(target, object.position, up);
-  object.quaternion.setFromRotationMatrix(_mat);
+/** Jede Gruppe und jedes Netz darin auf eine Stufe — siehe `PANEL_ORDER`. */
+function overlay(object: THREE.Object3D, order: number): void {
+  object.traverse((node) => {
+    node.renderOrder = order;
+  });
 }

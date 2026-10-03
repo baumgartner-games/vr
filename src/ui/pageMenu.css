@@ -1059,6 +1059,15 @@
   padding-right: 8px;
   border-bottom: 1px solid var(--border);
 }
+/* ◀ ▶ links vor den Reitern: etwas kleiner als Schließen, damit die Reiter
+   den Platz behalten. */
+.pmenu__top .pmenu__step-tab {
+  width: 34px;
+  height: 34px;
+}
+.pmenu__top .pmenu__step-tab:first-child {
+  margin-left: 8px;
+}
 .pmenu__top .pmenu__tabs {
   flex: 1;
   min-width: 0;
