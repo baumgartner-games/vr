@@ -497,6 +497,11 @@ export class PlayerRig extends THREE.Group {
    * `position.y`.
    */
   getFloorY(): number {
+    // **Im Weltbau stehen die Füße auf dem Boden, von dem man abgehoben hat**
+    // (`startFlight`) — geflogen ist nur die Kamera. Vorher stand hier auch
+    // dann die Höhe des Gestells: Wer sank, zog die leuchtenden Kacheln der
+    // Vorschau (`PlaceGrid`) mit hinunter, statt sie auf dem Boden zu lassen.
+    if (this.flight) return this.flight.floor;
     return this.position.y + this.crouchOffset + this.squashOffset - this.seatLift;
   }
 

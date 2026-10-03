@@ -207,6 +207,9 @@ export interface ConnectOptions extends TrysteroOptions {
  * (`ui/menuGroups.MENU_GROUPS`).
  */
 const INVENTORY_TAB = 'inventar';
+/** Nah- und Fernebene der eigenen Augen, in Metern des Gestells (`syncFlight`). */
+const CAMERA_NEAR = 0.05;
+const CAMERA_FAR = 700;
 
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
@@ -486,8 +489,8 @@ export class App {
     this.camera = new THREE.PerspectiveCamera(
       70,
       window.innerWidth / window.innerHeight,
-      0.05,
-      700,
+      CAMERA_NEAR,
+      CAMERA_FAR,
     );
     this.screenFov = this.camera.fov;
     this.mirrors = new MirrorRenderer(this.renderer);
@@ -2179,6 +2182,15 @@ export class App {
     if (wanted === this.rig.flying) return;
     if (wanted) this.rig.startFlight(BUILD_SCALE);
     else this.rig.endFlight();
+    // **Die Nahebene schrumpft mit** — die Brille rechnet sie in Metern des
+    // Gestells, und das ist im Weltbau zehnmal so groß: Aus 5 cm wurden
+    // 50 cm Welt, und wer sich über ein Möbel beugte, sah es verschwinden.
+    // Die Fernebene geht im selben Maß zurück, damit die Tiefe so fein
+    // aufgelöst bleibt wie am Boden (und reicht dann immer noch 700 m weit).
+    const scale = wanted ? BUILD_SCALE : 1;
+    this.camera.near = CAMERA_NEAR / scale;
+    this.camera.far = CAMERA_FAR / scale;
+    this.camera.updateProjectionMatrix();
   }
 
   private fitEyes(presenting: boolean): void {

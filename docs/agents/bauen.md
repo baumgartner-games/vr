@@ -71,11 +71,41 @@ gespeichert; ein Weltwechsel landet.
   eigene Pose gesendet (`net.visible`), wie beim Zuschauen. Zuschauen, Brille
   absetzen und Weltwechsel landen (`App.syncFlight`).
 
-**Offen:** Greifen und Hinstellen aus der Luft. Die Hände sind zehnmal so
-groß, die Reichweiten der Welt (`core/usable`, die Saum- und Griffradien) aber
-in Weltmetern — aus 16 m Höhe greift man also nichts. Was gebaut werden soll,
-während man fliegt (zeigen und setzen wie der Kran am Schirm?), ist der
-nächste Schritt.
+**Greifen aus der Luft** (Oktober 2026). Gemeldet: _„wenn ich nahe dran bin
+an gegenständen werden diese anscheinend unsichtbar […] die möbel die ich in
+der hand halte sollen genauso groß sein, wie in der welt […] wenn ich die
+höhen position ändere, dann wird die vorschau […] mit nach unten
+verschoben"_, und: _„wenn die hand nahe eines möbel stücks ist, dass ich
+dieses mit der hand wie beim grab angedeutet wird grabbar zu sein und
+gehighlighted wird das möbelstück."_
+
+- **Die Nahebene schrumpft mit** (`App.syncFlight`): Die Brille rechnet
+  `camera.near` in Metern des Gestells, bei zehnfacher Größe also 50 cm Welt
+  statt 5 cm — wer sich über ein Möbel beugte, sah es verschwinden. Im
+  Weltbau gilt `CAMERA_NEAR / BUILD_SCALE`, die Fernebene geht im selben Maß
+  zurück (700 m Welt), damit die Tiefe so fein bleibt wie am Boden. Im
+  Emulator (`?xr=sim`) sieht man das nicht: IWER übernimmt die Nahebene nicht.
+- **Die Füße bleiben am Boden** (`PlayerRig.getFloorY`): Im Weltbau sagt es
+  den Boden, von dem man abgehoben hat (`flight.floor`), und nicht die Höhe
+  des Gestells. Vorher sanken die leuchtenden Kacheln der Vorschau
+  (`PlaceGrid`) mit, sobald man mit dem rechten Stick tiefer flog — und alles
+  andere, das nach den Füßen fragt, gleich mit.
+- **In der Riesenhand in echter Größe**: `shrinkInHand` gilt nicht, solange
+  `rig.flying` — ein Tisch liegt dort so groß in der Hand, wie er gleich in
+  der Welt steht.
+- **Der Greifzuschlag wächst mit** (`PortalWorld.handMargin`):
+  `GRAB_MARGIN × Gestellgröße`, für Gegenstände (`findProp`, auch die offene
+  Hand) und benutzbare Dinge (`reachDepth`).
+- **Stehende Möbel mit der Hand** (`PortalWorld.reachElement`): Ein
+  hingestelltes Spielelement gehört der Welt und ist für `findProp` nur ein
+  festgehaltenes Bodenstück. Im Weltbau geht es deshalb **vor** dem übrigen
+  Greifen: Liegt die Hand über seiner Grundfläche und nicht höher als
+  1,40 m plus Zuschlag, leuchtet sein Saum (`showUse`, `elementLiftTarget`),
+  die Hand öffnet sich, und der Grip hebt es an wie der Kran am Schirm
+  (`liftElementAt` → `conjureModel`) — samt allem, was darauf steht. Grip auf
+  stellt hin. Ein umgestelltes Element hält kein Spielmodus fest
+  (`heldByMode`). Am Boden nicht: Dort fasst die Hand eine Küchenzeile an, um
+  ihr etwas zu nehmen.
 
 ## In der Brille: was aus dem Katalog kommt, klebt — und ist klein
 
@@ -100,6 +130,7 @@ viel zu groß in der hand."_
   kleiner gerendert werden (wie beim burger)"_. Höchstens halb so groß
   (`dishHold.HAND_SCALE`, wie der Burger), und so, dass die längste Seite in
   `HAND_FIT` (0,35 m) passt — ein Tisch von 1 m ist ein Modell auf der Hand.
+  Nicht im Weltbau: Da ist man selbst der Riese (siehe oben).
   Verkleinert wird um die Faust, nicht um die Mitte. Nur das Bild: Körper,
   Geist und Einrasten rechnen mit der echten Größe, beim Loslassen ist es
   sofort wieder groß (`release` → `unshrinkInHand`). Nicht beim Nahgreifen
