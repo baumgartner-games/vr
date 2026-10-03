@@ -597,7 +597,7 @@ export class App {
       nav: new MenuNav(catalogRecall()),
     });
     this.rig.add(this.gameMenu);
-    this.gameMenu.xr.useLayer(this.renderer, this.camera, () => graphics().menuLayer);
+    this.gameMenu.xr.useLayer(this.renderer, this.camera);
     this.pageMenu = new PageMenu({
       title: 'Menü',
       tabs: true,
@@ -2531,21 +2531,6 @@ export class App {
           run: () => {
             const next = saveGraphics({ showFps: !graphics().showFps });
             this.frameStats.visible = next.showFps;
-            this.menuDirty = true;
-          },
-        },
-        {
-          // **Schärfer in der Brille** — das Menü als Ebene des Kompositors
-          // (`ui/XRMenuLayer.ts`). Am Schirm umschaltbar, falls es in der
-          // Brille einmal falsch aussieht und man dort nichts lesen kann.
-          id: 'gfx:menu-layer',
-          label: 'Menü scharf (Brille)',
-          sub: 'Die Brille zeichnet das Menü selbst — aus, falls es falsch aussieht',
-          icon: 'settings',
-          accent: 0x6f7d99,
-          checked: settings.menuLayer,
-          run: () => {
-            saveGraphics({ menuLayer: !graphics().menuLayer });
             this.menuDirty = true;
           },
         },
