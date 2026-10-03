@@ -300,6 +300,48 @@ export abstract class FurnishedWorld extends GridWorld {
     };
   }
 
+  protected override canEraseElements(): boolean {
+    return true;
+  }
+
+  protected override elementEraseTarget(x: number, z: number): THREE.Object3D | null {
+    return this.erasableAt(x, z)?.anchor ?? null;
+  }
+
+  /**
+   * **Mit dem Radiergummi weg** (`PortalWorld.eraseElement`) — das Element
+   * unter der Stelle samt allem, was darauf steht. Den Boden darunter
+   * (`GameElement.floor`) nimmt er nicht: _„elemente löschen (nicht den
+   * boden)"_.
+   *
+   * @param element nur ein Element mit diesem Namen (beim Einfügen einer Zeile)
+   * @returns die Stellen, die jetzt leer sind — zuerst das Element selbst
+   */
+  protected override eraseElementAt(x: number, z: number, element?: string): ElementSpot[] {
+    const placed = this.erasableAt(x, z, element);
+    if (!placed) return [];
+    const gone: ElementSpot[] = [placed.spot];
+    const riders = this.placed.filter((one) => this.riding.get(one.spot.id) === placed.spot.id);
+    for (const one of riders) {
+      gone.push(one.spot);
+      this.takeAway(one);
+    }
+    this.takeAway(placed);
+    return gone;
+  }
+
+  /** Was der Radiergummi an dieser Stelle nähme — oben zuerst, nie den Boden. */
+  private erasableAt(x: number, z: number, element?: string): PlacedElement | null {
+    const here = this.placed.filter(
+      (one) =>
+        spotCovers(one.spot, x, z) &&
+        !one.element.floor &&
+        (element === undefined || one.element.id === element),
+    );
+    const rank = (one: PlacedElement): number => ((one.spot.y ?? 0) > 0 ? 0 : 1);
+    return here.sort((a, b) => rank(a) - rank(b))[0] ?? null;
+  }
+
   /** **Ein Element wegnehmen** — Stationen heraus (ihr Stand kommt zurück), Zellen frei, Bild weg. */
   private takeAway(placed: PlacedElement): StationState[] {
     this.placed.splice(this.placed.indexOf(placed), 1);
@@ -484,8 +526,10 @@ export abstract class FurnishedWorld extends GridWorld {
       picked: (taken) => playPick(taken),
       warnTone: (fast) => playWarn(fast),
       // Die Garderobe (`elements/coatRack.ts`): _Aussehen_ gehört der App.
-      open: (what) => {
+      // Der Schutzschrank (`spaceCatalog.SPACE_LOCKER`): hinein und heraus.
+      open: (what, anchor) => {
         if (what === 'outfit') this.context?.openOutfit();
+        else if (this.context) this.hideIn(this.context, anchor);
       },
     };
   }

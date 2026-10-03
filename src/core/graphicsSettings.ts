@@ -35,6 +35,8 @@
  * abschalten und ein Code vom PC einer Brille keine aufzwingen.
  */
 
+import { TOP_DOWN_TILT, clampTilt } from './topDownPose';
+
 const KEY = 'bgvr.graphics';
 
 /** Die beiden Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
@@ -259,11 +261,18 @@ export interface GraphicsSettings {
    */
   showHandles: boolean;
   /**
-   * **Das Blickfeld einer Quest 3 als Pyramide am Kopf** (`core/playerGuides.ts`)
-   * — wie die Kamera in Blender, mit den beiden Augen darin. Gewünscht, um zu
+   * **Das Blickfeld einer Quest 3 als gerundeter Kegel am Kopf**
+   * (`core/playerGuides.ts`) — aus dem eingestellten Rand (`core/questView.ts`),
+   * wie die Kamera in Blender, mit den beiden Augen darin. Gewünscht, um zu
    * sehen, wo die Augen in der Brille wären. Ab Werk aus.
    */
   showVrFrustum: boolean;
+  /**
+   * **Sichtfeld hervorheben** (`core/playerGuides.ts`) — ein Licht vom Kopf
+   * aus, so weit wie das Sichtfeld der Quest 3, damit man von oben sieht, was
+   * der Spieler sehen würde. Wie die Taschenlampe, nur schwächer. Ab Werk aus.
+   */
+  highlightView: boolean;
   /**
    * **Der Mensch als Boxen** (`core/playerGuides.ts`) — Kopf, Rumpf, Arme,
    * Beine und das Gürtelband in echter Augenhöhe; die Hände hängen fast bis
@@ -414,6 +423,20 @@ export interface GraphicsSettings {
   visorBreath: VisorBreath;
   /** Ganz flächig oder realistisch von unten Mitte aus. */
   visorBreathStyle: VisorBreathStyle;
+  /**
+   * **Wie steil die Ansicht _Von oben_ schaut**, in Grad über der Waagerechten
+   * (`core/topDownPose.ts`, 20–90, ab Werk 55). Eingestellt unter _Grafik →
+   * Blickwinkel von oben_ in Schritten von 5° und 10°. Gewünscht: _„bei
+   * Ansicht von oben noch den Winkel anpassen / einstellen können"_.
+   */
+  topDownTilt: number;
+  /**
+   * **Rechte Maustaste halten und ziehen stellt die Neigung frei ein** — nur
+   * am Schirm mit Maus und nur von oben (`FlatControls`). Ab Werk aus: Der
+   * Rechtsklick holt als Kran die Abrissbombe, und wer das nicht weiß, soll
+   * sich das Bild nicht aus Versehen verkippen.
+   */
+  tiltDrag: boolean;
 }
 
 /** Stock oder Steuerkreuz (`GraphicsSettings.movePad`). */
@@ -634,6 +657,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   wallOcclusion: 'ghostFront',
   showHandles: false,
   showVrFrustum: false,
+  highlightView: false,
   showBodyModel: false,
   shadows: 'simple',
   levelBlur: true,
@@ -648,6 +672,8 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   movePad: 'stick',
   visorBreath: 'off',
   visorBreathStyle: 'realistic',
+  topDownTilt: TOP_DOWN_TILT,
+  tiltDrag: false,
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -817,6 +843,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     : DEFAULT_GRAPHICS.wallOcclusion;
   const showHandles = raw.showHandles === true;
   const showVrFrustum = raw.showVrFrustum === true;
+  const highlightView = raw.highlightView === true;
   const showBodyModel = raw.showBodyModel === true;
   // Die Schatten sind ab Werk **der Kreis**, und ein Stand von gestern kann
   // hier noch den alten Schalter stehen haben: `false` wird Aus, `true` wird
@@ -876,6 +903,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     wallOcclusion,
     showHandles,
     showVrFrustum,
+    highlightView,
     showBodyModel,
     shadows,
     levelBlur,
@@ -890,6 +918,9 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     movePad,
     visorBreath,
     visorBreathStyle,
+    // Ein Stand von gestern kennt den Winkel nicht und bekommt die 55° von immer.
+    topDownTilt: clampTilt(raw.topDownTilt),
+    tiltDrag: raw.tiltDrag === true,
   };
 }
 

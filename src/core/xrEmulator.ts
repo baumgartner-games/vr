@@ -37,6 +37,9 @@ export function emulateQuest(): Promise<void> {
     // `forceInstall`: Chrome am Schreibtisch hat ein `navigator.xr`, nur
     // ohne Brille daran — ohne den Schalter ließe IWER es stehen.
     device.installRuntime({ forceInstall: true });
+    // Für Skripte, die die Brille fernsteuern (Playwright): Knöpfe und Hände
+    // lassen sich so ohne DevUI setzen.
+    (globalThis as { bgvrXr?: unknown }).bgvrXr = device;
     // **Die Layers selbst danach einsetzen.** IWERs eigenes `polyfillLayers`
     // setzt den Polyfill ein und überschreibt gleich darauf dessen
     // `XRWebGLBinding` mit dem eigenen (iwer 2.5.0) — dann gibt es keine

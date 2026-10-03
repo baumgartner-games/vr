@@ -311,7 +311,11 @@ export class Pointer {
 
     controller.getRay(_ray);
     this.raycaster.set(_ray.origin, _ray.direction);
-    this.raycaster.far = 12;
+    // **Im Weltbau ist das Gestell größer** (`core/buildFlight.ts`): Das Menü
+    // hängt daran und steht dann zehnmal so weit weg, in Weltmetern — der
+    // Strahl reicht mit, und gezeichnet wird er in den Maßen der Hand.
+    const reach = this.rig.scale.x || 1;
+    this.raycaster.far = 12 * reach;
     const pressing =
       controller.trigger.justPressed ||
       controller.primary.justPressed ||
@@ -328,7 +332,7 @@ export class Pointer {
     }
 
     beam.line.visible = true;
-    beam.line.scale.z = hit ? hit.hit.distance : 1.6;
+    beam.line.scale.z = hit ? hit.hit.distance / reach : 1.6;
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
 
     // **Erst das Loslassen, dann das Drücken.** Eine Hand, die im selben Bild

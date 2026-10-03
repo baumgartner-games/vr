@@ -36,9 +36,10 @@ import { tabbedMenu } from '../ui/menuTabs';
 import { XRPlayerCard } from '../ui/XRPlayerCard';
 import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
-import { topDownFit } from './topDownPose';
+import { TOP_DOWN_TILT, TOP_DOWN_TILT_MAX, TOP_DOWN_TILT_MIN, topDownFit } from './topDownPose';
 import { isCrane, screenTopDown } from './crane';
 import { gameMode, onGameMode } from './gameMode';
+import { BUILD_SCALE, buildFlight, onBuildFlight, setBuildFlight } from './buildFlight';
 import {
   SCREEN_VIEW_LABELS,
   SCREEN_VIEW_SUBS,
@@ -438,6 +439,8 @@ export class App {
   private stopFullscreenWatch: (() => void) | null = null;
   /** Meldet das Zuhören am Spielmodus wieder ab (`core/crane.ts`). */
   private readonly stopGameModeWatch: () => void;
+  /** Abmelden vom Weltbau (`core/buildFlight.ts`). */
+  private readonly stopBuildFlightWatch: () => void;
   /** Dasselbe für die Zeile, die zeigt, was gerade am Pad anliegt (`inputsMenu`). */
   private liveInput: MenuEntry | null = null;
   /** Welche Zeile des Eingaben-Menüs gerade auf einen Druck wartet, wenn eine. */
@@ -494,6 +497,8 @@ export class App {
       this.levelBlurOn = now.levelBlur;
       this.levelBlurAboveOn = now.levelBlurAbove;
       if (!this.levelBlurOn && !this.levelBlurAboveOn) this.levelBlur.release();
+      // Der Blickwinkel von oben hängt am selben Zuhörer — eine Zeile, kein zweiter.
+      this.topDownCamera.setTilt(now.topDownTilt);
     });
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
@@ -519,6 +524,8 @@ export class App {
       this.pointer.add(this.xrGuide.asPointerTarget());
     }
     this.topDownCamera = new TopDownCamera(canvas);
+    // Wie steil sie schaut, steht unter _Grafik → Blickwinkel von oben_.
+    this.topDownCamera.setTilt(graphics().topDownTilt);
     // Die Kamera von oben kennt zwei Dinge, die die Eingabe braucht: wo die
     // Figur auf dem Schirm steht (dahin zielt die Maus) und den Zoom auf den
     // Bumpern. Deshalb steht sie eine Zeile früher als die Steuerung.
@@ -664,6 +671,12 @@ export class App {
     // einrichtet, ist der Kran und sieht am Schirm von oben; mit _Spielen_
     // kommt die eigene Wahl zurück.
     this.stopGameModeWatch = onGameMode(() => {
+      this.applyView();
+      this.menuDirty = true;
+    });
+    // **Weltbau schaltet die Ansicht auch** (`core/buildFlight.ts`): am
+    // Schirm von oben, in der Brille wächst das Gestell (`syncFlight`).
+    this.stopBuildFlightWatch = onBuildFlight(() => {
       this.applyView();
       this.menuDirty = true;
     });
@@ -865,7 +878,11 @@ export class App {
       this.topDownCamera.startZoom(
         definition.topDownSpan === undefined
           ? null
-          : topDownFit(definition.topDownSpan, window.innerWidth / Math.max(1, window.innerHeight)),
+          : topDownFit(
+              definition.topDownSpan,
+              window.innerWidth / Math.max(1, window.innerHeight),
+              this.topDownCamera.tilt,
+            ),
       );
       this.resizeWebBuffer();
       this.world = next;
@@ -1257,7 +1274,7 @@ export class App {
    */
   get topDown(): boolean {
     return (
-      screenTopDown(this.view, gameMode()) &&
+      (screenTopDown(this.view, gameMode()) || buildFlight()) &&
       !this.renderer.xr.isPresenting &&
       !this.world?.ownsFlat &&
       !this.spectating
@@ -1279,7 +1296,7 @@ export class App {
     // **Von oben und beim Einrichten ist man der Kran** (`core/crane.ts`) —
     // der Koch tritt ab, samt seinen Händen.
     const crane = on && isCrane(gameMode());
-    this.avatar.crane = crane;
+    this.avatar.setCrane(crane, this.rig.getHeadMatrix(_head));
     // Und als Kran fahren die Tasten das Bild, der Zeiger stellt den Kran
     // (`FlatControls.crane`).
     this.flat.crane = crane;
@@ -1409,6 +1426,7 @@ export class App {
     this.stopFullscreenWatch?.();
     this.stopFullscreenWatch = null;
     this.stopGameModeWatch();
+    this.stopBuildFlightWatch();
     this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
@@ -1447,6 +1465,10 @@ export class App {
   // --- internals ----------------------------------------------------------
 
   private unloadWorld(): void {
+    // **Weltbau gehört der Welt, in der man abgehoben hat** — gelandet wird
+    // noch in ihr, solange ihre Physik den Körper nachziehen kann.
+    setBuildFlight(false);
+    this.syncFlight(false);
     if (this.world) {
       try {
         this.world.dispose(this.context);
@@ -1545,6 +1567,7 @@ export class App {
     const flat: MenuEntry[] = [
       ...worlds,
       this.viewMenu(),
+      this.buildFlightEntry(),
       this.networkMenu(),
       this.movementMenu(),
       this.inputsMenu(),
@@ -1641,6 +1664,37 @@ export class App {
    * oben sieht, ist jetzt die Welt selbst, und gebaut wird sie im Bauplatz
    * (`editor/WorldEditor.ts`).
    */
+  /**
+   * **Weltbau** — eine Zeile im Reiter _Bauen_, ein Haken (`core/buildFlight.ts`).
+   * In der Brille fliegt man darüber, am Schirm sieht man von oben.
+   */
+  private buildFlightEntry(): MenuEntry {
+    const on = buildFlight();
+    const presenting = this.renderer.xr.isPresenting;
+    return {
+      id: 'build-flight',
+      label: 'Weltbau',
+      sub: on
+        ? presenting
+          ? 'An · linker Stick fliegt, rechter Stick hoch und runter, quer dreht'
+          : 'An · von oben · antippen landet wieder'
+        : 'Die Welt von oben, in der Brille darüber fliegen — die Welt bleibt groß',
+      icon: 'worlds',
+      accent: 0x39d0ff,
+      checked: on,
+      run: () => {
+        const now = setBuildFlight(!buildFlight());
+        this.notify(
+          now
+            ? this.renderer.xr.isPresenting
+              ? 'Weltbau · linker Stick fliegt, rechter Stick hoch und runter'
+              : 'Weltbau · von oben'
+            : 'Weltbau aus · zurück am Boden',
+        );
+      },
+    };
+  }
+
   private viewMenu(): MenuEntry {
     const flat = this.view === '2d';
     const presenting = this.renderer.xr.isPresenting;
@@ -2115,6 +2169,18 @@ export class App {
    * Nur **in der Brille** und **nicht von oben**: Am Bildschirm setzt das Spiel
    * die Kamera selbst, und die Ansicht von oben hängt an keiner Kopfhöhe.
    */
+  /**
+   * **Weltbau in der Brille** (`core/buildFlight.ts`): abheben, wenn er an
+   * ist und man in der Brille steht, und landen, sobald eines davon nicht
+   * mehr stimmt — auch beim Zuschauen, das das Gestell selbst trägt.
+   */
+  private syncFlight(presenting: boolean): void {
+    const wanted = buildFlight() && presenting && !this.spectating;
+    if (wanted === this.rig.flying) return;
+    if (wanted) this.rig.startFlight(BUILD_SCALE);
+    else this.rig.endFlight();
+  }
+
   private fitEyes(presenting: boolean): void {
     this.rig.eyeScale = presenting && !this.topDown ? this.xrEyeScale : 1;
   }
@@ -2618,11 +2684,11 @@ export class App {
         },
         {
           // **Wohin die Brille schaut** — `core/playerGuides.ts`: das
-          // Blickfeld einer Quest 3 als Pyramide am Kopf, wie die Kamera in
-          // Blender, und die beiden Augen darin.
+          // Blickfeld einer Quest 3 als gerundeter Kegel am Kopf, aus dem
+          // eingestellten Rand (`core/questView.ts`), und die beiden Augen.
           id: 'gfx:vr-frustum',
           label: 'Quest-3-Blickfeld',
-          sub: '110° × 96° als Pyramide am Kopf · mit beiden Augen',
+          sub: 'Der eingestellte Rand als runder Kegel am Kopf · mit beiden Augen',
           caption: 'Von oben, im Spiegel und durchs Portal zu sehen · ab Werk aus',
           icon: 'settings',
           accent: 0x6f7d99,
@@ -2631,6 +2697,23 @@ export class App {
             const next = saveGraphics({ showVrFrustum: !graphics().showVrFrustum });
             this.menuDirty = true;
             this.notify(next.showVrFrustum ? 'Quest-3-Blickfeld an' : 'Quest-3-Blickfeld aus');
+          },
+        },
+        {
+          // **Was der Spieler sieht, von oben** — `core/playerGuides.ts`: ein
+          // Licht vom Kopf aus, so weit wie das Sichtfeld der Quest 3, wie
+          // eine schwache Taschenlampe.
+          id: 'gfx:highlight-view',
+          label: 'Sichtfeld hervorheben',
+          sub: 'Hellt auf, was der Spieler mit der Quest 3 sehen würde',
+          caption: 'Von oben, im Spiegel und durchs Portal zu sehen · ab Werk aus',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.highlightView,
+          run: () => {
+            const next = saveGraphics({ highlightView: !graphics().highlightView });
+            this.menuDirty = true;
+            this.notify(next.highlightView ? 'Sichtfeld hervorgehoben' : 'Sichtfeld normal');
           },
         },
         {
@@ -2656,6 +2739,7 @@ export class App {
           this.menuDirty = true;
           this.notify(message);
         }),
+        this.tiltMenu(accent),
         {
           // **Was mit den Wänden des eigenen Raums passiert** — von oben
           // (`worlds/grid/roomWalls.ts`, `wallCut.ts`): durchsichtig (ab
@@ -3031,6 +3115,80 @@ export class App {
             this.notify(`Atem-Art: ${VISOR_BREATH_STYLE_LABELS[next.visorBreathStyle]}`);
           },
         },
+      ],
+    };
+  }
+
+  /**
+   * **Wie steil die Ansicht _Von oben_ schaut** — eine Seite mit vier Knöpfen
+   * (±5°, ±10°), einem zurück auf die Vorgabe und, nur am Schirm, dem Schalter
+   * für das freie Kippen mit der rechten Maustaste (`FlatControls`).
+   * Gewünscht: _„bei Ansicht von oben noch den Winkel anpassen / einstellen
+   * können"_. Gerechnet wird in `core/topDownPose.ts` (`clampTilt`, 20–90°).
+   */
+  private tiltMenu(accent: number): MenuEntry {
+    const settings = graphics();
+    const tilt = settings.topDownTilt;
+    const step = (delta: number): MenuEntry => ({
+      id: `gfx:tilt${delta > 0 ? '+' : '-'}${Math.abs(delta)}`,
+      label: `${delta > 0 ? 'Steiler' : 'Flacher'} ${delta > 0 ? '+' : '−'}${Math.abs(delta)}°`,
+      sub: `Jetzt ${tilt}° · ${TOP_DOWN_TILT_MIN}° flach bis ${TOP_DOWN_TILT_MAX}° senkrecht`,
+      icon: 'settings',
+      accent,
+      run: () => {
+        const next = saveGraphics({ topDownTilt: graphics().topDownTilt + delta });
+        this.menuDirty = true;
+        this.notify(`Blickwinkel von oben: ${next.topDownTilt}°`);
+      },
+    });
+    return {
+      id: 'gfx:tilt',
+      label: `Blickwinkel von oben: ${tilt}°`,
+      sub: 'Wie steil die Kamera auf die Figur schaut · ab Werk 55°',
+      caption: `±5° und ±10° · ${TOP_DOWN_TILT_MIN}° flach bis ${TOP_DOWN_TILT_MAX}° senkrecht`,
+      icon: 'settings',
+      accent,
+      children: [
+        step(10),
+        step(-10),
+        step(5),
+        step(-5),
+        {
+          id: 'gfx:tilt-reset',
+          label: `Zurück auf ${TOP_DOWN_TILT}°`,
+          sub: 'Der Winkel, unter dem die Ansicht von oben immer stand',
+          icon: 'settings',
+          accent,
+          run: () => {
+            const next = saveGraphics({ topDownTilt: TOP_DOWN_TILT });
+            this.menuDirty = true;
+            this.notify(`Blickwinkel von oben: ${next.topDownTilt}°`);
+          },
+        },
+        // **Nur am Schirm**: Eine Maus hat die Brille nicht.
+        ...(this.renderer.xr.isPresenting
+          ? []
+          : [
+              {
+                id: 'gfx:tilt-drag',
+                label: 'Rechtsklick ziehen: frei kippen',
+                sub: 'Rechte Maustaste halten und hoch/runter ziehen stellt den Winkel stufenlos ein',
+                caption:
+                  'Nur von oben und nur mit der Maus · als Kran bleibt rechts die Abrissbombe',
+                icon: 'settings' as const,
+                accent,
+                checked: settings.tiltDrag,
+                run: () => {
+                  const next = saveGraphics({ tiltDrag: !graphics().tiltDrag });
+                  this.menuDirty = true;
+                  this.notify(
+                    next.tiltDrag
+                      ? 'Rechtsklick kippt den Blickwinkel'
+                      : 'Rechtsklick kippt nicht mehr',
+                  );
+                },
+              },
+            ]),
       ],
     };
   }
@@ -3674,6 +3832,9 @@ export class App {
     this.gameMenu.presenting = false;
     this.applyView();
     setImmersive(false);
+    // Ohne Brille wird nicht geflogen: zurück auf den Boden, bevor die
+    // Tastatur das Gestell übernimmt (`syncFromRig`).
+    this.syncFlight(false);
     if (this.rig.paused) {
       // Spectating in VR carried the rig around; the body has to catch up.
       this.rig.paused = false;
@@ -3752,6 +3913,7 @@ export class App {
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.gameMenu.scrollHand;
     this.fitEyes(presenting);
+    this.syncFlight(presenting);
     this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
     const context = this.context;
@@ -3778,7 +3940,8 @@ export class App {
 
     // Whoever is watching somebody else is a camera, not a player: the others
     // must not see a body standing around while its owner is spectating.
-    this.net.visible = !following;
+    // Und wer im Weltbau als Riese über der Welt schwebt, auch nicht.
+    this.net.visible = !following && !this.rig.flying;
 
     if (this.spectating && !this.spectator.following) this.releaseCamera();
     if (this.spectating !== this.spectator.following) {

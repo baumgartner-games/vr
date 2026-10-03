@@ -17,6 +17,16 @@ const _left: AvatarLimb = { position: new THREE.Vector3() };
 const _right: AvatarLimb = { position: new THREE.Vector3() };
 const _local = new THREE.Matrix4();
 const _scale = new THREE.Vector3();
+const _feet = new THREE.Vector3();
+
+/** Ein Stoff als Geist: derselbe, halb durchsichtig. */
+function ghostOf(material: THREE.Material): THREE.Material {
+  const ghost = material.clone();
+  ghost.transparent = true;
+  ghost.opacity = 0.4;
+  ghost.depthWrite = false;
+  return ghost;
+}
 
 /**
  * The local player's body. Lives inside the rig, so everything it is fed is in
@@ -102,14 +112,29 @@ export class PlayerAvatar extends AvatarBody {
     this.setLayer(LAYER_SELF_ONLY);
   }
 
+  /** Ob der Körper für den Kran stehen geblieben ist (`setCrane`). */
+  private craneLeft = false;
+  /** Die eigenen Stoffe der Figur, solange sie als Geist dasteht (`setGhostly`). */
+  private readonly ghostWorn = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+
   /**
-   * **Ob man gerade der Kran ist** — der Körper tritt ab, der Greifer
-   * schwebt über dem Kopf (`core/crane.ts`).
+   * **Ob man gerade der Kran ist** — der Greifer schwebt über dem Kopf
+   * (`core/crane.ts`), und **die Figur bleibt stehen, wo sie war**, halb
+   * durchsichtig wie ein Geist. Gewünscht: _„wenn ich den aktiviere, der
+   * spieler einfach da stehen bleibt wo er ist und nur der kran dazu kommt
+   * […] der spieler wird ghost und ich kann diesen mit dem kran auch
+   * umsetzen"_. Vorher trat der Körper ab, und wo der Kran aufhörte, stand
+   * man.
+   *
+   * Der Kran hängt deshalb nicht mehr an der Figur, sondern am Rig: Die Figur
+   * steht still (`leaveBehind`), der Kran fliegt mit dem Rig.
+   *
+   * @param headWorld die Kopfhaltung, an der die Figur stehen bleibt
    */
-  set crane(on: boolean) {
+  setCrane(on: boolean, headWorld: THREE.Matrix4): void {
     if (on && !this.craneMesh) {
       this.craneMesh = buildCrane();
-      this.add(this.craneMesh);
+      (this.parent ?? this).add(this.craneMesh);
       // Dieselbe Ebene wie der Rest des Körpers: von oben zu sehen, aus den
       // eigenen Augen nicht.
       const layers = this.head.layers.mask;
@@ -122,7 +147,57 @@ export class PlayerAvatar extends AvatarBody {
       }
     }
     if (this.craneMesh) this.craneMesh.visible = on;
-    this.setBodyHidden(on);
+    if (on && !this.craneLeft && !this.detached) {
+      this.craneLeft = true;
+      this.leaveBehind(headWorld);
+      this.setGhostly(true);
+    } else if (!on && this.craneLeft) {
+      this.craneLeft = false;
+      this.setGhostly(false);
+      this.comeBack();
+    }
+  }
+
+  /**
+   * **Wo die stehen gebliebene Figur mit den Füßen steht**, in Weltmetern —
+   * `null`, solange sie nicht stehen geblieben ist.
+   */
+  behindFeet(target: THREE.Vector3): THREE.Vector3 | null {
+    if (!this.detached) return null;
+    return target
+      .set(this.frozenHead.position.x, 0, this.frozenHead.position.z)
+      .applyMatrix4(this.anchor);
+  }
+
+  /** **Die stehen gebliebene Figur woandershin stellen** — die Füße auf `feet`. */
+  moveBehind(feet: THREE.Vector3): void {
+    const now = this.behindFeet(_feet);
+    if (!now) return;
+    this.anchor.premultiply(_local.makeTranslation(feet.x - now.x, feet.y - now.y, feet.z - now.z));
+  }
+
+  /**
+   * **Halb durchsichtig, wie ein Geist** — mit eigenen Abzügen der Stoffe,
+   * denn die Stoffe der Modelle teilen sich alle, die dasselbe Modell tragen.
+   */
+  private setGhostly(on: boolean): void {
+    if (on) {
+      this.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh || this.ghostWorn.has(mesh)) return;
+        this.ghostWorn.set(mesh, mesh.material);
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(ghostOf)
+          : ghostOf(mesh.material);
+      });
+      return;
+    }
+    for (const [mesh, worn] of this.ghostWorn) {
+      const ghost = mesh.material;
+      for (const one of Array.isArray(ghost) ? ghost : [ghost]) one.dispose();
+      mesh.material = worn;
+    }
+    this.ghostWorn.clear();
   }
 
   get crane(): boolean {
@@ -173,6 +248,14 @@ export class PlayerAvatar extends AvatarBody {
    * @param headLocal head pose in rig space
    */
   updateFromRig(dt: number, rig: PlayerRig, input: XRInput, headLocal: THREE.Matrix4): void {
+    _head.position.setFromMatrixPosition(headLocal);
+    const crane = this.craneMesh;
+    if (crane?.visible) {
+      this.craneTime += dt;
+      const pose = cranePose(_head.position.x, _head.position.z, this.craneTime);
+      crane.position.set(pose.x, pose.y, pose.z);
+      crane.rotation.y = pose.yaw;
+    }
     if (this.detached) {
       // The rig flies out with the drone; the body does not. Putting the whole
       // *group* back into the frame it was left in keeps its floor at y = 0
@@ -188,14 +271,6 @@ export class PlayerAvatar extends AvatarBody {
       return;
     }
 
-    _head.position.setFromMatrixPosition(headLocal);
-    const crane = this.craneMesh;
-    if (crane?.visible) {
-      this.craneTime += dt;
-      const pose = cranePose(_head.position.x, _head.position.z, this.craneTime);
-      crane.position.set(pose.x, pose.y, pose.z);
-      crane.rotation.y = pose.yaw;
-    }
     // Die Höhe kommt auch von oben aus der Kamera — Ducken und Sitzen sollen
     // die Figur ja kleiner machen. Nur ihre Drehung nicht.
     if (this.headFollowsRig) _head.quaternion!.identity();
@@ -229,6 +304,8 @@ export class PlayerAvatar extends AvatarBody {
   }
 
   override dispose(): void {
+    this.setGhostly(false);
+    this.craneMesh?.removeFromParent();
     if (this.craneMesh) disposeCrane(this.craneMesh);
     this.craneMesh = null;
     super.dispose();

@@ -11,7 +11,9 @@ import { TOP_DOWN_CAMERA_NAME } from '../ui/billboard';
 import {
   TOP_DOWN_FOCUS,
   TOP_DOWN_FOV,
+  TOP_DOWN_TILT,
   TOP_DOWN_ZOOM,
+  clampTilt,
   groundDirection,
   stepTurn,
   screenToGround,
@@ -135,6 +137,13 @@ export class TopDownCamera {
    */
   private headingGoal = 0;
   private headingNow = 0;
+  /**
+   * **Wie steil sie schaut**, in Grad (`setTilt`, _Grafik → Blickwinkel von
+   * oben_). Wieder Ziel und Ist: Ein Knopfdruck um 10° kippt das Bild weich,
+   * nicht mit einem Ruck.
+   */
+  private tiltGoal = TOP_DOWN_TILT;
+  private tiltNow = TOP_DOWN_TILT;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     // Daran erkennen Schilder, die der Drehung folgen, die Draufsicht
@@ -186,14 +195,15 @@ export class TopDownCamera {
     // 22 m ist derselbe Ruck, gegen den die Glättung oben steht.
     this.distance += (this.target - this.distance) * weight(dt, ZOOM_TAU);
     this.headingNow = turnToward(this.headingNow, this.headingGoal, weight(dt, TURN_TAU));
+    this.tiltNow += (this.tiltGoal - this.tiltNow) * weight(dt, TURN_TAU);
     topDownPosition(
       this.focus.position,
       this.distance,
       this.camera.position,
-      undefined,
+      this.tiltNow,
       this.headingNow,
     );
-    this.camera.rotation.set(topDownPitch(), this.headingNow, 0);
+    this.camera.rotation.set(topDownPitch(this.tiltNow), this.headingNow, 0);
     this.camera.updateMatrixWorld(true);
   }
 
@@ -245,7 +255,23 @@ export class TopDownCamera {
     this.focus.reset();
     this.distance = this.target;
     this.headingNow = this.headingGoal;
+    this.tiltNow = this.tiltGoal;
     this.refocus = true;
+  }
+
+  /**
+   * **Die Neigung, unter der die Kamera schaut**, in Grad über der Waagerechten
+   * — geklemmt auf 20–90° (`topDownPose.clampTilt`). Gesetzt von `App` aus der
+   * Grafik-Einstellung und, solange die rechte Maustaste zieht, von
+   * `FlatControls`.
+   */
+  setTilt(degrees: number): void {
+    this.tiltGoal = clampTilt(degrees);
+  }
+
+  /** Die Neigung, auf die die Kamera gerade zukippt, in Grad. */
+  get tilt(): number {
+    return this.tiltGoal;
   }
 
   /**
@@ -440,7 +466,7 @@ export class TopDownCamera {
    * damit P1 nur ein Ding kennen muss.
    */
   groundDirection(screenX: number, screenY: number, out?: Vec2): Vec2 {
-    return groundDirection(screenX, screenY, out, undefined, this.headingNow);
+    return groundDirection(screenX, screenY, out, this.tiltNow, this.headingNow);
   }
 
   dispose(): void {

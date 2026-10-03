@@ -425,6 +425,29 @@ gilt."_
   Ding absichtlich deckend halten will, ersetzt sein `raycast` durch eine
   leere Funktion (so die Deckel von `haunting/world3d/topDownFog.ts`).
 
+## Blickwinkel von oben
+
+_Menü → Grafik → **Blickwinkel von oben**_ (`GraphicsSettings.topDownTilt`, ab
+Werk 55°). Gewünscht: _„über das grafik menü, will ich bei ansicht von oben
+noch den winkel anpassen / einstellen können"_. Die Seite hat vier Knöpfe —
+**Steiler +10°**, **Flacher −10°**, **Steiler +5°**, **Flacher −5°** — und
+**Zurück auf 55°**. Geklemmt wird auf 20° flach bis 90° senkrecht
+(`topDownPose.clampTilt`); die Kamera kippt weich hinüber (`TopDownCamera.setTilt`,
+dieselbe Zeitkonstante wie das Drehen), und das Zielen mit der Maus rechnet mit
+dem Winkel, der gerade gilt (`groundDirection`). Auch der Start-Zoom einer Welt
+(`topDownFit`) nimmt ihn.
+
+**Nur am Schirm** steht darunter der Schalter **Rechtsklick ziehen: frei
+kippen** (`GraphicsSettings.tiltDrag`, ab Werk aus): rechte Maustaste halten und
+nach unten ziehen macht das Bild steiler, nach oben flacher (0,25° je
+Bildpunkt, `FlatControls.TILT_DRAG_SPEED`); beim Loslassen wird der Winkel die
+Einstellung. Als Kran bleibt rechts die Abrissbombe; solange der Schalter an
+ist, öffnet ein Rechtsklick von oben kein Kontextmenü.
+
+Was mit 55° rechnet und nicht nachzieht: die Auswahl der Wände vorn, das
+Deckel-Licht der Haunting-Station, die Schilder — sie sind für 55° gebaut und
+sehen bei anderen Winkeln nur etwas weniger genau aus.
+
 ## Wände vorn: die Wände des eigenen Raums
 
 _Menü → Grafik → **Wände vorn**_ (`GraphicsSettings.wallOcclusion`, Typ
@@ -579,20 +602,41 @@ einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
 Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
 einer Hand richtig liegt, entscheidet kein Jest-Test.
 
-## Quest-3-Blickfeld und Mensch als Boxen
+## Quest-3-Blickfeld, Sichtfeld hervorheben und Mensch als Boxen
 
-Zwei Häkchen, die **im Grafik-Menü bleiben** und nicht in die Werkstatt
-wandern (`core/playerGuides.ts`, beide ab Werk aus):
+Drei Häkchen, die **im Grafik-Menü bleiben** und nicht in die Werkstatt
+wandern (`core/playerGuides.ts`, alle ab Werk aus):
 
 - **Quest-3-Blickfeld** (`GraphicsSettings.showVrFrustum`). Gewünscht: _„den
   VR-Blickwinkel einer Quest 3 darstellen … wie bei Blender mit einem
-  Kamera-Frustum, damit ich auch sehe, wo die Augen wären"_. Eine gelbe
-  Pyramide aus Linien am Kopf (`PlayerRig.getHeadMatrix`), 110° × 96°
-  (`QUEST3_FOV`, beide Augen zusammen, wie Meta es angibt) und 1,2 m lang
-  (`FRUSTUM_LENGTH`), mit dem Dreieck über der Oberkante, das in Blender
-  „oben" heißt, und der Blickachse. Die Augen sind zwei Kugeln im
-  Augenabstand der Quest 3 (`QUEST3_IPD`, 63 mm): links blau, rechts rot.
-  Ohne Tiefenprüfung, wie die Hitboxen.
+  Kamera-Frustum, damit ich auch sehe, wo die Augen wären"_. Zuerst eine
+  eckige Pyramide aus Metas 110° × 96°; seit dem Kalibrieren ein **gerundeter
+  Kegel** aus dem eingestellten Rand (`questView.QUEST_VIEW`, Code
+  `QUEST_VIEW_CODE`) — _„Ich will dann diesen ‚kegel' der gerundet ist in der
+  welt sehen, statt der einfachen eckigen kamera perspektive."_ Und weit:
+  _„können wir den sicht kegel wesentlich weiter laufen lassen, so erkenne
+  ich ja gar nicht, bis wohin der spieler sehen würde"_ — der Kegel reicht
+  10 m (`VIEW_REACH`), sein Rand liegt auf einer Kugel ums Auge (`viewRim`),
+  zwölf gelbe Strahlen laufen gleichmäßig verteilt hin, und eine kaum
+  getönte Haut füllt ihn. Rand und Strahlen haben **Tiefenprüfung**: Wo ein
+  Strahl im Boden oder in einer Wand verschwindet, endet dort der Blick. Am
+  Kopf sitzt ein naher Ring in Armlänge (`FRUSTUM_LENGTH`, 1,2 m) mit dem
+  Dreieck, das in Blender „oben" heißt, und der Blickachse durch die
+  gefühlte Null (10° unter geradeaus) — die ohne Tiefenprüfung, wie die
+  Augen: zwei Kugeln im Augenabstand der Quest 3 (`QUEST3_IPD`, 63 mm),
+  links blau, rechts rot.
+- **Sichtfeld hervorheben** (`GraphicsSettings.highlightView`). Gewünscht:
+  _„wie bei der Taschenlampe der bereich etwas hervorgehoben …, sodass man
+  leicht erkennen kann von oben, was der spieler sehen würde"_ — und _„das
+  licht soll nur in diesem kegel sein, also auch nur das beleuchten, was der
+  spieler sehen würde"_. Ein Spotlicht vom Kopf aus, auf die gefühlte Null
+  gesenkt. Ein Spot kennt nur runde Kegel; sein Kegel umschließt deshalb
+  jede Ecke des Rands (`viewCone`), und eine **Maske** (`viewMask`, als
+  `SpotLight.map`) schneidet die genaue Form hinein: Jeder Bildpunkt der
+  Maske wird in seine Richtung zurückgerechnet und gegen `QUEST_VIEW`
+  geprüft. Die Schattenkamera des Spots trägt die Maske; ihr Oben folgt dem
+  Kopf, damit die Form mitkippt. Mit _Schatten voll_ hört das Licht an der
+  Wand auf, wie die Taschenlampe; sonst geht es hindurch.
 - **Mensch als Boxen** (`GraphicsSettings.showBodyModel`). Gewünscht: _„den
   Menschen visuell darstellen … einfaches Modell, Boxen"_. Kopf, Hals,
   Rumpf, Arme, Hände und Beine als halbdurchsichtige Kästen in der **echten**
@@ -604,9 +648,10 @@ wandern (`core/playerGuides.ts`, beide ab Werk aus):
   Hüften hängen (`beltSettings`). Der Rumpf dreht mit dem Blick nach links
   und rechts, der Kopf nickt zusätzlich mit.
 
-Beide stehen auf `LAYER_SELF_ONLY` wie der eigene Körper: Von oben, im
+Alle stehen auf `LAYER_SELF_ONLY` wie der eigene Körper: Von oben, im
 Spiegel und durchs Portal sieht man sie, aus den eigenen Augen nicht — dort
-stünde man mitten in der Pyramide.
+stünde man mitten im Kegel. Das gilt auch für das Licht: three.js nimmt ein
+Licht nur in Bilder, deren Kamera seine Ebene sieht.
 
 ## Info-Ansichten: ein Optionsfeld für alle
 

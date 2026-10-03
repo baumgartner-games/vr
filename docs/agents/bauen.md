@@ -30,6 +30,85 @@ Wer die alte Fassung nachlesen will:
 `git show 49dfe5b:src/worlds/shared/construct.ts` und dieses Kapitel im selben
 Stand (`git show 49dfe5b:docs/agents/bauen.md`).
 
+## Weltbau: von oben, auch in der Brille — und der Bauplatz ist weg
+
+Die Welt **Bauplatz** (`worlds/editor/EditorWorld.ts`, `#editor`) ist im
+Oktober 2026 gelöscht worden, samt Startzimmer (`editor/starterGrid.ts`),
+Vorschaubild und Messstrecke. Gewünscht: _„die welt bauplatz kann bitte weg.
+stattdessen dachte ich an einen welt bau modus, wo man einfach wie bei ‚von
+oben' zuschaut, also auch in vr."_ Der Editor selbst (`editor/WorldEditor.ts`
+und was daran hängt) bleibt — er gehört jeder Gitterwelt, nicht dem Bauplatz.
+Die alte Welt: `git show 7fd7c4f:src/worlds/editor/EditorWorld.ts`.
+
+**Weltbau** ist ein Haken im Reiter _Bauen_, gleich unter dem Spielmodus
+(`build-flight`, `core/buildFlight.ts`), gilt in jeder Welt und wird nicht
+gespeichert; ein Weltwechsel landet.
+
+- **Am Schirm** heißt Weltbau: von oben (`App.topDown` fragt `buildFlight()`
+  neben `screenTopDown`) — mit Zoom und Drehen, wie es die Ansicht schon kann.
+- **In der Brille** wächst **das Gestell** um `BUILD_SCALE` (10), und die Welt
+  bleibt, wie sie ist (`PlayerRig.startFlight`). Gewünscht war genau das:
+  _„die welt soll nicht kleiner werden, nur die eigenen bewegungen in vr
+  (also entfernungen der hand) oder neigung/bewegung des kopfes werden
+  skaliert, damit die berechnungen in der welt gleich bleiben"_. Ein
+  Zentimeter Kopfbewegung ist zehn Zentimeter in der Welt, der Augenabstand
+  auch, und so sieht man die Welt wie ein Modell auf dem Tisch — jede Wand,
+  Zelle und Physik bleibt in ihren echten Metern. Wer mit 1,60 m dasteht,
+  schaut aus 16 m herunter; der Kopf bleibt über der Stelle, an der er war.
+- **Gesteuert** wird nur mit den Sticks (`PlayerRig.updateFlight`,
+  `buildFlight.flightStep`): **links** fliegt waagerecht, vorn ist, wohin der
+  Kopf schaut; **rechts vor/zurück** steigt und sinkt, zwischen 2 und 150 m
+  Augenhöhe über dem Boden, auf dem man abgehoben hat; **rechts quer** dreht
+  wie immer (Snap oder gleitend, `updateTurn`). Das Tempo geht mit der Höhe,
+  wie beim Kran. Kein Laufen, kein Springen — die Fortbewegung und die
+  Physikkapsel bleiben am Boden stehen, und `endFlight` stellt das Gestell
+  genau dorthin zurück, wo es abgehoben hat (`locomotion.resync`).
+- **Das Menü wächst mit**: Es hängt am Gestell (`GameMenu`), und die
+  Menü-Ebene rechnet relativ zu ihm (`XRMenuLayer`) — es steht so groß und
+  scharf wie immer. Der Zeigestrahl reicht deshalb `12 × scale` Meter weit
+  und wird in den Maßen der Hand gezeichnet (`Pointer.updateXrRay`).
+- **Die anderen** sehen den Riesen nicht: Solange man fliegt, wird keine
+  eigene Pose gesendet (`net.visible`), wie beim Zuschauen. Zuschauen, Brille
+  absetzen und Weltwechsel landen (`App.syncFlight`).
+
+**Offen:** Greifen und Hinstellen aus der Luft. Die Hände sind zehnmal so
+groß, die Reichweiten der Welt (`core/usable`, die Saum- und Griffradien) aber
+in Weltmetern — aus 16 m Höhe greift man also nichts. Was gebaut werden soll,
+während man fliegt (zeigen und setzen wie der Kran am Schirm?), ist der
+nächste Schritt.
+
+## In der Brille: was aus dem Katalog kommt, klebt — und ist klein
+
+Gemeldet im Oktober 2026: _„im vr modus einrichten bzw. bauen klappt noch
+nicht korrekt. Es scheint wenn ich etwas mit grab gedrückt halte, dass ich
+dann durch grab loslassen es leider nicht platziere. Zudem sind z. B. tische
+viel zu groß in der hand."_
+
+- **Was ohne Faust in die Hand kommt, klebt** (`HandGrab.regrip`, gesetzt in
+  `spawnModel`): ein Stück aus dem Katalog oder Regal, mit dem Trigger im
+  Menü gewählt, und im _Baukasten_ die nächste Kopie nach dem Hinstellen.
+  Vorher galt dafür sofort „Grip offen = loslassen": Das Stück fiel im ersten
+  Bild aus der Hand, und im _Baukasten_ holte jedes Hinstellen die nächste
+  Kopie, die gleich wieder hingestellt wurde — eine Schleife aus „kein Platz"
+  und neuer Kopie, in der nie etwas ruhig in der Hand lag. Jetzt: einmal
+  greifen (Grip zu), hinhalten, Grip auf — erst dieses Loslassen stellt hin.
+- **Wegwerfen leert die Hand**: Ein frisches Stück im _Baukasten_, mit
+  Schwung losgelassen (schneller als `gridSnap.PLACE_SPEED`), verschwindet
+  ohne Nachschub (`letGo`) — das _Kran leeren_ der Brille.
+- **In der Faust kleiner** (`PortalWorld.shrinkInHand`). Gewünscht: _„für
+  alles (außer Werkzeuge), dass wenn ich diese in der hand halte, dass diese
+  kleiner gerendert werden (wie beim burger)"_. Höchstens halb so groß
+  (`dishHold.HAND_SCALE`, wie der Burger), und so, dass die längste Seite in
+  `HAND_FIT` (0,35 m) passt — ein Tisch von 1 m ist ein Modell auf der Hand.
+  Verkleinert wird um die Faust, nicht um die Mitte. Nur das Bild: Körper,
+  Geist und Einrasten rechnen mit der echten Größe, beim Loslassen ist es
+  sofort wieder groß (`release` → `unshrinkInHand`). Nicht beim Nahgreifen
+  (dort liegt es nicht in der Hand) und nicht für Werkzeuge (die sind keine
+  `grabs`).
+- **Nachgestellt** mit `?xr=sim`: Der Emulator liegt dann als
+  `globalThis.bgvrXr` bereit, Knöpfe und Hände lassen sich aus Playwright
+  setzen (`bgvrXr.controllers.right.updateButtonValue('squeeze', 1)`).
+
 ## Bauen, während man darin steht
 
 **Jede Gitterwelt lässt sich umbauen, ohne sie zu verlassen**
@@ -533,6 +612,23 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   `craneVelocity`); wer nur ein Pad hat, bekommt ihn in der Bildmitte
   (`centrePoint`). Ein Finger, der losgelassen wird, lässt den Kran stehen,
   wo er ist. Gilt für _Einrichten_ und _Baukasten_ — beide sind der Kran.
+- **Beim Einschalten bleibt der Kran, wo die Figur steht** (`craneHold`,
+  Oktober 2026). Gemeldet: _„durch das aktivieren [wird] der spieler oben
+  links im bildschirm gesetzt, weil da die maus ist"_ — die letzte Mausstelle
+  vor dem Klick ins Menü. `FlatControls.crane` vergisst sie deshalb; erst eine
+  neue Mausbewegung, ein Finger oder der Stock fahren ihn los.
+- **Die Figur bleibt als Geist stehen** (`PlayerAvatar.setCrane`). Gewünscht:
+  _„der spieler wird ghost und ich kann diesen mit dem kran auch umsetzen"_.
+  Der Körper bleibt halb durchsichtig dort, wo man zum Kran wurde
+  (`leaveBehind`, `setGhostly`); der Kran hängt am Rig und nicht mehr an der
+  Figur. Ein Klick mit leerem Kran über ihr nimmt sie an den Haken, der
+  nächste setzt sie ab (`PortalWorld.liftFigure`). Wer aufhört, Kran zu sein,
+  steht wieder in seiner Figur — nicht dort, wo der Kran zuletzt war.
+- **Den Kran leer machen**: Rechtsklick mit vollem Haken oder der Knopf _Kran
+  leeren_ unten rechts (`craneEmpty.ts`, `PortalWorld.emptyCrane`). Gewünscht,
+  _„damit ich nicht ewig ein objekt lege"_. Ein frisches Stück aus dem
+  Katalog verschwindet, ein aufgehobenes fällt, die Figur wird abgesetzt.
+  Mit leerem Haken holt der Rechtsklick wie bisher die Bombe.
 - **Gedreht wird mit `R`** (`craneTurn`, ein Achtel, `Shift`+`R` zurück —
   zweimal ist ein Viertel) oder mit dem rechten Stock (die Nase zeigt dorthin,
   auf das nächste Achtel gerastet). Achtel, seit Wände auch unter 45° stehen:
@@ -589,7 +685,8 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   fliegen können."_ Das ist der kollisionsfreie Körper des Konstrukt-Raums
   (`PhysicsLocomotion.ghost`), jedes Bild neu gesetzt, weil jedes `resync` ihn
   abschaltet. **Das Ende ist die Arbeit**: Wer über dem Herd aufhört, Kran zu
-  sein, stünde im Herd. `PhysicsLocomotion.land` sucht in Ringen
+  sein, stünde im Herd. Zurück geht es in die stehen gebliebene Figur
+  (siehe oben); steht dort inzwischen etwas, sucht `PhysicsLocomotion.land` in Ringen
   (`playerClearance.landingOffsets`, bis 3 m) die nächste Stelle, an der die
   Kapsel frei steht und Boden unter sich hat — gegen alles Feste, nicht gegen
   Gegenstände, die ohnehin weichen. Findet sich keine, geht es zurück an den

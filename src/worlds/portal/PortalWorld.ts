@@ -40,6 +40,7 @@ import {
   forgetChange,
   notesIn,
   recordElement,
+  recordElementGone,
   recordModel,
   recordNote,
   setTrackingChanges,
@@ -54,6 +55,7 @@ import {
   BUILD_LABELS,
   HOUSE_FOLDER,
   WALL_ERASER_PREVIEW,
+  ELEMENT_ERASER,
   isDoorModel,
   wallFullOf,
   wallHalfOf,
@@ -68,13 +70,14 @@ import { elementCellsOverlay, elementModel } from '../elements/elementView';
 import { elementTweakSpec } from '../elements/elementTweaks';
 import { KaykitDishView } from '../elements/dishView';
 import { ITEM_LABELS, dish, type KitchenItem } from '../test/zones/kitchenRecipes';
-import { heldItemOf } from '../elements/dishHold';
+import { HAND_SCALE, heldItemOf } from '../elements/dishHold';
 import { loadItemModel } from '../elements/itemTemplate';
 
 import {
   faceYaw,
   onCells,
   spotAround,
+  spotCentre,
   spotFootprintCells,
   spotTiles,
   yawFace,
@@ -196,6 +199,7 @@ import {
   isDiagonal,
   MAX_TILES,
   placesOnGrid,
+  PLACE_SPEED,
   quarterYaw,
   tilesCovered,
   turnedHalf,
@@ -259,6 +263,7 @@ import {
   type BuildEvent,
   type BuildTool,
 } from './buildBar';
+import { CraneEmptyButton } from './craneEmpty';
 import {
   BuildHistory,
   type BuildPose,
@@ -604,6 +609,23 @@ const _useBox = new THREE.Box3();
 const _useSize = new THREE.Vector3();
 /** So viel Licht hat auch die dunkelste Welt, wenn man sie nur ansieht. */
 const PREVIEW_LIGHT = 0.45;
+
+/** Wie groß der Radiergummi in der Bildschirmhand gezeichnet wird. */
+const ERASER_SHOWN = 0.4;
+/**
+ * **So lang darf die längste Seite eines Dings in der Faust höchstens
+ * aussehen** (Meter), in der Brille (`shrinkInHand`) — ein Tisch ist dann ein
+ * Modell auf der Hand und keine Wand vor den Augen.
+ */
+const HAND_FIT = 0.35;
+/** Wie weit vor der Mitte des Schranks man beim Aussteigen steht (m). */
+const HIDE_STEP_OUT = 0.95;
+/** Wie viel vom Schrank man von innen sieht. */
+const HIDE_OPACITY = 0.22;
+/** Wie nah der Kran über der stehen gebliebenen Figur sein muss, um sie zu greifen (m). */
+const FIGURE_REACH = 0.45;
+/** Wie hoch die Figur am Haken über dem Boden hängt (m). */
+const FIGURE_LIFT = 0.25;
 
 /**
  * **Wie weit die Figur der laufenden Vorschau langt**, in Metern.
@@ -1101,6 +1123,14 @@ interface HandGrab {
   poseId: string | null;
   /** Misst das Schütteln, solange die Flasche noch ihren Korken hat. */
   shake: ShakeMeter | null;
+  /**
+   * **Kam ohne gedrückten Grip in die Hand** — aus dem Katalog, dem Regal oder
+   * als nächste Kopie im _Baukasten_ (`spawnModel`). Dann klebt es, bis die
+   * Faust einmal zu- und wieder aufgeht: Erst dieses Loslassen stellt hin.
+   * Ohne das fiel es im ersten Bild aus der offenen Hand, und im _Baukasten_
+   * holte jedes Hinstellen die nächste Kopie, die gleich wieder fiel.
+   */
+  regrip: boolean;
 }
 
 /**
@@ -1376,6 +1406,12 @@ export class PortalWorld implements World {
    */
   private shrunk: { entry: PhysicsBody; scale: THREE.Vector3 } | null = null;
   /**
+   * **Was in der Brille in der Faust kleiner gezeichnet wird**, mit seiner
+   * echten Größe (`shrinkInHand`). Je Ding und nicht je Hand: Beide Hände
+   * können etwas tragen.
+   */
+  private readonly handShrunk = new Map<PhysicsBody, THREE.Vector3>();
+  /**
    * **Wie groß das ist, was die Bildschirmhand trägt** — halbe Ausdehnung,
    * gemessen beim Zugreifen.
    *
@@ -1520,6 +1556,12 @@ export class PortalWorld implements World {
    * (`eraseWallLine`) und wird selbst nie hingestellt (`release`).
    */
   private readonly wallErasers = new WeakSet<PhysicsBody>();
+  /**
+   * **Der Radiergummi in der Hand** (`ELEMENT_ERASER`) — er wird nie
+   * hingestellt: Ein Druck löscht das Element unter ihm (`eraseElement`),
+   * losgelassen in der Brille verschwindet er (`release`).
+   */
+  private readonly elementErasers = new WeakSet<PhysicsBody>();
   private readonly eraseTurn = new THREE.Quaternion();
   private readonly eraseScratch: PhysicsBody[] = [];
   /**
@@ -1720,6 +1762,8 @@ export class PortalWorld implements World {
    * (`placeGhost.ts`) — siehe `updateBuild`.
    */
   private buildBar: BuildBar | null = null;
+  /** Der Knopf _Kran leeren_ (`craneEmpty.ts`), solange der Kran etwas trägt. */
+  private craneEmptyButton: CraneEmptyButton | null = null;
   /**
    * **Welches Werkzeug die Leiste zuletzt zeigte** — oder `null`, solange sie
    * nicht zu sehen ist. Gelesen vom Steuerkreuz (`toolStep`) und von der
@@ -1951,6 +1995,24 @@ export class PortalWorld implements World {
    * ist (`updateCraneFlight`).
    */
   private craneStart: THREE.Vector3 | null = null;
+  /**
+   * **Wo man sich gerade versteckt** (`hideIn`) — der Schrank, die Stelle
+   * davor, an der man wieder herauskommt, und die eigenen Stoffe des
+   * Schranks, solange er von innen durchsichtig ist.
+   */
+  private hiding: {
+    readonly anchor: THREE.Object3D;
+    readonly out: THREE.Vector3;
+    readonly yaw: number;
+    readonly worn: Map<THREE.Mesh, THREE.Material | THREE.Material[]>;
+  } | null = null;
+  /** In welche Richtung die Figur dabei schaute — so steht man nach dem Kran wieder. */
+  private craneStartYaw = 0;
+  /**
+   * **Ob der Kran die eigene Figur am Haken hat** (`liftFigure`) — sie hängt
+   * dann unter ihm, bis der nächste Druck sie absetzt.
+   */
+  private figureHeld = false;
   /** Ob man in diesem Bild der Kran ist — für `attach`, das keinen `ctx` hat. */
   private craneNow = false;
   /**
@@ -3887,6 +3949,20 @@ export class PortalWorld implements World {
     for (const change of list) {
       if (change.kind !== 'element' || !fits(change)) continue;
       if (!hasElement(change.element)) continue;
+      // **Weggeradiert** (`ElementChange.gone`): wieder weg damit.
+      if (change.gone) {
+        const { x, z } = spotCentre({
+          id: '',
+          element: change.element,
+          x: change.x,
+          z: change.z,
+          face: change.face,
+        });
+        const gone = this.eraseElementAt(x, z, change.element);
+        for (const spot of gone) this.recordErased(spot);
+        if (gone.length > 0) elements += 1;
+        continue;
+      }
       const spot: ElementSpot = {
         id: `katalog:${changeKey('element')}`,
         element: change.element,
@@ -4216,6 +4292,24 @@ export class PortalWorld implements World {
     return null;
   }
 
+  /** **Ob der Radiergummi hier Elemente löschen kann** (`eraseElementAt`). Hier: nein. */
+  protected canEraseElements(): boolean {
+    return false;
+  }
+
+  /** **Was der Radiergummi an dieser Stelle (Meter) löschen würde** — zum Hervorheben. */
+  protected elementEraseTarget(_x: number, _z: number): THREE.Object3D | null {
+    return null;
+  }
+
+  /**
+   * **Das Element an dieser Stelle löschen** (Meter), samt dem, was darauf
+   * steht, nie den Boden — die Stellen, die jetzt leer sind. Hier: keine.
+   */
+  protected eraseElementAt(_x: number, _z: number, _element?: string): ElementSpot[] {
+    return [];
+  }
+
   /** **Eine Stelle hinstellen** — aus einer eingefügten Liste. Hier: nein. */
   protected furnishSpot(_spot: ElementSpot): boolean {
     return false;
@@ -4323,6 +4417,19 @@ export class PortalWorld implements World {
       full: true,
       run: (hand: Handedness | null) => this.takeModel(ctx(), path, hand, null, true),
     });
+    // **Der Radiergummi** (`ELEMENT_ERASER`): Was er berührt, ist weg —
+    // Möbel und Elemente, nicht der Boden (`eraseElement`).
+    const elementEraser: MenuEntry = {
+      id: 'elements:erase-element',
+      label: 'Radiergummi',
+      sub: 'Löscht Möbel und Elemente — nicht den Boden',
+      caption: 'Löschen',
+      accent,
+      preview: `kaykit:${ELEMENT_ERASER}`,
+      mark: 'forbidden',
+      full: true,
+      run: (hand: Handedness | null) => this.takeModel(ctx(), ELEMENT_ERASER, hand, null, true),
+    };
     // **Dinge für die Hand** (die Tapeten, `FurnitureFolder.items`): Genommen
     // wird nicht ein Möbel, sondern das Ding selbst, wie aus seiner Kiste —
     // am Schirm wie mit dem Kran (`takeCatalogItem`).
@@ -4466,6 +4573,16 @@ export class PortalWorld implements World {
           entry,
         });
       }
+    // Der Radiergummi steht vorn, vor allen Ordnern — in Welten, die Elemente
+    // löschen können.
+    const erases = this.canEraseElements();
+    if (erases)
+      rows.push({
+        key: 'erase-element',
+        name: elementEraser.label,
+        words: 'radiergummi löschen entfernen wegmachen abreißen element möbel',
+        entry: elementEraser,
+      });
     const root: MenuEntry = {
       id: 'elements',
       label: 'Katalog',
@@ -4482,7 +4599,7 @@ export class PortalWorld implements World {
       // **Nur Ordner** — gewünscht: _„die Möbel aus dem Restaurant Ordner
       // dafür raus"_. Die ganze Liste steht im Ordner _Alles_; eine Welt
       // ohne Ordner zeigt sie wie vorher gleich hier.
-      children,
+      children: erases ? [elementEraser, ...children] : children,
     };
     // **Das Suchfeld auf jeder Seite des Katalogs**, wie im Modellregal
     // (`kaykitIndex.offerSearch`): gesucht wird immer im ganzen Katalog.
@@ -4600,6 +4717,69 @@ export class PortalWorld implements World {
       } else ctx.notify(`${label}: dort ist kein Platz`);
       if (!spot || (fresh && refillsCatalogue(gameMode()))) this.takeElement(ctx, id, hand, yaw);
     });
+  }
+
+  /**
+   * **Wo der Radiergummi gerade hinzeigt** (Meter) — als Kran die Stelle unter
+   * dem Kran, sonst die Stelle, an der er in der Hand ist.
+   */
+  private eraserSpot(ctx: WorldContext, entry: PhysicsBody): [number, number] {
+    if (ctx.crane && !ctx.renderer.xr.isPresenting) {
+      ctx.rig.getHeadPosition(_point);
+      return [_point.x, _point.z];
+    }
+    return this.carriedSpot(entry);
+  }
+
+  /** Was der getragene Radiergummi gerade löschen würde — zum Hervorheben (`showUse`). */
+  private eraserTarget(ctx: WorldContext): THREE.Object3D | null {
+    for (const grab of this.grabs.values()) {
+      if (!this.elementErasers.has(grab.entry)) continue;
+      return this.elementEraseTarget(...this.eraserSpot(ctx, grab.entry));
+    }
+    return null;
+  }
+
+  /**
+   * **Der Radiergummi löscht, was unter ihm steht** — Möbel und Elemente samt
+   * dem, was darauf liegt, nie den Boden. Gewünscht: _„ein radiergummi […]
+   * mit welchem ich elemente löschen kann (nicht den boden) […] es wird
+   * entfernt (welt änderungen tracking)"_.
+   *
+   * **In der Liste der Weltänderungen**: Ein selbst hingestelltes Element
+   * verliert seine Zeile — es war ja nie da. Eines, das die Welt selbst
+   * hinstellt, bekommt eine Zeile mit `gone` (`recordElementGone`), und wer
+   * die Liste einfügt, radiert es wieder weg (`pasteChanges`).
+   */
+  private eraseUnder(ctx: WorldContext, entry: PhysicsBody): void {
+    const gone = this.eraseElementAt(...this.eraserSpot(ctx, entry));
+    if (gone.length === 0) {
+      ctx.notify('Hier steht nichts zum Löschen');
+      return;
+    }
+    for (const spot of gone) this.recordErased(spot);
+    const label = elementById(gone[0]!.element).label;
+    ctx.notify(
+      gone.length > 1 ? `${label} gelöscht, samt ${gone.length - 1} darauf` : `${label} gelöscht`,
+    );
+  }
+
+  /** Ein gelöschtes Element in die Liste der Weltänderungen (`eraseUnder`). */
+  private recordErased(spot: ElementSpot): void {
+    const key = this.elementKeys.get(spot.id);
+    this.elementKeys.delete(spot.id);
+    if (spot.id.startsWith('katalog')) {
+      if (key) forgetChange(key);
+      return;
+    }
+    recordElementGone(
+      key ?? changeKey('element'),
+      spot.element,
+      spot.x,
+      spot.z,
+      spot.face ?? 'S',
+      this.context?.net.world,
+    );
   }
 
   /** Das hingestellte Element in die Liste der Weltänderungen (nur mit Häkchen). */
@@ -6254,6 +6434,8 @@ export class PortalWorld implements World {
     this.rings.clear();
     this.clearBullets();
     this.setViewOverride(null);
+    if (this.hiding) this.unghostHiding(this.hiding);
+    this.hiding = null;
     ctx.rig.frozen = false;
     this.joints.length = 0;
     this.timeScale = 1;
@@ -6277,6 +6459,7 @@ export class PortalWorld implements World {
     ctx.rig.setLocomotion(new FreeLocomotion());
     this.locomotion = null;
     this.craneStart = null;
+    this.figureHeld = false;
     if (this.craneMark) disposeCrane(this.craneMark);
     this.craneMark = null;
     this.putBombAway();
@@ -6320,6 +6503,8 @@ export class PortalWorld implements World {
     this.areaPad = null;
     this.buildBar?.dispose();
     this.buildBar = null;
+    this.craneEmptyButton?.dispose();
+    this.craneEmptyButton = null;
     this.placeGhost?.dispose();
     this.placeGhost = null;
     this.lineGhosts?.dispose();
@@ -7161,7 +7346,7 @@ export class PortalWorld implements World {
         quaternion: entry.object.quaternion.clone(),
         // Was aus den Augen gerade halb so groß getragen wird, wird in seiner
         // echten Größe gemerkt (`shrinkScreenCarry`).
-        scale: (this.shrunk?.entry === entry ? this.shrunk.scale : entry.object.scale).clone(),
+        scale: this.realScale(entry).clone(),
         half: entry.halfExtents.clone(),
         velocity: new THREE.Vector3(linvel.x, linvel.y, linvel.z),
         spin: new THREE.Vector3(angvel.x, angvel.y, angvel.z),
@@ -8681,6 +8866,7 @@ export class PortalWorld implements World {
   protected removeProp(entry: PhysicsBody, share: boolean): void {
     const physics = this.physics;
     if (!physics) return;
+    this.handShrunk.delete(entry);
     // A dropped tool is a prop as far as the eraser is concerned, but it has
     // its own bookkeeping — freeing the mesh under it and leaving the tool in
     // the update loop is how a world ends up drawing a disposed geometry.
@@ -9317,7 +9503,25 @@ export class PortalWorld implements World {
       this.trackGripPress(controller, hand, anchor, dt);
 
       if (grab) {
-        if (!controller.squeeze.pressed) {
+        // Was ohne Faust in die Hand kam, gilt erst ab dem nächsten Zugreifen
+        // als gehalten (`HandGrab.regrip`).
+        if (grab.regrip && controller.squeeze.pressed) grab.regrip = false;
+        if (!controller.squeeze.pressed && !grab.regrip) {
+          // **Wegwerfen leert die Hand** — im _Baukasten_ kommt nach jedem
+          // Hinstellen die nächste Kopie, und die klebt (`regrip`). Wer ein
+          // frisches Stück mit Schwung loslässt, will es loswerden: Es
+          // verschwindet wie beim Wechseln (`letGo`), ohne Nachschub — das
+          // _Kran leeren_ der Brille.
+          if (
+            this.shelfFresh.has(grab.entry) &&
+            refillsCatalogue(gameMode()) &&
+            grab.velocity.length() > PLACE_SPEED
+          ) {
+            this.letGo(ctx, hand, grab);
+            this.dropReach(ctx, hand);
+            ctx.notify('Hand leer');
+            continue;
+          }
           this.release(ctx, hand, grab, true);
           this.dropReach(ctx, hand);
           continue;
@@ -9895,6 +10099,15 @@ export class PortalWorld implements World {
       if (near) {
         anchor.getWorldPosition(_hand);
         stretchGrab(near.handStart.position, _hand, this.nearScale, _point);
+      } else {
+        // **In der Faust kleiner** (`shrinkInHand`) — und um die Faust herum
+        // kleiner, nicht um die Mitte des Dings: Wer eine Tischkante packt,
+        // hält danach die kleine Tischkante und nicht Luft daneben.
+        const factor = this.shrinkInHand(grab.entry);
+        if (factor < 1) {
+          anchor.getWorldPosition(_hand);
+          _point.sub(_hand).multiplyScalar(factor).add(_hand);
+        }
       }
     }
 
@@ -10364,6 +10577,7 @@ export class PortalWorld implements World {
       poseId: grip ? kind : null,
       shake:
         kind === 'champagne' && entry.object.getObjectByName(CORK_NAME) ? new ShakeMeter() : null,
+      regrip: false,
     });
 
     const id = this.idOf(entry);
@@ -10423,11 +10637,20 @@ export class PortalWorld implements World {
     // Was aus den Augen halb so groß getragen wurde, ist beim Loslassen
     // wieder so groß wie im Raum (`shrinkScreenCarry`).
     if (this.shrunk?.entry === grab.entry) this.unshrinkScreenCarry();
+    this.unshrinkInHand(grab.entry);
     this.grabs.delete(hand);
     if (!drop) return;
     // **Die Wand zum Abreißen wird nie hingestellt** — losgelassen
     // verschwindet sie wie ein Pinsel, den man weglegt (`letGo`).
     if (this.wallErasers.has(grab.entry)) {
+      this.shelfFresh.delete(grab.entry);
+      this.removeProp(grab.entry, true);
+      return;
+    }
+    // **Der Radiergummi auch nicht** — losgelassen nimmt er mit, was unter
+    // ihm steht, und ist dann selbst weg.
+    if (this.elementErasers.has(grab.entry)) {
+      this.eraseUnder(ctx, grab.entry);
       this.shelfFresh.delete(grab.entry);
       this.removeProp(grab.entry, true);
       return;
@@ -11157,6 +11380,8 @@ export class PortalWorld implements World {
    */
   protected carriedModel(): PhysicsBody | null {
     for (const grab of this.grabs.values()) {
+      // Der Radiergummi rastet nirgends ein — er zeigt nur, was er löscht.
+      if (this.elementErasers.has(grab.entry)) continue;
       const kind = (grab.entry.object.userData as { propKind?: PropKind }).propKind ?? null;
       if (modelPathOf(kind) !== null) return grab.entry;
     }
@@ -11377,6 +11602,14 @@ export class PortalWorld implements World {
     } else this.placeGhost?.hide();
 
     const presenting = ctx.renderer.xr.isPresenting;
+    const emptyButton = (this.craneEmptyButton ??= new CraneEmptyButton());
+    const side = this.screenCarrySide();
+    emptyButton.show(
+      !presenting &&
+        Boolean(ctx.crane) &&
+        ((side !== null && this.grabs.has(side)) || this.figureHeld),
+    );
+    if (emptyButton.take()) this.emptyCrane(ctx);
     const visible = !presenting && Boolean(ctx.crane) && refillsCatalogue(gameMode());
     if (!visible) {
       this.surfaceTool = null;
@@ -11402,7 +11635,7 @@ export class PortalWorld implements World {
     ) {
       const path = this.modelPath(carried);
       carried.object.getWorldQuaternion(_quaternion);
-      if (path !== null)
+      if (path !== null && !this.elementErasers.has(carried))
         this.lastBrush = {
           path,
           yaw: eighthYaw(yawOf(_quaternion)),
@@ -11485,6 +11718,7 @@ export class PortalWorld implements World {
    * @returns ob etwas aufgehoben wurde — dann ist der Druck verbraucht
    */
   private liftUnderCrane(ctx: WorldContext): boolean {
+    if (this.liftFigure(ctx)) return true;
     if (this.liftElementUnderCrane(ctx)) return true;
     const found = this.liftTarget(ctx);
     if (!found) return false;
@@ -12624,7 +12858,10 @@ export class PortalWorld implements World {
    */
   private ghostFix(entry: PhysicsBody): { x: number; y: number; z: number } {
     const stored = (entry.object.userData as { wallBase?: WallBase }).wallBase;
-    const real = stored?.scale ?? (this.shrunk?.entry === entry ? this.shrunk.scale : null);
+    const real =
+      stored?.scale ??
+      this.handShrunk.get(entry) ??
+      (this.shrunk?.entry === entry ? this.shrunk.scale : null);
     const now = entry.object.scale;
     if (!real) return { x: 1, y: 1, z: 1 };
     return {
@@ -13680,7 +13917,7 @@ export class PortalWorld implements World {
       spin,
     );
     this.shelfFresh.add(entry);
-    if (eraser) this.wallErasers.add(entry);
+    if (eraser) (path === ELEMENT_ERASER ? this.elementErasers : this.wallErasers).add(entry);
     // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
     // Ein Zettel nicht: Drüben käme nur das Gestell an, ohne Text.
@@ -13695,6 +13932,8 @@ export class PortalWorld implements World {
       const existing = this.grabs.get(hand);
       if (existing) this.letGo(ctx, hand, existing);
       this.attach(hand, anchor, entry);
+      const grab = this.grabs.get(hand);
+      if (grab?.entry === entry) grab.regrip = !controller!.squeeze.pressed;
     } else {
       // **Am Schirm und auf dem Telefon in die Bildschirmhand** — das ist der
       // ganze gemeldete Fehler: „Wenn ich ein Asset gewählt habe, hat der
@@ -14590,16 +14829,138 @@ export class PortalWorld implements World {
     this.craneNow = Boolean(ctx.crane);
     const locomotion = this.locomotion;
     if (!locomotion) return;
+    // **Im Schrank** steht man still und ohne Kapsel (`hideIn`) — wer zum
+    // Kran wird, kommt vorher heraus.
+    if (this.hiding) {
+      if (ctx.crane || !this.hiding.anchor.parent) this.leaveHiding(ctx);
+      else locomotion.ghost = true;
+    }
     if (ctx.crane) {
-      if (!this.craneStart) this.craneStart = this.playerFeet(new THREE.Vector3());
+      if (!this.craneStart) {
+        this.craneStart =
+          ctx.avatar.behindFeet(new THREE.Vector3()) ?? this.playerFeet(new THREE.Vector3());
+        this.craneStartYaw = _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ').y;
+      }
+      // **Die Figur am Haken** hängt unter dem Kran (`liftFigure`).
+      if (this.figureHeld) {
+        ctx.rig.getHeadPosition(_point);
+        _point.y = ctx.rig.getFloorY() + FIGURE_LIFT;
+        ctx.avatar.moveBehind(_point);
+      }
       locomotion.ghost = true;
       return;
     }
     const start = this.craneStart;
     if (!start) return;
     this.craneStart = null;
-    if (locomotion.land(ctx.rig)) return;
-    this.movePlayerTo(ctx, start);
+    this.figureHeld = false;
+    // **Zurück in die Figur, die stehen geblieben ist** — und nicht dorthin,
+    // wo der Kran zuletzt war. Steht dort inzwischen etwas, sucht `land` die
+    // nächste freie Stelle.
+    this.movePlayerTo(ctx, start, this.craneStartYaw);
+    locomotion.land(ctx.rig);
+  }
+
+  /**
+   * **In den Schrank steigen** (`GameElement.opens`, `'hide'`) — oder, wer
+   * schon drin ist, wieder heraus. Gewünscht: _„aus haunting den locker
+   * (schrank) in welchem man sich verstecken kann bitte auch in katalog
+   * bekommen"_. Wie in der Station (`ShipExperience.enterLocker`): Man steht
+   * in der Mitte, schaut zur Tür hinaus, und der Schrank wird von innen
+   * durchsichtig, damit man sieht, was draußen vorgeht. Laufen geht nicht;
+   * `A`, `E` oder ein Klick steigen wieder aus (`updateUsables`).
+   *
+   * @param anchor der Anker des Schranks (`StationLayer.addOpener`) — die
+   *   Mitte seiner Grundfläche, die Tür nach seinem +z
+   */
+  protected hideIn(ctx: WorldContext, anchor: THREE.Object3D): void {
+    if (this.hiding) {
+      this.leaveHiding(ctx);
+      return;
+    }
+    if (ctx.crane || this.viewOverride) return;
+    const centre = anchor.getWorldPosition(new THREE.Vector3());
+    const front = new THREE.Vector3(0, 0, 1).applyQuaternion(
+      anchor.getWorldQuaternion(_quaternion),
+    );
+    front.y = 0;
+    front.normalize();
+    const yaw = Math.atan2(-front.x, -front.z);
+    const out = centre.clone().addScaledVector(front, HIDE_STEP_OUT);
+    const worn = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    anchor.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      worn.set(mesh, mesh.material);
+      const see = (material: THREE.Material): THREE.Material => {
+        const clear = material.clone();
+        clear.transparent = true;
+        clear.opacity = HIDE_OPACITY;
+        clear.depthWrite = false;
+        return clear;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(see) : see(mesh.material);
+    });
+    this.hiding = { anchor, out, yaw, worn };
+    this.movePlayerTo(ctx, centre, yaw);
+    ctx.rig.frozen = true;
+    ctx.notify('Versteckt · A / E / Klick steigt aus');
+  }
+
+  /** Aus dem Schrank heraus — vor seine Tür, mit Blick nach draußen. */
+  private leaveHiding(ctx: WorldContext): void {
+    const hiding = this.hiding;
+    if (!hiding) return;
+    this.hiding = null;
+    this.unghostHiding(hiding);
+    ctx.rig.frozen = false;
+    this.movePlayerTo(ctx, hiding.out, hiding.yaw);
+    this.locomotion?.land(ctx.rig);
+    ctx.notify('Schrank verlassen');
+  }
+
+  /** Dem Schrank seine eigenen Stoffe zurück. */
+  private unghostHiding(hiding: NonNullable<PortalWorld['hiding']>): void {
+    for (const [mesh, worn] of hiding.worn) {
+      const clear = mesh.material;
+      for (const one of Array.isArray(clear) ? clear : [clear]) one.dispose();
+      mesh.material = worn;
+    }
+    hiding.worn.clear();
+  }
+
+  /**
+   * **Die eigene Figur mit dem Kran umsetzen** — ein Druck über ihr hebt sie
+   * an den Haken, der nächste setzt sie unter dem Kran ab. Dort steht man,
+   * wenn man aufhört, der Kran zu sein.
+   *
+   * @returns ob der Druck der Figur galt
+   */
+  private liftFigure(ctx: WorldContext): boolean {
+    const start = this.craneStart;
+    if (!ctx.crane || !start || ctx.renderer.xr.isPresenting) return false;
+    ctx.rig.getHeadPosition(_point);
+    if (this.figureHeld) {
+      this.figureHeld = false;
+      start.set(_point.x, ctx.rig.getFloorY(), _point.z);
+      ctx.avatar.moveBehind(start);
+      ctx.notify('Figur abgesetzt');
+      return true;
+    }
+    if (!this.figureUnderCrane(ctx)) return false;
+    this.figureHeld = true;
+    ctx.notify('Figur am Haken · Klick setzt sie ab');
+    return true;
+  }
+
+  /** Ob die stehen gebliebene Figur unter dem leeren Kran steht. */
+  private figureUnderCrane(ctx: WorldContext): boolean {
+    const start = this.craneStart;
+    if (!ctx.crane || !start || this.bomb) return false;
+    const side = this.screenCarrySide();
+    if (side && this.grabs.has(side)) return false;
+    ctx.rig.getHeadPosition(_point);
+    return Math.hypot(_point.x - start.x, _point.z - start.z) < FIGURE_REACH;
   }
 
   /**
@@ -14645,7 +15006,11 @@ export class PortalWorld implements World {
     const side = this.screenCarrySide();
     const carrying = side !== null && this.grabs.has(side);
     const allowed = bombAllowed(gameMode(), Boolean(ctx.crane), carrying);
-    if (ctx.rig.takeBomb() && allowed) {
+    const right = ctx.rig.takeBomb();
+    // **Rechts mit vollem Haken leert den Kran** (`emptyCrane`) — die Bombe
+    // gibt es ohnehin nur mit leeren Klauen.
+    if (right && ctx.crane && (carrying || this.figureHeld)) this.emptyCrane(ctx);
+    else if (right && allowed) {
       if (this.bomb) this.putBombAway();
       else this.fetchBomb(ctx);
     }
@@ -14762,6 +15127,13 @@ export class PortalWorld implements World {
    * aufzumachen.
    */
   private updateUsables(ctx: WorldContext): void {
+    // **Im Schrank meint jeder Druck: aussteigen** (`hideIn`).
+    if (this.hiding) {
+      this.bodyPick = null;
+      ctx.rig.useCandidate = true;
+      if (ctx.rig.takeUse()) this.leaveHiding(ctx);
+      return;
+    }
     // **Mit der Bombe am Haken meint jeder Druck: abreißen** — und sonst
     // nichts (`updateBomb`). Saum und Benutzen ruhen so lange.
     if (this.updateBomb(ctx)) {
@@ -14785,7 +15157,11 @@ export class PortalWorld implements World {
     const pick = this.usables.length > 0 ? this.pickBody(ctx) : null;
     // Ein Modell unter dem leeren Kran ist auch etwas zum Benutzen: Der Klick
     // hebt es auf (`liftUnderCrane`).
-    ctx.rig.useCandidate = pick !== null || this.liftTarget(ctx) !== null;
+    ctx.rig.useCandidate =
+      pick !== null ||
+      this.liftTarget(ctx) !== null ||
+      this.figureHeld ||
+      this.figureUnderCrane(ctx);
     const object = pick?.candidate.object ?? null;
     this.bodyPick = pick && object ? { usable: pick.candidate.usable, object } : null;
   }
@@ -14852,10 +15228,12 @@ export class PortalWorld implements World {
       // dasselbe Netz geben keinen zweiten Saum, sondern einen doppelt dicken.
       this.secondHighlighter.highlight(second === first ? null : second);
     } else {
+      // **Mit dem Radiergummi leuchtet, was er löschen würde** (`eraseUnder`).
       const shown =
-        this.useInteraction?.interactive && chosen
+        this.eraserTarget(ctx) ??
+        (this.useInteraction?.interactive && chosen
           ? highlightOf(chosen.usable, chosen.object)
-          : null;
+          : null);
       this.highlighter.highlight(shown);
       this.secondHighlighter.highlight(null);
       this.updateCraneMark(ctx, shown !== null);
@@ -15195,7 +15573,10 @@ export class PortalWorld implements World {
     // **Aus den Augen halb so groß** (`eyeHand.EYE_SCALE`), von oben in echt —
     // und der Anker rückt dafür so nah, wie es der gezeichneten Größe
     // entspricht, sonst schwebte eine halbe Tomate einen Meter vor einem her.
-    const shrink = ctx.topDown ? 1 : EYE_SCALE;
+    // Der Radiergummi ist von oben klein, sonst verdeckte er, was er löschen
+    // will — dessen Saum zeigt die Stelle (`eraserTarget`).
+    const shrink =
+      (ctx.topDown ? 1 : EYE_SCALE) * (this.elementErasers.has(grab.entry) ? ERASER_SHOWN : 1);
     this.shrinkScreenCarry(grab.entry, shrink, this.handPost(ctx, grab.entry));
     _screenSpanShown.radius = this.screenSpan.radius * shrink;
     _screenSpanShown.half = this.screenSpan.half * shrink;
@@ -15217,6 +15598,22 @@ export class PortalWorld implements World {
       this.screenUseWas = heldNow;
       this.screenPress = null;
       if (clicked || used) this.pressCarryLine(ctx, drawBrush);
+      if (this.grabs.get(side) !== grab) return;
+      this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
+      _screenReach.clear();
+      return;
+    }
+
+    // **Der Radiergummi bleibt in der Hand** — jeder Druck löscht, was unter
+    // ihm steht (`eraseUnder`). Weg kommt er mit _Kran leeren_ oder einem
+    // anderen Stück aus dem Katalog.
+    if (this.elementErasers.has(grab.entry)) {
+      const heldNow = ctx.rig.useHeld;
+      const clicked = ctx.rig.takeDrop();
+      const used = ctx.rig.takeUse() || (heldNow && !this.screenUseWas);
+      this.screenUseWas = heldNow;
+      this.screenPress = null;
+      if (clicked || used) this.eraseUnder(ctx, grab.entry);
       if (this.grabs.get(side) !== grab) return;
       this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
       _screenReach.clear();
@@ -15303,6 +15700,9 @@ export class PortalWorld implements World {
     axes: THREE.Vector3 | null = null,
   ): void {
     if (this.shrunk && this.shrunk.entry !== entry) this.unshrinkScreenCarry();
+    // Der Pfeiler einer gezogenen Wand übernimmt: erst die echte Größe zurück,
+    // damit sie als die echte gemerkt wird.
+    this.unshrinkInHand(entry);
     if (factor === 1 && !axes) {
       this.unshrinkScreenCarry();
       return;
@@ -15331,6 +15731,52 @@ export class PortalWorld implements World {
       HAND_POST_HEIGHT,
       half.z > 0 ? HAND_POST / (2 * half.z) : 1,
     );
+  }
+
+  /** Die echte Größe eines Dings, auch wenn es gerade kleiner gezeichnet wird. */
+  private realScale(entry: PhysicsBody): THREE.Vector3 {
+    return (
+      this.handShrunk.get(entry) ??
+      (this.shrunk?.entry === entry ? this.shrunk.scale : entry.object.scale)
+    );
+  }
+
+  /**
+   * **In der Faust kleiner, damit man noch etwas sieht** — gewünscht: _„für
+   * alles (außer Werkzeuge), dass wenn ich diese in der Hand halte, dass diese
+   * kleiner gerendert werden (wie beim Burger), damit ich in VR noch etwas
+   * sehen bzw. erkennen kann."_ Ein Tisch in Lebensgröße an der Faust nahm
+   * das halbe Blickfeld.
+   *
+   * Höchstens halb so groß wie in echt (`HAND_SCALE`, wie der Burger der
+   * Küche), und ein großes Stück so weit, dass seine längste Seite in
+   * `HAND_FIT` passt. Nur das Bild: Körper, Geist und Einrasten rechnen
+   * weiter mit der echten Größe, und beim Loslassen ist es sofort wieder so
+   * groß wie im Raum (`release` → `unshrinkInHand`).
+   *
+   * @returns um wie viel kleiner gezeichnet wird (1: gar nicht)
+   */
+  private shrinkInHand(entry: PhysicsBody): number {
+    // Der Pfeiler einer gezogenen Wand hat schon seine eigene Größe (`handPost`).
+    if (this.shrunk?.entry === entry) return 1;
+    const longest = 2 * Math.max(entry.halfExtents.x, entry.halfExtents.y, entry.halfExtents.z);
+    const factor = Math.min(HAND_SCALE, longest > 0 ? HAND_FIT / longest : 1);
+    let real = this.handShrunk.get(entry);
+    if (!real) {
+      real = entry.object.scale.clone();
+      this.handShrunk.set(entry, real);
+    }
+    entry.object.scale.copy(real).multiplyScalar(factor);
+    return factor;
+  }
+
+  /** Das Ding aus der Faust wieder in seiner echten Größe. */
+  private unshrinkInHand(entry: PhysicsBody): void {
+    const real = this.handShrunk.get(entry);
+    if (!real) return;
+    this.handShrunk.delete(entry);
+    entry.object.scale.copy(real);
+    entry.object.updateMatrixWorld(true);
   }
 
   /** Das Getragene wieder in seiner echten Größe. */
@@ -15370,6 +15816,25 @@ export class PortalWorld implements World {
     if (this.screenTapped) return;
     this.screenTapped = true;
     ctx.notify(`${labelOfProp(grab.entry.object)} bleibt in der Hand · nochmal drücken legt ab`);
+  }
+
+  /**
+   * **Den Kran leer machen** — Rechtsklick oder der Knopf _Kran leeren_
+   * (`craneEmpty.ts`). Gewünscht: _„eine option haben um nachdem ich ein
+   * objekt gesetzt habe meinen kran leer zu machen […], damit ich nicht ewig
+   * ein objekt lege"_. Ein frisches Stück aus dem Katalog verschwindet (wie
+   * beim Werkzeugwechsel, `letGo`), ein aufgehobenes fällt, wo der Kran
+   * steht, und die Figur am Haken wird abgesetzt.
+   */
+  private emptyCrane(ctx: WorldContext): void {
+    if (this.figureHeld) {
+      this.liftFigure(ctx);
+      return;
+    }
+    const side = this.screenCarrySide();
+    if (!side || !this.grabs.has(side)) return;
+    this.dropScreenCarry(ctx);
+    ctx.notify('Kran leer');
   }
 
   /** Was die Bildschirmhand trug, fällt — beim Aufsetzen der Brille, beim Ende. */
