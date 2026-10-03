@@ -20,8 +20,8 @@ import type { VisorBreath } from './graphicsSettings';
  * - `light` — von 0 bis `LIGHT_PEAK` und zurück.
  * - `strong` — nie unter `LIGHT_PEAK`, mit jedem Atemzug bis `STRONG_PEAK`,
  *   und **schneller**: ein Zug alle `STRONG_PERIOD` Sekunden statt vier — wer
- *   so stark beschlägt, atmet schwer. Gewünscht: _„bei stark bitte die
- *   Frequenz erhöhen"_.
+ *   so stark beschlägt, atmet unter Belastung. Gewünscht: _„bei stark bitte
+ *   die Frequenz erhöhen"_, _„Bis zu 40–50 Atemzüge/Min"_.
  * - `fogged` — durchgehend `FOGGED`.
  */
 
@@ -32,11 +32,12 @@ export const EXHALE = 1.5;
 /** Wie schnell der Beschlag danach verdunstet (Zeitkonstante, Sekunden). */
 const FADE = 0.8;
 /**
- * **Ein Atemzug bei `strong`**, in Sekunden: gut 26 Züge in der Minute, ein
- * angestrengter Atem. Ausatmen und Verdunsten schrumpfen im selben Verhältnis
+ * **Ein Atemzug bei `strong`**, in Sekunden: rund 46 Züge in der Minute, ein
+ * Atem unter Belastung (gewünscht: _„Unter Belastung: Bis zu 40–50
+ * Atemzüge/Min"_). Ausatmen und Verdunsten schrumpfen im selben Verhältnis
  * mit, damit die Form des Zugs dieselbe bleibt.
  */
-export const STRONG_PERIOD = 2.3;
+export const STRONG_PERIOD = 1.3;
 
 export const LIGHT_PEAK = 0.3;
 export const STRONG_PEAK = 0.75;
