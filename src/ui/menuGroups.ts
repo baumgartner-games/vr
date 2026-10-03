@@ -28,7 +28,7 @@ import type { MenuEntry, MenuIcon } from './menu';
  * Einstellung, und die Ordnung des Menüs steht an einer Stelle.
  *
  * Kein DOM, kein three.js — dieselbe Wurzel geht an die Handgelenke und an
- * die Seite (`WristMenus`), und ein Test prüft sie ohne Browser
+ * die Seite (`GameMenu`), und ein Test prüft sie ohne Browser
  * (`menuGroups.test.ts`).
  */
 

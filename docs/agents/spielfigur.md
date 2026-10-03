@@ -576,7 +576,9 @@ und `…&face=all`, oder `npm run avatar -- --figure=… --face=all`.
 
 ## Was vor einem und an der Hand steht (Brille)
 
-In der Brille hängen außer dem Handgelenkmenü drei Dinge am Spieler, alle in
+In der Brille hängen außer dem Menü (einem Bildschirm zwei Meter vor einem,
+[Die Seite selbst](./seite.md#in-der-brille-ein-bildschirm-zwei-meter-vor-einem))
+drei Dinge am Spieler, alle in
 `ui/XRGuide.ts` (Rechnung in `core/xrGuide.ts`, ausführlich in
 [Die Seite selbst](./seite.md#in-der-brille-abblenden-tafel-beschriftung-uixrguidets)):
 

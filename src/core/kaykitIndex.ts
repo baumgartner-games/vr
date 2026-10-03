@@ -128,7 +128,7 @@ export function kaykitSize(bytes: number | undefined): string {
  * **Der Pfad hinter einer Vorschau-Id**, oder `null`, wenn die Id keine aus
  * dem Regal ist.
  *
- * Die Welt setzt eine einzige Modellfabrik ins Menü (`WristMenus.setModelFactory`),
+ * Die Welt setzt eine einzige Modellfabrik ins Menü (`GameMenu.setModelFactory`),
  * und die muss die Werkzeug-Ids von den Regal-Ids unterscheiden können. Ein
  * Fach (`kaykit:<ordner>#<n>`) ist keine Datei und bekommt deshalb auch kein
  * Modell.
@@ -780,7 +780,7 @@ export function kaykitSearch(
  * Gebaut wird der **ganze** Baum auf einmal, und das ist Absicht: Er besteht
  * aus Zeichenketten und Funktionen, kein einziges Modell hängt daran. Geladen
  * wird erst, was auch zu sehen ist — dafür sorgt die Vorschau-Fabrik im Menü,
- * die je sichtbarer Kachel genau einmal gefragt wird (`ui/WristMenu.ts`).
+ * die je sichtbarer Kachel genau einmal gefragt wird (`ui/XRMenu.ts`).
  * Gerechnet wird er trotzdem nur einmal je Index: Der Aufrufer hebt ihn auf
  * (`PortalWorld.shelfMenu`), denn das Menü wird bei jeder Änderung neu
  * gesetzt und fünfzehntausend Einträge je Tastendruck wären spürbar.
@@ -1127,7 +1127,7 @@ export function fileEntry(
     // Dateigröße stand hier also seit jeher an einer Stelle, an der sie
     // niemand las, und im Steckbrief steht sie ohnehin. Was ein Rasterfeld
     // dagegen **doch** zeigt, ist das Fähnchen über dem Panel, sobald der
-    // Strahl auf einer Kachel liegt (`ui/WristMenu.updateCaption`) — und
+    // Strahl auf einer Kachel liegt (`ui/XRMenu.updateCaption`) — und
     // genau dorthin gehört die Adresse: In der Brille gibt es keine
     // Zwischenablage und keinen Steckbrief, wohl aber jemanden, der den
     // Namen vorlesen oder abtippen will.

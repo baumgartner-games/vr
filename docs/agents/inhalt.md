@@ -530,12 +530,13 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   anfängt und auf dem neuen endet, ist kein Klick. Also werden frische Zeilen
   mit den stehenden verglichen (`data-key`, `outerHTML`) und nur geänderte
   getauscht; die Blätterstellung bleibt. **Welches Gesicht gilt, entscheidet
-  `WristMenus`**: `presenting` (von `App` bei Sitzungsbeginn und -ende
+  `GameMenu`**: `presenting` (von `App` bei Sitzungsbeginn und -ende
   gesetzt) schickt `toggle`, `openSubmenu`, `isOpen`, `refresh` und
-  `setStatus` an die Handgelenke oder an die Seite; beim Aufsetzen geht die
-  Seite zu, beim Absetzen der Arm. Solange die Seite das Menü trägt, ist der
-  runde Knopf am Arm aus (`WristMenu.buttonHidden`): Ohne getrackte Hand hing
-  er an der Blickrichtung rechts unter der Bildmitte — ein zweites ☰ mitten im
+  `setStatus` an den Bildschirm in der Brille (`ui/XRMenu.ts`) oder an die
+  Seite; beim Aufsetzen geht die Seite zu, beim Absetzen der Bildschirm.
+  Solange die Seite das Menü trägt, sind die runden Knöpfe am Arm aus
+  (`WristButton.hidden`): Ohne getrackte Hand hing einer an der
+  Blickrichtung rechts unter der Bildmitte — ein zweites ☰ mitten im
   Bild, am Telefon halb über den Rand, und ein Klick darauf öffnete das Panel
   in der Szene statt der Seite. Keine Welt weiß davon — `ctx.menu` ist
   dieselbe Klasse mit denselben Aufrufen. Öffnet ein Eintrag die Tastatur
@@ -574,7 +575,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Regalexemplar abgeschrieben — nur die sichtbaren Netze, mit derselben
   Geometrie und demselben Material —, hängt am Panel und fängt **keinen
   Strahl** ab, die Zeile dahinter bleibt also genauso anfassbar wie vorher
-  (`ui/WristMenu.ts`, `MenuEntry.preview`).
+  (`ui/XRMenu.ts`, `MenuEntry.preview`).
   Passt eine Seite nicht aufs Panel — das Werkzeugregal tut das längst nicht
   mehr —, wird geblättert, auf zwei Arten: **mit dem Stick der zeigenden Hand**
   hoch/runter, oder indem man den **Trigger hält und wischt**, wie auf einem

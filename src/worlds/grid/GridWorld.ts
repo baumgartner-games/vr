@@ -1958,7 +1958,7 @@ export abstract class GridWorld extends PortalWorld {
    * Aus dem Text werden Zeilen (`fixtures/signRows.ts`), aus den Zeilen wird
    * eine Seite im Weltmenü, und die Seite wird aufgeschlagen. Genau derselbe
    * Baum wie überall: am Bildschirm ein Blatt von unten, in der Brille das
-   * Panel am Handgelenk (`ui/WristMenus.ts`) — eine zweite Art, Text zu
+   * Panel am Handgelenk (`ui/GameMenu.ts`) — eine zweite Art, Text zu
    * zeigen, gibt es hier nicht.
    *
    * Die Reihenfolge ist die ganze Feinheit: Erst muss der Baum **stehen**,

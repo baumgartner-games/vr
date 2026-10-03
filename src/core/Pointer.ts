@@ -61,6 +61,22 @@ export interface PointerTarget {
    * der Hand genau diese Bedienung weg.
    */
   rayPasses?(hand: Handedness | null): boolean;
+  /**
+   * **Nur eine Hand zugleich** — die, die zuerst darauf zeigt.
+   *
+   * Gewünscht für das Menü in der Brille: _„mit dem controller [konnte]
+   * irgendwie nicht sauber gezielt werden […] immer andere elemente in dem
+   * menü aktiv gehovert […] Meine vermutung ist, dass der andere controller
+   * daran schuld war."_ — genau so war es: Beide Strahlen lagen auf dem
+   * Panel, beide meldeten jedes Bild ihr `onHover`, und der zuletzt gefragte
+   * (rechts) gewann, auch wenn man links zielte.
+   *
+   * Ein exklusives Ziel gehört der Hand, die als erste darauf zeigt; der
+   * Strahl der anderen geht hindurch, als wäre es nicht da. Wer mit der
+   * anderen Hand darauf **drückt** (Trigger oder `A`), übernimmt es — das ist
+   * eine eindeutige Absicht. Sobald die Hand das Ziel verlässt, ist es frei.
+   */
+  exclusive?: boolean;
 }
 
 const _ray = new THREE.Ray();
@@ -176,6 +192,8 @@ export class Pointer {
   ]);
 
   private targets: PointerTarget[] = [];
+  /** Wem ein exklusives Ziel gerade gehört (`PointerTarget.exclusive`). */
+  private readonly owners = new Map<PointerTarget, Handedness>();
   private poking = new Set<THREE.Object3D>();
   private raycaster = new THREE.Raycaster();
   private screen = new THREE.Vector2(0, 0);
@@ -224,6 +242,7 @@ export class Pointer {
   }
 
   remove(object: THREE.Object3D): void {
+    for (const target of this.targets) if (target.object === object) this.owners.delete(target);
     this.targets = this.targets.filter((t) => t.object !== object);
     for (const beam of this.beams.values()) {
       if (beam.hovered?.object === object) beam.hovered = null;
@@ -234,6 +253,7 @@ export class Pointer {
 
   clear(): void {
     this.targets = [];
+    this.owners.clear();
     for (const beam of this.beams.values()) {
       beam.drop();
       beam.hovered = null;
@@ -281,7 +301,20 @@ export class Pointer {
     controller.getRay(_ray);
     this.raycaster.set(_ray.origin, _ray.direction);
     this.raycaster.far = 12;
-    const hit = this.castAll(handedness);
+    const pressing =
+      controller.trigger.justPressed ||
+      controller.primary.justPressed ||
+      controller.squeeze.justPressed;
+    let hit = this.castAll(handedness);
+    // **Drücken übernimmt.** Liegt ein exklusives Ziel, das der anderen Hand
+    // gehört, vor dem, was dieser Strahl sonst träfe, nimmt ein Druck es ihr ab.
+    if (pressing) {
+      const all = this.castAll(handedness, false);
+      if (all?.target.exclusive && all.target !== hit?.target) {
+        this.owners.set(all.target, handedness);
+        hit = all;
+      }
+    }
 
     beam.line.visible = true;
     beam.line.scale.z = hit ? hit.hit.distance : 1.6;
@@ -358,11 +391,22 @@ export class Pointer {
     beam.hide();
   }
 
-  private castAll(hand: Handedness | null): { target: PointerTarget; hit: PointerHit } | null {
+  /**
+   * @param owned ob exklusive Ziele einer anderen Hand übergangen werden —
+   *              `false` nur für die Frage, ob ein Druck eines übernimmt
+   */
+  private castAll(
+    hand: Handedness | null,
+    owned = true,
+  ): { target: PointerTarget; hit: PointerHit } | null {
     let best: { target: PointerTarget; hit: PointerHit } | null = null;
     for (const target of this.targets) {
       if (!visibleInHierarchy(target.object)) continue;
       if (target.ignore?.(hand) || target.rayPasses?.(hand)) continue;
+      if (owned && hand !== null && target.exclusive) {
+        const owner = this.ownerOf(target);
+        if (owner !== null && owner !== hand) continue;
+      }
       const intersections = this.raycaster.intersectObject(target.object, true);
       const first = intersections[0];
       if (!first) continue;
@@ -381,9 +425,24 @@ export class Pointer {
     return best;
   }
 
+  /**
+   * Wem ein exklusives Ziel gehört — aber nur, solange diese Hand noch darauf
+   * zeigt. Wer weggeht, gibt es frei.
+   */
+  private ownerOf(target: PointerTarget): Handedness | null {
+    const owner = this.owners.get(target);
+    if (owner === undefined) return null;
+    if (this.beam(owner).hovered === target) return owner;
+    this.owners.delete(target);
+    return null;
+  }
+
   private setHover(beam: Beam, target: PointerTarget | null, hit: PointerHit | null): void {
     const previous = beam.hovered;
     beam.hovered = target;
+    if (target?.exclusive && beam.hand !== null && this.ownerOf(target) === null) {
+      this.owners.set(target, beam.hand);
+    }
     // Only a blur once no other laser is resting on it any more — otherwise the
     // hand that leaves would switch off the highlight the other one is holding.
     if (previous && previous !== target && !this.hoveredElsewhere(previous)) previous.onBlur?.();

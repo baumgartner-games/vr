@@ -9,7 +9,7 @@ import {
 } from './menu';
 import { COPY_FALLBACK, copyText } from './clipboard';
 import { findMenuPath } from './menuGroups';
-import { MenuNav, findStep } from './menuNav';
+import { MenuNav, findStep, tabStep } from './menuNav';
 import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
 import { keepSafe, setSafeEdge } from './safeArea';
 import { clipLabel } from '../core/kaykitClips';
@@ -17,10 +17,11 @@ import type { DetailFacts, DetailOptions, DetailView, PagePreviewLayer } from '.
 import './pageMenu.css';
 
 /**
- * **Dasselbe Menü als Seite** — für alle, die keine Handgelenke im Bild haben.
+ * **Dasselbe Menü als Seite** — für alle ohne Brille.
  *
- * In der Brille hängt das Menü am Arm (`WristMenu.ts`): ein Panel aus
- * Leinwand und Dreiecken, mit dem Strahl der anderen Hand bedient. Im
+ * In der Brille steht das Menü als Bildschirm vor einem (`XRMenu.ts`): ein
+ * Panel aus Leinwand und Dreiecken mit demselben Kopf wie hier
+ * (`ui/screenLayout.ts`), mit einem Strahl bedient. Im
  * Browserfenster gab es bisher **dasselbe Panel**, frei vor die Kamera
  * gehängt — und am Telefon war das ein Bild von einem Menü, kein Menü: winzig,
  * mit dem Daumen kaum zu treffen, und hinter jeder 2D-Welt verschwunden, die
@@ -42,7 +43,7 @@ import './pageMenu.css';
  * den Pfeil im Kopf, nicht über eine Zeile in der Liste: Eine Webseite lässt
  * ihren Kopf auch stehen.
  *
- * Welche der beiden Fassungen gerade gilt, entscheidet `WristMenus`: mit
+ * Welche der beiden Fassungen gerade gilt, entscheidet `GameMenu`: mit
  * aufgesetzter Brille die Handgelenke, sonst diese Seite. Kein three.js — nur
  * DOM, damit ein Test sie ohne Browser aufschlagen kann (`pageMenu.test.ts`).
  *
@@ -202,8 +203,6 @@ export class PageMenu {
   /** Die Reiter über der Seite (`PageMenuOptions.tabs`) — sonst leer und versteckt. */
   private readonly tabsEl: HTMLElement;
   private readonly tabs: boolean;
-  /** Wie tief man in jedem Reiter stand, nach seiner Id. */
-  private readonly tabPaths = new Map<string, readonly string[]>();
   private readonly aside: PageAside | null;
   private asideShown = false;
   /** Die Leiste über der Liste: Suchfeld und die beiden Spaltenknöpfe. */
@@ -539,8 +538,14 @@ export class PageMenu {
       // darunter *Zurück* und rechts davon die Suche. Über den Reitern war der
       // Pfeil nicht zu finden: „bin aber blind, da der zurück pfeil über den
       // tabs ist." Titel und Brotkrumen rutschen in eine eigene Zeile darunter.
+      // **◀ ▶ ganz links**: durch die Reiter, ohne einen zu treffen — dieselben
+      // zwei Knöpfe wie auf dem Panel in der Brille (`ui/screenLayout.ts`).
+      const prev = iconButton('pmenu__nav pmenu__step-tab', 'Reiter davor', 'M14 6l-6 6 6 6');
+      const next = iconButton('pmenu__nav pmenu__step-tab', 'Reiter danach', 'M10 6l6 6-6 6');
+      prev.addEventListener('click', () => this.stepTab(-1));
+      next.addEventListener('click', () => this.stepTab(1));
       const top = el('div', 'pmenu__top');
-      top.append(this.tabsEl, close);
+      top.append(prev, next, this.tabsEl, close);
       this.toolsEl.prepend(this.backButton);
       this.toolsEl.append(this.homeButton);
       this.sheet.append(top, this.toolsEl, head, this.statusEl, body, this.footEl);
@@ -668,10 +673,14 @@ export class PageMenu {
    * am Ende wieder vorn. `false`, wenn es keine Reiter gibt.
    */
   stepTab(step: -1 | 1): boolean {
-    if (!this.tabs || !this.open || this.root.length === 0) return false;
-    const at = this.root.findIndex((entry) => entry.id === this.nav.path[0]);
-    const next = this.root[(at + step + this.root.length) % this.root.length]!;
-    this.showTab(next.id);
+    if (!this.tabs || !this.open) return false;
+    const next = tabStep(
+      this.root.map((entry) => entry.id),
+      this.nav.path[0],
+      step,
+    );
+    if (next === null) return false;
+    this.showTab(next);
     return true;
   }
 
@@ -682,7 +691,7 @@ export class PageMenu {
   /**
    * Wer die kleinen Modelle zeichnet — oder `null`, dann zeichnet sie niemand.
    *
-   * Gesetzt wird das von `WristMenus`, wenn eine Welt ihre Modellfabrik
+   * Gesetzt wird das von `GameMenu`, wenn eine Welt ihre Modellfabrik
    * abgibt, und beim Verlassen wieder weggenommen. Die Seite selbst weiß
    * nichts über three.js und will es auch nicht wissen: Sie reicht ihren
    * Rahmen und ihre Liste hinüber und sagt Bescheid, wenn sie auf- oder
@@ -709,7 +718,7 @@ export class PageMenu {
   }
 
   /**
-   * Brille auf oder ab. In der Brille ist die Seite ohnehin zu (`WristMenus`);
+   * Brille auf oder ab. In der Brille ist die Seite ohnehin zu (`GameMenu`);
    * gesagt wird es der Vorschau trotzdem, denn eine zweite Zeichenschleife
    * neben einer XR-Sitzung ist genau das, was dort fehlt.
    */
@@ -828,21 +837,16 @@ export class PageMenu {
     return this.tabs ? 2 : 1;
   }
 
-  /** Zu einem Reiter wechseln — und dort weitermachen, wo man ihn verließ. */
+  /**
+   * Zu einem Reiter wechseln — und dort weitermachen, wo man ihn verließ
+   * (`MenuNav.showTab`, dasselbe Gedächtnis wie in der Brille).
+   */
   private showTab(id: string): void {
     if (!this.root.some((entry) => entry.id === id)) return;
-    const path = this.nav.path;
-    if (path[0] === id && this.open) {
-      // Ein Druck auf den Reiter, in dem man schon steht: an seinen Anfang.
-      if (path.length > 1) {
-        this.keepScroll();
-        this.nav.goTo([id]);
-      }
-      return;
-    }
-    if (path.length > 0) this.tabPaths.set(path[0]!, path);
     this.keepScroll();
-    this.nav.goTo(this.tabPaths.get(id) ?? [id]);
+    // Ein Druck auf den Reiter, in dem man schon steht: an seinen Anfang —
+    // aber nur bei offenem Menü; beim Aufmachen auf ihm bleibt man, wo man war.
+    this.nav.showTab(id, this.open);
   }
 
   /** Die Reihe der Reiter — neu gebaut nur, wenn sich daran etwas ändert. */
@@ -923,8 +927,7 @@ export class PageMenu {
     // **Mit Reitern wird die Wurzel nie aufgeschlagen** — wer dort ankäme
     // (beim ersten Öffnen, nach dem Wegfall eines Reiters), steht im ersten.
     if (this.tabs && this.stack.length < 2 && this.root.length > 0) {
-      const first = this.root[0]!.id;
-      this.nav.goTo(this.tabPaths.get(first) ?? [first]);
+      this.nav.showTab(this.root[0]!.id, false);
       return;
     }
     // **Eine andere Seite fängt ohne Suchbegriff an.** Ein Feld, das beim

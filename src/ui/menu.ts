@@ -271,8 +271,8 @@ export interface MenuEntry {
    *
    * Der Knopf steht nur da, solange man **unterhalb** dieser Seite ist — auf
    * ihr selbst wäre er ein Knopf, der nichts tut. Am Schirm ist es ein Knopf
-   * im Kopf (`ui/PageMenu.ts`), in der Brille eine feste Zeile neben
-   * *Zurück* (`ui/WristMenu.ts`).
+   * im Kopf (`ui/PageMenu.ts`), in der Brille ebenso, rechts im Kopf des
+   * Bildschirms (`ui/XRMenu.ts`, `ui/screenLayout.ts`).
    */
   home?: boolean;
   /**
@@ -346,7 +346,7 @@ export interface MenuEntry {
    * **Diese Seite wird gerade aufgeschlagen.**
    *
    * Gerufen von jeder Bedienfläche, die eine Ebene tiefer geht — am
-   * Handgelenk (`ui/WristMenu.ts`) wie auf der Seite (`ui/PageMenu.ts`) —,
+   * Handgelenk (`ui/XRMenu.ts`) wie auf der Seite (`ui/PageMenu.ts`) —,
    * und zwar *bevor* der Weg umgestellt wird. Für alles, was erst dann
    * geladen werden soll: Das Asset-Regal holt hier seinen Index, der ein paar
    * hundert Kilobyte groß ist und niemanden etwas angeht, der das Regal nie

@@ -212,7 +212,7 @@ Sitzung**: Die Brille nimmt die Puffergröße nur beim Aufsetzen entgegen. Am
 Bildschirm ändert er nichts. Die Bildrate dazu steht als erste Zeile derselben
 Seite (`App.fpsEntry`, aus `FrameStats.latest` — gemessen wird auch in der
 Brille, wo das F3-Feld unsichtbar bleibt) und wird alle halbe Sekunde
-nachgeschrieben, solange das Menü offen ist (`WristMenus.refresh`, nur die
+nachgeschrieben, solange das Menü offen ist (`GameMenu.refresh`, nur die
 Zeile, nicht das Menü). Darunter das Häkchen **Bildrate im Bild**
 (`showFps`, ab Werk aus): das F3-Feld unten rechts, auch am Telefon, wo es
 kein F3 gibt — und F3 schaltet dasselbe Häkchen (`FrameStats.onToggle`),

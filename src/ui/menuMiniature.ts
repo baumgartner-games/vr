@@ -6,14 +6,14 @@ import { PREVIEW_TILT } from './previewGrid';
  * **Ein Ding aus der Welt, klein genug für eine Menükachel.**
  *
  * Dieselbe Rechnung braucht jede Bedienfläche, die ein Modell in eine Zeile
- * stellt: das Panel am Handgelenk (`ui/WristMenu.ts`) und das Raster auf der
+ * stellt: das Panel am Handgelenk (`ui/XRMenu.ts`) und das Raster auf der
  * Seite (`ui/PagePreviews.ts`). Sie steht deshalb hier, in einer Datei, die
  * beide holen können.
  *
  * **Und jetzt holt sie auch das Handgelenk.** Dort stand lange eine eigene,
  * wortgleiche Fassung — bis die Figuren zeigten, warum zwei Fassungen einer
  * Rechnung eine zu viel sind: Der Fehler unten steckte in beiden, und er wäre
- * in der Brille ein zweites Mal zu finden gewesen. `ui/WristMenu.ts` ruft
+ * in der Brille ein zweites Mal zu finden gewesen. `ui/XRMenu.ts` ruft
  * jetzt hierher.
  *
  * Abgeschrieben statt geklont: `Object3D.clone()` ruft den Konstruktor der

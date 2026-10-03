@@ -9,7 +9,7 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { SelfHelmet } from './selfHelmet';
 import { FACE_KINDS, FACE_LABELS, FACE_SUBS, IMMERSIVE_HAT } from './figureParts';
 import { FreeLocomotion } from './Locomotion';
-import { WristMenus } from '../ui/WristMenus';
+import { GameMenu } from '../ui/GameMenu';
 import { MenuNav } from '../ui/menuNav';
 import { catalogRecall } from '../ui/menuRecall';
 import { WORLD_BADGES, findMenuEntry, folderWorlds, groupMenu, worldKind } from '../ui/menuGroups';
@@ -28,8 +28,7 @@ import { outfitModel } from '../ui/outfitModels';
 import { PlayerCard } from '../ui/PlayerCard';
 import { tabbedMenu } from '../ui/menuTabs';
 import { XRPlayerCard } from '../ui/XRPlayerCard';
-import { WRIST_PANEL_W } from '../ui/WristMenu';
-import { PANEL_ASPECT } from '../ui/UIPanel';
+import { MENU_SCREEN_H, MENU_SCREEN_W } from '../ui/XRMenu';
 import { HoldMenu, type HoldSubject } from '../ui/HoldMenu';
 import { TopDownCamera } from './TopDownCamera';
 import { topDownFit } from './topDownPose';
@@ -227,11 +226,11 @@ export class App {
   readonly rig: PlayerRig;
   readonly input: XRInput;
   readonly pointer: Pointer;
-  readonly wristMenu: WristMenus;
+  readonly gameMenu: GameMenu;
   /**
    * **Das Menü als Seite** aus DOM, für alles ohne Brille — hinter dem Knopf
    * oben links, hinter `M`, ☰, `Tab`, `Y` und dem Werkzeugknopf. Welches
-   * Gesicht gerade gilt (Seite oder Handgelenk), entscheidet `WristMenus`.
+   * Gesicht gerade gilt (Seite oder Bildschirm in der Brille), entscheidet `GameMenu`.
    *
    * Es hat **Reiter** wie in _Die Sims_ (`ui/menuTabs.ts`): **Inventar** (die
    * Werkzeuge als Kacheln, rechts die eigene Figur mit _Aussehen anpassen_,
@@ -503,7 +502,7 @@ export class App {
 
     // **Die Figur neben dem Inventar** — am Schirm eine Spalte mit eigener
     // kleiner Szene (`ui/PlayerCard.ts`), in der Brille ein kleines Modell
-    // rechts neben dem Panel am Handgelenk (`ui/XRPlayerCard.ts`).
+    // rechts neben dem Bildschirm (`ui/XRPlayerCard.ts`).
     this.playerCard =
       typeof document === 'undefined'
         ? null
@@ -531,17 +530,20 @@ export class App {
       this.playerCard?.refresh();
     });
     this.xrCard = new XRPlayerCard({
-      panelWidth: WRIST_PANEL_W,
-      panelHeight: WRIST_PANEL_W * PANEL_ASPECT,
+      panelWidth: MENU_SCREEN_W,
+      panelHeight: MENU_SCREEN_H,
+      // Gemessen war die Karte für ein Panel von 26 × 43 cm am Handgelenk.
+      scale: MENU_SCREEN_H / 0.43,
       name: () => this.net.name,
       onCustomize: () => this.openWardrobe(),
     });
-    // **Ein Menü, mit Reitern, am Handgelenk wie am Schirm** — gewünscht:
-    // „In der Brille könnte man ein Menü öffnen über das Handgelenk. Das
-    // Menü kann dann gleich aussehen wie beim PC."
-    this.wristMenu = new WristMenus(this.pointer, {
+    // **Ein Menü, mit Reitern, in der Brille wie am Schirm** — in der Brille
+    // ein Bildschirm zwei Meter vor einem (`ui/XRMenu.ts`), gewünscht:
+    // „Das menü kann dann genauso gerendert werden wie im web: Tab leisten
+    // oben, oben rechts der close button."
+    this.gameMenu = new GameMenu(this.pointer, {
       title: 'Menü',
-      footer: 'Andere Hand: zielen + Trigger/A · B/Y zurück',
+      footer: 'Zielen + Trigger/A · B/Y zurück',
       tabs: true,
       aside: { page: INVENTORY_TAB, object: this.xrCard },
       // Der Weg durchs Menü merkt sich den **Katalog** über das Neuladen
@@ -549,22 +551,22 @@ export class App {
       // wieder oben an.
       nav: new MenuNav(catalogRecall()),
     });
-    this.rig.add(this.wristMenu);
+    this.rig.add(this.gameMenu);
     this.xrCard.attachPointer(this.pointer);
     this.pageMenu = new PageMenu({
       title: 'Menü',
       tabs: true,
-      nav: this.wristMenu.nav,
+      nav: this.gameMenu.nav,
       ...(this.playerCard ? { aside: this.playerCard } : {}),
       onToggle: (open) => {
         this.toolButton?.setOpen(open);
         this.hooks.onMenuChanged?.(open);
       },
     });
-    this.wristMenu.attachPage(this.pageMenu);
+    this.gameMenu.attachPage(this.pageMenu);
     // Die Stücke in den Kacheln unter _Aussehen_ — in jeder Welt, auch in
     // einer, die selbst keine Modelle für das Menü hat.
-    this.wristMenu.setExtraModels((id) => outfitModel(id));
+    this.gameMenu.setExtraModels((id) => outfitModel(id));
     this.holdMenu = new HoldMenu({
       onToggle: (open) => {
         if (open || !this.holdReopens) return;
@@ -699,7 +701,7 @@ export class App {
       pointer: this.pointer,
       avatar: this.avatar,
       hands: this.handVisuals,
-      menu: this.wristMenu,
+      menu: this.gameMenu,
       net: this.net,
       avatars: this.avatars,
       role: this.role,
@@ -1064,7 +1066,7 @@ export class App {
   }
 
   toggleMenu(force?: boolean): void {
-    this.wristMenu.toggle(force);
+    this.gameMenu.toggle(force);
   }
 
   /**
@@ -1072,7 +1074,7 @@ export class App {
    * Brille gibt (`main.ts`, `#hud-vr`), und die Zeile im Grafik-Menü.
    */
   openViewMenu(): void {
-    this.wristMenu.openSubmenu('view');
+    this.gameMenu.openSubmenu('view');
   }
 
   /**
@@ -1167,7 +1169,7 @@ export class App {
     }
     guide.update(dt, _headLocal, {
       presenting,
-      menuOpen: this.wristMenu.isOpen,
+      menuOpen: this.gameMenu.isOpen,
       world: this.world && this.worldId ? (findWorld(this.worldId) ?? null) : null,
       zone: this.world?.hintZone?.() ?? null,
       rigFlags: {
@@ -1290,7 +1292,7 @@ export class App {
    * die Werkzeuge aus dem Regal** (`tools`): Greifen oder `A` legt eines in
    * die Hand, der Trigger geht in seine Einstellungen — wie am Handgelenk
    * bisher, nur als Kacheln. Daneben steht in beiden die Figur
-   * (`PageMenuOptions.aside`, `WristMenuOptions.aside`).
+   * (`PageMenuOptions.aside`, `XRMenuOptions.aside`).
    */
   private inventoryEntry(): MenuEntry | null {
     if (!this.world) return null;
@@ -1343,7 +1345,7 @@ export class App {
   }
 
   notify(message: string): void {
-    this.wristMenu.setStatus(message);
+    this.gameMenu.setStatus(message);
     this.hooks.onNotify?.(message);
   }
 
@@ -1362,7 +1364,7 @@ export class App {
     this.topDownCamera.dispose();
     this.offEyes();
     this.avatar.dispose();
-    this.wristMenu.dispose();
+    this.gameMenu.dispose();
     this.hints?.dispose();
     this.loader?.dispose();
     this.welcome?.dispose();
@@ -1425,7 +1427,7 @@ export class App {
     this.rig.standUp();
     this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
-    this.wristMenu.attachPointer();
+    this.gameMenu.attachPointer();
     this.xrCard.attachPointer(this.pointer);
     // **Die Willkommens-Tafel der Brille gehört auch keiner Welt**, und ihr
     // Zeigerziel räumt `clear` genauso mit weg wie das der Tastatur. Es
@@ -1526,7 +1528,7 @@ export class App {
     // Rebuilding while the menu is open is normal here: the peer list and the
     // spectator switches change under the player's nose. The menu keeps the
     // page and the scroll position through it, open or closed.
-    this.wristMenu.setRoot(root);
+    this.gameMenu.setRoot(root);
   }
 
   /**
@@ -2230,7 +2232,7 @@ export class App {
    */
   private openWardrobe(): void {
     if (this.renderer.xr.isPresenting) {
-      this.wristMenu.openSubmenu('look');
+      this.gameMenu.openSubmenu('look');
       return;
     }
     if (!this.world) return;
@@ -3185,7 +3187,7 @@ export class App {
     // Ohne Brille trägt die Seite das Menü, und die läge über der Tastatur in
     // der Szene — am Telefon über der ganzen unteren Hälfte. Also geht das
     // Menü zu; die Tastatur steht danach frei vor der Kamera.
-    if (!this.renderer.xr.isPresenting) this.wristMenu.toggle(false);
+    if (!this.renderer.xr.isPresenting) this.gameMenu.toggle(false);
     this.rig.getHeadMatrix(_head);
     _keyPosition.setFromMatrixPosition(_head);
     _keyRotation.setFromRotationMatrix(_head);
@@ -3304,7 +3306,7 @@ export class App {
   }
 
   private selectWorld(id: string): void {
-    this.wristMenu.toggle(false);
+    this.gameMenu.toggle(false);
     void this.goTo(id);
   }
 
@@ -3330,7 +3332,7 @@ export class App {
     this.positionHud.setImmersive(true);
     this.role = 'vr';
     // Ab jetzt tragen die Handgelenke das Menü, nicht die Seite.
-    this.wristMenu.presenting = true;
+    this.gameMenu.presenting = true;
     // Und das Menü sieht in der Brille anders aus: keine Links in einen neuen
     // Tab (`helpLinks`), keine Ansicht von oben (`viewMenu`).
     this.menuDirty = true;
@@ -3357,7 +3359,7 @@ export class App {
     this.positionHud.setImmersive(false);
     this.resizeWebBuffer();
     this.role = detectFlatRole();
-    this.wristMenu.presenting = false;
+    this.gameMenu.presenting = false;
     this.applyView();
     setImmersive(false);
     if (this.rig.paused) {
@@ -3436,7 +3438,7 @@ export class App {
     this.updateHints(presenting || this.xrPreview);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
-    this.rig.menuStick = this.wristMenu.scrollHand;
+    this.rig.menuStick = this.gameMenu.scrollHand;
     this.fitEyes(presenting);
     this.rig.update(dt, this.input, presenting, this.pointer.hovering);
 
@@ -3488,7 +3490,7 @@ export class App {
       presenting && !this.spectating && this.lookHat === IMMERSIVE_HAT ? IMMERSIVE_HAT : null,
     );
     this.playerGuides.update(_head, this.rig.getFloorY());
-    this.wristMenu.update(dt, this.input, _head);
+    this.gameMenu.update(dt, this.input, _head);
     this.xrCard.update(dt);
     this.updateXRGuide(dt, presenting || this.xrPreview);
     this.pointer.update(this.input, presenting);
@@ -3563,15 +3565,15 @@ export class App {
     // Die Zeile im Grafik-Menü nachschreiben, solange jemand hinsieht — nur
     // die Zeile, nicht das Menü: Ein Neubau je halbe Sekunde wäre selbst ein
     // Ruckler.
-    if (sample && this.fpsEntry && this.wristMenu.isOpen) {
+    if (sample && this.fpsEntry && this.gameMenu.isOpen) {
       this.fpsEntry.label = fpsLabel(sample);
-      this.wristMenu.refresh();
+      this.gameMenu.refresh();
     }
     // **Und dieselbe Zeile für die Eingaben** (`inputsMenu`): Wer eine
     // Belegung einstellt, will sehen, dass sein Knopf überhaupt ankommt —
     // ohne diese Rückmeldung stellt man blind ein. Wieder nur die Zeile und
     // nicht der Baum, und nur solange jemand hinsieht.
-    if (this.liveInput && this.wristMenu.isOpen) {
+    if (this.liveInput && this.gameMenu.isOpen) {
       const pad = firstGamepad(
         typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'
           ? navigator.getGamepads()
@@ -3580,7 +3582,7 @@ export class App {
       const line = livePadLabel(pad, inputConfig());
       if (line !== this.liveInput.label) {
         this.liveInput.label = line;
-        this.wristMenu.refresh();
+        this.gameMenu.refresh();
       }
     }
   }
