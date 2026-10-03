@@ -162,6 +162,14 @@ export interface SolidBlock {
  * Navigationskarte neu abgetastet: Was man gebaut hat, sollen NPCs auch
  * belaufen können.
  */
+/** Wo die Hand im Weltbau gerade ist (`trackLevel`). */
+const _levelHand = new THREE.Vector3();
+/**
+ * **Wie weit die Hand unter einen Boden reichen darf und ihn trotzdem meint**,
+ * in Metern — wer ein Möbel aufs Dach stellt, hält es knapp darüber, und die
+ * Hand selbst taucht dabei gern ein Stück hinein.
+ */
+const HAND_LEVEL_SLACK = 0.3;
 const _footprintFeet = new THREE.Vector3();
 
 /** Wie oft die Wandtests neu geprüft werden, in Sekunden (`refreshMarks`). */
@@ -435,6 +443,13 @@ export abstract class GridWorld extends PortalWorld {
    * darüber beim Hin- und Hertreten.
    */
   private rigLevel = 0;
+  /**
+   * **Wo nach der Etage gefragt wird** (Meter): am Boden unter dem Rig, im
+   * Weltbau unter der Hand (`trackLevel`, `handLevel`) — für die Feinhöhe
+   * beim Bauen (`buildFloorY`) und ob darüber ein Dach liegt
+   * (`HausbauWorld.underRoof`).
+   */
+  protected readonly levelProbe = { x: 0, z: 0 };
   /**
    * **Die Ebenen des Baukastens** (`levelBar.ts`) — senkrecht am rechten Rand,
    * neben der Werkzeugleiste, immer, wenn sie zu sehen ist — auch mit nur
@@ -3172,12 +3187,46 @@ export abstract class GridWorld extends PortalWorld {
    * jeder, der auf einer Kiste steht, das Stockwerk über sich verliert.
    */
   private trackLevel(ctx: WorldContext): void {
+    this.levelProbe.x = ctx.rig.position.x;
+    this.levelProbe.z = ctx.rig.position.z;
     const graph = this.grid?.graph;
     if (!graph || graph.levels.length < 2) return;
+    // **Im Weltbau zählt die Hand** (`handLevel`) — die Füße stehen auf dem
+    // Boden, von dem man abgehoben hat, und sagen über das Haus darunter nichts.
+    if (ctx.rig.flying && this.buildHandAt(ctx, _levelHand)) {
+      this.levelProbe.x = _levelHand.x;
+      this.levelProbe.z = _levelHand.z;
+      this.rigLevel = this.handLevel(_levelHand.x, _levelHand.y, _levelHand.z);
+      return;
+    }
     const feet = ctx.rig.getFloorY();
     const tile = graph.at(ctx.rig.position.x, ctx.rig.position.z, feet);
     const under = tile === NO_TILE ? this.rigLevel : keyLevel(tile);
     this.rigLevel = levelStep(this.rigLevel, under, feet, graph.levels);
+  }
+
+  /**
+   * **Die Etage unter der Hand** — die oberste, die an dieser Stelle Boden hat
+   * und nicht über der Hand liegt. Gewünscht (Oktober 2026): _„wenn es z. B.
+   * das Dach bei der Hausbau-Welt gibt, aber die Ebene noch keine anderen
+   * Plätze, dann wird das in der Hand auf das nächste Feld unter der Hand
+   * platziert (z. B. auf dem Dach) mit Vorschau."_
+   *
+   * Damit ist die Handhöhe auch der Wechsel der Etage: über dem Dach das
+   * Dach, die Hand ins Haus gesenkt das Zimmer darunter — und die Etagen
+   * darüber blendet die Welt dann aus (`HausbauWorld.cutAbove`), damit man
+   * sieht, wohin man stellt. Liegt nirgends Boden darunter, das Erdgeschoss.
+   */
+  protected handLevel(x: number, y: number, z: number): number {
+    const graph = this.grid?.graph;
+    if (!graph) return 0;
+    const tx = tileIndexAt(x);
+    const tz = tileIndexAt(z);
+    for (let level = graph.levels.length - 1; level > 0; level--) {
+      if (graph.levelY(level) > y + HAND_LEVEL_SLACK) continue;
+      if (graph.has(tileKey(tx, tz, level))) return level;
+    }
+    return 0;
   }
 
   viewLevel(): ViewLevel | null {
@@ -3285,8 +3334,8 @@ export abstract class GridWorld extends PortalWorld {
     const graph = plan?.graph;
     if (!plan || !graph || graph.levels.length < 2) return super.buildFloorY(ctx);
     const key = tileKey(
-      tileIndexAt(ctx.rig.position.x),
-      tileIndexAt(ctx.rig.position.z),
+      tileIndexAt(this.levelProbe.x),
+      tileIndexAt(this.levelProbe.z),
       this.rigLevel,
     );
     // Die Feinhöhe der Kachel (ein Podest) zählt, die einer Stufe nicht.

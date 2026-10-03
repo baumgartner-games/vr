@@ -3989,6 +3989,7 @@ export class PortalWorld implements World {
         x: change.x,
         z: change.z,
         face: change.face,
+        ...(change.level ? { level: change.level } : {}),
       };
       if (this.furnishSpot(spot)) {
         elements += 1;
@@ -4818,7 +4819,15 @@ export class PortalWorld implements World {
       key = changeKey('element');
       this.elementKeys.set(spot.id, key);
     }
-    recordElement(key, spot.element, spot.x, spot.z, spot.face ?? 'S', this.context?.net.world);
+    recordElement(
+      key,
+      spot.element,
+      spot.x,
+      spot.z,
+      spot.face ?? 'S',
+      this.context?.net.world,
+      spot.level ?? 0,
+    );
   }
 
   // --- Zettel (`worlds/notes/`) ----------------------------------------------
@@ -9990,7 +9999,7 @@ export class PortalWorld implements World {
     if (!ctx.rig.flying || !ctx.renderer.xr.isPresenting) return false;
     if (ctx.pointer.hoveringWith(hand)) return false;
     anchor.getWorldPosition(_hand);
-    if (_hand.y - ctx.rig.getFloorY() > ELEMENT_REACH_HEIGHT + this.handMargin) return false;
+    if (_hand.y - this.buildFloorY(ctx) > ELEMENT_REACH_HEIGHT + this.handMargin) return false;
     const target = this.elementLiftTarget(_hand.x, _hand.z);
     if (!target) return false;
     this.handUsed.set(hand, null);
@@ -11400,7 +11409,7 @@ export class PortalWorld implements World {
           const [ix, iz] = key.split(',').map(Number) as [number, number];
           return { x: (ix + 0.5) * CELL, z: (iz + 0.5) * CELL };
         });
-        grid.show(cells, ctx.rig.getFloorY(), MAX_TILES, CELL);
+        grid.show(cells, this.buildFloorY(ctx), MAX_TILES, CELL);
         return;
       }
       grid.show(
@@ -11408,7 +11417,7 @@ export class PortalWorld implements World {
           const [tx, tz] = tile.split(',').map(Number) as [number, number];
           return { x: (tx + 0.5) * TILE, z: (tz + 0.5) * TILE };
         }),
-        ctx.rig.getFloorY(),
+        this.buildFloorY(ctx),
       );
       return;
     }
@@ -11417,7 +11426,7 @@ export class PortalWorld implements World {
     if (this.wallErasers.has(entry)) return;
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long, this.fineTurn);
-    const floorY = ctx.rig.getFloorY();
+    const floorY = this.buildFloorY(ctx);
     // **Was hier schon steht, wird ersetzt** — und leuchtet rot, solange man
     // darüber hält (`wallsUnder`).
     this.markReplaced(this.wallsUnder(entry, pose));
@@ -11435,7 +11444,7 @@ export class PortalWorld implements World {
     // Viertel- oder Dreivierteldrehung mit vertauschten Achsen
     // (`gridSnap.turnedHalf`) — dieselbe, mit der gerade eingerastet wurde.
     const { halfX, halfZ } = turnedHalf(entry.halfExtents, pose.yaw);
-    const floor = ctx.rig.getFloorY();
+    const floor = this.buildFloorY(ctx);
     // **Eine Wand bekommt ihre Kante und keine Kacheln**: Sie steht zwischen
     // zwei Reihen, und eine leuchtende Kachel sagte „hier", wo nichts steht.
     if (pose.wall !== null) {
@@ -12789,6 +12798,24 @@ export class PortalWorld implements World {
    */
   protected buildFloorY(ctx: WorldContext): number {
     return ctx.rig.getFloorY();
+  }
+
+  /**
+   * **Die Hand, die im Weltbau baut** — die, die gerade etwas trägt, sonst die
+   * rechte (`GridWorld.handLevel`). In Weltmetern; `false` ohne Brille oder
+   * ohne getrackte Hand.
+   */
+  protected buildHandAt(ctx: WorldContext, out: THREE.Vector3): boolean {
+    if (!ctx.renderer.xr.isPresenting) return false;
+    let hand: Handedness = 'right';
+    for (const side of this.grabs.keys()) {
+      hand = side;
+      break;
+    }
+    const controller = ctx.input.get(hand);
+    if (!controller?.tracked) return false;
+    gripOf(controller).getWorldPosition(out);
+    return true;
   }
 
   /** Ob das Getragene eine Wand ist — liegt es auf einer Fuge statt auf Kacheln (`wallAxis`). */

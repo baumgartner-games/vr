@@ -51,8 +51,17 @@ export interface ElementSpot {
    * **Wie hoch es steht**, in Metern — die Oberkante der Ablage, auf der es
    * steht (`GameElement.shelf`/`rests`). Ohne Angabe auf dem Boden. Was
    * obenauf steht, sperrt keine Zellen (`spotSolid`): Die sperrt die Ablage.
+   * Die Höhe zählt von null und nicht vom Boden der Etage: Die Oberkante der
+   * Ablage (`PlacedElement.top`) ist schon die ganze Höhe.
    */
   readonly y?: number;
+  /**
+   * **Auf welcher Etage** (`nav/navTile.keyLevel`) — ohne Angabe im
+   * Erdgeschoss. Gesperrt werden die Zellen dieser Etage, gestellt wird auf
+   * ihren Boden (`ElementHost.floorY`). Im Weltbau kommt sie aus der Höhe der
+   * Hand (`GridWorld.handLevel`).
+   */
+  readonly level?: number;
 }
 
 /** Das Element einer Stelle. */
@@ -165,7 +174,7 @@ export function spotCells(spot: ElementSpot): string[] {
   const [w, d] = spotSolid(spot);
   if (w <= 0 || d <= 0) return [];
   const { x, z } = spotCentre(spot);
-  return footprintCellKeys(x, z, w, d);
+  return footprintCellKeys(x, z, w, d, spot.level ?? 0);
 }
 
 /**
@@ -175,7 +184,7 @@ export function spotCells(spot: ElementSpot): string[] {
 export function spotFootprintCells(spot: ElementSpot): string[] {
   const [w, d] = spotSize(spot);
   const { x, z } = spotCentre(spot);
-  return footprintCellKeys(x, z, w, d);
+  return footprintCellKeys(x, z, w, d, spot.level ?? 0);
 }
 
 /**
@@ -332,6 +341,7 @@ export function riderSpot(shelf: ElementSpot, place: RiderPlace, top: number): E
     x: round(centre.x + ox - w / 2),
     z: round(centre.z + oz - d / 2),
     y: top,
+    ...(shelf.level ? { level: shelf.level } : {}),
   };
 }
 

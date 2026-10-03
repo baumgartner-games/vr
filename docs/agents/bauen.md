@@ -107,6 +107,33 @@ gehighlighted wird das möbelstück."_
   (`heldByMode`). Am Boden nicht: Dort fasst die Hand eine Küchenzeile an, um
   ihr etwas zu nehmen.
 
+**Etagen aus der Luft: die Hand sagt, welche** (Oktober 2026). Gewünscht:
+_„Überleg dir wie ich Ebenen wechsel, oder wenn es z. B. das Dach bei
+Hausbau-Welt gibt, aber Ebene noch keine anderen Plätze auf der Ebene, dann
+wird das in der Hand auf das nächste Feld unter der Hand platziert (z. B. auf
+dem Dach) mit Vorschau."_
+
+- **Gebaut wird auf dem obersten Boden unter der Hand**
+  (`GridWorld.handLevel`): die höchste Etage, die an dieser Kachel Boden hat
+  und nicht mehr als 30 cm über der Hand liegt (`HAND_LEVEL_SLACK`) — sonst
+  das Erdgeschoss. Gemessen an der Hand, die trägt, sonst an der rechten
+  (`PortalWorld.buildHandAt`). Im Weltbau ersetzt das die Etage unter den
+  Füßen (`trackLevel` → `rigLevel`), also gilt es für alles, was nach der
+  Bauetage fragt: Vorschau (`updatePlaceGrid` auf `buildFloorY`), Hinstellen,
+  Anheben (`placedAt` nur auf dieser Etage), Wände ziehen.
+- **Das ist zugleich der Etagenwechsel**: Hand über dem Dach — das Dach; Hand
+  ins Haus gesenkt — das Zimmer darunter, und die Etagen darüber blendet der
+  Hausbau aus (`HausbauWorld.underRoof` fragt an `levelProbe`, der Stelle
+  unter der Hand). Keine Leiste und kein Knopf: Man sieht in das Haus, sobald
+  man hineingreift.
+- **Spielelemente kennen Etagen** (`ElementSpot.level`): gesperrt werden die
+  Zellen dieser Etage (`spotCells`), gestellt wird auf ihren Boden
+  (`ElementHost.floorY`), Anker und Teile tragen `userData.level`, damit sie
+  mit der Etage verschwinden. Oben zählt jede Kachel, die die Etage hat
+  (`graph.has`), unten weiter `onGround`. Eine Ablage trägt nur, was auf
+  derselben Etage steht; was darauf steht, erbt ihre Etage. In der Liste der
+  Weltänderungen steht die Etage als `level` (fehlt im Erdgeschoss).
+
 ## In der Brille: was aus dem Katalog kommt, klebt — und ist klein
 
 Gemeldet im Oktober 2026: _„im vr modus einrichten bzw. bauen klappt noch

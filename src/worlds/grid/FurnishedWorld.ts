@@ -259,9 +259,12 @@ export abstract class FurnishedWorld extends GridWorld {
     if (!hasElement(carried.id)) return null;
     const id = carried.from?.id ?? `katalog-${++this.furnished}`;
     const at = spotAround(id, carried.id, x, z, yawFace(yaw));
-    const spot: ElementSpot = carried.from
-      ? { ...grounded(carried.from), x: at.x, z: at.z, face: at.face }
-      : at;
+    // **Auf die Etage, auf der gebaut wird** (`standLevel`) — im Weltbau die
+    // unter der Hand (`GridWorld.handLevel`), etwa das Dach.
+    const spot = onLevel(
+      carried.from ? { ...grounded(carried.from), x: at.x, z: at.z, face: at.face } : at,
+      this.standLevel,
+    );
     return this.furnishSpot(spot, keptStates(carried), carried.riders ?? []) ? spot : null;
   }
 
@@ -336,9 +339,11 @@ export abstract class FurnishedWorld extends GridWorld {
 
   /** Was der Radiergummi an dieser Stelle nähme — oben zuerst, nie den Boden. */
   private erasableAt(x: number, z: number, element?: string): PlacedElement | null {
+    const level = this.standLevel;
     const here = this.placed.filter(
       (one) =>
         spotCovers(one.spot, x, z) &&
+        (one.spot.level ?? 0) === level &&
         !one.element.floor &&
         (element === undefined || one.element.id === element),
     );
@@ -372,8 +377,13 @@ export abstract class FurnishedWorld extends GridWorld {
    */
   private placedAt(x: number, z: number): PlacedElement | null {
     // **Von oben nach unten**: erst was auf einer Ablage steht, dann die
-    // Möbel, zuletzt der Teppich darunter (`GameElement.floor`).
-    const here = this.placed.filter((one) => spotCovers(one.spot, x, z));
+    // Möbel, zuletzt der Teppich darunter (`GameElement.floor`). Und nur auf
+    // der Etage, auf der gebaut wird — nicht das Sofa unter dem Dach, auf das
+    // man gerade zeigt.
+    const level = this.standLevel;
+    const here = this.placed.filter(
+      (one) => spotCovers(one.spot, x, z) && (one.spot.level ?? 0) === level,
+    );
     const rank = (one: PlacedElement): number =>
       (one.spot.y ?? 0) > 0 ? 0 : one.element.floor ? 2 : 1;
     return here.sort((a, b) => rank(a) - rank(b))[0] ?? null;
@@ -396,6 +406,7 @@ export abstract class FurnishedWorld extends GridWorld {
       standing.find(
         (one) =>
           (one.spot.y ?? 0) === 0 &&
+          (one.spot.level ?? 0) === (spot.level ?? 0) &&
           elementById(one.spot.element).shelf === true &&
           spotCovers(one.spot, x, z),
       ) ?? null
@@ -444,9 +455,15 @@ export abstract class FurnishedWorld extends GridWorld {
       );
       return true;
     }
+    // **Oben auf jedem Boden der Etage** (`ElementSpot.level`) — das Dach,
+    // ein Obergeschoss; unten, wo die Welt Boden sagt (`onGround`).
+    const level = flat.level ?? 0;
+    const graph = this.grid?.graph;
     const inside = spotTiles(flat).every((tile) => {
       const [tx, tz] = tile.split(',').map(Number);
-      return this.onGround(tx!, tz!);
+      return level > 0
+        ? (graph?.has(tileKey(tx!, tz!, level)) ?? false)
+        : this.onGround(tx!, tz!);
     });
     if (!inside || !this.cellsFree(spotCells(flat))) return false;
     this.track(
@@ -504,7 +521,8 @@ export abstract class FurnishedWorld extends GridWorld {
    */
   protected elementHost(round = this.elementRound): ElementHost {
     return {
-      blockSolid: (cx, cz, w, d, height) => this.blockSolid(cx, cz, w, d, height),
+      blockSolid: (cx, cz, w, d, height, level) => this.blockSolid(cx, cz, w, d, height, level),
+      floorY: (level) => this.grid?.graph.levelY(level) ?? 0,
       placeModel: (path, at, yaw) => this.placeModel(path, at, yaw),
       measure: (path) => this.measure(path),
       load: (path) => kaykitModel(path),
@@ -757,6 +775,12 @@ function dropMaterials(object: THREE.Object3D): void {
 /** Der Stand der Stationen, den ein umgestelltes Element mitbringt (`liftElementAt`). */
 function keptStates(carried: CarriedElement): readonly StationState[] {
   return Array.isArray(carried.keep) ? (carried.keep as StationState[]) : [];
+}
+
+/** **Eine Stelle auf einer Etage** — im Erdgeschoss ohne Angabe, wie jede Stelle der Pläne. */
+function onLevel(spot: ElementSpot, level: number): ElementSpot {
+  const { level: _was, ...flat } = spot;
+  return level > 0 ? { ...flat, level } : flat;
 }
 
 /**
