@@ -480,6 +480,100 @@ Hutgruppe (`headgearFor`) wieder herausgerechnet. Nach dem Kopfhalbmesser
 geschätzt saß er im großen Kopf der Figur und war unsichtbar. Auf dem gebauten
 Koch wird er wie jeder Hut nach dem Kopf eingepasst.
 
+### Hüte und Köpfe aus den Figuren
+
+**Seit Oktober 2026 kommen Hut und Kopf aus den Figuren des Regals**, und
+zwar getrennt voneinander (`core/figureParts.ts`, `Appearance.face`).
+Gewünscht: _„Generell wären unter hüte bitte alles außer Kochmütze dort zu
+entfernen und dafür hinzuzufügen: Helm des Ritter, Bären Kopf, Magier Hut …"_
+und _„es wäre schön wenn wir von jedem charakter die Hüte und Kopf getrennt
+voneinander customizen können. Haare müssen es nicht sein, es reicht hier als
+leichtere auswahl den Kopf direkt zu nehmen"_.
+
+- **Unter _Hut_** stehen nur noch _Ohne_, die Kochmütze und die Hüte aus dem
+  Regal (`headgear.WARDROBE_HATS`, `figureParts.MODEL_HATS`): Helm des
+  Ritters, Bärenkopf, Magierhut, Helm des Skelett-Kriegers, Dummy-Helm,
+  Kapuze des Skelett-Schurken, Diadem des Nekromanten, Brille des Fahrers,
+  Monsterkostüm, Stirnband der Actionfigur, Helm des Space Rangers (zweimal,
+  siehe unten), Helm des Paladins, Clownshut, Kopf des Kampfroboters,
+  Hexenhut, die Hüte von Helper A und B — und dahinter, was die übrigen
+  Figuren am Kopf tragen (Skelett-Magier, Wanderer, Bauern, Zinnsoldat,
+  Schutz- und Nachtsichtbrillen, Ninja, Masken). Die gebauten Grundkörper
+  (Basecap, Helm, Bauhelm, Mütze, Zylinder, Krone, Raumhelm) bleiben
+  **gültig** (`HEADGEAR_KINDS`) — das Kart leiht den Helm aus, die
+  Raumstation den Raumhelm, und eine ältere Fassung sagt vielleicht noch ein
+  Basecap an —, angeboten werden sie nicht mehr.
+- **Unter _Kopf_** steht _Eigener_ (die Auslieferung) und der Kopf jeder
+  Figur, die in der Liste aus dem Wunsch stand (Waldläufer, Ninja, Space
+  Ranger, Werwolf, Survivalist, Paladin, Clown, Vampir, Schurke) und noch ein
+  paar mehr. Der ganze Kopf, mit Haar: Haare allein liegen in keiner Datei
+  als eigenes Teil.
+- **Die Augenklappe des Survivalists gibt es nicht als Hut** — sie ist kein
+  Teil, sondern in Netz und Textur seines Kopfes gemalt. Wer sie will, nimmt
+  den Kopf des Survivalists. Ebenso _„Schurke Haare"_: Das Haar des Schurken
+  ist sein Kopf und steht deshalb unter _Kopf_.
+
+**Warum jedes Stück auf jede Figur passt.** Die Figuren des mittleren
+Skeletts liegen in Teilen in ihren Dateien (`Knight_Head`, `Knight_Helmet`,
+`Knight_HelmetVisor` …), und jedes Teil am Kopf ist entweder **gehäutet,
+aber ganz an den Knochen `head` gebunden** — nachgemessen an Ritter, Magier,
+Clown, Nekromant und Space Ranger, kein Gewicht auf einem anderen Knochen —
+oder hängt **starr** am Knochen `head` (Clownshut, Sonnenbrille, Helm des
+Skelett-Kriegers, Helm im Flugmodus). In beiden Fällen ist es ein starres
+Stück im Raum des Kopfknochens: Für ein gehäutetes ist das
+`boneInverse · bindMatrix`, für ein starres seine Lage relativ zum Knochen
+(`figurePartModels.extract`, mit Test an einer kleinen gebundenen Figur). Und
+weil alle Figuren desselben Skeletts denselben Kopfknochen haben, sitzt das
+Stück auf jeder von ihnen so, wie es auf seiner eigenen sitzt — ohne
+Halbmesser, ohne Verschiebung (`AvatarBody.fetchFigurePart`). Auf dem
+gebauten Koch und im Regal des Konstrukts wird vom KayKit-Kopf aus
+umgerechnet (`KAYKIT_HEAD`: Mitte 0,5 über dem Knochen, halbe Breite 0,54).
+
+**Was an der Figur weicht** (`AvatarBody.applyFigureHides`, gelesen am Namen
+des Teils, `figureParts.partRegion`): Ein fremder Hut nimmt den eigenen ab —
+ein Ritter mit Magierhut trägt ihn nicht über dem Helm. Ein fremder Kopf
+nimmt den eigenen samt allem, was daran hängt (Helm, Brille, Kapuze, was
+starr am Kopfknochen sitzt). Ausnahme: eine Figur, deren „Hut" ihr Kopf ist
+(`Paladin_with_Helmet` hat unter dem Helm nichts), behält ihn beim
+Hutwechsel, sonst stünde sie kopflos da.
+
+**Geometrie und Material gehören der Vorlage** im Speicher des Regals; jede
+Kopie trägt `userData.sharedAssets`, und das Aufräumen in `AvatarBody`
+(`disposeTree`) hält dort jetzt an — vorher gab es bei jedem Hutwechsel auch
+die Geometrie des geladenen Raumhelms frei, die allen Kopien gehörte.
+
+**Über das Netz** geht der Kopf als optionales Feld `face` im `hello`, geprüft
+mit `asFace`; unbekannt heißt _Eigener_. Die Hüte gehen als `hat` wie
+bisher.
+
+**Der Helm des Space Rangers, zweimal.** _Helm des Space Rangers_ ist der
+Helm, den der Space Ranger im Flugmodus am Kopfknochen trägt
+(`SpaceRanger_FlightMode.glb`, Knoten `SpaceRanger_Helmet` mit Visier). _Helm
+des Space Rangers · Immersiv_ (`figureParts.IMMERSIVE_HAT`) ist für alle
+anderen derselbe Helm — für den Spieler **in der Brille** hängt zusätzlich
+derselbe Helm in Menschengröße **um seinen eigenen Kopf**
+(`core/selfHelmet.ts`). Gewünscht: _„Bei dem Immersive will ich dass der
+charakter des spieler normal den helm auf hat, aber zusätzlich für den VR
+spieler der Helm um ihn herum (nur für ihn sichtbar) getragen wird, sodass es
+das gefühl hat den helm zu tragen. Das könnte ich später wenn ich es getestet
+habe bei Haunting nutzen."_ So ist er gebaut:
+
+- An der Kamera, auf einer eigenen Ebene `LAYER_EYE` (`core/viewLayers.ts`):
+  Spiegel, Portale und die Kamera von oben nehmen sie heraus, und über das
+  Netz geht nur der Hut. Nicht `LAYER_HUD`, weil die HUDs ihre Ebene beim
+  Abbauen an der Kamera ausschalten.
+- Von innen sichtbar: eigene Materialien mit `DoubleSide`, das Visier bleibt
+  durchsichtig (Deckkraft 0,18 statt 0,5 außen).
+- Das Auge steht dort, wo der KayKit-Kopf die Augen hat (`KAYKIT_HEAD.eyeY`),
+  quer in der Mitte; der Helm ist 40 cm breit.
+- Nur in der Brille und nicht beim Zuschauen (`App.step`); am Schirm schaut
+  man von oben.
+- Für die Raumstation reicht später `ctx.wear('flightHelmetImmersive')` —
+  `App.applyAppearance` merkt sich auch einen geliehenen Hut (`lookHat`).
+
+Ansehen: `avatar-preview.html?figure=adventurers/characters/Knight.glb&hat=all`
+und `…&face=all`, oder `npm run avatar -- --figure=… --face=all`.
+
 ## Was vor einem und an der Hand steht (Brille)
 
 In der Brille hängen außer dem Menü (einem Bildschirm zwei Meter vor einem,

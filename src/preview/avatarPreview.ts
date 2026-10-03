@@ -15,7 +15,8 @@
 import * as THREE from 'three';
 import { AvatarBody } from '../core/AvatarBody';
 import { BODY_KINDS, HEAD_KINDS } from '../core/avatarLook';
-import { HEADGEAR_KINDS, buildHeadgear, headgearFor, type HeadgearKind } from '../core/headgear';
+import { WARDROBE_HATS, buildHeadgear, headgearFor, type HeadgearKind } from '../core/headgear';
+import { FACE_KINDS, asFace } from '../core/figureParts';
 import { FIGURE_CHEF, FIGURE_PATHS, asFigure } from '../core/avatarFigures';
 
 const WIDTH = 1600;
@@ -77,6 +78,8 @@ const head = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion()
  */
 const params = new URLSearchParams(location.search);
 const hatChoice = params.get('hat') ?? 'chef';
+/** `?face=all` geht die Köpfe aus dem Regal durch, `?face=ninja` setzt einen. */
+const faceChoice = params.get('face') ?? 'own';
 const walking = params.get('walk') === '1';
 const squish = params.has('squish') ? Number(params.get('squish')) : null;
 const tempo = params.has('tempo') ? Number(params.get('tempo')) : null;
@@ -117,7 +120,8 @@ for (let i = 0; i < count; i++) {
   const body = new AvatarBody({ color: ROLES[i % ROLES.length]!, hands: true });
   body.position.set((i - (count - 1) / 2) * spacing, 0, 0);
   const hat: HeadgearKind =
-    hatChoice === 'all' ? HEADGEAR_KINDS[i % HEADGEAR_KINDS.length]! : (hatChoice as HeadgearKind);
+    hatChoice === 'all' ? WARDROBE_HATS[i % WARDROBE_HATS.length]! : (hatChoice as HeadgearKind);
+  const face = faceChoice === 'all' ? FACE_KINDS[i % FACE_KINDS.length]! : asFace(faceChoice);
   const figure = asFigure(figureList ? figureList[i % figureList.length] : figureChoice);
   wanted.push(figure);
   body.setLook({
@@ -125,6 +129,7 @@ for (let i = 0; i < count; i++) {
     body: BODY_KINDS[i % BODY_KINDS.length]!,
     hat,
     figure,
+    face,
   });
   if (squish !== null && Number.isFinite(squish)) body.squish = squish;
   if (tempo !== null && Number.isFinite(tempo)) body.squishSpeed = tempo;

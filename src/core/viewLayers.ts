@@ -2,6 +2,14 @@ import { LAYER_SELF_ONLY } from './PlayerAvatar';
 import { LAYER_HUD } from '../ui/ScoreHud';
 
 /**
+ * **Was nur das Auge selbst sieht und kein HUD ist** — der Helm um den
+ * eigenen Kopf (`core/selfHelmet.ts`). Eine eigene Ebene und nicht
+ * `LAYER_HUD`, weil die HUDs ihre Ebene beim Abbauen an der Kamera wieder
+ * ausschalten (`ScoreHud.detach`) und den Helm dabei mitnähmen.
+ */
+export const LAYER_EYE = 5;
+
+/**
  * Die Ebenenmaske für jede Sicht, die **nicht das Auge selbst** ist.
  *
  * Zwei Ebenen liegen quer zur normalen Sicht, und beide aus demselben Grund:
@@ -18,5 +26,5 @@ import { LAYER_HUD } from '../ui/ScoreHud';
  * Körper an, und das fiele erst in der Brille auf.
  */
 export function viewLayers(mask: number): number {
-  return (mask | (1 << LAYER_SELF_ONLY)) & ~(1 << LAYER_HUD);
+  return (mask | (1 << LAYER_SELF_ONLY)) & ~(1 << LAYER_HUD) & ~(1 << LAYER_EYE);
 }

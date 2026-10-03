@@ -6,7 +6,13 @@ import {
   onAppearanceChange,
   saveAppearance,
 } from './appearance';
-import { HEADGEAR_KINDS, HEADGEAR_LABELS, asHeadgear, nextHeadgear } from './headgear';
+import {
+  HEADGEAR_KINDS,
+  HEADGEAR_LABELS,
+  WARDROBE_HATS,
+  asHeadgear,
+  nextHeadgear,
+} from './headgear';
 import { readFileSync } from 'node:fs';
 import {
   FIGURE_CHEF,
@@ -33,6 +39,7 @@ describe('wie man aussieht', () => {
       head: 'round',
       body: 'white',
       figure: FIGURE_DEFAULT,
+      face: 'own',
     });
     // Wer den Koch noch gespeichert hat oder ansagt, läuft als Mannequin herum.
     expect(clampAppearance({ figure: FIGURE_CHEF }).figure).toBe(FIGURE_DEFAULT);
@@ -56,6 +63,7 @@ describe('wie man aussieht', () => {
       head: 'beard',
       body: 'striped',
       figure: FIGURE_DEFAULT,
+      face: 'own',
     });
   });
 
@@ -63,10 +71,32 @@ describe('wie man aussieht', () => {
     for (const kind of HEADGEAR_KINDS) expect(HEADGEAR_LABELS[kind]).toBeTruthy();
   });
 
-  it('schaltet die Kopfbedeckungen im Kreis weiter', () => {
-    let kind = HEADGEAR_KINDS[0]!;
-    for (let i = 0; i < HEADGEAR_KINDS.length; i++) kind = nextHeadgear(kind);
-    expect(kind).toBe(HEADGEAR_KINDS[0]);
+  it('schaltet die Kopfbedeckungen der Umkleide im Kreis weiter', () => {
+    let kind = WARDROBE_HATS[0]!;
+    for (let i = 0; i < WARDROBE_HATS.length; i++) kind = nextHeadgear(kind);
+    expect(kind).toBe(WARDROBE_HATS[0]);
+    // Ein Hut, den sie nicht anbietet — geliehen oder von früher —, führt an
+    // den Anfang und nicht ins Leere.
+    expect(nextHeadgear('cap')).toBe(WARDROBE_HATS[0]);
+  });
+
+  it('bietet unter Hut nur noch die Kochmütze und die Hüte aus dem Regal an', () => {
+    expect(WARDROBE_HATS.slice(0, 2)).toEqual(['none', 'chef']);
+    for (const gone of ['cap', 'helmet', 'hardhat', 'beanie', 'tophat', 'crown', 'space']) {
+      expect(WARDROBE_HATS).not.toContain(gone);
+      // Gültig bleiben sie: Kart und Raumstation leihen sie aus.
+      expect(asHeadgear(gone)).toBe(gone);
+    }
+    expect(WARDROBE_HATS).toContain('knightHelmet');
+    expect(WARDROBE_HATS).toContain('flightHelmetImmersive');
+  });
+
+  it('nimmt einen Kopf aus dem Regal an und macht aus Unsinn den eigenen', () => {
+    expect(clampAppearance({ face: 'ninja' }).face).toBe('ninja');
+    expect(clampAppearance({ face: 'schnabel' as never }).face).toBe('own');
+    expect(appearanceSummary({ ...DEFAULT_APPEARANCE, face: 'ninja', hat: 'mageHat' })).toBe(
+      'Mannequin · Kopf: Ninja · Magierhut',
+    );
   });
 
   it('kennt die Kochmütze — sie ist das Vorbild', () => {

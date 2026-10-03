@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { HEADGEAR_KINDS, buildHeadgear, type HeadgearKind } from '../core/headgear';
 import { kaykitModelNow } from '../core/kaykitModel';
+import { MODEL_HATS, asFace, facePart, isModelHat } from '../core/figureParts';
+import { figurePartNow } from '../core/figurePartModels';
 import { OUTFIT_PREVIEW } from './outfitMenu';
 
 /**
@@ -13,6 +15,9 @@ import { OUTFIT_PREVIEW } from './outfitMenu';
  * trägt. Die Kachel schreibt das Ergebnis ab und skaliert es auf ihre Größe
  * (`menuMiniature`), also wird hier jedes Mal frisch gebaut und nichts
  * gehalten.
+ *
+ * **Hüte und Köpfe aus dem Regal** kommen wie die Figuren (`figurePartNow`,
+ * `null` heißt „noch nicht") und schauen wie diese schon nach +z.
  */
 export function outfitModel(id: string): THREE.Object3D | null {
   if (!id.startsWith(OUTFIT_PREVIEW)) return null;
@@ -22,6 +27,11 @@ export function outfitModel(id: string): THREE.Object3D | null {
   const slot = rest.slice(0, cut);
   const value = rest.slice(cut + 1);
   if (slot === 'figure') return kaykitModelNow(value);
+  if (slot === 'face') {
+    const part = facePart(asFace(value));
+    return part ? figurePartNow(part) : null;
+  }
+  if (slot === 'hat' && isModelHat(value)) return figurePartNow(MODEL_HATS[value]);
   if (slot !== 'hat' || !HEADGEAR_KINDS.includes(value as HeadgearKind)) return null;
   // _Ohne_ hat kein Modell — die Kachel zeigt dann ihre Ikone.
   const hat = buildHeadgear(value as HeadgearKind);

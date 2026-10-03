@@ -32,6 +32,9 @@ if (args.has('walk')) query.set('walk', '1');
 // eine einzelne Figur aus dem Regal in jede Spalte (`core/avatarFigures.ts`).
 // Damit sieht man die Höhenregel und den Sitz der Mütze auf einem fremden Kopf.
 if (args.has('figure')) query.set('figure', args.get('figure'));
+// `--face=all` geht die Köpfe aus dem Regal durch, `--face=ninja` setzt einen
+// (`core/figureParts.ts`).
+if (args.has('face')) query.set('face', args.get('face'));
 const url =
   args.get('url') ?? `http://127.0.0.1:5173/avatar-preview.html${query.size ? `?${query}` : ''}`;
 const out = path.resolve(args.get('out') ?? '.artifacts/avatar');
@@ -59,6 +62,8 @@ await page.waitForFunction(() => Boolean(window.previewDraw), null, { timeout: 3
 await page
   .waitForFunction(() => window.previewDressed?.() ?? true, null, { timeout: 15000 })
   .catch(() => console.warn('Kein Modell — die gebaute Figur steht auf dem Bogen.'));
+// Hüte und Köpfe aus dem Regal kommen nach der Figur (`core/figurePartModels.ts`).
+await page.waitForTimeout(Number(args.get('settle') ?? 2000));
 const views = await page.evaluate(() => window.previewViews);
 for (let i = 0; i < views.length; i++) {
   await page.evaluate((index) => window.previewDraw(index), i);

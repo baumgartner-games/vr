@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { HEAD_RADIUS, HEAD_SPREAD } from './avatarLook';
 import { CHEF_HAT_SEAT, chefHatVertices } from './chefHat';
 import { canLoadModels } from './chefFit';
+import {
+  KAYKIT_HEAD,
+  MODEL_HAT_KINDS,
+  MODEL_HATS,
+  isModelHat,
+  type ModelHatKind,
+} from './figureParts';
 
 /**
  * **Was man auf dem Kopf trägt** — die erste Sorte Kleidung in diesem Projekt.
@@ -55,10 +62,23 @@ import { canLoadModels } from './chefFit';
  * beim Hals zum Beispiel —, ist genau diese Differenz noch dazuzugeben.
  */
 
-/** Was es zu tragen gibt. `none` ist ausdrücklich einer davon. */
-export type HeadgearKind =
+/** Die gebauten Kopfbedeckungen — Grundkörper und die Kochmütze. */
+export type BuiltHeadgearKind =
   'none' | 'chef' | 'cap' | 'helmet' | 'hardhat' | 'beanie' | 'tophat' | 'crown' | 'space';
 
+/**
+ * Was es zu tragen gibt. `none` ist ausdrücklich einer davon — und seit
+ * Oktober 2026 die Hüte aus den Figuren des Regals (`core/figureParts.ts`).
+ */
+export type HeadgearKind = BuiltHeadgearKind | ModelHatKind;
+
+/**
+ * **Alles, was gültig ist** — gespeichert, angesagt oder von einer Welt
+ * geliehen. Die gebauten Grundkörper bleiben darin, obwohl die Umkleide sie
+ * nicht mehr anbietet (`WARDROBE_HATS`): Das Kart setzt den Helm auf
+ * (`ctx.wear('helmet')`), die Raumstation den Raumhelm, und eine ältere
+ * Fassung im Raum sagt vielleicht noch ein Basecap an.
+ */
 export const HEADGEAR_KINDS: readonly HeadgearKind[] = [
   'none',
   'chef',
@@ -68,12 +88,20 @@ export const HEADGEAR_KINDS: readonly HeadgearKind[] = [
   'beanie',
   'tophat',
   'crown',
-  // Hinten angehängt: Die Reihenfolge ist die im Menü, und was schon
-  // gespeichert ist, soll dasselbe bleiben.
+  // Hinten angehängt: Was schon gespeichert ist, soll dasselbe bleiben.
   'space',
+  ...MODEL_HAT_KINDS,
 ];
 
-export const HEADGEAR_LABELS: Record<HeadgearKind, string> = {
+/**
+ * **Was die Umkleide anbietet**: barhäuptig, die Kochmütze und die Hüte aus
+ * dem Regal. Gewünscht: _„unter hüte bitte alles außer Kochmütze dort zu
+ * entfernen und dafür hinzuzufügen"_ — Helm des Ritters, Bärenkopf, Magierhut
+ * und so weiter (`figureParts.MODEL_HATS`).
+ */
+export const WARDROBE_HATS: readonly HeadgearKind[] = ['none', 'chef', ...MODEL_HAT_KINDS];
+
+const BUILT_LABELS: Record<BuiltHeadgearKind, string> = {
   none: 'Ohne',
   chef: 'Kochmütze',
   cap: 'Basecap',
@@ -85,7 +113,7 @@ export const HEADGEAR_LABELS: Record<HeadgearKind, string> = {
   space: 'Raumhelm',
 };
 
-export const HEADGEAR_SUBS: Record<HeadgearKind, string> = {
+const BUILT_SUBS: Record<BuiltHeadgearKind, string> = {
   none: 'Barhäuptig — so war es immer',
   chef: 'Hoch, weiß, mit Wulst — das Vorbild',
   cap: 'Schirm nach vorn',
@@ -97,13 +125,32 @@ export const HEADGEAR_SUBS: Record<HeadgearKind, string> = {
   space: 'Der Helm des Space Rangers — aus dem KayKit-Regal',
 };
 
+export const HEADGEAR_LABELS: Readonly<Record<HeadgearKind, string>> = {
+  ...BUILT_LABELS,
+  ...(Object.fromEntries(MODEL_HAT_KINDS.map((kind) => [kind, MODEL_HATS[kind].label])) as Record<
+    ModelHatKind,
+    string
+  >),
+};
+
+export const HEADGEAR_SUBS: Readonly<Record<HeadgearKind, string>> = {
+  ...BUILT_SUBS,
+  ...(Object.fromEntries(MODEL_HAT_KINDS.map((kind) => [kind, MODEL_HATS[kind].sub])) as Record<
+    ModelHatKind,
+    string
+  >),
+};
+
 /** Der Helm des Space Rangers (`space`), aus dem Regal. */
 export const SPACE_HELMET = 'mystery-monthly-4/7-january-2024-space-ranger/SpaceRanger_Helmet.glb';
 
-/** Die nächste Kopfbedeckung, oben wieder von vorn. */
+/**
+ * Die nächste Kopfbedeckung der Umkleide (`WARDROBE_HATS`), oben wieder von
+ * vorn. Ein Hut, den sie nicht anbietet, führt an den Anfang.
+ */
 export function nextHeadgear(kind: HeadgearKind): HeadgearKind {
-  const index = HEADGEAR_KINDS.indexOf(kind);
-  return HEADGEAR_KINDS[(index + 1) % HEADGEAR_KINDS.length]!;
+  const index = WARDROBE_HATS.indexOf(kind);
+  return WARDROBE_HATS[(index + 1) % WARDROBE_HATS.length]!;
 }
 
 /** Ob eine Zeichenkette eine Kopfbedeckung benennt — alles andere ist `none`. */
@@ -247,6 +294,16 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
   if (kind === 'none') return null;
   const group = new THREE.Group();
   group.name = `headgear-${kind}`;
+  if (isModelHat(kind)) {
+    // **Ein Hut aus dem Regal** kommt nach, umgerechnet vom KayKit-Kopf auf
+    // diesen (`fitModelHat`). Auf einer Figur aus dem Regal nimmt ihn
+    // `AvatarBody` gar nicht von hier, sondern hängt ihn direkt an ihren
+    // Kopfknochen — hier landet er nur auf dem gebauten Koch und im Regal des
+    // Konstrukts. Bis dahin, und ohne die gekauften Pakete für immer, ist die
+    // Gruppe leer.
+    if (canLoadModels()) void fitModelHat(group, kind);
+    return group;
+  }
 
   switch (kind) {
     case 'chef': {
@@ -432,6 +489,36 @@ async function fitSpaceHelmet(group: THREE.Group, stand: THREE.Object3D): Promis
   model.traverse((object) => (object.layers.mask = group.layers.mask));
   group.add(model);
   stand.visible = false;
+}
+
+/**
+ * **Einen Hut aus dem Regal auf den gebauten Kopf setzen.**
+ *
+ * Das Stück steht im Raum des KayKit-Kopfknochens (`figurePartModels.ts`);
+ * dessen Kopf hat seine Mitte `KAYKIT_HEAD.centerY` über dem Knochen und
+ * `KAYKIT_HEAD.radius` halbe Breite. Also: auf diesen Kopf skalieren, die
+ * Mitte auf die Mitte, und einmal umdrehen — KayKit schaut nach +Z, dieser
+ * Kopf nach −Z.
+ */
+export async function loadModelHat(kind: ModelHatKind): Promise<THREE.Object3D | null> {
+  const { loadFigurePart } = await import('./figurePartModels');
+  const part = await loadFigurePart(MODEL_HATS[kind]);
+  if (!part) return null;
+  const k = HEAD_RADIUS / KAYKIT_HEAD.radius;
+  const holder = new THREE.Group();
+  holder.name = `model-hat-${kind}`;
+  part.scale.setScalar(k);
+  part.position.y = -KAYKIT_HEAD.centerY * k;
+  holder.rotation.y = Math.PI;
+  holder.add(part);
+  return holder;
+}
+
+async function fitModelHat(group: THREE.Group, kind: ModelHatKind): Promise<void> {
+  const hat = await loadModelHat(kind);
+  if (!hat) return;
+  hat.traverse((object) => (object.layers.mask = group.layers.mask));
+  group.add(hat);
 }
 
 /**
