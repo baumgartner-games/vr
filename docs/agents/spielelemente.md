@@ -798,10 +798,41 @@ keep)`): Der Topf bleibt auf dem Herd, die Tomate auf dem Brett, die Uhren
   (`furnishBack`). In der Liste der Weltänderungen ändert das Umstellen
   dieselbe Zeile (`elementKeys`). Mit der Pipette (_Kopieren_) gibt `E` über
   einem Element ein frisches desselben. Beim _Spielen_ bleibt `E` die Küche.
-- **Grenzen:** Abreißen und _Rückgängig_ gibt es für Elemente noch nicht,
+- **Grenzen:** _Rückgängig_ gibt es für Elemente noch nicht,
   Umstellen nur als Kran am Schirm (in der Brille bleibt es beim Alten), und
   wie die Modelle aus dem Regal übersteht ein Element kein Neuladen — wer es
   behalten will, kopiert die Liste. Es geht auch nicht über die Leitung.
+
+## Der Radiergummi: Elemente löschen
+
+Gewünscht (Oktober 2026): _„bei katalog ein radiergummi […] mit welchem ich
+elemente löschen kann (nicht den boden) beim radiergummi kann ich den
+gegenstand dann interagieren und es wird entfernt (welt änderungen
+tracking)"_. Die Kachel **Radiergummi** steht im Katalog vor allen Ordnern
+(nur in Welten, die Elemente löschen können, `canEraseElements`), mit dem
+Verbotszeichen wie _Wand abreißen_. In der Hand ist es der Mülleimer
+(`ELEMENT_ERASER`, einen Radiergummi hat das Regal nicht).
+
+- **Ein Druck löscht, was darunter steht** (`PortalWorld.eraseUnder`) — als
+  Kran die Stelle unter dem Kran, sonst die Stelle in der Hand. Das Ziel
+  leuchtet vorher (`eraserTarget`). Mit weg geht, was darauf steht; den Boden
+  (`GameElement.floor`) nimmt er nicht (`FurnishedWorld.eraseElementAt`).
+- **Er bleibt in der Hand** und wird nie hingestellt; weg kommt er mit
+  _Kran leeren_. In der Brille löscht er beim Loslassen und ist dann weg.
+- **Weltänderungen**: Ein selbst hingestelltes Element verliert seine Zeile.
+  Eines, das die Welt selbst hinstellt, bekommt eine Zeile mit `"gone": true`
+  (`recordElementGone`); eingefügt radiert sie es wieder weg.
+
+## Der Schutzschrank: sich verstecken
+
+Der Spind aus _Haunting_ (`prototype-bits/Locker.glb`) steht im Katalog unter
+_Weltraum → Versorgung_ (`spaceCatalog.SPACE_LOCKER`). Gewünscht: _„aus
+haunting den locker (schrank) in welchem man sich verstecken kann bitte auch
+in katalog bekommen (gerne auch unter weltall)"_. `opens: 'hide'`: `A` steigt
+hinein (`PortalWorld.hideIn`) — man steht in der Mitte, schaut zur Tür hinaus,
+der Schrank wird von innen durchsichtig, Laufen geht nicht. Jeder Druck
+steigt wieder aus, vor die Tür. Anders als in der Station sucht hier kein
+Monster; es ist nur das Verstecken.
 
 ## Was `A` daran tut: die Stationsschicht
 

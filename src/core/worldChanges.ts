@@ -110,6 +110,13 @@ export interface ElementChange {
   readonly face: 'N' | 'E' | 'S' | 'W';
   /** In welcher Welt es steht. */
   readonly world?: string;
+  /**
+   * **Weggeradiert** — ein Element, das die Welt selbst hinstellt, ist mit dem
+   * Radiergummi entfernt worden (`PortalWorld.eraseElement`). Die Zeile sagt
+   * dann, was an dieser Stelle **nicht mehr** steht. Ein selbst
+   * hingestelltes Element verliert stattdessen einfach seine Zeile.
+   */
+  readonly gone?: true;
 }
 
 export type WorldChange = FurnitureChange | ModelChange | NoteChange | ElementChange;
@@ -301,6 +308,29 @@ export function recordElement(
   save();
 }
 
+/** **Ein Element der Welt ist weggeradiert worden** (`ElementChange.gone`) — nur mit Häkchen. */
+export function recordElementGone(
+  key: string,
+  element: string,
+  x: number,
+  z: number,
+  face: 'N' | 'E' | 'S' | 'W',
+  world?: string,
+): void {
+  load();
+  if (!tracking) return;
+  changes.set(key, {
+    kind: 'element',
+    element,
+    x,
+    z,
+    face,
+    ...(world ? { world } : {}),
+    gone: true,
+  });
+  save();
+}
+
 /**
  * **Ein Zettel ist hingestellt, umgestellt oder neu beschriftet worden.**
  *
@@ -390,7 +420,7 @@ export function formatChanges(list: readonly WorldChange[], view?: PlayerView): 
     `Weltänderungen · ${list.length} · ` +
     'kitchen: [x, z, Drehung] in Kacheln relativ zur Küche (wie KITCHEN_SPOTS, Drehung 0=N 1=W 2=S 3=O) · ' +
     'model: [x, y, z] in Weltmetern, yaw in Grad · note: ein Zettel mit Text, Lage wie model · ' +
-    'element: ein Spielelement, x/z die Kachel der Nordwestecke, face die Vorderseite (wie SPOTS) · ' +
+    'element: ein Spielelement, x/z die Kachel der Nordwestecke, face die Vorderseite (wie SPOTS), gone: weggeradiert · ' +
     'world: die Welt, in der es steht';
   // **Die Zettel noch einmal zum Lesen**, vor dem JSON: Sie sind das, was ein
   // Mensch dem Leser sagen wollte, und sollen nicht zwischen Koordinaten
@@ -519,7 +549,8 @@ function parseRow(row: unknown): WorldChange | null {
     const face = data.face === undefined ? 'S' : data.face;
     if (face !== 'N' && face !== 'E' && face !== 'S' && face !== 'W') return null;
     const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
-    return { kind: 'element', element: data.element, x, z, face, ...world };
+    const gone = data.gone === true ? { gone: true as const } : {};
+    return { kind: 'element', element: data.element, x, z, face, ...world, ...gone };
   }
   if (typeof data.model === 'string' || typeof data.note === 'string') {
     const at = numbers(data.at, 3);
@@ -593,7 +624,15 @@ function toRow(change: WorldChange): unknown {
   }
   const world = change.world ? { world: change.world } : {};
   if (change.kind === 'element') {
-    return { element: change.element, x: change.x, z: change.z, face: change.face, ...world };
+    const gone = change.gone ? { gone: true } : {};
+    return {
+      element: change.element,
+      x: change.x,
+      z: change.z,
+      face: change.face,
+      ...world,
+      ...gone,
+    };
   }
   const at = [change.at.x, change.at.y, change.at.z];
   return change.kind === 'note'
