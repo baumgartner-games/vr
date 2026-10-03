@@ -35,8 +35,6 @@ describe('Grafikeinstellungen', () => {
       mode: 'simple',
       xrScale: 1,
       showFps: false,
-      // Das Menü in der Brille als Ebene des Kompositors: ab Werk an.
-      menuLayer: true,
       gridLines: false,
       // Die belegten Felder der Figuren sind eine Werkstattansicht: ab Werk aus.
       cellFootprints: false,
