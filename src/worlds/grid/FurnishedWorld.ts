@@ -300,6 +300,10 @@ export abstract class FurnishedWorld extends GridWorld {
     };
   }
 
+  protected override elementLiftTarget(x: number, z: number): THREE.Object3D | null {
+    return this.placedAt(x, z)?.anchor ?? null;
+  }
+
   protected override canEraseElements(): boolean {
     return true;
   }

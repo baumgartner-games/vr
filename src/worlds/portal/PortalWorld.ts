@@ -337,6 +337,7 @@ import {
   flightDuration,
   flightPosition,
   atHandGrip,
+  GRAB_MARGIN,
   handsTooClose,
   nearZoneDistance,
   pickAimTarget,
@@ -1231,6 +1232,13 @@ const ELEMENT_CELLS = 'element-cells:';
  */
 const ELEMENT_HOLD = Math.PI;
 
+/**
+ * **Bis zu welcher Höhe über dem Boden eine Hand ein stehendes Element
+ * anfasst** (`reachElement`), in Metern — der Körper jedes Spielelements ist
+ * 1,40 m hoch (`elements/*Catalog`, `BODY`), dazu kommt der Greifzuschlag.
+ */
+const ELEMENT_REACH_HEIGHT = 1.4;
+
 /** Das Bodenstück eines Elements, gewendet (`ELEMENT_HOLD`), als getragenes Modell. */
 function heldElement(model: THREE.Object3D): THREE.Object3D {
   const holder = new THREE.Group();
@@ -1411,6 +1419,18 @@ export class PortalWorld implements World {
    * können etwas tragen.
    */
   private readonly handShrunk = new Map<PhysicsBody, THREE.Vector3>();
+  /**
+   * **Wie weit eine Hand von einem Ding weg sein darf und es trotzdem
+   * anfasst** (`grabReach.reachDepth`), je Bild aus der Größe des Gestells
+   * (`updateGrabs`): am Boden der feste Zuschlag, im Weltbau mal zehn.
+   */
+  private handMargin = GRAB_MARGIN;
+  /**
+   * **Das stehende Element, an dem eine Hand im Weltbau gerade liegt**
+   * (`reachElement`) — sein Anker leuchtet (`showUse`), die Hand öffnet sich
+   * (`updateHandGestures`).
+   */
+  private readonly handLift = new Map<Handedness, THREE.Object3D>();
   /**
    * **Wie groß das ist, was die Bildschirmhand trägt** — halbe Ausdehnung,
    * gemessen beim Zugreifen.
@@ -4289,6 +4309,15 @@ export class PortalWorld implements World {
    * keines.
    */
   protected liftElementAt(_x: number, _z: number): CarriedElement | null {
+    return null;
+  }
+
+  /**
+   * **Was an dieser Stelle (Meter) zum Umstellen leuchtet** — der Anker des
+   * Elements, das `liftElementAt` hier aufheben würde (`reachElement`). Hier:
+   * keines.
+   */
+  protected elementLiftTarget(_x: number, _z: number): THREE.Object3D | null {
     return null;
   }
 
@@ -9462,6 +9491,11 @@ export class PortalWorld implements World {
   private updateGrabs(dt: number, ctx: WorldContext): void {
     const reachable = new Set<PhysicsBody>();
     this.locked.clear();
+    this.handLift.clear();
+    // **Im Weltbau ist die Hand ein Riese** (`PlayerRig.startFlight`): Sie ist
+    // so viel größer wie das Gestell, und ihr Greifzuschlag wächst mit — sonst
+    // müsste der Mittelpunkt einer meterbreiten Faust genau im Möbel stecken.
+    this.handMargin = GRAB_MARGIN * (ctx.rig.flying ? ctx.rig.scale.x : 1);
     this.readNearZone(ctx);
     this.readHandUseAims(ctx);
     // **Ein Druck, eine Wirkung**: Zwei Hände können auf demselben Knopf
@@ -9604,6 +9638,7 @@ export class PortalWorld implements World {
 
   /** Alles, was eine Hand an Reichweite angezeigt hatte, wieder abräumen. */
   private dropReach(ctx: WorldContext, hand: Handedness): void {
+    this.handLift.delete(hand);
     this.dropLink(hand);
     this.hideRope(hand);
     this.hideGhost(hand);
@@ -9729,7 +9764,7 @@ export class PortalWorld implements World {
         if (!grabReaches(reach, _handFeet, _handSpot)) continue;
       }
       const inputs = vrInputs(entry.usable.interaction);
-      const depth = reachDepth(target, _hand);
+      const depth = reachDepth(target, _hand, this.handMargin);
       if (depth !== null) {
         _handFinds.push({ item: entry.object, reach: 'touch', distance: depth, kind, inputs });
         continue;
@@ -9858,6 +9893,14 @@ export class PortalWorld implements World {
       this.hideRope(hand);
     }
 
+    // **Im Weltbau gehen die stehenden Möbel vor** (`reachElement`): Ihr
+    // Bodenstück ist auch ein Körper, und die Hand soll das ganze Element
+    // nehmen und nicht das nackte Modell darunter.
+    if (this.reachElement(ctx, controller, hand, anchor)) {
+      this.hideRope(hand);
+      this.hideGhost(hand);
+      return;
+    }
     const aim = this.aimGrab(controller, anchor, usable);
     if (!aim) {
       this.hideRope(hand);
@@ -9918,6 +9961,54 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Im Weltbau ein stehendes Möbel mit der Hand anfassen** — gewünscht:
+   * _„wenn die Hand nahe eines Möbelstücks ist, dass ich dieses mit der Hand
+   * wie beim Grab angedeutet wird grabbar zu sein und gehighlighted wird das
+   * Möbelstück."_
+   *
+   * Ein hingestelltes Spielelement ist kein Gegenstand der Physik, sondern
+   * gehört der Welt (`FurnishedWorld.placed`) — `findProp` sieht es nicht,
+   * und am Schirm hebt es nur der Kran an (`liftElementUnderCrane`). Hier
+   * dasselbe für die Riesenhand: Steht sie über seiner Grundfläche und nicht
+   * höher als sein Körper (`ELEMENT_REACH_HEIGHT` plus Greifzuschlag),
+   * leuchtet sein Saum, die Hand öffnet sich, und der Grip nimmt es auf —
+   * samt allem, was darauf steht, und mit seiner Drehung. Losgelassen wird
+   * wie bei einem Stück aus dem Katalog: Grip auf stellt hin.
+   *
+   * Nur im Weltbau: Am Boden liegt die Hand an einer Küchenzeile, um ihr eine
+   * Tomate zu nehmen, und nicht, um sie umzustellen.
+   *
+   * @returns ob die Hand an einem Element liegt (dann ist sie damit fertig)
+   */
+  private reachElement(
+    ctx: WorldContext,
+    controller: ControllerState,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+  ): boolean {
+    this.handLift.delete(hand);
+    if (!ctx.rig.flying || !ctx.renderer.xr.isPresenting) return false;
+    if (ctx.pointer.hoveringWith(hand)) return false;
+    anchor.getWorldPosition(_hand);
+    if (_hand.y - ctx.rig.getFloorY() > ELEMENT_REACH_HEIGHT + this.handMargin) return false;
+    const target = this.elementLiftTarget(_hand.x, _hand.z);
+    if (!target) return false;
+    this.handUsed.set(hand, null);
+    this.handPicks.set(hand, null);
+    ctx.hands.setGlow(hand, true);
+    if (!controller.squeeze.justPressed) {
+      this.handLift.set(hand, target);
+      return true;
+    }
+    const lifted = this.liftElementAt(_hand.x, _hand.z);
+    if (!lifted) return true;
+    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') - ELEMENT_HOLD : null;
+    void this.conjureModel(ctx, elementById(lifted.id).parts[0]!.model, hand, yaw, null, lifted);
+    controller.pulse(0.5, 30);
+    return true;
+  }
+
+  /**
    * Welcher Gegenstand, und in welcher Reichweite.
    *
    * Zuerst die Hand selbst: steckt sie in einer Greifbox, ist das die Antwort,
@@ -9931,7 +10022,7 @@ export class PortalWorld implements World {
     usable: boolean,
   ): GrabAim | null {
     anchor.getWorldPosition(_hand);
-    const touched = this.findProp(_hand);
+    const touched = this.findProp(_hand, this.handMargin);
     if (touched) {
       // Ein festgestelltes Ding im Schwebekasten wird nicht angefasst: die
       // Faust, die man zum Messen darum schließt, ist dieselbe Geste wie
@@ -10103,7 +10194,11 @@ export class PortalWorld implements World {
         // **In der Faust kleiner** (`shrinkInHand`) — und um die Faust herum
         // kleiner, nicht um die Mitte des Dings: Wer eine Tischkante packt,
         // hält danach die kleine Tischkante und nicht Luft daneben.
-        const factor = this.shrinkInHand(grab.entry);
+        // **Nicht im Weltbau**: Dort ist man selbst zehnmal so groß, und ein
+        // Tisch in echter Größe liegt in der Riesenhand wie ein Modell — so
+        // groß, wie er gleich in der Welt steht.
+        const factor = ctx.rig.flying ? 1 : this.shrinkInHand(grab.entry);
+        if (ctx.rig.flying) this.unshrinkInHand(grab.entry);
         if (factor < 1) {
           anchor.getWorldPosition(_hand);
           _point.sub(_hand).multiplyScalar(factor).add(_hand);
@@ -13455,11 +13550,11 @@ export class PortalWorld implements World {
    * Closest prop whose grab box contains the point. The box is the collider
    * plus a fixed margin, so a small domino is as easy to catch as a big cube.
    */
-  private findProp(position: THREE.Vector3): PhysicsBody | null {
+  private findProp(position: THREE.Vector3, margin = GRAB_MARGIN): PhysicsBody | null {
     let best: PhysicsBody | null = null;
     let bestDepth = Number.POSITIVE_INFINITY;
     for (const entry of this.props) {
-      const depth = reachDepth(aimTargetOf(entry), position);
+      const depth = reachDepth(aimTargetOf(entry), position, margin);
       if (depth !== null && depth < bestDepth) {
         best = entry;
         bestDepth = depth;
@@ -13550,9 +13645,14 @@ export class PortalWorld implements World {
         ctx.hands.setGestureOverride(hand, 'ready');
         continue;
       }
+      // An einem stehenden Möbel im Weltbau genauso (`reachElement`).
+      if (this.handLift.has(hand)) {
+        ctx.hands.setGestureOverride(hand, 'ready');
+        continue;
+      }
       if (reachable.size > 0 && controller.tracked) {
         gripOf(controller).getWorldPosition(_hand);
-        ctx.hands.setGestureOverride(hand, this.findProp(_hand) ? 'ready' : null);
+        ctx.hands.setGestureOverride(hand, this.findProp(_hand, this.handMargin) ? 'ready' : null);
         continue;
       }
       ctx.hands.setGestureOverride(hand, null);
@@ -14517,6 +14617,9 @@ export class PortalWorld implements World {
   private heldByMode(entry: PhysicsBody): boolean {
     const stance = this.stances.get(entry);
     if (!stance || stance === 'loose' || this.shelfFresh.has(entry)) return false;
+    // Ein **umgestelltes Element** ist schon gegriffen worden — vom Kran oder
+    // im Weltbau von der Hand (`reachElement`), auch im Spielmodus.
+    if (this.elementBodies.has(entry)) return false;
     const mode = gameMode();
     return stance === 'structure' ? !movesStructure(mode) : !movesFurniture(mode);
   }
@@ -15221,8 +15324,8 @@ export class PortalWorld implements World {
       // den Körper entfällt dabei mit Absicht: Er ist die Auskunft für die
       // Figur und nicht für eine Hand, und eine leere Hand soll in dieser
       // Betriebsart auch leer aussehen.
-      const first = this.handShows('left', view);
-      const second = this.handShows('right', view);
+      const first = this.handLift.get('left') ?? this.handShows('left', view);
+      const second = this.handLift.get('right') ?? this.handShows('right', view);
       this.highlighter.highlight(first);
       // Zeigen beide auf **dasselbe** Ding, leuchtet es einmal: Zwei Hüllen um
       // dasselbe Netz geben keinen zweiten Saum, sondern einen doppelt dicken.
@@ -15231,6 +15334,8 @@ export class PortalWorld implements World {
       // **Mit dem Radiergummi leuchtet, was er löschen würde** (`eraseUnder`).
       const shown =
         this.eraserTarget(ctx) ??
+        this.handLift.get('right') ??
+        this.handLift.get('left') ??
         (this.useInteraction?.interactive && chosen
           ? highlightOf(chosen.usable, chosen.object)
           : null);
