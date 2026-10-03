@@ -148,7 +148,7 @@ export class XRMenu extends THREE.Group {
   private readonly tabs: boolean;
   private readonly aside: { pages: (page: string) => boolean; card: XRPlayerCard } | null;
   /** Das Menü als Ebene des Kompositors (`useLayer`) — oder `null`, dann Textur. */
-  private layer: { layer: XRMenuLayer; enabled: () => boolean } | null = null;
+  private layer: XRMenuLayer | null = null;
   private root: MenuEntry[] = [];
   private rootTitle = 'Menü';
   /** Ob **Greifen** auf der obersten Seite auch auswählt — ein Regal tut das. */
@@ -288,12 +288,11 @@ export class XRMenu extends THREE.Group {
 
   /**
    * **Schärfer in der Brille**: das Panel als Quad-Ebene des Kompositors
-   * zeigen (`XRMenuLayer`), solange `enabled` es erlaubt — eine Einstellung
-   * unter Grafik.
+   * zeigen (`XRMenuLayer`) — immer, wo die Brille WebXR Layers kann.
    */
-  useLayer(renderer: THREE.WebGLRenderer, camera: THREE.Camera, enabled: () => boolean): void {
-    this.layer?.layer.dispose();
-    this.layer = { layer: new XRMenuLayer(renderer, camera, this.panel), enabled };
+  useLayer(renderer: THREE.WebGLRenderer, camera: THREE.Camera): void {
+    this.layer?.dispose();
+    this.layer = new XRMenuLayer(renderer, camera, this.panel);
   }
 
   /** (Re-)registers the menu with the pointer, e.g. after a world switch. */
@@ -481,7 +480,7 @@ export class XRMenu extends THREE.Group {
     this.updatePreviews(dt);
     this.updateAside();
 
-    this.layer?.layer.update(this.open && this.layer.enabled());
+    this.layer?.update(this.open);
 
     this.updateCaption();
     if (this.caption.visible) {
@@ -574,7 +573,7 @@ export class XRMenu extends THREE.Group {
   dispose(): void {
     this.unwatchNav();
     this.clearPreviews();
-    this.layer?.layer.dispose();
+    this.layer?.dispose();
     this.pointer.remove(this.panel);
     this.panel.dispose();
     this.caption.dispose();
