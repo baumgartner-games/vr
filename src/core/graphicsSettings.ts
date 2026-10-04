@@ -36,6 +36,7 @@
  */
 
 import { TOP_DOWN_TILT, clampTilt } from './topDownPose';
+import { DEFAULT_WEATHER, clampWeather, type WeatherSettings } from './weather';
 
 const KEY = 'bgvr.graphics';
 
@@ -133,7 +134,11 @@ export function nextWallOcclusion(mode: WallOcclusion): WallOcclusion {
   return WALL_OCCLUSIONS[(WALL_OCCLUSIONS.indexOf(mode) + 1) % WALL_OCCLUSIONS.length]!;
 }
 
-export interface GraphicsSettings {
+/**
+ * Die drei Wetter-Felder (`weatherFog`, `weatherTime`, `weatherFilter`) stehen
+ * in `core/weather.ts` — Nebel, Tageszeit und Filter über dem fertigen Bild.
+ */
+export interface GraphicsSettings extends WeatherSettings {
   mode: GraphicsMode;
   /**
    * **Wie groß die Brille ihr Bild rechnet**, als Anteil dessen, was sie
@@ -687,6 +692,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   topDownTilt: TOP_DOWN_TILT,
   tiltDrag: false,
   dropPhysics: true,
+  ...DEFAULT_WEATHER,
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -936,6 +942,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     tiltDrag: raw.tiltDrag === true,
     // Ab Werk an: „kenne ich nicht" heißt an, nur ein ausdrückliches Aus ist aus.
     dropPhysics: raw.dropPhysics !== false,
+    // Ein Stand von gestern kennt kein Wetter und bekommt keines.
+    ...clampWeather(raw),
   };
 }
 
