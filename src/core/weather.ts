@@ -86,15 +86,18 @@ export interface WeatherSettings {
   weatherFog: WeatherFog;
   weatherTime: WeatherTime;
   weatherFilter: WeatherFilter;
-  /** Ob Laternen und Ampeln leuchten (`core/StreetLights.ts`). */
+  /** Der Hauptschalter aller Lampen (`core/Lamps.ts`). */
   streetLights: StreetLightMode;
 }
 
 /**
- * **Laternen und Ampeln** — `auto` (ab Werk) leuchtet am Abend und in der
- * Nacht, `on` immer, `off` nie. Gewünscht: _„bei den Laternen das entsprechend
- * einstellen, dass diese bei Tageszeit automatisch leuchten. Die Laternen und
- * Ampeln sollen alle ein Licht haben können."_
+ * **Der Hauptschalter aller Lampen** (`core/Lamps.ts`, `lamps/lampBehaviour.lampBurns`).
+ * `auto` (ab Werk): Jede Lampe tut, was an ihr eingestellt ist — ab Werk heißt
+ * das, sie geht am Abend und in der Nacht an. `on`: Was bei Nacht brennen
+ * würde, brennt auch am Tag. `off`: Alles bleibt dunkel. Gewünscht zuerst: _„bei
+ * den Laternen das entsprechend einstellen, dass diese bei Tageszeit
+ * automatisch leuchten. Die Laternen und Ampeln sollen alle ein Licht haben
+ * können."_
  */
 export type StreetLightMode = 'auto' | 'on' | 'off';
 export const STREET_LIGHT_MODES = ['auto', 'on', 'off'] as const;
@@ -104,21 +107,12 @@ export const STREET_LIGHT_LABELS: Readonly<Record<StreetLightMode, string>> = {
   off: 'Aus',
 };
 export const STREET_LIGHT_SUBS: Readonly<Record<StreetLightMode, string>> = {
-  auto: 'Leuchten am Abend und in der Nacht, am Tag aus',
-  on: 'Leuchten immer, auch am Tag',
-  off: 'Leuchten nie',
+  auto: 'Jede Lampe wie eingestellt · ab Werk an bei Abend und Nacht',
+  on: 'Was bei Nacht brennt, brennt auch am Tag',
+  off: 'Alle Lampen bleiben dunkel',
 };
 export function nextStreetLightMode(mode: StreetLightMode): StreetLightMode {
   return STREET_LIGHT_MODES[(STREET_LIGHT_MODES.indexOf(mode) + 1) % STREET_LIGHT_MODES.length]!;
-}
-
-/** **Ob Laternen und Ampeln jetzt leuchten** — automatisch nach der Tageszeit. */
-export function streetLightsLit(
-  settings: Pick<WeatherSettings, 'streetLights' | 'weatherTime'>,
-): boolean {
-  if (settings.streetLights === 'on') return true;
-  if (settings.streetLights === 'off') return false;
-  return settings.weatherTime !== 'day';
 }
 
 /** Ab Werk: kein Wetter — wer nichts einstellt, sieht das Bild von vorher. */
