@@ -10,8 +10,7 @@ import {
   type DayMode,
   type DaySettings,
 } from '../../core/dayClock';
-import { lampsInScene, type LampInstance } from '../../core/Lamps';
-import type { Usable } from '../../core/usable';
+import { lampsInScene } from '../../core/Lamps';
 import { gameMode, movesFurniture } from '../../core/gameMode';
 import { INSPECT_PAGE, inspectRows, inspectTitle, type InspectTarget } from './inspectMenu';
 import { lampBook, type WorldLamps } from '../../core/lamps/lampBook';
@@ -2980,7 +2979,6 @@ export abstract class GridWorld extends PortalWorld {
       ctx.menu.openSubmenu(SIGN_PAGE);
     }
     this.stepInspect(ctx);
-    this.stepLampUses(dt);
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -3325,7 +3323,6 @@ export abstract class GridWorld extends PortalWorld {
     this.unbindInspect?.();
     this.unbindInspect = null;
     this.inspecting = null;
-    this.lampUses.clear();
     lampBook.release(this);
     // **Wer die Welt verlässt, während die Karte noch draußen ist**, hat nicht
     // aufgehört zu bauen — er ist woandershin gegangen. Ungefragt gespeichert
@@ -3445,6 +3442,12 @@ export abstract class GridWorld extends PortalWorld {
         state: (lamp) => lampsInScene()?.state(lamp) ?? null,
         notify: (message) => ctx?.notify(message),
         closeMenu: () => ctx?.menu.toggle(false),
+        swapOf: (spot) => this.swapOf(spot),
+        swap: (spot) => {
+          this.inspecting = null;
+          this.swapAt(spot);
+          this.context?.refreshWorldMenu();
+        },
       }),
     };
   }
@@ -3482,6 +3485,14 @@ export abstract class GridWorld extends PortalWorld {
     ctx.refreshWorldMenu();
     return true;
   }
+
+  /** **Die nächste Fassung** des Elements an dieser Stelle — hier keine (`FurnishedWorld`). */
+  protected swapOf(_spot: string): string | null {
+    return null;
+  }
+
+  /** **Das Element an dieser Stelle tauschen** — hier nichts (`FurnishedWorld`). */
+  protected swapAt(_spot: string): void {}
 
   /** Das nächste Spielelement, dessen Kasten der Strahl schneidet. */
   private pickElement(
@@ -3584,60 +3595,6 @@ export abstract class GridWorld extends PortalWorld {
       canvas.removeEventListener('pointerup', cancelHold, true);
       canvas.removeEventListener('pointercancel', cancelHold, true);
       canvas.removeEventListener('mousedown', mouse, true);
-    };
-  }
-
-  // --- Lampen im Spiel antippen ----------------------------------------------
-
-  /** Welche Lampen als benutzbar angemeldet sind — Hülle → Schlüssel. */
-  private readonly lampUses = new Map<THREE.Object3D, string>();
-  private lampUseSince = Number.POSITIVE_INFINITY;
-
-  /**
-   * **Schaltbare Lampen anmelden** (`LampType.switchable`: Wohnungslampen,
-   * Kerzen, Fackeln, kleine Laternen) — einmal die Sekunde gegen die Lampen
-   * der Szene abgeglichen. Gewünscht: _„wie eine Tisch Lampe die man manuell
-   * an und aus schalten will"_.
-   */
-  private stepLampUses(dt: number): void {
-    this.lampUseSince += dt;
-    if (this.lampUseSince < 1) return;
-    this.lampUseSince = 0;
-    const lamps = lampsInScene();
-    if (!lamps) return;
-    const seen = new Set<THREE.Object3D>();
-    for (const lamp of lamps.instances()) {
-      if (!lamp.type.switchable) continue;
-      seen.add(lamp.object);
-      if (this.lampUses.get(lamp.object) === lamp.key) continue;
-      this.addUsable(lamp.object, this.lampUsable(lamp));
-      this.lampUses.set(lamp.object, lamp.key);
-    }
-    for (const object of [...this.lampUses.keys()]) {
-      if (seen.has(object)) continue;
-      this.removeUsable(object);
-      this.lampUses.delete(object);
-    }
-  }
-
-  /**
-   * **Ein Druck legt die Lampe um** — beim _Spielen_; im Einrichten gehört der
-   * Trigger dem Element-Menü. Umgelegt heißt: Sie bekommt den Betrieb
-   * _Schalter_ und die Stellung, die sie gerade nicht hat. Das steht im Buch
-   * und damit in der Weltdatei — wer das Licht anlässt, findet es an.
-   */
-  private lampUsable(lamp: LampInstance): Usable {
-    const burns = (): boolean => lampsInScene()?.state(lamp).burns ?? false;
-    return {
-      aimOnly: true,
-      use: () => {
-        if (movesFurniture(gameMode())) return false;
-        const on = !burns();
-        lampBook.setLamp(lamp.key, { mode: 'switch', on });
-        this.context?.notify(`${lamp.type.label} ${on ? 'an' : 'aus'}`);
-        return true;
-      },
-      usePrompt: () => `${lamp.type.label} ${burns() ? 'ausschalten' : 'einschalten'}`,
     };
   }
 

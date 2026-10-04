@@ -36,14 +36,21 @@ import { disposeTree } from '../shared/environment';
  *    ist ×1,5, und in diesem Hochspringen dann in der Luft drehen, sodass es
  *    beim Runterfallen am Ende korrekt wieder liegen bleibt."_
  *
- * Die Schwerkraft wächst mit dem Gestell (`PlayerRig.scale`): Im Weltbau ist
- * man zehnmal so groß, und eine Kiste, die aus „einem Meter" Hand fällt, fällt
- * in der Welt zehn — sie soll trotzdem so schnell unten sein, wie es für den
- * Riesen aussieht.
+ * **Gemächlich, nicht echt** — gemeldet: _„Die sprung animation der
+ * gegenstände wenn ich diese fallen lasse ist zu schnell, das hochspringen und
+ * drehen kann ruhig langsamer passieren, muss nicht mit echter gravitation
+ * passieren, aktuell bekomme ich davon kaum was mit."_ Der Fall rechnet mit
+ * knapp halber Erdschwere (`FALL_GRAVITY`), die im Weltbau nur mit der Wurzel
+ * des Gestells wächst (zehnfach groß: gut dreifach so schnell) und nicht mit
+ * ihm selbst — vorher war eine Kiste aus „einem Meter" Hand dort in einer
+ * knappen halben Sekunde unten. Der Sprung danach hat eine **feste Dauer**
+ * (`HOP_TIME`), unabhängig von jeder Schwerkraft: hoch, drehen, liegen.
  */
 
-/** Erdbeschleunigung, m/s² — mal der Größe des Gestells. */
-const GRAVITY = 9.81;
+/** Die Schwere des Falls, m/s² — knapp die halbe Erde; mal der Wurzel der Größe des Gestells. */
+const FALL_GRAVITY = 4.4;
+/** Wie lange der Sprung nach dem Aufprall dauert, in Sekunden — hoch, drehen, liegen. */
+const HOP_TIME = 1.15;
 /** Wie schnell der Fall auf den Platz einlenkt, je Sekunde. */
 const STEER = 7;
 /** Wie viel Drall je Sekunde verloren geht (Luft). */
@@ -55,7 +62,7 @@ const FLIP_BELOW = Math.PI / 2;
 /** Höchster Drall, rad/s. */
 const MAX_SPIN = 4.5;
 /** So lange darf es höchstens dauern — dann steht es, wo es steht. */
-const MAX_TIME = 3;
+const MAX_TIME = 6;
 /** Darunter lohnt kein Fall: kaum Höhe und kaum Drehung. */
 const MIN_DROP = 0.04;
 const MIN_TURN = 0.05;
@@ -130,7 +137,7 @@ export class FallMotion {
   /** Um welche Achse die ganze Runde im Sprung geht — keine, wenn sie nicht nötig ist. */
   private readonly flipAxis = new THREE.Vector3();
   private flip = 0;
-  private hopSpeed = 0;
+  private hopHeight = 0;
   private hopTime = 0;
   private hopLength = 0;
   private phase: 'fall' | 'hop' | 'done' = 'fall';
@@ -147,7 +154,7 @@ export class FallMotion {
     private readonly random: () => number = Math.random,
   ) {
     const scale = Math.max(1, rigScale);
-    this.gravity = GRAVITY * scale;
+    this.gravity = FALL_GRAVITY * Math.sqrt(scale);
     this.position.copy(start.position);
     this.quaternion.copy(start.quaternion);
     this.velocity.copy(start.velocity);
@@ -246,17 +253,17 @@ export class FallMotion {
   }
 
   /**
-   * **Der Aufprall wird ein Sprung**: so hoch wie das Stück mal `HOP`, mit der
-   * Schwerkraft des Falls — hoch und wieder herunter in `2·v/g`.
+   * **Der Aufprall wird ein Sprung**: so hoch wie das Stück mal `HOP`, hoch und
+   * wieder herunter in `HOP_TIME` — eine Parabel nach der Zeit, nicht nach
+   * der Schwerkraft.
    */
   private startHop(): void {
     this.phase = 'hop';
     this.hopFrom.copy(this.quaternion);
     this.hopAt.copy(this.position);
     this.hopTime = 0;
-    const height = HOP * 2 * extentY(this.half, this.end.quaternion);
-    this.hopSpeed = Math.sqrt(2 * this.gravity * Math.max(0.01, height));
-    this.hopLength = (2 * this.hopSpeed) / this.gravity;
+    this.hopHeight = Math.max(0.01, HOP * 2 * extentY(this.half, this.end.quaternion));
+    this.hopLength = HOP_TIME;
     // Liegt es schon fast richtig, dreht es eine ganze Runde dazu — um eine
     // waagerechte Achse, quer zu der Richtung, in die es noch rutscht.
     this.flip = 0;
@@ -285,8 +292,7 @@ export class FallMotion {
     this.position.z = this.hopAt.z + (this.end.position.z - this.hopAt.z) * u;
     // Die Wurfparabel sitzt auf der tiefsten Ecke: Was sich im Sprung dreht,
     // taucht dabei nicht in den Boden ein.
-    const t = u * this.hopLength;
-    const lift = Math.max(0, this.hopSpeed * t - 0.5 * this.gravity * t * t);
+    const lift = this.hopHeight * 4 * u * (1 - u);
     this.position.y = this.floor + extentY(this.half, this.quaternion) + lift;
     if (u >= 1) this.finish();
   }

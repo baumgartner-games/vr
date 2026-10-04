@@ -951,6 +951,28 @@ die Vorlage aussieht: Laternen und Fenster, die nachts **wirklich** leuchten —
 das braucht Lichter oder leuchtende Materialien in den Welten, nicht den
 Durchgang.
 
+### Wetter und Lichter in der Brille, auch im Weltbau
+
+Gemeldet, im Weltbau mit der Brille: _„im weltbaumodus ist das lichter
+überkrass hell, bitte fixen, Auch klappt der nebel dort nicht."_ Zwei Ursachen:
+
+- **Lichter im Maßstab des Gestells** (`core/viewLights.ts`): Im Weltbau ist
+  das Gestell zehnfach groß (`PlayerRig.startFlight`), und three.js rechnet
+  Licht in Metern der Kamera — jede Entfernung zu einem Punktlicht ist dort ein
+  Zehntel, das Licht also hundertfach so hell und zehnfach so weit. `App.frame`
+  rechnet deshalb für das eine Bild **alle** Punkt- und Spotlichter der Szene um
+  (Stärke durch s², Reichweite durch s) und stellt sie danach zurück — auch die
+  der Station und die Taschenlampe. Der Schein der Lampen misst seine Größe in
+  Metern der Kamera (`Lamps`, `length(modelViewMatrix[0])`), sonst wüchse auch
+  er zehnfach.
+- **Wetter ohne Durchgang** (`core/weatherXr.ts`): In der Brille gibt es den
+  Durchgang über den ganzen Schirm nicht. Dort wird es **Nacht über die
+  Belichtung** (`toneMappingExposure` nach der Helligkeit der Tageszeit; der
+  Schein der Lampen ist heller als 1 und bleibt) und **Nebel als
+  `THREE.FogExp2`** in der Farbe des Wetter-Nebels — mit der Entfernung statt
+  am Boden liegend, die Dichte mal dem Maßstab des Gestells. Eine Welt mit
+  eigenem Nebel (Hub, Station) behält ihren; der Filter fehlt in der Brille.
+
 ### Tageslauf: wie der Tag in einer Welt voranschreitet
 
 Gewünscht: _„Restaurant-Runde, die von selbst Abend wird, bitte auch. Ggf. bei

@@ -113,11 +113,15 @@ varying vec3 vGlow;
 void main() {
   vGlow = glow;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  // Die Größe in Metern der Kamera: Im Weltbau ist das Gestell zehnfach groß,
+  // und ein Meter der Welt ist dort ein Zehntel — ohne das wüchse der Schein
+  // um das Zehnfache.
+  float view = size * length(modelViewMatrix[0].xyz);
   // Ein Stück zur Kamera hin: Die Leuchte sitzt im Gehäuse oder im Glas, und
   // das verdeckte den Schein sonst.
-  mv.xyz += normalize(-mv.xyz) * size * inset;
+  mv.xyz += normalize(-mv.xyz) * view * inset;
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = size * projectionMatrix[1][1] * pixels / max(0.1, -mv.z);
+  gl_PointSize = view * projectionMatrix[1][1] * pixels / max(0.001, -mv.z);
 }
 `;
 
@@ -576,6 +580,7 @@ export class Lamps {
       light.position.copy(one.at);
       const peak = Math.max(one.color[0], one.color[1], one.color[2]);
       light.color.setRGB(one.color[0] / peak, one.color[1] / peak, one.color[2] / peak);
+      // Im Weltbau der Brille gleicht die App den Maßstab aus (`viewLights.ts`).
       light.intensity = one.strength;
       light.distance = one.range * 2.5;
     });
