@@ -1241,31 +1241,55 @@ Building mit Ghost-Straßen."_
   `roadBrushOf`): jede Gerade aus dem Katalog _Stadt → Straßen_ (Laternen,
   alte Laternen, Doppellaternen, ohne, Allee, Zebrastreifen), frisch genommen
   und nicht umgestellt. In jedem Modus, am Schirm und in der Brille.
-- **Punkte sind Zellen von 12 × 12 m** (`roadNetwork.ROAD_CELL`, ein
-  Straßenstück; die Zelle (cx, cz) beginnt bei cx·12, cz·12). Gemeint ist die
-  Zelle unter dem Getragenen (`carriedSpot`). Der erste Druck setzt den
-  Start — am Schirm Klick, `E` oder `A`, in der Brille `A`/`X` der Faust, die
-  die Straße hält —, der zweite baut (`pressRoad` → `FurnishedWorld.commitRoad`).
-  Gezogen wird gerade, entlang der Achse, auf der der Zug weiter ging
-  (`roadLine`). Einzeln losgelassen wird sie ein Stück mit den richtigen
-  Anschlüssen (`placedElement`). Im _Baukasten_ bleibt sie in der Hand, sonst
-  ist die Hand danach leer.
-- **Welches Teil, sagen die Nachbarn** (`roadNetwork.roadPiece`): keiner
-  oder einer gegenüber — Gerade, zwei über Eck — Ecke, drei — Einmündung,
-  vier — Kreuzung. Gebaut wird jede Zelle der Linie und jede Nachbarzelle,
-  deren Teil sich dadurch ändert (`planRoad`): Aus der Einmündung am Rand wird
-  die Kreuzung, aus dem Ende einer Straße die Ecke. Ein ersetztes Teil behält
-  seine Id und damit seine Zeile in der Liste der Weltänderungen. Die
-  Laternen gehören zu den Teilen und stehen deshalb immer richtig.
-- **Die Art** gilt für Gerade und Ecke; Einmündung und Kreuzung haben ihre
-  Ampeln. Wer eine vorhandene Straße mit einer anderen Art überzieht, baut sie
-  um — so wird aus der Straße mit Laternen eine Allee. Welche Art eine Zelle
-  hat, merkt sich die Welt (`roadStyles`), damit eine Ecke, die später wieder
-  zur Geraden wird, ihre Laternen behält. Einzelne Laternen tauscht weiter `A`
-  an der Laterne.
+- **Eine Straße ist ein Band** von 12 m Breite (`roadNetwork.RoadNet`,
+  `ROAD_WIDTH`), waagerecht oder senkrecht, auf Kacheln genau. Gewünscht:
+  _„dass Straßen bzw. Kreuzungen nicht genau eine Straßenbreite entfernt sind,
+  sondern ggf. auch mal kürzer bzw. statt 12 Felder ggf. auch nur 1–11 Felder
+  auseinander liegen können"_. Das Netz einer Etage kommt aus den stehenden
+  Teilen (`RoadNet.fromPieces`), die gezogene Linie wird ein Band dazu
+  (`roadLineBand`: gerade, auf der Achse, auf der der Zug weiter ging, an
+  beiden Enden eine halbe Breite länger), und daraus alle Teile neu
+  (`roadPieces`). Gesetzt und genommen wird nur, was sich unterscheidet
+  (`planRoad`, `pieceKey`); was geht, verliert seine Zeile in der Liste der
+  Weltänderungen (`recordErased`), was kommt, bekommt eine.
+- **Der Punkt ist die Stelle unter dem Getragenen** (`carriedSpot`), gefangen
+  (`snapRoadPoint`) — wie in _Cities: Skylines_ gewünscht: _„ein Snap-Grid-
+  Modus (also auf ganze 12 Felder) oder auch teilweise, damit wir nicht eine
+  Manhattan-Stadt haben"_. **Raster** (ab Werk) fängt auf die Mitte eines
+  12-m-Stücks, **frei** auf jede Kachel; umgeschaltet mit `G`, in der Brille
+  mit dem Stick der Hand, die die Straße hält (`toggleRoadSnap`). In beiden
+  Fällen fängt eine Straße, die schon dort liegt, wenn man weniger als eine
+  halbe Breite neben ihre Mitte zielt — so endet die neue genau auf ihr, und
+  es wird eine Einmündung statt eines Stummels daneben.
+- **Drücken**: Der erste Druck setzt den Start — am Schirm Klick, `E` oder
+  `A`, in der Brille `A`/`X` der Faust, die die Straße hält —, der zweite baut
+  (`pressRoad` → `FurnishedWorld.commitRoad`). Einzeln losgelassen wird sie
+  ein Stück mit den richtigen Anschlüssen (`placedElement`). Im _Baukasten_
+  bleibt sie in der Hand, sonst ist die Hand danach leer.
+- **Welches Teil**: Wo ein waagerechtes und ein senkrechtes Band einander ganz
+  decken, ist ein Knoten; seine Nachbarn sagen, was er ist (`nodePiece`): zwei
+  über Eck — Ecke, drei — Einmündung, vier — Kreuzung (geht es nur in einer
+  Achse weiter, gehört das Quadrat der Geraden). Dazwischen liegen Geraden
+  von 12 m, am Ende eines Laufs gleicher Art eine kürzere von 1–11 m
+  (`shortStraight`, `cityCatalog.shortRoads`). Die Laternen gehören zu den
+  Teilen und stehen deshalb immer richtig.
+- **Gesperrt** ist eine Linie, unter der kein Boden ist, auf der etwas anderes
+  als Straße steht (ein Haus, ein Park), oder die eine Straße schief
+  überdeckt — parallel weniger als eine Breite daneben, oder quer, ohne sie
+  ganz zu decken (`roadOverlaps`). Dann liegt ein rotes Band da, und gebaut
+  wird nichts.
+- **Die Art** — Laternen, alte Laternen, Doppellaternen, ohne, Allee,
+  Zebrastreifen — ist die der Straße in der Hand, umzustellen beim Ziehen mit
+  `T`, in der Brille mit dem Trigger der Hand, die sie hält
+  (`cycleRoadStyle`; gefragt war: _„beim Baumodus, dass ich gefragt werde,
+  welcher Typ Straße es sein soll"_). Die Wahl gilt, solange dasselbe Element
+  gezogen wird, auch nach dem Nachfüllen. Sie gilt für Gerade und Ecke;
+  Einmündung und Kreuzung haben ihre Ampeln. Wer eine vorhandene Straße mit
+  einer anderen Art überzieht, baut sie um. Einzelne Laternen tauscht weiter
+  `A` an der Laterne.
 - **Die Geist-Straße** (`showRoadPlan`): Jedes Teil, das der Plan setzen
   würde, steht durchscheinend an seiner Stelle (`elementModel`, Materialien
-  mit 55 % Deckkraft), ein Teil, das es ersetzt, ist so lange ausgeblendet.
+  mit 55 % Deckkraft), ein Teil, das er nimmt, ist so lange ausgeblendet.
   Vor dem Start zeigt sie das eine Stück unter dem Getragenen, samt der
   Kreuzung, die es machen würde. Das Kachelgitter des Hinstellens schweigt
   dabei (`updatePlaceGrid`).

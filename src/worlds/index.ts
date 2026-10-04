@@ -116,14 +116,14 @@ export const WORLDS: WorldDefinition[] = [
   },
   {
     id: 'test-city',
-    title: 'Kleine Stadt',
+    title: 'Stadt',
     tagline: 'Straßen, Ampeln und Häuser aus dem Katalog',
     description:
-      'Eine kleine Stadt nur aus dem Katalogordner „Stadt“: vier Häuserblöcke, in jedem zwei Reihen Rücken an Rücken, rundherum Straßen mit Ecken, Einmündungen, einer Kreuzung in der Mitte, Zebrastreifen und Ampeln, dazu Parks und ein Platz. Mit einer Straße aus dem Katalog zieht man neue Straßen wie in Cities: Skylines — Kreuzungen und Laternen setzen sich selbst.',
+      'Eine Stadt nur aus dem Katalogordner „Stadt“: fünf Straßen von West nach Ost, dazwischen Blöcke von 19 bis 84 m Breite mit Häusern Rücken an Rücken, Gärten und Parks; die Querstraßen enden versetzt als Einmündungen, damit es kein Schachbrett ist. Mit einer Straße aus dem Katalog zieht man neue Straßen wie in Cities: Skylines — auf das Raster von 12 m oder frei, Kreuzungen und Laternen setzen sich selbst.',
     accent: 0x8fb7d9,
     preview: 'worlds/test-city.webp',
-    // Das ganze Raster von oben, Rand bis Rand.
-    topDownSpan: 132,
+    // Die ganze Stadt von oben, Rand bis Rand.
+    topDownSpan: 200,
     roles: ['vr', 'desktop', 'handheld'],
     test: true,
     folder: 'test',

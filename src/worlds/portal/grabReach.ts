@@ -134,11 +134,7 @@ export function rayReach(target: AimTarget, origin: Vec3, direction: Vec3): numb
  * How deep a point sits inside a target's grab box, or null when it is outside.
  * Smaller means "more inside", which makes picking the nearest one trivial.
  */
-export function reachDepth(
-  target: AimTarget,
-  point: Vec3,
-  margin = GRAB_MARGIN,
-): number | null {
+export function reachDepth(target: AimTarget, point: Vec3, margin = GRAB_MARGIN): number | null {
   _local.x = point.x - target.position.x;
   _local.y = point.y - target.position.y;
   _local.z = point.z - target.position.z;
