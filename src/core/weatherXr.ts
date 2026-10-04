@@ -13,10 +13,15 @@ import type { WeatherLook } from './weather';
  * - **Nacht** über die Belichtung (`renderer.toneMappingExposure`): dunkler
  *   nach der Helligkeit der Tageszeit. Was selbst leuchtet — der Schein der
  *   Lampen ist heller als 1 — bleibt sichtbar.
- * - **Nebel** als `THREE.FogExp2` in der Farbe des Wetter-Nebels. Liegt nicht
- *   am Boden wie am Schirm, sondern wächst mit der Entfernung — dafür in jedem
- *   Material, ohne eigenen Shader. Eine Welt mit eigenem Nebel (Hub, Station)
- *   behält ihren.
+ * - **Nebel** als `THREE.Fog` (linear) in der Farbe des Wetter-Nebels. Liegt
+ *   nicht am Boden wie am Schirm, sondern wächst mit der Entfernung — dafür in
+ *   jedem Material, ohne eigenen Shader. Wie am Schirm ist es um einen herum
+ *   klar und wird nach ein paar Metern dicht: am Boden ab 3 m, voll nach 30 m
+ *   (Spuk) bis 60 m (Dunst); im Weltbau beginnt er erst unter einem, bei der
+ *   halben Augenhöhe, und reicht um anderthalb Augenhöhen weiter. Zuerst war es ein `FogExp2`, der mit dem Quadrat der
+ *   Entfernung wächst — gemeldet: _„Wenn ich im vr Modus unten auf der Straße
+ *   bin habe ich keinen Nebel?"_ (auf 10 m kaum acht Prozent). Eine Welt mit
+ *   eigenem Nebel (Hub, Station) behält ihren.
  *
  * - **Der Himmel** (`shared/environment.createSky`) zeichnet mit eigenem
  *   Shader ohne Belichtung — seine zwei Farben werden deshalb selbst getönt:
@@ -26,11 +31,14 @@ import type { WeatherLook } from './weather';
  *
  * **Im Weltbau ist das Gestell zehnfach groß** (`PlayerRig.startFlight`), und
  * three.js rechnet den Nebel in den Metern der Kamera — ein Meter der Welt ist
- * dort ein Zehntel. Die Dichte geht deshalb mit dem Maßstab (`scale`).
+ * dort ein Zehntel. Die Abstände werden deshalb durch den Maßstab geteilt.
  */
 
-/** Wie dicht der Nebel je Meter ist, bei voller Stärke des Wetter-Nebels. */
-const FOG_DENSITY = 0.045;
+/** Bis wohin es um einen herum klar bleibt, in Metern — mindestens, und als Anteil der Augenhöhe. */
+const FOG_CLEAR = 3;
+const FOG_CLEAR_EYE = 0.5;
+/** Wie viele Meter der Nebel bis ganz dicht braucht — geteilt durch seine Stärke. */
+const FOG_SPAN = 18;
 const _fog = new THREE.Color();
 /** Die Belichtung, die die App ohne Wetter setzt (`App`, `toneMappingExposure`). */
 export const BASE_EXPOSURE = 1.05;
@@ -42,7 +50,7 @@ interface SkyColors {
 }
 
 export class WeatherXr {
-  private fog: THREE.FogExp2 | null = null;
+  private fog: THREE.Fog | null = null;
   private dimmed = false;
   /** Der Himmel der Welt und seine Farben von vorher — `null`: keiner gefunden. */
   private sky: SkyColors | null = null;
@@ -58,6 +66,7 @@ export class WeatherXr {
     renderer: THREE.WebGLRenderer,
     look: WeatherLook | null,
     scale: number,
+    eye: number,
   ): void {
     if (!look) {
       this.clear(scene, renderer);
@@ -76,9 +85,16 @@ export class WeatherXr {
     }
     // Eine Welt mit eigenem Nebel behält ihn.
     if (scene.fog && !ours) return;
-    const fog = (this.fog ??= new THREE.FogExp2(0x000000, 0));
+    // In Metern der Welt gerechnet, in Metern der Kamera gesetzt (`scale`).
+    const s = Math.max(1, scale);
+    const near = Math.max(FOG_CLEAR, eye * FOG_CLEAR_EYE);
+    // Wer von oben schaut, soll die Stadt unter sich noch sehen: Die Strecke
+    // bis ganz dicht wächst mit der Augenhöhe.
+    const far = near + FOG_SPAN / Math.max(0.2, look.fogStrength) + eye * 1.5;
+    const fog = (this.fog ??= new THREE.Fog(0x000000, 1, 2));
     fog.color.setRGB(look.fogColor[0], look.fogColor[1], look.fogColor[2]);
-    fog.density = FOG_DENSITY * look.fogStrength * Math.max(1, scale);
+    fog.near = near / s;
+    fog.far = far / s;
     scene.fog = fog;
   }
 

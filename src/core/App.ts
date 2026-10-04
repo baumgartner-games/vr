@@ -236,6 +236,7 @@ const CAMERA_FAR = 700;
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
 const _headPos = new THREE.Vector3();
+const _eye = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
 const _keyRotation = new THREE.Quaternion();
 const _keyOffset = new THREE.Vector3();
@@ -4202,6 +4203,8 @@ export class App {
       this.renderer,
       presenting ? weatherLook(graphics(), false, clockHour) : null,
       this.rig.scale.x,
+      // Die Augenhöhe in Metern der Welt — im Weltbau weit über dem Boden.
+      this.rig.getHeadPosition(_eye).y - this.rig.getFloorY(),
     );
     const pass = blur !== null || weather !== null;
     if (pass) this.levelBlur.begin();
