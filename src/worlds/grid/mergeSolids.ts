@@ -2,12 +2,12 @@ import type { PlanSolid } from './solids';
 import { TILE } from '../nav/navTile';
 
 /**
- * **Bodenkacheln zu Rechtecken zusammenfassen** — `GridWorld` baut je
- * Bodenkachel einen Quader mit Körper und Netz. Die Station fasst ihre Böden
- * je Raum zusammen (`haunting/plan.ts`), die Stadt ihre Wiese
- * (`city/cityPlan.ts`): Dort wären es sonst 37 584 Quader samt Körpern in der
- * Physik — der größte Teil dessen, was die Brille in der Stadt ins Stocken
- * brachte.
+ * **Bodenkacheln zu Rechtecken zusammenfassen** — der Plan liefert je
+ * Bodenkachel einen Quader, und `GridWorld` fasst sie bei jedem Umbau
+ * zusammen (`GridWorld.mergeFloorTiles`), getrennt nach Belag. In der Stadt
+ * wären es sonst 37 584 Quader samt Körpern in der Physik — der größte Teil
+ * dessen, was die Brille dort ins Stocken brachte. Die Station fasst ihre
+ * Böden schon im Plan zusammen (`haunting/plan.ts`), samt ihrer Wandläufe.
  */
 
 /** Ein Schlüssel für alles, was gleich sein muss, damit zwei Quader einer werden. */

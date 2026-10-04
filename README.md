@@ -766,6 +766,19 @@ Screenshots: [Archiv](docs/orbital/archive-desktop.png),
 > Architektur, Portale, Netzwerk, Deployment — steht in **[AGENTS.md](AGENTS.md)**:
 > die Arbeitsregeln dort, alles Weitere in `docs/agents/`, ein Kapitel je Datei.
 
+## Bekannte Probleme
+
+- **Portale laufen nicht effizient und klappen nicht zuverlässig.** Jedes
+  Portal braucht eine eigene Fläche, an der es haftet (eine Kollisionsgruppe
+  je Fläche, `PortalWorld.slab`), und die Sicht durch ein Portal zeichnet die
+  Szene ein zweites Mal. Seit die Gitterwelten ihre Bodenkacheln zu Rechtecken
+  zusammenfassen (`GridWorld.mergeFloorTiles`), haftet ein Bodenportal an
+  einem ganzen Bodenstück statt an einer Kachel. Geplant, vom Besitzer so
+  gewünscht: _„Portale würde ich sowieso anders behandeln, dass diese auf den
+  Kachel-Positionen 2 × 1 liegen und nur optisch darüber liegen."_ — ein
+  Portal belegt dann zwei Kacheln des Gitters und ist nur ein Bild über dem
+  Boden, unabhängig davon, wie der Boden gebaut ist.
+
 ## Entwicklung
 
 ```bash
