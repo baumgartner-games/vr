@@ -123,7 +123,7 @@ export const WORLDS: WorldDefinition[] = [
     accent: 0x8fb7d9,
     preview: 'worlds/test-city.webp',
     // Das ganze Raster von oben, Rand bis Rand.
-    topDownSpan: 60,
+    topDownSpan: 76,
     roles: ['vr', 'desktop', 'handheld'],
     test: true,
     folder: 'test',

@@ -372,17 +372,19 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
 
 - **4 m je Einheit der Quelle** (`CITY_SCALE` = 8 auf das Regal). Das Paket ist
   eine Modellstadt: Bei 0,5 wäre eine Straße 1 m breit und eine Laterne 48 cm.
-  So ist die Straße 8 × 8 m mit zwei Spuren, ein Auto 3,8 m, eine Laterne
-  3,8 m, ein Haus 6,6–12,2 m hoch.
+  So ist ein Auto 3,8 m, eine Laterne 3,8 m, ein Haus 6,6–12,2 m hoch.
 - **Der Gehweg gehört zur Straße** (gewünscht: _„den Gehweg will ich bei den
   Straßen bereits inkludiert haben, sodass ich die Häuser nur noch in die
-  freien Plätze stellen muss"_). Ein Straßenstück ist 8 × 8 Kacheln
-  (`CITY_BLOCK`): 6 m Fahrbahn (`ROADWAY`, zwei Spuren zu 3 m) und je 1 m
-  Gehweg (`WALK`). Die Platten der Quelle werden dafür auf genaue Maße gebracht
+  freien Plätze stellen muss"_). Ein Straßenstück ist 12 × 12 Kacheln
+  (`CITY_BLOCK`): 6 m Fahrbahn (`ROADWAY`, zwei Spuren zu 3 m) und je 3 m
+  Gehweg (`WALK`) — gewünscht: _„Der Gehweg ist mir zu klein. Der sollte
+  mindestens 3 Felder breit sein"_ (die erste Fassung hatte 1 m). Laternen und
+  Ampeln stehen einen halben Meter vom Bordstein (`CURB`), die Bäume der Allee
+  mitten auf dem Gehweg. Platz und Parks haben dieselben 12 × 12 m. Die Platten der Quelle werden dafür auf genaue Maße gebracht
   (`plate`: `ElementPart.size` mit `pose`) — die Fahrbahn auf 6 m Breite, der
   Gehweg als Streifen aus der Gehwegplatte. An Kreuzung, Einmündung und Ecke
-  liegt die Fahrbahn der Quelle auf 6 × 6 m in der Mitte, zu jedem Ausgang ein
-  Meter Gerade, an jeder geschlossenen Seite Gehweg und in jeder Ecke ein
+  liegt die Fahrbahn der Quelle auf 6 × 6 m in der Mitte, zu jedem Ausgang
+  drei Meter Gerade, an jeder geschlossenen Seite Gehweg und in jeder Ecke ein
   Quadrat Gehweg (`junctionParts`) — so laufen Fahrbahn, Bordstein und
   Markierung über jede Fuge durch. Die Gerade läuft nach Süden; gedreht wird
   beim Hinstellen wie jedes Element.
@@ -416,16 +418,17 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   - _Gehweg_, _Park_, _Park mit Bäumen_ (mit Bank), _Park mit Büschen_,
     _Parkweg_ (Bank, alte Laterne, Büsche).
 - **Wie hoch**: Gehweg und Bordstein 16 cm (`SLAB_TOP`), die Fahrbahn darin
-  13 cm, Platz und Park 10 cm (eingelassen, `flush` mit negativem Wert — die
-  Platten der Quelle sind 40 cm dick). Weniger geht nicht: Die Platten der Welt
+  13 cm, Platz und Park 10 cm — alles mit `plate` auf genaue Maße gebracht. Weniger geht nicht: Die Platten der Welt
   schieben ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`), und eine
   Fahrbahn 1 cm über dem Boden war unsichtbar — nur die Bordsteine schauten
   heraus.
 - **Die verzierten Parkplatten der Quelle gehen nicht** (`park_*_decorated_*`):
-  Eingelassen wird um die ganze Höhe der Hülle, und mit den Bäumen darin
-  versänke die Wiese. Deshalb die flache Platte und das Grün als eigene Teile.
+  Auf Maß gebracht würden ihre Bäume mit der Platte flachgedrückt. Deshalb die
+  flache Platte und das Grün als eigene Teile.
 - **Häuser** (`house`): so breit wie das Haus selbst (auf Kacheln
-  aufgerundet: A und C 5, B und D 7, E bis H 8) und 8 m tief — vorn bündig an
+  aufgerundet: A und C 5, B und D 7, E bis H 8) und 12 m tief — so tief wie
+  ein Straßenstück, damit zwei Reihen Rücken an Rücken zwei Stücke
+  Querstraße füllen —, vorn bündig an
   den Gehweg der Straße, hinten Rasen, darunter Pflaster in Gehweghöhe, damit
   zwischen Haus und Gehweg kein Streifen Boden durchscheint. Gesperrt ist die
   ganze Fläche. Gemeldet an der ersten Fassung, in der jedes Haus auf 8 × 8 m
@@ -441,9 +444,9 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
 
 | Teil | Maße (B × H × T) | Kacheln |
 | ---- | ---------------- | ------- |
-| Straße (6 m Fahrbahn, 2 × 1 m Gehweg), Platz, Park | 8,0 × 0,16 × 8,0 m | 8 × 8 |
-| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m, Garten dahinter | 5–7 × 8 |
-| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 5–8 × 8 |
+| Straße (6 m Fahrbahn, 2 × 3 m Gehweg), Platz, Park | 12 × 0,16 × 12 m | 12 × 12 |
+| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m, Garten dahinter | 5–7 × 12 |
+| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 5–8 × 12 |
 | Laterne / Ampel mit Arm | 1,0 × 3,8 × 0,3 m | 1 × 1 |
 | Auto | 1,7 × 1,4 × 3,8 m | 2 × 4 |
 
@@ -1271,7 +1274,7 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | `worlds/elements/elementCatalog.ts`   | **Rein**: `GameElement`, `ElementPart`, `ELEMENTS`, `piece`, `crate`, `elementById`/`hasElement`, `FURNITURE_CATALOGUE`/`FURNITURE_FOLDERS`. Kein three.js, kein Laden                                                                 |
 | `worlds/elements/furnitureCatalog.ts` | **Rein**: der Ordner _Möbel_ — `FURNITURE_BITS_ELEMENTS`, `FURNITURE_BITS_FOLDER`; Tische als Ablage (`shelf`, `kind: 'top'`), Kleinkram ablegbar (`rests`), Teppiche als Boden (`floor`) |
 | `worlds/elements/spaceCatalog.ts`     | **Rein**: der Ordner _Weltraum_ — `SPACE_ELEMENTS`, `SPACE_CATALOGUE`, `SPACE_FOLDER`, `SPACE_SCALE` (2 m je Einheit der Quelle); die Kacheln gemessen, `spaceCatalog.test.ts` misst nach |
-| `worlds/elements/cityCatalog.ts`      | **Rein**: der Ordner _Stadt_ — `CITY_ELEMENTS`, `CITY_CATALOGUE`, `CITY_FOLDER`, `CITY_SCALE` (4 m je Einheit der Quelle), `CITY_BLOCK` (8 × 8 Kacheln); Straßen und Plätze als Boden mit Laternen und Ampeln |
+| `worlds/elements/cityCatalog.ts`      | **Rein**: der Ordner _Stadt_ — `CITY_ELEMENTS`, `CITY_CATALOGUE`, `CITY_FOLDER`, `CITY_SCALE` (4 m je Einheit der Quelle), `CITY_BLOCK` (12 × 12 Kacheln: 6 m Fahrbahn, je 3 m Gehweg); Straßen und Plätze als Boden mit Laternen und Ampeln |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |
 | `worlds/elements/elementFacts.ts`     | **Rein**: der Steckbrief hinter dem ⓘ im Möbelkatalog — `elementFacts`, `footprintRows` (die Belegung aus `■`), `partPlace` (wo ein Teil sitzt)                                                                                        |

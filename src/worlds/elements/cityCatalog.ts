@@ -18,8 +18,9 @@ import type { ElementPart, FurnitureFolder, GameElement } from './elementCatalog
  * **Der Gehweg gehört zur Straße.** Gewünscht, als die Häuser noch auf eigenem
  * Gehweg standen: _„den Gehweg will ich bei den Straßen bereits inkludiert
  * haben, sodass ich die Häuser nur noch in die freien Plätze stellen muss"_.
- * Ein Straßenstück ist **8 × 8 m**: 6 m Fahrbahn mit zwei Spuren
- * (`ROADWAY`), links und rechts je 1 m Gehweg (`WALK`). Die Platten der Quelle
+ * Ein Straßenstück ist **12 × 12 m**: 6 m Fahrbahn mit zwei Spuren
+ * (`ROADWAY`), links und rechts je 3 m Gehweg (`WALK`) — gewünscht: _„Der
+ * Gehweg sollte mindestens 3 Felder breit sein"_. Die Platten der Quelle
  * werden dafür auf genaue Maße gebracht (`ElementPart.size`, `pose`): die
  * Fahrbahn auf 6 m Breite, der Gehweg als Streifen aus der Gehwegplatte. An
  * Kreuzung, Einmündung und Ecke sitzt die Fahrbahn der Quelle auf 6 × 6 m in
@@ -29,13 +30,15 @@ import type { ElementPart, FurnitureFolder, GameElement } from './elementCatalog
  *
  * **Straßen und Plätze sind Boden mit Möbeln** (`floor`): Sie sperren nichts,
  * man geht und stellt darauf, und Laternen und Ampeln stehen als Teile auf dem
- * Gehweg — ein Preset statt zwanzig Einzelteile. Alles liegt **16 cm hoch**
+ * Gehweg — ein Preset statt zwanzig Einzelteile. Plätze und Parks haben
+ * dieselben 12 × 12 m, damit alles ein Raster ist. Alles liegt **16 cm hoch**
  * (`SLAB_TOP`), die Fahrbahn darin 3 cm tiefer: Die Platten der Welt schieben
  * ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`) und gewinnen
  * sonst jedes Pixel — eine Fahrbahn 1 cm über dem Boden war unsichtbar.
  *
- * **Häuser** sind so breit wie das Haus selbst und 8 m tief
- * (`house`): vorn bündig an den Gehweg, hinten ein Streifen Rasen. Gemeldet
+ * **Häuser** sind so breit wie das Haus selbst und 12 m tief — so tief wie ein
+ * Straßenstück, damit zwei Häuserreihen Rücken an Rücken genau zwei Stücke
+ * Querstraße füllen (`house`): vorn bündig an den Gehweg, hinten Garten. Gemeldet
  * an der ersten Fassung, in der jedes Haus auf einer Gehwegplatte von 8 × 8 m
  * stand: _„Bei den Gebäuden muss der benötigte Platz reduziert werden, sodass
  * links und rechts nicht diese leeren Gassen sind […] an der Rückseite macht
@@ -45,15 +48,25 @@ import type { ElementPart, FurnitureFolder, GameElement } from './elementCatalog
 /** **Faktor auf den Maßstab des Regals** (0,5): 4 m je Einheit der Quelle. */
 export const CITY_SCALE = 8;
 
-/** **Die Kante eines Straßenstücks** in Metern — und die Tiefe eines Hauses. */
-export const CITY_BLOCK = 8;
+/** **Die Kante eines Straßenstücks, Platzes, Parks** in Metern — und die Tiefe eines Hauses. */
+export const CITY_BLOCK = 12;
 
 /** **Die Fahrbahn**, in Metern — zwei Spuren zu 3 m. */
 const ROADWAY = 6;
-/** **Der Gehweg** je Seite, in Metern — der Rest bis zur Kante des Stücks. */
+/**
+ * **Der Gehweg** je Seite, in Metern — der Rest bis zur Kante des Stücks:
+ * drei Kacheln. Gewünscht: _„Der Gehweg ist mir zu klein. Der sollte
+ * mindestens 3 Felder breit sein"_ — vorher war er einen Meter breit.
+ */
 const WALK = (CITY_BLOCK - ROADWAY) / 2;
 /** Die Mitte des Gehwegs, von der Mitte des Stücks aus. */
 const SIDE = ROADWAY / 2 + WALK / 2;
+/**
+ * **Wo Laterne und Ampel stehen** — auf dem Gehweg, einen halben Meter vom
+ * Bordstein: Der Arm (1 m bei der Laterne, 3 m bei der Ampelbrücke) reicht
+ * so über die Fahrbahn und nicht über den Gehweg.
+ */
+const CURB = ROADWAY / 2 + 0.5;
 
 /** Eine Adresse aus _City Builder Bits_. */
 export function cityBits(name: string): string {
@@ -95,15 +108,6 @@ function plate(
 /** **Ein Stück Gehweg** — aus der Gehwegplatte der Quelle, Breite × Tiefe in Metern. */
 function walk(x: number, z: number, w: number, d: number): ElementPart {
   return plate('base', w, d, x, z);
-}
-
-/**
- * **Eine Platte, eingelassen** — für Platz und Park, die ihre Kanten behalten
- * sollen: im Maßstab der Stadt, die Oberkante `top` über dem Boden
- * (`ElementPart.flush` rechnet von der Oberkante dessen, worauf es liegt).
- */
-function slab(name: string, top = WALK_TOP, yaw?: number): ElementPart {
-  return { model: cityBits(name), scale: CITY_SCALE, flush: -top, ...(yaw ? { yaw } : {}) };
 }
 
 /**
@@ -163,7 +167,7 @@ function junctionParts(
   return parts;
 }
 
-/** **Eine Straße**: ihre Platten und was darauf steht, auf 8 × 8 Kacheln, ohne Sperre. */
+/** **Eine Straße**: ihre Platten und was darauf steht, auf 12 × 12 Kacheln, ohne Sperre. */
 function road(
   id: string,
   label: string,
@@ -325,10 +329,10 @@ const POLE: readonly [number, number] = [0.5, 0.5];
  * fahren. Gemeldet war: _„die Ampeln wirken nicht an der richtigen Stelle"_.
  */
 export const CITY_ELEMENTS: readonly GameElement[] = [
-  // Straßen — 8 × 8 m, die Gerade läuft von Nord nach Süd (z).
+  // Straßen — 12 × 12 m, die Gerade läuft von Nord nach Süd (z).
   ...lampRoad('city-road', 'Straße mit %', ['Straße', 'Gerade', 'Laterne', 'Road'], straight(), [
-    [SIDE, -2, ARM_WEST],
-    [-SIDE, 2, ARM_EAST],
+    [CURB, -3, ARM_WEST],
+    [-CURB, 3, ARM_EAST],
   ]),
   road('city-road-plain', 'Straße', ['Straße', 'Gerade', 'Road'], straight()),
   road(
@@ -337,8 +341,8 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     ['Straße', 'Fußgängerüberweg', 'Ampel', 'Zebrastreifen'],
     [
       ...straight('road_straight_crossing'),
-      onSlab('trafficlight_B', [SIDE, 2.6], ARM_WEST),
-      onSlab('trafficlight_B', [-SIDE, -2.6], ARM_EAST),
+      onSlab('trafficlight_B', [CURB, 3], ARM_WEST),
+      onSlab('trafficlight_B', [-CURB, -3], ARM_EAST),
     ],
   ),
   // Ecke und Kurve: Die Fahrbahn kommt von Süden und biegt nach Osten ab, die
@@ -348,14 +352,14 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Straßenecke mit %',
     ['Straße', 'Ecke', 'Laterne'],
     junctionParts('road_corner', { s: true, e: true }),
-    [[SIDE, SIDE, ARM_NORTHWEST]],
+    [[CURB, CURB, ARM_NORTHWEST]],
   ),
   ...lampRoad(
     'city-road-curve',
     'Kurve mit %',
     ['Straße', 'Kurve', 'Laterne'],
     junctionParts('road_corner_curved', { s: true, e: true }),
-    [[SIDE, SIDE, ARM_NORTHWEST]],
+    [[CURB, CURB, ARM_NORTHWEST]],
   ),
   road(
     'city-road-tsplit',
@@ -364,9 +368,9 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     [
       // Die Gerade läuft von Nord nach Süd, der Abzweig geht nach Osten.
       ...junctionParts('road_tsplit', { n: true, s: true, e: true }),
-      onSlab('trafficlight_B', [SIDE, SIDE], ARM_WEST), // nach Norden
-      onSlab('trafficlight_B', [-SIDE, -SIDE], ARM_EAST), // nach Süden
-      onSlab('trafficlight_B', [SIDE, -SIDE], ARM_SOUTH), // aus dem Abzweig nach Westen
+      onSlab('trafficlight_B', [CURB, CURB], ARM_WEST), // nach Norden
+      onSlab('trafficlight_B', [-CURB, -CURB], ARM_EAST), // nach Süden
+      onSlab('trafficlight_B', [CURB, -CURB], ARM_SOUTH), // aus dem Abzweig nach Westen
     ],
   ),
   road(
@@ -375,10 +379,10 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     ['Straße', 'Kreuzung', 'Ampel'],
     [
       ...junctionParts('road_junction', { n: true, e: true, s: true, w: true }),
-      onSlab('trafficlight_C', [SIDE, SIDE], ARM_WEST), // nach Norden
-      onSlab('trafficlight_C', [-SIDE, -SIDE], ARM_EAST), // nach Süden
-      onSlab('trafficlight_C', [SIDE, -SIDE], ARM_SOUTH), // nach Westen
-      onSlab('trafficlight_C', [-SIDE, SIDE], ARM_NORTH), // nach Osten
+      onSlab('trafficlight_C', [CURB, CURB], ARM_WEST), // nach Norden
+      onSlab('trafficlight_C', [-CURB, -CURB], ARM_EAST), // nach Süden
+      onSlab('trafficlight_C', [CURB, -CURB], ARM_SOUTH), // nach Westen
+      onSlab('trafficlight_C', [-CURB, CURB], ARM_NORTH), // nach Osten
     ],
   ),
   road(
@@ -387,28 +391,37 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     ['Straße', 'Bäume', 'Allee'],
     [
       ...straight(),
-      onSlab('tree_A', [SIDE, -2]),
-      onSlab('tree_B', [-SIDE, 2]),
-      onSlab('tree_C', [SIDE, 2.5], Math.PI / 2),
-      onSlab('tree_A', [-SIDE, -2.5], Math.PI),
+      onSlab('tree_A', [SIDE, -3]),
+      onSlab('tree_B', [-SIDE, 3]),
+      onSlab('tree_C', [SIDE, 3.5], Math.PI / 2),
+      onSlab('tree_A', [-SIDE, -3.5], Math.PI),
     ],
   ),
-  // Plätze — Platz und Park, 8 × 8 m. Die verzierten Parkplatten der Quelle
-  // gehen nicht: Eingelassen wird um ihre ganze Höhe, und mit den Bäumen darin
-  // versänken sie samt Wiese im Boden. Also die flache Platte und das Grün
-  // als eigene Teile darauf.
-  road('city-plaza', 'Platz', ['Platz', 'Bürgersteig', 'Pflaster', 'Gehweg'], [slab('base')]),
-  road('city-park', 'Park', ['Park', 'Wiese', 'Rasen'], [slab('park_base')]),
+  // Plätze — Platz und Park, 12 × 12 m. Die verzierten Parkplatten der Quelle
+  // gehen nicht: Auf Maß gebracht (`plate`) würden ihre Bäume mit der Platte
+  // flachgedrückt. Also die flache Platte und das Grün als eigene Teile darauf.
+  road(
+    'city-plaza',
+    'Platz',
+    ['Platz', 'Bürgersteig', 'Pflaster', 'Gehweg'],
+    [plate('base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP)],
+  ),
+  road(
+    'city-park',
+    'Park',
+    ['Park', 'Wiese', 'Rasen'],
+    [plate('park_base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP)],
+  ),
   road(
     'city-park-trees',
     'Park mit Bäumen',
     ['Park', 'Bäume'],
     [
-      slab('park_base'),
-      onSlab('tree_A', [-2, -2]),
-      onSlab('tree_D', [2, -1.5], Math.PI / 2),
-      onSlab('tree_E', [-1.5, 2.2], Math.PI),
-      onSlab('bench', [2, 2.5], Math.PI),
+      plate('park_base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('tree_A', [-3, -3]),
+      onSlab('tree_D', [3, -2.25], Math.PI / 2),
+      onSlab('tree_E', [-2.25, 3.3], Math.PI),
+      onSlab('bench', [3, 3.75], Math.PI),
     ],
   ),
   road(
@@ -416,11 +429,11 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Park mit Büschen',
     ['Park', 'Büsche'],
     [
-      slab('park_base'),
-      onSlab('bush_A', [-2.5, -2.5]),
-      onSlab('bush_B', [2.2, -2]),
-      onSlab('bush_C', [-2, 2.5]),
-      onSlab('bush_A', [2.5, 2.5], Math.PI / 2),
+      plate('park_base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('bush_A', [-3.75, -3.75]),
+      onSlab('bush_B', [3.3, -3]),
+      onSlab('bush_C', [-3, 3.75]),
+      onSlab('bush_A', [3.75, 3.75], Math.PI / 2),
     ],
   ),
   road(
@@ -428,14 +441,14 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Parkweg',
     ['Park', 'Weg'],
     [
-      slab('park_road_straight'),
-      onSlab('bench', [2.6, 0], -Math.PI / 2),
-      onSlab('streetlight_old_single', [2.6, -2.5]),
-      onSlab('bush_C', [-2.8, -2]),
-      onSlab('bush_B', [-2.8, 2.2]),
+      plate('park_road_straight', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('bench', [3.9, 0], -Math.PI / 2),
+      onSlab('streetlight_old_single', [3.9, -3.75]),
+      onSlab('bush_C', [-4.2, -3]),
+      onSlab('bush_B', [-4.2, 3.3]),
     ],
   ),
-  // Häuser — so breit wie das Haus, 8 m tief: vorn bündig an den Gehweg der
+  // Häuser — so breit wie das Haus, 12 m tief: vorn bündig an den Gehweg der
   // Straße, hinten Garten. Breite × Höhe × Tiefe des Hauses.
   house('city-house-a', 'Kleines Stadthaus', 'A', 4.8, 5.8), // 4,8 × 6,6 × 5,8
   house('city-house-b', 'Breites Stadthaus', 'B', 6.4, 5.2), // 6,4 × 6,6 × 5,2
