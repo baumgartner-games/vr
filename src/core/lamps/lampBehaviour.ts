@@ -27,19 +27,21 @@
  */
 
 /** **Wann** eine Lampe brennt. */
-export type LampMode = 'night' | 'on' | 'off' | 'switch';
-export const LAMP_MODES = ['night', 'on', 'off', 'switch'] as const;
+export type LampMode = 'night' | 'on' | 'off' | 'switch' | 'controlled';
+export const LAMP_MODES = ['night', 'on', 'off', 'switch', 'controlled'] as const;
 export const LAMP_MODE_LABELS: Readonly<Record<LampMode, string>> = {
   night: 'Bei Nacht',
   on: 'Immer an',
   off: 'Aus',
   switch: 'Schalter',
+  controlled: 'Gesteuert',
 };
 export const LAMP_MODE_SUBS: Readonly<Record<LampMode, string>> = {
   night: 'Geht am Abend und in der Nacht an, am Tag aus',
   on: 'Brennt immer, auch am Tag',
   off: 'Bleibt dunkel',
-  switch: 'Wie ihr Schalter steht — von Hand an und aus',
+  switch: 'Wie ihr Schalter steht — von Hand an und aus, auch im Spiel antippen',
+  controlled: 'Folgt der Welt — in der Station dem Board ihres Raums; wo nichts steuert, dunkel',
 };
 
 /** **Wie** eine Lampe brennt. */
@@ -95,6 +97,11 @@ export interface LampSettings {
   effect?: LampEffect;
   color?: LampColor;
   on?: boolean;
+  /**
+   * **Notlicht** — bei Alarm (`lampBook.alarm`, in der Station) brennt sie rot
+   * als Drehlicht, egal was sonst eingestellt ist.
+   */
+  emergency?: boolean;
 }
 
 /** Was nach allen Ebenen gilt — kein Feld fehlt mehr. */
@@ -103,6 +110,7 @@ export interface ResolvedLamp {
   effect: LampEffect;
   color: LampColor;
   on: boolean;
+  emergency: boolean;
 }
 
 /**
@@ -121,6 +129,7 @@ export function resolveSettings(
     effect: pick('effect') ?? 'steady',
     color: pick('color') ?? 'auto',
     on: pick('on') ?? false,
+    emergency: pick('emergency') ?? false,
   };
 }
 
@@ -133,11 +142,20 @@ export type LampMaster = 'auto' | 'on' | 'off';
  * Der Hauptschalter _An_ zündet, was bei Nacht brennen würde, auch am Tag;
  * _Aus_ löscht alles. Eine Lampe, die ausdrücklich _Aus_ ist oder deren
  * Schalter aus steht, bleibt auch unter _An_ dunkel — der Hauptschalter ist
- * der Ersatz für die Tageszeit, nicht für den Lichtschalter.
+ * der Ersatz für die Tageszeit, nicht für den Lichtschalter. _Gesteuert_
+ * brennt, wenn die Welt es sagt (`controlled`, das Board der Station), sonst
+ * nicht.
  */
-export function lampBurns(lamp: ResolvedLamp, night: boolean, master: LampMaster): boolean {
+export function lampBurns(
+  lamp: Pick<ResolvedLamp, 'mode' | 'on'>,
+  night: boolean,
+  master: LampMaster,
+  controlled: boolean | null = null,
+): boolean {
   if (master === 'off') return false;
   switch (lamp.mode) {
+    case 'controlled':
+      return controlled === true;
     case 'off':
       return false;
     case 'on':
@@ -216,6 +234,7 @@ export function cleanSettings(raw: unknown): LampSettings | null {
   }
   if (LAMP_COLORS.includes(value['color'] as LampColor)) out.color = value['color'] as LampColor;
   if (typeof value['on'] === 'boolean') out.on = value['on'];
+  if (typeof value['emergency'] === 'boolean') out.emergency = value['emergency'];
   return Object.keys(out).length > 0 ? out : null;
 }
 

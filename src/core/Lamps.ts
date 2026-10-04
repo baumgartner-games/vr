@@ -6,7 +6,9 @@ import {
   lampLevel,
   lampSeed,
   type LampColor,
+  type LampEffect,
   type LampMaster,
+  type LampMode,
 } from './lamps/lampBehaviour';
 import { lampBook, type LampHighlight } from './lamps/lampBook';
 import {
@@ -100,6 +102,7 @@ const _scale = new THREE.Vector3();
 const _size = new THREE.Vector2();
 const _hit = new THREE.Vector3();
 const _color = new THREE.Color();
+const _state = new THREE.Vector3();
 
 const glowVertex = /* glsl */ `
 attribute float size;
@@ -158,6 +161,17 @@ void main() {
 }
 `;
 
+/** **Was eine Lampe gerade tut** (`Lamps.state`). */
+export interface LampState {
+  burns: boolean;
+  /** Der Betrieb, der wirklich gilt — _Gesteuert_, wenn die Welt steuert. */
+  mode: LampMode;
+  effect: LampEffect;
+  color: LampColor;
+  /** Ob sie gerade als Notlicht brennt. */
+  alarm: boolean;
+}
+
 /** **Die Lampen in der Szene** — `null`, solange es keine gibt. */
 export function lampsInScene(): Lamps | null {
   return Lamps.current;
@@ -201,6 +215,7 @@ export class Lamps {
   private time = 0;
   private night = false;
   private master: LampMaster = 'auto';
+  private spooky = false;
   private presenting = false;
 
   /** Die Lampen der Szene, die gerade läuft — für die Welt, die nach ihnen fragt. */
@@ -285,10 +300,61 @@ export class Lamps {
     }
   }
 
-  /** Tageszeit und Hauptschalter (`weather.streetLights`, `weatherTime`). */
-  setEnvironment(night: boolean, master: LampMaster): void {
+  /**
+   * Tageszeit, Hauptschalter und Spuk (`weather.weatherTime`,
+   * `streetLights`, `weatherFog === 'spooky'`).
+   */
+  setEnvironment(night: boolean, master: LampMaster, spooky = false): void {
     this.night = night;
     this.master = master;
+    this.spooky = spooky;
+  }
+
+  /**
+   * **Was eine Lampe in diesem Augenblick tut** — die drei Ebenen aus dem Buch
+   * und darüber, was die Welt gerade sagt. Dieselbe Antwort für das Bild und
+   * für das Menü (`grid/inspectMenu.ts`), damit „Brennt gerade" nicht lügt.
+   *
+   * - **Steuert etwas** (`lampBook.controller`, das Board der Station), folgt
+   *   ihm jede Lampe, an der niemand den Betrieb eingestellt hat.
+   * - **Spuk** (Nebel _Spuk_ im Wetter): Wer _Ruhig_ ab Werk hat und keine
+   *   eigene Lichtart, flackert — gewünscht als Grusellicht.
+   * - **Alarm** (`lampBook.alarm`): Notlicht brennt rot als Drehlicht, außer
+   *   der Hauptschalter ist aus.
+   */
+  state(lamp: LampInstance): LampState {
+    const { type, key } = lamp;
+    const settings = lampBook.resolve(type, key);
+    const own = lampBook.lampSettings(key);
+    const world = lampBook.typeSettings(type.id);
+    const controller = lampBook.controller;
+    let mode = settings.mode;
+    if (controller && mode === 'night' && own?.mode === undefined && world?.mode === undefined) {
+      mode = 'controlled';
+    }
+    let controlled: boolean | null = null;
+    if (mode === 'controlled') {
+      lamp.object.getWorldPosition(_state);
+      controlled = controller ? controller(_state.x, _state.z) : false;
+    }
+    let burns = lampBurns({ mode, on: settings.on }, this.night, this.master, controlled);
+    let effect = settings.effect;
+    let color = settings.color;
+    if (
+      this.spooky &&
+      effect === 'steady' &&
+      own?.effect === undefined &&
+      world?.effect === undefined
+    ) {
+      effect = 'flicker';
+    }
+    const alarm = lampBook.alarm && settings.emergency;
+    if (alarm) {
+      burns = this.master !== 'off';
+      effect = 'rotate';
+      color = 'red';
+    }
+    return { burns, mode, effect, color, alarm };
   }
 
   /** Neue Welt: neue Lampen. */
@@ -351,6 +417,7 @@ export class Lamps {
       this.master !== 'on' &&
       lampBook.empty &&
       lampBook.highlight === null &&
+      lampBook.controller === null &&
       !this.burningModels;
     if (this.since >= (idle ? RESCAN_IDLE : RESCAN)) {
       this.since = 0;
@@ -385,8 +452,8 @@ export class Lamps {
         marks++;
       }
 
-      const settings = lampBook.resolve(type, lamp.key);
-      if (!lampBurns(settings, this.night, this.master)) continue;
+      const settings = this.state(lamp);
+      if (!settings.burns) continue;
       const level = lampLevel(settings.effect, this.time, lamp.seed);
       // Wohin die Ampel schaut: Die quer stehenden schalten versetzt.
       _facing.set(0, 0, 1).transformDirection(world);

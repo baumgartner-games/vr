@@ -1,3 +1,4 @@
+import { lampBook as sceneLamps } from '../../core/lamps/lampBook';
 import { cellKey } from '../nav/cellGrid';
 import { stationFixtureCells } from './map/stationCells';
 import { NavigationOverlay } from './navigationOverlay';
@@ -398,6 +399,10 @@ const _lampOff = new THREE.Color(0x010203);
 const _beaconOff = new THREE.Color(0x2b0d10);
 const _beaconOn = new THREE.Color(0xff4d55);
 const _lampOn = new THREE.Color(0xfff0cf);
+/** Das Glas im Notfall — dasselbe Rot wie die Drehleuchten. */
+const _lampAlarm = new THREE.Color(0xff3a30);
+/** Das Licht der Raumlampen im Notfall. */
+const LAMP_ALARM = 0xff2a18;
 const _head = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 const _probe = new THREE.Vector3();
@@ -1168,6 +1173,10 @@ export class HauntingWorld extends GridWorld {
 
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
+    // **Das Board schaltet auch die Lampen aus dem Regal** (`core/Lamps.ts`):
+    // Eine Lampe, an der niemand den Betrieb eingestellt hat, brennt, wenn
+    // ihr Raum Licht hat — dieselbe Frage wie für das Glas der Raumlampe.
+    sceneLamps.controller = (x, z) => this.boardLit(x, z);
     // **Der Stock geht in den Kern** (`kernelLocomotion.ts`): Die Physik der
     // Welt bleibt darunter, für Requisiten und Hände — und für das Labor,
     // das die Karte nicht kennt.
@@ -3143,6 +3152,16 @@ export class HauntingWorld extends GridWorld {
    * wie ein Fehler in der Beleuchtung und nicht wie eine Lampe, die gleich
    * ausgeht.
    */
+  /** **Brennt an dieser Stelle Licht?** — das Board (`state.lit`), vor der Mission überall. */
+  private boardLit(x: number, z: number): boolean {
+    const bright =
+      (this.state.crew.options.test && this.state.crew.options.bright) ||
+      this.state.phase === 'briefing';
+    if (bright) return true;
+    const room = roomAt(this.spec, Math.floor(x / TILE), Math.floor(z / TILE));
+    return !!room && this.state.lit.includes(room.id);
+  }
+
   private applyLights(dt = 1): void {
     // **Vor der Mission ist die Station hell** — der Test-Zustand, in dem
     // jeder herumläuft und Rollen ausprobiert; dunkel wird es mit dem Start
@@ -3172,6 +3191,14 @@ export class HauntingWorld extends GridWorld {
     // Notlicht ist eine halbe Lampe und keine andere: dieselben Leuchten,
     // gedimmt. Ein eigener Lampensatz dafür wäre ein zweiter Satz Fehler.
     const lampScale = deck?.emergency ? 0.42 : 1;
+    // **Und im Notfall rot** — gewünscht: _„dass Lampen ggf dort in rot
+    // ‚Notfall' leuchten sollen und blinken bzw. wie diese Dreh Lichter"_.
+    // Dieselben Leuchten, die brennen, pulsieren rot im Takt der Drehleuchten
+    // (`alarmPulse`); die Lampen aus dem Regal mit _Notlicht_ drehen sich
+    // (`core/Lamps.ts`, `lampBook.alarm`).
+    const emergency = !!deck?.emergency || !!deck?.alarm || this.state.phase === 'lost';
+    sceneLamps.alarm = emergency;
+    const alarmGlow = emergency ? 0.25 + 0.75 * alarmPulse(this.state.time) : 1;
     if (this.testLight)
       this.testLight.intensity = THREE.MathUtils.damp(
         this.testLight.intensity,
@@ -3203,16 +3230,16 @@ export class HauntingWorld extends GridWorld {
         const glow = Math.min(haunted, lampGlow(this.lampBook, id, this.state.time));
         light.position.copy(lamp.at);
         light.distance = lamp.reach;
-        light.color.setHex(lamp.color);
-        light.intensity = LAMP_ON * glow * lampScale;
+        light.color.setHex(emergency ? LAMP_ALARM : lamp.color);
+        light.intensity = LAMP_ON * glow * lampScale * alarmGlow;
       }
     }
     for (const [id, lamp] of this.lamps)
       lamp.glass.material.color.lerpColors(
         _lampOff,
-        _lampOn,
+        emergency ? _lampAlarm : _lampOn,
         !lighting.dark && (deck ? deck.lamps : bright || this.state.lit.includes(id))
-          ? lampGlow(this.lampBook, id, this.state.time)
+          ? lampGlow(this.lampBook, id, this.state.time) * alarmGlow
           : 0,
       );
     this.applyBeacons(deck?.alarm ?? this.state.phase === 'lost');
