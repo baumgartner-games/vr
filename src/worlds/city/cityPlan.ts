@@ -8,6 +8,9 @@ import {
   type RoadStyle,
 } from '../elements/roadNetwork';
 import { GridPlan } from '../grid/gridPlan';
+import { mergeFloors } from '../grid/mergeSolids';
+import type { PlanSolid } from '../grid/solids';
+import { TILE } from '../nav/navTile';
 
 /**
  * **Der Plan der Stadt** — nur aus dem Katalogordner _Stadt_
@@ -414,9 +417,29 @@ export function citySpawn(): { x: number; z: number } {
   return { x: 96 - 1.5, z: AVENUES[2]!.z + 1.5 };
 }
 
+/**
+ * **Der Grundriss der Stadt** — wie jeder, nur dass die Wiese ein Quader ist
+ * statt einer je Kachel (`grid/mergeSolids.mergeFloors`). `GridWorld` baut
+ * sonst je Bodenkachel ein Netz und einen Körper in der Physik: bei 216 ×
+ * 174 Kacheln 37 584 davon, und allein das Durchgehen dieser Szene in jedem
+ * Bild brachte die Brille ins Stocken.
+ */
+class CityPlan extends GridPlan {
+  override solids(): PlanSolid[] {
+    const floors: PlanSolid[] = [];
+    const rest: PlanSolid[] = [];
+    for (const solid of super.solids()) {
+      if (solid.kind === 'floor' && !solid.half && solid.w === TILE && solid.d === TILE)
+        floors.push(solid);
+      else rest.push(solid);
+    }
+    return [...mergeFloors(floors), ...rest];
+  }
+}
+
 /** Der Plan der Welt: nur Boden — alles andere sind Spielelemente (`CITY_SPOTS`). */
 export function cityPlan(): GridPlan {
-  const plan = new GridPlan([0]);
+  const plan = new CityPlan([0]);
   plan.floor(cityGround());
   return plan;
 }

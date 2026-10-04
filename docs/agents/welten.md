@@ -492,7 +492,13 @@ Geraden auf der rechten Spur (`traffic`), **Gehwege** mit Hydranten,
 Mülltonnen, Bänken und Fahrrädern (`streetLife`), die beiden Randstraßen als
 Allee, und **rundherum Wiese mit Bäumen** statt Prototyp-Boden
 (`meadowTrees`; `CityTestWorld.floorPlate` gibt keine Platte, der Boden ist
-grün, die Fläche draußen auch: `horizonColor`). Die Straßenteile rechnet dieselbe Netz-Rechnung wie das Ziehen
+grün, die Fläche draußen auch: `horizonColor`). **Die Wiese ist ein Quader** (`CityPlan.solids`,
+`grid/mergeSolids.mergeFloors`, dieselbe Zerlegung wie in der Station):
+`GridWorld` baut sonst je Bodenkachel ein Netz und einen Körper, und bei 216 ×
+174 Kacheln waren das 37 584 davon — 46 600 Objekte in der Szene für gut 400
+sichtbare Dinge, und rund 450 000 der 530 000 Dreiecke je Bild. Gemeldet: _„die
+Stadt hat ein FPS-Problem bei der Brille"_. Danach: 9 000 Objekte, 80 000 bis
+130 000 Dreiecke. Die Straßenteile rechnet dieselbe Netz-Rechnung wie das Ziehen
 (`roadNetwork.roadPieces`): Ecken, Einmündungen, Kreuzungen, Geraden von 12 m
 und kurze dazwischen, je Straße eine Art, drei Zebrastreifen, sechs Autos auf
 der rechten Spur. Rundherum liegen zwei Stücke freier Boden, auf dem man mit
