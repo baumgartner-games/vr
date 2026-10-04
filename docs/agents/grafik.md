@@ -979,6 +979,30 @@ Gemeldet, im Weltbau mit der Brille: _„im weltbaumodus ist das lichter
   eigenem Nebel (Hub, Station) behält ihren; der Himmel (eigener Shader ohne
   Belichtung) wird selbst getönt; der Filter fehlt in der Brille.
 
+### Dichter Nebel ist ein Spielmittel
+
+Gewünscht: _„Können wir bei dichtem Nebel es wirklich sehr dicht machen, also
+so dass man es dann nicht mehr erkennen kann? Aktuell mag es zwar realistisch
+sein, aber für ein Spiel passt es nicht."_ Jede Nebelart hat seitdem ihre
+eigene Gestalt (`weather.FOG`, im Durchgang `wFogShape`): klar bis, voll ab
+(Meter um die Figur), Höhe, in der er dicht liegt, und Anteil unabhängig von der
+Höhe (`base`). **Dicht** ist deckend: klar bis 2,5 m, voll ab 9 m, acht Meter
+hoch und `base` 1 — auch Häuser verschwinden. Dunst und Spuk bleiben, wie sie
+waren.
+
+**Und was hinter ihm liegt, wird nicht gezeichnet** — gewünscht: _„Wir könnten
+den Nebel auch nutzen um Rendering zu sparen von Dingen die dahinter sind
+(Nebel dicht), zumindest wenn man im Nebel steht und nicht vom Haus schaut"_.
+Eine Ausnahme mit Absicht eng (`weatherXr.cull`): **nur in der Brille, nur am
+Boden** (nicht im Weltbau) **und nur bei deckendem Nebel** (`fogOpaque`). Dann
+rückt die Fernebene der Kamera an das Ende des Nebels (+5 %), und was dahinter
+steht, fällt aus dem Sichtkegel. Die Himmelskuppel (560 m) läge dahinter, und
+die Brille zeichnet keinen Hintergrund (AR-Sitzung): Sie wird solange um den
+Kopf gestellt, knapp vor die Fernebene, ganz in Nebelfarbe — in sRGB, weil ihr
+Shader nicht umrechnet (`pullSky`). Danach steht alles wieder, wie es war: die
+Fernebene der App (`CAMERA_FAR`, im Weltbau durch den Maßstab), Hintergrund,
+Kuppel. Am Schirm bringt es nichts: Von oben steht die Kamera über dem Nebel.
+
 ### Tageslauf: wie der Tag in einer Welt voranschreitet
 
 Gewünscht: _„Restaurant-Runde, die von selbst Abend wird, bitte auch. Ggf. bei

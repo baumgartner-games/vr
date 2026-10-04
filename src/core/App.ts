@@ -4201,10 +4201,13 @@ export class App {
     this.weatherXr.apply(
       this.scene,
       this.renderer,
+      this.camera,
       presenting ? weatherLook(graphics(), false, clockHour) : null,
       this.rig.scale.x,
       // Die Augenhöhe in Metern der Welt — im Weltbau weit über dem Boden.
       this.rig.getHeadPosition(_eye).y - this.rig.getFloorY(),
+      // Die Fernebene der App — im Weltbau im Maßstab des Gestells (`syncFlight`).
+      CAMERA_FAR / (this.rig.flying ? BUILD_SCALE : 1),
     );
     const pass = blur !== null || weather !== null;
     if (pass) this.levelBlur.begin();
