@@ -4,7 +4,7 @@ import type { GridPlan } from '../grid/gridPlan';
 import type { ElementSpot } from '../elements/elementPlace';
 import { createSky } from '../shared/environment';
 import type { PlateTile } from '../shared/plateField';
-import { PLATE_PROTOTYPE } from '../test/floorPlate';
+import type { PlanSolid } from '../grid/solids';
 import { CITY_SPOTS, cityGround, cityPlan, citySpawn } from './cityPlan';
 import type { Handedness } from '../../core/XRInput';
 
@@ -33,9 +33,35 @@ export class CityTestWorld extends FurnishedWorld {
     return true;
   }
 
+  /**
+   * **Wiese statt Prototyp-Boden** — keine Platten, der Boden selbst ist grün
+   * (`solidMaterial`). Das blaue Karomuster rund um die Stadt sah nach
+   * Baustelle aus, und unter Straßen und Häusern sieht man ihn ohnehin nicht.
+   */
   protected override floorPlate(_tile: PlateTile): string | null {
-    return PLATE_PROTOTYPE;
+    return null;
   }
+
+  protected override solidMaterial(solid: PlanSolid): THREE.Material {
+    if (solid.kind !== 'floor') return super.solidMaterial(solid);
+    return (this.lawn ??= new THREE.MeshStandardMaterial({ color: 0x7fae5a, roughness: 1 }));
+  }
+
+  /** **Draußen geht die Wiese weiter** — die Fläche jeder Welt, in Grün statt Schachbrett. */
+  protected override horizonColor(): number | null {
+    return 0x6f9e4c;
+  }
+
+  protected override horizonLine(): number {
+    return 0x6a984a;
+  }
+
+  protected override horizonChecker(): number | null {
+    return 0x6f9e4c;
+  }
+
+  /** Das Grün der Wiese, einmal gebaut. */
+  private lawn: THREE.Material | null = null;
 
   protected override skyColor(): number {
     return 0x9cc4e8;

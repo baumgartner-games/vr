@@ -93,6 +93,15 @@ const _ray = new THREE.Ray();
 /** Wie durchscheinend die Geist-Straße ist. */
 const ROAD_GHOST_OPACITY = 0.55;
 
+/**
+ * **Die Kopie zum Hervorheben zeichnet nichts** (`liftMark`) — keine Farbe,
+ * keine Tiefe; nur der Saum, der als Kind an ihren Netzen hängt, ist zu sehen.
+ */
+const MARK_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+
+/** So lange bleibt eine Kopie stehen, nachdem zuletzt nach ihr gefragt wurde, in Sekunden. */
+const MARK_LINGER = 1;
+
 export abstract class FurnishedWorld extends GridWorld {
   /** Was diese Welt selbst ins Bild gehängt hat — Kopien aus dem Regal. */
   private readonly elementDecor: THREE.Object3D[] = [];
@@ -153,6 +162,12 @@ export abstract class FurnishedWorld extends GridWorld {
   private readonly roadHidden: THREE.Object3D[] = [];
   /** Die Geister der Straßenteile, je Element einmal (`roadTemplate`). */
   private readonly roadTemplates = new Map<string, Promise<THREE.Group | null>>();
+  /** Die unsichtbaren Kopien zum Hervorheben, je Element einmal (`liftTemplates`). */
+  private readonly liftTemplates = new Map<string, Promise<THREE.Group | null>>();
+  /** Die Kopien, die gerade stehen, und wann zuletzt nach ihnen gefragt wurde (`liftMark`). */
+  private readonly liftMarks = new Map<PlacedElement, { view: THREE.Object3D; asked: number }>();
+  /** Die Uhr für `liftMarks`, in Sekunden. */
+  private liftClock = 0;
   /** **Was auf welcher Ablage steht** — Id der Stelle → Id der Ablage. */
   private readonly riding = new Map<string, string>();
 
@@ -211,10 +226,19 @@ export abstract class FurnishedWorld extends GridWorld {
     // Erst hängt das Getragene, dann wackelt der Turm (`shared/iceCone`).
     if (this.stations) stepIceCones(dt);
     this.gauges?.update(dt);
+    this.liftClock += dt;
+    for (const [placed, mark] of this.liftMarks) {
+      if (this.liftClock - mark.asked < MARK_LINGER && this.placed.includes(placed)) continue;
+      mark.view.removeFromParent();
+      this.liftMarks.delete(placed);
+    }
   }
 
   override dispose(ctx: WorldContext): void {
     this.hideRoadPlan();
+    for (const mark of this.liftMarks.values()) mark.view.removeFromParent();
+    this.liftMarks.clear();
+    this.liftTemplates.clear();
     this.roadGhost?.removeFromParent();
     this.roadGhost = null;
     this.roadTemplates.clear();
@@ -335,7 +359,57 @@ export abstract class FurnishedWorld extends GridWorld {
   }
 
   protected override elementLiftTarget(x: number, z: number): THREE.Object3D | null {
-    return this.placedAt(x, z)?.anchor ?? null;
+    const placed = this.placedAt(x, z);
+    return placed ? this.liftMark(placed) : null;
+  }
+
+  /**
+   * **Was leuchtet, wenn die Hand ein Element anfasst** — gemeldet: _„Leider
+   * werden die Gegenstände nicht gehighlighted, wenn ich z. B. einen Tisch
+   * setze und diesen dann nehmen will."_ Der Saum (`core/highlight.ts`) legt
+   * sich um die Netze dessen, was man ihm gibt; der Anker eines Elements ist
+   * aber leer, und sein Bodenstück steht als Stück der Welt gebündelt im Bild
+   * (`placeModel`) — es bekam einen Ring am Boden statt eines Saums.
+   *
+   * Also leuchtet eine **unsichtbare Kopie** des ganzen Elements an seiner
+   * Stelle (`liftTemplates`): Ihre Netze zeichnen keine Farbe und keine Tiefe,
+   * der Saum daran schon. Gebaut beim ersten Fragen, solange sie lädt, gilt
+   * der Anker; nach `MARK_LINGER` ohne Frage geht sie wieder.
+   */
+  private liftMark(placed: PlacedElement): THREE.Object3D {
+    const mark = this.liftMarks.get(placed);
+    if (mark) {
+      mark.asked = this.liftClock;
+      return mark.view;
+    }
+    const id = placed.element.id;
+    let template = this.liftTemplates.get(id);
+    if (!template) {
+      template = elementModel(id, kaykitModel).then((model) => {
+        model?.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.material = MARK_MATERIAL;
+          mesh.castShadow = false;
+          mesh.receiveShadow = false;
+          mesh.raycast = () => {};
+        });
+        return model;
+      });
+      this.liftTemplates.set(id, template);
+    }
+    void template.then((model) => {
+      if (!model || this.liftMarks.has(placed) || !this.placed.includes(placed)) return;
+      const view = model.clone();
+      const centre = spotCentre(placed.spot);
+      const [sx, sz] = placed.spot.offset ?? [0, 0];
+      view.position.set(centre.x + sx, placed.anchor.position.y, centre.z + sz);
+      view.rotation.y = faceYaw(placed.spot.face ?? 'S');
+      view.name = 'element-mark';
+      this.root.add(view);
+      this.liftMarks.set(placed, { view, asked: this.liftClock });
+    });
+    return placed.anchor;
   }
 
   protected override canEraseElements(): boolean {

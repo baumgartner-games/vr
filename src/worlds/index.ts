@@ -119,7 +119,7 @@ export const WORLDS: WorldDefinition[] = [
     title: 'Stadt',
     tagline: 'Straßen, Ampeln und Häuser aus dem Katalog',
     description:
-      'Eine Stadt nur aus dem Katalogordner „Stadt“: fünf Straßen von West nach Ost, dazwischen Blöcke von 19 bis 84 m Breite mit Häusern Rücken an Rücken, Gärten und Parks; die Querstraßen enden versetzt als Einmündungen, damit es kein Schachbrett ist. Mit einer Straße aus dem Katalog zieht man neue Straßen wie in Cities: Skylines — auf das Raster von 12 m oder frei, Kreuzungen und Laternen setzen sich selbst.',
+      'Eine Stadt nur aus dem Katalogordner „Stadt“: fünf Straßen von West nach Ost, dazwischen Blöcke von 19 bis 84 m Breite mit Häusern Rücken an Rücken, in der Mitte hoch, am Rand niedrig, ein Stadtpark, Café und Markt, Verkehr und Wiese rundherum; die Querstraßen enden versetzt als Einmündungen, damit es kein Schachbrett ist. Mit einer Straße aus dem Katalog zieht man neue Straßen wie in Cities: Skylines — auf das Raster von 12 m oder frei, Kreuzungen und Laternen setzen sich selbst.',
     accent: 0x8fb7d9,
     preview: 'worlds/test-city.webp',
     // Die ganze Stadt von oben, Rand bis Rand.

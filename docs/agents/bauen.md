@@ -107,7 +107,17 @@ gehighlighted wird das möbelstück."_
   1,40 m plus Zuschlag, leuchtet sein Saum (`showUse`, `elementLiftTarget`),
   die Hand öffnet sich, und der Grip hebt es an wie der Kran am Schirm
   (`liftElementAt` → `conjureModel`) — samt allem, was darauf steht. Grip auf
-  stellt hin. Ein umgestelltes Element hält kein Spielmodus fest
+  stellt hin. **Der Saum liegt an einer unsichtbaren Kopie**
+  (`FurnishedWorld.liftMark`): Der Anker eines Elements ist leer, und sein
+  Bodenstück steht gebündelt als Stück der Welt — gemeldet war _„die
+  Gegenstände werden nicht gehighlighted, wenn ich z. B. einen Tisch setze und
+  diesen dann nehmen will"_. Die Kopie (`elementModel`) zeichnet weder Farbe
+  noch Tiefe, nur ihr Saum ist zu sehen; nach einer Sekunde ohne Frage geht sie.
+- **Das Getragene in der Größe der Welt** (`heldElement`): Getragen wird das
+  erste Teil eines Elements, und zwar mit dessen Maß (`scale`, `height`,
+  `size`). Vorher ohne: Das Auto der Stadt (achtfacher Maßstab) lag 47 cm lang
+  in der Hand — gemeldet: _„Autos in die Hand zu nehmen im Weltbau-Modus, da
+  ist das Auto in der Hand leider winzig klein"_. Ein umgestelltes Element hält kein Spielmodus fest
   (`heldByMode`). Am Boden nicht: Dort fasst die Hand eine Küchenzeile an, um
   ihr etwas zu nehmen.
 

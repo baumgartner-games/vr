@@ -62,6 +62,7 @@ import {
   elementById,
   folderCover,
   hasElement,
+  type ElementPart,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
 import { elementBlockedCells, elementFacts, footprintLabel } from '../elements/elementFacts';
@@ -1249,8 +1250,27 @@ const ELEMENT_HOLD = Math.PI;
 const ELEMENT_REACH_HEIGHT = 1.4;
 
 /** Das Bodenstück eines Elements, gewendet (`ELEMENT_HOLD`), als getragenes Modell. */
-function heldElement(model: THREE.Object3D): THREE.Object3D {
+function heldElement(model: THREE.Object3D, part: ElementPart | undefined): THREE.Object3D {
   const holder = new THREE.Group();
+  // **So groß wie in der Welt** (`ElementPart.scale`, `height`, `size`): Das
+  // Auto der Stadt steht mit achtfachem Maßstab (`cityCatalog.CITY_SCALE`) —
+  // ohne ihn lag es 47 cm lang in der Hand. Gemeldet: _„Autos in die Hand zu
+  // nehmen im Weltbau-Modus, da ist das Auto in der Hand leider winzig
+  // klein."_ Gestreckt wird vor dem Drehen, in den Achsen der Datei.
+  if (part && (part.scale !== undefined || part.height !== undefined || part.size)) {
+    const raw = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+    const ratio = (want: number, have: number): number => (have > 1e-6 ? want / have : 1);
+    if (part.size)
+      model.scale.multiply(
+        new THREE.Vector3(
+          ratio(part.size[0], raw.x),
+          ratio(part.size[1], raw.y),
+          ratio(part.size[2], raw.z),
+        ),
+      );
+    else if (part.height !== undefined) model.scale.multiplyScalar(ratio(part.height, raw.y));
+    else model.scale.multiplyScalar(part.scale ?? 1);
+  }
   model.rotation.y += ELEMENT_HOLD;
   holder.add(model);
   return holder;
@@ -14362,7 +14382,11 @@ export class PortalWorld implements World {
     const entry = this.createModelProp(
       id,
       kind,
-      element !== null ? heldElement(model) : note === null ? model : buildNote(model, note),
+      element !== null
+        ? heldElement(model, elementById(element.id).parts[0])
+        : note === null
+          ? model
+          : buildNote(model, note),
       _point,
       spin,
     );

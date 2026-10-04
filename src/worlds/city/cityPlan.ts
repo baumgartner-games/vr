@@ -1,7 +1,16 @@
 import type { ElementSpot, Face } from '../elements/elementPlace';
 import { HOUSE_DEPTH } from '../elements/cityCatalog';
-import { ROAD_WIDTH, RoadNet, roadPieces, type RoadStyle } from '../elements/roadNetwork';
+import {
+  ROAD_WIDTH,
+  RoadNet,
+  parseRoad,
+  roadPieces,
+  type RoadStyle,
+} from '../elements/roadNetwork';
 import { GridPlan } from '../grid/gridPlan';
+import { mergeFloors } from '../grid/mergeSolids';
+import type { PlanSolid } from '../grid/solids';
+import { TILE } from '../nav/navTile';
 
 /**
  * **Der Plan der Stadt** — nur aus dem Katalogordner _Stadt_
@@ -53,7 +62,7 @@ interface Band {
 const BANDS: readonly Band[] = [
   { depth: 12, streets: [38, 81, 112], styles: ['lamps', 'old', 'lamps'] },
   { depth: 24, streets: [60, 96], styles: ['avenue', 'lamps'] },
-  { depth: 12, streets: [45, 77, 120], styles: ['old', 'plain', 'double'] },
+  { depth: 12, streets: [41, 77, 120], styles: ['old', 'plain', 'double'] },
   { depth: 18, streets: [96], styles: ['lamps'] },
 ];
 
@@ -76,8 +85,8 @@ const DEPTH = AVENUES[AVENUES.length - 1]!.z + W;
 
 /** Die Querstraße am Rand, im Westen und im Osten — durch alle Bänder. */
 const EDGES: readonly [number, RoadStyle][] = [
-  [0, 'plain'],
-  [WIDTH - W, 'plain'],
+  [0, 'avenue'],
+  [WIDTH - W, 'avenue'],
 ];
 
 /** Wo ein Zebrastreifen liegt: auf welcher Straße (Nummer), ab welcher Kachel. */
@@ -116,6 +125,10 @@ const HOUSE_WIDTH: Readonly<Record<string, number>> = {
   h: 8,
 };
 
+/** Die hohen Häuser (12 m) und die niedrigen (6,6–9,4 m). */
+const TALL = 'cdgh';
+const LOW = 'abef';
+
 /** Welche Breiten sich aus Häusern genau füllen lassen — bis zur breitesten Lücke. */
 const FILLS: readonly boolean[] = (() => {
   const out = [true];
@@ -124,38 +137,61 @@ const FILLS: readonly boolean[] = (() => {
   return out;
 })();
 
+/** **Ein fester Zufall** in [0, 1) für eine Stelle — bei jedem Laden derselbe. */
+function chance(...at: number[]): number {
+  let h = 2166136261;
+  for (const n of at) h = Math.imul(h ^ Math.round(n * 7 + 13), 16777619);
+  h ^= h >>> 13;
+  h = Math.imul(h, 2246822519);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+/** Die Mitte der Stadt — dort stehen die hohen Häuser. */
+const CENTRE = { x: WIDTH / 2, z: 63 };
+
 /**
- * **Häuser für eine Lücke**, Wand an Wand, genau `width` breit — reihum aus
- * `order`, aber nur ein Haus, nach dem der Rest noch aufgeht (`FILLS`).
+ * **Wie wahrscheinlich hier ein hohes Haus steht** — in der Mitte fast immer,
+ * am Rand selten. So hat die Stadt eine Silhouette statt einer Fläche gleich
+ * hoher Dächer.
  */
-function houses(width: number, order: string): string[] {
+function tallness(x: number, z: number): number {
+  const d = Math.hypot((x - CENTRE.x) / (WIDTH / 2), (z - CENTRE.z) / 63);
+  return Math.min(0.9, Math.max(0.1, 1.25 - d));
+}
+
+/**
+ * **Häuser für eine Lücke**, Wand an Wand, genau `length` lang, von (`x`,
+ * `z`) an entlang `axis` — je Platz hoch oder niedrig nach `tallness`, aber
+ * nur ein Haus, nach dem der Rest noch aufgeht (`FILLS`).
+ */
+function houses(length: number, x: number, z: number, axis: 'x' | 'z'): string[] {
   const out: string[] = [];
-  let left = width;
-  let i = 0;
+  let left = length;
+  let at = 0;
   while (left > 0) {
-    let pick = '';
-    for (let k = 0; k < order.length && !pick; k++) {
-      const letter = order[(i + k) % order.length]!;
+    const px = axis === 'x' ? x + at : x;
+    const pz = axis === 'z' ? z + at : z;
+    const first = chance(px, pz, 1) < tallness(px, pz) ? TALL : LOW;
+    const second = first === TALL ? LOW : TALL;
+    const shift = Math.floor(chance(px, pz, 2) * 4);
+    const order = [...first.slice(shift), ...first.slice(0, shift), ...second];
+    const pick = order.find((letter) => {
       const w = HOUSE_WIDTH[letter]!;
-      if (w <= left && FILLS[left - w]) {
-        pick = letter;
-        i += k + 1;
-      }
-    }
+      return w <= left && FILLS[left - w];
+    });
     if (!pick) break;
     out.push(pick);
     left -= HOUSE_WIDTH[pick]!;
+    at += HOUSE_WIDTH[pick]!;
   }
   return out;
 }
 
-/** Die Reihenfolgen der Häuser — je Reihe eine andere, damit es nicht gleich aussieht. */
-const ORDERS = ['ehfcgadb', 'abcdhegf', 'gdbefach', 'chaegbfd', 'fbhdacge'];
-
-/** **Eine Reihe Häuser** von `x` an nach Osten, `face` zur Straße. */
-function houseRow(prefix: string, x: number, z: number, width: number, face: Face, n: number) {
+/** **Eine Reihe Häuser** von (`x`, `z`) an nach Osten, `face` zur Straße. */
+function houseRow(prefix: string, x: number, z: number, width: number, face: Face) {
   let at = x;
-  return houses(width, ORDERS[n % ORDERS.length]!).map((letter, i): ElementSpot => {
+  return houses(width, x, z, 'x').map((letter, i): ElementSpot => {
     const spot: ElementSpot = {
       id: `${prefix}-${i}`,
       element: `city-house-${letter}`,
@@ -168,17 +204,47 @@ function houseRow(prefix: string, x: number, z: number, width: number, face: Fac
   });
 }
 
+/**
+ * **Eine Reihe Häuser quer** — am Ende eines Blocks, von Nord nach Süd, mit
+ * der Front zur Querstraße (`face` W oder O). Ohne sie sähe man von der
+ * Querstraße aus nur die Seitenwände der Reihen.
+ */
+function houseColumn(prefix: string, x: number, z: number, depth: number, face: Face) {
+  let at = z;
+  return houses(depth, x, z, 'z').map((letter, i): ElementSpot => {
+    const spot: ElementSpot = {
+      id: `${prefix}-${i}`,
+      element: `city-house-${letter}`,
+      x,
+      z: at,
+      face,
+    };
+    at += HOUSE_WIDTH[letter]!;
+    return spot;
+  });
+}
+
 /** Was zwischen den Häuserreihen liegt, je 12 m: Gärten (6 m tief) oder Parks (12 m). */
 const GARDENS = ['city-garden', 'city-yard', 'city-garden'];
 const PARKS = ['city-park-trees', 'city-plaza', 'city-park-bushes', 'city-park-path'];
 
 /**
+ * **Die Blöcke, die keine Häuser haben** — Band und Lücke → was dort steht.
+ * Mitten in der Stadt der Stadtpark (24 × 24 m), südlich davon über die
+ * Allee Café und Markt.
+ */
+const SPECIAL: Readonly<Record<string, readonly string[]>> = {
+  '1-1': ['city-park-big'],
+  '2-1': ['city-square-cafe', 'city-square-market'],
+};
+
+/**
  * **Die Blöcke** — je Band und je Lücke zwischen zwei Querstraßen zwei
- * Häuserreihen Rücken an Rücken, und was dazwischen Platz hat.
+ * Häuserreihen Rücken an Rücken, an beiden Enden eine Reihe quer zur
+ * Querstraße, und was dazwischen Platz hat.
  */
 function blocks(): ElementSpot[] {
   const out: ElementSpot[] = [];
-  let row = 0;
   BANDS.forEach((band, i) => {
     const top = AVENUES[i]!.z + W;
     const bottom = top + band.depth;
@@ -187,15 +253,28 @@ function blocks(): ElementSpot[] {
       const x = walls[k]! + W;
       const width = walls[k + 1]! - x;
       const name = `block-${i}-${k}`;
-      out.push(...houseRow(`${name}-n`, x, top, width, 'N', row++));
-      out.push(...houseRow(`${name}-s`, x, bottom - HOUSE_DEPTH, width, 'S', row++));
+      const special = SPECIAL[`${i}-${k}`];
+      if (special) {
+        let at = x;
+        special.forEach((element, n) => {
+          out.push({ id: `${name}-${n}`, element, x: at, z: top });
+          at += element === 'city-park-big' ? 2 * W : W;
+        });
+        continue;
+      }
+      out.push(...houseColumn(`${name}-w`, x, top, band.depth, 'W'));
+      out.push(...houseColumn(`${name}-o`, x + width - HOUSE_DEPTH, top, band.depth, 'E'));
+      const inner = x + HOUSE_DEPTH;
+      const span = width - 2 * HOUSE_DEPTH;
+      out.push(...houseRow(`${name}-n`, inner, top, span, 'N'));
+      out.push(...houseRow(`${name}-s`, inner, bottom - HOUSE_DEPTH, span, 'S'));
       const middle = band.depth - 2 * HOUSE_DEPTH;
       const fill = middle >= W ? PARKS : middle > 0 ? GARDENS : [];
-      for (let t = 0; fill.length > 0 && t + W <= width; t += W)
+      for (let t = 0; fill.length > 0 && t + W <= span; t += W)
         out.push({
           id: `${name}-m-${t}`,
           element: fill[(t / W + k) % fill.length]!,
-          x: x + t,
+          x: inner + t,
           z: top + HOUSE_DEPTH,
         });
     }
@@ -211,18 +290,118 @@ function roads(): ElementSpot[] {
   }));
 }
 
+/** Die Autos der Reihe nach. */
+const CARS = [
+  'city-car-sedan',
+  'city-car-taxi',
+  'city-car-hatchback',
+  'city-car-stationwagon',
+  'city-car-sedan',
+  'city-car-police',
+  'city-car-taxi',
+];
+
+/**
+ * **Verkehr** — auf gut einem Drittel der ganzen Geraden ein Auto, rechts,
+ * wie man fährt: auf einer Straße von West nach Ost nach Westen auf der
+ * nördlichen Spur und nach Osten auf der südlichen, auf einer von Nord nach
+ * Süd nach Süden auf der westlichen. Jedes Auto sperrt seine zwei mal vier
+ * Kacheln wie jedes andere.
+ */
+function traffic(): ElementSpot[] {
+  const out: ElementSpot[] = [];
+  let n = 0;
+  for (const piece of roadPieces(cityNet())) {
+    if (piece.element === 'city-road-crossing') continue;
+    const road = parseRoad(piece.element);
+    if (road?.kind !== 'straight' || road.length !== W) continue;
+    if (chance(piece.x, piece.z, 3) > 0.38) continue;
+    const forward = chance(piece.x, piece.z, 4) < 0.5;
+    const element = CARS[n % CARS.length]!;
+    const id = `auto-${n++}`;
+    if (piece.face === 'E')
+      out.push({
+        id,
+        element,
+        x: piece.x + 4,
+        z: piece.z + (forward ? 7 : 4),
+        face: forward ? 'E' : 'W',
+      });
+    else
+      out.push({
+        id,
+        element,
+        x: piece.x + (forward ? 4 : 7),
+        z: piece.z + 4,
+        face: forward ? 'S' : 'N',
+      });
+  }
+  return out;
+}
+
+/**
+ * **Was auf den Gehwegen steht** — auf jeder dritten Geraden (außer der
+ * Allee, dort stehen Bäume) ein Hydrant, eine Mülltonne, eine Bank oder ein
+ * Fahrrad, zwischen den Laternen.
+ */
+function streetLife(): ElementSpot[] {
+  const out: ElementSpot[] = [];
+  let n = 0;
+  for (const piece of roadPieces(cityNet())) {
+    const road = parseRoad(piece.element);
+    if (road?.kind !== 'straight' || road.length !== W) continue;
+    if (road.style === 'avenue' || road.style === 'crossing') continue;
+    const roll = chance(piece.x, piece.z, 5);
+    if (roll > 0.4) continue;
+    const kind = Math.floor(chance(piece.x, piece.z, 6) * 4);
+    const near = roll < 0.2;
+    const id = `gehweg-${n++}`;
+    const h = piece.face === 'E';
+    // Am nahen oder fernen Gehweg, gegenüber der Laterne dort.
+    const x = h ? piece.x + (near ? 8 : 3) : piece.x + (near ? 10 : 1);
+    const z = h ? piece.z + (near ? 1 : 10) : piece.z + (near ? 8 : 2);
+    if (kind === 0) out.push({ id, element: 'city-hydrant', x, z });
+    else if (kind === 1) out.push({ id, element: 'city-trash', x, z });
+    else if (kind === 2)
+      out.push(
+        h
+          ? { id, element: 'city-bench', x: x - 1, z, face: near ? 'S' : 'N' }
+          : { id, element: 'city-bench', x, z: z - 1, face: near ? 'W' : 'E' },
+      );
+    else out.push({ id, element: 'city-bicycle', x, z: h ? z : z - 1, face: h ? 'E' : 'S' });
+  }
+  return out;
+}
+
+/**
+ * **Bäume auf der Wiese rundherum** — locker, auf einem Raster von 8 m mit
+ * etwas Versatz, damit der Stadtrand nicht wie abgeschnitten aussieht.
+ */
+function meadowTrees(): ElementSpot[] {
+  const out: ElementSpot[] = [];
+  const g = cityGround();
+  const trees = ['city-tree-a', 'city-tree-b', 'city-tree-c'];
+  for (let z = g.z + 2; z + 4 <= g.z + g.d - 2; z += 8)
+    for (let x = g.x + 2; x + 4 <= g.x + g.w - 2; x += 8) {
+      const inside = x + 4 > -2 && x < WIDTH + 2 && z + 4 > -2 && z < DEPTH + 2;
+      if (inside || chance(x, z, 7) > 0.4) continue;
+      const dx = Math.floor(chance(x, z, 8) * 3);
+      const dz = Math.floor(chance(x, z, 9) * 3);
+      const tx = x + dx;
+      const tz = z + dz;
+      if (tx + 4 > -1 && tx < WIDTH + 1 && tz + 4 > -1 && tz < DEPTH + 1) continue;
+      out.push({ id: `wiese-${x}-${z}`, element: trees[out.length % 3]!, x: tx, z: tz });
+    }
+  return out;
+}
+
 /** Alles, was in der Stadt steht. */
 export const CITY_SPOTS: readonly ElementSpot[] = [
   ...roads(),
   ...blocks(),
-  // Autos auf den Straßen — rechts, wie man fährt: nach Westen auf der
-  // nördlichen Spur, nach Osten auf der südlichen, nach Süden auf der westlichen.
-  { id: 'taxi', element: 'city-car-taxi', x: 14, z: AVENUES[2]!.z + 4, face: 'W' },
-  { id: 'polizei', element: 'city-car-police', x: 110, z: AVENUES[2]!.z + 7, face: 'E' },
-  { id: 'limousine', element: 'city-car-sedan', x: 64, z: 40, face: 'S' },
-  { id: 'kombi', element: 'city-car-stationwagon', x: 140, z: AVENUES[4]!.z + 7, face: 'E' },
-  { id: 'kleinwagen', element: 'city-car-hatchback', x: 100, z: 100, face: 'S' },
-  { id: 'taxi-2', element: 'city-car-taxi', x: 126, z: AVENUES[1]!.z + 4, face: 'W' },
+  ...traffic(),
+  ...streetLife(),
+  ...meadowTrees(),
 ];
 
 /**
@@ -238,9 +417,29 @@ export function citySpawn(): { x: number; z: number } {
   return { x: 96 - 1.5, z: AVENUES[2]!.z + 1.5 };
 }
 
+/**
+ * **Der Grundriss der Stadt** — wie jeder, nur dass die Wiese ein Quader ist
+ * statt einer je Kachel (`grid/mergeSolids.mergeFloors`). `GridWorld` baut
+ * sonst je Bodenkachel ein Netz und einen Körper in der Physik: bei 216 ×
+ * 174 Kacheln 37 584 davon, und allein das Durchgehen dieser Szene in jedem
+ * Bild brachte die Brille ins Stocken.
+ */
+class CityPlan extends GridPlan {
+  override solids(): PlanSolid[] {
+    const floors: PlanSolid[] = [];
+    const rest: PlanSolid[] = [];
+    for (const solid of super.solids()) {
+      if (solid.kind === 'floor' && !solid.half && solid.w === TILE && solid.d === TILE)
+        floors.push(solid);
+      else rest.push(solid);
+    }
+    return [...mergeFloors(floors), ...rest];
+  }
+}
+
 /** Der Plan der Welt: nur Boden — alles andere sind Spielelemente (`CITY_SPOTS`). */
 export function cityPlan(): GridPlan {
-  const plan = new GridPlan([0]);
+  const plan = new CityPlan([0]);
   plan.floor(cityGround());
   return plan;
 }

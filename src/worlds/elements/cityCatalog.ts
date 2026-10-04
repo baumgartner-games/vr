@@ -346,6 +346,93 @@ function house(
   };
 }
 
+/** **Ein Modell aus einem anderen Paket des Regals**, auf `height` Meter gebracht. */
+function kit(
+  model: string,
+  height: number,
+  at: readonly [number, number] = [0, 0],
+  yaw = 0,
+): ElementPart {
+  return { model, height, at, yaw };
+}
+
+/** Dasselbe auf der Platte eines Platzes (`on: 0`). */
+function kitOn(model: string, height: number, at: readonly [number, number], yaw = 0): ElementPart {
+  return { ...kit(model, height, at, yaw), on: 0 };
+}
+
+/** Die Farben der Sonnenschirme (`mixed-bag/umbrella_*`). */
+const UMBRELLAS = ['blue', 'green', 'yellow', 'pink'] as const;
+
+/** Ein Sonnenschirm, 2,4 m hoch. */
+function umbrella(color: string): string {
+  return `mixed-bag/umbrella_${color}.glb`;
+}
+
+/**
+ * **Ein Café-Tisch** — Tisch, zwei Stühle einander gegenüber, darüber ein
+ * Schirm, um (`x`, `z`) auf der Platte.
+ */
+function cafeSet(x: number, z: number, color: string, onPlate: boolean): ElementPart[] {
+  const at = onPlate ? kitOn : kit;
+  return [
+    at('furniture-bits/table_small.glb', 0.75, [x, z]),
+    at('furniture-bits/chair_A.glb', 0.95, [x - 0.85, z], Math.PI / 2),
+    at('furniture-bits/chair_A.glb', 0.95, [x + 0.85, z], -Math.PI / 2),
+    at(umbrella(color), 2.4, [x, z]),
+  ];
+}
+
+/**
+ * **Der Stadtpark**, 24 × 24 m — Rasen, ein Wegekreuz mit einer
+ * Doppellaterne in der Mitte, Bäume in den vier Vierteln, Bänke an den
+ * Wegen und rundherum eine Hecke mit einer Lücke an jedem Weg. Die Mauer-
+ * teile der Quelle gehen nicht: Sie sind Kacheln mit der Mauer an einer Kante
+ * und würden mit dem Maß der Kachel gestreckt.
+ */
+function bigPark(): ElementPart[] {
+  const S = 2 * CITY_BLOCK;
+  const half = S / 2;
+  const path = 4;
+  const parts: ElementPart[] = [
+    plate('park_base', S, S, 0, 0, 0, WALK_TOP),
+    plate('park_road_straight', path, S, 0, 0, 0, WALK_TOP + 0.02),
+    plate('park_road_straight', path, S, 0, 0, ACROSS, WALK_TOP + 0.02),
+    plate('park_road_junction', path, path, 0, 0, 0, WALK_TOP + 0.04),
+    onSlab('streetlight_old_double', [0, 0]),
+  ];
+  const trees = ['tree_A', 'tree_B', 'tree_C', 'tree_D', 'tree_E'];
+  let n = 0;
+  for (const [sx, sz] of [
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1],
+  ] as const) {
+    for (const [x, z] of [
+      [7, 7],
+      [4.5, 9.5],
+      [9.5, 4],
+    ] as const)
+      parts.push(onSlab(trees[n++ % trees.length]!, [sx * x, sz * z], n));
+    // Eine Bank an jedem Weg, mit dem Rücken zum Rasen.
+    parts.push(onSlab('bench', [sx * 3.2, sz * 6], sx > 0 ? -Math.PI / 2 : Math.PI / 2));
+    parts.push(onSlab('streetlight_old_single', [sx * 3.2, sz * 9.5]));
+  }
+  // Die Hecke: Büsche an allen vier Kanten, außer wo ein Weg hinausgeht.
+  for (let t = -half + 1.5; t <= half - 1.5; t += 2.5) {
+    if (Math.abs(t) < path) continue;
+    for (const [x, z] of [
+      [t, -half + 1],
+      [t, half - 1],
+      [-half + 1, t],
+      [half - 1, t],
+    ] as const)
+      parts.push(onSlab(['bush_A', 'bush_B', 'bush_C'][n++ % 3]!, [x, z], n));
+  }
+  return parts;
+}
+
 /** **Ein Straßenmöbel für sich** — sperrt seine Kachel(n), im Maßstab der Stadt. */
 function prop(
   id: string,
@@ -505,6 +592,48 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
       onSlab('bush_B', [-4.2, 3.3]),
     ],
   ),
+  // Große Plätze — der Stadtpark über vier Stücke, Café und Markt auf einem.
+  {
+    ...road('city-park-big', 'Stadtpark', ['Park', 'Stadtpark', 'Bäume', 'Hecke'], bigPark()),
+    tiles: [2 * CITY_BLOCK, 2 * CITY_BLOCK],
+  },
+  road(
+    'city-square-cafe',
+    'Platz mit Café',
+    ['Platz', 'Café', 'Sonnenschirm', 'Tisch'],
+    [
+      plate('base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      ...cafeSet(-3, -3, 'blue', true),
+      ...cafeSet(2.5, -3.5, 'green', true),
+      ...cafeSet(-2.5, 2, 'yellow', true),
+      ...cafeSet(3, 2.5, 'pink', true),
+      onSlab('tree_B', [-4.5, 5]),
+      onSlab('tree_C', [4.5, -5.25], Math.PI / 2),
+      onSlab('streetlight_old_single', [0, 0]),
+    ],
+  ),
+  road(
+    'city-square-market',
+    'Marktplatz',
+    ['Platz', 'Markt', 'Stand', 'Sonnenschirm'],
+    [
+      plate('base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      ...[
+        [-3.5, -3.5, 'restaurant-bits/crate_carrots.glb'],
+        [0, -3.5, 'restaurant-bits/crate_tomatoes.glb'],
+        [3.5, -3.5, 'restaurant-bits/crate_lettuce.glb'],
+        [-3.5, 3.5, 'restaurant-bits/crate_potatoes.glb'],
+        [0, 3.5, 'restaurant-bits/crate_onions.glb'],
+        [3.5, 3.5, 'restaurant-bits/crate_mushrooms.glb'],
+      ].flatMap(([x, z, crate], i): ElementPart[] => [
+        kitOn(crate as string, 0.6, [x as number, z as number]),
+        kitOn(umbrella(UMBRELLAS[i % UMBRELLAS.length]!), 2.4, [x as number, z as number]),
+      ]),
+      onSlab('bench', [0, 0], Math.PI / 2),
+      onSlab('streetlight_old_double', [-5, 0]),
+      onSlab('streetlight_old_double', [5, 0]),
+    ],
+  ),
   // Hinter den Häusern — sechs Kacheln tief wie ein Haus, so breit wie ein
   // Straßenstück.
   {
@@ -559,6 +688,20 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
   prop('city-trash', 'Müll', 'trash_A', [1, 1], { solid: NOTHING }),
   prop('city-box', 'Karton', 'box_A', [1, 1]),
   prop('city-watertower', 'Wasserturm', 'watertower', [2, 2]), // 2,0 × 2,7 × 2,0
+  // Aus anderen Paketen des Regals — was auf Straße und Gehweg steht.
+  ...UMBRELLAS.map((color) => ({
+    ...prop(`city-umbrella-${color}`, 'Sonnenschirm', '', [2, 2], { solid: POLE }),
+    parts: [kit(umbrella(color), 2.4)],
+  })),
+  {
+    ...prop('city-cafe-table', 'Café-Tisch', '', [3, 2]),
+    parts: cafeSet(0, 0, 'blue', false),
+  },
+  { ...prop('city-bicycle', 'Fahrrad', '', [1, 2]), parts: [kit('mixed-bag/bicycle.glb', 1)] },
+  {
+    ...prop('city-cone', 'Leitkegel', '', [1, 1], { solid: POLE }),
+    parts: [kit('platformer/neutral/cone.glb', 0.7)],
+  },
   // Autos — 1,7 × 3,8 m, zwei mal vier Kacheln.
   prop('city-car-sedan', 'Limousine', 'car_sedan', [2, 4]),
   prop('city-car-hatchback', 'Kleinwagen', 'car_hatchback', [2, 4]),
@@ -602,7 +745,7 @@ export const CITY_FOLDER: FurnitureFolder = {
     {
       id: 'city-plazas',
       label: 'Plätze & Parks',
-      elements: ofKind('city-plaza', 'city-park', 'city-garden', 'city-yard'),
+      elements: ofKind('city-plaza', 'city-park', 'city-square', 'city-garden', 'city-yard'),
       cover: { element: 'city-park-trees' },
     },
     {
@@ -623,6 +766,10 @@ export const CITY_FOLDER: FurnitureFolder = {
         'city-trash',
         'city-box',
         'city-watertower',
+        'city-umbrella',
+        'city-cafe',
+        'city-bicycle',
+        'city-cone',
       ),
       cover: { element: 'city-trafficlight-arm' },
     },
