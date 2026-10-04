@@ -12,33 +12,61 @@ import type { ElementPart, FurnitureFolder, GameElement } from './elementCatalog
  * **Der Maßstab: 4 m je Einheit der Quelle** (`CITY_SCALE` auf das Regal). Das
  * Paket ist eine Modellstadt: Eine Straßenkachel ist in der Quelle zwei
  * Einheiten breit, mit dem Maßstab des Regals (0,5) also ein Meter, ein Auto
- * 47 cm und eine Laterne 48 cm. Bei 4 m je Einheit ist die Straße **8 × 8 m**
- * (zwei Fahrspuren), ein Auto 3,8 m lang, eine Laterne 3,8 m hoch und ein
- * Haus 6,6 bis 12 m. Ein Maßstab für alles, damit Straßen, Häuser und
- * Straßenmöbel zusammenpassen, wie das Paket sie gebaut hat.
+ * 47 cm und eine Laterne 48 cm. Bei 4 m je Einheit ist ein Auto 3,8 m lang,
+ * eine Laterne 3,8 m hoch und ein Haus 6,6 bis 12 m.
  *
- * **Alles Große liegt auf 8 × 8 Kacheln** — Straßen, Gehweg, Park und Häuser —,
- * damit eine Stadt ein Raster aus gleichen Blöcken ist: Straße neben Haus
- * neben Kreuzung, und nichts muss passend gerückt werden.
+ * **Der Gehweg gehört zur Straße.** Gewünscht, als die Häuser noch auf eigenem
+ * Gehweg standen: _„den Gehweg will ich bei den Straßen bereits inkludiert
+ * haben, sodass ich die Häuser nur noch in die freien Plätze stellen muss"_.
+ * Ein Straßenstück ist **12 × 12 m**: 6 m Fahrbahn mit zwei Spuren
+ * (`ROADWAY`), links und rechts je 3 m Gehweg (`WALK`) — gewünscht: _„Der
+ * Gehweg sollte mindestens 3 Felder breit sein"_. Die Platten der Quelle
+ * werden dafür auf genaue Maße gebracht (`ElementPart.size`, `pose`): die
+ * Fahrbahn auf 6 m Breite, der Gehweg als Streifen aus der Gehwegplatte. An
+ * Kreuzung, Einmündung und Ecke sitzt die Fahrbahn der Quelle auf 6 × 6 m in
+ * der Mitte, die Anschlüsse zum Nachbarn sind kurze Stücke Gerade, und in den
+ * Ecken liegt je ein Quadrat Gehweg — so laufen Fahrbahn, Bordstein und
+ * Markierung über jede Fuge durch.
  *
  * **Straßen und Plätze sind Boden mit Möbeln** (`floor`): Sie sperren nichts,
- * man geht und stellt darauf, und Laternen und Ampeln stehen als Teile
- * darauf — ein Preset statt zwanzig Einzelteile. Die Platte der Quelle ist
- * 40 cm dick (0,05 Einheiten); sie wird deshalb **eingelassen** (`flush`), so
- * dass nur ihre Oberkante über dem Boden der Welt liegt — sonst stünde man
- * bis zu den Knöcheln in der Fahrbahn.
+ * man geht und stellt darauf, und Laternen und Ampeln stehen als Teile auf dem
+ * Gehweg — ein Preset statt zwanzig Einzelteile. Plätze und Parks haben
+ * dieselben 12 × 12 m, damit alles ein Raster ist. Alles liegt **16 cm hoch**
+ * (`SLAB_TOP`), die Fahrbahn darin 3 cm tiefer: Die Platten der Welt schieben
+ * ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`) und gewinnen
+ * sonst jedes Pixel — eine Fahrbahn 1 cm über dem Boden war unsichtbar.
  *
- * **Häuser** sind die Häuser des Pakets **ohne** ihren Sockel, gestellt auf
- * eine eingelassene Gehwegplatte: dieselbe Rechnung wie bei der Straße. Gesperrt
- * ist nur das Haus selbst (`solid`, nachgemessen), um es herum geht man auf
- * dem Gehweg.
+ * **Häuser** sind so breit wie das Haus selbst und 12 m tief — so tief wie ein
+ * Straßenstück, damit zwei Häuserreihen Rücken an Rücken genau zwei Stücke
+ * Querstraße füllen (`house`): vorn bündig an den Gehweg, hinten Garten. Gemeldet
+ * an der ersten Fassung, in der jedes Haus auf einer Gehwegplatte von 8 × 8 m
+ * stand: _„Bei den Gebäuden muss der benötigte Platz reduziert werden, sodass
+ * links und rechts nicht diese leeren Gassen sind […] an der Rückseite macht
+ * es schon Sinn."_ So stehen Häuser in einer Reihe Wand an Wand.
  */
 
 /** **Faktor auf den Maßstab des Regals** (0,5): 4 m je Einheit der Quelle. */
 export const CITY_SCALE = 8;
 
-/** **Die Kante eines großen Stücks** in Metern — Straße, Platz, Haus. */
-export const CITY_BLOCK = 8;
+/** **Die Kante eines Straßenstücks, Platzes, Parks** in Metern — und die Tiefe eines Hauses. */
+export const CITY_BLOCK = 12;
+
+/** **Die Fahrbahn**, in Metern — zwei Spuren zu 3 m. */
+const ROADWAY = 6;
+/**
+ * **Der Gehweg** je Seite, in Metern — der Rest bis zur Kante des Stücks:
+ * drei Kacheln. Gewünscht: _„Der Gehweg ist mir zu klein. Der sollte
+ * mindestens 3 Felder breit sein"_ — vorher war er einen Meter breit.
+ */
+const WALK = (CITY_BLOCK - ROADWAY) / 2;
+/** Die Mitte des Gehwegs, von der Mitte des Stücks aus. */
+const SIDE = ROADWAY / 2 + WALK / 2;
+/**
+ * **Wo Laterne und Ampel stehen** — auf dem Gehweg, einen halben Meter vom
+ * Bordstein: Der Arm (1 m bei der Laterne, 3 m bei der Ampelbrücke) reicht
+ * so über die Fahrbahn und nicht über den Gehweg.
+ */
+const CURB = ROADWAY / 2 + 0.5;
 
 /** Eine Adresse aus _City Builder Bits_. */
 export function cityBits(name: string): string {
@@ -52,37 +80,44 @@ const BODY = 1.4;
 const NOTHING: readonly [number, number] = [0, 0];
 
 /**
- * **Wie weit die Oberkante einer Platte über dem Boden liegt**, in Metern.
- * Die Fahrbahn liegt in der Quelle 1 cm unter dem Bordstein (bei 4 m je
- * Einheit 8 cm). Sie muss **deutlich** über den Platten der Welt liegen: Die
- * schieben ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`) und
- * gewinnen sonst jedes Pixel — eine Fahrbahn 1 cm darüber war unsichtbar, nur
- * der Bordstein schaute heraus. Mit 16 cm liegt sie 8 cm darüber.
+ * **Wie hoch eine Straße liegt**, in Metern: Oberkante von Bordstein und
+ * Gehweg. Die Fahrbahn liegt darin ein Fünftel tiefer (in der Quelle 0,04 von
+ * 0,05), also 13 cm über dem Boden der Welt — sicher über deren Platten.
  */
 const SLAB_TOP = 0.16;
-/** Die Gehweg- und Parkplatten — eben, ihre Oberkante 10 cm über dem Boden. */
+/** Die Platz- und Parkplatten — eben, ihre Oberkante 10 cm über dem Boden. */
 const WALK_TOP = 0.1;
 
 /**
- * **Eine Platte, eingelassen** — die Oberkante `top` über dem Boden der Welt
- * (`ElementPart.flush` rechnet von der Oberkante dessen, worauf es liegt,
- * hier vom Boden, also mit umgekehrtem Vorzeichen).
+ * **Eine Platte auf genaue Maße** — Breite × Tiefe in Metern, `top` hoch, mit
+ * der Mitte bei (`x`, `z`) und um `yaw` gedreht (gestreckt wird vorher, also
+ * gelten Breite und Tiefe ungedreht). Steht auf dem Boden der Welt.
  */
-function slab(name: string, top = SLAB_TOP, yaw?: number): ElementPart {
-  return { model: cityBits(name), scale: CITY_SCALE, flush: -top, ...(yaw ? { yaw } : {}) };
+function plate(
+  name: string,
+  w: number,
+  d: number,
+  x = 0,
+  z = 0,
+  yaw = 0,
+  top = SLAB_TOP,
+): ElementPart {
+  return { model: cityBits(name), size: [w, top, d], pose: { at: [x, 0, z], rot: [0, yaw, 0] } };
+}
+
+/** **Ein Stück Gehweg** — aus der Gehwegplatte der Quelle, Breite × Tiefe in Metern. */
+function walk(x: number, z: number, w: number, d: number): ElementPart {
+  return plate('base', w, d, x, z);
 }
 
 /**
  * **Etwas, das auf der Platte steht** — an seinem Ursprung (`rooted`: dort
- * steht der Mast), auf der Oberkante der Platte (`on: 0`), um `yaw` gedreht.
- * Laterne und Ampel haben ihren Arm in der Quelle nach Westen (−x).
+ * steht der Mast), auf der Oberkante des ersten Teils (`on: 0`), um `yaw`
+ * gedreht. Laterne und Ampel haben ihren Arm in der Quelle nach Westen (−x).
  */
 function onSlab(name: string, at: readonly [number, number], yaw = 0): ElementPart {
   return { model: cityBits(name), scale: CITY_SCALE, rooted: true, on: 0, at, yaw };
 }
-
-/** Wo eine Laterne am Bordstein steht: so weit von der Mitte, in Metern. */
-const CURB = 3.7;
 
 /** Die Drehungen — der Arm der Quelle zeigt nach Westen (−x). */
 const ARM_WEST = 0;
@@ -91,8 +126,48 @@ const ARM_NORTH = -Math.PI / 2;
 const ARM_SOUTH = Math.PI / 2;
 /** Schräg nach Nordwesten — von der inneren Ecke einer Kurve in die Fahrbahn. */
 const ARM_NORTHWEST = -Math.PI / 4;
+/** Vierteldrehung — eine Gerade quer, von West nach Ost. */
+const ACROSS = Math.PI / 2;
 
-/** **Eine Straße**: die Platte und was darauf steht, auf 8 × 8 Kacheln, ohne Sperre. */
+/** **Die Gerade**: Fahrbahn von Nord nach Süd, Gehweg links und rechts. */
+function straight(name = 'road_straight'): ElementPart[] {
+  return [
+    plate(name, ROADWAY, CITY_BLOCK),
+    walk(-SIDE, 0, WALK, CITY_BLOCK),
+    walk(SIDE, 0, WALK, CITY_BLOCK),
+  ];
+}
+
+/**
+ * **Ein Knoten** — die Fahrbahn der Quelle auf 6 × 6 m in der Mitte, ein
+ * kurzes Stück Gerade zu jedem Ausgang (`exits`: Nord, Ost, Süd, West), ein
+ * Gehwegstreifen an jeder geschlossenen Seite und ein Quadrat Gehweg in jeder
+ * Ecke dazwischen.
+ */
+function junctionParts(
+  name: string,
+  exits: { n?: boolean; e?: boolean; s?: boolean; w?: boolean },
+): ElementPart[] {
+  const parts: ElementPart[] = [plate(name, ROADWAY, ROADWAY)];
+  if (exits.n) parts.push(plate('road_straight', ROADWAY, WALK, 0, -SIDE));
+  else parts.push(walk(0, -SIDE, ROADWAY, WALK));
+  if (exits.s) parts.push(plate('road_straight', ROADWAY, WALK, 0, SIDE));
+  else parts.push(walk(0, SIDE, ROADWAY, WALK));
+  if (exits.e) parts.push(plate('road_straight', ROADWAY, WALK, SIDE, 0, ACROSS));
+  else parts.push(walk(SIDE, 0, WALK, ROADWAY));
+  if (exits.w) parts.push(plate('road_straight', ROADWAY, WALK, -SIDE, 0, ACROSS));
+  else parts.push(walk(-SIDE, 0, WALK, ROADWAY));
+  for (const [x, z] of [
+    [SIDE, SIDE],
+    [-SIDE, SIDE],
+    [SIDE, -SIDE],
+    [-SIDE, -SIDE],
+  ] as const)
+    parts.push(walk(x, z, WALK, WALK));
+  return parts;
+}
+
+/** **Eine Straße**: ihre Platten und was darauf steht, auf 12 × 12 Kacheln, ohne Sperre. */
 function road(
   id: string,
   label: string,
@@ -121,14 +196,19 @@ type LampSpot = readonly [x: number, z: number, yaw: number];
  * einer Leuchte auf dem Mast, die alte mit zweien.
  */
 const LAMP_STYLES = [
-  { suffix: '', file: 'streetlight', label: 'Laterne' },
-  { suffix: '-old', file: 'streetlight_old_single', label: 'alter Laterne' },
-  { suffix: '-double', file: 'streetlight_old_double', label: 'Doppellaterne' },
+  { suffix: '', file: 'streetlight', one: 'Laterne', many: 'Laternen' },
+  { suffix: '-old', file: 'streetlight_old_single', one: 'alter Laterne', many: 'alten Laternen' },
+  {
+    suffix: '-double',
+    file: 'streetlight_old_double',
+    one: 'Doppellaterne',
+    many: 'Doppellaternen',
+  },
 ] as const;
 
 /**
  * **Eine Straße mit Laternen, in jeder Fassung** — drei Elemente auf
- * derselben Platte, die sich im Spiel reihum tauschen: Wer auf eine Laterne
+ * denselben Platten, die sich im Spiel reihum tauschen: Wer auf eine Laterne
  * schaut, sieht sie leuchten, und `A` stellt die nächste Fassung hin
  * (`opens: 'swap'`, `ElementPart.swaps`). Die erste steht im Ordner, die
  * anderen unter _Alles_.
@@ -139,20 +219,15 @@ function lampRoad(
   id: string,
   label: string,
   aka: readonly string[],
-  plate: string,
+  plates: readonly ElementPart[],
   lamps: readonly LampSpot[],
 ): GameElement[] {
   return LAMP_STYLES.map((style, i) => {
     const next = LAMP_STYLES[(i + 1) % LAMP_STYLES.length]!;
-    const plural = lamps.length > 1;
-    const name = plural
-      ? { Laterne: 'Laternen', 'alter Laterne': 'alten Laternen', Doppellaterne: 'Doppellaternen' }[
-          style.label
-        ]
-      : style.label;
+    const name = lamps.length > 1 ? style.many : style.one;
     return {
       ...road(id + style.suffix, label.replace('%', name), aka, [
-        slab(plate),
+        ...plates,
         ...lamps.map(([x, z, yaw]): ElementPart => ({
           ...onSlab(style.file, [x, z], yaw),
           swaps: true,
@@ -170,27 +245,46 @@ function isVariant(id: string): boolean {
 }
 
 /**
- * **Ein Haus** — eingelassene Gehwegplatte, darauf das Haus ohne Sockel, und
- * gesperrt seine Grundfläche (Breite × Tiefe in Metern, nachgemessen an der
- * Datei ohne Sockel, mal 4).
+ * **Ein Haus** — so breit wie das Haus (`width`, aufgerundet auf Kacheln) und
+ * `CITY_BLOCK` tief, auf Pflaster in der Höhe des Gehwegs. Das Haus ohne
+ * Sockel steht vorn (Süden) bündig an der Kante, dahinter liegt Rasen. Gesperrt ist die ganze Fläche: Hinter einem
+ * Haus geht niemand durch den Garten.
+ *
+ * @param width Breite des Hauses in Metern, nachgemessen an der Datei ohne Sockel
+ * @param depth seine Tiefe
  */
 function house(
   id: string,
   label: string,
   letter: string,
-  solid: readonly [number, number],
+  width: number,
+  depth: number,
 ): GameElement {
+  // Ein paar Zentimeter Überstand zählen nicht: 8,03 m sind acht Kacheln.
+  const tiles = Math.ceil(width - 0.05);
+  const yard = CITY_BLOCK - depth;
   return {
     id,
     label,
     aka: ['Haus', 'Gebäude', 'Building', 'Stadt'],
-    tiles: [CITY_BLOCK, CITY_BLOCK],
+    tiles: [tiles, CITY_BLOCK],
     height: BODY,
     kind: null,
-    solid,
     parts: [
-      slab('base', WALK_TOP),
-      { model: cityBits(`building_${letter}_withoutBase`), scale: CITY_SCALE, on: 0 },
+      // Pflaster über die ganze Fläche, so hoch wie der Gehweg der Straße: Das
+      // Haus ist ein paar Zentimeter schmaler als seine Kacheln und hat vorn
+      // Stufen und Markisen, die über seine Wand hinausragen — sonst sähe man
+      // dort den Boden der Welt als Streifen.
+      plate('base', tiles, CITY_BLOCK),
+      // Der Garten hinten, eine Handbreit darüber, damit sich beide nicht um
+      // dieselben Bildpunkte streiten.
+      plate('park_base', tiles, yard, 0, -CITY_BLOCK / 2 + yard / 2, 0, SLAB_TOP + 0.01),
+      {
+        model: cityBits(`building_${letter}_withoutBase`),
+        scale: CITY_SCALE,
+        at: [0, CITY_BLOCK / 2 - depth / 2],
+        on: 0,
+      },
     ],
   };
 }
@@ -219,70 +313,61 @@ const POLE: readonly [number, number] = [0.5, 0.5];
 
 /**
  * **Die Elemente der Stadt** — im Katalog unter _Stadt_ (`CITY_FOLDER`), nach
- * Art: Straßen, Plätze, Häuser, Straßenmöbel, Autos, Grün. Gemessen bei 4 m je
- * Einheit: Breite × Höhe × Tiefe.
+ * Art: Straßen, Plätze, Häuser, Straßenmöbel, Autos, Grün.
  *
  * **Die Straßen als Vorschlag**, je mit dem, was an so einer Stelle steht:
- * die Gerade mit zwei Laternen versetzt an beiden Bordsteinen, der
- * Zebrastreifen mit einer Ampel je Seite, die Ecke und die Kurve mit einer
- * Laterne an der inneren Ecke, die Einmündung mit drei Ampeln, die Kreuzung
- * mit vier Ampelbrücken — eine für jede Richtung. Dazu eine Gerade ohne
- * alles, für lange Strecken, und die Allee. Die Laternen lassen sich im Spiel
- * tauschen (`lampRoad`).
+ * die Gerade mit zwei Laternen versetzt auf beiden Gehwegen, der Zebrastreifen
+ * mit einer Ampel je Seite, die Ecke und die Kurve mit einer Laterne an der
+ * inneren Ecke, die Einmündung mit drei Ampeln, die Kreuzung mit vier
+ * Ampelbrücken — eine für jede Richtung. Dazu eine Gerade ohne alles und die
+ * Allee. Die Laternen lassen sich im Spiel tauschen (`lampRoad`).
+ *
+ * **Ampeln stehen vor der Kreuzung, rechts der Spur, die auf sie zufährt**
+ * (Rechtsverkehr), das Signal dem Verkehr zugewandt und der Arm über dieser
+ * Spur. In der Quelle zeigt der Arm nach Westen und das Signal nach Süden:
+ * Ungedreht ist das die Ampel an der Südostecke für die, die nach Norden
+ * fahren. Gemeldet war: _„die Ampeln wirken nicht an der richtigen Stelle"_.
  */
 export const CITY_ELEMENTS: readonly GameElement[] = [
-  // Straßen — 8 × 8 m, die Gerade läuft von Nord nach Süd (z).
-  ...lampRoad(
-    'city-road',
-    'Straße mit %',
-    ['Straße', 'Gerade', 'Laterne', 'Road'],
-    'road_straight',
-    [
-      [CURB, -2, ARM_WEST],
-      [-CURB, 2, ARM_EAST],
-    ],
-  ),
-  road('city-road-plain', 'Straße', ['Straße', 'Gerade', 'Road'], [slab('road_straight')]),
+  // Straßen — 12 × 12 m, die Gerade läuft von Nord nach Süd (z).
+  ...lampRoad('city-road', 'Straße mit %', ['Straße', 'Gerade', 'Laterne', 'Road'], straight(), [
+    [CURB, -3, ARM_WEST],
+    [-CURB, 3, ARM_EAST],
+  ]),
+  road('city-road-plain', 'Straße', ['Straße', 'Gerade', 'Road'], straight()),
   road(
     'city-road-crossing',
     'Zebrastreifen mit Ampeln',
     ['Straße', 'Fußgängerüberweg', 'Ampel', 'Zebrastreifen'],
     [
-      slab('road_straight_crossing'),
-      onSlab('trafficlight_B', [CURB, 2.6], ARM_WEST),
-      onSlab('trafficlight_B', [-CURB, -2.6], ARM_EAST),
+      ...straight('road_straight_crossing'),
+      onSlab('trafficlight_B', [CURB, 3], ARM_WEST),
+      onSlab('trafficlight_B', [-CURB, -3], ARM_EAST),
     ],
   ),
   // Ecke und Kurve: Die Fahrbahn kommt von Süden und biegt nach Osten ab, die
-  // Laterne steht auf der kleinen Insel der inneren Ecke (Südosten).
+  // Laterne steht auf dem Gehweg der inneren Ecke (Südosten).
   ...lampRoad(
     'city-road-corner',
     'Straßenecke mit %',
     ['Straße', 'Ecke', 'Laterne'],
-    'road_corner',
+    junctionParts('road_corner', { s: true, e: true }),
     [[CURB, CURB, ARM_NORTHWEST]],
   ),
   ...lampRoad(
     'city-road-curve',
     'Kurve mit %',
     ['Straße', 'Kurve', 'Laterne'],
-    'road_corner_curved',
+    junctionParts('road_corner_curved', { s: true, e: true }),
     [[CURB, CURB, ARM_NORTHWEST]],
   ),
-  // **Ampeln stehen vor der Kreuzung, rechts der Spur, die auf sie zufährt**
-  // (Rechtsverkehr), das Signal dem Verkehr zugewandt und der Arm über dieser
-  // Spur. In der Quelle zeigt der Arm nach Westen und das Signal nach Süden:
-  // Ungedreht ist das die Ampel an der Südostecke für die, die nach Norden
-  // fahren. Gemeldet war: _„die Ampeln wirken nicht an der richtigen
-  // Stelle"_ — vorher hingen die Arme an der Kreuzung die Straße entlang statt
-  // über die Spur, und zwei der vier Richtungen hatten keine.
   road(
     'city-road-tsplit',
     'Einmündung mit Ampeln',
     ['Straße', 'T-Kreuzung', 'Einmündung', 'Ampel'],
     [
       // Die Gerade läuft von Nord nach Süd, der Abzweig geht nach Osten.
-      slab('road_tsplit'),
+      ...junctionParts('road_tsplit', { n: true, s: true, e: true }),
       onSlab('trafficlight_B', [CURB, CURB], ARM_WEST), // nach Norden
       onSlab('trafficlight_B', [-CURB, -CURB], ARM_EAST), // nach Süden
       onSlab('trafficlight_B', [CURB, -CURB], ARM_SOUTH), // aus dem Abzweig nach Westen
@@ -293,7 +378,7 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Kreuzung mit Ampeln',
     ['Straße', 'Kreuzung', 'Ampel'],
     [
-      slab('road_junction'),
+      ...junctionParts('road_junction', { n: true, e: true, s: true, w: true }),
       onSlab('trafficlight_C', [CURB, CURB], ARM_WEST), // nach Norden
       onSlab('trafficlight_C', [-CURB, -CURB], ARM_EAST), // nach Süden
       onSlab('trafficlight_C', [CURB, -CURB], ARM_SOUTH), // nach Westen
@@ -305,29 +390,38 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Allee',
     ['Straße', 'Bäume', 'Allee'],
     [
-      slab('road_straight'),
-      onSlab('tree_A', [CURB, -2]),
-      onSlab('tree_B', [-CURB, 2]),
-      onSlab('tree_C', [CURB, 2.5], Math.PI / 2),
-      onSlab('tree_A', [-CURB, -2.5], Math.PI),
+      ...straight(),
+      onSlab('tree_A', [SIDE, -3]),
+      onSlab('tree_B', [-SIDE, 3]),
+      onSlab('tree_C', [SIDE, 3.5], Math.PI / 2),
+      onSlab('tree_A', [-SIDE, -3.5], Math.PI),
     ],
   ),
-  // Plätze — Gehweg und Park, 8 × 8 m. Die verzierten Parkplatten der Quelle
-  // gehen nicht: Eingelassen wird um ihre ganze Höhe, und mit den Bäumen darin
-  // versänken sie samt Wiese im Boden. Also die flache Platte und das Grün
-  // als eigene Teile darauf.
-  road('city-plaza', 'Gehweg', ['Platz', 'Bürgersteig', 'Pflaster'], [slab('base', WALK_TOP)]),
-  road('city-park', 'Park', ['Park', 'Wiese', 'Rasen'], [slab('park_base', WALK_TOP)]),
+  // Plätze — Platz und Park, 12 × 12 m. Die verzierten Parkplatten der Quelle
+  // gehen nicht: Auf Maß gebracht (`plate`) würden ihre Bäume mit der Platte
+  // flachgedrückt. Also die flache Platte und das Grün als eigene Teile darauf.
+  road(
+    'city-plaza',
+    'Platz',
+    ['Platz', 'Bürgersteig', 'Pflaster', 'Gehweg'],
+    [plate('base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP)],
+  ),
+  road(
+    'city-park',
+    'Park',
+    ['Park', 'Wiese', 'Rasen'],
+    [plate('park_base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP)],
+  ),
   road(
     'city-park-trees',
     'Park mit Bäumen',
     ['Park', 'Bäume'],
     [
-      slab('park_base', WALK_TOP),
-      onSlab('tree_A', [-2, -2]),
-      onSlab('tree_D', [2, -1.5], Math.PI / 2),
-      onSlab('tree_E', [-1.5, 2.2], Math.PI),
-      onSlab('bench', [2, 2.5], Math.PI),
+      plate('park_base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('tree_A', [-3, -3]),
+      onSlab('tree_D', [3, -2.25], Math.PI / 2),
+      onSlab('tree_E', [-2.25, 3.3], Math.PI),
+      onSlab('bench', [3, 3.75], Math.PI),
     ],
   ),
   road(
@@ -335,11 +429,11 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Park mit Büschen',
     ['Park', 'Büsche'],
     [
-      slab('park_base', WALK_TOP),
-      onSlab('bush_A', [-2.5, -2.5]),
-      onSlab('bush_B', [2.2, -2]),
-      onSlab('bush_C', [-2, 2.5]),
-      onSlab('bush_A', [2.5, 2.5], Math.PI / 2),
+      plate('park_base', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('bush_A', [-3.75, -3.75]),
+      onSlab('bush_B', [3.3, -3]),
+      onSlab('bush_C', [-3, 3.75]),
+      onSlab('bush_A', [3.75, 3.75], Math.PI / 2),
     ],
   ),
   road(
@@ -347,22 +441,23 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     'Parkweg',
     ['Park', 'Weg'],
     [
-      slab('park_road_straight', WALK_TOP),
-      onSlab('bench', [2.6, 0], -Math.PI / 2),
-      onSlab('streetlight_old_single', [2.6, -2.5]),
-      onSlab('bush_C', [-2.8, -2]),
-      onSlab('bush_B', [-2.8, 2.2]),
+      plate('park_road_straight', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('bench', [3.9, 0], -Math.PI / 2),
+      onSlab('streetlight_old_single', [3.9, -3.75]),
+      onSlab('bush_C', [-4.2, -3]),
+      onSlab('bush_B', [-4.2, 3.3]),
     ],
   ),
-  // Häuser — 8 × 8 m mit Gehweg, gesperrt das Haus. Höhe in Klammern.
-  house('city-house-a', 'Kleines Stadthaus', 'A', [4.8, 5.8]), // 6,6 m
-  house('city-house-b', 'Breites Stadthaus', 'B', [6.4, 5.2]), // 6,6 m
-  house('city-house-c', 'Hohes Stadthaus', 'C', [4.8, 5.2]), // 11,9 m
-  house('city-house-d', 'Hohes breites Stadthaus', 'D', [6.4, 5.2]), // 11,9 m
-  house('city-house-e', 'Eckhaus', 'E', [8, 5.8]), // 9,4 m
-  house('city-house-f', 'Reihenhaus', 'F', [8, 5.2]), // 9,4 m
-  house('city-house-g', 'Hohes Eckhaus', 'G', [8, 5.8]), // 11,9 m
-  house('city-house-h', 'Wohnblock', 'H', [8, 5.2]), // 12,2 m
+  // Häuser — so breit wie das Haus, 12 m tief: vorn bündig an den Gehweg der
+  // Straße, hinten Garten. Breite × Höhe × Tiefe des Hauses.
+  house('city-house-a', 'Kleines Stadthaus', 'A', 4.8, 5.8), // 4,8 × 6,6 × 5,8
+  house('city-house-b', 'Breites Stadthaus', 'B', 6.4, 5.2), // 6,4 × 6,6 × 5,2
+  house('city-house-c', 'Hohes Stadthaus', 'C', 4.8, 5.2), // 4,8 × 11,9 × 5,2
+  house('city-house-d', 'Hohes breites Stadthaus', 'D', 6.4, 5.2), // 6,4 × 11,9 × 5,2
+  house('city-house-e', 'Eckhaus', 'E', 8, 5.8), // 8,0 × 9,4 × 5,8
+  house('city-house-f', 'Reihenhaus', 'F', 8, 5.2), // 8,0 × 9,4 × 5,2
+  house('city-house-g', 'Hohes Eckhaus', 'G', 8, 5.8), // 8,0 × 11,9 × 5,8
+  house('city-house-h', 'Wohnblock', 'H', 8, 5.2), // 8,0 × 12,2 × 5,2
   // Straßenmöbel — der Mast sperrt eine Zelle.
   prop('city-streetlight', 'Laterne', 'streetlight', [1, 1], { solid: POLE }), // 3,8 m hoch
   prop('city-streetlight-old', 'Alte Laterne', 'streetlight_old_single', [1, 1], { solid: POLE }),
