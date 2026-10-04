@@ -1141,6 +1141,29 @@ Rücken wird also mitgezeichnet. Neunzehntausend Dreiecke mehr sind der Preis
 für tausendzweihundertfünfzig Aufrufe weniger, und das ist auf jeder Hardware
 dieses Jahrzehnts ein gutes Geschäft.
 
+## Bodenkacheln zu Rechtecken (Oktober 2026)
+
+Das Bündel spart Zeichenaufrufe, aber nicht die Kachel selbst: Jede
+Bodenkachel blieb ein unsichtbares Netz **und ein Körper in der Physik**. In
+der Stadt (216 × 174 Kacheln) waren das 37 584 — 46 600 Objekte in der Szene,
+die three in jedem Bild durchgeht, für gut 400 sichtbare Dinge. Gemeldet: _„die
+Stadt hat ein FPS-Problem bei der Brille"_.
+
+Seitdem fasst `GridWorld.mergeFloorTiles` die Bodenkacheln **bei jedem Umbau**
+zu Rechtecken zusammen (`grid/mergeSolids.mergeFloors`, dieselbe Zerlegung, die
+die Station schon für ihre Räume hatte) — eine entfernte Kachel teilt die
+Fläche in ein paar Rechtecke, eine gelegte kommt dazu. Gewünscht: _„kann man
+das dynamisch machen? […] wenn ich die Welt baue, wird das dann automatisch
+wieder gefixt?"_ Zusammen kommt nur, was **gleich belegt** ist (dieselbe Platte
+aus `floorPlate`, derselbe eigene Belag aus `underOwnFloor`): Ein Quader geht
+aus dem Bild, sobald seine Platten liegen, und reichte er über eine Kachel ohne
+Platte, fehlte dort der Boden. Einzeln bleiben halbe Böden, Portalflächen und
+Kacheln mit Tür oder Baustein. Das Bündel nimmt die Rechtecke wie die Kacheln:
+Es streckt einen Einheitswürfel je Eintrag.
+
+Ein Bodenportal haftet damit an einem ganzen Bodenstück statt an einer Kachel —
+die Portale sind ohnehin ein offener Punkt (README, _Bekannte Probleme_).
+
 ## Und die Wände auch — nur nicht von oben
 
 Der Abschnitt davor bündelte alles, was **nie** ghosten kann, und ließ die

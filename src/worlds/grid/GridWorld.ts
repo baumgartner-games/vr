@@ -99,6 +99,7 @@ import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
 import { GROUP_CELL, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import { HIDDEN_LEVEL_BAR, LevelBar, stepLevel } from './levelBar';
+import { mergeFloors } from './mergeSolids';
 
 /** Die „Datei“, auf die ein Quader unter einem eigenen Belag wartet (`underOwnFloor`). */
 const OWN_FLOOR = 'own-floor';
@@ -639,7 +640,7 @@ export abstract class GridWorld extends PortalWorld {
     // aufgeht und trotzdem zu bleibt. Pfosten und Sturz kommen weiter aus dem
     // Plan — die stehen ja und bewegen sich nie.
     const owned = this.fixtureDoors();
-    for (const solid of plan.solids()) {
+    for (const solid of this.mergeFloorTiles(plan.solids())) {
       if (solid.door && owned.has(solid.door)) continue;
       if (solid.door && this.slidingGridDoors() && plan.graph.door(solid.door)?.open) continue;
       this.build(group, solid);
@@ -696,6 +697,55 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected underOwnFloor(_solid: PlanSolid): boolean {
     return false;
+  }
+
+  /**
+   * **Bodenkacheln zu Rechtecken** (`mergeSolids.mergeFloors`) — bei jedem
+   * Umbau neu, also auch nach jeder entfernten oder gelegten Kachel.
+   *
+   * Der Plan liefert je Bodenkachel einen Quader, und jeder wurde ein Netz und
+   * ein Körper in der Physik. In der Stadt waren das 37 584, und schon das
+   * Durchgehen dieser Szene brachte die Brille ins Stocken. Gewünscht: _„kann
+   * man das dynamisch machen? Also kann ich nachträglich auch eine Kachel
+   * wieder entfernen bzw. wenn ich die Welt baue, wird das dann automatisch
+   * wieder gefixt?"_ — deshalb hier und nicht in einem einzelnen Plan.
+   *
+   * **Zusammen nur, was gleich belegt ist**: dieselbe Platte aus dem Regal
+   * (`floorPlate`) und derselbe eigene Belag (`underOwnFloor`). Ein Quader
+   * geht aus dem Bild, sobald seine Platten liegen (`plateArrived`) — reichte
+   * er über eine Kachel ohne Platte, fehlte dort der Boden. Halbe Böden
+   * (`PlanSolid.half`), Portalflächen und Kacheln mit Tür oder Baustein
+   * bleiben einzeln.
+   */
+  private mergeFloorTiles(solids: readonly PlanSolid[]): PlanSolid[] {
+    const groups = new Map<string, PlanSolid[]>();
+    const rest: PlanSolid[] = [];
+    for (const solid of solids) {
+      const tile =
+        solid.kind === 'floor' &&
+        !solid.half &&
+        !solid.portal &&
+        solid.door === undefined &&
+        solid.block === undefined &&
+        solid.w === TILE &&
+        solid.d === TILE;
+      if (!tile) {
+        rest.push(solid);
+        continue;
+      }
+      const plate = this.floorPlate({
+        col: Math.floor(solid.x / TILE),
+        row: Math.floor(solid.z / TILE),
+        level: solid.level ?? 0,
+      });
+      const key = `${plate ?? ''}|${this.underOwnFloor(solid) ? 1 : 0}`;
+      const group = groups.get(key);
+      if (group) group.push(solid);
+      else groups.set(key, [solid]);
+    }
+    const out: PlanSolid[] = [];
+    for (const group of groups.values()) out.push(...mergeFloors(group));
+    return [...out, ...rest];
   }
 
   /**
