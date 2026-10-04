@@ -986,9 +986,16 @@ so dass man es dann nicht mehr erkennen kann? Aktuell mag es zwar realistisch
 sein, aber für ein Spiel passt es nicht."_ Jede Nebelart hat seitdem ihre
 eigene Gestalt (`weather.FOG`, im Durchgang `wFogShape`): klar bis, voll ab
 (Meter um die Figur), Höhe, in der er dicht liegt, und Anteil unabhängig von der
-Höhe (`base`). **Dicht** ist deckend: klar bis 2,5 m, voll ab 9 m, acht Meter
-hoch und `base` 1 — auch Häuser verschwinden. Dunst und Spuk bleiben, wie sie
-waren.
+Höhe (`base`). **Dicht** ist deckend: acht Meter hoch und `base` 1 — auch
+Häuser verschwinden. Dunst und Spuk bleiben, wie sie waren.
+
+**Wie weit man sieht, ist einstellbar** — gewünscht: _„Ggf etwas weiter als 11m
+auch ggf. zum einstellen +-m Nebel. Default bei Nebel 20m"_. _Grafik → Wetter →
+Sichtweite im Nebel_ (`WeatherSettings.fogRange`, `clampFogRange`): 20 m ab
+Werk, in Schritten von 5 m zwischen 10 und 60 m. Sie ist der Punkt, ab dem der
+deckende Nebel voll ist (`fogFull`); wo es klar wird, rückt im selben Verhältnis
+mit (`fogClear`, bei 20 m gut 5 m). In der Brille endet dort der lineare Nebel —
+und mit ihm die Fernebene.
 
 **Und was hinter ihm liegt, wird nicht gezeichnet** — gewünscht: _„Wir könnten
 den Nebel auch nutzen um Rendering zu sparen von Dingen die dahinter sind

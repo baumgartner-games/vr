@@ -90,6 +90,25 @@ export interface WeatherSettings {
   weatherFilter: WeatherFilter;
   /** Der Hauptschalter aller Lampen (`core/Lamps.ts`). */
   streetLights: StreetLightMode;
+  /**
+   * **Sichtweite im Nebel**, in Metern: ab hier ist der Nebel voll — bei
+   * _Dicht_ ist dahinter nichts mehr zu sehen. Gewünscht: _„Ggf etwas weiter
+   * als 11m auch ggf. zum einstellen +-m Nebel. Default bei Nebel 20m"_.
+   */
+  fogRange: number;
+}
+
+/** Die Sichtweite im Nebel: ab Werk, Schritt und Grenzen (m). */
+export const FOG_RANGE_DEFAULT = 20;
+export const FOG_RANGE_STEP = 5;
+export const FOG_RANGE_MIN = 10;
+export const FOG_RANGE_MAX = 60;
+
+/** Die Sichtweite auf erlaubte Werte gebracht — ganze Schritte zwischen den Grenzen. */
+export function clampFogRange(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return FOG_RANGE_DEFAULT;
+  const stepped = Math.round(raw / FOG_RANGE_STEP) * FOG_RANGE_STEP;
+  return Math.min(FOG_RANGE_MAX, Math.max(FOG_RANGE_MIN, stepped));
 }
 
 /**
@@ -123,10 +142,11 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   weatherTime: 'day',
   weatherFilter: 'off',
   streetLights: 'auto',
+  fogRange: FOG_RANGE_DEFAULT,
 };
 
 /** **Spukstadt** — die Abkürzung zum Bild aus dem Wunsch: Nacht, lila Nebel, lila Filter. */
-export const SPOOKY_TOWN: WeatherSettings = {
+export const SPOOKY_TOWN: Omit<WeatherSettings, 'fogRange'> = {
   weatherFog: 'spooky',
   weatherTime: 'night',
   weatherFilter: 'violet',
@@ -148,6 +168,7 @@ export function clampWeather(raw: Partial<WeatherSettings>): WeatherSettings {
     streetLights: STREET_LIGHT_MODES.includes(raw.streetLights as StreetLightMode)
       ? (raw.streetLights as StreetLightMode)
       : DEFAULT_WEATHER.streetLights,
+    fogRange: clampFogRange(raw.fogRange),
   };
 }
 
@@ -319,8 +340,10 @@ export function weatherLook(
     fogColor: [fog.color[0] * fogLight, fog.color[1] * fogLight, fog.color[2] * fogLight],
     fogStrength: fog.strength,
     fogSwirl: fog.swirl,
-    fogClear: fog.clear,
-    fogFull: fog.full,
+    // Die Sichtweite setzt, wo der Nebel voll ist; der klare Kreis um die Figur
+    // geht im selben Verhältnis mit.
+    fogClear: fog.clear * (clampFogRange(settings.fogRange) / fog.full),
+    fogFull: clampFogRange(settings.fogRange),
     fogHeight: fog.height,
     fogBase: fog.base,
     fogOpaque: fog.opaque,

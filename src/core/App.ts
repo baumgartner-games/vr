@@ -147,6 +147,11 @@ import {
   WEATHER_TIME_LABELS,
   WEATHER_TIME_SUBS,
   DEFAULT_WEATHER,
+  FOG_RANGE_DEFAULT,
+  FOG_RANGE_MAX,
+  FOG_RANGE_MIN,
+  FOG_RANGE_STEP,
+  clampFogRange,
   STREET_LIGHT_LABELS,
   STREET_LIGHT_SUBS,
   nextStreetLightMode,
@@ -3142,6 +3147,48 @@ export class App {
    * und Filter?"_ Drei Zeilen, die je weiterschalten, eine Abkürzung zum Bild
    * (_Spukstadt_) und eine zurück auf klar.
    */
+  /**
+   * **Sichtweite im Nebel** — eine Seite mit ±5 m, wie der Blickwinkel von
+   * oben. Gewünscht: _„Ggf etwas weiter als 11m auch ggf. zum einstellen +-m
+   * Nebel. Default bei Nebel 20m"_.
+   */
+  private fogRangeMenu(accent: number, changed: (message: string) => void): MenuEntry {
+    const range = graphics().fogRange;
+    const step = (delta: number): MenuEntry => ({
+      id: `gfx:fog-range${delta > 0 ? '+' : '-'}`,
+      label: `${delta > 0 ? 'Weiter' : 'Näher'} ${delta > 0 ? '+' : '−'}${Math.abs(delta)} m`,
+      sub: `Jetzt ${range} m · ${FOG_RANGE_MIN}–${FOG_RANGE_MAX} m`,
+      icon: 'sphere',
+      accent,
+      run: () => {
+        const next = saveGraphics({ fogRange: clampFogRange(graphics().fogRange + delta) });
+        changed(`Sichtweite im Nebel: ${next.fogRange} m`);
+      },
+    });
+    return {
+      id: 'gfx:fog-range',
+      label: `Sichtweite im Nebel: ${range} m`,
+      sub: 'Ab hier ist der Nebel voll — bei Dicht ist dahinter nichts mehr zu sehen',
+      caption: `±${FOG_RANGE_STEP} m · ab Werk ${FOG_RANGE_DEFAULT} m`,
+      icon: 'sphere',
+      accent,
+      children: [
+        step(FOG_RANGE_STEP),
+        step(-FOG_RANGE_STEP),
+        {
+          id: 'gfx:fog-range-reset',
+          label: `Zurück auf ${FOG_RANGE_DEFAULT} m`,
+          icon: 'sphere',
+          accent,
+          run: () => {
+            saveGraphics({ fogRange: FOG_RANGE_DEFAULT });
+            changed(`Sichtweite im Nebel: ${FOG_RANGE_DEFAULT} m`);
+          },
+        },
+      ],
+    };
+  }
+
   private weatherMenu(accent: number): MenuEntry {
     const settings = graphics();
     const changed = (message: string): void => {
@@ -3180,6 +3227,7 @@ export class App {
             changed(`Nebel: ${WEATHER_FOG_LABELS[next.weatherFog]}`);
           },
         },
+        this.fogRangeMenu(accent, changed),
         {
           id: 'gfx:weather-time',
           // Hat die Welt einen Tageslauf (`core/dayClock.ts`), stellt der die

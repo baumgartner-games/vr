@@ -98,12 +98,12 @@ export class WeatherXr {
     const s = Math.max(1, scale);
     const near = Math.max(Math.min(FOG_CLEAR, look.fogClear), eye * FOG_CLEAR_EYE);
     // Wer von oben schaut, soll die Stadt unter sich noch sehen: Die Strecke
-    // bis ganz dicht wächst mit der Augenhöhe. Ein deckender Nebel (_Dicht_)
-    // ist nach der Strecke dicht, die er auch am Schirm braucht.
-    const span = look.fogOpaque
-      ? look.fogFull - look.fogClear
-      : FOG_SPAN / Math.max(0.2, look.fogStrength);
-    const far = near + span + eye * 1.5;
+    // bis ganz dicht wächst mit der Augenhöhe.
+    // Ein deckender Nebel ist genau bei der Sichtweite dicht (_Wetter →
+    // Sichtweite im Nebel_), wie am Schirm.
+    const far = look.fogOpaque
+      ? Math.max(near + 1, look.fogFull) + eye * 1.5
+      : near + FOG_SPAN / Math.max(0.2, look.fogStrength) + eye * 1.5;
     const fog = (this.fog ??= new THREE.Fog(0x000000, 1, 2));
     fog.color.setRGB(look.fogColor[0], look.fogColor[1], look.fogColor[2]);
     fog.near = near / s;
