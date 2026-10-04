@@ -448,6 +448,20 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   Ziehen zwischen Kreuzungen, die keine ganze Zahl Stücke auseinanderliegen
   ([Straßen ziehen](bauen.md#straßen-ziehen-wie-in-cities-skylines)); im
   Katalog stehen sie nicht, auch nicht unter _Alles_.
+- **Große Plätze**: _Stadtpark_ (`city-park-big`, 24 × 24 m: Rasen,
+  Wegekreuz mit Doppellaterne, Bäume, Bänke, eine Hecke aus Büschen mit einer
+  Lücke an jedem Weg — die Mauerteile der Quelle sind Kacheln mit der Mauer an
+  einer Kante und würden mit dem Maß gestreckt), _Platz mit Café_
+  (`city-square-cafe`, vier Café-Tische mit Schirm) und _Marktplatz_
+  (`city-square-market`, sechs Stände aus Gemüsekisten unter Schirmen).
+- **Aus anderen Paketen, was auf Straße und Gehweg steht** — gewünscht: _„neue
+  Modelle, die auf der Straße sind, dann auch in den Katalog nehmen"_:
+  Sonnenschirm in vier Farben (`city-umbrella-…`, _mixed-bag_), Café-Tisch
+  (`city-cafe-table`, Tisch und zwei Stühle aus _furniture-bits_ unter einem
+  Schirm), Fahrrad (`city-bicycle`, _mixed-bag_), Leitkegel (`city-cone`,
+  _platformer_) — auf Meter gebracht mit `ElementPart.height` (`kit`). Die
+  Gemüsekisten der Marktstände (_restaurant-bits_) gibt es nur als Teil des
+  Marktplatzes.
 - **Die Testwelt _Stadt_** (`test-city`, siehe [Welten](welten.md)) ist
   nur aus diesem Ordner gebaut (`city/cityPlan.ts`).
 - **Straßenmöbel, Autos, Grün** stehen auch einzeln: Laternen und Ampeln
