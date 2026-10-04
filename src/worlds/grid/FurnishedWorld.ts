@@ -461,9 +461,7 @@ export abstract class FurnishedWorld extends GridWorld {
     const graph = this.grid?.graph;
     const inside = spotTiles(flat).every((tile) => {
       const [tx, tz] = tile.split(',').map(Number);
-      return level > 0
-        ? (graph?.has(tileKey(tx!, tz!, level)) ?? false)
-        : this.onGround(tx!, tz!);
+      return level > 0 ? (graph?.has(tileKey(tx!, tz!, level)) ?? false) : this.onGround(tx!, tz!);
     });
     if (!inside || !this.cellsFree(spotCells(flat))) return false;
     this.track(
@@ -498,6 +496,28 @@ export abstract class FurnishedWorld extends GridWorld {
       (placed) => this.placed.push(placed),
       keep,
     ).then((all) => all[0] ?? null);
+  }
+
+  /**
+   * **Ein Element gegen seine nächste Fassung tauschen** (`GameElement.swap`)
+   * — an derselben Stelle, unter derselben Id, in der Liste der
+   * Weltänderungen unter derselben Zeile. Die Straße mit Laternen wird so zur
+   * Straße mit alten Laternen.
+   */
+  private swapElement(anchor: THREE.Object3D): void {
+    const placed = this.placed.find((one) => one.anchor === anchor);
+    const next = placed?.element.swap;
+    if (!placed || !next || !hasElement(next)) return;
+    const keep = this.takeAway(placed);
+    const spot: ElementSpot = { ...placed.spot, element: next };
+    if (!this.furnishSpot(spot, keep)) {
+      // Passt die neue Fassung nicht (sollte sie, sie liegt auf denselben
+      // Kacheln), steht die alte wieder da.
+      this.furnishSpot(placed.spot, keep);
+      return;
+    }
+    this.recordElementOf(spot);
+    this.context?.notify(elementById(next).label);
   }
 
   /** Merken, was gerade hingestellt wird, bis es steht (`pending`). */
@@ -551,6 +571,7 @@ export abstract class FurnishedWorld extends GridWorld {
       // Der Schutzschrank (`spaceCatalog.SPACE_LOCKER`): hinein und heraus.
       open: (what, anchor) => {
         if (what === 'outfit') this.context?.openOutfit();
+        else if (what === 'swap') this.swapElement(anchor);
         else if (this.context) this.hideIn(this.context, anchor);
       },
     };

@@ -383,8 +383,26 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   - _Straße mit Laternen_: zwei Laternen versetzt an beiden Bordsteinen, Arm
     über der Fahrbahn; _Straße_ ohne alles für lange Strecken.
   - _Zebrastreifen mit Ampeln_: je Seite eine Ampel mit Arm.
-  - _Straßenecke_ und _Kurve_: eine Laterne außen.
-  - _Einmündung_: eine Ampel; _Kreuzung_: zwei Ampelbrücken über Eck.
+  - _Straßenecke_ und _Kurve_: eine Laterne auf der Insel der inneren Ecke,
+    der Arm schräg in die Fahrbahn.
+  - _Einmündung_: drei Ampeln, _Kreuzung_: vier Ampelbrücken — eine je
+    Zufahrt.
+- **Wo eine Ampel steht** (gemeldet: _„die Ampeln wirken nicht an der
+  richtigen Stelle"_): vor der Kreuzung, rechts der Spur, die auf sie zufährt
+  (Rechtsverkehr), das Signal dem Verkehr zugewandt, der Arm über dieser Spur.
+  In der Quelle zeigt der Arm nach Westen und das Signal nach Süden —
+  ungedreht also die Ampel an der Südostecke für alle, die nach Norden fahren;
+  die anderen sind um Vierteldrehungen gedreht. Vorher hingen die Brücken der
+  Kreuzung die Straße entlang, und zwei Richtungen hatten keine.
+- **Laternen tauschen im Spiel** (gewünscht: _„bei einem Teil noch die
+  Laternen austauschen können (im Spiel)"_): Straße, Ecke und Kurve gibt es in
+  drei Fassungen — moderne Laterne, alte, Doppellaterne (`lampRoad`,
+  `city-road`, `city-road-old`, `city-road-double`). Jede Laterne ist für sich
+  angemeldet (`ElementPart.swaps`, `StationLayer.addSwappers`): Wer auf sie
+  schaut, sieht sie gelb umrandet, und `A`/`E` stellt an derselben Stelle die
+  nächste Fassung hin (`GameElement.opens: 'swap'`, `swap`,
+  `FurnishedWorld.swapElement`), unter derselben Zeile der Weltänderungen. Im
+  Ordner _Straßen_ steht nur die erste, die anderen unter _Alles_.
   - _Allee_: die Gerade mit vier Bäumen an den Bordsteinen.
   - _Gehweg_, _Park_, _Park mit Bäumen_ (mit Bank), _Park mit Büschen_,
     _Parkweg_ (Bank, alte Laterne, Büsche).

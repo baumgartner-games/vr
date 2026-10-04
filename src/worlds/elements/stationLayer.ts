@@ -322,10 +322,19 @@ export interface StationHost {
  */
 export const OPENER_REACH = 0.5;
 
+/**
+ * **Wie weit `A` an einem Teil reicht, an dem getauscht wird** (eine Laterne),
+ * in Metern um ihren Fuß, und wie hoch die Kiste darum ist (halbe Höhe) — so
+ * hoch wie der Mast, damit auch trifft, wer auf die Leuchte schaut.
+ */
+const SWAP_REACH = 1;
+const SWAP_HALF = 2;
+
 /** Was ein Druck dort bewirkt — der Satz zum Saum (`Usable.usePrompt`). */
 const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = {
   outfit: 'Aussehen ändern',
   hide: 'Verstecken',
+  swap: 'Laterne tauschen',
 };
 
 /** Wie die Station gerade gebaut ist. */
@@ -382,6 +391,8 @@ export class StationLayer {
    * auch keine Uhr und kein Stand: einmal angemeldet, und es bleibt dabei.
    */
   private readonly openers: THREE.Group[] = [];
+  /** Die Teile je Element, an denen getauscht wird (`addSwappers`) — Anker → Teile. */
+  private readonly swappers = new Map<THREE.Object3D, THREE.Object3D[]>();
   private lastHand: Handedness | null = null;
 
   /**
@@ -445,6 +456,10 @@ export class StationLayer {
    * @returns wie viele Stationen es wurden
    */
   add(placed: PlacedElement, keep: readonly StationState[] = []): number {
+    if (placed.element.opens === 'swap') {
+      this.addSwappers(placed);
+      return 0;
+    }
     if (placed.element.opens) {
       this.addOpener(placed, placed.element.opens);
       return 0;
@@ -530,6 +545,36 @@ export class StationLayer {
   }
 
   /**
+   * **Die Teile, an denen getauscht wird** (`ElementPart.swaps`) — jedes für
+   * sich angemeldet, nicht das ganze Element: Eine Straße ist acht Meter
+   * groß, und wer über sie geht, soll mit `A` nicht die Laternen tauschen,
+   * sondern erst, wenn er auf eine schaut. Leuchten tut nur sie.
+   */
+  private addSwappers(placed: PlacedElement): void {
+    if (!this.host.open) return;
+    const parts: THREE.Object3D[] = [];
+    placed.element.parts.forEach((part, i) => {
+      const view = placed.parts[i];
+      if (!part.swaps || !view) return;
+      parts.push(view);
+      this.host.addUsable(
+        view,
+        {
+          use: () => {
+            this.host.open?.('swap', placed.anchor);
+            return true;
+          },
+          usePrompt: () => OPENS_PROMPT.swap,
+          interaction: { kind: 'press' },
+          aimOnly: true,
+        },
+        { radius: SWAP_REACH, half: SWAP_HALF },
+      );
+    });
+    this.swappers.set(placed.anchor, parts);
+  }
+
+  /**
    * **Die Stationen eines Elements herausnehmen** — es wird umgestellt
    * (Bau-Modus). Abgemeldet, Balken und Liegendes weg; zurück kommt ihr
    * Stand, damit `add` an der neuen Stelle damit weitermacht.
@@ -537,6 +582,8 @@ export class StationLayer {
    * @param anchor der Anker des Elements (`PlacedElement.anchor`)
    */
   remove(anchor: THREE.Object3D): StationState[] {
+    for (const part of this.swappers.get(anchor) ?? []) this.host.removeUsable(part);
+    this.swappers.delete(anchor);
     for (let i = this.openers.length - 1; i >= 0; i--) {
       const opener = this.openers[i]!;
       if (opener.parent !== anchor) continue;

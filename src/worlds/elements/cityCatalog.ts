@@ -89,6 +89,8 @@ const ARM_WEST = 0;
 const ARM_EAST = Math.PI;
 const ARM_NORTH = -Math.PI / 2;
 const ARM_SOUTH = Math.PI / 2;
+/** Schräg nach Nordwesten — von der inneren Ecke einer Kurve in die Fahrbahn. */
+const ARM_NORTHWEST = -Math.PI / 4;
 
 /** **Eine Straße**: die Platte und was darauf steht, auf 8 × 8 Kacheln, ohne Sperre. */
 function road(
@@ -108,6 +110,63 @@ function road(
     floor: true,
     parts,
   };
+}
+
+/** Eine Laterne der Straße: wo sie steht und wohin ihr Arm zeigt. */
+type LampSpot = readonly [x: number, z: number, yaw: number];
+
+/**
+ * **Die Fassungen der Laternen** — der Reihe nach, wie `A` sie tauscht
+ * (`GameElement.swap`): die moderne mit Arm über der Fahrbahn, die alte mit
+ * einer Leuchte auf dem Mast, die alte mit zweien.
+ */
+const LAMP_STYLES = [
+  { suffix: '', file: 'streetlight', label: 'Laterne' },
+  { suffix: '-old', file: 'streetlight_old_single', label: 'alter Laterne' },
+  { suffix: '-double', file: 'streetlight_old_double', label: 'Doppellaterne' },
+] as const;
+
+/**
+ * **Eine Straße mit Laternen, in jeder Fassung** — drei Elemente auf
+ * derselben Platte, die sich im Spiel reihum tauschen: Wer auf eine Laterne
+ * schaut, sieht sie leuchten, und `A` stellt die nächste Fassung hin
+ * (`opens: 'swap'`, `ElementPart.swaps`). Die erste steht im Ordner, die
+ * anderen unter _Alles_.
+ *
+ * @param label der Name, `%` steht für die Laterne(n): „Straße mit %"
+ */
+function lampRoad(
+  id: string,
+  label: string,
+  aka: readonly string[],
+  plate: string,
+  lamps: readonly LampSpot[],
+): GameElement[] {
+  return LAMP_STYLES.map((style, i) => {
+    const next = LAMP_STYLES[(i + 1) % LAMP_STYLES.length]!;
+    const plural = lamps.length > 1;
+    const name = plural
+      ? { Laterne: 'Laternen', 'alter Laterne': 'alten Laternen', Doppellaterne: 'Doppellaternen' }[
+          style.label
+        ]
+      : style.label;
+    return {
+      ...road(id + style.suffix, label.replace('%', name), aka, [
+        slab(plate),
+        ...lamps.map(([x, z, yaw]): ElementPart => ({
+          ...onSlab(style.file, [x, z], yaw),
+          swaps: true,
+        })),
+      ]),
+      opens: 'swap' as const,
+      swap: id + next.suffix,
+    };
+  });
+}
+
+/** Ob eine Id eine getauschte Fassung ist — die stehen nur unter _Alles_. */
+function isVariant(id: string): boolean {
+  return LAMP_STYLES.some((style) => style.suffix !== '' && id.endsWith(style.suffix));
 }
 
 /**
@@ -166,20 +225,21 @@ const POLE: readonly [number, number] = [0.5, 0.5];
  * **Die Straßen als Vorschlag**, je mit dem, was an so einer Stelle steht:
  * die Gerade mit zwei Laternen versetzt an beiden Bordsteinen, der
  * Zebrastreifen mit einer Ampel je Seite, die Ecke und die Kurve mit einer
- * Laterne außen, die Einmündung mit einer Ampel gegenüber, die Kreuzung mit
- * zwei Ampelbrücken über Eck. Dazu je eine Gerade ohne alles, für lange
- * Strecken, und die Allee aus dem Park.
+ * Laterne an der inneren Ecke, die Einmündung mit drei Ampeln, die Kreuzung
+ * mit vier Ampelbrücken — eine für jede Richtung. Dazu eine Gerade ohne
+ * alles, für lange Strecken, und die Allee. Die Laternen lassen sich im Spiel
+ * tauschen (`lampRoad`).
  */
 export const CITY_ELEMENTS: readonly GameElement[] = [
   // Straßen — 8 × 8 m, die Gerade läuft von Nord nach Süd (z).
-  road(
+  ...lampRoad(
     'city-road',
-    'Straße mit Laternen',
+    'Straße mit %',
     ['Straße', 'Gerade', 'Laterne', 'Road'],
+    'road_straight',
     [
-      slab('road_straight'),
-      onSlab('streetlight', [CURB, -2], ARM_WEST),
-      onSlab('streetlight', [-CURB, 2], ARM_EAST),
+      [CURB, -2, ARM_WEST],
+      [-CURB, 2, ARM_EAST],
     ],
   ),
   road('city-road-plain', 'Straße', ['Straße', 'Gerade', 'Road'], [slab('road_straight')]),
@@ -193,23 +253,40 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
       onSlab('trafficlight_B', [-CURB, -2.6], ARM_EAST),
     ],
   ),
-  road(
+  // Ecke und Kurve: Die Fahrbahn kommt von Süden und biegt nach Osten ab, die
+  // Laterne steht auf der kleinen Insel der inneren Ecke (Südosten).
+  ...lampRoad(
     'city-road-corner',
-    'Straßenecke mit Laterne',
+    'Straßenecke mit %',
     ['Straße', 'Ecke', 'Laterne'],
-    [slab('road_corner'), onSlab('streetlight', [CURB, CURB], ARM_NORTH)],
+    'road_corner',
+    [[CURB, CURB, ARM_NORTHWEST]],
   ),
-  road(
+  ...lampRoad(
     'city-road-curve',
-    'Kurve mit Laterne',
+    'Kurve mit %',
     ['Straße', 'Kurve', 'Laterne'],
-    [slab('road_corner_curved'), onSlab('streetlight', [CURB, CURB], ARM_NORTH)],
+    'road_corner_curved',
+    [[CURB, CURB, ARM_NORTHWEST]],
   ),
+  // **Ampeln stehen vor der Kreuzung, rechts der Spur, die auf sie zufährt**
+  // (Rechtsverkehr), das Signal dem Verkehr zugewandt und der Arm über dieser
+  // Spur. In der Quelle zeigt der Arm nach Westen und das Signal nach Süden:
+  // Ungedreht ist das die Ampel an der Südostecke für die, die nach Norden
+  // fahren. Gemeldet war: _„die Ampeln wirken nicht an der richtigen
+  // Stelle"_ — vorher hingen die Arme an der Kreuzung die Straße entlang statt
+  // über die Spur, und zwei der vier Richtungen hatten keine.
   road(
     'city-road-tsplit',
-    'Einmündung mit Ampel',
+    'Einmündung mit Ampeln',
     ['Straße', 'T-Kreuzung', 'Einmündung', 'Ampel'],
-    [slab('road_tsplit'), onSlab('trafficlight_B', [CURB, CURB], ARM_NORTH)],
+    [
+      // Die Gerade läuft von Nord nach Süd, der Abzweig geht nach Osten.
+      slab('road_tsplit'),
+      onSlab('trafficlight_B', [CURB, CURB], ARM_WEST), // nach Norden
+      onSlab('trafficlight_B', [-CURB, -CURB], ARM_EAST), // nach Süden
+      onSlab('trafficlight_B', [CURB, -CURB], ARM_SOUTH), // aus dem Abzweig nach Westen
+    ],
   ),
   road(
     'city-road-junction',
@@ -217,8 +294,10 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
     ['Straße', 'Kreuzung', 'Ampel'],
     [
       slab('road_junction'),
-      onSlab('trafficlight_C', [CURB, CURB], ARM_NORTH),
-      onSlab('trafficlight_C', [-CURB, -CURB], ARM_SOUTH),
+      onSlab('trafficlight_C', [CURB, CURB], ARM_WEST), // nach Norden
+      onSlab('trafficlight_C', [-CURB, -CURB], ARM_EAST), // nach Süden
+      onSlab('trafficlight_C', [CURB, -CURB], ARM_SOUTH), // nach Westen
+      onSlab('trafficlight_C', [-CURB, CURB], ARM_NORTH), // nach Osten
     ],
   ),
   road(
@@ -333,7 +412,7 @@ export const CITY_FOLDER: FurnitureFolder = {
     {
       id: 'city-roads',
       label: 'Straßen',
-      elements: ofKind('city-road'),
+      elements: ofKind('city-road').filter((id) => !isVariant(id)),
       cover: { element: 'city-road-junction' },
     },
     {

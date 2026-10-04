@@ -126,6 +126,12 @@ export interface ElementPart {
    */
   readonly surface?: boolean;
   /**
+   * **Daran wird getauscht** (`GameElement.opens: 'swap'`): Wer auf dieses
+   * Teil schaut, sieht es leuchten, und `A` tauscht das Element gegen seine
+   * nächste Fassung — die Laterne auf der Straße.
+   */
+  readonly swaps?: boolean;
+  /**
    * **Mit dem Muster dieser Tapete bemalt** (`house/wallpaperSkin.paintWallpaper`)
    * — die Id aus `house/wallpaper.WALLPAPERS`. Gewünscht bei den Tapetenkisten:
    * _„bei den tapeten kisten sieht man an dem banner darin nicht, wie die
@@ -173,9 +179,10 @@ export interface ElementPart {
  * **Was `A` an einem Element aufmacht**, wenn es keine Station der Küche ist
  * — eine Seite im Menü. `'outfit'`: _Aussehen_ (`WorldContext.openOutfit`),
  * die Garderobe. `'hide'`: hineinsteigen und sich verstecken
- * (`PortalWorld.hideIn`), der Schutzschrank.
+ * (`PortalWorld.hideIn`), der Schutzschrank. `'swap'`: gegen die nächste
+ * Fassung tauschen (`GameElement.swap`) — die Laternen einer Straße.
  */
-export type ElementOpens = 'outfit' | 'hide';
+export type ElementOpens = 'outfit' | 'hide' | 'swap';
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
 export interface GameElement {
@@ -262,6 +269,14 @@ export interface GameElement {
    * `StationLayer.add`).
    */
   readonly opens?: ElementOpens;
+  /**
+   * **Die nächste Fassung** (`opens: 'swap'`) — die Id, gegen die `A` an einem
+   * Teil mit `swaps` das Element tauscht, an derselben Stelle. Im Kreis
+   * gelesen: Straße mit Laternen → mit alten Laternen → mit Doppellaternen →
+   * wieder von vorn. Gewünscht: _„Ggf. würde ich bei einem Teil noch die
+   * Laternen austauschen können (im Spiel)."_
+   */
+  readonly swap?: string;
   /**
    * **Ein Abtropfgitter wie in der Sandbox** — höchstens vier Teller
    * (`kitchenCarry.CLEAN_STACK_MAX`), zu Beginn voll, und wer einen
