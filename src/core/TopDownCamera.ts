@@ -84,7 +84,7 @@ export class TopDownCamera {
    * wird jedes Bild selbst gesetzt, und ein Elternteil hätte nur eine zweite
    * Meinung dazu. Ihre Matrix wird deshalb hier von Hand nachgezogen.
    */
-  readonly camera = new THREE.PerspectiveCamera(TOP_DOWN_FOV, 1, 0.1, 600);
+  readonly camera = new THREE.PerspectiveCamera(TOP_DOWN_FOV, 1, TOP_DOWN_NEAR, 600);
 
   /**
    * **Der Abstand, den die Kamera haben soll**, in Metern.
@@ -205,6 +205,15 @@ export class TopDownCamera {
     );
     this.camera.rotation.set(topDownPitch(this.tiltNow), this.headingNow, 0);
     this.camera.updateMatrixWorld(true);
+    // **Die nahe Ebene wächst mit dem Abstand**: Von 200 m über der Stadt ist
+    // nichts zehn Zentimeter vor der Kamera, und mit 0,1 m reicht die Tiefe
+    // dort nicht mehr, um die Straße 13 cm über dem Boden von dessen Platten
+    // zu trennen — sie flimmerte in Streifen durch.
+    const near = Math.max(TOP_DOWN_NEAR, this.distance / 40);
+    if (Math.abs(near - this.camera.near) > 0.01) {
+      this.camera.near = near;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   /**
@@ -506,6 +515,8 @@ export class TopDownCamera {
 const FOLLOW_TAU = 0.12;
 /** Dasselbe für den Zoom — etwas träger, weil er seltener und größer springt. */
 const ZOOM_TAU = 0.18;
+/** Die nahe Ebene der Kamera, ganz nah heran gezoomt, in Metern. */
+const TOP_DOWN_NEAR = 0.1;
 /** Und für die Vierteldrehung des Bildes (`turn`): schnell, aber sichtbar. */
 const TURN_TAU = 0.09;
 /**

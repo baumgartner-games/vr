@@ -36,16 +36,17 @@ import {
 } from '../elements/elementPlace';
 import { elementModel, type ElementHost, type PlacedElement } from '../elements/elementView';
 import {
-  ROAD_CELL,
   ROAD_STYLE_LABELS,
-  exitsIn,
+  ROAD_WIDTH,
+  RoadNet,
   isRoadElement,
-  roadKey,
-  roadLine,
-  roadPiece,
-  roadStyleOf,
+  parseRoad,
+  pieceKey,
+  roadLineBand,
+  roadOverlaps,
+  roadPieces,
+  snapRoadPoint,
   type RoadPiece,
-  type RoadStyle,
 } from '../elements/roadNetwork';
 import { furnish } from '../elements/furnish';
 import { NATURE_CATALOGUE } from '../elements/natureCatalog';
@@ -145,8 +146,6 @@ export abstract class FurnishedWorld extends GridWorld {
     string,
     { readonly spot: ElementSpot; readonly ready: Promise<PlacedElement | null> }
   >();
-  /** **Die Art jeder gezogenen Straßenzelle** (`commitRoad`) — `cx,cz` → Art. */
-  private readonly roadStyles = new Map<string, RoadStyle>();
   /** Die Geist-Straße (`showRoadPlan`) und ihr Schlüssel. */
   private roadGhost: THREE.Group | null = null;
   private roadPlanKey = '';
@@ -219,7 +218,6 @@ export abstract class FurnishedWorld extends GridWorld {
     this.roadGhost?.removeFromParent();
     this.roadGhost = null;
     this.roadTemplates.clear();
-    this.roadStyles.clear();
     this.elementRound++;
     ctx.avatar.carry = null;
     this.stations?.dispose();
@@ -555,115 +553,102 @@ export abstract class FurnishedWorld extends GridWorld {
 
   // --- Straßen ziehen (`elements/roadNetwork.ts`) ---------------------------
 
-  /** Ob dieses Element als Straße gezogen wird — Gerade jeder Art. */
+  /** Ob dieses Element als Straße gezogen wird — eine ganze Gerade jeder Art. */
   protected override roadBrush(id: string): boolean {
-    const style = roadStyleOf(id);
-    return (
-      style !== null && !id.startsWith('city-road-corner') && !id.startsWith('city-road-curve')
-    );
+    const road = parseRoad(id);
+    return road?.kind === 'straight' && road.length === ROAD_WIDTH;
   }
 
   /**
-   * **Was eine gezogene Straße ändert** — für jede Zelle, die ein anderes
-   * Teil braucht als heute: die neuen Zellen der Linie und ihre Nachbarn, die
-   * dadurch zur Ecke, Einmündung oder Kreuzung werden. Zellen, auf denen schon
-   * etwas anderes steht (ein Haus, ein Park) oder kein Boden ist, bleiben aus.
+   * **Was eine gezogene Straße ändert** (`roadNetwork`): Das Netz aus den
+   * Straßen dieser Etage, die Linie von `from` nach `to` (Meter, gefangen nach
+   * `roadSnap`) als Band dazu, daraus alle Teile neu — und gesetzt bzw.
+   * genommen wird nur, was sich unterscheidet: die neuen Stücke, und wo die
+   * Linie eine Straße trifft, Kreuzung, Einmündung oder Ecke statt der Geraden.
+   *
+   * **Gesperrt** (`blocked`) ist die Linie, wenn unter ihr kein Boden ist,
+   * etwas anderes als Straße darauf steht (ein Haus, ein Park) oder sie eine
+   * Straße schief überdeckt (`roadOverlaps`). Dann wird nichts gebaut.
    */
   private planRoad(
     id: string,
     from: readonly [number, number],
     to: readonly [number, number],
   ): {
-    changes: { cx: number; cz: number; piece: RoadPiece; old: PlacedElement | null }[];
-    skipped: number;
-    cells: number;
+    add: RoadPiece[];
+    remove: PlacedElement[];
+    blocked: boolean;
+    band: ReturnType<typeof roadLineBand>;
+    length: number;
   } {
-    const style = roadStyleOf(id) ?? 'lamps';
+    const style = this.roadStyleFor(id);
     const level = this.standLevel;
     const roads = new Map<string, PlacedElement>();
     for (const one of this.placed) {
       const spot = one.spot;
       if (!isRoadElement(spot.element) || (spot.level ?? 0) !== level) continue;
-      if (spot.x % ROAD_CELL !== 0 || spot.z % ROAD_CELL !== 0) continue;
-      roads.set(roadKey(spot.x / ROAD_CELL, spot.z / ROAD_CELL), one);
+      roads.set(
+        pieceKey({ element: spot.element, x: spot.x, z: spot.z, face: spot.face ?? 'S' }),
+        one,
+      );
     }
-    const net = new Set(roads.keys());
-    const line = roadLine(from, to);
-    const drawn = new Set<string>();
-    let skipped = 0;
-    for (const [cx, cz] of line.cells) {
-      const key = roadKey(cx, cz);
-      if (!roads.has(key) && !this.roadCellFree(cx, cz, level)) {
-        skipped++;
-        continue;
-      }
-      net.add(key);
-      drawn.add(key);
-    }
-    // Betroffen sind die gezogenen Zellen und ihre Nachbarn im Netz.
-    const touched = new Set<string>();
-    for (const key of drawn) {
-      const [cx, cz] = key.split(',').map(Number) as [number, number];
-      touched.add(key);
-      for (const [nx, nz] of [
-        [cx, cz - 1],
-        [cx + 1, cz],
-        [cx, cz + 1],
-        [cx - 1, cz],
-      ] as const) {
-        if (net.has(roadKey(nx, nz))) touched.add(roadKey(nx, nz));
-      }
-    }
-    const changes: { cx: number; cz: number; piece: RoadPiece; old: PlacedElement | null }[] = [];
-    for (const key of touched) {
-      const [cx, cz] = key.split(',').map(Number) as [number, number];
-      const old = roads.get(key) ?? null;
-      const cellStyle: RoadStyle = drawn.has(key)
-        ? style
-        : (this.roadStyles.get(key) ?? (old ? roadStyleOf(old.spot.element) : null) ?? 'lamps');
-      const oldFace = old?.spot.face ?? 'S';
-      const along = drawn.has(key) ? line.along : oldFace === 'E' || oldFace === 'W' ? 'ew' : 'ns';
-      const piece = roadPiece(exitsIn(net, cx, cz), cellStyle, along);
-      if (old && old.spot.element === piece.element && (old.spot.face ?? 'S') === piece.face)
-        continue;
-      changes.push({ cx, cz, piece, old });
-    }
-    return { changes, skipped, cells: drawn.size };
+    const net = RoadNet.fromPieces(
+      [...roads.values()].map(({ spot }) => ({
+        element: spot.element,
+        x: spot.x,
+        z: spot.z,
+        face: spot.face ?? 'S',
+      })),
+    );
+    const start = snapRoadPoint(net, from[0], from[1], this.roadSnap);
+    const end = snapRoadPoint(net, to[0], to[1], this.roadSnap);
+    const band = roadLineBand(start, end);
+    const next = net.clone();
+    next.lay(band.axis, band.at, band.from, band.to, style);
+    const blocked = roadOverlaps(next) || !this.roadBandFree(band, level);
+    const pieces = roadPieces(next);
+    const keys = new Set(pieces.map(pieceKey));
+    return {
+      add: pieces.filter((piece) => !roads.has(pieceKey(piece))),
+      remove: [...roads].filter(([key]) => !keys.has(key)).map(([, one]) => one),
+      blocked,
+      band,
+      length: band.to - band.from,
+    };
   }
 
-  /** Ob auf einer Zelle Platz für eine neue Straße ist — Boden, und nichts steht darauf. */
-  private roadCellFree(cx: number, cz: number, level: number): boolean {
-    const x0 = cx * ROAD_CELL;
-    const z0 = cz * ROAD_CELL;
+  /**
+   * Ob unter einem Band Platz für Straße ist — überall Boden, und nichts
+   * steht darauf außer Straße.
+   */
+  private roadBandFree(band: ReturnType<typeof roadLineBand>, level: number): boolean {
+    const [x0, x1, z0, z1] =
+      band.axis === 'h'
+        ? [band.from, band.to, band.at, band.at + ROAD_WIDTH]
+        : [band.at, band.at + ROAD_WIDTH, band.from, band.to];
     const graph = this.grid?.graph;
-    for (let z = z0; z < z0 + ROAD_CELL; z++)
-      for (let x = x0; x < x0 + ROAD_CELL; x++) {
+    for (let z = z0; z < z1; z++)
+      for (let x = x0; x < x1; x++) {
         const ground =
           level > 0 ? (graph?.has(tileKey(x, z, level)) ?? false) : this.onGround(x, z);
         if (!ground) return false;
       }
     for (const one of this.placed) {
-      if ((one.spot.level ?? 0) !== level) continue;
+      if ((one.spot.level ?? 0) !== level || isRoadElement(one.spot.element)) continue;
       const [w, d] = spotSize(one.spot);
-      if (
-        one.spot.x < x0 + ROAD_CELL &&
-        one.spot.x + w > x0 &&
-        one.spot.z < z0 + ROAD_CELL &&
-        one.spot.z + d > z0
-      )
+      if (one.spot.x < x1 && one.spot.x + w > x0 && one.spot.z < z1 && one.spot.z + d > z0)
         return false;
     }
     return true;
   }
 
   /**
-   * **Eine gezogene Straße bauen** (`PortalWorld.pressRoad`) — jede Zelle des
-   * Plans bekommt ihr Teil, ein Teil, das dort schon stand, geht dafür (unter
-   * derselben Id, also in der Liste der Weltänderungen unter derselben Zeile).
-   * So werden aus Geraden Kreuzungen und aus Enden Ecken, und die Laternen
-   * stehen, wie das neue Teil sie hat.
+   * **Eine gezogene Straße bauen** (`PortalWorld.pressRoad`) — was der Plan
+   * nimmt, geht (in der Liste der Weltänderungen gelöscht), was er setzt,
+   * kommt dazu. So werden aus Geraden Kreuzungen und aus Enden Ecken, und die
+   * Laternen stehen, wie das neue Teil sie hat.
    *
-   * @returns wie viele Zellen neu Straße sind
+   * @returns wie viele Meter Straße gezogen sind — 0, wenn sie gesperrt war
    */
   protected override commitRoad(
     id: string,
@@ -671,43 +656,49 @@ export abstract class FurnishedWorld extends GridWorld {
     to: readonly [number, number],
   ): number {
     this.hideRoadPlan();
-    const style = roadStyleOf(id) ?? 'lamps';
+    const style = this.roadStyleFor(id);
     const plan = this.planRoad(id, from, to);
+    const label = ROAD_STYLE_LABELS[style];
+    if (plan.blocked) {
+      playWarn(false);
+      this.context?.notify(`${label}: dort ist kein Platz`);
+      return 0;
+    }
     const level = this.standLevel;
-    for (const { cx, cz, piece, old } of plan.changes) {
+    for (const one of plan.remove) {
+      this.takeAway(one);
+      this.recordErased(one.spot);
+    }
+    for (const piece of plan.add) {
       const spot: ElementSpot = {
-        id: old?.spot.id ?? `strasse-${cx}-${cz}`,
+        // `katalog`: Was der Spieler gezogen hat, verliert beim Wegnehmen seine
+        // Zeile, statt als gelöscht darin zu stehen (`recordErased`).
+        id: `katalog-strasse-${piece.x}-${piece.z}-${piece.face}-${level}`,
         element: piece.element,
-        x: cx * ROAD_CELL,
-        z: cz * ROAD_CELL,
+        x: piece.x,
+        z: piece.z,
         face: piece.face,
         ...(level > 0 ? { level } : {}),
       };
-      const keep = old ? this.takeAway(old) : [];
-      if (this.furnishSpot(spot, keep)) this.recordElementOf(spot);
-      else if (old) this.furnishSpot(old.spot, keep);
+      if (this.furnishSpot(spot)) this.recordElementOf(spot);
     }
-    for (const [cx, cz] of roadLine(from, to).cells) this.roadStyles.set(roadKey(cx, cz), style);
-    const label = ROAD_STYLE_LABELS[style];
-    this.context?.notify(
-      plan.skipped > 0
-        ? `${label} · ${plan.cells} Stücke · ${plan.skipped} belegt`
-        : `${label} · ${plan.cells} ${plan.cells === 1 ? 'Stück' : 'Stücke'}`,
-    );
-    return plan.cells;
+    this.context?.notify(`${label} · ${plan.length} m`);
+    return plan.length;
   }
 
   /**
    * **Die Geist-Straße** — durchscheinend jedes Teil, das der Plan setzen
-   * würde, an seiner Stelle; ein Teil, das er ersetzt, ist so lange
-   * ausgeblendet. Neu gerechnet nur, wenn sich Start, Ende oder Art ändern.
+   * würde, an seiner Stelle; ein Teil, das er nimmt, ist so lange
+   * ausgeblendet. Ist die Linie gesperrt, liegt stattdessen ein rotes Band da.
+   * Neu gerechnet nur, wenn sich Start, Ende, Art oder Fang ändern.
    */
   protected override showRoadPlan(
     id: string,
     from: readonly [number, number],
     to: readonly [number, number],
   ): void {
-    const key = `${id}|${from.join(',')}|${to.join(',')}|${this.placed.length}`;
+    const net = this.placed.length;
+    const key = `${id}|${this.roadStyleFor(id)}|${this.roadSnap}|${from.map(Math.round).join(',')}|${to.map(Math.round).join(',')}|${net}`;
     if (key === this.roadPlanKey) return;
     this.hideRoadPlan();
     this.roadPlanKey = key;
@@ -716,24 +707,43 @@ export abstract class FurnishedWorld extends GridWorld {
     if (!ghost.parent) this.root.add(ghost);
     const floor = this.grid?.graph.levelY(this.standLevel) ?? 0;
     const plan = this.planRoad(id, from, to);
-    for (const { cx, cz, piece, old } of plan.changes) {
-      if (old) {
-        for (const part of [old.anchor, ...old.parts]) {
-          if (part?.visible) {
-            part.visible = false;
-            this.roadHidden.push(part);
-          }
+    if (plan.blocked) {
+      const { band } = plan;
+      const long = band.to - band.from;
+      const [w, d] = band.axis === 'h' ? [long, ROAD_WIDTH] : [ROAD_WIDTH, long];
+      const block = new THREE.Mesh(
+        new THREE.BoxGeometry(w, 0.3, d),
+        new THREE.MeshBasicMaterial({
+          color: 0xff3030,
+          transparent: true,
+          opacity: 0.4,
+          depthWrite: false,
+        }),
+      );
+      block.renderOrder = 5;
+      block.position.set(
+        band.axis === 'h' ? band.from + long / 2 : band.at + ROAD_WIDTH / 2,
+        floor + 0.2,
+        band.axis === 'h' ? band.at + ROAD_WIDTH / 2 : band.from + long / 2,
+      );
+      ghost.add(block);
+      return;
+    }
+    for (const one of plan.remove) {
+      for (const part of [one.anchor, ...one.parts]) {
+        if (part?.visible) {
+          part.visible = false;
+          this.roadHidden.push(part);
         }
       }
+    }
+    for (const piece of plan.add) {
       void this.roadTemplate(piece.element).then((template) => {
         if (!template || this.roadPlanKey !== key) return;
         const view = template.clone();
         view.rotation.y = faceYaw(piece.face);
-        view.position.set(
-          cx * ROAD_CELL + ROAD_CELL / 2,
-          floor + 0.03,
-          cz * ROAD_CELL + ROAD_CELL / 2,
-        );
+        const centre = spotCentre({ id: '', ...piece });
+        view.position.set(centre.x, floor + 0.03, centre.z);
         ghost.add(view);
       });
     }
@@ -742,7 +752,16 @@ export abstract class FurnishedWorld extends GridWorld {
   /** Die Geist-Straße weg, und was sie verdeckte, wieder da. */
   protected override hideRoadPlan(): void {
     this.roadPlanKey = '';
-    if (this.roadGhost) this.roadGhost.clear();
+    if (this.roadGhost) {
+      for (const child of this.roadGhost.children) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+        }
+      }
+      this.roadGhost.clear();
+    }
     for (const part of this.roadHidden) part.visible = true;
     this.roadHidden.length = 0;
   }

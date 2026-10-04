@@ -9,9 +9,9 @@ import { CITY_SPOTS, cityGround, cityPlan, citySpawn } from './cityPlan';
 import type { Handedness } from '../../core/XRInput';
 
 /**
- * **Kleine Stadt** — eine Welt im Ordner _Test_, gebaut nur aus dem
+ * **Stadt** — eine Welt im Ordner _Test_, gebaut nur aus dem
  * Katalogordner _Stadt_: Straßen mit Gehweg, Kreuzungen mit Ampeln, Häuser
- * Wand an Wand, Parks und ein Platz (`cityPlan.CITY_SPOTS`). Alles darin sind
+ * Rücken an Rücken, Gärten, Parks und Plätze (`cityPlan.CITY_SPOTS`). Alles darin sind
  * Spielelemente; umstellen, tauschen und weiterbauen geht wie überall mit dem
  * Katalog.
  */
@@ -21,7 +21,7 @@ export class CityTestWorld extends FurnishedWorld {
   }
 
   protected override editorTitle(): string {
-    return 'Kleine Stadt';
+    return 'Stadt';
   }
 
   protected override layout(): GridPlan {
@@ -42,7 +42,7 @@ export class CityTestWorld extends FurnishedWorld {
   }
 
   protected override welcome(): string {
-    return 'Kleine Stadt · Straßen, Häuser und Parks aus dem Katalog „Stadt“';
+    return 'Stadt · Straßen, Häuser und Parks aus dem Katalog „Stadt“';
   }
 
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
