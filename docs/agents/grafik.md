@@ -919,6 +919,38 @@ oben nicht aufgeschnitten wird: draußen im Hausbau und mit _⌂ Außen_ in der
 Ebenen-Leiste; unten verschwimmt es dort ebenso, wenn das andere Häkchen sitzt.
 Beides zusammen ist ein Durchgang (`levelBlurPlan`), nicht zwei.
 
+## Wetter: Nebel, Tageszeit und Filter
+
+Gewünscht, mit drei Bildern einer nächtlichen Stadt von oben als Vorlage:
+_„neue Grafik Effekte ausprobieren … eine Atmosphäre schaffen wie in den
+beigefügten Bildern … sollten wir das als ‚Wetter' einfach bezeichnen? Nebel und
+Tageszeit und Filter?"_
+
+_Menü → Einstellungen → Grafik → Wetter_ (`gfx:weather`, `App.weatherMenu`),
+ein Untermenü mit **Spukstadt** (Abkürzung: Nacht, Spuk-Nebel, lila Filter),
+**Nebel** (Aus → Dunst → Dicht → Spuk), **Tageszeit** (Tag → Abend → Nacht),
+**Filter** (Aus → Vignette → Noir → Lila) und **Klar** (alles zurück). Die
+Felder `weatherFog`, `weatherTime`, `weatherFilter` stehen in
+`GraphicsSettings`, Typen, Beschriftung und Zahlen in `core/weather.ts`
+(ohne three.js). Ab Werk alles aus — ein Stand ohne die Felder bekommt kein
+Wetter.
+
+**Wie:** Keine Welt weiß davon. Das Wetter fährt im Durchgang der unscharfen
+Etagen mit (`core/levelBlur.ts`, `LevelBlur.end(view, blur, weather, …)`), weil
+es dieselbe Textur mit Tiefe braucht; sind Blur und Wetter an, ist es **ein**
+Durchgang. Aus der Tiefe wird je Bildpunkt der Punkt in der Welt
+zurückgerechnet: Der Nebel liegt unten (dicht bis 1,6 m über dem Fuß der Figur),
+reißt um die Figur auf (klar bis 5 m, voll ab 20 m) und wabert über zwei Lagen
+Rauschen, die gegeneinander ziehen. Die Tageszeit dunkelt ab und färbt, aber
+was selbst hell ist, behält sein Licht. Der Filter kommt zuletzt: Sättigung,
+Kontrast, Tönung, Vignette.
+
+**Wann:** nur am Schirm — von oben und aus den Augen —, nie in der Brille
+(`weatherLook(…, presenting)` gibt dort `null`). Was noch fehlt, damit es wie
+die Vorlage aussieht: Laternen und Fenster, die nachts **wirklich** leuchten —
+das braucht Lichter oder leuchtende Materialien in den Welten, nicht den
+Durchgang.
+
 ## Was die Kamera ansieht
 
 Ein Schild, ein Fortschrittsbalken, ein Warndreieck: Alles, was Auskunft gibt,

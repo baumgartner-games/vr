@@ -135,6 +135,22 @@ import {
   saveGraphics,
 } from './graphicsSettings';
 import { LevelBlur, levelBlurPlan } from './levelBlur';
+import {
+  SPOOKY_TOWN,
+  WEATHER_FILTER_LABELS,
+  WEATHER_FILTER_SUBS,
+  WEATHER_FOG_LABELS,
+  WEATHER_FOG_SUBS,
+  WEATHER_TIME_LABELS,
+  WEATHER_TIME_SUBS,
+  DEFAULT_WEATHER,
+  nextWeatherFilter,
+  nextWeatherFog,
+  nextWeatherTime,
+  weatherActive,
+  weatherLook,
+  weatherSummary,
+} from './weather';
 import { applyAudioSettings } from './Audio';
 import { audioSettings, audioSummary, saveAudioSettings } from './audioSettings';
 import {
@@ -499,7 +515,9 @@ export class App {
       const now = graphics();
       this.levelBlurOn = now.levelBlur;
       this.levelBlurAboveOn = now.levelBlurAbove;
-      if (!this.levelBlurOn && !this.levelBlurAboveOn) this.levelBlur.release();
+      if (!this.levelBlurOn && !this.levelBlurAboveOn && !weatherActive(now)) {
+        this.levelBlur.release();
+      }
       // Der Blickwinkel von oben hängt am selben Zuhörer — eine Zeile, kein zweiter.
       this.topDownCamera.setTilt(now.topDownTilt);
     });
@@ -2860,6 +2878,7 @@ export class App {
             this.notify(next.dropPhysics ? 'Physik-Optik an' : 'Physik-Optik aus');
           },
         },
+        this.weatherMenu(accent),
         this.animationMenu(accent),
         this.visorMenu(accent),
         ...this.povMenu(accent),
@@ -3103,6 +3122,92 @@ export class App {
     this.gameMenu.openSubmenu(POV_PAGE);
     this.gameMenu.toggle(false);
     this.notify('VR-POV kalibrieren · ☰ öffnet Code und Schließen');
+  }
+
+  /**
+   * **Wetter** — Nebel, Tageszeit und Filter über dem fertigen Bild
+   * (`core/weather.ts`). Gewünscht: _„eine Atmosphäre schaffen wie in den
+   * beigefügten Bildern … als ‚Wetter' einfach bezeichnen? Nebel und Tageszeit
+   * und Filter?"_ Drei Zeilen, die je weiterschalten, eine Abkürzung zum Bild
+   * (_Spukstadt_) und eine zurück auf klar.
+   */
+  private weatherMenu(accent: number): MenuEntry {
+    const settings = graphics();
+    const changed = (message: string): void => {
+      this.menuDirty = true;
+      this.notify(message);
+    };
+    return {
+      id: 'gfx:weather',
+      label: 'Wetter',
+      sub: weatherSummary(settings),
+      caption: 'Nebel, Tageszeit und Filter · nur am Schirm, nicht in der Brille',
+      icon: 'sphere',
+      accent,
+      children: [
+        {
+          id: 'gfx:weather-spooky',
+          label: 'Spukstadt',
+          sub: 'Nacht, lila Nebel und lila Filter auf einmal',
+          caption: 'Die Abkürzung zur Stimmung aus den Vorlagen',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            saveGraphics({ ...SPOOKY_TOWN });
+            changed('Wetter: Spukstadt');
+          },
+        },
+        {
+          id: 'gfx:weather-fog',
+          label: `Nebel: ${WEATHER_FOG_LABELS[settings.weatherFog]}`,
+          sub: WEATHER_FOG_SUBS[settings.weatherFog],
+          caption: 'Aus → Dunst → Dicht → Spuk',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ weatherFog: nextWeatherFog(graphics().weatherFog) });
+            changed(`Nebel: ${WEATHER_FOG_LABELS[next.weatherFog]}`);
+          },
+        },
+        {
+          id: 'gfx:weather-time',
+          label: `Tageszeit: ${WEATHER_TIME_LABELS[settings.weatherTime]}`,
+          sub: WEATHER_TIME_SUBS[settings.weatherTime],
+          caption: 'Tag → Abend → Nacht',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ weatherTime: nextWeatherTime(graphics().weatherTime) });
+            changed(`Tageszeit: ${WEATHER_TIME_LABELS[next.weatherTime]}`);
+          },
+        },
+        {
+          id: 'gfx:weather-filter',
+          label: `Filter: ${WEATHER_FILTER_LABELS[settings.weatherFilter]}`,
+          sub: WEATHER_FILTER_SUBS[settings.weatherFilter],
+          caption: 'Aus → Vignette → Noir → Lila',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              weatherFilter: nextWeatherFilter(graphics().weatherFilter),
+            });
+            changed(`Filter: ${WEATHER_FILTER_LABELS[next.weatherFilter]}`);
+          },
+        },
+        {
+          id: 'gfx:weather-clear',
+          label: 'Klar',
+          sub: 'Kein Nebel, Tag, kein Filter — das Bild von vorher',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            saveGraphics({ ...DEFAULT_WEATHER });
+            changed('Wetter: klar');
+          },
+        },
+      ],
+    };
   }
 
   private visorMenu(accent: number): MenuEntry {
@@ -4052,13 +4157,17 @@ export class App {
       presenting,
       viewLevel,
     );
-    if (blur) this.levelBlur.begin();
+    // **Und das Wetter** (`core/weather.ts`) fährt im selben Durchgang mit —
+    // Nebel, Tageszeit und Filter, nur am Schirm.
+    const weather = weatherLook(graphics(), presenting);
+    const pass = blur !== null || weather !== null;
+    if (pass) this.levelBlur.begin();
     try {
       const rendered = this.world?.render?.(viewContext) ?? false;
       if (!rendered) this.renderer.render(this.scene, view);
     } finally {
       // Auch nach einem Fehler im Bild: Ein Ziel, das stehen bleibt, ist ein schwarzer Schirm.
-      if (blur) this.levelBlur.end(view, blur);
+      if (pass) this.levelBlur.end(view, blur, weather, this.rig.position, this.elapsed);
     }
     this.topDownCamera.uncut();
     this.positionHud.update(

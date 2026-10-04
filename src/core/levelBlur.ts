@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import type { ViewLevel } from './cutaway';
+import {
+  WEATHER_CLEAR_RADIUS,
+  WEATHER_FOG_HEIGHT,
+  WEATHER_FULL_RADIUS,
+  type WeatherLook,
+} from './weather';
 
 /**
  * **Die Etagen darunter, unscharf** — von oben, sobald man über einer steht.
@@ -35,6 +41,11 @@ import type { ViewLevel } from './cutaway';
  *   im Grafik-Menü, dass obere Stockwerke auch blurry sein können"_.
  *
  * Eine Welt ohne Etagen (`viewLevel` fehlt) zahlt nichts.
+ *
+ * **Und das Wetter** (`core/weather.ts`) fährt im selben Durchgang mit:
+ * Nebel, Tageszeit und Filter brauchen dieselbe Textur mit Tiefe. Sind Blur
+ * und Wetter an, ist es ein Durchgang; ist nur eines an, rechnet der andere
+ * Teil nichts.
  *
  * Getönt wird im Durchgang und nicht in der Textur: three.js zeichnet in ein
  * Ziel linear und ohne Tone Mapping, und die Textur hat halbe Fließkommazahlen,
@@ -125,14 +136,83 @@ uniform float aboveY;
 uniform float below;
 uniform float above;
 uniform vec2 radius;
+uniform float weather;
+uniform vec3 wLight;
+uniform float wKeepBright;
+uniform vec3 wFogColor;
+uniform float wFogStrength;
+uniform float wFogSwirl;
+uniform float wSaturation;
+uniform float wContrast;
+uniform vec3 wTint;
+uniform float wVignette;
+uniform float wTime;
+uniform vec3 wPlayer;
 varying vec2 vUv;
 
-float heightAt(vec2 uv) {
-  float depth = texture2D(tDepth, uv).x;
+vec3 worldAt(vec2 uv, float depth) {
   vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
   vec4 view = projectionInverse * clip;
   view /= view.w;
-  return (cameraWorld * view).y;
+  return (cameraWorld * view).xyz;
+}
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// Zwei Lagen Rauschen, die gegeneinander ziehen: Schwaden statt Fläche.
+float swirl(vec2 p) {
+  float a = noise(p * 0.18 + vec2(wTime * 0.05, wTime * 0.02));
+  float b = noise(p * 0.41 - vec2(wTime * 0.03, -wTime * 0.06));
+  return a * 0.65 + b * 0.35;
+}
+
+vec3 applyWeather(vec3 color, vec2 uv) {
+  // Tageszeit: abdunkeln und färben, was nicht selbst leuchtet.
+  float lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  float keep = wKeepBright * smoothstep(0.75, 2.2, lum);
+  color *= mix(wLight, vec3(1.0), keep);
+
+  // Nebel: liegt unten, reißt um die Figur herum auf, wabert.
+  if (wFogStrength > 0.0) {
+    float depth = texture2D(tDepth, uv).x;
+    float amount;
+    if (depth >= 0.99999) {
+      amount = wFogStrength * 0.85;
+    } else {
+      vec3 p = worldAt(uv, depth);
+      float lying = exp(-max(0.0, p.y - wPlayer.y) / ${WEATHER_FOG_HEIGHT.toFixed(3)});
+      float away = smoothstep(${WEATHER_CLEAR_RADIUS.toFixed(3)}, ${WEATHER_FULL_RADIUS.toFixed(3)}, distance(p.xz, wPlayer.xz));
+      float s = mix(1.0, smoothstep(0.2, 0.8, swirl(p.xz)) * 1.5, wFogSwirl);
+      amount = wFogStrength * away * clamp(lying * s + 0.15, 0.0, 1.0);
+    }
+    color = mix(color, wFogColor, clamp(amount, 0.0, 1.0));
+  }
+
+  // Filter: Sättigung, Kontrast (um ein mittleres Grau), Tönung.
+  float grey = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  color = mix(vec3(grey), color, wSaturation);
+  color = max(vec3(0.0), (color - 0.18) * wContrast + 0.18);
+  color *= wTint;
+
+  // Vignette: die Ecken dunkler, rund nach Bildhöhe.
+  vec2 d = (uv - 0.5) * vec2(radius.y / radius.x, 1.0);
+  float v = smoothstep(0.35, 0.95, length(d));
+  color *= 1.0 - wVignette * v;
+  return color;
+}
+
+float heightAt(vec2 uv) {
+  return worldAt(uv, texture2D(tDepth, uv).x).y;
 }
 
 float blurAt(vec2 uv) {
@@ -144,7 +224,7 @@ float blurAt(vec2 uv) {
 
 void main() {
   vec4 center = texture2D(tColor, vUv);
-  float amount = blurAt(vUv);
+  float amount = below + above > 0.0 ? blurAt(vUv) : 0.0;
   vec4 color = center;
   if (amount > 0.01) {
     vec3 sum = center.rgb;
@@ -160,6 +240,7 @@ void main() {
     }
     color.rgb = sum / weight;
   }
+  if (weather > 0.0) color.rgb = applyWeather(color.rgb, vUv);
   gl_FragColor = color;
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -180,6 +261,18 @@ export class LevelBlur {
       below: { value: 0 },
       above: { value: 0 },
       radius: { value: new THREE.Vector2() },
+      weather: { value: 0 },
+      wLight: { value: new THREE.Vector3(1, 1, 1) },
+      wKeepBright: { value: 0 },
+      wFogColor: { value: new THREE.Vector3() },
+      wFogStrength: { value: 0 },
+      wFogSwirl: { value: 0 },
+      wSaturation: { value: 1 },
+      wContrast: { value: 1 },
+      wTint: { value: new THREE.Vector3(1, 1, 1) },
+      wVignette: { value: 0 },
+      wTime: { value: 0 },
+      wPlayer: { value: new THREE.Vector3() },
     },
     vertexShader,
     fragmentShader,
@@ -221,8 +314,18 @@ export class LevelBlur {
     this.active = true;
   }
 
-  /** **Und durch den Durchgang auf den Schirm** — was verwischt wird, sagt `plan`. */
-  end(camera: THREE.Camera, plan: LevelBlurPlan): void {
+  /**
+   * **Und durch den Durchgang auf den Schirm** — was verwischt wird, sagt
+   * `plan`, welches Wetter liegt, `weather` (`core/weather.ts`); `player` ist
+   * der Fußpunkt der Figur, um den der Nebel aufreißt, `time` in Sekunden.
+   */
+  end(
+    camera: THREE.Camera,
+    plan: LevelBlurPlan | null,
+    weather: WeatherLook | null = null,
+    player: THREE.Vector3 | null = null,
+    time = 0,
+  ): void {
     if (!this.active || !this.target) return;
     this.active = false;
     const renderer = this.renderer;
@@ -232,10 +335,24 @@ export class LevelBlur {
     uniforms['tDepth']!.value = this.target.depthTexture;
     (uniforms['projectionInverse']!.value as THREE.Matrix4).copy(camera.projectionMatrixInverse);
     (uniforms['cameraWorld']!.value as THREE.Matrix4).copy(camera.matrixWorld);
-    uniforms['floorY']!.value = plan.floorY ?? 0;
-    uniforms['below']!.value = plan.floorY === null ? 0 : 1;
-    uniforms['aboveY']!.value = plan.aboveY ?? 0;
-    uniforms['above']!.value = plan.aboveY === null ? 0 : 1;
+    uniforms['floorY']!.value = plan?.floorY ?? 0;
+    uniforms['below']!.value = plan?.floorY == null ? 0 : 1;
+    uniforms['aboveY']!.value = plan?.aboveY ?? 0;
+    uniforms['above']!.value = plan?.aboveY == null ? 0 : 1;
+    uniforms['weather']!.value = weather ? 1 : 0;
+    if (weather) {
+      (uniforms['wLight']!.value as THREE.Vector3).set(...weather.light);
+      uniforms['wKeepBright']!.value = weather.keepBright;
+      (uniforms['wFogColor']!.value as THREE.Vector3).set(...weather.fogColor);
+      uniforms['wFogStrength']!.value = weather.fogStrength;
+      uniforms['wFogSwirl']!.value = weather.fogSwirl;
+      uniforms['wSaturation']!.value = weather.saturation;
+      uniforms['wContrast']!.value = weather.contrast;
+      (uniforms['wTint']!.value as THREE.Vector3).set(...weather.tint);
+      uniforms['wVignette']!.value = weather.vignette;
+      uniforms['wTime']!.value = time;
+      if (player) (uniforms['wPlayer']!.value as THREE.Vector3).copy(player);
+    }
     const aspect = this.target.width / Math.max(1, this.target.height);
     (uniforms['radius']!.value as THREE.Vector2).set(LEVEL_BLUR_RADIUS / aspect, LEVEL_BLUR_RADIUS);
     renderer.render(this.quad, this.quadCamera);
