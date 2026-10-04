@@ -115,6 +115,21 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./test/EffectsTestWorld')).EffectsTestWorld(),
   },
   {
+    id: 'test-city',
+    title: 'Kleine Stadt',
+    tagline: 'Straßen, Ampeln und Häuser aus dem Katalog',
+    description:
+      'Eine kleine Stadt nur aus dem Katalogordner „Stadt“: zwei Straßen von West nach Ost, eine von Nord nach Süd, Kreuzungen mit Ampeln, Zebrastreifen, Häuser Wand an Wand am Gehweg, Parks und ein Platz. Alles sind Spielelemente — umstellen, Laternen tauschen (A an einer Laterne) und weiterbauen wie überall.',
+    accent: 0x8fb7d9,
+    preview: 'worlds/test-city.webp',
+    // Das ganze Raster von oben, Rand bis Rand.
+    topDownSpan: 60,
+    roles: ['vr', 'desktop', 'handheld'],
+    test: true,
+    folder: 'test',
+    load: async () => new (await import('./city/CityTestWorld')).CityTestWorld(),
+  },
+  {
     id: 'hausbau',
     title: 'Hausbau',
     tagline: 'Wände bauen, tapezieren, Böden legen',

@@ -374,9 +374,18 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   eine Modellstadt: Bei 0,5 wäre eine Straße 1 m breit und eine Laterne 48 cm.
   So ist die Straße 8 × 8 m mit zwei Spuren, ein Auto 3,8 m, eine Laterne
   3,8 m, ein Haus 6,6–12,2 m hoch.
-- **Alles Große auf 8 × 8 Kacheln** (`CITY_BLOCK`): Straßen, Gehweg, Parks und
-  Häuser rasten als gleiche Blöcke aneinander. Die Gerade läuft nach Süden;
-  gedreht wird beim Hinstellen wie jedes Element.
+- **Der Gehweg gehört zur Straße** (gewünscht: _„den Gehweg will ich bei den
+  Straßen bereits inkludiert haben, sodass ich die Häuser nur noch in die
+  freien Plätze stellen muss"_). Ein Straßenstück ist 8 × 8 Kacheln
+  (`CITY_BLOCK`): 6 m Fahrbahn (`ROADWAY`, zwei Spuren zu 3 m) und je 1 m
+  Gehweg (`WALK`). Die Platten der Quelle werden dafür auf genaue Maße gebracht
+  (`plate`: `ElementPart.size` mit `pose`) — die Fahrbahn auf 6 m Breite, der
+  Gehweg als Streifen aus der Gehwegplatte. An Kreuzung, Einmündung und Ecke
+  liegt die Fahrbahn der Quelle auf 6 × 6 m in der Mitte, zu jedem Ausgang ein
+  Meter Gerade, an jeder geschlossenen Seite Gehweg und in jeder Ecke ein
+  Quadrat Gehweg (`junctionParts`) — so laufen Fahrbahn, Bordstein und
+  Markierung über jede Fuge durch. Die Gerade läuft nach Süden; gedreht wird
+  beim Hinstellen wie jedes Element.
 - **Straßen und Plätze sind Boden mit Möbeln** (`floor`, `solid: [0, 0]`): Man
   geht darüber und stellt darauf. Was an so einer Stelle steht, ist Teil des
   Elements (`onSlab`: am Ursprung der Datei, auf der Platte) — der Vorschlag:
@@ -406,28 +415,35 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   - _Allee_: die Gerade mit vier Bäumen an den Bordsteinen.
   - _Gehweg_, _Park_, _Park mit Bäumen_ (mit Bank), _Park mit Büschen_,
     _Parkweg_ (Bank, alte Laterne, Büsche).
-- **Die Platten sind eingelassen** (`flush` mit negativem Wert): In der Quelle
-  sind sie 40 cm dick. Die Oberkante liegt 16 cm (Straße) bzw. 10 cm (Gehweg,
-  Park) über dem Boden, die Fahrbahn also 8 cm. Weniger geht nicht: Die
-  Platten der Welt schieben ihren Tiefenwert nach vorn (`plateFloor`,
-  `polygonOffset`), und eine Fahrbahn 1 cm darüber war unsichtbar — nur die
-  Bordsteine schauten heraus.
+- **Wie hoch**: Gehweg und Bordstein 16 cm (`SLAB_TOP`), die Fahrbahn darin
+  13 cm, Platz und Park 10 cm (eingelassen, `flush` mit negativem Wert — die
+  Platten der Quelle sind 40 cm dick). Weniger geht nicht: Die Platten der Welt
+  schieben ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`), und eine
+  Fahrbahn 1 cm über dem Boden war unsichtbar — nur die Bordsteine schauten
+  heraus.
 - **Die verzierten Parkplatten der Quelle gehen nicht** (`park_*_decorated_*`):
   Eingelassen wird um die ganze Höhe der Hülle, und mit den Bäumen darin
   versänke die Wiese. Deshalb die flache Platte und das Grün als eigene Teile.
-- **Häuser** (`house`): die Häuser **ohne** Sockel auf einer eingelassenen
-  Gehwegplatte. Gesperrt ist nur das Haus (`solid`, nachgemessen an der Datei
-  ohne Sockel), um es herum geht man auf dem Gehweg. Die Vorderseite schaut
-  wie bei jedem Element nach Süden — zur Straße hin drehen.
+- **Häuser** (`house`): so breit wie das Haus selbst (auf Kacheln
+  aufgerundet: A und C 5, B und D 7, E bis H 8) und 8 m tief — vorn bündig an
+  den Gehweg der Straße, hinten Rasen, darunter Pflaster in Gehweghöhe, damit
+  zwischen Haus und Gehweg kein Streifen Boden durchscheint. Gesperrt ist die
+  ganze Fläche. Gemeldet an der ersten Fassung, in der jedes Haus auf 8 × 8 m
+  Gehweg stand: _„Bei den Gebäuden muss der benötigte Platz reduziert werden,
+  sodass links und rechts nicht diese leeren Gassen sind […] an der Rückseite
+  macht es schon Sinn."_ Die Vorderseite schaut wie bei jedem Element nach
+  Süden — zur Straße hin drehen; Häuser einer Reihe stehen Wand an Wand.
+- **Die Testwelt _Kleine Stadt_** (`test-city`, siehe [Welten](welten.md)) ist
+  nur aus diesem Ordner gebaut (`city/cityPlan.ts`).
 - **Straßenmöbel, Autos, Grün** stehen auch einzeln: Laternen und Ampeln
   sperren nur ihren Mast (eine Zelle), Autos zwei mal vier Kacheln, die
   Stadtbäume (4 m Krone) nur ihren Stamm.
 
 | Teil | Maße (B × H × T) | Kacheln |
 | ---- | ---------------- | ------- |
-| Straße, Platz, Park | 8,0 × 0,4 (eingelassen) × 8,0 m | 8 × 8 |
-| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m auf Gehweg | 8 × 8 |
-| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 8 × 8 |
+| Straße (6 m Fahrbahn, 2 × 1 m Gehweg), Platz, Park | 8,0 × 0,16 × 8,0 m | 8 × 8 |
+| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m, Garten dahinter | 5–7 × 8 |
+| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 5–8 × 8 |
 | Laterne / Ampel mit Arm | 1,0 × 3,8 × 0,3 m | 1 × 1 |
 | Auto | 1,7 × 1,4 × 3,8 m | 2 × 4 |
 

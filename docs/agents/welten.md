@@ -468,6 +468,19 @@ Die Navigation-Zone bleibt als Baukasten der Test Navigation
 Spielelemente und `FurnishedWorld` leben (`kitchenRecipes`, `kitchenCarry`,
 `kitchenGauge`, `kitchenSpray` …), bleiben unter `test/zones/` liegen. Wer
 etwas Gelöschtes nachlesen will: `git show 54667d5:src/worlds/test/<Datei>`.
+
+**Kleine Stadt** (`test-city`, `city/CityTestWorld.ts`, `city/cityPlan.ts`) —
+seit Oktober 2026 im Ordner _Test_, gebaut nur aus dem Katalogordner _Stadt_
+([Spielelemente](spielelemente.md#stadt-straßen-plätze-und-häuser-aus-city-builder-bits)).
+Gewünscht: _„Nehme die Teile und schau mal, wie eine Test-Welt ‚kleine Stadt'
+wäre."_ Ein Raster aus Stücken von 8 m, sieben Spalten und sechs Reihen: zwei
+Straßen von West nach Ost, eine von Nord nach Süd, Kreuzungen mit vier Ampeln,
+Zebrastreifen, Laternen in zwei Fassungen, eine Allee. Dazwischen Häuser Wand
+an Wand, vorn am Gehweg (der zur Straße gehört), dazu zwei Parks, ein Parkweg
+und ein Platz mit Bank, Hydrant und Container, und vier Autos auf der rechten
+Spur. Alles sind Spielelemente aus `CITY_SPOTS`: umstellen, Laternen tauschen
+und weiterbauen wie in jeder Gitterwelt. Der Boden ist der Prototyp-Boden der
+Testwelten, das Raster mit vier Kacheln Rand.
 Wo in den Kapiteln von der _Testwelt_, ihren neun oder elf Zonen oder der
 Küche der Sandbox die Rede ist, ist dieser Stand vor Oktober 2026 gemeint.
 
