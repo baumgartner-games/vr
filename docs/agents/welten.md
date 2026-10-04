@@ -473,18 +473,17 @@ etwas Gelöschtes nachlesen will: `git show 54667d5:src/worlds/test/<Datei>`.
 seit Oktober 2026 im Ordner _Test_, gebaut nur aus dem Katalogordner _Stadt_
 ([Spielelemente](spielelemente.md#stadt-straßen-plätze-und-häuser-aus-city-builder-bits)).
 Gewünscht: _„Nehme die Teile und schau mal, wie eine Test-Welt ‚kleine Stadt'
-wäre."_ Ein Raster aus Stücken von 12 m (so groß wie ein Straßenstück mit
-3 m Gehweg je Seite), fünf Spalten und sechs Reihen: zwei
-Straßen von West nach Ost, eine von Nord nach Süd, Kreuzungen mit vier Ampeln,
-Zebrastreifen, Laternen in zwei Fassungen, eine Allee. Dazwischen Häuser Wand
-an Wand, vorn am Gehweg (der zur Straße gehört), dazu zwei Parks, ein Parkweg
-und ein Platz mit Bank, Hydrant und Container, und vier Autos auf der rechten
-Spur. Alles sind Spielelemente aus `CITY_SPOTS`: umstellen, Laternen tauschen
-und weiterbauen wie in jeder Gitterwelt. Der Boden ist der Prototyp-Boden der
-Testwelten, das Raster mit vier Kacheln Rand. Je 24 m Häuserreihe gehen
-auf: E + H + F, A + B + C + D, oder ein Park (12 m) und A + B.
-Wo in den Kapiteln von der _Testwelt_, ihren neun oder elf Zonen oder der
-Küche der Sandbox die Rede ist, ist dieser Stand vor Oktober 2026 gemeint.
+wäre"_, und danach: _„dass wir hier Häuser aneinander stellen Rücken an Rücken
+und wie wir die Straßen dann verbinden"_. Ein Raster aus Stücken von 12 m,
+sieben mal sieben: Straßen in jeder dritten Reihe und Spalte, dazwischen vier
+Blöcke von 24 × 24 m mit je zwei Häuserreihen Rücken an Rücken. Die
+Straßenteile rechnet dieselbe Netz-Rechnung wie das Ziehen
+(`roadNetwork.roadPiece`): Ecken außen, Einmündungen an den Rändern, die
+Kreuzung in der Mitte, Zebrastreifen auf halber Strecke, je Straße eine Art
+(alte Laternen, Allee, Doppellaternen …). Dazu Parks, ein Platz mit
+Straßenmöbeln und vier Autos auf der rechten Spur. Rundherum liegen zwei
+Stücke freier Boden, auf dem man mit einer Straße aus dem Katalog weiterbaut
+([Straßen ziehen](bauen.md#straßen-ziehen-wie-in-cities-skylines)).
 
 **Welten können in einem Ordner stehen** (`WorldDefinition.folder`,
 `worlds/index.WORLD_FOLDERS`). Gewünscht: _„eine Test Ordner Welt …, wenn ich
