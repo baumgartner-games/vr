@@ -119,7 +119,11 @@ export function restOn(
   for (let i = 0; i < others.length; i++) {
     const box = others[i]!;
     if (foot.x < box.minX || foot.x > box.maxX || foot.z < box.minZ || foot.z > box.maxZ) continue;
-    if (box.maxY > floorY + STACK_MAX || box.maxY <= y) continue;
+    // Ein Zentimeter Luft, wie unten beim Im-Weg-Stehen: Eine Wand der Etage
+    // darunter hört genau dort auf, wo dieser Boden anfängt — gerechnet einen
+    // Hauch darüber (2,8000001 m) —, und trug dann als „Unterlage" einen Tisch,
+    // der auf ihr keinen Platz hat. Der Geist auf dem Dach war rot.
+    if (box.maxY > floorY + STACK_MAX || box.maxY <= y + 0.01) continue;
     y = box.maxY;
     support = i;
   }

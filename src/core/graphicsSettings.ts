@@ -437,6 +437,18 @@ export interface GraphicsSettings {
    * sich das Bild nicht aus Versehen verkippen.
    */
   tiltDrag: boolean;
+  /**
+   * **Weltbau: simulierte Physik-Optik** — was man in der Brille loslässt,
+   * fällt sichtbar aus der Hand, dreht sich in der Luft, kippt beim Aufkommen
+   * und liegt am Ende genau dort, wo es ohnehin hinkommt
+   * (`worlds/portal/dropFall.ts`). Nur das Bild: Wo und wie es steht, rechnet
+   * das Einrasten wie immer, und zwar sofort. Ab Werk an. Gewünscht:
+   * _„wenn ich eine Kiste z. B. leicht schräg loslasse, dass diese aus meiner
+   * Hand runterfällt und sich z. B. in der Luft auch drehen kann und wenn diese
+   * aufkommt, dass diese ‚zufällig' so kippt/fällt, dass diese am Ende in der
+   * richtigen Position landet"_.
+   */
+  dropPhysics: boolean;
 }
 
 /** Stock oder Steuerkreuz (`GraphicsSettings.movePad`). */
@@ -674,6 +686,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   visorBreathStyle: 'realistic',
   topDownTilt: TOP_DOWN_TILT,
   tiltDrag: false,
+  dropPhysics: true,
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -921,6 +934,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     // Ein Stand von gestern kennt den Winkel nicht und bekommt die 55° von immer.
     topDownTilt: clampTilt(raw.topDownTilt),
     tiltDrag: raw.tiltDrag === true,
+    // Ab Werk an: „kenne ich nicht" heißt an, nur ein ausdrückliches Aus ist aus.
+    dropPhysics: raw.dropPhysics !== false,
   };
 }
 
