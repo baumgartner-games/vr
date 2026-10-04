@@ -834,12 +834,15 @@ export class PlayerRig extends THREE.Group {
     const right = this.menuStick === 'right' ? null : input.get('right')?.thumbstick;
     this.getHeadForward(_forward);
     this.getHeadPosition(_head);
+    // Linker Stick eingedrückt: Sprint, wie beim Laufen (`BUILD_SPRINT`).
+    const sprint = left !== null && input.get('left')?.stick.pressed === true;
     const step = flightStep(
       left ?? { x: 0, y: 0 },
       right?.y ?? 0,
       yawOfForward(_forward.x, _forward.z),
       _head.y - floor,
       dt,
+      sprint,
     );
     if (step.x !== 0 || step.y !== 0 || step.z !== 0) {
       this.position.x += step.x;

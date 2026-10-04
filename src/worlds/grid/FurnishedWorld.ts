@@ -284,15 +284,17 @@ export abstract class FurnishedWorld extends GridWorld {
     x: number,
     z: number,
     yaw: number,
+    level: number = this.standLevel,
   ): ElementSpot | null {
     if (!hasElement(carried.id)) return null;
     const id = carried.from?.id ?? `katalog-${++this.furnished}`;
     const at = spotAround(id, carried.id, x, z, yawFace(yaw));
     // **Auf die Etage, auf der gebaut wird** (`standLevel`) — im Weltbau die
-    // unter der Hand (`GridWorld.handLevel`), etwa das Dach.
+    // unter der Hand (`GridWorld.handLevel`), etwa das Dach. Wer erst fallen
+    // lässt (`dropFall.ts`), sagt die Etage vom Loslassen mit.
     const spot = onLevel(
       carried.from ? { ...grounded(carried.from), x: at.x, z: at.z, face: at.face } : at,
-      this.standLevel,
+      level,
     );
     return this.furnishSpot(spot, keptStates(carried), carried.riders ?? []) ? spot : null;
   }

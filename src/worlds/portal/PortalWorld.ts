@@ -311,6 +311,7 @@ import {
   type RoomTile,
 } from './surfaceDecor';
 import { PlaceGhost, WallGhosts, type GhostSlot } from './placeGhost';
+import { DropFalls, type DropStart } from './dropFall';
 import {
   KAYKIT_ACCENT,
   SHELF_COLS,
@@ -885,6 +886,7 @@ const _eyeGripToRay = new THREE.Quaternion(
   GRIP_TO_RAY.w,
 );
 const _quaternion = new THREE.Quaternion();
+const _dropScale = new THREE.Vector3();
 const _hitPoint = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
 const _hit = { point: _hitPoint, normal: _hitNormal, object: null as unknown as THREE.Object3D };
@@ -1803,6 +1805,14 @@ export class PortalWorld implements World {
   }
   private readonly buildHistory = new BuildHistory();
   private placeGhost: PlaceGhost | null = null;
+  /**
+   * **Was gerade sichtbar fällt** (`dropFall.ts`, _Grafik → Weltbau:
+   * simulierte Physik-Optik_) — Abschriften, die aus der Hand an ihren Platz
+   * fallen, während das Original schon dort steht.
+   */
+  private dropFalls: DropFalls | null = null;
+  /** Was ein fallendes Spielelement hinstellt, sobald es liegt (`placedElement`). */
+  private readonly landing = new Map<PhysicsBody, () => void>();
   /** Solange ein Schritt nachgespielt wird, kommt nichts auf den Stapel. */
   private replaying = false;
   /** Wo ein schon stehendes Stück stand, als es aufgehoben wurde — für _Verschieben_ rückgängig. */
@@ -2222,6 +2232,7 @@ export class PortalWorld implements World {
     // **Und die Werkzeugleiste samt Geist** — nach der Fläche, damit ein
     // Druck auf _Drehen_ schon im nächsten Bild im Gitter steht.
     this.updateBuild(ctx);
+    this.dropFalls?.update(dt);
     // **Erst jetzt der Saum**: Er hängt in der Brille an dem, worauf die Hand
     // zeigt, und das steht erst nach `updateGrabs` fest (`showUse`).
     this.showUse(dt, ctx);
@@ -4312,6 +4323,7 @@ export class PortalWorld implements World {
     _x: number,
     _z: number,
     _yaw: number,
+    _level?: number,
   ): ElementSpot | null {
     return null;
   }
@@ -4883,7 +4895,12 @@ export class PortalWorld implements World {
    * Nach dem Loslassen und nicht mitten darin (`queueMicrotask`), wie beim
    * Modell (`placedFromShelf`).
    */
-  private placedElement(ctx: WorldContext, hand: Handedness, entry: PhysicsBody): void {
+  private placedElement(
+    ctx: WorldContext,
+    hand: Handedness,
+    entry: PhysicsBody,
+    fall: DropStart | null = null,
+  ): void {
     const carried = this.elementBodies.get(entry);
     if (carried === undefined) return;
     const id = carried.id;
@@ -4893,18 +4910,23 @@ export class PortalWorld implements World {
     const z = _point.z;
     const yaw = quarterYaw(yawOf(_quaternion));
     const fresh = this.shelfFresh.delete(entry);
-    queueMicrotask(() => {
-      if (this.context !== ctx) return;
-      this.removeProp(entry, false);
-      // **Eine Straße fügt sich ins Netz** — auch einzeln losgelassen wird sie
-      // zum Stück mit den richtigen Anschlüssen (`commitRoad`), statt als
-      // Gerade neben einer Kreuzung zu liegen.
-      if (!carried.from && this.roadBrush(id)) {
-        this.commitRoad(id, [x, z], [x, z]);
-        if (fresh && refillsCatalogue(gameMode())) this.takeElement(ctx, id, hand, yaw);
-        return;
-      }
-      const spot = this.furnishAt(carried, x, z, yaw + ELEMENT_HOLD);
+    const road = !carried.from && this.roadBrush(id);
+    // **Die Etage gilt beim Loslassen** — im Weltbau sagt sie die Hand
+    // (`GridWorld.handLevel`), und die ist weitergezogen, bis die Abschrift
+    // unten ist.
+    const level = this.buildLevel();
+    // **Erst fallen, dann stehen** (`dropFall.ts`): Die Abschrift fällt aus
+    // der Hand, und hingestellt wird, sobald sie liegt — das Element lädt
+    // seine Teile neu, und die sollen nicht schon unten stehen, während es
+    // noch fällt.
+    const falling = !road && fall !== null && this.fallElement(ctx, entry, fall, id, x, z, yaw);
+    const refills = fresh && refillsCatalogue(gameMode());
+    // Erst nach dem Fall: `this.context` ist dann ein neues Bild (`update`
+    // setzt es je Bild), die Welt aber dieselbe — weg ist sie erst bei `null`.
+    const commit = (refilled: boolean): void => {
+      const ctx = this.context;
+      if (!ctx) return;
+      const spot = this.furnishAt(carried, x, z, yaw + ELEMENT_HOLD, level);
       const label = elementById(id).label;
       if (spot) this.recordElementOf(spot);
       else if (carried.from) {
@@ -4919,7 +4941,109 @@ export class PortalWorld implements World {
         );
         return;
       } else ctx.notify(`${label}: dort ist kein Platz`);
-      if (!spot || (fresh && refillsCatalogue(gameMode()))) this.takeElement(ctx, id, hand, yaw);
+      if (!refilled && (!spot || refills)) this.takeElement(ctx, id, hand, yaw);
+    };
+    queueMicrotask(() => {
+      if (this.context !== ctx) return;
+      this.removeProp(entry, false);
+      // **Eine Straße fügt sich ins Netz** — auch einzeln losgelassen wird sie
+      // zum Stück mit den richtigen Anschlüssen (`commitRoad`), statt als
+      // Gerade neben einer Kreuzung zu liegen.
+      if (road) {
+        this.commitRoad(id, [x, z], [x, z]);
+        if (refills) this.takeElement(ctx, id, hand, yaw);
+        return;
+      }
+      if (!falling) {
+        commit(false);
+        return;
+      }
+      // Im _Baukasten_ liegt die nächste Kopie gleich in der Hand und nicht
+      // erst, wenn die letzte unten ist.
+      if (refills) this.takeElement(ctx, id, hand, yaw);
+      this.landing.set(entry, () => commit(refills));
+    });
+  }
+
+  /**
+   * **Die Etage, auf der gerade gebaut wird** — hier immer das Erdgeschoss;
+   * eine Gitterwelt sagt die ihre (`GridWorld.standLevel`).
+   */
+  protected buildLevel(): number {
+    return 0;
+  }
+
+  /**
+   * **Wie es in der Hand hing, als es losgelassen wurde** — für die
+   * Physik-Optik (`dropFall.ts`), oder `null`, wenn sie aus ist.
+   */
+  private dropStartOf(grab: HandGrab): DropStart | null {
+    if (!graphics().dropPhysics) return null;
+    const object = grab.entry.object;
+    object.updateWorldMatrix(true, false);
+    const start = {
+      position: new THREE.Vector3(),
+      quaternion: new THREE.Quaternion(),
+      scale: new THREE.Vector3(),
+      velocity: grab.velocity.clone(),
+    };
+    object.matrixWorld.decompose(start.position, start.quaternion, start.scale);
+    return start;
+  }
+
+  /**
+   * **Ein Modell aus dem Regal fällt sichtbar an seinen Platz** — es steht
+   * dort schon (`snapPlaced`), verborgen, bis die Abschrift unten ist.
+   */
+  private fallModel(ctx: WorldContext, entry: PhysicsBody, start: DropStart): void {
+    entry.object.updateWorldMatrix(true, false);
+    const end = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+    entry.object.matrixWorld.decompose(end.position, end.quaternion, _dropScale);
+    (this.dropFalls ??= new DropFalls()).start(ctx.scene, entry.object, start, end, {
+      half: entry.halfExtents,
+      rigScale: ctx.rig.scale.x,
+      hide: [entry.object],
+      alive: () => this.context !== null && !entry.carried && !entry.removed,
+    });
+  }
+
+  /**
+   * **Ein Spielelement fällt sichtbar** — dorthin, wo seine Kacheln leuchten
+   * (`spotAround`, wie `updatePlaceGrid`), auf die Höhe, die der Geist zeigt
+   * (`decorTarget`). Hingestellt wird es erst, wenn es liegt (`landing`).
+   *
+   * @returns ob es fällt
+   */
+  private fallElement(
+    ctx: WorldContext,
+    entry: PhysicsBody,
+    start: DropStart,
+    id: string,
+    x: number,
+    z: number,
+    yaw: number,
+  ): boolean {
+    const centre = spotCentre(spotAround('', id, x, z, yawFace(yaw + ELEMENT_HOLD)));
+    const target = this.decorTarget(ctx, entry, x, z);
+    const end = {
+      position: new THREE.Vector3(
+        centre.x,
+        target ? target.y : this.buildFloorY(ctx) + entry.halfExtents.y,
+        centre.z,
+      ),
+      quaternion: new THREE.Quaternion().setFromAxisAngle(UP, yaw),
+    };
+    return (this.dropFalls ??= new DropFalls()).start(ctx.scene, entry.object, start, end, {
+      half: entry.halfExtents,
+      rigScale: ctx.rig.scale.x,
+      hide: [entry.object],
+      // Das Original geht gleich (`removeProp`), die Abschrift erbt seine Netze.
+      ownsResources: true,
+      onLand: () => {
+        const land = this.landing.get(entry);
+        this.landing.delete(entry);
+        land?.();
+      },
     });
   }
 
@@ -6719,6 +6843,10 @@ export class PortalWorld implements World {
     this.craneEmptyButton = null;
     this.placeGhost?.dispose();
     this.placeGhost = null;
+    // Was noch fällt, steht sofort — aber ohne hinzustellen: Die Welt geht.
+    this.dropFalls?.clear(false);
+    this.dropFalls = null;
+    this.landing.clear();
     this.lineGhosts?.dispose();
     this.lineGhosts = null;
     this.areaAuto = null;
@@ -10934,6 +11062,9 @@ export class PortalWorld implements World {
       return;
     }
 
+    // **Wie es in der Hand hing** — für die Physik-Optik (`dropFall.ts`),
+    // bevor das Einrasten es an seinen Platz setzt.
+    const fall = this.dropStartOf(grab);
     physics.setCarried(grab.entry, false);
     grab.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
     const thrown = grab.velocity.clampLength(0, 9);
@@ -10944,7 +11075,9 @@ export class PortalWorld implements World {
     const snapped = this.snapPlaced(grab.entry, placed, thrown.length());
     if (snapped) thrown.set(0, 0, 0);
     grab.entry.body.setLinvel({ x: thrown.x, y: thrown.y, z: thrown.z }, true);
-    if (snapped) this.placedFromShelf(ctx, hand, grab.entry);
+    if (snapped && fall && !this.elementBodies.has(grab.entry))
+      this.fallModel(ctx, grab.entry, fall);
+    if (snapped) this.placedFromShelf(ctx, hand, grab.entry, fall);
 
     // Whoever simulates picks the throw up from here.
     const id = this.idOf(grab.entry);
@@ -10994,7 +11127,12 @@ export class PortalWorld implements World {
    * darin (`queueMicrotask`) — die Hand ist sonst noch halb belegt, und am
    * Schirm fängt die Bildschirmhand gerade das alte auf.
    */
-  private placedFromShelf(ctx: WorldContext, hand: Handedness, entry: PhysicsBody): void {
+  private placedFromShelf(
+    ctx: WorldContext,
+    hand: Handedness,
+    entry: PhysicsBody,
+    fall: DropStart | null = null,
+  ): void {
     // Ein Zettel ist kein Bauschritt und holt keine Kopie nach (`placedNote`).
     if (this.notes.has(entry)) {
       this.placedNote(entry);
@@ -11002,7 +11140,7 @@ export class PortalWorld implements World {
     }
     // Ein Spielelement wird an dieser Stelle zum Möbel (`placedElement`).
     if (this.elementBodies.has(entry)) {
-      this.placedElement(ctx, hand, entry);
+      this.placedElement(ctx, hand, entry, fall);
       return;
     }
     const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
@@ -11810,7 +11948,12 @@ export class PortalWorld implements World {
   } | null {
     const path = this.modelPath(entry);
     if (path === null) return null;
-    const floorY = ctx.rig.getFloorY();
+    // **Auf der Etage, auf der gebaut wird** (`buildFloorY`) — im Weltbau die
+    // unter der Hand, etwa das Dach, und dieselbe, auf der die Kacheln
+    // leuchten (`updatePlaceGrid`). Hier stand die Höhe der Füße, und die
+    // sind im Weltbau auf dem Boden, von dem man abgehoben hat: Der Geist
+    // stand dann im Erdgeschoss, steckte in der Decke darüber und war rot.
+    const floorY = this.buildFloorY(ctx);
     const half = entry.halfExtents;
     const { boxes, models } = this.decorScene(entry);
     if (mountsOnWall(path)) {

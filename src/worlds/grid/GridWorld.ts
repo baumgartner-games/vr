@@ -3249,6 +3249,10 @@ export abstract class GridWorld extends PortalWorld {
     return this.rigLevel;
   }
 
+  protected override buildLevel(): number {
+    return this.standLevel;
+  }
+
   /**
    * **Die Ebenen-Leiste des Baukastens** (`levelBar.ts`) — je Bild einmal,
    * nach der Werkzeugleiste (`PortalWorld.updateBuild`), neben der sie steht.
