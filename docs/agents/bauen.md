@@ -141,10 +141,14 @@ der richtigen Position landet"_.
   sieht eine Kiste so schnell fallen wie ein Mensch eine kleine), Schwung der
   Hand, Drall aus der Schräglage beim Loslassen plus etwas Zufall; gelenkt
   wird waagerecht auf den Platz. Aufgekommen ist sie, wenn die tiefste Ecke
-  des gedrehten Kastens den Boden berührt; dann kippt sie mit der Ecke am
-  Boden in die richtige Lage und steht am Ende genau dort, wo sie ohne Optik
-  stünde. Höchstens drei Sekunden; wer sie unterwegs wieder greift, beendet
-  den Fall.
+  des gedrehten Kastens den Boden berührt. **Dann springt sie** so hoch, wie
+  sie selbst ist, mal 1,5 (`HOP`), und dreht sich in diesem Sprung in die
+  richtige Lage — fehlt dazu kaum etwas, eine ganze Runde dazu (`FLIP_BELOW`)
+  — und bleibt genau dort liegen, wo sie ohne Optik stünde. Gewünscht:
+  _„beim Aufprall eher wie ein [Sprung] so hoch, wie das Objekt ist ×1,5,
+  und in diesem Hochspringen dann in der Luft drehen, sodass es beim
+  Runterfallen am Ende korrekt wieder liegen bleibt."_ Höchstens drei
+  Sekunden; wer sie unterwegs wieder greift, beendet den Fall.
 
 **Etagen aus der Luft: die Hand sagt, welche** (Oktober 2026). Gewünscht:
 _„Überleg dir wie ich Ebenen wechsel, oder wenn es z. B. das Dach bei

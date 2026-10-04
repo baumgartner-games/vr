@@ -26,11 +26,15 @@ import { disposeTree } from '../shared/environment';
  * 1. **Fallen** — Schwerkraft, der Schwung der Hand und ein Drall, der aus
  *    der Schräglage beim Loslassen kommt, dazu ein wenig Zufall. Gelenkt wird
  *    waagerecht, damit es über seinem Platz ankommt. Aufgekommen ist es, wenn
- *    die tiefste Ecke des gedrehten Kastens den Boden berührt; ein harter
- *    Aufprall springt einmal kurz zurück.
- * 2. **Kippen** — von der Lage, in der es aufkam, in die richtige, mit der
- *    Ecke auf dem Boden: Es fällt auf die Seite, auf der es stehen soll, und
- *    schlägt am Ende hörbar flach auf (beschleunigt, `u²`).
+ *    die tiefste Ecke des gedrehten Kastens den Boden berührt.
+ * 2. **Hochspringen und drehen** — beim Aufprall springt es so hoch, wie es
+ *    selbst ist, mal `HOP` (1,5), und dreht sich in diesem Sprung von der
+ *    Lage, in der es aufkam, in die richtige: Es kommt richtig herum wieder
+ *    unten an und bleibt liegen. Fehlt zur richtigen Lage kaum etwas, dreht
+ *    es eine ganze Runde dazu — sonst sähe der Sprung aus wie ein Hüpfer.
+ *    Gewünscht: _„beim Aufprall eher wie ein [Sprung] so hoch, wie das Objekt
+ *    ist ×1,5, und in diesem Hochspringen dann in der Luft drehen, sodass es
+ *    beim Runterfallen am Ende korrekt wieder liegen bleibt."_
  *
  * Die Schwerkraft wächst mit dem Gestell (`PlayerRig.scale`): Im Weltbau ist
  * man zehnmal so groß, und eine Kiste, die aus „einem Meter" Hand fällt, fällt
@@ -44,10 +48,10 @@ const GRAVITY = 9.81;
 const STEER = 7;
 /** Wie viel Drall je Sekunde verloren geht (Luft). */
 const SPIN_DAMP = 0.6;
-/** Ab welcher Aufprallgeschwindigkeit (mal Gestell) es einmal zurückspringt. */
-const BOUNCE_SPEED = 2;
-/** Wie viel vom Aufprall der Sprung zurückgibt. */
-const BOUNCE = 0.22;
+/** Wie hoch der Sprung nach dem Aufprall geht — mal der Höhe des Stücks. */
+const HOP = 1.5;
+/** Unter diesem Winkel zur richtigen Lage dreht der Sprung eine Runde dazu. */
+const FLIP_BELOW = Math.PI / 2;
 /** Höchster Drall, rad/s. */
 const MAX_SPIN = 4.5;
 /** So lange darf es höchstens dauern — dann steht es, wo es steht. */
@@ -121,12 +125,15 @@ export class FallMotion {
   readonly quaternion = new THREE.Quaternion();
   private readonly velocity = new THREE.Vector3();
   private readonly spin = new THREE.Vector3();
-  private readonly settleFrom = new THREE.Quaternion();
-  private readonly settleAt = new THREE.Vector3();
-  private phase: 'fall' | 'settle' | 'done' = 'fall';
-  private settleTime = 0;
-  private settleLength = 0;
-  private bounced = false;
+  private readonly hopFrom = new THREE.Quaternion();
+  private readonly hopAt = new THREE.Vector3();
+  /** Um welche Achse die ganze Runde im Sprung geht — keine, wenn sie nicht nötig ist. */
+  private readonly flipAxis = new THREE.Vector3();
+  private flip = 0;
+  private hopSpeed = 0;
+  private hopTime = 0;
+  private hopLength = 0;
+  private phase: 'fall' | 'hop' | 'done' = 'fall';
   private time = 0;
   /** Wo die tiefste Ecke am Ende aufliegt. */
   private readonly floor: number;
@@ -137,7 +144,7 @@ export class FallMotion {
     private readonly end: DropEnd,
     private readonly half: THREE.Vector3,
     rigScale: number,
-    random: () => number = Math.random,
+    private readonly random: () => number = Math.random,
   ) {
     const scale = Math.max(1, rigScale);
     this.gravity = GRAVITY * scale;
@@ -207,7 +214,7 @@ export class FallMotion {
     const h = dt / steps;
     for (let i = 0; i < steps && this.running(); i++) {
       if (this.phase === 'fall') this.fall(h);
-      else this.settle(h);
+      else this.hop(h);
     }
     return !this.running();
   }
@@ -235,35 +242,52 @@ export class FallMotion {
     const rest = this.floor + extentY(this.half, this.quaternion);
     if (this.position.y > rest) return;
     this.position.y = rest;
-    const impact = -this.velocity.y;
-    if (!this.bounced && impact > BOUNCE_SPEED * (this.gravity / GRAVITY) ** 0.5) {
-      // **Einmal kurz zurück** — und dabei etwas verdreht, als hätte die Kante
-      // zuerst aufgesetzt.
-      this.bounced = true;
-      this.velocity.y = impact * BOUNCE;
-      this.velocity.x *= 0.5;
-      this.velocity.z *= 0.5;
-      this.spin.multiplyScalar(0.5);
-      return;
-    }
-    this.phase = 'settle';
-    this.settleFrom.copy(this.quaternion);
-    this.settleAt.copy(this.position);
-    this.settleTime = 0;
-    const turn = this.quaternion.angleTo(this.end.quaternion);
-    this.settleLength = 0.16 + 0.32 * Math.min(1, turn / Math.PI);
+    this.startHop();
   }
 
-  private settle(dt: number): void {
-    this.settleTime += dt;
-    const u = Math.min(1, this.settleTime / this.settleLength);
-    // Kippen beschleunigt — wie etwas, das über die Kante fällt — und schlägt
-    // am Ende flach auf.
-    this.quaternion.slerpQuaternions(this.settleFrom, this.end.quaternion, u * u);
-    const slide = u * u * (3 - 2 * u);
-    this.position.x = this.settleAt.x + (this.end.position.x - this.settleAt.x) * slide;
-    this.position.z = this.settleAt.z + (this.end.position.z - this.settleAt.z) * slide;
-    this.position.y = this.floor + extentY(this.half, this.quaternion);
+  /**
+   * **Der Aufprall wird ein Sprung**: so hoch wie das Stück mal `HOP`, mit der
+   * Schwerkraft des Falls — hoch und wieder herunter in `2·v/g`.
+   */
+  private startHop(): void {
+    this.phase = 'hop';
+    this.hopFrom.copy(this.quaternion);
+    this.hopAt.copy(this.position);
+    this.hopTime = 0;
+    const height = HOP * 2 * extentY(this.half, this.end.quaternion);
+    this.hopSpeed = Math.sqrt(2 * this.gravity * Math.max(0.01, height));
+    this.hopLength = (2 * this.hopSpeed) / this.gravity;
+    // Liegt es schon fast richtig, dreht es eine ganze Runde dazu — um eine
+    // waagerechte Achse, quer zu der Richtung, in die es noch rutscht.
+    this.flip = 0;
+    if (this.quaternion.angleTo(this.end.quaternion) < FLIP_BELOW) {
+      this.flipAxis.set(this.velocity.x, 0, this.velocity.z);
+      if (this.flipAxis.lengthSq() < 1e-6) {
+        const turn = this.random() * Math.PI * 2;
+        this.flipAxis.set(Math.cos(turn), 0, Math.sin(turn));
+      }
+      this.flipAxis.cross(UP).normalize().negate();
+      this.flip = Math.PI * 2;
+    }
+  }
+
+  private hop(dt: number): void {
+    this.hopTime += dt;
+    const u = Math.min(1, this.hopTime / this.hopLength);
+    // Gedreht wird gleichmäßig über den ganzen Sprung, oben am schnellsten.
+    const turn = u * u * (3 - 2 * u);
+    this.quaternion.slerpQuaternions(this.hopFrom, this.end.quaternion, turn);
+    if (this.flip > 0) {
+      _spin.setFromAxisAngle(this.flipAxis, this.flip * turn);
+      this.quaternion.premultiply(_spin);
+    }
+    this.position.x = this.hopAt.x + (this.end.position.x - this.hopAt.x) * u;
+    this.position.z = this.hopAt.z + (this.end.position.z - this.hopAt.z) * u;
+    // Die Wurfparabel sitzt auf der tiefsten Ecke: Was sich im Sprung dreht,
+    // taucht dabei nicht in den Boden ein.
+    const t = u * this.hopLength;
+    const lift = Math.max(0, this.hopSpeed * t - 0.5 * this.gravity * t * t);
+    this.position.y = this.floor + extentY(this.half, this.quaternion) + lift;
     if (u >= 1) this.finish();
   }
 }
