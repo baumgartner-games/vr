@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { LampInstance } from '../../core/Lamps';
+import type { LampInstance, LampState } from '../../core/Lamps';
 import {
   LAMP_COLORS,
   LAMP_COLOR_LABELS,
@@ -37,8 +37,8 @@ export interface InspectTarget {
 export interface InspectHost {
   /** Alle Lampen der Szene — für die Zahlen beim Finden. */
   lamps(): readonly LampInstance[];
-  /** Ob die Lampe gerade brennt — sagt die Zeile ganz oben. */
-  burns(lamp: LampInstance): boolean;
+  /** Was die Lampe gerade tut (`Lamps.state`) — sagt die Zeile ganz oben. */
+  state(lamp: LampInstance): LampState | null;
   /** Eine Zeile unten im Bild. */
   notify(message: string): void;
   /** Das Menü zu, damit man sieht, was markiert ist. */
@@ -124,11 +124,21 @@ function lampRows(lamp: LampInstance, host: InspectHost): MenuEntry[] {
         ? `Standard für ${type.label} in dieser Welt`
         : 'ab Werk';
   const id = (name: string): string => `${INSPECT_PAGE}:${name}`;
+  const now = host.state(lamp);
+  // Was gerade wirklich gilt — mit Board, Spuk und Alarm (`Lamps.state`).
+  const live = now ?? { burns: false, ...resolved, alarm: false };
+  const why = now?.alarm
+    ? ' · Notlicht: Alarm'
+    : live.mode !== resolved.mode
+      ? ' · folgt dem Board'
+      : live.effect !== resolved.effect
+        ? ' · flackert im Spuk'
+        : '';
   const rows: MenuEntry[] = [
     {
       id: id('state'),
-      label: host.burns(lamp) ? 'Brennt gerade' : 'Ist gerade dunkel',
-      sub: `${LAMP_MODE_LABELS[resolved.mode]} · ${LAMP_EFFECT_LABELS[resolved.effect]} · Farbe ${LAMP_COLOR_LABELS[resolved.color]}${own ? ' · weicht ab' : ''}`,
+      label: live.burns ? 'Brennt gerade' : 'Ist gerade dunkel',
+      sub: `${LAMP_MODE_LABELS[live.mode]} · ${LAMP_EFFECT_LABELS[live.effect]} · Farbe ${LAMP_COLOR_LABELS[live.color]}${why}${own ? ' · weicht ab' : ''}`,
       icon: 'lamp',
       accent: ACCENT,
     },
@@ -137,7 +147,7 @@ function lampRows(lamp: LampInstance, host: InspectHost): MenuEntry[] {
       id: id('mode'),
       label: `Diese Lampe · Betrieb: ${LAMP_MODE_LABELS[resolved.mode]}`,
       sub: `${LAMP_MODE_SUBS[resolved.mode]} · ${source('mode')}`,
-      caption: 'Bei Nacht → Immer an → Aus → Schalter',
+      caption: 'Bei Nacht → Immer an → Aus → Schalter → Gesteuert',
       icon: 'lamp',
       accent: ACCENT,
       run: () => lampBook.setLamp(key, { mode: nextOf(LAMP_MODES, resolved.mode) }),
@@ -172,6 +182,14 @@ function lampRows(lamp: LampInstance, host: InspectHost): MenuEntry[] {
       run: () => lampBook.setLamp(key, { color: nextOf(LAMP_COLORS, resolved.color) }),
     },
   );
+  rows.push({
+    id: id('emergency'),
+    label: `Diese Lampe · Notlicht: ${resolved.emergency ? 'Ja' : 'Nein'}`,
+    sub: `Bei Alarm in der Station rot als Drehlicht · ${source('emergency')}`,
+    icon: 'lamp',
+    accent: ACCENT,
+    run: () => lampBook.setLamp(key, { emergency: !resolved.emergency }),
+  });
   if (own) {
     rows.push({
       id: id('reset'),
@@ -189,6 +207,7 @@ function lampRows(lamp: LampInstance, host: InspectHost): MenuEntry[] {
   const typeMode = world?.mode ?? type.defaults.mode ?? 'night';
   const typeEffect = world?.effect ?? type.defaults.effect ?? 'steady';
   const typeColor = world?.color ?? type.defaults.color ?? 'auto';
+  const typeEmergency = world?.emergency ?? type.defaults.emergency ?? false;
   const plural = `Alle vom Typ ${type.label} (${sameType.length})`;
   rows.push(
     {
@@ -216,6 +235,14 @@ function lampRows(lamp: LampInstance, host: InspectHost): MenuEntry[] {
       run: () => lampBook.setType(type.id, { color: nextOf(LAMP_COLORS, typeColor) }),
     },
   );
+  rows.push({
+    id: id('type-emergency'),
+    label: `${plural} · Notlicht: ${typeEmergency ? 'Ja' : 'Nein'}`,
+    sub: `Standard in dieser Welt · ${world?.emergency !== undefined ? 'geändert' : 'ab Werk'}`,
+    icon: 'lamp',
+    accent: ACCENT,
+    run: () => lampBook.setType(type.id, { emergency: !typeEmergency }),
+  });
   if (world) {
     rows.push({
       id: id('type-reset'),

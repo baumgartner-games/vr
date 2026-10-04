@@ -150,15 +150,67 @@ Katalogs), Modell und Ort, und bei einer Lampe:
 - **Finden** — dieser Typ mit eigener Einstellung, alle dieses Typs, alle
   Lampen; _Markierung aus_. Das Menü geht dabei zu, damit man es sieht.
 
+## Was die Welt gerade sagt (`Lamps.state`)
+
+Über den drei Ebenen liegt, was in diesem Augenblick passiert — dieselbe
+Rechnung für das Bild und für die Zeile „Brennt gerade" im Menü:
+
+- **Gesteuert** (`LampMode 'controlled'`, `lampBook.controller`): Eine Welt
+  sagt je Ort, ob dort Licht brennt. **Steuert eine Welt, folgt ihr jede
+  Lampe, an der niemand den Betrieb eingestellt hat** — man muss eine Lampe in
+  der Station nicht eigens auf _Gesteuert_ stellen. Ohne Steuerung bleibt
+  _Gesteuert_ dunkel.
+- **Spuk** (_Wetter → Nebel: Spuk_): Was _Ruhig_ ab Werk hat und keine eigene
+  Lichtart, **flackert** — gewünscht als Grusellicht, _„bei dem Arkham Grusel
+  Licht zb würde ich die gerne mal flackern lassen"_. Wer eine Lampe
+  ausdrücklich auf _Ruhig_ stellt, behält sie ruhig.
+- **Alarm** (`lampBook.alarm`): Lampen mit **Notlicht** (`emergency`, ab Werk
+  am Lichtmast; im Menü je Lampe und je Typ) brennen rot als Drehlicht, auch
+  wenn sie sonst aus wären — nur der Hauptschalter _Aus_ hält sie dunkel.
+
+Beides, Steuerung und Alarm, gehört nicht in die Datei; das Buch leert es beim
+Laden, und die Welt setzt es danach.
+
+## Die Station
+
+Gewünscht: _„bei der Space Station will ich diese ja über das Board steuern, da
+geht immer nur eine bzw. zwei Lampen an. Dann gibt es ja auch noch den Punkt,
+dass Lampen ggf dort in rot ‚Notfall' leuchten sollen und blinken bzw. wie
+diese Dreh Lichter."_
+
+- **Das Board bleibt die Instanz.** Höchstens zwei Lampen, ihre Laufzeit und
+  ihr Flackern am Ende stehen weiter in `haunting/rules/lamps.ts`; die
+  Raumlampen (Glasscheibe je Raum, zwei echte Lichter für die nächsten) in
+  `HauntingWorld.applyLights`.
+- **Lampen aus dem Regal folgen dem Board**: `HauntingWorld.init` setzt
+  `lampBook.controller` auf `boardLit(x, z)` — brennt der Raum an dieser
+  Stelle (`state.lit`), vor der Mission überall.
+- **Notfall** (`emergency` in `applyLights`: Notlicht der Bot-Runde, Alarm der
+  Bot-Runde, oder die Runde ist verloren): Die Raumlampen, die brennen, werden
+  **rot und pulsieren** im Takt der Drehleuchten (`alarmPulse`), Glas wie
+  Licht; die roten Drehleuchten in den Gängen laufen wie vorher
+  (`applyBeacons`); und `lampBook.alarm` dreht die Lampen mit Notlicht rot.
+
+## Im Spiel antippen
+
+Gewünscht: _„wie eine Tisch Lampe die man manuell an und aus schalten will"_.
+Was **schaltbar** ist (`LampType.switchable`: Steh-, Tisch- und
+Schreibtischlampen, Kerzen, Fackeln, kleine Laternen, der Kürbis — nicht
+Straßenlaternen, Ampeln, Lichtmast), meldet `GridWorld.stepLampUses` einmal je
+Sekunde als **Usable** an (`aimOnly`). Beim _Spielen_ legt `A`, `E` oder der
+Trigger sie um: Sie bekommt den Betrieb _Schalter_ mit der Stellung, die sie
+gerade nicht hat — das steht im Buch und damit in der Weltdatei. Im
+_Einrichten_ und _Baukasten_ gehört der Trigger dem Element-Menü.
+
+Nicht antippen lassen sich Lampen in **gebündelter Deko** (`staticDecor`,
+etwa die Stehlampen im Hub und im Burgerladen): Ihre Netze sind dort
+unsichtbar, und ein Usable mit versteckter Geometrie gilt nicht
+(`core/usable.usableShows`). Leuchten tun sie trotzdem.
+
 ## Was noch kommt
 
-- **Antippen im Spiel**: Lampen im Betrieb _Schalter_ mit `A`/`E`/Trigger
-  umlegen (`Usable`).
-- **Station**: Die Raumlampen über das Lampen-System — das Board bleibt die
-  Instanz (`haunting/rules/lamps.ts`, Budget 2), ein Betrieb _Gesteuert_ hängt
-  sie an einen Kanal; der Alarm legt Notlicht (rot, Blinken/Drehlicht) darüber.
-  Heute hat die Station ihr eigenes Licht (`HauntingWorld.applyLights`, zwei
-  echte Lichter) und ihre roten Drehlichter (`shipArt.buildCorridorBeacons`).
-- **Szenarien**: Restaurant-Deko auf _Bei Nacht_, Grusel-Flackern in der
-  Spukstadt als Weltstandard.
 - **Mehrspieler**: Das Buch geht noch nicht übers Netz.
+- **Restaurant-Szenario**: Tisch- und Deko-Lampen gehen schon bei Nacht an
+  (ab Werk); eine Runde, die selbst Abend wird, fehlt noch.
+- **Nebel und Licht**: Der Nebel des Wetters liegt über den Lichtflecken,
+  statt von ihnen aufgehellt zu werden.

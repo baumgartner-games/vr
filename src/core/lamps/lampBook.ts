@@ -63,6 +63,20 @@ export class LampBook {
   private readonly listeners = new Set<Listener>();
   /** Was gerade hervorgehoben ist — `null`: nichts. Gehört nicht in die Datei. */
   highlight: LampHighlight | null = null;
+  /**
+   * **Wer die Lampen im Betrieb _Gesteuert_ schaltet** — eine Frage nach dem
+   * Ort: Brennt hier Licht? In der Station ist das das Board (`HauntingWorld`,
+   * ob der Raum an der Stelle in `state.lit` steht). `null`: Nichts steuert,
+   * und Lampen, die _Bei Nacht_ ab Werk haben, bleiben bei Nacht.
+   *
+   * Steuert etwas, folgt jede Lampe ihm, an der niemand den Betrieb eingestellt
+   * hat (`core/Lamps.ts`, `state`) — eine Lampe in der Station brennt, wenn
+   * ihr Raum Licht hat, ohne dass sie jemand eigens auf _Gesteuert_ stellt.
+   * Gehört nicht in die Datei; die Welt setzt es nach dem Laden.
+   */
+  controller: ((x: number, z: number) => boolean) | null = null;
+  /** **Alarm** — Lampen mit _Notlicht_ brennen dann rot als Drehlicht. Nicht in der Datei. */
+  alarm = false;
   /** Zählt jede Änderung — wer etwas zwischenspeichert, merkt daran, dass es alt ist. */
   version = 0;
 
@@ -77,6 +91,8 @@ export class LampBook {
    */
   load(file: WorldLamps | undefined, owner: unknown = null): void {
     this.owner = owner;
+    this.controller = null;
+    this.alarm = false;
     this.types.clear();
     this.lamps.clear();
     this.highlight = null;

@@ -271,6 +271,10 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   bleibt als Masse auf `level + 1`; was Haunting selbst an die Decke hängt
   (Lampenscheiben, Drehleuchten), trägt `userData.level = 1`, damit die
   Kamera von oben es mit der Decke abschneidet (`core/cutaway.ts`).
+- **Licht im Notfall und Lampen aus dem Regal**: Im Notfall (Notlicht oder
+  Alarm der Bot-Runde, verlorene Runde) leuchten die brennenden Raumlampen rot
+  und pulsieren; Lampen aus dem Regal folgen dem Board ihres Raums
+  (`lampBook.controller`, `boardLit`). Ausführlich in [Lampen](lampen.md#die-station).
   `shipArt`: eine Deckplatte je Kachel (Schachbrett), ein Pfosten je Meter
   Wand, Paneele `TILE − 0,2`; an einer Ecke mit Tür lässt die Wand daneben
   0,34 m frei (`cutPlus`/`cutMinus`), Raumschilder nie breiter als die Wand.

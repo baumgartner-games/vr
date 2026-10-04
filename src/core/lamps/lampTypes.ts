@@ -50,6 +50,12 @@ export interface LampType {
   power: number;
   /** Ob der Schein **im Gehäuse** sitzt und zur Kamera hin vorgezogen werden muss. */
   inset?: boolean;
+  /**
+   * **Ob man sie im Spiel antippen kann** (`A`, `E`, Trigger) — Tischlampe,
+   * Kerze, Laterne in der Hand. Straßenlaternen, Ampeln und der Lichtmast
+   * nicht: Die schaltet man nicht im Vorbeigehen.
+   */
+  switchable?: boolean;
   /** Was ab Werk gilt — eine Welt und jede einzelne Lampe dürfen es ändern. */
   defaults: LampSettings;
 }
@@ -70,6 +76,10 @@ const BURNING: LampSettings = { mode: 'on', effect: 'flicker' };
 /** Die Ampel schaltet ihren Umlauf, sobald sie leuchtet. */
 const SIGNAL: LampSettings = { mode: 'night', effect: 'signal' };
 
+/** Was man von Hand schaltet: Wohnungslampen, Kerzen, Fackeln, kleine Laternen, der Kürbis. */
+const SWITCHABLE =
+  /furniture-bits\/lamp_|candle|torch|lantern_(hanging|standing|mini)|rpg-tools-bits\/lantern|jackolantern/;
+
 function type(
   id: string,
   label: string,
@@ -84,6 +94,7 @@ function type(
     reach: options.reach ?? 0.9,
     power: options.power ?? 0.5,
     ...(options.inset ? { inset: true } : {}),
+    ...((options.switchable ?? SWITCHABLE.test(id)) ? { switchable: true } : {}),
     defaults: options.defaults ?? NIGHT,
   };
 }
@@ -266,7 +277,8 @@ export const LAMP_TYPES: readonly LampType[] = [
     'space-base-bits/lights',
     'Lichtmast',
     [spot('cold', 0.5, 0.92), spot('cold', 0.14, 0.96), spot('cold', 0.86, 0.96)],
-    { reach: 1, power: 0.6 },
+    // Ab Werk Notlicht: Bei Alarm in der Station dreht er sich rot.
+    { reach: 1, power: 0.6, defaults: { ...NIGHT, emergency: true } },
   ),
 ];
 

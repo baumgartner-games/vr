@@ -66,7 +66,11 @@ export class GraphicsQuality {
     this.blobs = new BlobShadows(scene);
     this.blobs.setEnabled(this.profile.blobShadows);
     this.lamps = new Lamps(scene);
-    this.lamps.setEnvironment(this.settings.weatherTime !== 'day', this.settings.streetLights);
+    this.lamps.setEnvironment(
+      this.settings.weatherTime !== 'day',
+      this.settings.streetLights,
+      this.settings.weatherFog === 'spooky',
+    );
     this.stopListening = onGraphicsChange(() => this.refresh());
     this.applyRenderer();
     this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows;
@@ -137,7 +141,11 @@ export class GraphicsQuality {
     this.profile = graphicsProfile(this.settings);
     this.applyRenderer();
     this.blobs.setEnabled(this.profile.blobShadows);
-    this.lamps.setEnvironment(this.settings.weatherTime !== 'day', this.settings.streetLights);
+    this.lamps.setEnvironment(
+      this.settings.weatherTime !== 'day',
+      this.settings.streetLights,
+      this.settings.weatherFog === 'spooky',
+    );
     this.sun = applySceneQuality(
       this.scene,
       this.profile,
