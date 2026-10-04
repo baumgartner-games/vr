@@ -1,37 +1,107 @@
 import type { ElementSpot, Face } from '../elements/elementPlace';
-import { exitsIn, roadKey, roadPiece, type RoadStyle } from '../elements/roadNetwork';
+import { HOUSE_DEPTH } from '../elements/cityCatalog';
+import { ROAD_WIDTH, RoadNet, roadPieces, type RoadStyle } from '../elements/roadNetwork';
 import { GridPlan } from '../grid/gridPlan';
 
 /**
- * **Der Plan der kleinen Stadt** — nur aus dem Katalogordner _Stadt_
+ * **Der Plan der Stadt** — nur aus dem Katalogordner _Stadt_
  * (`elements/cityCatalog.ts`). Gewünscht (Oktober 2026): _„Nehme die Teile und
- * schau mal, wie eine Test-Welt ‚kleine Stadt' wäre"_, und danach: _„dass wir
- * hier Häuser aneinander stellen Rücken an Rücken und wie wir die Straßen dann
- * verbinden"_.
+ * schau mal, wie eine Test-Welt ‚kleine Stadt' wäre"_, dann _„dass wir hier
+ * Häuser aneinander stellen Rücken an Rücken"_, und zuletzt: _„Kannst du die
+ * Test-Stadt-Welt mal eine größere Stadt anlegen"_ — mit Kreuzungen, die
+ * _„nicht genau eine Straßenbreite entfernt sind"_, _„damit wir nicht eine
+ * Manhattan-Stadt haben"_.
  *
- * **Ein Raster aus Stücken von 12 m** (`M`, so groß wie ein Straßenstück mit
- * seinen 3 m Gehweg je Seite), sieben mal sieben: Straßen in jeder dritten
- * Reihe und Spalte (`ROAD_LINES`), dazwischen vier Blöcke von 24 × 24 m. In
- * jedem Block stehen zwei Häuserreihen Rücken an Rücken, die eine schaut auf
- * die Straße im Norden, die andere auf die im Süden; an den Enden sieht man
- * von der Querstraße aus auf die Seitenwände. Je 24 m Reihe gehen auf:
- * E + H + F, A + B + C + D, oder ein Park (12 m) und A + B.
+ * **Fünf Straßen von West nach Ost** (`AVENUES`) und dazwischen vier Bänder
+ * von Blöcken (`BANDS`), 12, 24, 12 und 18 m tief. In jedem Band laufen
+ * Querstraßen von Nord nach Süd, aber jedes Band hat seine eigenen: Sie enden
+ * an den Straßen oben und unten als Einmündung, statt als ein Raster
+ * durchzugehen, und die Blöcke dazwischen sind 19 bis 84 m breit. Das Netz
+ * rechnet dieselbe Funktion, die im Spiel eine gezogene Straße baut
+ * (`roadNetwork.roadPieces`): Ecken, Einmündungen, Kreuzungen, Geraden von
+ * 12 m und kurze dazwischen.
+ *
+ * **In jedem Block zwei Häuserreihen Rücken an Rücken** — die nördliche
+ * schaut nach Norden auf ihre Straße, die südliche nach Süden; jedes Haus ist
+ * sechs Kacheln tief (`cityCatalog.HOUSE_DEPTH`). Ist das Band tiefer als
+ * zwei Häuser, liegen dazwischen Gärten (6 m) oder Parks (12 m).
  */
 
-/** Die Kante eines Stücks, in Metern (Kacheln). */
-const M = 12;
+/** Die Breite einer Straße, in Metern (Kacheln). */
+const W = ROAD_WIDTH;
 
-/** Ein Element an Spalte/Reihe im Raster, mit einem Versatz in Metern. */
-function at(
-  id: string,
-  element: string,
-  col: number,
-  row: number,
-  face: Face = 'S',
-  dx = 0,
-  dz = 0,
-): ElementSpot {
-  return { id, element, x: col * M + dx, z: row * M + dz, face };
+/** **Wie breit die Stadt ist**, in Metern — von der westlichen Straße bis hinter die östliche. */
+const WIDTH = 168;
+
+/** Eine Straße von West nach Ost: ihre Nordkante und ihre Art. */
+interface Avenue {
+  readonly z: number;
+  readonly style: RoadStyle;
+}
+
+/** Ein Band von Blöcken zwischen zwei Straßen. */
+interface Band {
+  /** Wie tief, in Metern: 12 (zwei Häuser), 18 (mit Gärten) oder 24 (mit Parks). */
+  readonly depth: number;
+  /** Die Westkanten der Querstraßen innen — die äußeren laufen durch. */
+  readonly streets: readonly number[];
+  /** Ihre Art, der Reihe nach. */
+  readonly styles: readonly RoadStyle[];
+}
+
+/** **Die Bänder** von Nord nach Süd. */
+const BANDS: readonly Band[] = [
+  { depth: 12, streets: [38, 81, 112], styles: ['lamps', 'old', 'lamps'] },
+  { depth: 24, streets: [60, 96], styles: ['avenue', 'lamps'] },
+  { depth: 12, streets: [45, 77, 120], styles: ['old', 'plain', 'double'] },
+  { depth: 18, streets: [96], styles: ['lamps'] },
+];
+
+/** Die Art der Straßen von West nach Ost, von Nord nach Süd. */
+const AVENUE_STYLES: readonly RoadStyle[] = ['old', 'lamps', 'avenue', 'lamps', 'double'];
+
+/** **Die Straßen von West nach Ost** — die Nordkante jeder, aus den Bändern dazwischen. */
+const AVENUES: readonly Avenue[] = (() => {
+  const out: Avenue[] = [];
+  let z = 0;
+  AVENUE_STYLES.forEach((style, i) => {
+    out.push({ z, style });
+    z += W + (BANDS[i]?.depth ?? 0);
+  });
+  return out;
+})();
+
+/** Wie tief die Stadt ist, in Metern — bis hinter die südliche Straße. */
+const DEPTH = AVENUES[AVENUES.length - 1]!.z + W;
+
+/** Die Querstraße am Rand, im Westen und im Osten — durch alle Bänder. */
+const EDGES: readonly [number, RoadStyle][] = [
+  [0, 'plain'],
+  [WIDTH - W, 'plain'],
+];
+
+/** Wo ein Zebrastreifen liegt: auf welcher Straße (Nummer), ab welcher Kachel. */
+const CROSSINGS: readonly [avenue: number, x: number][] = [
+  [2, 24],
+  [2, 132],
+  [1, 136],
+];
+
+/**
+ * **Das Netz der Stadt** — die Straßen von West nach Ost, die beiden am Rand,
+ * und je Band seine Querstraßen, von der Straße darüber bis über die darunter.
+ */
+function cityNet(): RoadNet {
+  const net = new RoadNet();
+  for (const avenue of AVENUES) net.lay('h', avenue.z, 0, WIDTH, avenue.style);
+  for (const [x, style] of EDGES) net.lay('v', x, 0, DEPTH, style);
+  BANDS.forEach((band, i) => {
+    const top = AVENUES[i]!.z;
+    const bottom = AVENUES[i + 1]!.z + W;
+    band.streets.forEach((x, k) => net.lay('v', x, top, bottom, band.styles[k] ?? 'lamps'));
+  });
+  for (const [avenue, x] of CROSSINGS) net.lay('h', AVENUES[avenue]!.z, x, x + W, 'crossing');
+  return net;
 }
 
 /** Wie breit ein Haus im Katalog ist, in Kacheln (`cityCatalog.house`). */
@@ -46,117 +116,126 @@ const HOUSE_WIDTH: Readonly<Record<string, number>> = {
   h: 8,
 };
 
-/**
- * **Eine Reihe** von Spalte `col` an nach Osten, Wand an Wand: Häuser
- * (Buchstabe) oder ein ganzes Stück (Name eines Elements, 12 m).
- */
-function row(
-  prefix: string,
-  r: number,
-  col: number,
-  face: Face,
-  list: readonly string[],
-): ElementSpot[] {
-  let x = col * M;
-  return list.map((one, i) => {
-    const house = one.length === 1;
-    const spot: ElementSpot = {
-      id: `${prefix}-${i}`,
-      element: house ? `city-house-${one}` : one,
-      x,
-      z: r * M,
-      face: house ? face : 'S',
-    };
-    x += house ? (HOUSE_WIDTH[one] ?? M) : M;
-    return spot;
-  });
-}
-
-/** Wie groß das Raster ist, in Stücken — sieben mal sieben. */
-const SIZE = 7;
-/** Wo Straßen laufen: jede dritte Reihe und Spalte (0, 3, 6). */
-const ROAD_LINES = [0, 3, 6];
+/** Welche Breiten sich aus Häusern genau füllen lassen — bis zur breitesten Lücke. */
+const FILLS: readonly boolean[] = (() => {
+  const out = [true];
+  for (let n = 1; n <= WIDTH; n++)
+    out.push(Object.values(HOUSE_WIDTH).some((w) => w <= n && out[n - w]));
+  return out;
+})();
 
 /**
- * **Die Art jeder Straße** — Reihe oder Spalte → Art. Die äußeren Straßen mit
- * alten Laternen und Doppellaternen, die mittleren mit modernen, die westliche
- * als Allee.
+ * **Häuser für eine Lücke**, Wand an Wand, genau `width` breit — reihum aus
+ * `order`, aber nur ein Haus, nach dem der Rest noch aufgeht (`FILLS`).
  */
-const ROW_STYLE: Readonly<Record<number, RoadStyle>> = { 0: 'old', 3: 'lamps', 6: 'double' };
-const COL_STYLE: Readonly<Record<number, RoadStyle>> = { 0: 'avenue', 3: 'lamps', 6: 'plain' };
-/** Wo ein Zebrastreifen liegt (`cx,cz`). */
-const CROSSINGS = new Set(['3,1', '3,5', '1,3', '5,3']);
-
-/**
- * **Das Straßennetz** — jede Zelle der Straßenzeilen und -spalten, mit dem
- * Teil, das ihre Nachbarn verlangen (`roadNetwork.roadPiece`): Ecken außen,
- * Einmündungen an den Rändern, die Kreuzung in der Mitte. Dieselbe Rechnung,
- * mit der im Spiel eine gezogene Straße ihre Kreuzungen bekommt.
- */
-function roads(): ElementSpot[] {
-  const net = new Set<string>();
-  for (let a = 0; a < SIZE; a++)
-    for (const line of ROAD_LINES) {
-      net.add(roadKey(a, line));
-      net.add(roadKey(line, a));
+function houses(width: number, order: string): string[] {
+  const out: string[] = [];
+  let left = width;
+  let i = 0;
+  while (left > 0) {
+    let pick = '';
+    for (let k = 0; k < order.length && !pick; k++) {
+      const letter = order[(i + k) % order.length]!;
+      const w = HOUSE_WIDTH[letter]!;
+      if (w <= left && FILLS[left - w]) {
+        pick = letter;
+        i += k + 1;
+      }
     }
-  const out: ElementSpot[] = [];
-  for (const key of net) {
-    const [cx, cz] = key.split(',').map(Number) as [number, number];
-    const row = ROAD_LINES.includes(cz);
-    const style: RoadStyle = CROSSINGS.has(key)
-      ? 'crossing'
-      : row
-        ? (ROW_STYLE[cz] ?? 'lamps')
-        : (COL_STYLE[cx] ?? 'lamps');
-    const piece = roadPiece(exitsIn(net, cx, cz), style, row ? 'ew' : 'ns');
-    out.push(at(`strasse-${cx}-${cz}`, piece.element, cx, cz, piece.face));
+    if (!pick) break;
+    out.push(pick);
+    left -= HOUSE_WIDTH[pick]!;
   }
   return out;
 }
 
-/** Alles, was in der kleinen Stadt steht. */
+/** Die Reihenfolgen der Häuser — je Reihe eine andere, damit es nicht gleich aussieht. */
+const ORDERS = ['ehfcgadb', 'abcdhegf', 'gdbefach', 'chaegbfd', 'fbhdacge'];
+
+/** **Eine Reihe Häuser** von `x` an nach Osten, `face` zur Straße. */
+function houseRow(prefix: string, x: number, z: number, width: number, face: Face, n: number) {
+  let at = x;
+  return houses(width, ORDERS[n % ORDERS.length]!).map((letter, i): ElementSpot => {
+    const spot: ElementSpot = {
+      id: `${prefix}-${i}`,
+      element: `city-house-${letter}`,
+      x: at,
+      z,
+      face,
+    };
+    at += HOUSE_WIDTH[letter]!;
+    return spot;
+  });
+}
+
+/** Was zwischen den Häuserreihen liegt, je 12 m: Gärten (6 m tief) oder Parks (12 m). */
+const GARDENS = ['city-garden', 'city-yard', 'city-garden'];
+const PARKS = ['city-park-trees', 'city-plaza', 'city-park-bushes', 'city-park-path'];
+
+/**
+ * **Die Blöcke** — je Band und je Lücke zwischen zwei Querstraßen zwei
+ * Häuserreihen Rücken an Rücken, und was dazwischen Platz hat.
+ */
+function blocks(): ElementSpot[] {
+  const out: ElementSpot[] = [];
+  let row = 0;
+  BANDS.forEach((band, i) => {
+    const top = AVENUES[i]!.z + W;
+    const bottom = top + band.depth;
+    const walls = [EDGES[0]![0], ...band.streets, EDGES[1]![0]];
+    for (let k = 0; k + 1 < walls.length; k++) {
+      const x = walls[k]! + W;
+      const width = walls[k + 1]! - x;
+      const name = `block-${i}-${k}`;
+      out.push(...houseRow(`${name}-n`, x, top, width, 'N', row++));
+      out.push(...houseRow(`${name}-s`, x, bottom - HOUSE_DEPTH, width, 'S', row++));
+      const middle = band.depth - 2 * HOUSE_DEPTH;
+      const fill = middle >= W ? PARKS : middle > 0 ? GARDENS : [];
+      for (let t = 0; fill.length > 0 && t + W <= width; t += W)
+        out.push({
+          id: `${name}-m-${t}`,
+          element: fill[(t / W + k) % fill.length]!,
+          x: x + t,
+          z: top + HOUSE_DEPTH,
+        });
+    }
+  });
+  return out;
+}
+
+/** **Die Straßen als Stellen** — jedes Teil des Netzes (`roadPieces`). */
+function roads(): ElementSpot[] {
+  return roadPieces(cityNet()).map((piece) => ({
+    id: `strasse-${piece.x}-${piece.z}-${piece.face}`,
+    ...piece,
+  }));
+}
+
+/** Alles, was in der Stadt steht. */
 export const CITY_SPOTS: readonly ElementSpot[] = [
   ...roads(),
-  // **Vier Blöcke, in jedem zwei Reihen Rücken an Rücken** — die nördliche
-  // schaut nach Norden auf ihre Straße, die südliche nach Süden. Gewünscht:
-  // _„dass wir hier Häuser aneinander stellen Rücken an Rücken und wie wir die
-  // Straßen dann verbinden"_.
-  // Nordwesten.
-  ...row('nw-n', 1, 1, 'N', ['e', 'h', 'f']),
-  ...row('nw-s', 2, 1, 'S', ['a', 'b', 'c', 'd']),
-  // Nordosten.
-  ...row('no-n', 1, 4, 'N', ['city-park-trees', 'a', 'b']),
-  ...row('no-s', 2, 4, 'S', ['g', 'e', 'f']),
-  // Südwesten.
-  ...row('sw-n', 4, 1, 'N', ['a', 'd', 'c', 'b']),
-  ...row('sw-s', 5, 1, 'S', ['city-park-bushes', 'b', 'a']),
-  // Südosten.
-  ...row('so-n', 4, 4, 'N', ['h', 'g', 'f']),
-  ...row('so-s', 5, 4, 'S', ['city-plaza', 'a', 'b']),
+  ...blocks(),
   // Autos auf den Straßen — rechts, wie man fährt: nach Westen auf der
   // nördlichen Spur, nach Osten auf der südlichen, nach Süden auf der westlichen.
-  at('taxi', 'city-car-taxi', 2, 3, 'W', 2, 4),
-  at('polizei', 'city-car-police', 4, 3, 'E', 6, 7),
-  at('limousine', 'city-car-sedan', 3, 2, 'S', 4, 2),
-  at('kombi', 'city-car-stationwagon', 1, 6, 'E', 8, 7),
-  // Straßenmöbel auf dem Platz.
-  at('bank', 'city-bench', 4, 5, 'S', 3, 4),
-  at('hydrant', 'city-hydrant', 4, 5, 'S', 9, 2),
-  at('container', 'city-dumpster', 4, 5, 'S', 8, 8),
+  { id: 'taxi', element: 'city-car-taxi', x: 14, z: AVENUES[2]!.z + 4, face: 'W' },
+  { id: 'polizei', element: 'city-car-police', x: 110, z: AVENUES[2]!.z + 7, face: 'E' },
+  { id: 'limousine', element: 'city-car-sedan', x: 64, z: 40, face: 'S' },
+  { id: 'kombi', element: 'city-car-stationwagon', x: 140, z: AVENUES[4]!.z + 7, face: 'E' },
+  { id: 'kleinwagen', element: 'city-car-hatchback', x: 100, z: 100, face: 'S' },
+  { id: 'taxi-2', element: 'city-car-taxi', x: 126, z: AVENUES[1]!.z + 4, face: 'W' },
 ];
 
 /**
- * **Der Boden** — das Raster und rundherum ein Ring von zwei Stücken, auf dem
- * man die Stadt mit gezogenen Straßen weiterbauen kann.
+ * **Der Boden** — die Stadt und rundherum ein Ring von zwei Stücken, auf dem
+ * man sie mit gezogenen Straßen weiterbauen kann.
  */
 export function cityGround(): { x: number; z: number; w: number; d: number } {
-  return { x: -2 * M, z: -2 * M, w: (SIZE + 4) * M, d: (SIZE + 4) * M };
+  return { x: -2 * W, z: -2 * W, w: WIDTH + 4 * W, d: DEPTH + 4 * W };
 }
 
-/** **Wo man ankommt** — auf dem Gehweg vor der Kreuzung in der Mitte. */
+/** **Wo man ankommt** — auf dem Gehweg vor der Einmündung an der Allee. */
 export function citySpawn(): { x: number; z: number } {
-  return { x: 3 * M - 1.5, z: 3 * M + 1.5 };
+  return { x: 96 - 1.5, z: AVENUES[2]!.z + 1.5 };
 }
 
 /** Der Plan der Welt: nur Boden — alles andere sind Spielelemente (`CITY_SPOTS`). */

@@ -36,9 +36,9 @@ import type { ElementPart, FurnitureFolder, GameElement } from './elementCatalog
  * ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`) und gewinnen
  * sonst jedes Pixel — eine Fahrbahn 1 cm über dem Boden war unsichtbar.
  *
- * **Häuser** sind so breit wie das Haus selbst und 12 m tief — so tief wie ein
- * Straßenstück, damit zwei Häuserreihen Rücken an Rücken genau zwei Stücke
- * Querstraße füllen (`house`): vorn bündig an den Gehweg, hinten Garten. Gemeldet
+ * **Häuser** sind so breit wie das Haus selbst und 6 m tief — ein halbes
+ * Straßenstück, damit zwei Häuser Rücken an Rücken genau eines füllen
+ * (`house`, `HOUSE_DEPTH`): vorn bündig an den Gehweg. Gemeldet
  * an der ersten Fassung, in der jedes Haus auf einer Gehwegplatte von 8 × 8 m
  * stand: _„Bei den Gebäuden muss der benötigte Platz reduziert werden, sodass
  * links und rechts nicht diese leeren Gassen sind […] an der Rückseite macht
@@ -129,13 +129,12 @@ const ARM_NORTHWEST = -Math.PI / 4;
 /** Vierteldrehung — eine Gerade quer, von West nach Ost. */
 const ACROSS = Math.PI / 2;
 
-/** **Die Gerade**: Fahrbahn von Nord nach Süd, Gehweg links und rechts. */
-function straight(name = 'road_straight'): ElementPart[] {
-  return [
-    plate(name, ROADWAY, CITY_BLOCK),
-    walk(-SIDE, 0, WALK, CITY_BLOCK),
-    walk(SIDE, 0, WALK, CITY_BLOCK),
-  ];
+/**
+ * **Die Gerade**: Fahrbahn von Nord nach Süd, Gehweg links und rechts —
+ * `length` Meter lang (ein ganzes Stück, oder ein kurzes: `shortRoads`).
+ */
+function straight(name = 'road_straight', length = CITY_BLOCK): ElementPart[] {
+  return [plate(name, ROADWAY, length), walk(-SIDE, 0, WALK, length), walk(SIDE, 0, WALK, length)];
 }
 
 /**
@@ -244,11 +243,73 @@ function isVariant(id: string): boolean {
   return LAMP_STYLES.some((style) => style.suffix !== '' && id.endsWith(style.suffix));
 }
 
+/** Ob eine Id eine kurze Gerade ist (`city-road-7`) — die legt nur das Ziehen. */
+function isShort(id: string): boolean {
+  return /^city-road.*-\d+$/.test(id);
+}
+
+/** Ab dieser Länge steht auf einer kurzen Geraden eine Laterne oder ein Baum. */
+const SHORT_LAMP = 6;
+
+/**
+ * **Die kurzen Geraden**, 1–11 m lang — für das Stück zwischen zwei
+ * Kreuzungen, die keine ganze Zahl Stücke auseinanderliegen
+ * (`roadNetwork.roadPieces`). Gewünscht: _„dass Straßen bzw. Kreuzungen nicht
+ * genau eine Straßenbreite entfernt sind, sondern ggf. auch mal kürzer bzw.
+ * statt 12 Felder ggf. auch nur 1–11 Felder auseinander liegen können"_.
+ *
+ * Jede Art hat sie (`city-road-7`, `city-road-old-7`, `city-road-avenue-7` …),
+ * die Fahrbahn der Quelle auf die Länge gebracht. Ab sechs Metern steht eine
+ * Laterne (getauscht wie auf dem ganzen Stück) oder ein Baum darauf, sonst
+ * nichts. Im Katalog stehen sie nicht: Sie legt das Ziehen.
+ */
+function shortRoads(): GameElement[] {
+  const out: GameElement[] = [];
+  for (let length = 1; length < CITY_BLOCK; length++) {
+    const tiles: [number, number] = [CITY_BLOCK, length];
+    const lamp = length >= SHORT_LAMP;
+    LAMP_STYLES.forEach((style, i) => {
+      const next = LAMP_STYLES[(i + 1) % LAMP_STYLES.length]!;
+      const parts = [...straight('road_straight', length)];
+      if (lamp) parts.push({ ...onSlab(style.file, [CURB, 0], ARM_WEST), swaps: true });
+      out.push({
+        ...road(`city-road${style.suffix}-${length}`, `Straße mit ${style.one}`, ['Straße'], parts),
+        tiles,
+        ...(lamp ? { opens: 'swap' as const, swap: `city-road${next.suffix}-${length}` } : {}),
+      });
+    });
+    out.push({
+      ...road(`city-road-plain-${length}`, 'Straße', ['Straße'], straight('road_straight', length)),
+      tiles,
+    });
+    out.push({
+      ...road(
+        `city-road-avenue-${length}`,
+        'Allee',
+        ['Straße', 'Allee'],
+        [...straight('road_straight', length), ...(lamp ? [onSlab('tree_A', [SIDE, 0])] : [])],
+      ),
+      tiles,
+    });
+  }
+  return out;
+}
+
+/**
+ * **Wie tief ein Haus ist**, in Metern — ein halbes Straßenstück: Zwei Häuser
+ * Rücken an Rücken füllen genau eines (`HOUSE_DEPTH` × 2 = `CITY_BLOCK`).
+ * Gefragt: _„was ist aber nun mit zwei Häusern, die Rücken an Rücken stehen,
+ * geht das? Sind alle Häuser gleich groß von der Tiefe?"_ — die Häuser der
+ * Quelle sind 5,2 oder 5,8 m tief, also stehen alle auf sechs Kacheln.
+ */
+export const HOUSE_DEPTH = CITY_BLOCK / 2;
+
 /**
  * **Ein Haus** — so breit wie das Haus (`width`, aufgerundet auf Kacheln) und
- * `CITY_BLOCK` tief, auf Pflaster in der Höhe des Gehwegs. Das Haus ohne
- * Sockel steht vorn (Süden) bündig an der Kante, dahinter liegt Rasen. Gesperrt ist die ganze Fläche: Hinter einem
- * Haus geht niemand durch den Garten.
+ * `HOUSE_DEPTH` tief, auf Pflaster in der Höhe des Gehwegs. Das Haus ohne
+ * Sockel steht vorn (Süden) bündig an der Kante; hinten bleibt bei den
+ * flacheren Häusern ein schmaler Streifen Pflaster. Wer hinten Grün will,
+ * stellt einen Garten dahinter (`city-garden`, auch sechs Kacheln tief).
  *
  * @param width Breite des Hauses in Metern, nachgemessen an der Datei ohne Sockel
  * @param depth seine Tiefe
@@ -262,12 +323,11 @@ function house(
 ): GameElement {
   // Ein paar Zentimeter Überstand zählen nicht: 8,03 m sind acht Kacheln.
   const tiles = Math.ceil(width - 0.05);
-  const yard = CITY_BLOCK - depth;
   return {
     id,
     label,
     aka: ['Haus', 'Gebäude', 'Building', 'Stadt'],
-    tiles: [tiles, CITY_BLOCK],
+    tiles: [tiles, HOUSE_DEPTH],
     height: BODY,
     kind: null,
     parts: [
@@ -275,14 +335,11 @@ function house(
       // Haus ist ein paar Zentimeter schmaler als seine Kacheln und hat vorn
       // Stufen und Markisen, die über seine Wand hinausragen — sonst sähe man
       // dort den Boden der Welt als Streifen.
-      plate('base', tiles, CITY_BLOCK),
-      // Der Garten hinten, eine Handbreit darüber, damit sich beide nicht um
-      // dieselben Bildpunkte streiten.
-      plate('park_base', tiles, yard, 0, -CITY_BLOCK / 2 + yard / 2, 0, SLAB_TOP + 0.01),
+      plate('base', tiles, HOUSE_DEPTH),
       {
         model: cityBits(`building_${letter}_withoutBase`),
         scale: CITY_SCALE,
-        at: [0, CITY_BLOCK / 2 - depth / 2],
+        at: [0, HOUSE_DEPTH / 2 - depth / 2],
         on: 0,
       },
     ],
@@ -448,8 +505,37 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
       onSlab('bush_B', [-4.2, 3.3]),
     ],
   ),
-  // Häuser — so breit wie das Haus, 12 m tief: vorn bündig an den Gehweg der
-  // Straße, hinten Garten. Breite × Höhe × Tiefe des Hauses.
+  // Hinter den Häusern — sechs Kacheln tief wie ein Haus, so breit wie ein
+  // Straßenstück.
+  {
+    ...road(
+      'city-garden',
+      'Garten',
+      ['Garten', 'Hinterhof', 'Rasen'],
+      [
+        plate('park_base', CITY_BLOCK, HOUSE_DEPTH, 0, 0, 0, WALK_TOP),
+        onSlab('bush_A', [-4.2, -1.5]),
+        onSlab('bush_C', [4.2, 1.5], Math.PI),
+      ],
+    ),
+    tiles: [CITY_BLOCK, HOUSE_DEPTH],
+  },
+  {
+    ...road(
+      'city-yard',
+      'Hinterhof',
+      ['Hof', 'Hinterhof', 'Pflaster'],
+      [
+        plate('base', CITY_BLOCK, HOUSE_DEPTH, 0, 0, 0, WALK_TOP),
+        onSlab('dumpster', [-3.5, 0], Math.PI / 2),
+        onSlab('box_A', [3.5, 1]),
+      ],
+    ),
+    tiles: [CITY_BLOCK, HOUSE_DEPTH],
+  },
+  // Häuser — so breit wie das Haus, sechs Kacheln tief: vorn bündig an den
+  // Gehweg der Straße, Rücken an Rücken mit dem Nachbarn dahinter. Breite ×
+  // Höhe × Tiefe des Hauses.
   house('city-house-a', 'Kleines Stadthaus', 'A', 4.8, 5.8), // 4,8 × 6,6 × 5,8
   house('city-house-b', 'Breites Stadthaus', 'B', 6.4, 5.2), // 6,4 × 6,6 × 5,2
   house('city-house-c', 'Hohes Stadthaus', 'C', 4.8, 5.2), // 4,8 × 11,9 × 5,2
@@ -484,10 +570,13 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
   prop('city-tree-b', 'Stadtbaum, schmal', 'tree_B', [4, 4], { solid: [0.5, 0.5] }),
   prop('city-tree-c', 'Stadtbaum, breit', 'tree_C', [4, 4], { solid: [0.5, 0.5] }),
   prop('city-bush', 'Hecke', 'bush_A', [2, 2]),
+  ...shortRoads(),
 ];
 
 /** Die Ids in der Reihenfolge des Katalogs. */
-export const CITY_CATALOGUE: readonly string[] = CITY_ELEMENTS.map((one) => one.id);
+export const CITY_CATALOGUE: readonly string[] = CITY_ELEMENTS.map((one) => one.id).filter(
+  (id) => !isShort(id),
+);
 
 /** Die Ids, deren Name so anfängt. */
 function ofKind(...prefixes: string[]): string[] {
@@ -513,7 +602,7 @@ export const CITY_FOLDER: FurnitureFolder = {
     {
       id: 'city-plazas',
       label: 'Plätze & Parks',
-      elements: ofKind('city-plaza', 'city-park'),
+      elements: ofKind('city-plaza', 'city-park', 'city-garden', 'city-yard'),
       cover: { element: 'city-park-trees' },
     },
     {

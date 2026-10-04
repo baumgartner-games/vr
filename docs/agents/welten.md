@@ -469,21 +469,27 @@ Spielelemente und `FurnishedWorld` leben (`kitchenRecipes`, `kitchenCarry`,
 `kitchenGauge`, `kitchenSpray` …), bleiben unter `test/zones/` liegen. Wer
 etwas Gelöschtes nachlesen will: `git show 54667d5:src/worlds/test/<Datei>`.
 
-**Kleine Stadt** (`test-city`, `city/CityTestWorld.ts`, `city/cityPlan.ts`) —
+**Stadt** (`test-city`, `city/CityTestWorld.ts`, `city/cityPlan.ts`) —
 seit Oktober 2026 im Ordner _Test_, gebaut nur aus dem Katalogordner _Stadt_
 ([Spielelemente](spielelemente.md#stadt-straßen-plätze-und-häuser-aus-city-builder-bits)).
 Gewünscht: _„Nehme die Teile und schau mal, wie eine Test-Welt ‚kleine Stadt'
-wäre"_, und danach: _„dass wir hier Häuser aneinander stellen Rücken an Rücken
-und wie wir die Straßen dann verbinden"_. Ein Raster aus Stücken von 12 m,
-sieben mal sieben: Straßen in jeder dritten Reihe und Spalte, dazwischen vier
-Blöcke von 24 × 24 m mit je zwei Häuserreihen Rücken an Rücken. Die
-Straßenteile rechnet dieselbe Netz-Rechnung wie das Ziehen
-(`roadNetwork.roadPiece`): Ecken außen, Einmündungen an den Rändern, die
-Kreuzung in der Mitte, Zebrastreifen auf halber Strecke, je Straße eine Art
-(alte Laternen, Allee, Doppellaternen …). Dazu Parks, ein Platz mit
-Straßenmöbeln und vier Autos auf der rechten Spur. Rundherum liegen zwei
-Stücke freier Boden, auf dem man mit einer Straße aus dem Katalog weiterbaut
-([Straßen ziehen](bauen.md#straßen-ziehen-wie-in-cities-skylines)).
+wäre"_, _„dass wir hier Häuser aneinander stellen Rücken an Rücken"_, und
+zuletzt: _„Kannst du die Test-Stadt-Welt mal eine größere Stadt anlegen"_ —
+mit Kreuzungen, die nicht genau ein Stück auseinanderliegen, _„damit wir nicht
+eine Manhattan-Stadt haben"_. 168 × 126 m: fünf Straßen von West nach Ost
+(`AVENUES`), dazwischen vier Bänder von Blöcken, 12, 24, 12 und 18 m tief
+(`BANDS`). Jedes Band hat seine eigenen Querstraßen, die oben und unten als
+Einmündung enden, statt als Raster durchzugehen; die Blöcke sind 19 bis 84 m
+breit. In jedem zwei Häuserreihen Rücken an Rücken (Häuser 6 m tief, genau
+passend gewählt: `houses`), dazwischen Gärten (18 m) oder Parks und Plätze
+(24 m). Die Straßenteile rechnet dieselbe Netz-Rechnung wie das Ziehen
+(`roadNetwork.roadPieces`): Ecken, Einmündungen, Kreuzungen, Geraden von 12 m
+und kurze dazwischen, je Straße eine Art, drei Zebrastreifen, sechs Autos auf
+der rechten Spur. Rundherum liegen zwei Stücke freier Boden, auf dem man mit
+einer Straße aus dem Katalog weiterbaut
+([Straßen ziehen](bauen.md#straßen-ziehen-wie-in-cities-skylines)). Damit die
+Straßen von weit oben nicht in Streifen durch den Boden flimmern, wächst die
+nahe Ebene der Kamera _von oben_ mit dem Abstand (`TopDownCamera.update`).
 
 **Welten können in einem Ordner stehen** (`WorldDefinition.folder`,
 `worlds/index.WORLD_FOLDERS`). Gewünscht: _„eine Test Ordner Welt …, wenn ich

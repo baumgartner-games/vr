@@ -426,17 +426,29 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   Auf Maß gebracht würden ihre Bäume mit der Platte flachgedrückt. Deshalb die
   flache Platte und das Grün als eigene Teile.
 - **Häuser** (`house`): so breit wie das Haus selbst (auf Kacheln
-  aufgerundet: A und C 5, B und D 7, E bis H 8) und 12 m tief — so tief wie
-  ein Straßenstück, damit zwei Reihen Rücken an Rücken zwei Stücke
-  Querstraße füllen —, vorn bündig an
-  den Gehweg der Straße, hinten Rasen, darunter Pflaster in Gehweghöhe, damit
+  aufgerundet: A und C 5, B und D 7, E bis H 8) und **6 m tief**
+  (`HOUSE_DEPTH`, ein halbes Straßenstück) — die Häuser der Quelle sind 5,2
+  oder 5,8 m tief, also stehen alle auf sechs Kacheln, und **zwei Häuser
+  Rücken an Rücken füllen genau ein Straßenstück**. Gefragt: _„was ist aber
+  nun mit zwei Häusern, die Rücken an Rücken stehen, geht das? Sind alle
+  Häuser gleich groß von der Tiefe?"_ — vorher war jedes Haus 12 m tief mit
+  Garten dahinter, Rücken an Rücken ging nur mit zwei Gärten dazwischen.
+  Vorn bündig an den Gehweg der Straße, darunter Pflaster in Gehweghöhe, damit
   zwischen Haus und Gehweg kein Streifen Boden durchscheint. Gesperrt ist die
   ganze Fläche. Gemeldet an der ersten Fassung, in der jedes Haus auf 8 × 8 m
   Gehweg stand: _„Bei den Gebäuden muss der benötigte Platz reduziert werden,
-  sodass links und rechts nicht diese leeren Gassen sind […] an der Rückseite
-  macht es schon Sinn."_ Die Vorderseite schaut wie bei jedem Element nach
-  Süden — zur Straße hin drehen; Häuser einer Reihe stehen Wand an Wand.
-- **Die Testwelt _Kleine Stadt_** (`test-city`, siehe [Welten](welten.md)) ist
+  sodass links und rechts nicht diese leeren Gassen sind"_. Die Vorderseite
+  schaut wie bei jedem Element nach Süden — zur Straße hin drehen; Häuser
+  einer Reihe stehen Wand an Wand.
+- **Garten und Hinterhof** (`city-garden`, `city-yard`): 12 × 6 m, so tief wie
+  ein Haus — für Blöcke, die tiefer sind als zwei Häuser.
+- **Kurze Geraden** (`shortRoads`, `city-road-7`, `city-road-old-7`,
+  `city-road-avenue-7` …): jede Art in 1 bis 11 m Länge, ab 6 m mit einer
+  Laterne (getauscht wie auf dem ganzen Stück) oder einem Baum. Sie legt das
+  Ziehen zwischen Kreuzungen, die keine ganze Zahl Stücke auseinanderliegen
+  ([Straßen ziehen](bauen.md#straßen-ziehen-wie-in-cities-skylines)); im
+  Katalog stehen sie nicht, auch nicht unter _Alles_.
+- **Die Testwelt _Stadt_** (`test-city`, siehe [Welten](welten.md)) ist
   nur aus diesem Ordner gebaut (`city/cityPlan.ts`).
 - **Straßenmöbel, Autos, Grün** stehen auch einzeln: Laternen und Ampeln
   sperren nur ihren Mast (eine Zelle), Autos zwei mal vier Kacheln, die
@@ -445,8 +457,10 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
 | Teil | Maße (B × H × T) | Kacheln |
 | ---- | ---------------- | ------- |
 | Straße (6 m Fahrbahn, 2 × 3 m Gehweg), Platz, Park | 12 × 0,16 × 12 m | 12 × 12 |
-| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m, Garten dahinter | 5–7 × 12 |
-| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 5–8 × 12 |
+| Kurze Gerade (nur beim Ziehen) | 12 × 0,16 × 1–11 m | 12 × 1–11 |
+| Garten, Hinterhof | 12 × 0,1 × 6 m | 12 × 6 |
+| Haus A/B (2 Etagen) | 4,8–6,4 × 6,6 × 5,2–5,8 m | 5–7 × 6 |
+| Haus C/D/G/H (hoch) | 4,8–8,0 × 11,9–12,2 × 5,2–5,8 m | 5–8 × 6 |
 | Laterne / Ampel mit Arm | 1,0 × 3,8 × 0,3 m | 1 × 1 |
 | Auto | 1,7 × 1,4 × 3,8 m | 2 × 4 |
 
