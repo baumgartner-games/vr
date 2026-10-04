@@ -84,6 +84,7 @@ import {
   type CarriedElement,
   type ElementSpot,
 } from '../elements/elementPlace';
+import { roadCellAt } from '../elements/roadNetwork';
 import { buildNote, NOTE_MODEL, noteLabelOf } from '../notes/notePost';
 import { cleanNoteText, NOTE_MAX_CHARS } from '../notes/noteText';
 import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
@@ -1863,6 +1864,8 @@ export class PortalWorld implements World {
    * **Die Wand, die beim _Spielen_ und _Einrichten_ gerade gezogen wird**
    * (`pressCarryLine`) — das Getragene und der Startpunkt, solange einer steht.
    */
+  /** **Die Straße, die gerade gezogen wird**, und ihr Start (`updateRoadDraw`). */
+  private roadDraw: { entry: PhysicsBody; start: [number, number] | null } | null = null;
   private carryLine: { entry: PhysicsBody; start: AreaTile | null } | null = null;
   private readonly ghostSlots: GhostSlot[] = [];
   private readonly areaRay = new THREE.Raycaster();
@@ -2196,6 +2199,7 @@ export class PortalWorld implements World {
     // **Und die gezogene Fläche darüber** — ist _Fläche_ an, zeigt das Gitter
     // die Fläche und nicht das eine Stück in der Hand.
     this.updateAreaPaint(ctx);
+    this.updateRoadDraw(ctx);
     // **Und die Werkzeugleiste samt Geist** — nach der Fläche, damit ein
     // Druck auf _Drehen_ schon im nächsten Bild im Gitter steht.
     this.updateBuild(ctx);
@@ -4293,6 +4297,123 @@ export class PortalWorld implements World {
     return null;
   }
 
+  // --- Straßen ziehen (`elements/roadNetwork.ts`, `FurnishedWorld`) -------
+
+  /** **Ob dieses Element als Straße gezogen wird** (`pressRoad`). Hier: nie. */
+  protected roadBrush(_id: string): boolean {
+    return false;
+  }
+
+  /** **Eine gezogene Straße bauen**, Zelle `from` bis `to` — zurück die Zahl der Stücke. */
+  protected commitRoad(
+    _id: string,
+    _from: readonly [number, number],
+    _to: readonly [number, number],
+  ): number {
+    return 0;
+  }
+
+  /** **Die Geist-Straße zeigen**, solange gezogen wird. */
+  protected showRoadPlan(
+    _id: string,
+    _from: readonly [number, number],
+    _to: readonly [number, number],
+  ): void {}
+
+  /** **Die Geist-Straße weg.** */
+  protected hideRoadPlan(): void {}
+
+  /** Die Straße in dieser Hand, die gezogen wird — frisch, nicht umgestellt — oder `null`. */
+  private roadBrushOf(entry: PhysicsBody): string | null {
+    const carried = this.elementBodies.get(entry);
+    if (!carried || carried.from) return null;
+    return this.roadBrush(carried.id) ? carried.id : null;
+  }
+
+  /**
+   * **Straßen ziehen wie in _Cities: Skylines_** — gewünscht (Oktober 2026):
+   * _„Ich platziere z. B. eine Straße und kann diese dann ziehen. Das Spiel
+   * schaut dann, wo Kreuzungen sind, und ersetzt die Teile dann durch
+   * Kreuzungen. […] mehr in Richtung City-Skylines-Building mit Ghost-
+   * Straßen."_
+   *
+   * Wer eine Straße aus dem Katalog trägt (eine Gerade jeder Art), zieht sie:
+   * Die Zelle von 12 × 12 m unter dem Getragenen ist der Punkt
+   * (`roadNetwork.roadCellAt`). Der erste Druck — Klick, `E`, `A` am Schirm,
+   * in der Brille `A`/`X` der Faust, die sie hält — setzt den Start, danach
+   * zeigt die Geist-Straße, was gebaut würde (`showRoadPlan`): die Gerade bis
+   * zur Zelle unter dem Getragenen, und wo sie auf eine Straße trifft, schon
+   * die Kreuzung, Einmündung oder Ecke. Der zweite Druck baut sie
+   * (`commitRoad`); zweimal dieselbe Zelle baut ein Stück. Im _Baukasten_
+   * bleibt die Straße danach in der Hand, sonst ist die Hand leer.
+   *
+   * **Die Art ist die der Straße in der Hand** — Laternen, alte Laternen,
+   * Doppellaternen, ohne, Allee, Zebrastreifen. Wer eine vorhandene Straße mit
+   * einer anderen Art überzieht, baut sie um.
+   */
+  private updateRoadDraw(ctx: WorldContext): void {
+    const found = this.roadDrawHand(ctx);
+    if (!found) {
+      if (this.roadDraw) {
+        this.roadDraw = null;
+        this.hideRoadPlan();
+      }
+      return;
+    }
+    const { hand, grab, id } = found;
+    if (this.roadDraw?.entry !== grab.entry) {
+      this.roadDraw = { entry: grab.entry, start: null };
+      ctx.notify(
+        ctx.renderer.xr.isPresenting
+          ? `${elementById(id).label}: auf den Start halten und A drücken`
+          : `${elementById(id).label}: auf den Start zielen und interagieren`,
+      );
+    }
+    if (ctx.renderer.xr.isPresenting) {
+      ctx.rig.useCandidate = true;
+      if (ctx.input.get(hand)?.primary.justPressed) {
+        ctx.rig.takeUse();
+        this.pressRoad(ctx, hand, grab, id);
+        if (this.grabs.get(hand) !== grab) return;
+      }
+    }
+    const cell = roadCellAt(...this.carriedSpot(grab.entry));
+    this.showRoadPlan(id, this.roadDraw.start ?? cell, cell);
+  }
+
+  /** Die Hand, die gerade eine Straße zum Ziehen trägt. */
+  private roadDrawHand(ctx: WorldContext): { hand: Handedness; grab: HandGrab; id: string } | null {
+    if (ctx.renderer.xr.isPresenting) {
+      for (const [hand, grab] of this.grabs) {
+        const id = this.roadBrushOf(grab.entry);
+        if (id) return { hand, grab, id };
+      }
+      return null;
+    }
+    const side = this.screenCarrySide();
+    const grab = side ? this.grabs.get(side) : undefined;
+    const id = grab ? this.roadBrushOf(grab.entry) : null;
+    return side && grab && id ? { hand: side, grab, id } : null;
+  }
+
+  /** **Ein Druck mit der Straße in der Hand** — erst der Start, dann bauen (`updateRoadDraw`). */
+  private pressRoad(ctx: WorldContext, hand: Handedness, grab: HandGrab, id: string): void {
+    const cell = roadCellAt(...this.carriedSpot(grab.entry));
+    const state = this.roadDraw;
+    if (!state || state.entry !== grab.entry || !state.start) {
+      this.roadDraw = { entry: grab.entry, start: cell };
+      ctx.notify('Start steht · zum Ende ziehen, noch einmal interagieren baut die Straße');
+      return;
+    }
+    const start = state.start;
+    this.roadDraw = { entry: grab.entry, start: null };
+    this.commitRoad(id, start, cell);
+    if (!refillsCatalogue(gameMode())) {
+      this.letGo(ctx, hand, grab);
+      this.dropReach(ctx, hand);
+    }
+  }
+
   /** **Ein umgestelltes Element dorthin zurück, wo es stand** — wenn am Ziel kein Platz war. */
   protected furnishBack(_carried: CarriedElement): ElementSpot | null {
     return null;
@@ -4730,6 +4851,15 @@ export class PortalWorld implements World {
     queueMicrotask(() => {
       if (this.context !== ctx) return;
       this.removeProp(entry, false);
+      // **Eine Straße fügt sich ins Netz** — auch einzeln losgelassen wird sie
+      // zum Stück mit den richtigen Anschlüssen (`commitRoad`), statt als
+      // Gerade neben einer Kreuzung zu liegen.
+      if (!carried.from && this.roadBrush(id)) {
+        const cell = roadCellAt(x, z);
+        this.commitRoad(id, cell, cell);
+        if (fresh && refillsCatalogue(gameMode())) this.takeElement(ctx, id, hand, yaw);
+        return;
+      }
       const spot = this.furnishAt(carried, x, z, yaw + ELEMENT_HOLD);
       const label = elementById(id).label;
       if (spot) this.recordElementOf(spot);
@@ -11398,6 +11528,12 @@ export class PortalWorld implements World {
     // beim Abstellen (`placedElement` → `furnishAt` → `spotAround`), und nicht
     // die des Colliders: Seine Kacheln sagt der Katalog.
     const element = this.elementBodies.get(entry);
+    // **Eine Straße zeigt ihre Geist-Straße** (`updateRoadDraw`) und kein Gitter.
+    if (element && this.roadBrushOf(entry)) {
+      grid.hide();
+      this.markReplaced([]);
+      return;
+    }
     if (element) {
       this.markReplaced([]);
       const face = yawFace(quarterYaw(yawOf(_quaternion)) + ELEMENT_HOLD);
@@ -15730,6 +15866,22 @@ export class PortalWorld implements World {
       this.screenUseWas = heldNow;
       this.screenPress = null;
       if (clicked || used) this.pressCarryLine(ctx, drawBrush);
+      if (this.grabs.get(side) !== grab) return;
+      this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
+      _screenReach.clear();
+      return;
+    }
+
+    // **Eine Straße wird gezogen und nicht abgelegt** (`pressRoad`): Jeder
+    // Druck ist ein Punkt der Straße.
+    const roadId = this.roadBrushOf(grab.entry);
+    if (roadId) {
+      const heldNow = ctx.rig.useHeld;
+      const clicked = ctx.rig.takeDrop();
+      const used = ctx.rig.takeUse() || (heldNow && !this.screenUseWas);
+      this.screenUseWas = heldNow;
+      this.screenPress = null;
+      if (clicked || used) this.pressRoad(ctx, side, grab, roadId);
       if (this.grabs.get(side) !== grab) return;
       this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
       _screenReach.clear();

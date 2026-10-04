@@ -26,13 +26,27 @@ import {
   spotCentre,
   spotCovers,
   spotFootprintCells,
+  spotSize,
   spotTiles,
   yawFace,
+  faceYaw,
   type CarriedElement,
   type ElementSpot,
   type RiderPlace,
 } from '../elements/elementPlace';
-import type { ElementHost, PlacedElement } from '../elements/elementView';
+import { elementModel, type ElementHost, type PlacedElement } from '../elements/elementView';
+import {
+  ROAD_CELL,
+  ROAD_STYLE_LABELS,
+  exitsIn,
+  isRoadElement,
+  roadKey,
+  roadLine,
+  roadPiece,
+  roadStyleOf,
+  type RoadPiece,
+  type RoadStyle,
+} from '../elements/roadNetwork';
 import { furnish } from '../elements/furnish';
 import { NATURE_CATALOGUE } from '../elements/natureCatalog';
 import { SPACE_CATALOGUE } from '../elements/spaceCatalog';
@@ -75,6 +89,9 @@ const _ray = new THREE.Ray();
  * Erdgeschosses). Die Stationen entstehen erst, wenn sie jemand braucht
  * (`furnishing`) — eine Welt, in der nie ein Möbel steht, zahlt nichts.
  */
+/** Wie durchscheinend die Geist-Straße ist. */
+const ROAD_GHOST_OPACITY = 0.55;
+
 export abstract class FurnishedWorld extends GridWorld {
   /** Was diese Welt selbst ins Bild gehängt hat — Kopien aus dem Regal. */
   private readonly elementDecor: THREE.Object3D[] = [];
@@ -128,6 +145,15 @@ export abstract class FurnishedWorld extends GridWorld {
     string,
     { readonly spot: ElementSpot; readonly ready: Promise<PlacedElement | null> }
   >();
+  /** **Die Art jeder gezogenen Straßenzelle** (`commitRoad`) — `cx,cz` → Art. */
+  private readonly roadStyles = new Map<string, RoadStyle>();
+  /** Die Geist-Straße (`showRoadPlan`) und ihr Schlüssel. */
+  private roadGhost: THREE.Group | null = null;
+  private roadPlanKey = '';
+  /** Was die Geist-Straße gerade verdeckt. */
+  private readonly roadHidden: THREE.Object3D[] = [];
+  /** Die Geister der Straßenteile, je Element einmal (`roadTemplate`). */
+  private readonly roadTemplates = new Map<string, Promise<THREE.Group | null>>();
   /** **Was auf welcher Ablage steht** — Id der Stelle → Id der Ablage. */
   private readonly riding = new Map<string, string>();
 
@@ -189,6 +215,11 @@ export abstract class FurnishedWorld extends GridWorld {
   }
 
   override dispose(ctx: WorldContext): void {
+    this.hideRoadPlan();
+    this.roadGhost?.removeFromParent();
+    this.roadGhost = null;
+    this.roadTemplates.clear();
+    this.roadStyles.clear();
     this.elementRound++;
     ctx.avatar.carry = null;
     this.stations?.dispose();
@@ -518,6 +549,236 @@ export abstract class FurnishedWorld extends GridWorld {
     }
     this.recordElementOf(spot);
     this.context?.notify(elementById(next).label);
+  }
+
+  // --- Straßen ziehen (`elements/roadNetwork.ts`) ---------------------------
+
+  /** Ob dieses Element als Straße gezogen wird — Gerade jeder Art. */
+  protected override roadBrush(id: string): boolean {
+    const style = roadStyleOf(id);
+    return (
+      style !== null && !id.startsWith('city-road-corner') && !id.startsWith('city-road-curve')
+    );
+  }
+
+  /**
+   * **Was eine gezogene Straße ändert** — für jede Zelle, die ein anderes
+   * Teil braucht als heute: die neuen Zellen der Linie und ihre Nachbarn, die
+   * dadurch zur Ecke, Einmündung oder Kreuzung werden. Zellen, auf denen schon
+   * etwas anderes steht (ein Haus, ein Park) oder kein Boden ist, bleiben aus.
+   */
+  private planRoad(
+    id: string,
+    from: readonly [number, number],
+    to: readonly [number, number],
+  ): {
+    changes: { cx: number; cz: number; piece: RoadPiece; old: PlacedElement | null }[];
+    skipped: number;
+    cells: number;
+  } {
+    const style = roadStyleOf(id) ?? 'lamps';
+    const level = this.standLevel;
+    const roads = new Map<string, PlacedElement>();
+    for (const one of this.placed) {
+      const spot = one.spot;
+      if (!isRoadElement(spot.element) || (spot.level ?? 0) !== level) continue;
+      if (spot.x % ROAD_CELL !== 0 || spot.z % ROAD_CELL !== 0) continue;
+      roads.set(roadKey(spot.x / ROAD_CELL, spot.z / ROAD_CELL), one);
+    }
+    const net = new Set(roads.keys());
+    const line = roadLine(from, to);
+    const drawn = new Set<string>();
+    let skipped = 0;
+    for (const [cx, cz] of line.cells) {
+      const key = roadKey(cx, cz);
+      if (!roads.has(key) && !this.roadCellFree(cx, cz, level)) {
+        skipped++;
+        continue;
+      }
+      net.add(key);
+      drawn.add(key);
+    }
+    // Betroffen sind die gezogenen Zellen und ihre Nachbarn im Netz.
+    const touched = new Set<string>();
+    for (const key of drawn) {
+      const [cx, cz] = key.split(',').map(Number) as [number, number];
+      touched.add(key);
+      for (const [nx, nz] of [
+        [cx, cz - 1],
+        [cx + 1, cz],
+        [cx, cz + 1],
+        [cx - 1, cz],
+      ] as const) {
+        if (net.has(roadKey(nx, nz))) touched.add(roadKey(nx, nz));
+      }
+    }
+    const changes: { cx: number; cz: number; piece: RoadPiece; old: PlacedElement | null }[] = [];
+    for (const key of touched) {
+      const [cx, cz] = key.split(',').map(Number) as [number, number];
+      const old = roads.get(key) ?? null;
+      const cellStyle: RoadStyle = drawn.has(key)
+        ? style
+        : (this.roadStyles.get(key) ?? (old ? roadStyleOf(old.spot.element) : null) ?? 'lamps');
+      const oldFace = old?.spot.face ?? 'S';
+      const along = drawn.has(key) ? line.along : oldFace === 'E' || oldFace === 'W' ? 'ew' : 'ns';
+      const piece = roadPiece(exitsIn(net, cx, cz), cellStyle, along);
+      if (old && old.spot.element === piece.element && (old.spot.face ?? 'S') === piece.face)
+        continue;
+      changes.push({ cx, cz, piece, old });
+    }
+    return { changes, skipped, cells: drawn.size };
+  }
+
+  /** Ob auf einer Zelle Platz für eine neue Straße ist — Boden, und nichts steht darauf. */
+  private roadCellFree(cx: number, cz: number, level: number): boolean {
+    const x0 = cx * ROAD_CELL;
+    const z0 = cz * ROAD_CELL;
+    const graph = this.grid?.graph;
+    for (let z = z0; z < z0 + ROAD_CELL; z++)
+      for (let x = x0; x < x0 + ROAD_CELL; x++) {
+        const ground =
+          level > 0 ? (graph?.has(tileKey(x, z, level)) ?? false) : this.onGround(x, z);
+        if (!ground) return false;
+      }
+    for (const one of this.placed) {
+      if ((one.spot.level ?? 0) !== level) continue;
+      const [w, d] = spotSize(one.spot);
+      if (
+        one.spot.x < x0 + ROAD_CELL &&
+        one.spot.x + w > x0 &&
+        one.spot.z < z0 + ROAD_CELL &&
+        one.spot.z + d > z0
+      )
+        return false;
+    }
+    return true;
+  }
+
+  /**
+   * **Eine gezogene Straße bauen** (`PortalWorld.pressRoad`) — jede Zelle des
+   * Plans bekommt ihr Teil, ein Teil, das dort schon stand, geht dafür (unter
+   * derselben Id, also in der Liste der Weltänderungen unter derselben Zeile).
+   * So werden aus Geraden Kreuzungen und aus Enden Ecken, und die Laternen
+   * stehen, wie das neue Teil sie hat.
+   *
+   * @returns wie viele Zellen neu Straße sind
+   */
+  protected override commitRoad(
+    id: string,
+    from: readonly [number, number],
+    to: readonly [number, number],
+  ): number {
+    this.hideRoadPlan();
+    const style = roadStyleOf(id) ?? 'lamps';
+    const plan = this.planRoad(id, from, to);
+    const level = this.standLevel;
+    for (const { cx, cz, piece, old } of plan.changes) {
+      const spot: ElementSpot = {
+        id: old?.spot.id ?? `strasse-${cx}-${cz}`,
+        element: piece.element,
+        x: cx * ROAD_CELL,
+        z: cz * ROAD_CELL,
+        face: piece.face,
+        ...(level > 0 ? { level } : {}),
+      };
+      const keep = old ? this.takeAway(old) : [];
+      if (this.furnishSpot(spot, keep)) this.recordElementOf(spot);
+      else if (old) this.furnishSpot(old.spot, keep);
+    }
+    for (const [cx, cz] of roadLine(from, to).cells) this.roadStyles.set(roadKey(cx, cz), style);
+    const label = ROAD_STYLE_LABELS[style];
+    this.context?.notify(
+      plan.skipped > 0
+        ? `${label} · ${plan.cells} Stücke · ${plan.skipped} belegt`
+        : `${label} · ${plan.cells} ${plan.cells === 1 ? 'Stück' : 'Stücke'}`,
+    );
+    return plan.cells;
+  }
+
+  /**
+   * **Die Geist-Straße** — durchscheinend jedes Teil, das der Plan setzen
+   * würde, an seiner Stelle; ein Teil, das er ersetzt, ist so lange
+   * ausgeblendet. Neu gerechnet nur, wenn sich Start, Ende oder Art ändern.
+   */
+  protected override showRoadPlan(
+    id: string,
+    from: readonly [number, number],
+    to: readonly [number, number],
+  ): void {
+    const key = `${id}|${from.join(',')}|${to.join(',')}|${this.placed.length}`;
+    if (key === this.roadPlanKey) return;
+    this.hideRoadPlan();
+    this.roadPlanKey = key;
+    const ghost = (this.roadGhost ??= new THREE.Group());
+    ghost.name = 'road-ghost';
+    if (!ghost.parent) this.root.add(ghost);
+    const floor = this.grid?.graph.levelY(this.standLevel) ?? 0;
+    const plan = this.planRoad(id, from, to);
+    for (const { cx, cz, piece, old } of plan.changes) {
+      if (old) {
+        for (const part of [old.anchor, ...old.parts]) {
+          if (part?.visible) {
+            part.visible = false;
+            this.roadHidden.push(part);
+          }
+        }
+      }
+      void this.roadTemplate(piece.element).then((template) => {
+        if (!template || this.roadPlanKey !== key) return;
+        const view = template.clone();
+        view.rotation.y = faceYaw(piece.face);
+        view.position.set(
+          cx * ROAD_CELL + ROAD_CELL / 2,
+          floor + 0.03,
+          cz * ROAD_CELL + ROAD_CELL / 2,
+        );
+        ghost.add(view);
+      });
+    }
+  }
+
+  /** Die Geist-Straße weg, und was sie verdeckte, wieder da. */
+  protected override hideRoadPlan(): void {
+    this.roadPlanKey = '';
+    if (this.roadGhost) this.roadGhost.clear();
+    for (const part of this.roadHidden) part.visible = true;
+    this.roadHidden.length = 0;
+  }
+
+  /**
+   * **Das Bild eines Straßenteils als Geist** — einmal gebaut
+   * (`elementModel`), mit durchscheinenden Kopien seiner Materialien.
+   */
+  private roadTemplate(id: string): Promise<THREE.Group | null> {
+    let template = this.roadTemplates.get(id);
+    if (!template) {
+      template = elementModel(id, kaykitModel).then((model) => {
+        if (!model) return null;
+        const swap = new Map<THREE.Material, THREE.Material>();
+        model.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const ghostOf = (material: THREE.Material): THREE.Material => {
+            let made = swap.get(material);
+            if (!made) {
+              made = material.clone();
+              made.transparent = true;
+              made.opacity = ROAD_GHOST_OPACITY;
+              made.depthWrite = false;
+              swap.set(material, made);
+            }
+            return made;
+          };
+          mesh.material = Array.isArray(mesh.material)
+            ? mesh.material.map(ghostOf)
+            : ghostOf(mesh.material);
+          mesh.renderOrder = 5;
+        });
+        return model;
+      });
+      this.roadTemplates.set(id, template);
+    }
+    return template;
   }
 
   /** Merken, was gerade hingestellt wird, bis es steht (`pending`). */

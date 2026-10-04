@@ -1228,6 +1228,52 @@ Wall."_
   _Wand ziehen_ für sie immer an. Im Hausbau geht mit einem aufgebrochenen
   Raum wie sonst auch die Decke ([Hausbau](./hausbau.md#die-decke-über-jedem-raum)).
 
+### Straßen ziehen wie in _Cities: Skylines_
+
+Gewünscht (Oktober 2026): _„beim Straßenbau ein Baumodus […] wie bei City
+Skylines und den Wänden. Ich platziere z. B. eine Straße und kann diese dann
+ziehen. Das Spiel schaut dann, wo Kreuzungen sind, und ersetzt die Teile dann
+durch Kreuzungen. Laternen werden dann immer automatisch gesetzt bzw.
+angepasst, wenn die Straße angepasst wird. […] mehr in Richtung City-Skyline-
+Building mit Ghost-Straßen."_
+
+- **Die Straße in der Hand ist der Pinsel** (`PortalWorld.updateRoadDraw`,
+  `roadBrushOf`): jede Gerade aus dem Katalog _Stadt → Straßen_ (Laternen,
+  alte Laternen, Doppellaternen, ohne, Allee, Zebrastreifen), frisch genommen
+  und nicht umgestellt. In jedem Modus, am Schirm und in der Brille.
+- **Punkte sind Zellen von 12 × 12 m** (`roadNetwork.ROAD_CELL`, ein
+  Straßenstück; die Zelle (cx, cz) beginnt bei cx·12, cz·12). Gemeint ist die
+  Zelle unter dem Getragenen (`carriedSpot`). Der erste Druck setzt den
+  Start — am Schirm Klick, `E` oder `A`, in der Brille `A`/`X` der Faust, die
+  die Straße hält —, der zweite baut (`pressRoad` → `FurnishedWorld.commitRoad`).
+  Gezogen wird gerade, entlang der Achse, auf der der Zug weiter ging
+  (`roadLine`). Einzeln losgelassen wird sie ein Stück mit den richtigen
+  Anschlüssen (`placedElement`). Im _Baukasten_ bleibt sie in der Hand, sonst
+  ist die Hand danach leer.
+- **Welches Teil, sagen die Nachbarn** (`roadNetwork.roadPiece`): keiner
+  oder einer gegenüber — Gerade, zwei über Eck — Ecke, drei — Einmündung,
+  vier — Kreuzung. Gebaut wird jede Zelle der Linie und jede Nachbarzelle,
+  deren Teil sich dadurch ändert (`planRoad`): Aus der Einmündung am Rand wird
+  die Kreuzung, aus dem Ende einer Straße die Ecke. Ein ersetztes Teil behält
+  seine Id und damit seine Zeile in der Liste der Weltänderungen. Die
+  Laternen gehören zu den Teilen und stehen deshalb immer richtig.
+- **Die Art** gilt für Gerade und Ecke; Einmündung und Kreuzung haben ihre
+  Ampeln. Wer eine vorhandene Straße mit einer anderen Art überzieht, baut sie
+  um — so wird aus der Straße mit Laternen eine Allee. Welche Art eine Zelle
+  hat, merkt sich die Welt (`roadStyles`), damit eine Ecke, die später wieder
+  zur Geraden wird, ihre Laternen behält. Einzelne Laternen tauscht weiter `A`
+  an der Laterne.
+- **Die Geist-Straße** (`showRoadPlan`): Jedes Teil, das der Plan setzen
+  würde, steht durchscheinend an seiner Stelle (`elementModel`, Materialien
+  mit 55 % Deckkraft), ein Teil, das es ersetzt, ist so lange ausgeblendet.
+  Vor dem Start zeigt sie das eine Stück unter dem Getragenen, samt der
+  Kreuzung, die es machen würde. Das Kachelgitter des Hinstellens schweigt
+  dabei (`updatePlaceGrid`).
+- **Was nicht geht**: Wo schon etwas steht (ein Haus, ein Park) oder kein
+  Boden ist, entsteht keine Straße; die Zeile sagt, wie viele Stücke belegt
+  waren. Zwei parallele Straßen direkt nebeneinander verbinden sich auf jeder
+  Zelle — gerechnet wird nur mit Nachbarn.
+
 ## Die Werkzeugleiste des Baukastens
 
 **Gespielt, bevor gebaut wurde.** Im September 2026 wurde der _Baukasten_
