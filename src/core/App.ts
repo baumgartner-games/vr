@@ -144,6 +144,9 @@ import {
   WEATHER_TIME_LABELS,
   WEATHER_TIME_SUBS,
   DEFAULT_WEATHER,
+  STREET_LIGHT_LABELS,
+  STREET_LIGHT_SUBS,
+  nextStreetLightMode,
   nextWeatherFilter,
   nextWeatherFog,
   nextWeatherTime,
@@ -3193,6 +3196,22 @@ export class App {
               weatherFilter: nextWeatherFilter(graphics().weatherFilter),
             });
             changed(`Filter: ${WEATHER_FILTER_LABELS[next.weatherFilter]}`);
+          },
+        },
+        {
+          // **Laternen und Ampeln** — `core/StreetLights.ts`. Automatisch
+          // heißt: am Abend und in der Nacht an, am Tag aus.
+          id: 'gfx:weather-lights',
+          label: `Laternen & Ampeln: ${STREET_LIGHT_LABELS[settings.streetLights]}`,
+          sub: STREET_LIGHT_SUBS[settings.streetLights],
+          caption: 'Automatisch → An → Aus · auch in der Brille',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              streetLights: nextStreetLightMode(graphics().streetLights),
+            });
+            changed(`Laternen & Ampeln: ${STREET_LIGHT_LABELS[next.streetLights]}`);
           },
         },
         {

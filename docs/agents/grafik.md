@@ -951,6 +951,32 @@ die Vorlage aussieht: Laternen und Fenster, die nachts **wirklich** leuchten —
 das braucht Lichter oder leuchtende Materialien in den Welten, nicht den
 Durchgang.
 
+### Laternen und Ampeln leuchten
+
+Gewünscht: _„bei den Laternen das entsprechend einstellen, dass diese bei
+Tageszeit automatisch leuchten. Die Laternen und Ampeln sollen alle ein Licht
+haben können."_ _Wetter → Laternen & Ampeln_ (`gfx:weather-lights`,
+`GraphicsSettings.streetLights`): **Automatisch** (ab Werk, an bei Abend und
+Nacht, `weather.streetLightsLit`), **An**, **Aus**.
+
+`core/StreetLights.ts` hängt an `GraphicsQuality` wie die Schatten-Kreise und
+sucht die Szene jede Sekunde nach den sechs Dateien aus `city-builder-bits` ab
+(`streetlight*`, `trafficlight_A/B/C`) — erkannt am Namen der Hülle, den
+`kaykitModel.copyOf` auf den Pfad setzt. Keine Welt weiß davon; auch gebündelte
+Deko (`staticDecor`) zählt, denn dort werden nur die Netze unsichtbar, nicht
+die Hülle. Wo an jedem Modell die Leuchten sitzen, steht als Anteile seines
+Kastens in `core/streetLightSpots.ts` (abgemessen an der Vorderansicht).
+
+**Keine echten Lichter** — über hundert Lampen kosteten in jedem Material.
+Stattdessen zwei Zeichenaufrufe: ein additiver **Schein** je Leuchte
+(`THREE.Points` mit Größe und Farbe je Punkt) und ein additiver **Lichtfleck**
+unter jeder Laterne (`InstancedMesh`). Die Ampeln schalten in 16 s durch
+(Grün 6, Gelb 2, Rot 7, Rot-Gelb 1, `signalLit`); quer stehende einen halben
+Umlauf versetzt, die Fußgängerampel ist grün, solange die Autos davor Rot
+haben. Weil es Szene ist und kein Durchgang, leuchtet es auch in der Brille.
+Was noch fehlt: Der Nebel des Wetters wird über die Lichtflecken gelegt, statt
+von ihnen aufgehellt zu werden.
+
 ## Was die Kamera ansieht
 
 Ein Schild, ein Fortschrittsbalken, ein Warndreieck: Alles, was Auskunft gibt,

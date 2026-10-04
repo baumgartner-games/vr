@@ -7,6 +7,8 @@ import {
   type GraphicsSettings,
 } from './graphicsSettings';
 import { BlobShadows } from './BlobShadows';
+import { StreetLights } from './StreetLights';
+import { streetLightsLit } from './weather';
 import { aimSun, applySceneQuality } from './graphicsScene';
 
 /**
@@ -43,6 +45,8 @@ export class GraphicsQuality {
   private readonly stopListening: () => void;
   /** Die Schatten-Kreise unter den Figuren (Modus _Einfach_). */
   private readonly blobs: BlobShadows;
+  /** Laternen und Ampeln, die leuchten (`core/StreetLights.ts`). */
+  private readonly streetLights: StreetLights;
 
   /**
    * Wie oft die Szene abgelaufen wird.
@@ -62,6 +66,8 @@ export class GraphicsQuality {
     this.profile = graphicsProfile(this.settings);
     this.blobs = new BlobShadows(scene);
     this.blobs.setEnabled(this.profile.blobShadows);
+    this.streetLights = new StreetLights(scene);
+    this.streetLights.setEnabled(streetLightsLit(this.settings));
     this.stopListening = onGraphicsChange(() => this.refresh());
     this.applyRenderer();
     this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows;
@@ -76,6 +82,7 @@ export class GraphicsQuality {
     this.since = Number.POSITIVE_INFINITY;
     this.scanned = false;
     this.blobs.worldChanged();
+    this.streetLights.worldChanged();
   }
 
   /**
@@ -110,6 +117,7 @@ export class GraphicsQuality {
     }
 
     this.blobs.update(dt);
+    this.streetLights.update(dt);
     if (!this.profile.lightShadows) return;
     if (this.sun && this.profile.shadows) aimSun(this.sun, head, this.profile);
     // Bestellt wird die Schattenkarte einmal pro Bild — `autoUpdate` ist aus,
@@ -120,6 +128,7 @@ export class GraphicsQuality {
   dispose(): void {
     this.stopListening();
     this.blobs.dispose();
+    this.streetLights.dispose();
   }
 
   /** Nach einer Änderung im Menü: alles neu stellen, sofort sichtbar. */
@@ -129,6 +138,7 @@ export class GraphicsQuality {
     this.profile = graphicsProfile(this.settings);
     this.applyRenderer();
     this.blobs.setEnabled(this.profile.blobShadows);
+    this.streetLights.setEnabled(streetLightsLit(this.settings));
     this.sun = applySceneQuality(
       this.scene,
       this.profile,
