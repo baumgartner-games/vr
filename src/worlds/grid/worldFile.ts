@@ -1,3 +1,4 @@
+import { cleanDay, type DaySettings } from '../../core/dayClock';
 import { cleanWorldLamps, type WorldLamps } from '../../core/lamps/lampBook';
 import { NavGraph } from '../nav/navGraph';
 import { NavFormatError, readNav, writeNav, type NavFile } from '../nav/navSerial';
@@ -75,7 +76,7 @@ export const WORLD_FORMAT = 'baumgartner-welt';
  * **abgelehnt** und nicht halb geladen: Eine Welt, der beim Laden die Hälfte
  * fehlt, sieht aus wie eine kaputte Welt und nicht wie eine zu neue.
  */
-export const WORLD_VERSION = '0.5.0';
+export const WORLD_VERSION = '0.6.0';
 
 /**
  * Welche Fassungen dieses Programm lesen kann.
@@ -99,13 +100,17 @@ export const WORLD_VERSION = '0.5.0';
  * Programm ließe die Einstellungen stillschweigend fallen — deshalb lehnt es
  * eine `0.5`-Datei ab.
  *
+ * **`0.6` bringt den Tageslauf** (`day`, `core/dayClock.ts`): Fest,
+ * Automatisch, Schrittweise oder Vom Spiel, und wie viele Minuten. Fehlt er,
+ * gilt der Standard der Welt.
+ *
  * **Die Kacheln sind mit `0.3` einen Meter groß** und nicht mehr 2,5 m. Das
  * fällt hier gar nicht auf, weil es im Kopf der Navigationsdatei steht und
  * dort geprüft wird (`nav/navSerial.ts`): Eine Karte mit fremder Kachelgröße
  * wird abgelehnt, mit klarer Meldung. Zwei Prüfungen für dieselbe Zahl wären
  * eine zu viel.
  */
-const READABLE: readonly string[] = ['0.1', '0.2', '0.3', '0.4', '0.5'];
+const READABLE: readonly string[] = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6'];
 
 /** Eine Kachel in der Datei: Spalte, Zeile, Etage. */
 interface TileRef {
@@ -215,6 +220,8 @@ export interface WorldFile {
   slopes?: WorldSlopeEntry[];
   /** Was an den Lampen eingestellt ist — seit Fassung `0.5`. Fehlt, wenn nichts. */
   lamps?: WorldLamps;
+  /** Wie der Tag voranschreitet — seit Fassung `0.6`. Fehlt, wenn es der Standard der Welt ist. */
+  day?: DaySettings;
 }
 
 /** Was schiefgehen kann, wenn eine Datei nicht das ist, wofür sie sich ausgibt. */
@@ -234,6 +241,8 @@ export interface WorldMeta {
   saved?: string;
   /** Was an den Lampen eingestellt ist (`lampBook.save()`) — gehört nicht zum Plan. */
   lamps?: WorldLamps;
+  /** Der Tageslauf (`dayClock.save()`) — gehört nicht zum Plan. */
+  day?: DaySettings;
 }
 
 // --- schreiben --------------------------------------------------------------
@@ -260,6 +269,7 @@ export function writeWorld(plan: GridPlan, meta: WorldMeta = {}): WorldFile {
     fixtures: plan.fixtures().map(fixtureEntry),
     ...slopeEntries(plan),
     ...(meta.lamps ? { lamps: meta.lamps } : {}),
+    ...(meta.day ? { day: meta.day } : {}),
   };
 }
 
@@ -344,6 +354,8 @@ export interface WorldContents {
   slopes: Array<{ tile: TileKey; slope: Slope; empty?: FloorCorner }>;
   /** Die Lampen — vor Fassung `0.5`, und wenn nichts eingestellt ist, `undefined`. */
   lamps: WorldLamps | undefined;
+  /** Der Tageslauf — vor Fassung `0.6`, und wenn es der Standard ist, `undefined`. */
+  day: DaySettings | undefined;
 }
 
 /**
@@ -389,6 +401,7 @@ export function readWorld(data: unknown): WorldContents {
     // Was an einer Lampe nicht stimmt, fällt weg — eine Welt geht nicht an
     // einer falsch geschriebenen Farbe kaputt.
     lamps: cleanWorldLamps(raw.lamps),
+    day: cleanDay(raw.day),
   };
 }
 

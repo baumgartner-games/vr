@@ -1,3 +1,5 @@
+import { dayMix } from './dayClock';
+
 /**
  * **Wetter** — Nebel, Tageszeit und Filter über dem fertigen Bild.
  *
@@ -159,8 +161,9 @@ export function weatherSummary(settings: WeatherSettings): string {
   ].join(' · ');
 }
 
-export function weatherActive(settings: WeatherSettings): boolean {
+export function weatherActive(settings: WeatherSettings, clock = false): boolean {
   return (
+    clock ||
     settings.weatherFog !== 'off' ||
     settings.weatherTime !== 'day' ||
     settings.weatherFilter !== 'off'
@@ -213,18 +216,39 @@ const FILTER: Readonly<
  * **Was der Durchgang mit diesem Stand tun soll** — `null` heißt: nichts,
  * und dann kostet das Wetter auch nichts.
  */
-export function weatherLook(settings: WeatherSettings, presenting: boolean): WeatherLook | null {
-  if (presenting || !weatherActive(settings)) return null;
-  const light = LIGHT[settings.weatherTime];
+export function weatherLook(
+  settings: WeatherSettings,
+  presenting: boolean,
+  hour: number | null = null,
+): WeatherLook | null {
+  if (presenting) return null;
+  // **Läuft die Uhr der Welt** (`core/dayClock.ts`), mischt sich das Licht
+  // fließend aus Tag, Abend und Nacht; sonst gilt die eine Stufe aus dem Menü.
+  const mix =
+    hour === null
+      ? {
+          day: settings.weatherTime === 'day' ? 1 : 0,
+          dusk: settings.weatherTime === 'dusk' ? 1 : 0,
+          night: settings.weatherTime === 'night' ? 1 : 0,
+        }
+      : dayMix(hour);
+  const timeActive = mix.day < 0.999;
+  if (!timeActive && settings.weatherFog === 'off' && settings.weatherFilter === 'off') return null;
+  const blend = (pick: (time: WeatherTime) => number): number =>
+    pick('day') * mix.day + pick('dusk') * mix.dusk + pick('night') * mix.night;
+  const light: Rgb = [
+    blend((t) => LIGHT[t][0]),
+    blend((t) => LIGHT[t][1]),
+    blend((t) => LIGHT[t][2]),
+  ];
   const fog = FOG[settings.weatherFog];
   const filter = FILTER[settings.weatherFilter];
   // Nachts ist auch der Nebel dunkler — aber nicht so dunkel wie der Rest,
   // sonst verschwände er; er fängt das Licht der Laternen.
-  const fogLight =
-    settings.weatherTime === 'day' ? 1 : settings.weatherTime === 'dusk' ? 0.75 : 0.42;
+  const fogLight = blend((t) => (t === 'day' ? 1 : t === 'dusk' ? 0.75 : 0.42));
   return {
     light,
-    keepBright: settings.weatherTime === 'day' ? 0 : 0.85,
+    keepBright: blend((t) => (t === 'day' ? 0 : 0.85)),
     fogColor: [fog.color[0] * fogLight, fog.color[1] * fogLight, fog.color[2] * fogLight],
     fogStrength: fog.strength,
     fogSwirl: fog.swirl,

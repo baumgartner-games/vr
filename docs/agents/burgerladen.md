@@ -55,6 +55,10 @@ Plan, Stellen, Boden und Ankunft. Alles steht in `plateup/plateUpRoom.ts`
   Spiel: keine Glocke, keine Tage, keine Kasse, keine Baupläne, keine
   Einsteigerhilfe. Der Möbelkatalog steht im Menü wie im Test Restaurant,
   auch mit dem neuen Ordner _Wände_.
+- **Aber ein Tageslauf** (`PlateUpWorld.dayDriver`, _Öffnungszeiten_): Ab
+  Werk wird es nach der Öffnungszeit (fünf Minuten) von selbst Abend und Nacht
+  und danach wieder Morgen — umzustellen unter _Welten → Restaurant →
+  Tageslauf_. Ausführlich in [Grafik](./grafik.md#tageslauf-wie-der-tag-in-einer-welt-voranschreitet).
 
 **Was vom Spiel noch im Ordner liegt.** Die Session, die umbaute, durfte keine
 Dateien löschen. Die reinen Teile des alten Spiels liegen deshalb noch in

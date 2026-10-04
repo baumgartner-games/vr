@@ -46,7 +46,8 @@ rpg-tools-bits); Laternen, Laternenpfahl, Kürbislaterne, Totenkopf mit Kerzen
 ### Verhalten (`lampBehaviour.ts`)
 
 - **Betrieb** (`LampMode`): _Bei Nacht_ (ab Werk: an, sobald _Grafik → Wetter →
-  Tageszeit_ Abend oder Nacht ist) · _Immer an_ · _Aus_ · _Schalter_ (wie
+  Tageszeit_ Abend oder Nacht ist — oder, wo die Welt einen Tageslauf hat,
+  dessen Uhr ab 17:30) · _Immer an_ · _Aus_ · _Schalter_ (wie
   `on` steht — die Tischlampe).
 - **Lichtart** (`LampEffect`): _Ruhig_ · _Flackern_ (Kerze, Fackel, Grusel;
   ab Werk bei allem mit Flamme) · _Blinken_ (Notlicht) · _Drehlicht_ ·
@@ -210,7 +211,9 @@ unsichtbar, und ein Usable mit versteckter Geometrie gilt nicht
 ## Was noch kommt
 
 - **Mehrspieler**: Das Buch geht noch nicht übers Netz.
-- **Restaurant-Szenario**: Tisch- und Deko-Lampen gehen schon bei Nacht an
-  (ab Werk); eine Runde, die selbst Abend wird, fehlt noch.
+- **Restaurant-Szenario**: erledigt über den Tageslauf ([Grafik](grafik.md#tageslauf-wie-der-tag-in-einer-welt-voranschreitet)):
+  Das Restaurant wird nach Ladenschluss von selbst Abend und Nacht, und alle
+  Lampen mit _Bei Nacht_ gehen an. Im Raum stehen bisher keine — aus dem
+  Katalog hinstellen.
 - **Nebel und Licht**: Der Nebel des Wetters liegt über den Lichtflecken,
   statt von ihnen aufgehellt zu werden.
