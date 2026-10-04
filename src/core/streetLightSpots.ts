@@ -14,7 +14,7 @@
  */
 
 /** Welche Farbe eine Leuchte hat — die Ampel schaltet ihre drei durch. */
-export type LampKind = 'lamp' | 'red' | 'yellow' | 'green' | 'walk';
+export type LampKind = 'lamp' | 'lantern' | 'red' | 'yellow' | 'green' | 'walk';
 
 export interface LampSpot {
   kind: LampKind;
@@ -31,6 +31,8 @@ export interface StreetLightModel {
 }
 
 const lamp = (x: number, y: number): LampSpot => ({ kind: 'lamp', x, y, z: 0.5 });
+/** Die alten Laternen: Das Licht sitzt im Glas, und das Glas leuchtet mit. */
+const lantern = (x: number, y: number): LampSpot => ({ kind: 'lantern', x, y, z: 0.5 });
 const signal = (x: number, red: number, yellow: number, green: number): LampSpot[] => [
   { kind: 'red', x, y: red, z: 1 },
   { kind: 'yellow', x, y: yellow, z: 1 },
@@ -41,8 +43,8 @@ const walk = (x: number, y: number): LampSpot => ({ kind: 'walk', x, y, z: 1 });
 /** Die sechs Dateien des Regals, nach ihrem Namen ohne Endung. */
 export const STREET_LIGHT_MODELS: Readonly<Record<string, StreetLightModel>> = {
   streetlight: { spots: [lamp(0.15, 0.92)], pool: true },
-  streetlight_old_single: { spots: [lamp(0.5, 0.84)], pool: true },
-  streetlight_old_double: { spots: [lamp(0.19, 0.84), lamp(0.81, 0.84)], pool: true },
+  streetlight_old_single: { spots: [lantern(0.5, 0.84)], pool: true },
+  streetlight_old_double: { spots: [lantern(0.19, 0.84), lantern(0.81, 0.84)], pool: true },
   trafficlight_A: { spots: [...signal(0.79, 0.94, 0.85, 0.76), walk(0.21, 0.48)], pool: false },
   trafficlight_B: {
     spots: [lamp(0.14, 0.92), ...signal(0.84, 0.72, 0.65, 0.58), walk(0.5, 0.36)],
@@ -77,6 +79,7 @@ export function signalLit(kind: LampKind, time: number, cross: boolean): boolean
   const red = (t >= 8 && t < 15) || redYellow;
   switch (kind) {
     case 'lamp':
+    case 'lantern':
       return true;
     case 'green':
       return green;

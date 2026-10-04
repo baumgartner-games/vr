@@ -20,6 +20,7 @@ const LIFT = 0.03;
 /** Wie groß ein Schein ist, als Anteil der Höhe des Masts. */
 const GLOW_SIZE: Readonly<Record<LampKind, number>> = {
   lamp: 0.5,
+  lantern: 0.55,
   red: 0.15,
   yellow: 0.15,
   green: 0.15,
@@ -28,6 +29,7 @@ const GLOW_SIZE: Readonly<Record<LampKind, number>> = {
 /** Die Farben, linear und heller als 1 — die Nacht im Wetter lässt Helles hell. */
 const GLOW_COLOR: Readonly<Record<LampKind | 'walkRed', readonly [number, number, number]>> = {
   lamp: [3.2, 2.0, 0.85],
+  lantern: [3.4, 1.6, 0.45],
   red: [3.4, 0.18, 0.1],
   yellow: [3.2, 1.7, 0.12],
   green: [0.2, 2.8, 0.9],
@@ -65,6 +67,9 @@ varying vec3 vGlow;
 void main() {
   vGlow = glow;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  // Ein Stück zur Kamera hin: Die Leuchte sitzt im Gehäuse oder im Glas der
+  // alten Laterne, und das verdeckte den Schein sonst.
+  mv.xyz += normalize(-mv.xyz) * size * 0.5;
   gl_Position = projectionMatrix * mv;
   gl_PointSize = size * projectionMatrix[1][1] * pixels / max(0.1, -mv.z);
 }
@@ -226,7 +231,11 @@ export class StreetLights {
         // Vorn vor die Scheibe, damit der Schein nicht im Gehäuse steckt.
         if (spot.z >= 1) _point.z += (box.max.z - box.min.z) * 0.08;
         _point.applyMatrix4(world);
-        if (spot.kind === 'lamp' && holder.model.pool && pools < MAX_POOLS) {
+        if (
+          (spot.kind === 'lamp' || spot.kind === 'lantern') &&
+          holder.model.pool &&
+          pools < MAX_POOLS
+        ) {
           const radius = height * POOL_RADIUS;
           _poolAt.set(_point.x, _base.y + LIFT, _point.z);
           _matrix.compose(_poolAt, _quat, _scale.set(radius, radius, 1));

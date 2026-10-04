@@ -968,7 +968,7 @@ die Hülle. Wo an jedem Modell die Leuchten sitzen, steht als Anteile seines
 Kastens in `core/streetLightSpots.ts` (abgemessen an der Vorderansicht).
 
 **Keine echten Lichter** — über hundert Lampen kosteten in jedem Material.
-Stattdessen zwei Zeichenaufrufe: ein additiver **Schein** je Leuchte
+Stattdessen zwei Zeichenaufrufe: ein additiver **Schein** je Leuchte (ein Stück zur Kamera gezogen, damit Gehäuse und das Glas der alten Laternen ihn nicht verdecken; die alten Laternen leuchten wärmer, Art `lantern`)
 (`THREE.Points` mit Größe und Farbe je Punkt) und ein additiver **Lichtfleck**
 unter jeder Laterne (`InstancedMesh`). Die Ampeln schalten in 16 s durch
 (Grün 6, Gelb 2, Rot 7, Rot-Gelb 1, `signalLit`); quer stehende einen halben
