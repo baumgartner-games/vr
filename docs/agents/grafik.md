@@ -953,29 +953,12 @@ Durchgang.
 
 ### Laternen und Ampeln leuchten
 
-Gewünscht: _„bei den Laternen das entsprechend einstellen, dass diese bei
-Tageszeit automatisch leuchten. Die Laternen und Ampeln sollen alle ein Licht
-haben können."_ _Wetter → Laternen & Ampeln_ (`gfx:weather-lights`,
-`GraphicsSettings.streetLights`): **Automatisch** (ab Werk, an bei Abend und
-Nacht, `weather.streetLightsLit`), **An**, **Aus**.
-
-`core/StreetLights.ts` hängt an `GraphicsQuality` wie die Schatten-Kreise und
-sucht die Szene jede Sekunde nach den sechs Dateien aus `city-builder-bits` ab
-(`streetlight*`, `trafficlight_A/B/C`) — erkannt am Namen der Hülle, den
-`kaykitModel.copyOf` auf den Pfad setzt. Keine Welt weiß davon; auch gebündelte
-Deko (`staticDecor`) zählt, denn dort werden nur die Netze unsichtbar, nicht
-die Hülle. Wo an jedem Modell die Leuchten sitzen, steht als Anteile seines
-Kastens in `core/streetLightSpots.ts` (abgemessen an der Vorderansicht).
-
-**Keine echten Lichter** — über hundert Lampen kosteten in jedem Material.
-Stattdessen zwei Zeichenaufrufe: ein additiver **Schein** je Leuchte (ein Stück zur Kamera gezogen, damit Gehäuse und das Glas der alten Laternen ihn nicht verdecken; die alten Laternen leuchten wärmer, Art `lantern`)
-(`THREE.Points` mit Größe und Farbe je Punkt) und ein additiver **Lichtfleck**
-unter jeder Laterne (`InstancedMesh`). Die Ampeln schalten in 16 s durch
-(Grün 6, Gelb 2, Rot 7, Rot-Gelb 1, `signalLit`); quer stehende einen halben
-Umlauf versetzt, die Fußgängerampel ist grün, solange die Autos davor Rot
-haben. Weil es Szene ist und kein Durchgang, leuchtet es auch in der Brille.
-Was noch fehlt: Der Nebel des Wetters wird über die Lichtflecken gelegt, statt
-von ihnen aufgehellt zu werden.
+Seit dem Lampen-System ein eigenes Kapitel: [Lampen und Lichter](lampen.md).
+Hier bleibt nur der Hauptschalter: _Wetter → Lampen_ (`gfx:weather-lights`,
+`GraphicsSettings.streetLights`) — **Automatisch** (ab Werk: jede Lampe, wie sie
+eingestellt ist, ab Werk an bei Abend und Nacht), **An**, **Aus**. Gezeichnet
+wird in `core/Lamps.ts`; der Nebel des Wetters wird noch über die Lichtflecken
+gelegt, statt von ihnen aufgehellt zu werden.
 
 ## Was die Kamera ansieht
 

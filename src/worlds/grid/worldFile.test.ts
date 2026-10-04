@@ -57,9 +57,25 @@ describe('Eine Welt als Datei', () => {
   it('trägt Format und Versionsnummer', () => {
     const file = writeWorld(house(), { world: 'test', saved: '2026-09-07T10:00:00.000Z' });
     expect(file.format).toBe(WORLD_FORMAT);
-    expect(file.version).toBe('0.4.0');
+    expect(file.version).toBe('0.5.0');
     expect(file.world).toBe('test');
     expect(file.saved).toBe('2026-09-07T10:00:00.000Z');
+  });
+
+  it('behält die Lampen und wirft Kaputtes darin weg', () => {
+    // Speicherstand: Wer seine Laternen einstellt und neu lädt, muss sie so
+    // wiederfinden — und eine falsch geschriebene Farbe darf die Welt nicht
+    // mitnehmen.
+    const lamps = {
+      types: { 'furniture-bits/lamp_table': { mode: 'switch' as const, on: true } },
+      lamps: { 'element:a/city-builder-bits/streetlight#0': { effect: 'flicker' as const } },
+    };
+    const text = JSON.stringify(writeWorld(house(), { lamps }));
+    expect(readWorld(JSON.parse(text)).lamps).toEqual(lamps);
+    const broken = JSON.parse(text) as Record<string, unknown>;
+    broken['lamps'] = { types: { x: { mode: 'disco', color: 'red' } }, lamps: 'kaputt' };
+    expect(readWorld(broken).lamps).toEqual({ types: { x: { color: 'red' } } });
+    expect(readWorld(JSON.parse(JSON.stringify(writeWorld(house())))).lamps).toBeUndefined();
   });
 
   it('nimmt die Kachelgröße über den Grundriss mit', () => {

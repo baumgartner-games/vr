@@ -1,3 +1,8 @@
+import { lampsInScene } from '../../core/Lamps';
+import { lampBurns } from '../../core/lamps/lampBehaviour';
+import { gameMode, movesFurniture } from '../../core/gameMode';
+import { INSPECT_PAGE, inspectRows, inspectTitle, type InspectTarget } from './inspectMenu';
+import { lampBook, type WorldLamps } from '../../core/lamps/lampBook';
 import { joinRuns, StationWalls, wallRun, type WallRun } from '../haunting/world3d/stationWalls';
 import * as THREE from 'three';
 import { fadeInfoMaterial, fadeInfoTree, syncInfoView } from '../../core/infoViewScene';
@@ -2915,6 +2920,15 @@ export abstract class GridWorld extends PortalWorld {
 
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
+    // **Die Lampen dieser Welt** (`core/lamps/lampBook.ts`) — aus dem Speicher,
+    // auch wo sonst nichts gebaut werden darf: Eine Laterne einstellen ist
+    // kein Umbau. Jede Änderung wird kurz danach gespeichert (`stepLampSave`).
+    lampBook.load(storedWorld(this.worldId())?.lamps, this);
+    this.bindInspect(ctx);
+    this.stopLamps = lampBook.onChange(() => {
+      this.lampSaveAt = performance.now() + LAMP_SAVE_DELAY * 1000;
+      this.context?.refreshWorldMenu();
+    });
     // **Erst hier und nicht beim Bauen**: Die stille Vorschau (`preview()`)
     // baut dieselbe Welt ohne Spieler, und eine Palette, die dort mitten in
     // der Luft hinge, gehörte niemandem.
@@ -2938,12 +2952,14 @@ export abstract class GridWorld extends PortalWorld {
     this.showFootprints(ctx);
     this.showCellHitboxes(dt, ctx);
     this.stepWallGhosts(ctx);
+    this.stepLampSave();
     // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen
     // wird, sein Bild zum Aufbauen des Menüs bekommt (siehe `openReading`).
     if (this.openReading) {
       this.openReading = false;
       ctx.menu.openSubmenu(SIGN_PAGE);
     }
+    this.stepInspect(ctx);
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -3003,11 +3019,27 @@ export abstract class GridWorld extends PortalWorld {
   /** Nach _Zurücksetzen_: kein Speichern mehr aus dieser Welt (`forgetStored`). */
   private storeClosed = false;
 
+  /** Die Lampen für die Datei — nur, wenn das Buch dieser Welt gehört. */
+  private lampFile(): WorldLamps | undefined {
+    return lampBook.ownedBy(this) ? lampBook.save() : undefined;
+  }
+
+  /** Abmelden vom Lampenbuch. */
+  private stopLamps: (() => void) | null = null;
+  /** Wann nach einer Änderung an den Lampen gespeichert wird (`performance.now`) — 0: nichts offen. */
+  private lampSaveAt = 0;
+
+  /** **Gespeichert wird kurz nach der letzten Änderung** — fünf Klicks sind ein Schreiben. */
+  private stepLampSave(): void {
+    if (this.lampSaveAt > 0 && performance.now() >= this.lampSaveAt) this.saveWorld(true);
+  }
+
   /** Den Stand in den Browser schreiben. Sagt, ob es geklappt hat. */
   protected saveWorld(quiet = false): boolean {
     const plan = this.grid;
     if (!plan || this.storeClosed) return false;
-    const ok = keepWorld(this.worldId(), plan, { name: this.worldName() });
+    this.lampSaveAt = 0;
+    const ok = keepWorld(this.worldId(), plan, { name: this.worldName(), lamps: this.lampFile() });
     if (!quiet) {
       this.announce(ok ? 'Welt gespeichert' : 'Kein Speicher da — nimm den Export');
     }
@@ -3025,6 +3057,7 @@ export abstract class GridWorld extends PortalWorld {
     const plan = this.grid;
     if (!plan) return;
     forgetWorld(this.worldId());
+    lampBook.load(undefined, this);
     const fresh = this.layout();
     this.planReady(fresh);
     plan.restore(
@@ -3042,7 +3075,11 @@ export abstract class GridWorld extends PortalWorld {
     const plan = this.grid;
     if (!plan) return;
     try {
-      const name = downloadWorld(plan, { world: this.worldId(), name: this.worldName() });
+      const name = downloadWorld(plan, {
+        world: this.worldId(),
+        name: this.worldName(),
+        lamps: this.lampFile(),
+      });
       this.announce(`Exportiert: ${name}`);
     } catch {
       this.announce('Export ging nicht — der Browser lässt keinen Download zu');
@@ -3067,6 +3104,7 @@ export abstract class GridWorld extends PortalWorld {
         return;
       }
       plan.restore(result.graph, result.blocks, result.masses, result.fixtures, result.slopes);
+      lampBook.load(result.lamps, this);
       this.planLoaded(plan);
       this.saveWorld(true);
       this.announce(`Geladen: ${result.file.name ?? result.file.world ?? 'Welt'}`);
@@ -3139,6 +3177,13 @@ export abstract class GridWorld extends PortalWorld {
   }
 
   override dispose(ctx: WorldContext): void {
+    if (this.lampSaveAt > 0) this.saveWorld(true);
+    this.stopLamps?.();
+    this.stopLamps = null;
+    this.unbindInspect?.();
+    this.unbindInspect = null;
+    this.inspecting = null;
+    lampBook.release(this);
     // **Wer die Welt verlässt, während die Karte noch draußen ist**, hat nicht
     // aufgehört zu bauen — er ist woandershin gegangen. Ungefragt gespeichert
     // wird nur dieser Fall: Sonst bekäme jede Welt, die man einmal betreten
@@ -3209,7 +3254,8 @@ export abstract class GridWorld extends PortalWorld {
    */
   override menu(): MenuEntry[] {
     const rows = super.menu();
-    const base = this.editor ? [this.storeMenu(), ...rows] : rows;
+    const withStore = this.editor ? [this.storeMenu(), ...rows] : rows;
+    const base = this.inspecting ? [this.inspectPage(this.inspecting), ...withStore] : withStore;
     const open = this.reading;
     if (!open) return base;
     // **Ganz oben**, weil es der Grund ist, aus dem das Menü gerade aufging.
@@ -3224,6 +3270,185 @@ export abstract class GridWorld extends PortalWorld {
       },
       ...base,
     ];
+  }
+
+  // --- das Element-Menü im Einrichten ----------------------------------------
+
+  /** Was zuletzt angeklickt wurde — die Seite `INSPECT_PAGE` zeigt es. */
+  private inspecting: InspectTarget | null = null;
+  /**
+   * **In wie vielen Bildern aufschlagen** — 0: nicht. Der Baum steht erst am
+   * Ende eines Bildes (`readAloud`), und ein Klick kommt zwischen zwei Bildern
+   * an: Im ersten wird gebaut, im zweiten aufgeschlagen.
+   */
+  private openInspecting = 0;
+  private unbindInspect: (() => void) | null = null;
+
+  /**
+   * **Die Seite zum angeklickten Element** — versteckt im Menü (`hidden`), nur
+   * über ihre Id aufzuschlagen (`openSubmenu`), wie _Aussehen_.
+   */
+  private inspectPage(target: InspectTarget): MenuEntry {
+    const ctx = this.context;
+    return {
+      id: INSPECT_PAGE,
+      label: inspectTitle(target),
+      sub: 'Was es ist und wie es eingestellt ist',
+      icon: target.lamp ? 'lamp' : 'sign',
+      accent: 0xe0b04a,
+      hidden: true,
+      children: inspectRows(target, {
+        lamps: () => lampsInScene()?.instances() ?? [],
+        burns: (lamp) => {
+          const settings = graphics();
+          return lampBurns(
+            lampBook.resolve(lamp.type, lamp.key),
+            settings.weatherTime !== 'day',
+            settings.streetLights,
+          );
+        },
+        notify: (message) => ctx?.notify(message),
+        closeMenu: () => ctx?.menu.toggle(false),
+      }),
+    };
+  }
+
+  /**
+   * **Was ein Strahl im Einrichten trifft** — eine Lampe oder ein Spielelement
+   * — und dessen Seite aufschlagen. Nur im _Einrichten_ und im _Baukasten_
+   * (`movesFurniture`); beim _Spielen_ gehören Klick und Trigger dem Spiel.
+   *
+   * Eine Lampe gewinnt, wenn sie nicht deutlich hinter dem Element liegt:
+   * Laternen stehen als Teil auf Straßenstücken, und wer auf die Laterne
+   * zielt, meint sie und nicht die Straße.
+   *
+   * @returns ob etwas getroffen wurde — dann gehört die Taste dem Menü
+   */
+  protected inspectAt(ctx: WorldContext, ray: THREE.Ray): boolean {
+    if (!movesFurniture(gameMode())) return false;
+    const lamps = lampsInScene();
+    // Frisch abgesucht: Was eben erst hingestellt wurde, soll auch zu treffen sein.
+    lamps?.rescan();
+    const lamp = lamps?.pick(ray) ?? null;
+    const lampDistance = lamp
+      ? lamps!.worldBox(lamp, _inspectBox).distanceToPoint(ray.origin)
+      : Infinity;
+    const element = this.pickElement(ctx, ray);
+    let target: InspectTarget | null = null;
+    if (lamp && (!element || lampDistance <= element.distance + 0.5)) {
+      target = { lamp, element: elementAbove(lamp.object) };
+    } else if (element) {
+      target = { lamp: null, element: element.object };
+    }
+    if (!target) return false;
+    this.inspecting = target;
+    this.openInspecting = 2;
+    ctx.refreshWorldMenu();
+    return true;
+  }
+
+  /** Das nächste Spielelement, dessen Kasten der Strahl schneidet. */
+  private pickElement(
+    ctx: WorldContext,
+    ray: THREE.Ray,
+  ): { object: THREE.Object3D; distance: number } | null {
+    let best: { object: THREE.Object3D; distance: number } | null = null;
+    ctx.scene.traverseVisible((object) => {
+      if (typeof object.userData.elementId !== 'string') return;
+      _inspectBox.setFromObject(object);
+      if (_inspectBox.isEmpty()) return;
+      const hit = ray.intersectBox(_inspectBox, _inspectHit);
+      if (!hit) return;
+      const distance = hit.distanceTo(ray.origin);
+      if (distance > INSPECT_REACH || (best && best.distance <= distance)) return;
+      best = { object, distance };
+    });
+    return best;
+  }
+
+  /** Aufschlagen, was angeklickt wurde, und in der Brille den Trigger abfragen. */
+  private stepInspect(ctx: WorldContext): void {
+    if (this.openInspecting > 0 && --this.openInspecting === 0) {
+      ctx.menu.openSubmenu(INSPECT_PAGE);
+    }
+    // **In der Brille der Trigger** — mit leerer Hand, nicht aufs Menü gezeigt.
+    if (!ctx.renderer.xr.isPresenting || ctx.menu.isOpen || !movesFurniture(gameMode())) return;
+    for (const controller of ctx.input.controllers) {
+      const hand = controller.handedness;
+      if (!hand || !controller.trigger.justPressed) continue;
+      if (!this.handFree(hand) || ctx.pointer.hoveringWith(hand)) continue;
+      controller.getRay(_inspectRay);
+      if (this.inspectAt(ctx, _inspectRay)) return;
+    }
+  }
+
+  /**
+   * **Rechtsklick am Schirm, langes Drücken am Handy.** Gehorcht wird in der
+   * Fangphase, noch vor dem Kran und dem Portal: Trifft der Klick ein Element,
+   * gehört er dem Menü und geht nicht weiter (`stopImmediatePropagation`);
+   * trifft er nichts, ist er der Rechtsklick von vorher — Kran leeren,
+   * Abrissbombe, Portal B. Mit etwas am Haken ebenso: Dann leert er den Kran.
+   */
+  private bindInspect(ctx: WorldContext): void {
+    const canvas = ctx.renderer.domElement;
+    let claimed = 0;
+    let hold: { id: number; x: number; y: number; timer: number } | null = null;
+    const aim = (x: number, y: number): boolean => {
+      if (ctx.renderer.xr.isPresenting || !movesFurniture(gameMode())) return false;
+      if (!this.handFree('left') || !this.handFree('right')) return false;
+      const box = canvas.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) return false;
+      _inspectNdc.set(((x - box.left) / box.width) * 2 - 1, -((y - box.top) / box.height) * 2 + 1);
+      const camera = ctx.viewCamera ?? ctx.camera;
+      camera.updateMatrixWorld();
+      _inspectCaster.setFromCamera(_inspectNdc, camera);
+      return this.inspectAt(ctx, _inspectCaster.ray);
+    };
+    const cancelHold = (): void => {
+      if (hold) window.clearTimeout(hold.timer);
+      hold = null;
+    };
+    const down = (event: PointerEvent): void => {
+      if (event.pointerType === 'touch') {
+        cancelHold();
+        const start = { id: event.pointerId, x: event.clientX, y: event.clientY, timer: 0 };
+        start.timer = window.setTimeout(() => {
+          hold = null;
+          if (aim(start.x, start.y)) navigator.vibrate?.(30);
+        }, LONG_PRESS_MS);
+        hold = start;
+        return;
+      }
+      if (event.button !== 2 || !aim(event.clientX, event.clientY)) return;
+      claimed = performance.now();
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const move = (event: PointerEvent): void => {
+      if (!hold || event.pointerId !== hold.id) return;
+      if (Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > LONG_PRESS_SLOP)
+        cancelHold();
+    };
+    // Auf das `pointerdown` folgt ein `mousedown` derselben Taste — das gehört dann auch dem Menü.
+    const mouse = (event: MouseEvent): void => {
+      if (event.button === 2 && performance.now() - claimed < 400) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+    canvas.addEventListener('pointerdown', down, true);
+    canvas.addEventListener('pointermove', move, true);
+    canvas.addEventListener('pointerup', cancelHold, true);
+    canvas.addEventListener('pointercancel', cancelHold, true);
+    canvas.addEventListener('mousedown', mouse, true);
+    this.unbindInspect = () => {
+      cancelHold();
+      canvas.removeEventListener('pointerdown', down, true);
+      canvas.removeEventListener('pointermove', move, true);
+      canvas.removeEventListener('pointerup', cancelHold, true);
+      canvas.removeEventListener('pointercancel', cancelHold, true);
+      canvas.removeEventListener('mousedown', mouse, true);
+    };
   }
 
   // --- welche Etage von oben zu sehen ist -----------------------------------
@@ -3549,6 +3774,27 @@ const GHOST_OPACITY = 0.25;
  * ihre Blätterstellung (`ui/menuNav.ts`).
  */
 const SIGN_PAGE = 'grid:sign';
+/** Wie lange nach der letzten Änderung an einer Lampe gespeichert wird, in Sekunden. */
+const LAMP_SAVE_DELAY = 0.8;
+/** Wie weit ein Klick im Einrichten ein Element trifft, in Metern. */
+const INSPECT_REACH = 120;
+/** Wie lange ein Finger liegen muss, bis das Element-Menü aufgeht. */
+const LONG_PRESS_MS = 550;
+/** Wie weit er dabei wandern darf, in Bildpunkten — mehr ist Ziehen. */
+const LONG_PRESS_SLOP = 12;
+const _inspectBox = new THREE.Box3();
+const _inspectHit = new THREE.Vector3();
+const _inspectRay = new THREE.Ray();
+const _inspectNdc = new THREE.Vector2();
+const _inspectCaster = new THREE.Raycaster();
+
+/** Die Hülle des Spielelements, in dem ein Ding steht — oder `null`. */
+function elementAbove(object: THREE.Object3D): THREE.Object3D | null {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+    if (typeof node.userData.elementId === 'string') return node;
+  }
+  return null;
+}
 
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();

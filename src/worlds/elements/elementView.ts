@@ -150,6 +150,10 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
 
   const anchor = new THREE.Group();
   anchor.name = `element:${spot.id}`;
+  // Was hier steht — für das Element-Menü im Einrichten (`grid/inspectMenu.ts`)
+  // und den Schlüssel seiner Lampen (`core/Lamps.ts`).
+  anchor.userData.elementId = element.id;
+  anchor.userData.elementSpot = spot.id;
   const front = spotFront(spot);
   anchor.position.set(front.x + sx, ground, front.z + sz);
   // Damit es mit seiner Etage verschwindet (`core/cutaway.ts`), wie die
@@ -249,6 +253,12 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
       return;
     }
     if (one.holder && level > 0) one.holder.userData.level = level;
+    // Die Teile stehen neben dem Anker in der Welt, nicht darin — also sagt
+    // jedes selbst, zu wem es gehört (Element-Menü, Schlüssel der Lampen).
+    if (one.holder) {
+      one.holder.userData.elementId = element.id;
+      one.holder.userData.elementSpot = spot.id;
+    }
     if (one.holder && one.holder.parent === null) host.add(one.holder);
     laid.push(one);
     views.push(one.holder);
