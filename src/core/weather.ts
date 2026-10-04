@@ -90,6 +90,25 @@ export interface WeatherSettings {
   weatherFilter: WeatherFilter;
   /** Der Hauptschalter aller Lampen (`core/Lamps.ts`). */
   streetLights: StreetLightMode;
+  /**
+   * **Sichtweite im Nebel**, in Metern: ab hier ist der Nebel voll — bei
+   * _Dicht_ ist dahinter nichts mehr zu sehen. Gewünscht: _„Ggf etwas weiter
+   * als 11m auch ggf. zum einstellen +-m Nebel. Default bei Nebel 20m"_.
+   */
+  fogRange: number;
+}
+
+/** Die Sichtweite im Nebel: ab Werk, Schritt und Grenzen (m). */
+export const FOG_RANGE_DEFAULT = 20;
+export const FOG_RANGE_STEP = 5;
+export const FOG_RANGE_MIN = 10;
+export const FOG_RANGE_MAX = 60;
+
+/** Die Sichtweite auf erlaubte Werte gebracht — ganze Schritte zwischen den Grenzen. */
+export function clampFogRange(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return FOG_RANGE_DEFAULT;
+  const stepped = Math.round(raw / FOG_RANGE_STEP) * FOG_RANGE_STEP;
+  return Math.min(FOG_RANGE_MAX, Math.max(FOG_RANGE_MIN, stepped));
 }
 
 /**
@@ -123,10 +142,11 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   weatherTime: 'day',
   weatherFilter: 'off',
   streetLights: 'auto',
+  fogRange: FOG_RANGE_DEFAULT,
 };
 
 /** **Spukstadt** — die Abkürzung zum Bild aus dem Wunsch: Nacht, lila Nebel, lila Filter. */
-export const SPOOKY_TOWN: WeatherSettings = {
+export const SPOOKY_TOWN: Omit<WeatherSettings, 'fogRange'> = {
   weatherFog: 'spooky',
   weatherTime: 'night',
   weatherFilter: 'violet',
@@ -148,6 +168,7 @@ export function clampWeather(raw: Partial<WeatherSettings>): WeatherSettings {
     streetLights: STREET_LIGHT_MODES.includes(raw.streetLights as StreetLightMode)
       ? (raw.streetLights as StreetLightMode)
       : DEFAULT_WEATHER.streetLights,
+    fogRange: clampFogRange(raw.fogRange),
   };
 }
 
@@ -183,6 +204,18 @@ export interface WeatherLook {
   fogStrength: number;
   /** Wie stark der Nebel wabert (0 = gleichmäßig). */
   fogSwirl: number;
+  /** Bis wohin um die Figur herum klar, und ab wo voll (m, am Schirm und in der Brille). */
+  fogClear: number;
+  fogFull: number;
+  /** Wie hoch über dem Boden er dicht liegt (m) — darüber dünnt er aus. */
+  fogHeight: number;
+  /** Wie viel Nebel unabhängig von der Höhe liegt, 0–1 — bei _Dicht_ verschwinden auch Häuser. */
+  fogBase: number;
+  /**
+   * Ob alles hinter dem Nebel unsichtbar ist — dann darf die Brille am Boden
+   * dort aufhören zu zeichnen (`weatherXr.ts`).
+   */
+  fogOpaque: boolean;
   saturation: number;
   contrast: number;
   tint: Rgb;
@@ -196,11 +229,66 @@ const LIGHT: Readonly<Record<WeatherTime, Rgb>> = {
   night: [0.4, 0.44, 0.66],
 };
 
-const FOG: Readonly<Record<WeatherFog, { color: Rgb; strength: number; swirl: number }>> = {
-  off: { color: [0, 0, 0], strength: 0, swirl: 0 },
-  haze: { color: [0.62, 0.64, 0.68], strength: 0.3, swirl: 0.4 },
-  dense: { color: [0.55, 0.57, 0.62], strength: 0.6, swirl: 0.7 },
-  spooky: { color: [0.46, 0.27, 0.78], strength: 0.62, swirl: 1 },
+interface FogKind {
+  color: Rgb;
+  strength: number;
+  swirl: number;
+  clear: number;
+  full: number;
+  height: number;
+  base: number;
+  opaque: boolean;
+}
+
+/**
+ * **Die Nebel.** _Dicht_ ist kein Wetter, sondern ein Spielmittel: Gewünscht
+ * war _„bei dichtem Nebel es wirklich sehr dicht machen, also so dass man es
+ * dann nicht mehr erkennen kann? Aktuell mag es zwar realistisch sein, aber
+ * für ein Spiel passt es nicht."_ Also deckend, nach neun Metern ist nichts
+ * mehr zu sehen, auch kein Haus (`base`), und um die Figur bleibt nur ein
+ * kleiner klarer Kreis.
+ */
+const FOG: Readonly<Record<WeatherFog, FogKind>> = {
+  off: {
+    color: [0, 0, 0],
+    strength: 0,
+    swirl: 0,
+    clear: 5,
+    full: 20,
+    height: 1.6,
+    base: 0.15,
+    opaque: false,
+  },
+  haze: {
+    color: [0.62, 0.64, 0.68],
+    strength: 0.3,
+    swirl: 0.4,
+    clear: 5,
+    full: 20,
+    height: 1.6,
+    base: 0.15,
+    opaque: false,
+  },
+  dense: {
+    color: [0.55, 0.57, 0.62],
+    strength: 1,
+    swirl: 0.35,
+    clear: 2.5,
+    full: 9,
+    height: 8,
+    base: 1,
+    opaque: true,
+  },
+  spooky: {
+    color: [0.46, 0.27, 0.78],
+    strength: 0.62,
+    swirl: 1,
+    clear: 5,
+    full: 20,
+    height: 1.6,
+    base: 0.15,
+    opaque: false,
+  },
 };
 
 const FILTER: Readonly<
@@ -252,15 +340,16 @@ export function weatherLook(
     fogColor: [fog.color[0] * fogLight, fog.color[1] * fogLight, fog.color[2] * fogLight],
     fogStrength: fog.strength,
     fogSwirl: fog.swirl,
+    // Die Sichtweite setzt, wo der Nebel voll ist; der klare Kreis um die Figur
+    // geht im selben Verhältnis mit.
+    fogClear: fog.clear * (clampFogRange(settings.fogRange) / fog.full),
+    fogFull: clampFogRange(settings.fogRange),
+    fogHeight: fog.height,
+    fogBase: fog.base,
+    fogOpaque: fog.opaque,
     saturation: filter.saturation,
     contrast: filter.contrast,
     tint: filter.tint,
     vignette: filter.vignette,
   };
 }
-
-/** Bis wohin um die Figur herum kein Nebel liegt, und ab wo er voll ist (m). */
-export const WEATHER_CLEAR_RADIUS = 5;
-export const WEATHER_FULL_RADIUS = 20;
-/** Wie hoch über dem eigenen Boden der Nebel dicht liegt (m) — darüber dünnt er aus. */
-export const WEATHER_FOG_HEIGHT = 1.6;

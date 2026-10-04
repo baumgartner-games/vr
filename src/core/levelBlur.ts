@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 import type { ViewLevel } from './cutaway';
-import {
-  WEATHER_CLEAR_RADIUS,
-  WEATHER_FOG_HEIGHT,
-  WEATHER_FULL_RADIUS,
-  type WeatherLook,
-} from './weather';
+import type { WeatherLook } from './weather';
 
 /**
  * **Die Etagen darunter, unscharf** — von oben, sobald man über einer steht.
@@ -142,6 +137,7 @@ uniform float wKeepBright;
 uniform vec3 wFogColor;
 uniform float wFogStrength;
 uniform float wFogSwirl;
+uniform vec4 wFogShape;
 uniform float wSaturation;
 uniform float wContrast;
 uniform vec3 wTint;
@@ -186,14 +182,16 @@ vec3 applyWeather(vec3 color, vec2 uv) {
   if (wFogStrength > 0.0) {
     float depth = texture2D(tDepth, uv).x;
     float amount;
+    // wFogShape: klar bis x, voll ab y (m um die Figur), dicht bis z über dem
+    // Boden, w liegt unabhängig von der Höhe (\`weather.FOG\`).
     if (depth >= 0.99999) {
-      amount = wFogStrength * 0.85;
+      amount = wFogStrength * mix(0.85, 1.0, wFogShape.w);
     } else {
       vec3 p = worldAt(uv, depth);
-      float lying = exp(-max(0.0, p.y - wPlayer.y) / ${WEATHER_FOG_HEIGHT.toFixed(3)});
-      float away = smoothstep(${WEATHER_CLEAR_RADIUS.toFixed(3)}, ${WEATHER_FULL_RADIUS.toFixed(3)}, distance(p.xz, wPlayer.xz));
+      float lying = exp(-max(0.0, p.y - wPlayer.y) / wFogShape.z);
+      float away = smoothstep(wFogShape.x, wFogShape.y, distance(p.xz, wPlayer.xz));
       float s = mix(1.0, smoothstep(0.2, 0.8, swirl(p.xz)) * 1.5, wFogSwirl);
-      amount = wFogStrength * away * clamp(lying * s + 0.15, 0.0, 1.0);
+      amount = wFogStrength * away * clamp(lying * s + wFogShape.w, 0.0, 1.0);
     }
     color = mix(color, wFogColor, clamp(amount, 0.0, 1.0));
   }
@@ -267,6 +265,7 @@ export class LevelBlur {
       wFogColor: { value: new THREE.Vector3() },
       wFogStrength: { value: 0 },
       wFogSwirl: { value: 0 },
+      wFogShape: { value: new THREE.Vector4(5, 20, 1.6, 0.15) },
       wSaturation: { value: 1 },
       wContrast: { value: 1 },
       wTint: { value: new THREE.Vector3(1, 1, 1) },
@@ -346,6 +345,12 @@ export class LevelBlur {
       (uniforms['wFogColor']!.value as THREE.Vector3).set(...weather.fogColor);
       uniforms['wFogStrength']!.value = weather.fogStrength;
       uniforms['wFogSwirl']!.value = weather.fogSwirl;
+      (uniforms['wFogShape']!.value as THREE.Vector4).set(
+        weather.fogClear,
+        weather.fogFull,
+        weather.fogHeight,
+        weather.fogBase,
+      );
       uniforms['wSaturation']!.value = weather.saturation;
       uniforms['wContrast']!.value = weather.contrast;
       (uniforms['wTint']!.value as THREE.Vector3).set(...weather.tint);
