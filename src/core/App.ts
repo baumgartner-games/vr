@@ -136,6 +136,8 @@ import {
 } from './graphicsSettings';
 import { LevelBlur, levelBlurPlan } from './levelBlur';
 import { DAY_MODE_LABELS, dayClock } from './dayClock';
+import { BASE_EXPOSURE, WeatherXr } from './weatherXr';
+import { ViewLights } from './viewLights';
 import {
   SPOOKY_TOWN,
   WEATHER_FILTER_LABELS,
@@ -234,6 +236,7 @@ const CAMERA_FAR = 700;
 const _head = new THREE.Matrix4();
 const _headLocal = new THREE.Matrix4();
 const _headPos = new THREE.Vector3();
+const _eye = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
 const _keyRotation = new THREE.Quaternion();
 const _keyOffset = new THREE.Vector3();
@@ -408,6 +411,10 @@ export class App {
    * Speicher liest.
    */
   private readonly levelBlur: LevelBlur;
+  /** Nebel und Nacht in der Brille, wo der Durchgang fehlt (`core/weatherXr.ts`). */
+  private readonly weatherXr = new WeatherXr();
+  /** Lichter im Maßstab des Gestells, im Weltbau der Brille (`core/viewLights.ts`). */
+  private readonly viewLights = new ViewLights();
   private levelBlurOn = graphics().levelBlur;
   private levelBlurAboveOn = graphics().levelBlurAbove;
   private readonly stopLevelBlur: () => void;
@@ -502,7 +509,7 @@ export class App {
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = BASE_EXPOSURE;
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType('local-floor');
 
@@ -4187,13 +4194,28 @@ export class App {
     );
     // **Und das Wetter** (`core/weather.ts`) fährt im selben Durchgang mit —
     // Nebel, Tageszeit und Filter, nur am Schirm.
-    const weather = weatherLook(graphics(), presenting, dayClock.active ? dayClock.hour : null);
+    const clockHour = dayClock.active ? dayClock.hour : null;
+    const weather = weatherLook(graphics(), presenting, clockHour);
+    // **In der Brille** gibt es den Durchgang nicht — dort Nebel und Nacht ohne
+    // ihn (`core/weatherXr.ts`), im Weltbau im Maßstab des Gestells.
+    this.weatherXr.apply(
+      this.scene,
+      this.renderer,
+      presenting ? weatherLook(graphics(), false, clockHour) : null,
+      this.rig.scale.x,
+      // Die Augenhöhe in Metern der Welt — im Weltbau weit über dem Boden.
+      this.rig.getHeadPosition(_eye).y - this.rig.getFloorY(),
+    );
     const pass = blur !== null || weather !== null;
     if (pass) this.levelBlur.begin();
+    // **Im Weltbau der Brille ist das Gestell zehnfach groß** — die Lichter
+    // werden für dieses Bild in seinen Maßstab umgerechnet (`core/viewLights.ts`).
+    this.viewLights.scale(this.scene, presenting ? this.rig.scale.x : 1);
     try {
       const rendered = this.world?.render?.(viewContext) ?? false;
       if (!rendered) this.renderer.render(this.scene, view);
     } finally {
+      this.viewLights.restore();
       // Auch nach einem Fehler im Bild: Ein Ziel, das stehen bleibt, ist ein schwarzer Schirm.
       if (pass) this.levelBlur.end(view, blur, weather, this.rig.position, this.elapsed);
     }

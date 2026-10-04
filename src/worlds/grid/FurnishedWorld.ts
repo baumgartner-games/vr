@@ -609,6 +609,17 @@ export abstract class FurnishedWorld extends GridWorld {
    * Weltänderungen unter derselben Zeile. Die Straße mit Laternen wird so zur
    * Straße mit alten Laternen.
    */
+  /** Die nächste Fassung an dieser Stelle — für das Element-Menü (`GridWorld.inspectAt`). */
+  protected override swapOf(spot: string): string | null {
+    return this.placed.find((one) => one.spot.id === spot)?.element.swap ?? null;
+  }
+
+  /** Das Element an dieser Stelle tauschen — aus dem Element-Menü. */
+  protected override swapAt(spot: string): void {
+    const placed = this.placed.find((one) => one.spot.id === spot);
+    if (placed) this.swapElement(placed.anchor);
+  }
+
   private swapElement(anchor: THREE.Object3D): void {
     const placed = this.placed.find((one) => one.anchor === anchor);
     const next = placed?.element.swap;

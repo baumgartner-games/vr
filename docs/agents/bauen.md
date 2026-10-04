@@ -147,8 +147,8 @@ der richtigen Position landet"_.
   Teile laden neu und stünden sonst schon unten; die Etage gilt dabei vom
   Loslassen (`buildLevel` → `furnishAt(…, level)`), und im _Baukasten_ liegt
   die nächste Kopie sofort in der Hand.
-- **Die Bewegung** (`FallMotion`): Schwerkraft mal Gestellgröße (der Riese
-  sieht eine Kiste so schnell fallen wie ein Mensch eine kleine), Schwung der
+- **Die Bewegung** (`FallMotion`): eine gemächliche Schwere (`FALL_GRAVITY`,
+  knapp die halbe Erde) mal der **Wurzel** der Gestellgröße, Schwung der
   Hand, Drall aus der Schräglage beim Loslassen plus etwas Zufall; gelenkt
   wird waagerecht auf den Platz. Aufgekommen ist sie, wenn die tiefste Ecke
   des gedrehten Kastens den Boden berührt. **Dann springt sie** so hoch, wie
@@ -157,8 +157,12 @@ der richtigen Position landet"_.
   — und bleibt genau dort liegen, wo sie ohne Optik stünde. Gewünscht:
   _„beim Aufprall eher wie ein [Sprung] so hoch, wie das Objekt ist ×1,5,
   und in diesem Hochspringen dann in der Luft drehen, sodass es beim
-  Runterfallen am Ende korrekt wieder liegen bleibt."_ Höchstens drei
-  Sekunden; wer sie unterwegs wieder greift, beendet den Fall.
+  Runterfallen am Ende korrekt wieder liegen bleibt."_ **Der Sprung hat eine
+  feste Dauer** (`HOP_TIME`, 1,15 s) und keine Schwerkraft: eine Parabel nach
+  der Zeit. Gemeldet: _„ist zu schnell, das hochspringen und drehen kann ruhig
+  langsamer passieren, muss nicht mit echter gravitation passieren"_ — mit
+  echter Schwere mal zehn war der Sprung im Weltbau eine Viertelsekunde lang.
+  Höchstens sechs Sekunden; wer sie unterwegs wieder greift, beendet den Fall.
 
 **Etagen aus der Luft: die Hand sagt, welche** (Oktober 2026). Gewünscht:
 _„Überleg dir wie ich Ebenen wechsel, oder wenn es z. B. das Dach bei

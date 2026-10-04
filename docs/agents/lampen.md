@@ -192,21 +192,22 @@ diese Dreh Lichter."_
   Licht; die roten Drehleuchten in den Gängen laufen wie vorher
   (`applyBeacons`); und `lampBook.alarm` dreht die Lampen mit Notlicht rot.
 
-## Im Spiel antippen
+## Lampen ändert man nur im Einrichten
 
-Gewünscht: _„wie eine Tisch Lampe die man manuell an und aus schalten will"_.
-Was **schaltbar** ist (`LampType.switchable`: Steh-, Tisch- und
-Schreibtischlampen, Kerzen, Fackeln, kleine Laternen, der Kürbis — nicht
-Straßenlaternen, Ampeln, Lichtmast), meldet `GridWorld.stepLampUses` einmal je
-Sekunde als **Usable** an (`aimOnly`). Beim _Spielen_ legt `A`, `E` oder der
-Trigger sie um: Sie bekommt den Betrieb _Schalter_ mit der Stellung, die sie
-gerade nicht hat — das steht im Buch und damit in der Weltdatei. Im
-_Einrichten_ und _Baukasten_ gehört der Trigger dem Element-Menü.
+Eine Zeit lang ließen sich schaltbare Lampen beim _Spielen_ mit `A`, `E` oder
+dem Trigger umlegen, und an den Straßenstücken tauschte ein Druck auf die
+Laterne ihre Fassung (`opens: 'swap'`). Beides ist wieder heraus. Gemeldet:
+_„Die lampen zu ändern soll nicht im spiel modus gehen und auch nicht wenn ich
+dagegen laufe. In vr verschwindet sogar das straßen teil wenn ich gegen die
+laterne gehe."_ Das Tauschen baute das ganze Straßenstück neu auf
+(`FurnishedWorld.swapElement`) — und in der Brille genügte die Hand an der
+Laterne, um es Bild für Bild wieder abzuräumen.
 
-Nicht antippen lassen sich Lampen in **gebündelter Deko** (`staticDecor`,
-etwa die Stehlampen im Hub und im Burgerladen): Ihre Netze sind dort
-unsichtbar, und ein Usable mit versteckter Geometrie gilt nicht
-(`core/usable.usableShows`). Leuchten tun sie trotzdem.
+Seitdem: **Lampen und Fassungen nur über das Element-Menü** im _Einrichten_ und
+_Baukasten_. Die Fassung steht dort als _Fassung tauschen → …_
+(`inspectMenu.inspectRows`, `GridWorld.swapOf`/`swapAt`, in
+`FurnishedWorld` über die Stelle des Elements); der Betrieb _Schalter_ wird im
+Menü umgelegt. `stationLayer.add` meldet für `opens: 'swap'` nichts mehr an.
 
 ## Was noch kommt
 

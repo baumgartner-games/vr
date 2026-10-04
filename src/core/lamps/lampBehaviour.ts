@@ -40,7 +40,7 @@ export const LAMP_MODE_SUBS: Readonly<Record<LampMode, string>> = {
   night: 'Geht am Abend und in der Nacht an, am Tag aus',
   on: 'Brennt immer, auch am Tag',
   off: 'Bleibt dunkel',
-  switch: 'Wie ihr Schalter steht — von Hand an und aus, auch im Spiel antippen',
+  switch: 'Wie ihr Schalter steht — umlegen hier im Element-Menü',
   controlled: 'Folgt der Welt — in der Station dem Board ihres Raums; wo nichts steuert, dunkel',
 };
 

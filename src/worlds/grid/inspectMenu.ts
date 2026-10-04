@@ -43,6 +43,12 @@ export interface InspectHost {
   notify(message: string): void;
   /** Das Menü zu, damit man sieht, was markiert ist. */
   closeMenu(): void;
+  /**
+   * **Die nächste Fassung** eines Elements, das sich tauschen lässt (Straße
+   * mit Laternen, `GameElement.swap`) — `null`: keine. `swap` tauscht.
+   */
+  swapOf(spot: string): string | null;
+  swap(spot: string): void;
 }
 
 /** Die Id der Seite — sie hängt versteckt im Menü und wird aufgeschlagen (`openSubmenu`). */
@@ -66,6 +72,23 @@ export function elementIdOf(object: THREE.Object3D | null): string | null {
 /** **Die Zeilen der Seite** — oben, was es ist; darunter, bei einer Lampe, ihr Licht. */
 export function inspectRows(target: InspectTarget, host: InspectHost): MenuEntry[] {
   const rows: MenuEntry[] = [...infoRows(target)];
+  // **Fassung tauschen** — früher ein Druck auf die Laterne im Vorbeigehen,
+  // jetzt nur hier: im Einrichten, gewollt (`stationLayer.add`).
+  const spot = target.element?.userData.elementSpot;
+  const next = typeof spot === 'string' ? host.swapOf(spot) : null;
+  if (typeof spot === 'string' && next && hasElement(next)) {
+    rows.push({
+      id: `${INSPECT_PAGE}:swap`,
+      label: `Fassung tauschen → ${elementById(next).label}`,
+      sub: 'Dieselbe Stelle, die nächste Fassung — reihum',
+      icon: 'lamp',
+      accent: ACCENT,
+      run: () => {
+        host.closeMenu();
+        host.swap(spot);
+      },
+    });
+  }
   if (target.lamp) rows.push(...lampRows(target.lamp, host));
   return rows;
 }
