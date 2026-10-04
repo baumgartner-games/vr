@@ -135,6 +135,7 @@ import {
   saveGraphics,
 } from './graphicsSettings';
 import { LevelBlur, levelBlurPlan } from './levelBlur';
+import { DAY_MODE_LABELS, dayClock } from './dayClock';
 import {
   SPOOKY_TOWN,
   WEATHER_FILTER_LABELS,
@@ -3174,8 +3175,14 @@ export class App {
         },
         {
           id: 'gfx:weather-time',
-          label: `Tageszeit: ${WEATHER_TIME_LABELS[settings.weatherTime]}`,
-          sub: WEATHER_TIME_SUBS[settings.weatherTime],
+          // Hat die Welt einen Tageslauf (`core/dayClock.ts`), stellt der die
+          // Uhr — die Zeile sagt es, statt still nichts zu tun.
+          label: dayClock.active
+            ? 'Tageszeit: folgt dem Tageslauf der Welt'
+            : `Tageszeit: ${WEATHER_TIME_LABELS[settings.weatherTime]}`,
+          sub: dayClock.active
+            ? `Diese Welt: ${DAY_MODE_LABELS[dayClock.settings.mode]} · umstellen unter Welten → Tageslauf`
+            : WEATHER_TIME_SUBS[settings.weatherTime],
           caption: 'Tag → Abend → Nacht',
           icon: 'sphere',
           accent,
@@ -4048,6 +4055,8 @@ export class App {
     this.lastTime = seconds;
     this.elapsed += dt;
     const presenting = this.renderer.xr.isPresenting;
+    // **Der Tageslauf der Welt** (`core/dayClock.ts`) — vor allem, was Licht macht.
+    dayClock.tick(dt);
 
     this.input.update();
     this.handVisuals.update(dt);
@@ -4178,7 +4187,7 @@ export class App {
     );
     // **Und das Wetter** (`core/weather.ts`) fährt im selben Durchgang mit —
     // Nebel, Tageszeit und Filter, nur am Schirm.
-    const weather = weatherLook(graphics(), presenting);
+    const weather = weatherLook(graphics(), presenting, dayClock.active ? dayClock.hour : null);
     const pass = blur !== null || weather !== null;
     if (pass) this.levelBlur.begin();
     try {

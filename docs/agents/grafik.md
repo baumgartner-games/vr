@@ -951,6 +951,44 @@ die Vorlage aussieht: Laternen und Fenster, die nachts **wirklich** leuchten —
 das braucht Lichter oder leuchtende Materialien in den Welten, nicht den
 Durchgang.
 
+### Tageslauf: wie der Tag in einer Welt voranschreitet
+
+Gewünscht: _„Restaurant-Runde, die von selbst Abend wird, bitte auch. Ggf. bei
+einer Welt eingeben wie der Tag voranschreiten soll. Automatisch, inkrementel,
+oder programmatisch (z. B. tagsüber alle kunden, nach ladenschluss nacht)"_.
+
+_Welten → (Welt) → Tageslauf_ (`grid:day`, `GridWorld.dayMenu`), gespeichert in
+der Weltdatei ab Fassung `0.6` (`day`), Rechnung in `core/dayClock.ts`:
+
+- **Fest** — die Tageszeit aus _Wetter → Tageszeit_, wie bisher (ab Werk).
+- **Automatisch** — die Uhr läuft fließend; _Tageslänge_ 1–40 Minuten.
+- **Schrittweise** — Tag (10 Uhr) → Abend (18:30) → Nacht (23 Uhr), je nach
+  _Schritt alle_ 1–40 Minuten.
+- **Vom Spiel** — die Welt stellt die Uhr (`GridWorld.dayDriver`, ein
+  `DayDriver`). Nur wo eine Welt das anbietet; die Zeile heißt dann nach ihr.
+
+Dazu _Jetzt: 14:05 · Tag · …_ und, bei Automatisch und Schrittweise, _Uhr auf
+Morgen / Mittag / Abend / Nacht stellen_. Eine Welt sagt ihren Standard selbst
+(`dayDefaults`); gespeichert wird nur, was davon abweicht.
+
+Die eine Uhr (`dayClock`) läuft in `App.step` und gehört der Welt, die sie
+geladen hat (`load`/`release`, wie das Lampenbuch). Sie treibt **das Licht**
+— `weatherLook(settings, presenting, hour)` mischt Tag, Abend und Nacht
+**fließend** (`dayMix`: Tag bis 16:30, Abend 18:30, Nacht ab 20:30 bis 4:30,
+Dämmerung um 6, Tag ab 8) — und **die Lampen**: Abend und Nacht gelten als
+Nacht (`dayPhaseAt`, `GraphicsQuality` in jedem Bild). Steht eine Welt auf
+einem Tageslauf, sagt die Zeile _Tageszeit_ im Wetter-Menü das, statt still
+nichts zu tun. In der Brille gibt es den Licht-Durchgang nicht; dort folgen nur
+die Lampen der Uhr.
+
+**Das Restaurant** (`PlateUpWorld`) steht ab Werk auf _Vom Spiel
+(Öffnungszeiten)_ mit fünf Minuten Öffnungszeit: geöffnet 9–17 Uhr (Tag),
+eine Minute Ladenschluss bis 20:30 (Abend, Lampen an), Nacht (zwei Fünftel der
+Öffnungszeit), eine halbe Minute Morgen, dann der nächste Tag — mit
+_Tag 2 · geöffnet, noch 3:20_ in der Zeile. Das Gästespiel mit Tagen und Kasse
+(`plateUpGame.ts`) steht zurzeit nicht in der Welt; kommt es zurück, hängt es
+sich an denselben `DayDriver` und stellt die Uhr nach seinem `Shift`.
+
 ### Laternen und Ampeln leuchten
 
 Seit dem Lampen-System ein eigenes Kapitel: [Lampen und Lichter](lampen.md).

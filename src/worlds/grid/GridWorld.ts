@@ -1,3 +1,15 @@
+import {
+  DAY_MINUTES,
+  DAY_MODES,
+  DAY_MODE_LABELS,
+  DAY_MODE_SUBS,
+  clockText,
+  dayClock,
+  dayPhaseAt,
+  type DayDriver,
+  type DayMode,
+  type DaySettings,
+} from '../../core/dayClock';
 import { lampsInScene, type LampInstance } from '../../core/Lamps';
 import type { Usable } from '../../core/usable';
 import { gameMode, movesFurniture } from '../../core/gameMode';
@@ -2923,7 +2935,15 @@ export abstract class GridWorld extends PortalWorld {
     // **Die Lampen dieser Welt** (`core/lamps/lampBook.ts`) — aus dem Speicher,
     // auch wo sonst nichts gebaut werden darf: Eine Laterne einstellen ist
     // kein Umbau. Jede Änderung wird kurz danach gespeichert (`stepLampSave`).
-    lampBook.load(storedWorld(this.worldId())?.lamps, this);
+    const stored = storedWorld(this.worldId());
+    lampBook.load(stored?.lamps, this);
+    // **Der Tageslauf dieser Welt** (`core/dayClock.ts`) — gespeichert, sonst
+    // ihr Standard (`dayDefaults`); _Vom Spiel_ fragt sie selbst (`dayDriver`).
+    dayClock.load(stored?.day, this, this.dayDefaults(), this.dayDriver());
+    this.stopDay = dayClock.onChange(() => {
+      this.lampSaveAt = performance.now() + LAMP_SAVE_DELAY * 1000;
+      this.context?.refreshWorldMenu();
+    });
     this.bindInspect(ctx);
     this.stopLamps = lampBook.onChange(() => {
       this.lampSaveAt = performance.now() + LAMP_SAVE_DELAY * 1000;
@@ -3025,6 +3045,117 @@ export abstract class GridWorld extends PortalWorld {
     return lampBook.ownedBy(this) ? lampBook.save() : undefined;
   }
 
+  /** Der Tageslauf für die Datei — nur, wenn die Uhr dieser Welt gehört. */
+  private dayFile(): DaySettings | undefined {
+    return dayClock.ownedBy(this) ? dayClock.save() : undefined;
+  }
+
+  /** Abmelden von der Uhr. */
+  private stopDay: (() => void) | null = null;
+
+  /**
+   * **Wie der Tag in dieser Welt ab Werk voranschreitet** — _Fest_: die
+   * Tageszeit aus dem Wetter-Menü, wie bisher. Eine Welt mit eigener Uhr
+   * (das Restaurant) sagt es hier.
+   */
+  protected dayDefaults(): DaySettings {
+    return { mode: 'fixed', minutes: 10 };
+  }
+
+  /** **Was _Vom Spiel_ in dieser Welt heißt** — `null`: Die Welt stellt die Uhr nicht. */
+  protected dayDriver(): DayDriver | null {
+    return null;
+  }
+
+  /**
+   * **Die Seite _Tageslauf_** im Menü der Welt — gewünscht: _„bei einer Welt
+   * eingeben wie der Tag voranschreiten soll. Automatisch, inkrementel, oder
+   * programmatisch"_.
+   */
+  private dayMenu(): MenuEntry {
+    const settings = dayClock.settings;
+    const driver = dayClock.gameDriver;
+    const modes = DAY_MODES.filter((mode) => mode !== 'game' || driver);
+    const accent = 0x6fa8ff;
+    const minutesWord =
+      settings.mode === 'cycle'
+        ? 'Tageslänge'
+        : settings.mode === 'steps'
+          ? 'Schritt alle'
+          : settings.mode === 'game' && driver
+            ? driver.minutesLabel
+            : 'Minuten';
+    const label = (mode: DayMode): string =>
+      mode === 'game' && driver
+        ? `${DAY_MODE_LABELS.game} (${driver.label})`
+        : DAY_MODE_LABELS[mode];
+    const now = dayClock.active
+      ? `${clockText(dayClock.hour)} · ${DAY_PHASE_WORDS[dayPhaseAt(dayClock.hour)]}${dayClock.status ? ` · ${dayClock.status}` : ''}`
+      : 'Steht still · Tageszeit aus Grafik → Wetter';
+    const rows: MenuEntry[] = [
+      {
+        id: 'grid:day-mode',
+        label: `Ablauf: ${label(settings.mode)}`,
+        sub: settings.mode === 'game' && driver ? driver.sub : DAY_MODE_SUBS[settings.mode],
+        caption: modes.map(label).join(' → '),
+        icon: 'stopwatch',
+        accent,
+        run: () =>
+          dayClock.set({ mode: modes[(modes.indexOf(settings.mode) + 1) % modes.length]! }),
+      },
+    ];
+    if (settings.mode !== 'fixed') {
+      rows.push({
+        id: 'grid:day-minutes',
+        label: `${minutesWord}: ${settings.minutes} min`,
+        sub: DAY_MINUTES.map((m) => `${m}`).join(' → ') + ' Minuten',
+        icon: 'stopwatch',
+        accent,
+        run: () => {
+          const list = DAY_MINUTES as readonly number[];
+          const at = list.indexOf(settings.minutes);
+          dayClock.set({ minutes: list[(at + 1) % list.length]! });
+        },
+      });
+    }
+    rows.push({
+      id: 'grid:day-now',
+      label: `Jetzt: ${now}`,
+      sub: 'Licht und Lampen folgen der Uhr — Lampen gehen am Abend an',
+      icon: 'stopwatch',
+      accent,
+    });
+    if (settings.mode === 'cycle' || settings.mode === 'steps') {
+      for (const [word, hour] of [
+        ['Morgen', 8],
+        ['Mittag', 12],
+        ['Abend', 18.5],
+        ['Nacht', 23],
+      ] as const) {
+        rows.push({
+          id: `grid:day-set-${hour}`,
+          label: `Uhr auf ${word} stellen`,
+          sub: `${clockText(hour)} Uhr`,
+          icon: 'stopwatch',
+          accent,
+          run: () => {
+            dayClock.setHour(hour);
+            this.context?.refreshWorldMenu();
+          },
+        });
+      }
+    }
+    return {
+      id: 'grid:day',
+      label: 'Tageslauf',
+      sub: `${label(settings.mode)} · ${now}`,
+      caption: 'Wie der Tag in dieser Welt voranschreitet · in der Weltdatei gespeichert',
+      icon: 'stopwatch',
+      accent,
+      children: rows,
+    };
+  }
+
   /** Abmelden vom Lampenbuch. */
   private stopLamps: (() => void) | null = null;
   /** Wann nach einer Änderung an den Lampen gespeichert wird (`performance.now`) — 0: nichts offen. */
@@ -3040,7 +3171,11 @@ export abstract class GridWorld extends PortalWorld {
     const plan = this.grid;
     if (!plan || this.storeClosed) return false;
     this.lampSaveAt = 0;
-    const ok = keepWorld(this.worldId(), plan, { name: this.worldName(), lamps: this.lampFile() });
+    const ok = keepWorld(this.worldId(), plan, {
+      name: this.worldName(),
+      lamps: this.lampFile(),
+      day: this.dayFile(),
+    });
     if (!quiet) {
       this.announce(ok ? 'Welt gespeichert' : 'Kein Speicher da — nimm den Export');
     }
@@ -3059,6 +3194,7 @@ export abstract class GridWorld extends PortalWorld {
     if (!plan) return;
     forgetWorld(this.worldId());
     lampBook.load(undefined, this);
+    dayClock.load(undefined, this, this.dayDefaults(), this.dayDriver());
     const fresh = this.layout();
     this.planReady(fresh);
     plan.restore(
@@ -3080,6 +3216,7 @@ export abstract class GridWorld extends PortalWorld {
         world: this.worldId(),
         name: this.worldName(),
         lamps: this.lampFile(),
+        day: this.dayFile(),
       });
       this.announce(`Exportiert: ${name}`);
     } catch {
@@ -3106,6 +3243,7 @@ export abstract class GridWorld extends PortalWorld {
       }
       plan.restore(result.graph, result.blocks, result.masses, result.fixtures, result.slopes);
       lampBook.load(result.lamps, this);
+      dayClock.load(result.day, this, this.dayDefaults(), this.dayDriver());
       this.planLoaded(plan);
       this.saveWorld(true);
       this.announce(`Geladen: ${result.file.name ?? result.file.world ?? 'Welt'}`);
@@ -3181,6 +3319,9 @@ export abstract class GridWorld extends PortalWorld {
     if (this.lampSaveAt > 0) this.saveWorld(true);
     this.stopLamps?.();
     this.stopLamps = null;
+    this.stopDay?.();
+    this.stopDay = null;
+    dayClock.release(this);
     this.unbindInspect?.();
     this.unbindInspect = null;
     this.inspecting = null;
@@ -3255,7 +3396,7 @@ export abstract class GridWorld extends PortalWorld {
    * können. Wer nicht, hat nichts zu sichern.
    */
   override menu(): MenuEntry[] {
-    const rows = super.menu();
+    const rows = [...super.menu(), this.dayMenu()];
     const withStore = this.editor ? [this.storeMenu(), ...rows] : rows;
     const base = this.inspecting ? [this.inspectPage(this.inspecting), ...withStore] : withStore;
     const open = this.reading;
@@ -3825,6 +3966,7 @@ const GHOST_OPACITY = 0.25;
 const SIGN_PAGE = 'grid:sign';
 /** Wie lange nach der letzten Änderung an einer Lampe gespeichert wird, in Sekunden. */
 const LAMP_SAVE_DELAY = 0.8;
+const DAY_PHASE_WORDS = { day: 'Tag', dusk: 'Dämmerung', night: 'Nacht' } as const;
 /** Wie weit ein Klick im Einrichten ein Element trifft, in Metern. */
 const INSPECT_REACH = 120;
 /** Wie lange ein Finger liegen muss, bis das Element-Menü aufgeht. */

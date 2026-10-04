@@ -57,7 +57,7 @@ describe('Eine Welt als Datei', () => {
   it('trägt Format und Versionsnummer', () => {
     const file = writeWorld(house(), { world: 'test', saved: '2026-09-07T10:00:00.000Z' });
     expect(file.format).toBe(WORLD_FORMAT);
-    expect(file.version).toBe('0.5.0');
+    expect(file.version).toBe('0.6.0');
     expect(file.world).toBe('test');
     expect(file.saved).toBe('2026-09-07T10:00:00.000Z');
   });
@@ -76,6 +76,15 @@ describe('Eine Welt als Datei', () => {
     broken['lamps'] = { types: { x: { mode: 'disco', color: 'red' } }, lamps: 'kaputt' };
     expect(readWorld(broken).lamps).toEqual({ types: { x: { color: 'red' } } });
     expect(readWorld(JSON.parse(JSON.stringify(writeWorld(house())))).lamps).toBeUndefined();
+  });
+
+  it('behält den Tageslauf und wirft Unbekanntes weg', () => {
+    const day = { mode: 'game' as const, minutes: 5 };
+    const text = JSON.stringify(writeWorld(house(), { day }));
+    expect(readWorld(JSON.parse(text)).day).toEqual(day);
+    const broken = JSON.parse(text) as Record<string, unknown>;
+    broken['day'] = { mode: 'ewig', minutes: 5 };
+    expect(readWorld(broken).day).toBeUndefined();
   });
 
   it('nimmt die Kachelgröße über den Grundriss mit', () => {

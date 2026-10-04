@@ -8,6 +8,7 @@ import {
 } from './graphicsSettings';
 import { BlobShadows } from './BlobShadows';
 import { Lamps } from './Lamps';
+import { dayClock } from './dayClock';
 import { aimSun, applySceneQuality } from './graphicsScene';
 
 /**
@@ -120,6 +121,13 @@ export class GraphicsQuality {
     }
 
     this.blobs.update(dt);
+    // Nacht nach dem Tageslauf der Welt (`core/dayClock.ts`), sonst nach dem Menü —
+    // in jedem Bild, denn die Uhr läuft, ohne dass sich eine Einstellung ändert.
+    this.lamps.setEnvironment(
+      dayClock.active ? dayClock.night : this.settings.weatherTime !== 'day',
+      this.settings.streetLights,
+      this.settings.weatherFog === 'spooky',
+    );
     this.lamps.update(dt, head, this.renderer.xr.isPresenting);
     if (!this.profile.lightShadows) return;
     if (this.sun && this.profile.shadows) aimSun(this.sun, head, this.profile);
