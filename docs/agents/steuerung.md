@@ -35,12 +35,14 @@ geht zurück):
 | Werkzeug der Leiste (Baukasten)   | Steuerkreuz ▲ / ▼      | –                                            | Klick auf die Leiste        | antippen          |
 | Laufen / Umsehen                  | linker / rechter Stick | linker Stick / Kopf, rechter Snap-Turn       | `WASD` / Maus               | Stöcke / wischen  |
 | Sprinten                          | LS                     | LS                                           | `Shift`                     | –                 |
-| Weltbau: fliegen / steigen       | – (am Schirm von oben) | linker Stick / rechter Stick vor-zurück      | – (von oben)                | – (von oben)      |
+| Weltbau: fliegen / steigen       | – (am Schirm von oben) | linker Stick / rechter Stick vor-zurück, LS sprintet | – (von oben)         | – (von oben)      |
 
 **Weltbau** (Haken im Reiter _Bauen_, [Bauen](bauen.md#weltbau-von-oben-auch-in-der-brille--und-der-bauplatz-ist-weg)):
 In der Brille ist man zehnmal so groß, der linke Stick fliegt waagerecht in
 Blickrichtung, der rechte vor/zurück steigt und sinkt, quer dreht er wie
-sonst. Am Schirm ist Weltbau die Ansicht von oben mit ihrer eigenen Steuerung.
+sonst. Linker Stick eingedrückt sprintet: doppelt so schnell, waagerecht wie
+senkrecht (`BUILD_SPRINT`). Am Schirm ist Weltbau die Ansicht von oben mit
+ihrer eigenen Steuerung.
 
 Was sich dafür geändert hat (`core/inputMap.ts` `DEFAULT_PAD`, `core/gamepad.ts`
 `DEFAULT_PLAN`):

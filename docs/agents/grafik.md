@@ -859,6 +859,15 @@ Zwei Dinge daran sind Absicht:
   Mitspieler mit, den hier niemand neu baut (`net/RemoteAvatars.ts`) — und ein
   Test oder eine Vorschau ohne Menü setzt die Zahl einfach selbst.
 
+## Weltbau: simulierte Physik-Optik
+
+Ein Häkchen unter _Grafik_ (`gfx:drop-physics`, `GraphicsSettings.dropPhysics`,
+ab Werk an): Was man loslässt und einrastet, fällt sichtbar an seinen Platz,
+statt dort sofort zu stehen — in der Brille wie am Schirm, im Weltbau wie in
+jedem anderen Modus. Nur das Bild; wie es gerechnet wird, steht in
+[Bauen](bauen.md) unter _Fallen lassen mit Physik-Optik_
+(`worlds/portal/dropFall.ts`).
+
 ## Untere Ebenen unscharf
 
 Gewünscht: _„Wenn der Spieler auf einer höheren Ebene steht, dann sieht er ja

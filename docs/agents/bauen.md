@@ -60,7 +60,11 @@ gespeichert; ein Weltwechsel landet.
   Kopf schaut; **rechts vor/zurück** steigt und sinkt, zwischen 2 und 150 m
   Augenhöhe über dem Boden, auf dem man abgehoben hat; **rechts quer** dreht
   wie immer (Snap oder gleitend, `updateTurn`). Das Tempo geht mit der Höhe,
-  wie beim Kran. Kein Laufen, kein Springen — die Fortbewegung und die
+  wie beim Kran. Seit Oktober 2026 1,8-mal so schnell wie zuerst
+  (`BUILD_PAN`, `BUILD_CLIMB`), und **linker Stick eingedrückt** sprintet
+  noch einmal doppelt (`BUILD_SPRINT`). Gewünscht: _„mit dem linken Stick
+  1,8-fach schneller bewegen können (ggf. auch Sprint durch Drücken noch
+  schneller). Rechter Stick hoch runter auch schneller."_ Kein Laufen, kein Springen — die Fortbewegung und die
   Physikkapsel bleiben am Boden stehen, und `endFlight` stellt das Gestell
   genau dorthin zurück, wo es abgehoben hat (`locomotion.resync`).
 - **Das Menü wächst mit**: Es hängt am Gestell (`GameMenu`), und die
@@ -106,6 +110,41 @@ gehighlighted wird das möbelstück."_
   stellt hin. Ein umgestelltes Element hält kein Spielmodus fest
   (`heldByMode`). Am Boden nicht: Dort fasst die Hand eine Küchenzeile an, um
   ihr etwas zu nehmen.
+
+**Der Geist auf der Etage der Hand** (Oktober 2026). Gemeldet: _„der Ghost
+wird nicht korrekt angezeigt, aber die hervorgehobenen Kacheln schon, der
+Ghost ist anscheinend immer auf der untersten Ebene (auch in Rot dann
+leider)"_. `decorTarget` (Geist, Höhe beim Einrasten, Pinsel) fragte nach den
+Füßen (`rig.getFloorY`), und die sind im Weltbau auf dem Boden, von dem man
+abgehoben hat. Jetzt fragt es wie das Gitter nach `buildFloorY`. Und rot war
+er oben aus einem zweiten Grund: Eine Wand der Etage darunter endet auf der
+Höhe dieses Bodens, gerechnet einen Hauch darüber, und galt in `restOn` als
+Unterlage, auf die der Tisch nicht passt — jetzt mit einem Zentimeter Luft.
+
+**Fallen lassen mit Physik-Optik** (Oktober 2026, _Grafik → Weltbau:
+simulierte Physik-Optik_, `gfx:drop-physics`, ab Werk an). Was man loslässt
+und einrastet, fällt sichtbar aus der Hand, dreht sich in der Luft, springt
+einmal kurz auf und kippt dann auf seinen Platz (`portal/dropFall.ts`).
+Gewünscht: _„wenn ich eine Kiste z. B. leicht schräg loslasse, dass diese aus
+meiner Hand runterfällt und sich z. B. in der Luft auch drehen kann und wenn
+diese aufkommt, dass diese ‚zufällig' so kippt/fällt, dass diese am Ende in
+der richtigen Position landet"_.
+
+- **Nur das Bild**: Es fällt eine Abschrift (dieselben Netze, kein Körper).
+  Ein Modell aus dem Regal steht schon an seinem Platz (`snapPlaced`) und ist
+  nur verborgen, bis die Abschrift unten ist (`fallModel`). Ein Spielelement
+  wird erst hingestellt, wenn sie liegt (`fallElement`, `landing`) — seine
+  Teile laden neu und stünden sonst schon unten; die Etage gilt dabei vom
+  Loslassen (`buildLevel` → `furnishAt(…, level)`), und im _Baukasten_ liegt
+  die nächste Kopie sofort in der Hand.
+- **Die Bewegung** (`FallMotion`): Schwerkraft mal Gestellgröße (der Riese
+  sieht eine Kiste so schnell fallen wie ein Mensch eine kleine), Schwung der
+  Hand, Drall aus der Schräglage beim Loslassen plus etwas Zufall; gelenkt
+  wird waagerecht auf den Platz. Aufgekommen ist sie, wenn die tiefste Ecke
+  des gedrehten Kastens den Boden berührt; dann kippt sie mit der Ecke am
+  Boden in die richtige Lage und steht am Ende genau dort, wo sie ohne Optik
+  stünde. Höchstens drei Sekunden; wer sie unterwegs wieder greift, beendet
+  den Fall.
 
 **Etagen aus der Luft: die Hand sagt, welche** (Oktober 2026). Gewünscht:
 _„Überleg dir wie ich Ebenen wechsel, oder wenn es z. B. das Dach bei

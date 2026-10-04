@@ -54,10 +54,20 @@ export const BUILD_MAX_EYE = 150;
  * (`crane.CRANE_PAN`): Wer hoch oben ist, will weit fahren, wer dicht über
  * den Möbeln schwebt, fein. Gemessen an der Augenhöhe über dem Boden, mit
  * `BUILD_MIN_SPEED` Metern je Sekunde als Untergrenze.
+ *
+ * Seit Oktober 2026 das 1,8-Fache von vorher (0,8): _„bitte mit dem linken
+ * Stick 1,8-fach schneller bewegen können […] rechter Stick hoch runter auch
+ * schneller"_ — beides gleich, damit Fliegen und Steigen zueinander passen.
  */
-export const BUILD_PAN = 0.8;
-export const BUILD_CLIMB = 0.8;
+export const BUILD_PAN = 0.8 * 1.8;
+export const BUILD_CLIMB = 0.8 * 1.8;
 export const BUILD_MIN_SPEED = 3;
+
+/**
+ * **Sprint im Weltbau** — der linke Stick eingedrückt, wie beim Laufen
+ * (`inputMap` _Sprint_): waagerecht und senkrecht noch einmal so schnell.
+ */
+export const BUILD_SPRINT = 2;
 
 /** Unter so viel Ausschlag ruht ein Stick — die Sticks der Quest zittern. */
 export const BUILD_DEADZONE = 0.15;
@@ -78,6 +88,8 @@ function dead(value: number): number {
  *   den man nach oben drückt. Gekappt wird an `BUILD_MIN_EYE` und
  *   `BUILD_MAX_EYE`.
  *
+ * - **Linker Stick eingedrückt** sprintet: beides mal `BUILD_SPRINT`.
+ *
  * @param eye Augenhöhe über dem Startboden, in Metern
  */
 export function flightStep(
@@ -86,10 +98,11 @@ export function flightStep(
   yaw: number,
   eye: number,
   dt: number,
+  sprint = false,
 ): { x: number; y: number; z: number } {
   if (!(dt > 0)) return { x: 0, y: 0, z: 0 };
   const height = Number.isFinite(eye) ? eye : BUILD_MIN_EYE;
-  const speed = Math.max(BUILD_MIN_SPEED, height);
+  const speed = Math.max(BUILD_MIN_SPEED, height) * (sprint ? BUILD_SPRINT : 1);
 
   let sx = dead(left.x);
   let sy = dead(left.y);

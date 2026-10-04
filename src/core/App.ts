@@ -2844,6 +2844,22 @@ export class App {
             );
           },
         },
+        {
+          // **Was man loslässt, fällt sichtbar** — `worlds/portal/dropFall.ts`.
+          // Nur das Bild; wo es landet, steht sofort fest.
+          id: 'gfx:drop-physics',
+          label: 'Weltbau: simulierte Physik-Optik',
+          sub: 'Losgelassenes fällt aus der Hand, dreht sich und kippt an seinen Platz',
+          caption: 'Nur das Bild · wo es steht, ist dasselbe wie ohne',
+          icon: 'settings',
+          accent,
+          checked: settings.dropPhysics,
+          run: () => {
+            const next = saveGraphics({ dropPhysics: !graphics().dropPhysics });
+            this.menuDirty = true;
+            this.notify(next.dropPhysics ? 'Physik-Optik an' : 'Physik-Optik aus');
+          },
+        },
         this.animationMenu(accent),
         this.visorMenu(accent),
         ...this.povMenu(accent),
