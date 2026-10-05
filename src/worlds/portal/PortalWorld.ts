@@ -11082,12 +11082,20 @@ export class PortalWorld implements World {
       return;
     }
 
+    // **Im Baumodus wird gebaut, nicht geworfen** (`building`): Was man dort
+    // loslässt, ist hingestellt — ohne Schwung und ohne Physik-Optik.
+    // Gewünscht: _„beim loslassen von gegenständen im baumodus soll das ganze
+    // physik flipp nicht mehr gemacht werden. Auch beim baumodus kann man
+    // keine sachen ‚werfen', sondern da werden die wirklich gebaut."_
+    const building = this.building();
+    if (building) placed = true;
     // **Wie es in der Hand hing** — für die Physik-Optik (`dropFall.ts`),
     // bevor das Einrasten es an seinen Platz setzt.
-    const fall = this.dropStartOf(grab);
+    const fall = building ? null : this.dropStartOf(grab);
     physics.setCarried(grab.entry, false);
     grab.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
     const thrown = grab.velocity.clampLength(0, 9);
+    if (building) thrown.set(0, 0, 0);
     // **Ein Modell aus dem Regal rastet beim Hinstellen ein** — Kachelmitte und
     // Vierteldrehung, wie jedes Möbel dieser Welt (`gridSnap.ts`). Dann ist es
     // kein Wurf mehr, also fliegt es auch nicht: Die Geschwindigkeit, die der
@@ -11107,6 +11115,16 @@ export class PortalWorld implements World {
       this.reopenMenu = false;
       ctx.menu.openSubmenu('bag');
     }
+  }
+
+  /**
+   * **Ob gerade gebaut wird** — im Weltbau (`rig.flying`) oder in einem
+   * Spielmodus, in dem Möbel umgestellt werden (_Einrichten_, _Baukasten_).
+   * Dann ist jedes Loslassen ein Hinstellen: kein Wurf, keine Physik-Optik,
+   * und was einrastet, steht fest (`snapPlaced`).
+   */
+  private building(): boolean {
+    return (this.context?.rig.flying ?? false) || movesFurniture(gameMode());
   }
 
   /**
@@ -11621,10 +11639,11 @@ export class PortalWorld implements World {
     // Ohne diese Zeile dreht sich das Möbel nach dem Einrasten weiter aus der
     // Drehung heraus, die die Hand ihm mitgegeben hat.
     entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    // Fest steht, was an der Wand hängt, was auf etwas steht — und im
-    // Baukasten alles: Dort wird eingerichtet und nicht gekegelt (`paintAt`).
+    // Fest steht, was an der Wand hängt, was auf etwas steht — und beim
+    // Bauen alles (`building`): Dort wird eingerichtet und nicht gekegelt
+    // (`paintAt`).
     if (this.sinkFloor(entry)) return true;
-    if (decor?.mounted || decor?.stacked || refillsCatalogue(gameMode())) this.hang(entry);
+    if (decor?.mounted || decor?.stacked || this.building()) this.hang(entry);
     return true;
   }
 

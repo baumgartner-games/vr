@@ -164,6 +164,18 @@ der richtigen Position landet"_.
   echter Schwere mal zehn war der Sprung im Weltbau eine Viertelsekunde lang.
   Höchstens sechs Sekunden; wer sie unterwegs wieder greift, beendet den Fall.
 
+**Beim Bauen wird gebaut, nicht geworfen** (Oktober 2026). Gewünscht:
+_„beim loslassen von gegenständen im baumodus soll das ganze physik flipp
+nicht mehr gemacht werden. Auch beim baumodus kann man keine sachen ‚werfen',
+sondern da werden die wirklich gebaut."_ `PortalWorld.building` sagt, wann
+gebaut wird: im **Weltbau** (`rig.flying`) und in den Spielmodi _Einrichten_
+und _Baukasten_ (`movesFurniture`). Dann ist jedes Loslassen ein
+**Hinstellen** (`release` mit `placed`): Der Schwung der Hand wird verworfen,
+die Physik-Optik oben läuft nicht (`dropStartOf` wird gar nicht gefragt), und
+was einrastet, steht fest (`snapPlaced` → `hang`) statt umzukippen — auch, was
+nicht aus dem Regal kommt, fällt nur noch senkrecht. Die Optik bleibt für das
+_Spielen_ (_Grafik → Simulierte Physik-Optik_).
+
 **Etagen aus der Luft: die Hand sagt, welche** (Oktober 2026). Gewünscht:
 _„Überleg dir wie ich Ebenen wechsel, oder wenn es z. B. das Dach bei
 Hausbau-Welt gibt, aber Ebene noch keine anderen Plätze auf der Ebene, dann

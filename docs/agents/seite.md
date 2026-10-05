@@ -533,6 +533,22 @@ richtig, und gezielt wurde unsauber.
 - **Ein Kreis, wo der Strahl aufsetzt** (`UIPanel.marker`): ein Ring als
   Kind des Panels, ohne die Leinwand neu zu zeichnen. Der Strahl selbst
   endet am Panel.
+- **Derselbe Kreis auf Schildern** (`ui/signMarks.ts`, `Pointer.castSigns`):
+  gewünscht _„bei schildern z. B. hub world soll auch der kreis wie im menü
+  angezeigt werden"_. Ein `TextPlane` mit `sign: true` (Tore, die Schilder
+  und der Hinweis der Lobby, Wegweiser `fixtures/sign.ts`) ist **kein Ziel** —
+  es nimmt der Hand den Trigger nicht weg —, aber der Strahl endet an ihm,
+  und dort sitzt der Ring, so groß wie auf dem Menü aus dem Kopf gesehen
+  (`SIGN_RING`, ein Hundertstel der Entfernung). Nur, wo kein Ziel getroffen
+  ist: Das Menü steht vor allem.
+- **Kein Nebel über dem Menü** (`ui/noFog.ts`): gewünscht _„der nebel soll
+  nicht über dem menü liegen"_. Im Weltbau steht das Menü 20 m Welt weit und
+  damit mitten im Nebel der Brille (`weatherXr`). Alles im Menü nimmt der
+  Szene für seinen eigenen Zug den Nebel (`keepOutOfFog`, je Ding statt je
+  Material — die kleinen Modelle teilen ihre Materialien mit der Welt), und
+  das Loch der Menü-Ebene (`XRMenuLayer.hole`) hat `fog: false`: Mit Nebel
+  bekam es dessen Farbe bei Alpha 0, und die legte sich im Kompositor über das
+  Menü. Strahl, Punkt und Ring des Zeigers sind ebenfalls ohne Nebel.
 - **Aufmachen**: ☰ am linken Controller, oder der runde Knopf an einem der
   beiden Handgelenke (`ui/WristButton.ts`) — er öffnet nur noch, das Menü
   steht vor einem. `B`/`Y` gehen eine Seite zurück und ganz oben zu.

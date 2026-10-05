@@ -207,6 +207,7 @@ export const SIGN: FixtureKind<SignState> = {
       // Kamera von oben, und weil sie sich dabei auch zurücklehnt, liest man
       // sie dort ganz statt als Strich.
       face: true,
+      sign: true,
     });
     const lift = POST_H + BOARD_W * 0.21;
     board.position.set(0, lift, edge + 0.05);

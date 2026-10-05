@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { keepOutOfFog } from './noFog';
 import { SCREEN_ASPECT, UIPanel } from './UIPanel';
 import type { XRPlayerCard } from './XRPlayerCard';
 import { XRMenuLayer } from './XRMenuLayer';
@@ -250,6 +251,7 @@ export class XRMenu extends THREE.Group {
     // Nicht `depthTest = false`: Ohne Tiefenprüfung schreibt WebGL auch keine
     // Tiefe, und dann zeichnen sich Fenster dahinter über das Panel.
     material.depthFunc = THREE.AlwaysDepth;
+    material.fog = false;
     material.needsUpdate = true;
     this.panel.renderOrder = PANEL_ORDER;
     this.panel.visible = false;
@@ -483,6 +485,9 @@ export class XRMenu extends THREE.Group {
     this.layer?.update(this.open);
 
     this.updateCaption();
+    // Kein Nebel über dem Menü (`noFog.ts`) — samt den kleinen Modellen, die
+    // eben erst dazugekommen sind.
+    if (this.open) keepOutOfFog(this);
     if (this.caption.visible) {
       this.caption.position
         .set(0, MENU_SCREEN_H / 2 + 0.17, 0)

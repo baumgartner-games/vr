@@ -452,6 +452,11 @@ export interface GraphicsSettings extends WeatherSettings {
    * Hand runterfällt und sich z. B. in der Luft auch drehen kann und wenn diese
    * aufkommt, dass diese ‚zufällig' so kippt/fällt, dass diese am Ende in der
    * richtigen Position landet"_.
+   *
+   * **Beim Bauen nicht mehr** (`PortalWorld.building`: Weltbau, _Einrichten_,
+   * _Baukasten_) — gewünscht: _„beim loslassen von gegenständen im baumodus
+   * soll das ganze physik flipp nicht mehr gemacht werden"_. Dort wird
+   * hingestellt, nicht fallen gelassen.
    */
   dropPhysics: boolean;
 }
