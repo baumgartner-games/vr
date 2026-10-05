@@ -16,8 +16,8 @@ import type { WeatherLook } from './weather';
  * - **Nebel** als `THREE.Fog` (linear) in der Farbe des Wetter-Nebels. Liegt
  *   nicht am Boden wie am Schirm, sondern wächst mit der Entfernung — dafür in
  *   jedem Material, ohne eigenen Shader. Wie am Schirm ist es um einen herum
- *   klar und wird nach ein paar Metern dicht: am Boden ab 3 m, voll nach 30 m
- *   (Spuk) bis 60 m (Dunst); im Weltbau beginnt er erst unter einem, bei der
+ *   klar und wird nach ein paar Metern dicht: am Boden ab 3 m, voll bei der
+ *   Sichtweite (Dicht, Spuk) bis 60 m (Dunst); im Weltbau beginnt er erst unter einem, bei der
  *   halben Augenhöhe, und reicht um anderthalb Augenhöhen weiter. Zuerst war es ein `FogExp2`, der mit dem Quadrat der
  *   Entfernung wächst — gemeldet: _„Wenn ich im vr Modus unten auf der Straße
  *   bin habe ich keinen Nebel?"_ (auf 10 m kaum acht Prozent). Eine Welt mit

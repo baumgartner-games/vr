@@ -40,7 +40,7 @@ export const WEATHER_FOG_SUBS: Readonly<Record<WeatherFog, string>> = {
   off: 'Klare Sicht',
   haze: 'Ein leichter grauer Schleier in der Ferne und über dem Boden',
   dense: 'Grauer Nebel in den Straßen · reißt um die Figur herum auf',
-  spooky: 'Lila Nebel, der langsam wabert · reißt um die Figur herum auf',
+  spooky: 'Wie Dicht, nur lila',
 };
 
 /** **Tageszeit** — wie hell und in welcher Farbe das Licht liegt. */
@@ -248,6 +248,17 @@ interface FogKind {
  * mehr zu sehen, auch kein Haus (`base`), und um die Figur bleibt nur ein
  * kleiner klarer Kreis.
  */
+const DENSE: FogKind = {
+  color: [0.55, 0.57, 0.62],
+  strength: 1,
+  swirl: 0.35,
+  clear: 2.5,
+  full: 9,
+  height: 8,
+  base: 1,
+  opaque: true,
+};
+
 const FOG: Readonly<Record<WeatherFog, FogKind>> = {
   off: {
     color: [0, 0, 0],
@@ -269,26 +280,11 @@ const FOG: Readonly<Record<WeatherFog, FogKind>> = {
     base: 0.15,
     opaque: false,
   },
-  dense: {
-    color: [0.55, 0.57, 0.62],
-    strength: 1,
-    swirl: 0.35,
-    clear: 2.5,
-    full: 9,
-    height: 8,
-    base: 1,
-    opaque: true,
-  },
-  spooky: {
-    color: [0.46, 0.27, 0.78],
-    strength: 0.62,
-    swirl: 1,
-    clear: 5,
-    full: 20,
-    height: 1.6,
-    base: 0.15,
-    opaque: false,
-  },
+  dense: DENSE,
+  // **Spuk ist Dicht in Lila** — gewünscht: _„dass der spuk nebel auch
+  // einfach wie der normale nebel ist, bzw. genau der normale nebel ist nur
+  // eben anders gefärbt"_. Alles außer der Farbe kommt von dort.
+  spooky: { ...DENSE, color: [0.46, 0.27, 0.78] },
 };
 
 const FILTER: Readonly<

@@ -987,7 +987,11 @@ sein, aber für ein Spiel passt es nicht."_ Jede Nebelart hat seitdem ihre
 eigene Gestalt (`weather.FOG`, im Durchgang `wFogShape`): klar bis, voll ab
 (Meter um die Figur), Höhe, in der er dicht liegt, und Anteil unabhängig von der
 Höhe (`base`). **Dicht** ist deckend: acht Meter hoch und `base` 1 — auch
-Häuser verschwinden. Dunst und Spuk bleiben, wie sie waren.
+Häuser verschwinden. Dunst bleibt, wie er war. **Spuk ist seit Oktober 2026
+genau _Dicht_, nur lila** (`FOG.spooky` = `DENSE` mit eigener Farbe) —
+gewünscht: _„dass der spuk nebel auch einfach wie der normale nebel ist, bzw.
+genau der normale nebel ist nur eben anders gefärbt"_. Vorher war er ein
+dünner, stark wabernder Bodennebel (Stärke 0,62, klar bis 5 m).
 
 **Wie weit man sieht, ist einstellbar** — gewünscht: _„Ggf etwas weiter als 11m
 auch ggf. zum einstellen +-m Nebel. Default bei Nebel 20m"_. _Grafik → Wetter →
