@@ -452,6 +452,15 @@ function prop(
   };
 }
 
+/**
+ * **Wie die Parkwege der Quelle gedreht werden**, damit sie liegen wie die
+ * Straße: die Ecke von Süden nach Osten (in der Quelle schon so), der
+ * Abzweig nach Osten (in der Quelle von West nach Ost mit dem Abzweig nach
+ * Süden).
+ */
+const PARK_CORNER_YAW = 0;
+const PARK_TSPLIT_YAW = Math.PI / 2;
+
 /** Ein Mast — Laterne oder Ampel: gesperrt nur der Fuß, eine Zelle. */
 const POLE: readonly [number, number] = [0.5, 0.5];
 
@@ -592,6 +601,44 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
       onSlab('bush_B', [-4.2, 3.3]),
     ],
   ),
+  // Die anderen Parkwege der Quelle — Ecke, Abzweig, Kreuzung —, damit ein
+  // Weg durch mehrere Parks laufen kann (gewünscht: _„Stadt → Häuser und Park
+  // ergänzen"_). Ungedreht wie die Straße: Die Ecke kommt von Süden und biegt
+  // nach Osten ab, der Abzweig geht nach Osten.
+  road(
+    'city-park-path-corner',
+    'Parkweg, Ecke',
+    ['Park', 'Weg', 'Ecke'],
+    [
+      plate('park_road_corner', CITY_BLOCK, CITY_BLOCK, 0, 0, PARK_CORNER_YAW, WALK_TOP),
+      onSlab('tree_D', [-3, -3]),
+      onSlab('bench', [-2.8, 3.5], Math.PI / 2),
+      onSlab('bush_C', [4.2, 4.2]),
+    ],
+  ),
+  road(
+    'city-park-path-tsplit',
+    'Parkweg, Abzweig',
+    ['Park', 'Weg', 'Abzweig', 'T-Kreuzung'],
+    [
+      plate('park_road_tsplit', CITY_BLOCK, CITY_BLOCK, 0, 0, PARK_TSPLIT_YAW, WALK_TOP),
+      onSlab('streetlight_old_single', [-3.9, 0]),
+      onSlab('bush_A', [-4.2, -4.2]),
+      onSlab('bush_B', [-4.2, 4.2], Math.PI / 2),
+    ],
+  ),
+  road(
+    'city-park-path-junction',
+    'Parkweg, Kreuzung',
+    ['Park', 'Weg', 'Kreuzung'],
+    [
+      plate('park_road_junction', CITY_BLOCK, CITY_BLOCK, 0, 0, 0, WALK_TOP),
+      onSlab('bush_A', [-4.2, -4.2]),
+      onSlab('bush_C', [4.2, -4.2]),
+      onSlab('bush_B', [-4.2, 4.2], Math.PI / 2),
+      onSlab('streetlight_old_double', [4.2, 4.2]),
+    ],
+  ),
   // Große Plätze — der Stadtpark über vier Stücke, Café und Markt auf einem.
   {
     ...road('city-park-big', 'Stadtpark', ['Park', 'Stadtpark', 'Bäume', 'Hecke'], bigPark()),
@@ -687,6 +734,8 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
   prop('city-dumpster', 'Müllcontainer', 'dumpster', [2, 2]), // 2,3 × 1,3 × 1,4
   prop('city-trash', 'Müll', 'trash_A', [1, 1], { solid: NOTHING }),
   prop('city-box', 'Karton', 'box_A', [1, 1]),
+  prop('city-box-small', 'Kleiner Karton', 'box_B', [1, 1]), // 0,61 × 0,68 × 0,62
+  prop('city-trash-small', 'Abfall', 'trash_B', [1, 1], { solid: NOTHING }),
   prop('city-watertower', 'Wasserturm', 'watertower', [2, 2]), // 2,0 × 2,7 × 2,0
   // Aus anderen Paketen des Regals — was auf Straße und Gehweg steht.
   ...UMBRELLAS.map((color) => ({
@@ -713,6 +762,7 @@ export const CITY_ELEMENTS: readonly GameElement[] = [
   prop('city-tree-b', 'Stadtbaum, schmal', 'tree_B', [4, 4], { solid: [0.5, 0.5] }),
   prop('city-tree-c', 'Stadtbaum, breit', 'tree_C', [4, 4], { solid: [0.5, 0.5] }),
   prop('city-bush', 'Hecke', 'bush_A', [2, 2]),
+  prop('city-bush-small', 'Strauch', 'bush', [1, 1]), // 0,76 × 1,52 × 0,80
   ...shortRoads(),
 ];
 

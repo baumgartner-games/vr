@@ -296,8 +296,20 @@ entsprechend (_„4 Zellen gesperrt"_, _„begehbar"_), und der Steckbrief zeich
 die ganze Grundfläche mit dem Stamm in der Mitte (`footprintRows`,
 `spotFootprintCells`).
 
-**Aus dem Regal:** _Forest Nature_ in **einer** Farbe (`color1`; das Paket hat
-jedes Modell achtmal, nur in anderer Palette), daraus je Art eine Größenstufe.
+**Die anderen sieben Farben stehen unter _Farben_** (Oktober 2026,
+gewünscht: _„Natur → weitere Farben: color2–8 als Herbst- oder
+Fantasy-Varianten, ohne neue Formen"_): `NATURE_COLORS` nennt sie nach der
+Krone des Laubbaums — Dunkelgrün, Hellgrün, Türkis, Goldgelb, Orange, Rot,
+Rosa —, und `NATURE_COLOR_ELEMENTS` baut daraus jedes Element, das ganz aus
+_Forest Nature_ besteht, noch einmal (Id `tree-leafy-red`, Name „Laubbaum,
+Rot", dieselbe Grundfläche und Sperre). Im Ordner _Natur_ steht vor _Alles_
+der Ordner _Farben_ mit einem Unterordner je Farbe (`NATURE_COLOR_FOLDER`);
+_Alles_ und die Ordner nach Art bleiben in der ersten Farbe. Die Steine
+wechseln mit (grau, rotbraun, sandfarben, blaugrau …).
+
+**Aus dem Regal:** _Forest Nature_ in den Ordnern nach Art in **einer** Farbe
+(`color1`; das Paket hat jedes Modell achtmal, nur in anderer Palette), daraus
+je Art eine Größenstufe.
 Dazu kommen die Herbstbäume und der tote Baum aus _Halloween Bits_, der
 Fliegenpilz (_Mystery Monthly 5_, Hexe), die Flachsblume (_Mixed Bag_) und das
 Holz aus _Resource Bits_ und _Mystery Monthly 4_. Was fehlt und warum:
@@ -307,7 +319,8 @@ Holz aus _Resource Bits_ und _Mystery Monthly 4_. Was fehlt und warum:
 - Die Hügel und Klippen von _Forest Nature_ (`Hill_*`) sind Gelände und kein
   Möbel.
 - Kiesel unter 15 cm wären auf einer Kachel nur ein Punkt.
-- Der Weihnachtsbaum hat keinen Stamm, sondern eine Matte mit Geschenken.
+- Der Weihnachtsbaum hat keinen Stamm, sondern eine Matte mit Geschenken —
+  er steht als Möbel unter _Weihnachten_.
 
 ### Weltraum: alle Teile aus _Space Base Bits_
 
@@ -417,6 +430,17 @@ Straßen, Plätze & Parks, Häuser, Straßenmöbel, Autos, Grün und Alles, Ids
   - _Allee_: die Gerade mit vier Bäumen an den Bordsteinen.
   - _Gehweg_, _Park_, _Park mit Bäumen_ (mit Bank), _Park mit Büschen_,
     _Parkweg_ (Bank, alte Laterne, Büsche).
+  - _Parkweg, Ecke_, _Parkweg, Abzweig_, _Parkweg, Kreuzung_ (Oktober 2026,
+    gewünscht: _„Stadt → Häuser und Park ergänzen"_): die anderen
+    Wegplatten der Quelle, gedreht wie die Straße — die Ecke von Süden nach
+    Osten, der Abzweig nach Osten (`PARK_TSPLIT_YAW`, in der Quelle zeigt er
+    nach Süden) —, mit Bäumen, Büschen, Bank und Laterne auf dem Rasen. Dazu
+    unter _Straßenmöbel_ und _Grün_ der kleine Karton, der Abfall und der
+    Strauch (`box_B`, `trash_B`, `bush`). Die Häuser standen schon im Katalog
+    (`building_*_withoutBase`). **Die Parkmauern fehlen weiter**
+    (`park_wall_*`): Ihre Mauer liegt an einer Kante einer Platte von 12 × 12
+    m, und eine Sperre, die kein Rechteck um die Mitte ist, kennt der Katalog
+    nicht — man liefe durch die Mauer.
 - **Wie hoch**: Gehweg und Bordstein 16 cm (`SLAB_TOP`), die Fahrbahn darin
   13 cm, Platz und Park 10 cm — alles mit `plate` auf genaue Maße gebracht. Weniger geht nicht: Die Platten der Welt
   schieben ihren Tiefenwert nach vorn (`plateFloor`, `polygonOffset`), und eine
@@ -557,6 +581,41 @@ wird hingestellt wie jedes andere Möbel aus dem Katalog.
   Weltänderungen ändert sich seine alte Zeile (`recordElementOf`).
 - Ein Teppich sperrt nichts; was auf ihm steht, steht auf dem Boden (die
   0,05 m Teppich bleiben unberücksichtigt).
+
+### Taverne, Halloween, Weihnachten: weitere Gruppen aus dem Regal
+
+Gewünscht (Oktober 2026), nach einer Liste, welche Pakete noch nicht im
+Katalog stehen: _„Ich denke auch 4 und 3 und 2 wären gut."_ — Weihnachten
+(_Holiday Bits_), Halloween (_Halloween Bits_) und Taverne (_Dungeon_). Drei
+Dateien, gebaut wie `furnitureCatalog.ts`: im Maßstab des Regals (0,5, das
+Maß der Restaurant-Möbel), jede Zeile mit Breite × Höhe × Tiefe dahinter,
+Kacheln aufgerundet, was höchstens 0,6 m im Quadrat misst auf einer Zelle.
+Tafeln und Theke sind Ablagen (`shelf`, `kind: 'top'`), Flaschen, Kerzen,
+Kürbisse und Geschenke ablegbar (`rests`), Teppiche, Erde und Trittsteine
+Boden (`floor`). Die Ids fangen mit dem Ordner an (`tavern-`, `halloween-`,
+`holiday-`), und die Unterordner sortieren nach dem Anfang der Id.
+
+- **Taverne** (`tavernCatalog.ts`, `TAVERN_FOLDER`): Theke (Thekenstücke
+  mit Ecken, Schankregal, Zapffass, Fässer, Flaschen), Tafeln & Sitzen,
+  Schlafen, Truhen & Lager, Regale & Licht. Was an eine Wand gehört (Banner,
+  Wandregale, Wandfackeln, Schwert und Schild), fehlt wie bei den Möbeln, dazu
+  Wände, Böden und Treppen des Pakets und das Gerüst. Truhe mit Zähnen,
+  goldene Truhe und die dritte Reisekiste sehen geschlossen aus wie ihre
+  Nachbarn und fehlen deshalb.
+- **Halloween** (`halloweenCatalog.ts`, `HALLOWEEN_FOLDER`): Friedhof (Gräber,
+  Särge, Gruft, Bildstock, Erde), Zäune & Tore, Kürbisse & Deko, Bauernhof
+  (Vogelscheuche, Heu, Wagen, Traktor, Wegweiser, Maisfeld, Trittsteine) und
+  Bäume (die übrigen Größen der Herbstbäume und toten Bäume, auf einer Zelle
+  wie die Natur). **Die offenen Tore sperren nichts** (Torbogen, Holztor,
+  Kürbistor: `solid: [0, 0]`), sonst käme niemand hindurch; das Maisfeld ist
+  auf eine Kachel gebracht (`fit: 1`), damit es sich zu einem Irrgarten reiht.
+- **Weihnachten** (`holidayCatalog.ts`, `HOLIDAY_FOLDER`): Tannenbaum,
+  Geschenke, Schnee, Deko, Wohnzimmer (Ohrensessel, Fußbänke, Teppiche,
+  Kakao, Plätzchen), Spielzeug und Lebkuchen-Bausteine. **Die Eisenbahn ist ein
+  Stück** (`holiday-train`: vier Gleise, Lok, Tender und Wagen auf 1 × 2
+  Kacheln) und der **Geschenkehaufen** auch — die Gleise einzeln passen nicht
+  auf das Raster (die Kurve misst 1,12 m). Was hängt (Kranz, Mistelzweig,
+  Glocke) und das Dach des Lebkuchenhauses fehlen.
 
 ### Die Garderobe: `A` öffnet _Aussehen_
 
@@ -792,6 +851,9 @@ Möbelkatalog gibt **Spielelemente** her.
 - **Stadt** steht seit Oktober 2026 dahinter: Straßen, Plätze & Parks, Häuser,
   Straßenmöbel, Autos, Grün und Alles (`CITY_FOLDER`, siehe
   [Stadt](#stadt-straßen-plätze-und-häuser-aus-city-builder-bits)).
+- **Taverne, Halloween, Weihnachten** stehen seit Oktober 2026 am Ende
+  (`TAVERN_FOLDER`, `HALLOWEEN_FOLDER`, `HOLIDAY_FOLDER`, siehe
+  [Taverne, Halloween, Weihnachten](#taverne-halloween-weihnachten-weitere-gruppen-aus-dem-regal)).
 - **Erst der Bereich, dann die Art** (Ende September 2026, gewünscht:
   _„Katalog Ordner besser gruppieren (Haus, Restaurant, etc.) … Ggf wie bei
   Sims"_): Die erste Seite hat nur noch zwei Ordner, **Haus** und
@@ -1303,6 +1365,10 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | `worlds/elements/furnitureCatalog.ts` | **Rein**: der Ordner _Möbel_ — `FURNITURE_BITS_ELEMENTS`, `FURNITURE_BITS_FOLDER`; Tische als Ablage (`shelf`, `kind: 'top'`), Kleinkram ablegbar (`rests`), Teppiche als Boden (`floor`) |
 | `worlds/elements/spaceCatalog.ts`     | **Rein**: der Ordner _Weltraum_ — `SPACE_ELEMENTS`, `SPACE_CATALOGUE`, `SPACE_FOLDER`, `SPACE_SCALE` (2 m je Einheit der Quelle); die Kacheln gemessen, `spaceCatalog.test.ts` misst nach |
 | `worlds/elements/cityCatalog.ts`      | **Rein**: der Ordner _Stadt_ — `CITY_ELEMENTS`, `CITY_CATALOGUE`, `CITY_FOLDER`, `CITY_SCALE` (4 m je Einheit der Quelle), `CITY_BLOCK` (12 × 12 Kacheln: 6 m Fahrbahn, je 3 m Gehweg); Straßen und Plätze als Boden mit Laternen und Ampeln |
+| `worlds/elements/natureCatalog.ts`    | **Rein**: der Ordner _Natur_ — `NATURE_ELEMENTS`, `NATURE_FOLDER`; die sieben anderen Farben von _Forest Nature_ als `NATURE_COLORS`, `NATURE_COLOR_ELEMENTS`, `NATURE_COLOR_FOLDER` |
+| `worlds/elements/tavernCatalog.ts`    | **Rein**: der Ordner _Taverne_ aus _Dungeon_ — `TAVERN_ELEMENTS`, `TAVERN_FOLDER` |
+| `worlds/elements/halloweenCatalog.ts` | **Rein**: der Ordner _Halloween_ aus _Halloween Bits_ — `HALLOWEEN_ELEMENTS`, `HALLOWEEN_FOLDER`; offene Tore ohne Sperre |
+| `worlds/elements/holidayCatalog.ts`   | **Rein**: der Ordner _Weihnachten_ aus _Holiday Bits_ — `HOLIDAY_ELEMENTS`, `HOLIDAY_FOLDER`; Eisenbahn und Geschenkehaufen als ein Stück |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |
 | `worlds/elements/elementFacts.ts`     | **Rein**: der Steckbrief hinter dem ⓘ im Möbelkatalog — `elementFacts`, `footprintRows` (die Belegung aus `■`), `partPlace` (wo ein Teil sitzt)                                                                                        |
