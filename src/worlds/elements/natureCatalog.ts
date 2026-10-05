@@ -15,9 +15,10 @@ import type { FurnitureFolder, GameElement } from './elementCatalog';
  * rasten je Zelle ein. Sträucher, Steine und Holz sperren ihre Kachel wie ein
  * Möbel; Gras, Blumen und Pilze sperren nichts.
  *
- * **Eine Farbe** aus _Forest Nature_ (`color1`): Das Paket hat jedes Modell
- * achtmal, nur in anderer Palette, und achtmal derselbe Baum ist kein Katalog.
- * Aus den Größenstufen (`_A`, `_B`, `_C` …) steht je Art die, die neben einer
+ * **Eine Farbe** aus _Forest Nature_ (`color1`) in den Ordnern nach Art: Das
+ * Paket hat jedes Modell achtmal, nur in anderer Palette, und achtmal derselbe
+ * Baum nebeneinander ist kein Katalog. Die anderen sieben stehen deshalb je in
+ * einem eigenen Ordner unter _Farben_ (`NATURE_COLORS`). Aus den Größenstufen (`_A`, `_B`, `_C` …) steht je Art die, die neben einer
  * Figur von 1,80 m nach Baum aussieht.
  */
 
@@ -25,6 +26,25 @@ import type { FurnitureFolder, GameElement } from './elementCatalog';
 function forest(name: string): string {
   return `forest-nature/color1/${name}_Color1.glb`;
 }
+
+/**
+ * **Die anderen sieben Farben** von _Forest Nature_ — gewünscht (Oktober
+ * 2026): _„Natur → weitere Farben: color2–8 als Herbst- oder
+ * Fantasy-Varianten, ohne neue Formen"_. Jede Farbe ist ein eigener Ordner
+ * unter _Natur_ → _Farben_ (`NATURE_COLOR_FOLDER`) mit denselben Bäumen,
+ * Sträuchern, Steinen und Gräsern wie oben, nur in ihrer Palette. Die Namen
+ * sind die Farbe der Krone, nachgesehen an `Tree_1_B`; die Steine wechseln
+ * mit (grau, rotbraun, sandfarben, blaugrau …).
+ */
+export const NATURE_COLORS = [
+  { n: 2, id: 'darkgreen', label: 'Dunkelgrün', aka: ['Sommer', 'Wald'] },
+  { n: 3, id: 'lightgreen', label: 'Hellgrün', aka: ['Frühling'] },
+  { n: 4, id: 'teal', label: 'Türkis', aka: ['Blaugrün', 'Fantasy'] },
+  { n: 5, id: 'gold', label: 'Goldgelb', aka: ['Herbst', 'Gelb', 'Birke'] },
+  { n: 6, id: 'orange', label: 'Orange', aka: ['Herbst'] },
+  { n: 7, id: 'red', label: 'Rot', aka: ['Herbst', 'Ahorn'] },
+  { n: 8, id: 'pink', label: 'Rosa', aka: ['Kirschblüte', 'Frühling', 'Fantasy'] },
+] as const;
 
 /** So hoch ist der Körper — wie bei jedem Möbel: Darüber springt niemand. */
 const BODY = 1.4;
@@ -158,10 +178,56 @@ function ofKind(prefix: string): string[] {
   return NATURE_CATALOGUE.filter((id) => id.startsWith(prefix));
 }
 
+/** Ob ein Element ganz aus _Forest Nature_ in der ersten Farbe gebaut ist. */
+function inFirstColor(element: GameElement): boolean {
+  return element.parts.every((part) => part.model.startsWith('forest-nature/color1/'));
+}
+
+/**
+ * **Die Natur in den anderen Farben** — jedes Element aus _Forest Nature_
+ * noch einmal je Farbe (`NATURE_COLORS`), mit derselben Grundfläche und
+ * Sperre: `tree-leafy` wird zu `tree-leafy-red`, „Laubbaum“ zu „Laubbaum,
+ * Rot“. Was aus anderen Paketen kommt (Herbstbäume, Flachs, Pilz, Holz), gibt
+ * es nur einmal.
+ */
+export const NATURE_COLOR_ELEMENTS: readonly GameElement[] = NATURE_COLORS.flatMap((color) =>
+  NATURE_ELEMENTS.filter(inFirstColor).map((element): GameElement => ({
+    ...element,
+    id: `${element.id}-${color.id}`,
+    label: `${element.label}, ${color.label}`,
+    aka: [element.label, ...color.aka],
+    parts: element.parts.map((part) => ({
+      ...part,
+      model: part.model
+        .replace('/color1/', `/color${color.n}/`)
+        .replace('_Color1.glb', `_Color${color.n}.glb`),
+    })),
+  })),
+);
+
+/**
+ * **Der Ordner _Farben_** unter _Natur_ — ein Unterordner je Farbe, darin
+ * alles in dieser Farbe, mit dem Laubbaum als Bild.
+ */
+export const NATURE_COLOR_FOLDER: FurnitureFolder = {
+  id: 'nature-colors',
+  label: 'Farben',
+  elements: [],
+  cover: { element: 'tree-leafy-red' },
+  folders: NATURE_COLORS.map((color) => ({
+    id: `nature-color-${color.id}`,
+    label: color.label,
+    elements: NATURE_COLOR_ELEMENTS.filter((one) => one.id.endsWith(`-${color.id}`)).map(
+      (one) => one.id,
+    ),
+    cover: { element: `tree-leafy-${color.id}` },
+  })),
+};
+
 /**
  * **Der Ordner _Natur_** — neben _Haus_ und _Restaurant_, und darin nach Art
- * wie die Küche: Bäume, Sträucher, Steine, Gras & Blumen, Holz, und zuletzt
- * _Alles_.
+ * wie die Küche: Bäume, Sträucher, Steine, Gras & Blumen, Holz, die Farben
+ * (`NATURE_COLOR_FOLDER`) und zuletzt _Alles_.
  */
 export const NATURE_FOLDER: FurnitureFolder = {
   id: 'nature',
@@ -174,6 +240,7 @@ export const NATURE_FOLDER: FurnitureFolder = {
     { id: 'rocks', label: 'Steine', elements: ofKind('rock-'), cover: { element: 'rock-crag' } },
     { id: 'plants', label: 'Gras & Blumen', elements: ofKind('plant-') },
     { id: 'wood', label: 'Holz', elements: ofKind('wood-'), cover: { element: 'wood-stack' } },
+    NATURE_COLOR_FOLDER,
     { id: 'nature-all', label: 'Alles', elements: NATURE_CATALOGUE },
   ],
 };

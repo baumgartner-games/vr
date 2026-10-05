@@ -2,10 +2,13 @@ import { SHELF_WALL, SHELF_WALL_HALF, SHELF_WINDOW_PIECES } from '../grid/shelfW
 import type { StationKind } from '../test/zones/kitchenCarry';
 import type { KitchenItem } from '../test/zones/kitchenRecipes';
 import { FLOORINGS } from '../house/flooring';
-import { NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
+import { NATURE_COLOR_ELEMENTS, NATURE_ELEMENTS, NATURE_FOLDER } from './natureCatalog';
 import { SPACE_ELEMENTS, SPACE_FOLDER } from './spaceCatalog';
 import { CITY_ELEMENTS, CITY_FOLDER } from './cityCatalog';
 import { FURNITURE_BITS_ELEMENTS, FURNITURE_BITS_FOLDER } from './furnitureCatalog';
+import { TAVERN_ELEMENTS, TAVERN_FOLDER } from './tavernCatalog';
+import { HALLOWEEN_ELEMENTS, HALLOWEEN_FOLDER } from './halloweenCatalog';
+import { HOLIDAY_ELEMENTS, HOLIDAY_FOLDER } from './holidayCatalog';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -941,12 +944,19 @@ export const ELEMENTS: readonly GameElement[] = [
   piece('chair', 'Stuhl', null, [{ model: bits('chair_A') }]),
   // **Die Natur** — Bäume, Sträucher, Steine, Gras, Holz (`natureCatalog.ts`).
   ...NATURE_ELEMENTS,
+  ...NATURE_COLOR_ELEMENTS,
   // **Der Weltraum** — die Teile aus _Space Base Bits_ (`spaceCatalog.ts`).
   ...SPACE_ELEMENTS,
   ...CITY_ELEMENTS,
   // **Die Möbel** — _Furniture Bits_: Tische als Ablage, Kleinkram, Teppiche
   // (`furnitureCatalog.ts`).
   ...FURNITURE_BITS_ELEMENTS,
+  // **Taverne, Halloween, Weihnachten** — _Dungeon_, _Halloween Bits_,
+  // _Holiday Bits_ (`tavernCatalog.ts`, `halloweenCatalog.ts`,
+  // `holidayCatalog.ts`).
+  ...TAVERN_ELEMENTS,
+  ...HALLOWEEN_ELEMENTS,
+  ...HOLIDAY_ELEMENTS,
 ];
 
 /**
@@ -1279,6 +1289,12 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   // ‚Stadt' […], die aber eben einen Boden mit Möbeln darstellen"_
   // (`cityCatalog.ts`).
   CITY_FOLDER,
+  // **Taverne, Halloween, Weihnachten** — gewünscht als weitere Gruppen aus
+  // dem Modellregal (Oktober 2026): _„Ich denke auch 4 und 3 und 2 wären
+  // gut."_ — Weihnachten, Halloween, Taverne.
+  TAVERN_FOLDER,
+  HALLOWEEN_FOLDER,
+  HOLIDAY_FOLDER,
 ];
 
 /**
