@@ -57,6 +57,9 @@ export class XRMenuLayer {
       blending: THREE.NoBlending,
       depthFunc: THREE.AlwaysDepth,
       toneMapped: false,
+      // **Ohne Nebel** (`noFog.ts`): Mit ihm bekäme das Loch die Farbe des
+      // Nebels bei Alpha 0, und die legte sich im Kompositor über die Ebene.
+      fog: false,
     });
     // Die Lage der Ebene unmittelbar vor dem Zeichnen: Dann stimmt sie mit dem
     // Loch überein, auch wenn sich das Rig im selben Bild noch bewegt hat.

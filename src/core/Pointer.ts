@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Handedness, XRInput } from './XRInput';
 import type { PlayerRig } from './PlayerRig';
+import { signList } from '../ui/signMarks';
 
 export interface PointerHit {
   point: THREE.Vector3;
@@ -96,6 +97,18 @@ const _local = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _hitPoint = new THREE.Vector3();
 const _screenCentre = new THREE.Vector2();
+const _normal = new THREE.Vector3();
+const _ringAt = new THREE.Vector3();
+let _ringSize = 0;
+const _facing = new THREE.Vector3(0, 0, 1);
+
+/**
+ * **Wie groß der Ring auf einem Schild ist**, als Anteil der Entfernung —
+ * so groß, wie der Ring auf dem Menü aus dem Kopf aussieht (`UIPanel.marker`:
+ * 2 cm Halbmesser auf 2 m). Ein Schild zehn Meter weiter bekommt einen
+ * zehnmal so großen Ring, und im Auge ist es derselbe.
+ */
+const SIGN_RING = 0.01;
 
 const HANDS: readonly Handedness[] = ['left', 'right'];
 
@@ -109,6 +122,8 @@ const HANDS: readonly Handedness[] = ['left', 'right'];
 class Beam {
   readonly line: THREE.Line;
   readonly cursor: THREE.Mesh;
+  /** Der Ring auf einem Schild (`ui/signMarks.ts`) — wie auf dem Menü. */
+  readonly ring: THREE.Mesh;
   hovered: PointerTarget | null = null;
   /** Worauf dieser Strahl gerade drückt — für `onHold` und `onRelease`. */
   held: PointerTarget | null = null;
@@ -122,7 +137,12 @@ class Beam {
     ]);
     this.line = new THREE.Line(
       geometry,
-      new THREE.LineBasicMaterial({ color: 0x8fc8ff, transparent: true, opacity: 0.55 }),
+      new THREE.LineBasicMaterial({
+        color: 0x8fc8ff,
+        transparent: true,
+        opacity: 0.55,
+        fog: false,
+      }),
     );
     this.line.name = `pointer-ray-${hand ?? 'screen'}`;
     this.line.visible = false;
@@ -130,17 +150,35 @@ class Beam {
 
     this.cursor = new THREE.Mesh(
       new THREE.SphereGeometry(0.008, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, fog: false }),
     );
     this.cursor.name = `pointer-cursor-${hand ?? 'screen'}`;
     this.cursor.visible = false;
     this.cursor.renderOrder = 999;
     this.cursor.frustumCulled = false;
+
+    this.ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 1, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        toneMapped: false,
+        fog: false,
+      }),
+    );
+    this.ring.name = `pointer-ring-${hand ?? 'screen'}`;
+    this.ring.visible = false;
+    this.ring.renderOrder = 999;
+    this.ring.frustumCulled = false;
+    this.ring.raycast = () => {};
   }
 
   hide(): void {
     this.line.visible = false;
     this.cursor.visible = false;
+    this.ring.visible = false;
   }
 
   /**
@@ -331,9 +369,13 @@ export class Pointer {
       }
     }
 
+    // **Auf einem Schild endet der Strahl** und zeigt den Ring — nur, wo kein
+    // Ziel getroffen ist: Das Menü steht vor allem, auch vor einem Schild.
+    const sign = hit ? null : this.castSigns(_ray.direction);
     beam.line.visible = true;
-    beam.line.scale.z = hit ? hit.hit.distance / reach : 1.6;
+    beam.line.scale.z = hit ? hit.hit.distance / reach : sign ? sign / reach : 1.6;
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
+    this.showRing(beam, sign !== null);
 
     // **Erst das Loslassen, dann das Drücken.** Eine Hand, die im selben Bild
     // losläßt und wieder drückt, fängt sonst einen Strich an, den das
@@ -379,6 +421,7 @@ export class Pointer {
     this.raycaster.far = 12;
     const hit = this.castAll(null);
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
+    this.showRing(beam, !hit && this.castSigns(this.raycaster.ray.direction) !== null);
 
     const down = this.screenDown || this.keyboardDown;
     if (beam.held && (!down || beam.held !== hit?.target)) beam.drop();
@@ -438,6 +481,38 @@ export class Pointer {
       };
     }
     return best;
+  }
+
+  /**
+   * **Das nächste Schild auf dem Strahl** (`ui/signMarks.ts`) — die
+   * Entfernung, oder `null`. Der Ring dafür steht danach schon in
+   * `_ringAt`/`_normal` bereit (`showRing`).
+   */
+  private castSigns(direction: THREE.Vector3): number | null {
+    let best: THREE.Intersection | null = null;
+    for (const sign of signList()) {
+      if (!visibleInHierarchy(sign) || !inScene(sign)) continue;
+      const first = this.raycaster.intersectObject(sign, false)[0];
+      if (!first || (best && first.distance >= best.distance)) continue;
+      best = first;
+    }
+    if (!best) return null;
+    _ringAt.copy(best.point);
+    if (best.face) _normal.copy(best.face.normal).transformDirection(best.object.matrixWorld);
+    else _normal.copy(direction).negate();
+    // Zum Strahl hin, auch von hinten.
+    if (_normal.dot(direction) > 0) _normal.negate();
+    _ringSize = best.distance * SIGN_RING;
+    return best.distance;
+  }
+
+  private showRing(beam: Beam, on: boolean): void {
+    beam.ring.visible = on;
+    if (!on) return;
+    if (!beam.ring.parent) this.rig.parent?.add(beam.ring);
+    beam.ring.position.copy(_ringAt);
+    beam.ring.quaternion.setFromUnitVectors(_facing, _normal);
+    beam.ring.scale.setScalar(_ringSize);
   }
 
   /**
@@ -548,6 +623,13 @@ export class Pointer {
 }
 
 /** Culled room groups and closed UI panels must not retain invisible controls. */
+/** Ob es überhaupt in einer Szene hängt — ein Schild einer verlassenen Welt nicht mehr. */
+function inScene(object: THREE.Object3D): boolean {
+  let node = object;
+  while (node.parent) node = node.parent;
+  return (node as Partial<THREE.Scene>).isScene === true;
+}
+
 function visibleInHierarchy(object: THREE.Object3D): boolean {
   for (let node: THREE.Object3D | null = object; node; node = node.parent) {
     if (!node.visible) return false;

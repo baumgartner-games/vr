@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { faceCamera, type BillboardOptions } from './billboard';
+import { addSign, removeSign } from './signMarks';
 
 export interface TextPlaneOptions {
   width: number;
@@ -48,6 +49,12 @@ export interface TextPlaneOptions {
    * bei Namensschildern, die dauernd hängen, wäre es eine.
    */
   front?: boolean;
+  /**
+   * **Ein Schild, auf dem der Strahl aufsetzt** (`signMarks.ts`): Der Zeiger
+   * endet an ihm und zeigt dort den Ring wie auf dem Menü. Für Schilder, die
+   * in der Welt hängen — Tore, die Lobby, Wegweiser —, nicht für Anzeigen.
+   */
+  sign?: boolean;
 }
 
 const RES = 512;
@@ -121,6 +128,7 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
     // Eine Tafel ist selbst das Gezeichnete, keine Gruppe — `faceCamera` hängt
     // hier also genau an einem Ding, und das gleich hier beim Bauen.
     if (options.face) faceCamera(this, options.face === true ? undefined : options.face);
+    if (options.sign) addSign(this);
   }
 
   /**
@@ -157,6 +165,7 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
   }
 
   dispose(): void {
+    removeSign(this);
     this.geometry.dispose();
     this.material.dispose();
     this.texture.dispose();

@@ -2882,8 +2882,9 @@ export class App {
           // **Was man loslässt, fällt sichtbar** — `worlds/portal/dropFall.ts`.
           // Nur das Bild; wo es landet, steht sofort fest.
           id: 'gfx:drop-physics',
-          label: 'Weltbau: simulierte Physik-Optik',
-          sub: 'Losgelassenes fällt aus der Hand, dreht sich und kippt an seinen Platz',
+          label: 'Simulierte Physik-Optik',
+          // Beim Bauen nie (`PortalWorld.building`): Dort wird hingestellt.
+          sub: 'Beim Spielen: Losgelassenes fällt aus der Hand und kippt an seinen Platz · nie beim Bauen',
           caption: 'Nur das Bild · wo es steht, ist dasselbe wie ohne',
           icon: 'settings',
           accent,

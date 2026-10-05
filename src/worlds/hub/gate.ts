@@ -133,6 +133,7 @@ export function buildGate(title: string, description: string, accent: number): G
     body: description,
     accent,
     face: true,
+    sign: true,
   });
   sign.position.set(0, SIGN_Y, 0.02);
   group.add(sign);

@@ -353,6 +353,7 @@ export class HubWorld extends FurnishedWorld {
         // Aufschrift über der Mündung und kein Schild darin. Zur Kamera
         // geneigt, läge es von oben quer über dem Tor, auf das man sich
         // stellen soll; das Schild am Tor selbst dreht sich ohnehin.
+        sign: true,
       });
       const at = wallPoint(corridor.dir, HALL_WALL + 0.05, 0);
       sign.position.set(middle.x + at.x, ARCH_HEIGHT + 0.5, middle.z + at.z);
@@ -373,6 +374,7 @@ export class HubWorld extends FurnishedWorld {
       accent: 0x9d7bff,
       // Zur Kamera gedreht — ein Hinweis an der Wand wird von überall gelesen.
       face: true,
+      sign: true,
     });
     hint.position.set(middle.x - (HALL_HALF - 2) * TILE, 1.6, middle.z + HALL_HALF * TILE);
     group.add(hint);
