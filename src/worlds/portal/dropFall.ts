@@ -32,6 +32,9 @@ import { disposeTree } from '../shared/environment';
  *    Lage, in der es aufkam, in die richtige: Es kommt richtig herum wieder
  *    unten an und bleibt liegen. Fehlt zur richtigen Lage kaum etwas, dreht
  *    es eine ganze Runde dazu — sonst sähe der Sprung aus wie ein Hüpfer.
+ *    **Das alles nur aus großer Höhe** (`HIGH_DROP`): Was man bloß absetzt,
+ *    fällt ohne Zufallsdrall, wippt kurz nach (`LOW_HOP`) und dreht sich auf
+ *    dem kürzesten Weg in seine Lage, ohne Salto.
  *    Gewünscht: _„beim Aufprall eher wie ein [Sprung] so hoch, wie das Objekt
  *    ist ×1,5, und in diesem Hochspringen dann in der Luft drehen, sodass es
  *    beim Runterfallen am Ende korrekt wieder liegen bleibt."_
@@ -59,6 +62,21 @@ const SPIN_DAMP = 0.6;
 const HOP = 1.5;
 /** Unter diesem Winkel zur richtigen Lage dreht der Sprung eine Runde dazu. */
 const FLIP_BELOW = Math.PI / 2;
+/**
+ * **Erst ab dieser Fallhöhe gibt es den Salto** (m, mal der Größe des
+ * Gestells) — darunter fällt es, setzt kurz auf und dreht sich auf dem
+ * kürzesten Weg in seine Lage. Gemeldet: _„Das item flipping beim platzieren,
+ * sollte nicht immer komplett um alle achsen flippen, aktuell macht es beim
+ * absetzen gefühlt einen salto, auch wenn es fast schon perfekt fallen würde.
+ * Es sollte nur so einen salto machen, wenn es von einer großen höhe
+ * losgelassen wird"_. Eineinhalb Meter: höher hält niemand etwas, das er nur
+ * absetzt.
+ */
+const HIGH_DROP = 1.5;
+/** Wie hoch es aus geringer Höhe nach dem Aufsetzen noch hüpft — mal seiner Höhe. */
+const LOW_HOP = 0.25;
+/** Und wie lange das dauert, in Sekunden — ein Nachwippen, kein Sprung. */
+const LOW_HOP_TIME = 0.45;
 /** Höchster Drall, rad/s. */
 const MAX_SPIN = 4.5;
 /** So lange darf es höchstens dauern — dann steht es, wo es steht. */
@@ -145,6 +163,8 @@ export class FallMotion {
   /** Wo die tiefste Ecke am Ende aufliegt. */
   private readonly floor: number;
   private readonly gravity: number;
+  /** Ob es von hoch genug fällt für Drall, Sprung und Salto (`HIGH_DROP`). */
+  private readonly high: boolean;
 
   constructor(
     start: DropStart,
@@ -159,6 +179,7 @@ export class FallMotion {
     this.quaternion.copy(start.quaternion);
     this.velocity.copy(start.velocity);
     this.floor = end.position.y - extentY(half, end.quaternion);
+    this.high = start.position.y - end.position.y > HIGH_DROP * scale;
 
     // **Der Drall**: Was schräg losgelassen wird, dreht sich weiter aus der
     // Lage heraus, in der es hing — um die Achse, um die es gegen die
@@ -186,7 +207,10 @@ export class FallMotion {
       .set(random() - 0.5, (random() - 0.5) * 0.4, random() - 0.5)
       .normalize()
       .multiplyScalar(0.3 + random() * 0.9);
-    this.spin.add(_axis);
+    // Aus geringer Höhe kein Zufallsdrall: Was fast richtig liegt, soll fast
+    // richtig ankommen.
+    if (this.high) this.spin.add(_axis);
+    else this.spin.multiplyScalar(0.35);
     if (this.spin.length() > MAX_SPIN) this.spin.setLength(MAX_SPIN);
     // Wer hoch über dem Platz loslässt, soll keinen Speer werfen: der Schwung
     // der Hand bleibt, aber gedeckelt.
@@ -262,12 +286,13 @@ export class FallMotion {
     this.hopFrom.copy(this.quaternion);
     this.hopAt.copy(this.position);
     this.hopTime = 0;
-    this.hopHeight = Math.max(0.01, HOP * 2 * extentY(this.half, this.end.quaternion));
-    this.hopLength = HOP_TIME;
+    const hop = this.high ? HOP : LOW_HOP;
+    this.hopHeight = Math.max(0.01, hop * 2 * extentY(this.half, this.end.quaternion));
+    this.hopLength = this.high ? HOP_TIME : LOW_HOP_TIME;
     // Liegt es schon fast richtig, dreht es eine ganze Runde dazu — um eine
     // waagerechte Achse, quer zu der Richtung, in die es noch rutscht.
     this.flip = 0;
-    if (this.quaternion.angleTo(this.end.quaternion) < FLIP_BELOW) {
+    if (this.high && this.quaternion.angleTo(this.end.quaternion) < FLIP_BELOW) {
       this.flipAxis.set(this.velocity.x, 0, this.velocity.z);
       if (this.flipAxis.lengthSq() < 1e-6) {
         const turn = this.random() * Math.PI * 2;

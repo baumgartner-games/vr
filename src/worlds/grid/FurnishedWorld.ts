@@ -941,8 +941,11 @@ export abstract class FurnishedWorld extends GridWorld {
         else if (what === 'swap') this.swapElement(anchor);
         // Stühle, Hocker, Sessel und Sofas (`furnitureCatalog`, _Sitzen_).
         else if (what === 'sit' && this.context) this.sitOn(this.context, anchor);
+        // Der Hologramm-Sockel (`spaceCatalog.SPACE_HOLOGRAM`): ein Modell wählen.
+        else if (what === 'hologram' && this.context) this.chooseHologram(this.context, anchor);
         else if (this.context) this.hideIn(this.context, anchor);
       },
+      hologram: (anchor, spot, model) => this.showHologram(anchor, spot, model),
     };
   }
 

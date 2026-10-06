@@ -147,12 +147,21 @@ export const VAN_W = 4;
  * **Wie tief die Einsatzzentrale ist**, in Kacheln zu einem Meter. Bis
  * Oktober 2026 waren es fünf — ein Schlauch von 40 × 5 m, in dem alles an der
  * Wand stand. Gewünscht: _„die einsatzzentrale soll bitte kein schlauch raum
- * sein, sondern kann schöner gestaltet werden."_ Jetzt zwölf, nach Norden
+ * sein, sondern kann schöner gestaltet werden."_ Jetzt vierzehn, nach Norden
  * gewachsen: Die Südwand mit der Fensterfront zur Kantine bleibt, wo sie war.
  * Mit dem alten Zufallsgrundriss (`HOUSE`, nur noch ohne `roomCount`)
  * überlappt sie dessen Südrand — der wird nicht mehr gespielt.
  */
-const APRON_DEPTH = 12;
+const APRON_DEPTH = 14;
+
+/**
+ * **Wie breit die Einsatzzentrale ist**, in Kacheln. Bis Oktober 2026 so
+ * breit wie das alte Haus (40 m) — ein Saal, viel breiter als tief.
+ * Gewünscht: _„Es sollte nicht rechteckig sein, sondern eher quadratisch,
+ * einfach aktuell von der breite kleiner machen."_ Jetzt 16 × 14, mittig über
+ * der Kantine (x −8…8): Die Fensterfront geht genau über deren Breite.
+ */
+const APRON_WIDTH = 16;
 
 /**
  * **Der Vorplatz** — die zwei Kachelreihen der Einsatzzentrale, und seit
@@ -177,9 +186,9 @@ const APRON_DEPTH = 12;
  * Belagerung.
  */
 export const APRON: Rect = {
-  x: HOUSE.x,
+  x: -APRON_WIDTH / 2,
   z: STATION_ORIGIN.z - APRON_DEPTH,
-  w: HOUSE.w,
+  w: APRON_WIDTH,
   d: APRON_DEPTH,
 };
 

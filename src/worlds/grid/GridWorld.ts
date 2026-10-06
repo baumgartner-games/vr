@@ -138,6 +138,12 @@ export interface SolidBlock {
   readonly cells: readonly string[];
   /** Der unsichtbare Kasten in der Physik. */
   readonly mesh: THREE.Mesh;
+  /**
+   * **Weitere Kästen derselben Sperre** — ein Kreuz aus zwei (der
+   * Hologramm-Sockel mit freien Ecken, `elementPlace.spotSolidBoxes`). Ihre
+   * Zellen stehen schon in `cells`.
+   */
+  readonly more?: readonly SolidBlock[];
 }
 
 /**
@@ -1438,6 +1444,7 @@ export abstract class GridWorld extends PortalWorld {
     this.unblockFootprint(block.cells);
     this.dropSlab(block.mesh);
     block.mesh.removeFromParent();
+    for (const more of block.more ?? []) this.unblockSolid(more);
   }
 
   /**

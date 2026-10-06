@@ -17,7 +17,7 @@ import {
   figureLift,
   isLargeFigure,
 } from './avatarFigures';
-import { figureBoneName } from './kaykitFigureFit';
+import { figureBoneName, pickClip } from './kaykitFigureFit';
 import type { KaykitFigure } from './kaykitFigure';
 import {
   bodyJacket,
@@ -193,6 +193,33 @@ const FIGURE_HEAD_PITCH = 0.7;
 const FIGURE_GAIT_DAMP = 3;
 
 /**
+ * **Die Sitzspur der Figur** — dieselbe wie bei den NPCs
+ * (`npc/NpcBody.POSE_CLIPS`), aus der Simulations-Bibliothek
+ * (`core/kaykitClips.ts`). Fehlt sie dem Skelett, sitzt die Figur im Stehen.
+ */
+const FIGURE_SIT_CLIPS = ['Sit_Chair_Idle', 'Sit_Floor_Idle'] as const;
+/** So lange blendet sie hinein, in Sekunden — ein Hinsetzen und kein Zucken. */
+const FIGURE_SIT_FADE = 0.3;
+/** So weit über der Sitzfläche liegt das Becken: die Dicke der Oberschenkel (m). */
+const SEAT_HIP = 0.08;
+
+/**
+ * **Worauf eine Figur sitzt** (`AvatarBody.seat`) — im Raum des Elternteils
+ * mit dem Boden auf `y`.
+ */
+export interface AvatarSeat {
+  /** Die Mitte der Sitzfläche, von oben. */
+  x: number;
+  z: number;
+  /** Der Boden unter dem Möbel. */
+  y: number;
+  /** Wie hoch die Sitzfläche über dem Boden liegt (m). */
+  top: number;
+  /** Wohin man sitzend schaut — dieselbe Drehung wie `bodyYaw`. */
+  yaw: number;
+}
+
+/**
  * **Die Figur** — ein Koch nach dem Vorbild von Overcooked, angetrieben von
  * drei Posen: Kopf plus beide Hände. Mehr weiß ein Headset über seinen Träger
  * nicht, mehr geht auch über das Netz nicht, und deshalb bedient derselbe
@@ -210,6 +237,20 @@ const FIGURE_GAIT_DAMP = 3;
 export class AvatarBody extends THREE.Group {
   /** Yaw of the torso; follows the head with a dead zone, like a real body. */
   bodyYaw = 0;
+
+  /**
+   * **Worauf die Figur sitzt** (`PortalWorld.sitOn`), im Raum des Elternteils
+   * — oder `null`, solange sie steht. Gemeldet: _„Der körper soll sich nicht
+   * drehen durch umherschauen, die füße sollten sauber sitzen."_ Solange das
+   * steht, schaut der Rumpf stur nach vorn (`yaw`), nur der Kopf sieht sich
+   * um, und eine Figur aus dem Regal spielt ihr Sitzen (`Sit_Chair_Idle`) mit
+   * dem Becken auf der Sitzfläche statt mit den Beinen im Boden.
+   */
+  seat: AvatarSeat | null = null;
+  /** Ob die Figur gerade ihre Sitzspur spielt (`driveFigure`). */
+  private figureSits = false;
+  /** Wie hoch ihr Ursprung sitzend steht — am Becken gemessen, vom letzten Bild. */
+  private figureSitLift: number | null = null;
 
   readonly head: THREE.Group;
   /** Follows the tracked hands — hang a tool here to show what is being held. */
@@ -987,7 +1028,8 @@ export class AvatarBody extends THREE.Group {
     right: AvatarLimb | null,
   ): void {
     const root = figure.root;
-    root.position.set(baseX, 0, baseZ);
+    const seat = this.seat;
+    root.position.set(baseX, seat ? (this.figureSitLift ?? seat.y) : 0, baseZ);
     root.rotation.set(0, this.bodyYaw, 0);
     // **Der Maßstab wird je Bild neu gesetzt und nicht multipliziert.** Auf
     // derselben Achse liegen zwei Dinge: die Verkleinerung der Figur
@@ -1002,13 +1044,41 @@ export class AvatarBody extends THREE.Group {
     );
 
     this.figurePace += (this.speed - this.figurePace) * Math.min(1, dt * FIGURE_GAIT_DAMP);
-    figure.gait(this.figurePace);
+    if (seat && !this.figureSits) {
+      const name = pickClip(
+        figure.clips.map((clip) => clip.name),
+        FIGURE_SIT_CLIPS,
+      );
+      if (name) figure.play(name, { fade: FIGURE_SIT_FADE });
+      this.figureSits = true;
+    } else if (!seat && this.figureSits) {
+      this.figureSits = false;
+      this.figureSitLift = null;
+      figure.resumeGait(this.figurePace);
+    }
+    if (!seat) figure.gait(this.figurePace);
     figure.update(dt);
 
     // Erst jetzt stehen die Knochen dort, wo sie in diesem Bild hingehören —
     // und erst mit frischen Weltmatrizen lässt sich von einer Schulter aus auf
     // eine Hand zielen.
     this.updateMatrixWorld(true);
+
+    // **Sitzend kommt das Becken auf die Sitzfläche** — und nicht die Sohlen
+    // auf den Boden. Die Sitzspur hat ihre eigene Sitzhöhe, die zu keinem
+    // Möbel passt; also wird gemessen, wo das Becken in diesem Bild steht, und
+    // die Figur so weit verschoben, dass es über der Mitte der Sitzfläche
+    // liegt. Nie tiefer als der Boden: Auf einem niedrigen Sofa sitzt sie
+    // lieber etwas hoch, als mit den Füßen im Boden.
+    const hips = figure.bones.hips;
+    if (seat && hips) {
+      _aim.setFromMatrixPosition(hips.matrixWorld);
+      this.worldToLocal(_aim);
+      const lift = Math.max(seat.y, root.position.y + seat.y + seat.top + SEAT_HIP - _aim.y);
+      root.position.set(root.position.x + baseX - _aim.x, lift, root.position.z + baseZ - _aim.z);
+      this.figureSitLift = lift;
+      this.updateMatrixWorld(true);
+    }
 
     const bone = this.figureHeadBone;
     if (bone) {
@@ -1260,7 +1330,10 @@ export class AvatarBody extends THREE.Group {
     const headPitch = Math.asin(THREE.MathUtils.clamp(_forward.y, -1, 1));
     const difference = wrapAngle(headYaw - this.bodyYaw);
     const slack = THREE.MathUtils.degToRad(38);
-    if (Math.abs(difference) > slack) {
+    const seat = this.seat;
+    if (seat) {
+      this.bodyYaw = seat.yaw;
+    } else if (Math.abs(difference) > slack) {
       this.bodyYaw += difference - Math.sign(difference) * slack;
     } else if (this.speed > 0.4) {
       this.bodyYaw += difference * Math.min(1, dt * 4);
@@ -1282,15 +1355,19 @@ export class AvatarBody extends THREE.Group {
     // Ducken staucht ihn: Seine Höhe ist die des Kopfes, nicht seine eigene.
     const sin = Math.sin(this.bodyYaw);
     const cos = Math.cos(this.bodyYaw);
-    const baseX = headPos.x + sin * this.neckBack;
-    const baseZ = headPos.z + cos * this.neckBack;
+    const baseX = seat ? seat.x : headPos.x + sin * this.neckBack;
+    const baseZ = seat ? seat.z : headPos.z + cos * this.neckBack;
+    // Der Koch hat keine Beine: Sitzend steht sein runder Boden auf der
+    // Sitzfläche. Die Figur aus dem Regal rechnet ihre Höhe selbst
+    // (`driveFigure`, am Becken).
+    const sitY = seat ? seat.y + seat.top : 0;
     // **Die Figur ist immer gleich hoch.** Früher kam ihre Höhe aus der des
     // Spielerkopfes, und Ducken stauchte sie mit. Seit sie ein Modell ist
     // (`core/chefModel.ts`), ist sie 1,6 m hoch und ihre Augen liegen bei
     // 0,91 m — eine Figur, die zur Küche passt und nicht zum Spieler. Ob
     // jemand steht oder sitzt, ändert daran nichts; es gibt kein Bücken mehr.
     const height = Math.max(this.eyeY - HEAD_RADIUS * 0.86, 0.3);
-    this.torso.position.set(baseX, 0, baseZ);
+    this.torso.position.set(baseX, sitY, baseZ);
     this.torso.rotation.set(0, this.bodyYaw, 0);
     this.shape?.setHeight(height);
 
@@ -1331,7 +1408,11 @@ export class AvatarBody extends THREE.Group {
     this.stretchNow = squish.height;
     this.torso.scale.set(squish.width, squish.height, squish.width);
     this.head.scale.set(squish.width, squish.height, squish.width);
-    this.head.position.y = this.eyeY * squish.height + this.bobNow;
+    this.head.position.y = sitY + this.eyeY * squish.height + this.bobNow;
+    if (seat) {
+      this.head.position.x = baseX;
+      this.head.position.z = baseZ;
+    }
     // Dieselbe Bewegung auf den Rumpf des Modells — `setStride` kennt nur die
     // gebaute Figur, und die ist ausgeblendet, sobald das Modell da ist.
     if (this.sway && this.shape) {
@@ -1353,7 +1434,7 @@ export class AvatarBody extends THREE.Group {
         // wo der Spieler steht, und greift trotzdem dorthin, wo er greift.
         _hand.set(
           baseX + (limb.position.x - headPos.x) * POSE_SCALE,
-          this.eyeY + (limb.position.y - headPos.y) * POSE_SCALE,
+          sitY + this.eyeY + (limb.position.y - headPos.y) * POSE_SCALE,
           baseZ + (limb.position.z - headPos.z) * POSE_SCALE,
         );
       } else {
@@ -1373,7 +1454,7 @@ export class AvatarBody extends THREE.Group {
         const ahead = HAND_FRONT * POSE_SCALE + Math.sin(phase) * swing * POSE_SCALE;
         _hand.set(
           baseX + cos * side - sin * ahead,
-          lift - Math.abs(Math.cos(phase)) * swing * 0.4 * POSE_SCALE,
+          sitY + lift - Math.abs(Math.cos(phase)) * swing * 0.4 * POSE_SCALE,
           baseZ - sin * side - cos * ahead,
         );
       }

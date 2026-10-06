@@ -15,7 +15,7 @@ import {
   spotFace,
   spotFront,
   spotSize,
-  spotSolid,
+  spotSolidBoxes,
   spotYaw,
   type ElementSpot,
 } from './elementPlace';
@@ -133,11 +133,21 @@ export async function placeElement(host: ElementHost, spot: ElementSpot): Promis
   const centre = spotCentre(spot);
   // Gesperrt wird, was sperrt (`spotSolid`): die Grundfläche, beim Baum nur
   // der Stamm, bei Gras nichts — dann auch kein Kasten.
-  const [w, d] = spotSolid(spot);
+  // Mit freien Ecken (`GameElement.openCorners`) sind es zwei Kästen, die
+  // sich zum Kreuz überlagern — der zweite reist im ersten mit (`more`).
+  const boxes = spotSolidBoxes(spot).map((box) =>
+    host.blockSolid(box.x, box.z, box.w, box.d, element.height, spot.level ?? 0),
+  );
   const block: SolidBlock =
-    w > 0 && d > 0
-      ? host.blockSolid(centre.x, centre.z, w, d, element.height, spot.level ?? 0)
-      : { cells: [], mesh: new THREE.Mesh() };
+    boxes.length === 0
+      ? { cells: [], mesh: new THREE.Mesh() }
+      : boxes.length === 1
+        ? boxes[0]!
+        : {
+            cells: [...new Set(boxes.flatMap((box) => box.cells))],
+            mesh: boxes[0]!.mesh,
+            more: boxes.slice(1),
+          };
   // Das Bild darf neben seinen Zellen stehen (`ElementSpot.offset`), die
   // Sperre nicht — sie steht schon.
   const [sx, sz] = spot.offset ?? [0, 0];

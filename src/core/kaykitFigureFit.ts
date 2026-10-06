@@ -161,7 +161,7 @@ export function figureScale(sourceHeight: number, packScale: number, targetHeigh
 }
 
 /** Die drei Anker, die eine Figur außen hergibt. */
-export type FigureBone = 'handLeft' | 'handRight' | 'head';
+export type FigureBone = 'handLeft' | 'handRight' | 'head' | 'hips';
 
 /**
  * **Die Knochen, an die etwas gehängt wird** — je Anker die bevorzugten
@@ -184,6 +184,9 @@ export const FIGURE_BONES: Readonly<Record<FigureBone, readonly string[]>> = {
   handRight: ['handslot.r', 'hand.r', 'wrist.r'],
   handLeft: ['handslot.l', 'hand.l', 'wrist.l'],
   head: ['head'],
+  // Das Becken — daran setzt sich die eigene Figur auf einen Stuhl
+  // (`AvatarBody.seat`).
+  hips: ['hips', 'pelvis'],
 };
 
 /**

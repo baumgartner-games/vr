@@ -1,4 +1,4 @@
-import type { ElementSpot } from '../../elements/elementPlace';
+import { spotSolidBoxes, type ElementSpot } from '../../elements/elementPlace';
 import { TILE } from '../../nav/navTile';
 import { APRON } from '../house';
 import type { FloorBounds } from '../stationLayout';
@@ -22,18 +22,23 @@ import { COMMAND_DESKS, type CommandDesk } from './commandSeats';
  * steht"_, _„wenn es einen Computer gibt (mit einem Schild
  * "Spiel-Einstellungen")"_.
  *
- * Hier steht, **wo** das alles ist. Die Zentrale (`APRON`) ist 40 × 12 m; die
- * Kamera von oben schaut nach Norden (`core/TopDownCamera.ts`), die Nordwand
- * ist also oben im Bild:
+ * Hier steht, **wo** das alles ist. Die Zentrale (`APRON`) ist 16 × 14 m —
+ * seit Oktober 2026 eher quadratisch als ein Saal (_„Es sollte nicht
+ * rechteckig sein, sondern eher quadratisch"_), gestaltet nach einer
+ * Brücke wie im Bild des Besitzers: Plätze an den Wänden, in der Mitte ein
+ * Hologramm. Die Kamera von oben schaut nach Norden (`core/TopDownCamera.ts`),
+ * die Nordwand ist also oben im Bild:
  *
  * - **An der Nordwand**, von West nach Ost: der Rechner _Spiel-Einstellungen_,
  *   die Konsole der Station (x −4,6…−1,8, `ShipExperience`), das Titelschild
  *   (x −1,7…1,7), der Rechner _Verbindung_, der Techniker-Anzug und der
  *   Monster-Anzug — über jedem ein Schild.
- * - **Im Westen** die drei Schreibtische Rot, Gelb, Blau mit je einem
- *   Bürostuhl davor (`commandSeats.COMMAND_DESKS`).
- * - **Im Osten** eine Sitzecke: Sofa, Couchtisch, zwei Sessel — auf alles darf
- *   man sich setzen (`opens: 'sit'`).
+ * - **An den Seitenwänden** die drei Schreibtische, Rot und Gelb im Westen,
+ *   Blau im Osten, mit je einem Bürostuhl davor (`commandSeats.COMMAND_DESKS`).
+ * - **In der Mitte** der Hologramm-Sockel (`HOLOGRAM_SPOT`) mit dem Küken
+ *   darüber — `A` wählt ein anderes Modell aus dem Regal.
+ * - **Im Südosten** eine Sitzecke: Sofa, Couchtisch, zwei Sessel — auf alles
+ *   darf man sich setzen (`opens: 'sit'`).
  * - **Im Süden** die Fensterfront zur Kantine mit der Schleuse in der Mitte,
  *   und davor die Startplätze.
  *
@@ -54,7 +59,7 @@ export const TERMINAL_TILES = 2;
 export const LINK_SPOT: ElementSpot = {
   id: 'command-link',
   element: 'space-terminal',
-  x: 3,
+  x: 2,
   z: NORTH_ROW,
   face: 'S',
 };
@@ -66,7 +71,7 @@ export const LINK_SPOT: ElementSpot = {
 export const SETTINGS_SPOT: ElementSpot = {
   id: 'command-settings',
   element: 'space-terminal',
-  x: -8,
+  x: -7,
   z: NORTH_ROW,
   face: 'S',
 };
@@ -78,7 +83,7 @@ export const SETTINGS_SPOT: ElementSpot = {
 export const SUIT_SPOT: ElementSpot = {
   id: 'command-suit',
   element: 'space-suit-stand',
-  x: 8,
+  x: 4.5,
   z: NORTH_ROW,
   face: 'S',
 };
@@ -91,7 +96,7 @@ export const SUIT_SPOT: ElementSpot = {
 export const MONSTER_SPOT: ElementSpot = {
   id: 'command-monster',
   element: 'space-monster-stand',
-  x: 11,
+  x: 6.5,
   z: NORTH_ROW,
   face: 'S',
 };
@@ -103,24 +108,39 @@ export function deskSpot(desk: CommandDesk): ElementSpot {
     element: 'space-terminal',
     x: desk.tileX,
     z: desk.tileZ,
-    face: 'S',
+    face: desk.face,
   };
 }
 
 /**
- * **Der Bürostuhl davor** — eine halbe Kachel, mit dem Gesicht zum Tisch. Er
- * sperrt nichts (_„durch den man aber gehen kann"_): Er steht weder in
- * `commandBlocks` noch sperrt er beim Hinstellen.
+ * **Der Bürostuhl davor** — eine Kachel, mittig vor dem Tisch (auf halben
+ * Kacheln, `GameElement.fine`), mit dem Gesicht zum Tisch. Er sperrt nichts
+ * (_„durch den man aber gehen kann"_): Er steht weder in `commandBlocks` noch
+ * sperrt er beim Hinstellen.
  */
 export function chairSpot(desk: CommandDesk): ElementSpot {
   return {
     id: `command-chair-${desk.station}`,
     element: 'furniture-chair-desk-a',
-    x: desk.x / TILE - 0.25,
-    z: desk.z / TILE - 0.25,
-    face: 'N',
+    x: desk.x / TILE - 0.5,
+    z: desk.z / TILE - 0.5,
+    face: desk.face === 'E' ? 'W' : 'E',
   };
 }
+
+/**
+ * **Der Hologramm-Sockel** mitten in der Zentrale (`spaceCatalog.SPACE_HOLOGRAM`)
+ * — gewünscht: _„Ich will in haunting in der mitte des raumes so ein hologram
+ * möbelstück haben wollen, default mit dem "mixed-bag/chicken_plushie_A.glb"
+ * darin."_ Zwei Kacheln, die Ecken frei.
+ */
+export const HOLOGRAM_SPOT: ElementSpot = {
+  id: 'command-hologram',
+  element: 'space-hologram',
+  x: APRON.x + APRON.w / 2 - 1,
+  z: APRON.z + APRON.d / 2 - 1,
+  face: 'S',
+};
 
 /** Die Stellen, an denen `A` etwas Eigenes der Zentrale tut — Rechner und Anzüge. */
 export const COMMAND_SPOTS: readonly ElementSpot[] = [
@@ -131,36 +151,48 @@ export const COMMAND_SPOTS: readonly ElementSpot[] = [
   ...COMMAND_DESKS.map(deskSpot),
 ];
 
+/** Die Kachelreihe der Sitzecke: der Couchtisch, das Sofa eine dahinter. */
+const LOUNGE_ROW = APRON.z + 10;
+
 /**
- * **Die Sitzecke im Osten** — Möbel aus dem Katalog, wie jede Welt sie
- * hinstellt (`FurnishedWorld.spots`): Sofa, Couchtisch, zwei Sessel und zwei
- * Kakteen in den Ecken. Auf Sofa und Sessel setzt man sich mit `A`.
+ * **Was die Welt von selbst hinstellt** (`FurnishedWorld.spots`): der
+ * Hologramm-Sockel in der Mitte und die Sitzecke im Südosten — Sofa mit Blick
+ * aufs Hologramm, Couchtisch, zwei Sessel — und Kakteen in drei Ecken. Auf
+ * Sofa und Sessel setzt man sich mit `A`.
  */
 export const LOUNGE_SPOTS: readonly ElementSpot[] = [
-  { id: 'lounge-couch', element: 'furniture-couch-pillows', x: 14, z: APRON.z + 3, face: 'S' },
+  HOLOGRAM_SPOT,
   {
     id: 'lounge-table',
     element: 'furniture-table-low-decorated',
-    x: 14,
-    z: APRON.z + 5,
+    x: 4,
+    z: LOUNGE_ROW,
     face: 'S',
   },
+  { id: 'lounge-couch', element: 'furniture-couch-pillows', x: 4, z: LOUNGE_ROW + 1, face: 'N' },
   {
     id: 'lounge-armchair-w',
     element: 'furniture-armchair-pillows',
-    x: 12,
-    z: APRON.z + 5,
+    x: 3,
+    z: LOUNGE_ROW,
     face: 'E',
   },
-  { id: 'lounge-armchair-e', element: 'furniture-armchair', x: 17, z: APRON.z + 5, face: 'W' },
+  { id: 'lounge-armchair-e', element: 'furniture-armchair', x: 6, z: LOUNGE_ROW, face: 'W' },
+  { id: 'lounge-cactus-nw', element: 'furniture-cactus-a', x: APRON.x, z: APRON.z, face: 'S' },
   {
-    id: 'lounge-cactus-ne',
+    id: 'lounge-cactus-sw',
     element: 'furniture-cactus-b',
-    x: APRON.x + APRON.w - 1,
-    z: APRON.z,
+    x: APRON.x,
+    z: APRON.z + APRON.d - 1,
     face: 'S',
   },
-  { id: 'lounge-cactus-nw', element: 'furniture-cactus-a', x: APRON.x, z: APRON.z, face: 'S' },
+  {
+    id: 'lounge-cactus-se',
+    element: 'furniture-cactus-a',
+    x: APRON.x + APRON.w - 1,
+    z: APRON.z + APRON.d - 1,
+    face: 'S',
+  },
 ];
 
 /** Wie viele Kacheln eine Stelle belegt, wie sie liegt — nur für die Elemente hier. */
@@ -174,6 +206,7 @@ const TILES: Readonly<Record<string, readonly [number, number]>> = {
   'furniture-armchair': [1, 1],
   'furniture-cactus-a': [1, 1],
   'furniture-cactus-b': [1, 1],
+  'space-hologram': [2, 2],
 };
 
 function tilesOf(spot: ElementSpot): readonly [number, number] {
@@ -188,14 +221,25 @@ function tilesOf(spot: ElementSpot): readonly [number, number] {
  * oder ein Sofa. Die Bürostühle stehen nicht darin.
  */
 export function commandBlocks(): readonly FloorBounds[] {
-  return [...COMMAND_SPOTS, ...LOUNGE_SPOTS].map((spot) => {
+  return [...COMMAND_SPOTS, ...LOUNGE_SPOTS].flatMap((spot) => {
+    // Der Hologramm-Sockel sperrt ein Kreuz, die Ecken bleiben frei
+    // (`elementPlace.spotSolidBoxes`) — dieselbe Rechnung wie beim Hinstellen.
+    if (spot === HOLOGRAM_SPOT)
+      return spotSolidBoxes(spot).map((box) => ({
+        minX: (box.x - box.w / 2) * TILE,
+        maxX: (box.x + box.w / 2) * TILE,
+        minZ: (box.z - box.d / 2) * TILE,
+        maxZ: (box.z + box.d / 2) * TILE,
+      }));
     const [w, d] = tilesOf(spot);
-    return {
-      minX: spot.x * TILE,
-      maxX: (spot.x + w) * TILE,
-      minZ: spot.z * TILE,
-      maxZ: (spot.z + d) * TILE,
-    };
+    return [
+      {
+        minX: spot.x * TILE,
+        maxX: (spot.x + w) * TILE,
+        minZ: spot.z * TILE,
+        maxZ: (spot.z + d) * TILE,
+      },
+    ];
   });
 }
 
@@ -210,14 +254,13 @@ export function inFront(spot: ElementSpot): { x: number; z: number } {
 }
 
 /**
- * **Die Startplätze, nach Spielernummer** — zwei Reihen zu vier in der Mitte
- * der Zentrale, vor der Fensterfront. Spieler 1 steht vorn links, Spieler 5
- * hinter ihm. Anderthalb Meter auseinander: Zwei Figuren auf 2 × 2 Zellen (ein
- * Meter) stehen so nebeneinander und nicht ineinander, und keine steht in der
- * Schleuse zur Kantine (Südwand, x −1…1).
+ * **Die Startplätze, nach Spielernummer** — zwei Reihen zu vier südlich vom
+ * Hologramm, vor der Fensterfront und westlich der Sitzecke. Spieler 1 steht
+ * vorn links, Spieler 5 hinter ihm. Anderthalb Meter auseinander: Zwei Figuren
+ * auf 2 × 2 Zellen (ein Meter) stehen so nebeneinander und nicht ineinander.
  */
-export const SPAWN_SLOTS: readonly { x: number; z: number }[] = [4, 2.5].flatMap((back) =>
-  [1.5, 3, 4.5, 6].map((x) => ({ x: x * TILE, z: (APRON.z + APRON.d - back) * TILE })),
+export const SPAWN_SLOTS: readonly { x: number; z: number }[] = [3.5, 2].flatMap((back) =>
+  [-4.5, -3, -1.5, 0].map((x) => ({ x: x * TILE, z: (APRON.z + APRON.d - back) * TILE })),
 );
 
 /**

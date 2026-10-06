@@ -111,6 +111,7 @@ wie in jeder Welt, Sitzen auf allen Sitzmöbeln, keine Sauerstoff-Uhr in der
   (`LOUNGE_SPOTS`: Sofa, Couchtisch, zwei Sessel, Kakteen); die Startplätze
   (`SPAWN_SLOTS`) in der Mitte vor der Fensterfront. Alles, was sperrt, steht
   in `commandBlocks` und damit in `map/geometry.fixtureBlocks`.
+- **Seit der dritten Runde 16 × 14 m** (`house.APRON_WIDTH`, siehe unten).
 - **Hell erleuchtet** (`buildDusk`): vier Deckenleuchten in einer Reihe statt
   des einen Abendscheinwerfers, `COMMAND_LAMP`/`COMMAND_LAMP_REACH`, und
   `stationLighting(...).command` ist immer 1 — auch in der dunklen Übung und
@@ -172,6 +173,32 @@ wie in jeder Welt, Sitzen auf allen Sitzmöbeln, keine Sauerstoff-Uhr in der
 - **Übung ohne Sauerstoff-Uhr**: `RoundRules.step` verliert in der Übung
   (`options.test`) nie, und Telefon (`writeQuest`) wie Tafel des Technikers
   zeigen dort keine O₂-Uhr.
+
+### Die dritte Runde: quadratisch, taghell, ein Hologramm (Oktober 2026)
+
+Gewünscht, mit einem Bild einer Brücke mit Hologramm in der Mitte: _„Kann die
+einsatz zentrale in haunting mehr in diese richtung gestaltet werden? Es sollte
+nicht rechteckig sein, sondern eher quadratisch, einfach aktuell von der
+breite kleiner machen. Dann finde ich es in dem raum immer noch düster."_
+
+- **16 × 14 m statt 40 × 12** (`house.APRON_WIDTH`, `APRON_DEPTH`), mittig
+  über der Kantine (x −8…8) — die Fensterfront geht genau über deren Breite.
+- **Nordwand**: _Spiel-Einstellungen_ (x −7), Konsole, Titelschild,
+  _Verbindung_ (x 2), Techniker-Anzug (x 4,5) und Monster-Anzug (x 6,5).
+- **Die Schreibtische an den Seitenwänden** (`commandSeats.COMMAND_DESKS`):
+  Rot und Gelb im Westen, Blau im Osten, quer (`CommandDesk.face`), der
+  Bürostuhl mittig davor auf halben Kacheln, mit dem Gesicht zur Wand
+  (`CommandDesk.yaw`, auch für `crewPlacement`). Die Schilder hängen an der
+  Wand über dem Tisch (`addSign` mit Drehung).
+- **In der Mitte der Hologramm-Sockel** (`commandRoom.HOLOGRAM_SPOT`,
+  `space-hologram`, siehe [Spielelemente](spielelemente.md#der-hologramm-sockel))
+  mit dem Küken; er sperrt ein Kreuz (`commandBlocks` über
+  `spotSolidBoxes`), die Ecken sind frei.
+- **Sitzecke im Südosten**, Sofa mit Blick aufs Hologramm; Kakteen in drei
+  Ecken; die Startplätze (`SPAWN_SLOTS`) südlich vom Hologramm, westlich der
+  Sitzecke.
+- **Taghell** (`buildDusk`): die vier Deckenleuchten als Raster 2 × 2, kühles
+  Tageslicht (`COMMAND_DAYLIGHT`) mit flacherem Abfall (`COMMAND_LAMP_DECAY`).
 
 Was weiter unten über die Lobby der Startseite, „Web 3D", „Enter VR", den
 Reiter „Techniker" als Weg an den Stock und die Brille, die den Anzug von

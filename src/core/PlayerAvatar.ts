@@ -18,6 +18,8 @@ const _right: AvatarLimb = { position: new THREE.Vector3() };
 const _local = new THREE.Matrix4();
 const _scale = new THREE.Vector3();
 const _feet = new THREE.Vector3();
+const _turn = new THREE.Quaternion();
+const _euler = new THREE.Euler();
 
 /** Ein Stoff als Geist: derselbe, halb durchsichtig. */
 function ghostOf(material: THREE.Material): THREE.Material {
@@ -62,6 +64,14 @@ export class PlayerAvatar extends AvatarBody {
    * (`FlatControls.walkNorthUp`).
    */
   headFollowsRig = false;
+
+  /**
+   * **Worauf man sitzt, in der Welt** (`PortalWorld.sitOn`) — die Mitte der
+   * Sitzfläche am Boden, ihre Höhe und wohin man schaut. Jedes Bild in den
+   * Raum des Rigs umgerechnet (`AvatarBody.seat`): Das Rig sinkt beim Sitzen
+   * um die Augenhöhe, die Figur soll das nicht.
+   */
+  sitting: { at: THREE.Vector3; top: number; yaw: number } | null = null;
 
   /**
    * **Wo die rechte Hand liegt, wenn keine getrackt wird** — im Raum des Rigs.
@@ -269,6 +279,23 @@ export class PlayerAvatar extends AvatarBody {
       // The hands went with you; the body left behind just lets them float.
       this.update(dt, this.frozenHead, null, null);
       return;
+    }
+
+    const sitting = this.sitting;
+    if (sitting) {
+      rig.updateMatrixWorld(true);
+      _feet.copy(sitting.at);
+      rig.worldToLocal(_feet);
+      _euler.setFromQuaternion(rig.getWorldQuaternion(_turn), 'YXZ');
+      this.seat = {
+        x: _feet.x,
+        y: _feet.y,
+        z: _feet.z,
+        top: sitting.top,
+        yaw: sitting.yaw - _euler.y,
+      };
+    } else {
+      this.seat = null;
     }
 
     // Die Höhe kommt auch von oben aus der Kamera — Ducken und Sitzen sollen
