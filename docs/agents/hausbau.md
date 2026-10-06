@@ -278,6 +278,12 @@ stockwerken passiert"_
   steht**: Gehört die Kachel dort zu einem geschlossenen Raum, zählt dessen
   Teilung; stößt eine Wand an sie oder liegt ein Belag darauf, ist sie ganz.
   Nur Bild — Gehen und Zellgitter bleiben, wie beim halben Boden des Plans.
+- **Ein Zaun schließt keinen Raum** (Oktober 2026, `isFenceModel`): Die
+  Zäune und Tore aus _Halloween_ stehen auf der Fuge und sperren wie Wände,
+  zählen für die Decke aber nicht (`coverRooms` filtert sie heraus, bevor
+  `ceilingChange` die Räume sucht). Gewünscht: _„Ich brauche nur bei denen
+  wenn die einen raum umschließen keine Decke automatisch."_ Ein Raum aus
+  Wand und Zaun gemischt ist damit offen.
 - **Selbst gelegter Boden ist nie Decke**: der Stand einer Treppe im Freien,
   ein Belag Kachel für Kachel. Er geht nie von allein.
 - Die Etagen selbst bleiben, auch wenn keine Kachel mehr darauf liegt.

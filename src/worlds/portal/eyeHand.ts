@@ -48,13 +48,15 @@ export const EYE_GRIP_LEFT: Readonly<Vec3> = { x: -0.28, y: -0.33, z: -0.58 };
  *
  * In echter Größe füllte die Pistole — seit sie in der Hand doppelt so groß
  * ist — das halbe Bild, und eine Tomate davor deckte die Küche zu (gemeldet:
- * _„viel zu groß, man erkennt nichts im Bild"_). Gestaucht wird **nur aus den
- * Augen**: Von oben ist die Kamera weit weg und alles ohnehin klein, und in
- * der Brille muss ein Ding so groß sein, wie die Hand es fühlt.
+ * _„viel zu groß, man erkennt nichts im Bild"_). Die Hand selbst wird **nur
+ * aus den Augen** gestaucht: Von oben ist die Kamera weit weg, und in der
+ * Brille muss sie so groß sein, wie die Hand es fühlt.
  *
  * Gestaucht wird der Halter der Hand (`ScreenHand`), also Hand und Werkzeug
- * zusammen — die Faust bleibt um den Griff. Was getragen wird, bekommt
- * denselben Faktor (`PortalWorld.shrinkScreenCarry`).
+ * zusammen — die Faust bleibt um den Griff. **Was getragen wird**, bekommt
+ * denselben Faktor, und zwar aus den Augen **und** von oben
+ * (`PortalWorld.shrinkScreenCarry`, Oktober 2026: _„Wir sollten hier eine
+ * vereinheitlichung haben"_).
  */
 export const EYE_SCALE = 0.5;
 

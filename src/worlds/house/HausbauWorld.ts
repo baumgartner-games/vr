@@ -7,6 +7,7 @@ import {
   FLOORING_CRATES,
   STAIR_CRATE,
   WALLPAPER_CRATES,
+  isFenceModel,
   mapFolder,
   type FurnitureFolder,
 } from '../elements/elementCatalog';
@@ -630,7 +631,13 @@ export class HausbauWorld extends TestRestaurantWorld {
     if (key === this.ceilingWallsFor) return;
     this.ceilingWallsFor = key;
     const graph = plan.graph;
-    const storeys = graph.levels.map((_, level) => ({ level, pieces: this.wallsOn(level).pieces }));
+    // **Ein Zaun schließt keinen Raum, über den eine Decke gehört**
+    // (`isFenceModel`): Er sperrt wie eine Wand, aber ein umzäunter Platz
+    // bleibt offen.
+    const storeys = graph.levels.map((_, level) => {
+      const { walls, pieces } = this.wallsOn(level);
+      return { level, pieces: pieces.filter((_piece, index) => !isFenceModel(walls[index]!.path)) };
+    });
     const { lay, drop } = ceilingChange(
       storeys,
       this.ceiling,

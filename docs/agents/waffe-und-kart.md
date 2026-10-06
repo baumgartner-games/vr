@@ -194,9 +194,17 @@ einem Werkzeug geht sie aus dem Bild.
   zusammen; was getragen wird, zeichnet `PortalWorld.shrinkScreenCarry` im
   selben Maß — **nur das Bild**: Körper, Einrasten und Gitter rechnen mit der
   echten Größe, und beim Loslassen ist das Ding sofort wieder so groß wie im
-  Raum. **Von oben und in der Brille bleibt alles in echter Größe**: Von oben
-  ist die Kamera weit weg, und in der Brille muss ein Ding so groß sein, wie
-  die Hand es fühlt.
+  Raum. **Was getragen wird, ist von oben genauso halb so groß** (Oktober
+  2026) — gemeldet: _„die größe der elemente in der hand bei "von Oben" passt
+  nicht […] Wir sollten hier eine vereinheitlichung haben zwischen in der
+  hand bei "aus den Augen / VR" und "von Oben""_. Von oben setzte
+  `shrinkScreenCarry` die echte Größe, und danach griff in `carryGrab` die
+  Faust-Regel der Brille (`shrinkInHand`, längste Seite 35 cm): Ein Zaun von
+  2 m lag 35 cm lang in der Hand, ein Grab 36 cm statt 55 cm wie aus den
+  Augen. Jetzt gilt `shrinkInHand` nur für die Faust eines Controllers, und
+  die Bildschirmhand zeichnet in beiden Ansichten mit `EYE_SCALE`. Die Faust
+  (Hand und Werkzeug) bleibt von oben in echter Größe; in der Brille gilt
+  weiter `shrinkInHand` ([Bauen](bauen.md)).
 - **Zielen über die Waffe: rechte Maustaste oder LT halten** (bis zum
   einheitlichen Schema LB, siehe [Steuerung](./steuerung.md))
   (`PlayerRig.sighting`). Die Waffe kommt in `EYE_SIGHT_TIME` ans Auge, bis
