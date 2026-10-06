@@ -1136,3 +1136,18 @@
   display: grid;
   place-items: center;
 }
+
+/* ---------- Ein Blatt zum Lesen (`MenuEntry.sheet`) ----------
+
+   Ein Schild in groß: so breit wie der Kasten, so hoch, wie der Text ist —
+   gerollt wird der Kasten, wie jede andere Seite auch. */
+.pmenu__sheetview {
+  display: block;
+  width: calc(100% - 20px);
+  height: auto;
+  margin: 10px;
+  border-radius: 10px;
+}
+.pmenu__sheetview[hidden] {
+  display: none;
+}

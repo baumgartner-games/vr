@@ -209,11 +209,17 @@ kleinste: eine Zeile an einer Wand, und wer `A` drückte, bekam sie als
 ein Schild genau ein Satz. Ein Wegweiser mit drei Zielen, eine Hausordnung, die
 Regeln eines Spiels passten nicht hinein.
 
-Jetzt wird er **aufgeschlagen**: `step` meldet `read`, und `GridWorld` macht
-daraus eine Seite im Weltmenü (`GridWorld.readAloud`, Zeilen aus
-`fixtures/signRows.ts`). Am Bildschirm ist das ein Blatt von unten, in der
-Brille das Panel am Handgelenk — **derselbe Baum** wie überall, und keine
-zweite Art, Text zu zeigen. Gelesen wird derselbe kleine Markdown-Dialekt, den
+Jetzt wird er **aufgeschlagen**: `step` meldet `read`, und die Welt macht
+daraus eine Seite im Weltmenü (`PortalWorld.readSign`) — und zwar **das Schild
+selbst, groß** (`MenuEntry.sheet`, `worlds/signs/signSheet.ts`), mit
+Überschriften, Fettem und Bildern wie auf der Tafel. Gewünscht: _„wenn ich sign
+posts anwähle, dass diese wie die menüs gerendert werden (z. B. katalog) also
+auch groß mit einem x. Im web und handy wäre mir das auch sehr lieb."_ Am
+Schirm nimmt die Seite den ganzen Platz (`PageMenu`, `pmenu--full`), in der
+Brille steht sie auf dem großen Bildschirm vor dem Kopf, und der Stick rollt
+sie (`UIPanel`, `SHEET_STEP`) — beide mit dem ✕ oben rechts, **derselbe Baum**
+wie überall. Davor stand dort eine Liste von Zeilen (`fixtures/signRows.ts`,
+gelöscht), in der Überschrift und Fließtext gleich aussahen. Gelesen wird derselbe kleine Markdown-Dialekt, den
 auch die Schildwelt kann (`worlds/signs/signMarkup.ts`): Überschriften,
 Aufzählungen, Zitat, Trennlinie, Code, Bild. `props.markdown: false` schaltet
 ihn ab — wer eine Liste von Namen mit `*` davor aufschreibt, will Sternchen.

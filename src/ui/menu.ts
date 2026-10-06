@@ -129,6 +129,25 @@ export interface MenuFact {
  * sie nach (`ui/previewGrid.DetailFacts`): Der Menübaum wird gebaut, bevor
  * irgendein Modell geladen ist, und eine Zahl, die dort stünde, wäre geraten.
  */
+/**
+ * **Ein Blatt zum Lesen** (`MenuEntry.sheet`) — eine Leinwand, die so breit
+ * gezeichnet wird, wie die Seite gerade ist.
+ *
+ * Kein DOM und kein three.js: Die Seite am Schirm hängt die Leinwand in ihren
+ * scrollenden Kasten, der Bildschirm in der Brille zeichnet sie in seine
+ * eigene. Beide fragen nur nach einer Breite.
+ */
+export interface MenuSheet {
+  /**
+   * Das Blatt in dieser Breite (Bildpunkte), so hoch, wie der Inhalt ist.
+   * `scale` sind Bildpunkte je CSS-Punkt — die kleinste Schrift richtet sich
+   * danach, damit ein Schild am Telefon nicht in Ameisenschrift erscheint.
+   */
+  paint(width: number, scale: number): HTMLCanvasElement;
+  /** Ruft zurück, wenn sich etwas geändert hat (ein Bild ist da). Gibt das Abmelden zurück. */
+  listen(onChange: () => void): () => void;
+}
+
 export interface MenuDetail {
   /** Welches Modell — dieselbe Id wie `MenuEntry.preview`. */
   readonly preview: string;
@@ -325,6 +344,23 @@ export interface MenuEntry {
    * nicht versehentlich in eine leere Seite ab.
    */
   detail?: MenuDetail;
+  /**
+   * **Diese Seite ist ein Blatt zum Lesen** — ein Schild in groß
+   * (`worlds/signs/signSheet.ts`).
+   *
+   * Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
+   * gerendert werden (z. B. katalog) also auch groß mit einem x. Im web und
+   * handy wäre mir das auch sehr lieb."_ Also schlägt ein Schild keine Liste
+   * aus Zeilen mehr auf, sondern sich selbst: dieselbe Leinwand wie auf der
+   * Tafel, so breit wie die Seite, mit Überschriften, fetter Schrift und
+   * Bildern. Am Schirm nimmt die Seite dafür den ganzen Platz
+   * (`ui/PageMenu.ts`), in der Brille die Fläche unter dem Kopf des
+   * Bildschirms (`ui/UIPanel.ts`) — beide mit dem ✕ oben rechts.
+   *
+   * Die Kinder (`children`) stehen als Zeilen **über** dem Blatt: dort ist
+   * Platz für eine Tat wie _Beschriften_.
+   */
+  sheet?: MenuSheet;
   /**
    * **Eine kleine Marke oben links auf der Kachel** — was das Ding _ist_,
    * ohne dass es dafür einen eigenen Ordner braucht. `crate` ist die
