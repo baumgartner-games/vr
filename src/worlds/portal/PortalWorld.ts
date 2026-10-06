@@ -161,6 +161,8 @@ import { PaletteBar } from './paletteBar';
 
 /** Die Id der Malpalette als Werkzeug (`tools/PaintPaletteTool.ts`). */
 const PAINT_PALETTE_TOOL = 'paint-palette';
+/** Die Seite, auf der ein angewähltes Schild groß steht (`readSign`). */
+const READ_PAGE = 'sign:read';
 import { isTyping } from '../../core/textEntry';
 import {
   GRAB_POSE_ID,
@@ -412,6 +414,7 @@ import {
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import { yawOfForward } from '../../core/walkFrame';
 import { SignRoom, type SignControl } from '../signs/SignRoom';
+import { SignSheet } from '../signs/signSheet';
 import {
   FONT_STEPS,
   HEIGHT_STEPS,
@@ -2218,6 +2221,7 @@ export class PortalWorld implements World {
       worldId: () => this.context?.net.world ?? 'portal',
       notify: (message) => this.announce(message),
       handBusy: (hand) => this.held.get(hand) !== undefined,
+      read: (request) => this.readSign(request),
       askText: (request) =>
         this.askLines({
           title: request.title,
@@ -2267,6 +2271,8 @@ export class PortalWorld implements World {
     if (!this.physics || !this.locomotion) return;
 
     this.time += dt;
+    // Zwei Bilder nach `readSign`: Jetzt steht die Seite im Baum.
+    if (this.openReading > 0 && --this.openReading === 0) ctx.menu.openSubmenu(READ_PAGE);
     this.portalBlue.setTime(this.time);
     this.portalRed.setTime(this.time);
     this.restoreNotes(ctx);
@@ -2361,6 +2367,65 @@ export class PortalWorld implements World {
   }
 
   menu(): MenuEntry[] {
+    const rows = this.worldRows();
+    const open = this.reading;
+    return open ? [...rows, open] : rows;
+  }
+
+  /**
+   * **Ein Schild aufschlagen** — groß, als Seite im Menü, mit dem ✕ oben
+   * rechts (`MenuEntry.sheet`, `worlds/signs/signSheet.ts`).
+   *
+   * Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
+   * gerendert werden (z. B. katalog) also auch groß mit einem x. Im web und
+   * handy wäre mir das auch sehr lieb."_ Beide Arten Schild kommen hierher:
+   * die aufgestellten (`signs/SignRoom.ts`, Trigger oder Klick darauf) und
+   * die Wegweiser der Gitterwelten (`grid/fixtures/sign.ts`, `A`). Am Schirm
+   * nimmt die Seite den ganzen Platz, in der Brille steht sie auf dem großen
+   * Bildschirm vor dem Kopf — genau dort, wo auch der Katalog steht.
+   *
+   * Es ist immer **eine** Seite, versteckt im Menü (`hidden`): Gelesen wird,
+   * was zuletzt angewählt wurde. Zwanzig Schilder als zwanzig stehende
+   * Menüzeilen wären ein Menü, in dem man das Spiel nicht mehr findet.
+   *
+   * Aufgeschlagen wird erst **zwei Bilder später** (`openReading`):
+   * `refreshWorldMenu` merkt sich nur, dass der Baum neu zu bauen ist, und baut
+   * ihn am Ende des Bildes (`App.step`, `menuDirty`). Wer im selben Atemzug
+   * `openSubmenu` ruft, sucht eine Seite, die es noch nicht gibt — das Menü
+   * bliebe zu, und ein Schild, das man anwählt und das nichts tut, sieht aus
+   * wie ein kaputtes Schild. Zwei und nicht eins, weil ein Klick **zwischen**
+   * zwei Bildern ankommt (wie beim Element-Menü, `GridWorld.openInspecting`):
+   * Dann läuft der Schritt der Welt im nächsten Bild noch vor dem Neubau.
+   */
+  protected readSign(request: {
+    title: string;
+    text: string;
+    settings?: Partial<SignSettings>;
+    /** Zeilen über dem Blatt — etwa _Beschriften_. */
+    rows?: MenuEntry[];
+  }): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    this.reading = {
+      id: READ_PAGE,
+      label: request.title,
+      sub: 'Was auf dem Schild steht',
+      icon: 'sign',
+      accent: 0xe0b04a,
+      hidden: true,
+      children: request.rows ?? [],
+      sheet: new SignSheet(request.text, request.settings ?? {}),
+    };
+    ctx.refreshWorldMenu();
+    this.openReading = 2;
+  }
+
+  /** Was zuletzt angewählt wurde — die Seite `READ_PAGE` (`readSign`). */
+  private reading: MenuEntry | null = null;
+  /** In wie vielen Bildern sie aufzuschlagen ist — 0: nicht (`readSign`). */
+  private openReading = 0;
+
+  private worldRows(): MenuEntry[] {
     const ctx = () => this.context!;
     // The tree is built once per world; the label refreshers belong to it.
     this.menuLabels.length = 0;

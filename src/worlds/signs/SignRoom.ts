@@ -5,6 +5,7 @@ import { clampSign, type SignSettings } from './signSettings';
 import { signSummary } from './signMarkup';
 import { saveSignTemplate, saveSigns, signTemplate, storedSigns } from './signStore';
 import type { WorldContext } from '../../core/types';
+import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
 
 /**
@@ -68,12 +69,17 @@ export interface SignWorld {
    * Ob diese Hand ein Werkzeug hält.
    *
    * Eine leere Hand, die auf ein Schild zeigt und abdrückt, will es
-   * **bearbeiten**. Eine Hand mit dem Schild-Werkzeug will damit ein neues
+   * **lesen** (`read`). Eine Hand mit dem Schild-Werkzeug will damit ein neues
    * aufstellen — und würde sonst beides gleichzeitig tun.
    */
   handBusy(hand: Handedness): boolean;
   /** Die mehrzeilige Tastatur der Welt (`ui/KeyPanel.ts`, Belegung `lines`). */
   askText(request: SignAskText): void;
+  /**
+   * **Ein Schild groß aufschlagen** — als Seite im Menü, mit dem ✕
+   * (`PortalWorld.readSign`). `rows` stehen über dem Blatt.
+   */
+  read(request: { title: string; text: string; settings: SignSettings; rows: MenuEntry[] }): void;
 }
 
 export interface SignPlacement {
@@ -294,6 +300,39 @@ export class SignRoom implements SignControl {
     return true;
   }
 
+  /**
+   * **Das Schild groß aufschlagen** — wie ein Menü, mit dem ✕ oben rechts.
+   *
+   * Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
+   * gerendert werden (z. B. katalog) also auch groß mit einem x."_ Bis dahin
+   * ging beim Anwählen gleich die Tastatur auf; lesen konnte man ein Schild
+   * nur, indem man davorstand. Die Tastatur ist jetzt eine Zeile über dem
+   * Blatt.
+   */
+  read(board: SignBoard): void {
+    if (!this.entryOf(board)) return;
+    this.focus = board;
+    this.world.read({
+      title: signSummary(board.text, 48) || 'Schild',
+      text: board.text,
+      settings: board.settings,
+      rows: [
+        {
+          id: 'sign:read:edit',
+          label: 'Beschriften',
+          sub: 'Die Tastatur auf, mit dem Text dieses Schildes',
+          icon: 'sign',
+          accent: 0x5ee0a0,
+          run: () => {
+            // Die Tastatur steht vor dem Kopf — dort, wo eben noch das Menü stand.
+            this.world.context()?.menu.toggle(false);
+            this.edit(board);
+          },
+        },
+      ],
+    });
+  }
+
   compose(value: string, commit: (text: string) => void): void {
     this.world.askText({
       title: 'Schild beschriften',
@@ -388,7 +427,9 @@ export class SignRoom implements SignControl {
           if (hovered === board) this.hovered.delete(hand);
         }
       },
-      onSelect: () => void this.edit(board),
+      // **Anwählen heißt lesen**, groß und mit dem ✕ — beschriftet wird von
+      // dort aus oder mit A/X (`read`).
+      onSelect: () => this.read(board),
     });
   }
 

@@ -4,7 +4,7 @@ import { SCREEN_ASPECT, UIPanel } from './UIPanel';
 import type { XRPlayerCard } from './XRPlayerCard';
 import { XRMenuLayer } from './XRMenuLayer';
 import { TextPlane } from './TextPlane';
-import type { MenuEntry } from './menu';
+import type { MenuEntry, MenuSheet } from './menu';
 import { findMenuPath } from './menuGroups';
 import { MenuNav, tabStep } from './menuNav';
 import type { Pointer } from '../core/Pointer';
@@ -29,6 +29,8 @@ interface Page {
   take: boolean;
   /** Hier fängt ein Katalog an (`MenuEntry.home`). */
   home: boolean;
+  /** Ein Blatt zum Lesen statt der Liste (`MenuEntry.sheet`). */
+  sheet?: MenuSheet;
   /** Id of the entry this page belongs to, for reopening it later. */
   id: string;
 }
@@ -623,6 +625,7 @@ export class XRMenu extends THREE.Group {
       // angehefteten Zeilen mehr, die im Raster eine ganze Kachelreihe kosten.
       back: this.stack.length > this.floor,
       home: this.homeDepth() >= 0,
+      ...(page.sheet ? { sheet: page.sheet } : {}),
       ...(this.aside && this.aside.pages(page.id) ? { aside: this.aside.card.info() } : {}),
       ...(this.tabs
         ? {
@@ -959,6 +962,7 @@ function pageOf(entry: MenuEntry): Page {
     ...(entry.cols === undefined ? {} : { cols: entry.cols }),
     take: entry.take ?? grid,
     home: entry.home ?? false,
+    ...(entry.sheet ? { sheet: entry.sheet } : {}),
     id: entry.id,
   };
 }

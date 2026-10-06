@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { PointerHit, PointerTarget } from '../core/Pointer';
 import type { Handedness } from '../core/XRInput';
-import { drawMenuIcon, type MenuEntry } from './menu';
+import { drawMenuIcon, type MenuEntry, type MenuSheet } from './menu';
 import { pageScroll } from './pageScroll';
 import {
   SCREEN_BODY_TOP,
@@ -85,6 +85,12 @@ export interface PageOptions {
    * davor (`asideAnchor`); gezeichnet werden hier Name, Zeile und Knopf.
    */
   aside?: PanelAside;
+  /**
+   * Nur im Bildschirm-Format: **ein Blatt zum Lesen** statt der Liste — ein
+   * Schild in groß (`MenuEntry.sheet`). Die Einträge stehen dann fest
+   * darüber, das Blatt rollt darunter, in Schritten von `SHEET_STEP`.
+   */
+  sheet?: MenuSheet;
 }
 
 /** Was in der Spalte rechts steht (`PageOptions.aside`). */
@@ -172,6 +178,19 @@ const ROW_COL_GAP = 18;
 
 /** Spalten im Raster, wo keine Seite etwas anderes sagt (`PageOptions.cols`). */
 const GRID_COLS = 3;
+/**
+ * **Wie weit ein Schritt auf einem Blatt rollt** (`PageOptions.sheet`), in
+ * Bildpunkten. Eine Zeile des Blattes ist um 45 Punkte hoch; ein Schritt etwas
+ * mehr, damit der Stick nicht kriecht.
+ */
+const SHEET_STEP = 60;
+/**
+ * Bildpunkte je „CSS-Punkt" auf dem Bildschirm — wonach sich die kleinste
+ * Schrift auf dem Blatt richtet (`MenuSheet.paint`). 1600 Punkte auf 2,25 m in
+ * zwei Metern Abstand: Bei 1,4 steht die Schrift zwischen 24 und 36 Punkten —
+ * so groß wie die Zeilen des Menüs darüber.
+ */
+const SHEET_SCALE = 1.4;
 const GRID_GAP = 16;
 /** Wie hoch eine Kachel über ihre Breite hinaus ist: die Zeile mit dem Namen. */
 const CELL_LABEL_H = 44;
@@ -235,6 +254,11 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   revision = 0;
   /** Der Knopf oder Reiter im Kopf unter dem Strahl (Bildschirm). */
   private hoverControl: ScreenControl | null = null;
+  /** Das Blatt dieser Seite (`PageOptions.sheet`) — und wie man sich abmeldet. */
+  private sheet: MenuSheet | null = null;
+  private sheetOff: (() => void) | null = null;
+  /** Das gezeichnete Blatt; `null`: neu zeichnen lassen. */
+  private sheetCanvas: HTMLCanvasElement | null = null;
 
   constructor(options: PanelOptions = {}) {
     const screen = options.layout === 'screen';
@@ -310,6 +334,10 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.back = options.back ?? false;
     this.home = options.home ?? false;
     this.aside = options.aside ?? null;
+    this.setSheet(this.screen ? (options.sheet ?? null) : null);
+    // Auf einem Blatt stehen die Einträge fest darüber: eine Tat wie
+    // _Beschriften_, und gerollt wird nur das Blatt.
+    if (this.sheet) this.pinned = entries.length;
     if (this.screen) {
       this.head = screenHead(
         this.tabs.length,
@@ -323,7 +351,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       key,
       current: this.scroll,
       ...(options.scroll === undefined ? {} : { remembered: options.scroll }),
-      entries: entries.length - this.pinned,
+      entries: this.rows,
       pageSize: this.pageSize,
     });
     // What the pointer rested on only survives on the page it belonged to.
@@ -337,7 +365,39 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** True while the page holds more than fits — then the stick has a job. */
   get scrollable(): boolean {
-    return this.entries.length - this.pinned > this.pageSize;
+    return this.rows > this.pageSize;
+  }
+
+  /**
+   * Wie viele Schritte gerollt werden können — Einträge unter den
+   * angehefteten, oder auf einem Blatt dessen Höhe in `SHEET_STEP`.
+   */
+  private get rows(): number {
+    const sheet = this.sheetImage();
+    if (sheet) return Math.ceil(sheet.height / SHEET_STEP);
+    return this.entries.length - this.pinned;
+  }
+
+  /** Ein neues Blatt — oder keins. Ein Bild, das später ankommt, zeichnet neu. */
+  private setSheet(sheet: MenuSheet | null): void {
+    if (sheet === this.sheet) return;
+    this.sheetOff?.();
+    this.sheet = sheet;
+    this.sheetCanvas = null;
+    this.sheetOff = sheet
+      ? sheet.listen(() => {
+          this.sheetCanvas = null;
+          this.scroll = Math.min(this.scroll, this.maxScroll);
+          this.draw();
+        })
+      : null;
+  }
+
+  /** Das Blatt in der Breite des Inhalts, gezeichnet beim ersten Fragen. */
+  private sheetImage(): HTMLCanvasElement | null {
+    if (!this.sheet) return null;
+    this.sheetCanvas ??= this.sheet.paint(this.bodyW - 24, SHEET_SCALE);
+    return this.sheetCanvas;
   }
 
   /** How far down the page currently sits — what a caller remembers for later. */
@@ -511,6 +571,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   dispose(): void {
+    this.setSheet(null);
     this.geometry.dispose();
     this.material.dispose();
     this.texture.dispose();
@@ -607,6 +668,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** Wie viele Einträge eine Reihe weiterschiebt. */
   private get perRow(): number {
+    if (this.sheet) return 1;
     return this.grid ? this.cols : this.rowCols;
   }
 
@@ -686,6 +748,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   /** How many entries fit on one page — der Kopfbalken nimmt Platz weg. */
   private get pageSize(): number {
     const body = this.ch - this.bodyTop - this.footerH;
+    if (this.sheet) return Math.max(1, Math.floor(body / SHEET_STEP));
     return this.grid
       ? Math.max(this.cols, Math.floor(body / (this.cellH + GRID_GAP)) * this.cols)
       : Math.max(1, Math.floor(body / (ROW_H + ROW_GAP))) * this.rowCols;
@@ -693,7 +756,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** The furthest down this page can go without scrolling past its last row. */
   private get maxScroll(): number {
-    const rows = this.entries.length - this.pinned;
+    const rows = this.rows;
     const over = Math.max(0, rows - this.pageSize);
     // Auf eine ganze Reihe aufgerundet — sonst fängt die letzte Seite mitten
     // in einer Reihe an.
@@ -701,6 +764,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   private get visibleCount(): number {
+    if (this.sheet) return 0;
     return Math.max(0, Math.min(this.entries.length - this.pinned - this.scroll, this.pageSize));
   }
 
@@ -795,6 +859,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       );
     }
 
+    this.drawSheet(cardH);
     for (let i = 0; i < this.visibleCount; i++) {
       const index = this.pinned + this.scroll + i;
       const entry = this.entries[index]!;
@@ -1075,6 +1140,26 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.restore();
   }
 
+  /**
+   * **Das Blatt** (`PageOptions.sheet`) unter den festen Zeilen, um
+   * `scroll · SHEET_STEP` nach oben geschoben und am Rand des Inhalts
+   * abgeschnitten.
+   */
+  private drawSheet(cardH: number): void {
+    const image = this.sheetImage();
+    if (!image) return;
+    const ctx = this.ctx;
+    const top = this.bodyTop;
+    const height = cardH - this.footerH - top;
+    const offset = Math.min(this.scroll * SHEET_STEP, Math.max(0, image.height - height));
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(this.pad, top, this.bodyW - 24, height, 14);
+    ctx.clip();
+    ctx.drawImage(image, this.pad, top - offset);
+    ctx.restore();
+  }
+
   /** Where in a long page we are, drawn along the right edge. */
   private drawScrollbar(cardH: number): void {
     if (!this.scrollable) return;
@@ -1082,7 +1167,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     const top = this.bodyTop - 6;
     const height = cardH - this.footerH - top;
     const x = this.pad + this.bodyW - 10;
-    const rows = this.entries.length - this.pinned;
+    const rows = this.rows;
     const portion = this.pageSize / rows;
     const thumb = Math.max(40, height * portion);
     const travel = (height - thumb) * (this.scroll / Math.max(1, this.maxScroll));

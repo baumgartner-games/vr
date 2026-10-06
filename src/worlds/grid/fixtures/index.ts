@@ -133,14 +133,14 @@ export type FixtureEvent =
    */
   | { type: 'effect'; effect: string; at?: FixtureSpot; size?: number }
   /**
-   * **Schlag diesen Text als Menüseite auf** (`fixtures/signRows.ts`).
+   * **Schlag diesen Text als Menüseite auf** (`signs/signSheet.ts`).
    *
    * Der Weg eines Schildes nach draußen. Bis hierher meldete es seine Zeile
    * als `notify`, also als Hinweis am Handgelenk — vier Sekunden, dann weg.
    * Ein Aushang ist aber kein Hinweis: Er hat eine Überschrift, drei Punkte
    * und vielleicht einen Link, und den will man lesen und nicht erwischen.
-   * `GridWorld` macht daraus eine Seite im Menü, mit Markdown und mit einem
-   * Zurück (`GridWorld.readAloud`).
+   * Die Welt macht daraus eine Seite im Menü: das Schild groß, mit Markdown
+   * und mit dem ✕ (`PortalWorld.readSign`).
    */
   | { type: 'read'; title: string; text: string; markdown: boolean };
 

@@ -2122,8 +2122,16 @@ im Spiel also zwei Kacheln —, und in eine
   aufgestelltes Schild wieder auf (dieselbe Geste wie an der Staffelei, und aus
   demselben Grund: ein Schild ist kein Prop und hat keinen Körper, den eine Hand
   fassen könnte). Und mit **leerer Hand** genügt hinzeigen und Trigger — dann
-  geht die Tastatur auf. Eine Hand mit einem Werkzeug zeigt hier nicht hin; sie
+  geht das Schild groß auf (siehe unten). Eine Hand mit einem Werkzeug zeigt hier nicht hin; sie
   hat mit ihrem Trigger etwas anderes vor (`PointerTarget.ignore`).
+  **Anwählen schlägt es groß auf** (`SignRoom.read`, `PortalWorld.readSign`):
+  Trigger mit leerer Hand oder ein Klick zeigt das Schild als Seite im Menü —
+  in der Brille auf dem großen Bildschirm, am Schirm und am Telefon als
+  Vollbildseite, beide mit dem ✕ oben rechts und mit _Beschriften_ als Zeile
+  darüber. Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
+  gerendert werden (z. B. katalog) also auch groß mit einem x."_ Gezeichnet
+  wird es von denselben Zeilen wie die Tafel (`signPaint.ts`), nur in der
+  Breite der Seite (`signSheet.ts`, `MenuEntry.sheet`).
   **Was auf einer Tafel steht**, ist eine kleine Teilmenge Markdown:
   Überschriften, Aufzählungen (Punkte und Nummern), Zitat, Trennlinie, Code,
   Bild — und in der Zeile fett, kursiv, Code und Links. Sie ist **selbst

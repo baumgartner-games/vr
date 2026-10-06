@@ -6,6 +6,7 @@ import {
   type MenuEntry,
   type MenuFact,
   type MenuMark,
+  type MenuSheet,
 } from './menu';
 import { COPY_FALLBACK, copyText } from './clipboard';
 import { findMenuPath } from './menuGroups';
@@ -75,6 +76,8 @@ interface Page {
    * oben groß das Modell, darunter Schalter und Steckbrief.
    */
   detail?: MenuDetail;
+  /** **Ein Blatt zum Lesen** unter den Zeilen (`MenuEntry.sheet`) — ein Schild in groß. */
+  sheet?: MenuSheet;
   /** Id des Eintrags, zu dem die Seite gehört. */
   id: string;
 }
@@ -257,6 +260,15 @@ export class PageMenu {
    * sagt, dass sie laufen soll, wäre sechzig Meldungen für nichts.
    */
   private previewsOn = false;
+
+  // --- das Blatt zum Lesen ---------------------------------------------------
+  /** Die Leinwand, auf die das Blatt kopiert wird (`MenuEntry.sheet`). */
+  private readonly sheetEl: HTMLCanvasElement;
+  /** Welches Blatt gerade dasteht — und wie man sich wieder abmeldet. */
+  private sheetShown: MenuSheet | null = null;
+  private sheetOff: (() => void) | null = null;
+  /** Für welche Breite die Leinwand zuletzt kopiert wurde — `''`: neu kopieren. */
+  private sheetWidth = '';
 
   // --- die Detailseite ------------------------------------------------------
   /** Das Blatt der Detailseite: oben das Modell, darunter Schalter und Zahlen. */
@@ -511,7 +523,11 @@ export class PageMenu {
     this.detailEl.hidden = true;
     this.detailEl.append(this.viewEl, about);
 
-    this.stage.append(this.list, this.detailEl);
+    this.sheetEl = el('canvas', 'pmenu__sheetview');
+    this.sheetEl.hidden = true;
+    this.sheetEl.setAttribute('role', 'img');
+
+    this.stage.append(this.list, this.sheetEl, this.detailEl);
     this.footEl = el('p', 'pmenu__foot');
 
     // **Die Reiter** stehen unter dem Kopf und über allem anderen — dort, wo
@@ -812,6 +828,7 @@ export class PageMenu {
     this.offNav();
     this.showAside(false);
     this.closeDetail();
+    this.showSheet(null);
     // Auch dann, wenn gar kein Steckbrief offen war: Ein Zeitgeber, der ein
     // abgeräumtes Menü anspricht, ist der Fehler, den niemand mehr zuordnet.
     window.clearTimeout(this.noteTimer);
@@ -1042,8 +1059,11 @@ export class PageMenu {
     // **Das Inventar ist immer Vollbild** (`tabs`), welcher Reiter auch offen
     // ist: „so ein Menü im PC/Handy kann ruhig […] immer im Vollbildmodus
     // sein" — wie der Katalog.
-    const full = page.full || this.tabs;
+    // **Ein Blatt zum Lesen nimmt ebenfalls alles** — ein Schild, so groß wie
+    // der Schirm, mit dem ✕ oben rechts (`MenuEntry.sheet`).
+    const full = page.full || this.tabs || page.sheet !== undefined;
     this.element.classList.toggle('pmenu--full', full);
+    this.showSheet(this.open ? (page.sheet ?? null) : null);
     // **Eine Detailseite zeigt ein Ding und keine Liste.** Beide liegen im
     // selben scrollenden Kasten; hier wird nur entschieden, welche dasteht.
     const detail = page.detail ?? null;
@@ -1125,6 +1145,50 @@ export class PageMenu {
     this.previews?.observe(key, [...this.list.querySelectorAll<HTMLElement>('[data-preview]')]);
     this.syncPreviews();
     this.fill();
+  }
+
+  // --- das Blatt zum Lesen ---------------------------------------------------
+
+  /**
+   * **Das Blatt unter die Zeilen** — oder weg damit (`null`).
+   *
+   * Gezeichnet wird in voller Auflösung des Geräts und so breit wie der
+   * scrollende Kasten; das Blatt merkt sich die Breite und zeichnet bei
+   * jedem Neuzeichnen der Seite (zweimal die Sekunde) nicht neu. Ein Bild,
+   * das später ankommt, meldet sich (`listen`).
+   */
+  private showSheet(sheet: MenuSheet | null): void {
+    if (sheet !== this.sheetShown) {
+      this.sheetOff?.();
+      this.sheetOff = sheet
+        ? sheet.listen(() => {
+            this.sheetWidth = '';
+            this.paintSheet();
+          })
+        : null;
+      this.sheetShown = sheet;
+      this.sheetWidth = '';
+    }
+    this.sheetEl.hidden = sheet === null;
+    if (sheet) this.paintSheet();
+  }
+
+  private paintSheet(): void {
+    const sheet = this.sheetShown;
+    if (!sheet) return;
+    const scale = Math.min(3, window.devicePixelRatio || 1);
+    // Ohne Maß (verborgen, jsdom) eine Telefonbreite — gezeichnet wird trotzdem.
+    const css = this.stage.clientWidth - 20 || 360;
+    const width = `${css}:${scale}`;
+    if (width === this.sheetWidth) return;
+    this.sheetWidth = width;
+    const source = sheet.paint(css * scale, scale);
+    const target = this.sheetEl;
+    if (target.width !== source.width || target.height !== source.height) {
+      target.width = source.width;
+      target.height = source.height;
+    }
+    target.getContext('2d')?.drawImage(source, 0, 0);
   }
 
   // --- die Detailseite ------------------------------------------------------
@@ -1733,6 +1797,7 @@ function pageOf(entry: MenuEntry): Page {
     take: entry.take ?? grid,
     home: entry.home ?? false,
     ...(entry.detail ? { detail: entry.detail } : {}),
+    ...(entry.sheet ? { sheet: entry.sheet } : {}),
     id: entry.id,
   };
 }

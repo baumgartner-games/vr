@@ -80,8 +80,6 @@ import { fixtureTile, type BlockPlacement, type GridPlan } from './gridPlan';
 import { shelfWallsToNav, wallLevel, type ShelfNavStamp } from './shelfNav';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
-import { signRows } from './fixtures/signRows';
-import { SIGN } from './fixtures/sign';
 import type {
   FixtureEvent,
   FixtureInput,
@@ -348,27 +346,6 @@ export abstract class GridWorld extends PortalWorld {
   private readonly fixtures: FixtureRun[] = [];
   /** Die laufenden Wolken (`effects/Burst.ts`) — was ein `effect`-Ereignis macht. */
   private readonly bursts: Burst[] = [];
-  /**
-   * **Der Aushang, der gerade aufgeschlagen ist** (`fixtures/signRows.ts`).
-   *
-   * Er hängt als Seite im Weltmenü, und zwar als **eine** Seite: Es wird immer
-   * das gelesen, was zuletzt benutzt wurde. Zwanzig Schilder als zwanzig
-   * stehende Menüzeilen wären ein Menü, in dem man das Spiel nicht mehr
-   * findet — und ein Aushang, den man nicht aufgeschlagen hat, will auch
-   * niemand in der Liste haben.
-   */
-  private reading: { title: string; rows: MenuEntry[] } | null = null;
-  /**
-   * Ob die Seite dazu im **nächsten** Bild aufzuschlagen ist.
-   *
-   * Ein Bild später und nicht sofort, und das ist kein Schönheitsfehler:
-   * `WorldContext.refreshWorldMenu` merkt sich nur, dass der Baum neu zu bauen
-   * ist, und baut ihn am Ende des Bildes (`App.step`, `menuDirty`). Wer im
-   * selben Atemzug `openSubmenu` ruft, sucht eine Seite, die es noch gar nicht
-   * gibt — das Menü blieb dann einfach zu, und ein Schild, das man benutzt und
-   * das nichts tut, sieht aus wie ein kaputtes Schild.
-   */
-  private openReading = false;
   /** Je Etage ein Netz aus Kachelkanten (`buildGridLines`). */
   private readonly gridLines: THREE.LineSegments[] = [];
   /** Ihr Material — eines für alle, und über den Umbau hinweg dasselbe. */
@@ -1977,30 +1954,13 @@ export abstract class GridWorld extends PortalWorld {
         this.fireEffect(from, event.effect, event.size ?? 1, event.at ?? null);
         break;
       case 'read':
-        this.readAloud(event.title, event.text, event.markdown, ctx);
+        this.readSign({
+          title: event.title,
+          text: event.text,
+          settings: { markdown: event.markdown },
+        });
         break;
     }
-  }
-
-  /**
-   * **Einen Aushang aufschlagen** — der Abnehmer für `read`-Ereignisse
-   * (`fixtures/sign.ts`).
-   *
-   * Aus dem Text werden Zeilen (`fixtures/signRows.ts`), aus den Zeilen wird
-   * eine Seite im Weltmenü, und die Seite wird aufgeschlagen. Genau derselbe
-   * Baum wie überall: am Bildschirm ein Blatt von unten, in der Brille das
-   * Panel am Handgelenk (`ui/GameMenu.ts`) — eine zweite Art, Text zu
-   * zeigen, gibt es hier nicht.
-   *
-   * Die Reihenfolge ist die ganze Feinheit: Erst muss der Baum **stehen**,
-   * sonst sucht `openSubmenu` eine Seite, die es noch nicht gibt. Und er steht
-   * erst am Ende des Bildes (`App.step`, `menuDirty`) — deshalb wird hier nur
-   * vorgemerkt und im nächsten Bild aufgeschlagen (`openReading`).
-   */
-  protected readAloud(title: string, text: string, markdown: boolean, ctx: WorldContext): void {
-    this.reading = { title, rows: signRows(text, SIGN.accent, markdown) };
-    ctx.refreshWorldMenu();
-    this.openReading = true;
   }
 
   // --- die Effekte ----------------------------------------------------------
@@ -2976,12 +2936,6 @@ export abstract class GridWorld extends PortalWorld {
     this.showCellHitboxes(dt, ctx);
     this.stepWallGhosts(ctx);
     this.stepLampSave();
-    // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen
-    // wird, sein Bild zum Aufbauen des Menüs bekommt (siehe `openReading`).
-    if (this.openReading) {
-      this.openReading = false;
-      ctx.menu.openSubmenu(SIGN_PAGE);
-    }
     this.stepInspect(ctx);
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
@@ -3399,21 +3353,7 @@ export abstract class GridWorld extends PortalWorld {
   override menu(): MenuEntry[] {
     const rows = [...super.menu(), this.dayMenu()];
     const withStore = this.editor ? [this.storeMenu(), ...rows] : rows;
-    const base = this.inspecting ? [this.inspectPage(this.inspecting), ...withStore] : withStore;
-    const open = this.reading;
-    if (!open) return base;
-    // **Ganz oben**, weil es der Grund ist, aus dem das Menü gerade aufging.
-    return [
-      {
-        id: SIGN_PAGE,
-        label: open.title,
-        sub: 'Was auf dem Schild steht',
-        icon: 'sign',
-        accent: SIGN.accent,
-        children: open.rows,
-      },
-      ...base,
-    ];
+    return this.inspecting ? [this.inspectPage(this.inspecting), ...withStore] : withStore;
   }
 
   // --- das Element-Menü im Einrichten ----------------------------------------
@@ -3422,7 +3362,7 @@ export abstract class GridWorld extends PortalWorld {
   private inspecting: InspectTarget | null = null;
   /**
    * **In wie vielen Bildern aufschlagen** — 0: nicht. Der Baum steht erst am
-   * Ende eines Bildes (`readAloud`), und ein Klick kommt zwischen zwei Bildern
+   * Ende eines Bildes (`PortalWorld.readSign`), und ein Klick kommt zwischen zwei Bildern
    * an: Im ersten wird gebaut, im zweiten aufgeschlagen.
    */
   private openInspecting = 0;
@@ -3953,14 +3893,6 @@ const GHOST_AIM = 0.9;
 /** Wie durchsichtig eine Wand wird, die im Weg steht. */
 const GHOST_OPACITY = 0.25;
 
-/**
- * Die Kennung der Seite, auf der ein aufgeschlagenes Schild steht.
- *
- * Eine feste und keine je Schild: Aufgeschlagen ist immer das zuletzt
- * benutzte, und eine Seite, deren Id sich ändert, verliert bei jedem Wechsel
- * ihre Blätterstellung (`ui/menuNav.ts`).
- */
-const SIGN_PAGE = 'grid:sign';
 /** Wie lange nach der letzten Änderung an einer Lampe gespeichert wird, in Sekunden. */
 const LAMP_SAVE_DELAY = 0.8;
 const DAY_PHASE_WORDS = { day: 'Tag', dusk: 'Dämmerung', night: 'Nacht' } as const;

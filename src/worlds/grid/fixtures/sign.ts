@@ -21,8 +21,8 @@ import {
  * **Das Schild** — der erste Einbau, und lange der kleinste.
  *
  * Es hält Text an einer Wand, und wer davorsteht und `A` drückt, **schlägt ihn
- * auf**: als Seite im Menü, mit Markdown, so lange man will (`signRows.ts`,
- * `GridWorld.readAloud`). Das ist die eine Sache, die sich hier geändert hat,
+ * auf**: groß als Seite im Menü, mit Markdown, so lange man will
+ * (`signs/signSheet.ts`, `PortalWorld.readSign`). Das ist die eine Sache, die sich hier geändert hat,
  * und sie kam als Beschwerde: Bis dahin war die Zeile eine **Meldung** am
  * Handgelenk — vier Sekunden, dann weg. Damit passte auf ein Schild genau ein
  * Satz, und ein Wegweiser mit drei Zielen, eine Hausordnung oder die Regeln
@@ -166,7 +166,7 @@ export const SIGN: FixtureKind<SignState> = {
    *
    * Beide Ereignisse zusammen, und beide aus reiner Rechnung: Was auf dem
    * Schild steht, steht in seinen Eigenschaften, und wie daraus eine Seite
-   * wird, ist die Sache dessen, der sie aufschlägt (`GridWorld.readAloud`).
+   * wird, ist die Sache dessen, der sie aufschlägt (`PortalWorld.readSign`).
    */
   step(state: SignState, place: FixturePlacement, input: FixtureInput): FixtureEvent[] {
     if (!input.used && !input.triggered) return [];
@@ -194,7 +194,7 @@ export const SIGN: FixtureKind<SignState> = {
 
     // **Auf der Tafel steht die erste Zeile**, nicht der ganze Aushang: Sie ist
     // ein Wegweiser und keine Wand voller Text — was mehr ist als eine Zeile,
-    // liest man aufgeschlagen (`signRows.ts`).
+    // liest man aufgeschlagen (`signs/signSheet.ts`).
     const text = signText(place);
     const board = new TextPlane({
       width: BOARD_W,
