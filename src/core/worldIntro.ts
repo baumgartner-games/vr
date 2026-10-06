@@ -65,7 +65,8 @@ export const WORLD_INTROS: Readonly<Record<string, WorldIntro>> = {
   },
   haunting: {
     goal: 'Eine Raumstation, eine Quest: reparieren, Codes tauschen, das Radar im Blick.',
-    first: 'Am Terminal der Einsatzzentrale wählst du Übungsrunde oder echte Runde.',
+    first:
+      'Der Techniker zieht am Ständer den Anzug an, die Zentrale nimmt an den Monitoren Platz.',
     tips: [
       { action: 'move', label: 'Gehen' },
       { action: 'use', label: 'Benutzen' },

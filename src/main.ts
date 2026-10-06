@@ -1,10 +1,9 @@
 import './style.css';
 import { detectFlatRole, detectXRSupport } from './core/device';
 import { emulateQuest, emulationRequested } from './core/xrEmulator';
-import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
+import { normalizeRoomCode } from './net/room';
 import type { App } from './core/App';
 import type { NetPanel } from './ui/NetPanel';
-import type { Entry } from './worlds/haunting/rules/lobby';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
 import {
   SCREEN_VIEW_LABELS,
@@ -70,7 +69,6 @@ import {
 import type { KaykitIndex } from './core/kaykitIndex';
 import { trackViewport } from './ui/safeArea';
 import { padNav } from './ui/padNav';
-import { renderHauntFlow } from './ui/hauntFlow';
 
 /**
  * **Wie groß der Schirm wirklich ist**, als Erstes und vor allem anderen: Die
@@ -83,7 +81,6 @@ trackViewport();
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
-const landingTitle = document.querySelector<HTMLElement>('#landing-title')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter')!;
 const enterLabel = document.querySelector<HTMLElement>('#enter-label');
 const enterSub = document.querySelector<HTMLElement>('#enter-sub');
@@ -137,16 +134,6 @@ const postureField = document.querySelector<HTMLElement>('#posture-field')!;
 const screenSeg = document.querySelector<HTMLElement>('#screen-view')!;
 const screenField = document.querySelector<HTMLElement>('#screen-view-field')!;
 const screenHint = document.querySelector<HTMLElement>('#screen-view-hint')!;
-const hauntName = document.querySelector<HTMLInputElement>('#haunt-name')!;
-const hauntRoom = document.querySelector<HTMLInputElement>('#haunt-room')!;
-const hauntConnect = document.querySelector<HTMLButtonElement>('#haunt-connect')!;
-const hauntStatus = document.querySelector<HTMLElement>('#haunt-status')!;
-const hauntEnter = document.querySelector<HTMLButtonElement>('#haunt-enter')!;
-const hauntEnterHint = document.querySelector<HTMLElement>('#haunt-enter-hint')!;
-const hauntXrStatus = document.querySelector<HTMLElement>('#haunt-xr-status')!;
-const hauntLobby = document.querySelector<HTMLElement>('#haunt-lobby')!;
-const hauntPeers = document.querySelector<HTMLElement>('#haunt-peers')!;
-
 /** Wofür zuletzt gegen einen alten Build neu geladen wurde. */
 const RELOADED_FOR = 'bgvr:stale-reload';
 
@@ -159,40 +146,6 @@ const requested = window.location.hash.slice(1) || params.get('world') || DEFAUL
  * (`pickWorld`). Deshalb `let`.
  */
 let startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
-
-/**
- * **Die Startseite einer Runde statt der Spielwiese.** Wer `#haunting` öffnet,
- * wurde eingeladen und will in zwei Schritten hinein: erst in die **Lobby**
- * (Name, Raum-Code der Gruppe, Verbinden — und sehen, wer schon da ist), dann
- * mit **einem Knopf** hinein. Wohin der führt, sagt das Gerät und die Wahl
- * darüber: mit Brille hinein, sonst an den Bildschirm — und dort in die 2D
- * Einsatzzentrale oder als Techniker ins Schiff. Alles andere auf der Seite ist
- * für ihn Rauschen und wird versteckt (`style.css`, `only-generic`).
- */
-const hauntLanding = startWorld === 'haunting';
-if (hauntLanding) {
-  landing.dataset['landing'] = 'haunting';
-  landingTitle.textContent = 'Haunting / Orbital';
-  // Übungsrunde oder echte Runde — was nach dem Beitreten kommt (`ui/hauntFlow.ts`).
-  renderHauntFlow();
-}
-/** Ob gerade von dieser Seite aus verbunden wird — dann wartet jeder Knopf. */
-let hauntBusy = false;
-/**
- * **Und ob gerade jemand hineingeht** (`startHaunting`). Das ist nicht
- * dasselbe wie `hauntBusy`: Verbinden dauert eine Sekunde, aber danach kommt
- * die Welt — Chunk, Physik, das Schiff —, und in dieser Zeit stand der Knopf
- * bisher wieder bedienbar da. Ein zweiter Druck schickte eine zweite Runde
- * los. Wer schon verbunden ist und im selben Raum steht, kam obendrein gar
- * nicht erst an `hauntBusy` vorbei (`joinHaunting` antwortet dann sofort).
- *
- * **Vorgewärmt wird hier mit Absicht nichts** (die Welt nimmt sich beim Aufbau
- * einen Raum, siehe oben), der Knopf ist also von Haus aus bedienbar — er
- * wird es nur, solange er etwas tut, nicht bleiben.
- */
-let hauntEntering = false;
-/** Was der letzte Versuch zu verbinden zu sagen hatte, wenn er scheiterte. */
-let hauntError = '';
 
 /**
  * **Wann die Stöcke auf dem Glas liegen** — die drei Stellen, die es einmal
@@ -277,7 +230,7 @@ let noGraphics = false;
  * **Wie weit „Alles herunterladen" ist** (`core/fullDownload.FullState`). Es
  * steht hier oben und nicht unten beim Download, weil _Beitreten_ daran hängt
  * und schon im Modulrumpf gemalt wird — ein `let` weiter unten wäre in diesem
- * Augenblick noch nicht angelegt (siehe `hauntNet`).
+ * Augenblick noch nicht angelegt.
  */
 let fullState: FullState = { kind: 'unbekannt' };
 
@@ -306,7 +259,7 @@ async function startApp(): Promise<App | null> {
         hudWorld.textContent = title;
         // Im Menü der Startseite eine andere Welt gewählt: Karte und Knopf
         // ziehen nach, sonst sagte _Spielen_ noch die alte.
-        if (!landing.hidden && !hauntLanding && id !== startWorld) {
+        if (!landing.hidden && id !== startWorld) {
           startWorld = id;
           if (worldCardsEl) markWorldCard(worldCardsEl, id);
           paintEnterLabel();
@@ -340,7 +293,6 @@ async function startApp(): Promise<App | null> {
       },
       onNetChanged: () => {
         netPanel?.refresh();
-        refreshHaunt();
       },
       onWorldFailed: (id, error) => {
         // Eine Welt, die nicht kam, darf noch einmal angefordert werden:
@@ -369,8 +321,8 @@ async function startApp(): Promise<App | null> {
         : 'Das Spiel konnte nicht gestartet werden. Bitte die Seite neu laden.',
       true,
     );
-    for (const line of [statusLine, hauntXrStatus]) line.setAttribute('role', 'alert');
-    for (const button of [enterButton, hauntEnter]) button.textContent = '3D-Start nicht verfügbar';
+    statusLine.setAttribute('role', 'alert');
+    enterButton.textContent = '3D-Start nicht verfügbar';
     for (const button of landing.querySelectorAll<HTMLButtonElement>('button'))
       button.disabled = true;
     // **Und niemand malt das wieder weg.** `paintStart` rechnet aus dem Stand
@@ -407,59 +359,8 @@ async function startApp(): Promise<App | null> {
 
   // Handy for debugging from the browser console.
   (window as unknown as { bgvr: App }).bgvr = app;
-  refreshHaunt();
   return app;
 }
-
-// **Haunting lädt erst, wenn jemand hineinwill.** Die Welt holt sich beim
-// Betreten selbst einen Raum, wenn sie in keinem ist (`joinTable`) — und die
-// Startseite fragt genau das erst noch ab. Wer die Welt schon jetzt lüde, hätte
-// zwei, die gleichzeitig verbinden wollen. Sichtbar ist ohnehin nur die
-// Startseite; die Welt kommt mit dem Knopf (`startHaunting`).
-//
-// **Und das Vorwärmen hält sich daran**, weil es danach fragt: `warmSignals`
-// meldet `lobby: hauntLanding`, und `core/warmStart.ts` wärmt dahinter gar
-// nichts. Dieser Absatz war vorher nur ein Kommentar, und ein Kommentar hält
-// niemanden auf — der Rauchtest fand die vorgewärmte Runde als eine
-// Einsatzzentrale, die nie kam: Die Welt stand schon, bevor `arriveAs` die
-// Wahl in den Speicher geschrieben hatte, und `App.goTo` sagte beim Druck auf
-// den Knopf nur noch „bin schon da".
-//
-// **Und die Spielwiese lädt hier auch nicht mehr.** An dieser Stelle stand ein
-// `void app.goTo(startWorld)`, und das war der Grund, warum die Startseite
-// zwar früh dastand, aber lange stumm blieb: Chunk, Physik-Engine, Modelle und
-// Töne — gemessen 2,6 MB — zogen los, bevor irgendjemand gedrückt hatte, und
-// nahmen der Seite die Leitung und den Hauptfaden weg. Jetzt kommt die Welt,
-// **wenn der Browser Luft hat** (`warmUp` weiter unten) oder wenn jemand
-// _Beitreten_ drückt (`ensureWorld`) — je nachdem, was zuerst passiert.
-
-/**
- * **Die Lobby-Bibliothek kommt erst, wenn sie gebraucht wird.**
- * `worlds/haunting/net.ts` ist ein eigener Chunk (58 kB) und hing bisher fest
- * an `main.ts` — für eine Seite, auf der niemand eine Runde spielen will, war
- * das reine Ladezeit. Nur die Startseite einer Runde holt sie; die Spielwiese
- * fasst sie nie an.
- *
- * **Und sie steht hier oben und nicht unten bei den anderen Helfern**, denn
- * die Zeile darunter ruft sie im Modulrumpf. Eine Funktionsdeklaration wird
- * hochgezogen, ein `let` daneben nicht — geschrieben war es einmal andersherum,
- * und heraus kam ein `ReferenceError: Cannot access … before initialization`,
- * der **nur** hinter `#haunting` auftrat und dort die halbe Startseite
- * versteckt ließ. Gefunden hat ihn der Rauchtest und keine der vier Prüfungen.
- */
-let hauntNetPending: Promise<typeof import('./worlds/haunting/net')> | null = null;
-function hauntNet(): Promise<typeof import('./worlds/haunting/net')> {
-  hauntNetPending ??= import('./worlds/haunting/net');
-  return hauntNetPending;
-}
-
-hauntName.value = rememberedName();
-if (hauntLanding) {
-  void hauntNet().then((net) => {
-    hauntRoom.value = net.hauntRoomFrom(window.location.search);
-  });
-}
-refreshHaunt();
 
 /**
  * **Ob dieses Gerät eine Brille ist** — die eine Eigenschaft, an der die ganze
@@ -493,10 +394,8 @@ void (
 
 /** Dieselbe Zeile unter beiden Gesichtern der Seite. */
 function setXrStatus(text: string, error = false): void {
-  for (const line of [statusLine, hauntXrStatus]) {
-    line.textContent = text;
-    line.classList.toggle('is-error', error);
-  }
+  statusLine.textContent = text;
+  statusLine.classList.toggle('is-error', error);
 }
 
 /**
@@ -543,19 +442,11 @@ function showScreenView(view: ScreenView): void {
     if (id === '2d' || id === '3d') button.textContent = SCREEN_VIEW_LABELS[id];
     button.classList.toggle('is-active', id === view);
   }
-  screenHint.textContent = hauntLanding
-    ? ENTRY_HINTS[view]
-    : view === '2d'
+  screenHint.textContent =
+    view === '2d'
       ? `${SCREEN_VIEW_SUBS['2d']} Umschalten geht auch im Spiel: Menü → Spielen → Ansicht.`
       : SCREEN_VIEW_SUBS['3d'];
 }
-
-/** Was auf den einen Knopf folgt, in einer Zeile — je nachdem, wohin er führt. */
-const ENTRY_HINTS: Record<'vr' | ScreenView, string> = {
-  vr: 'Die Brille: der Techniker im Anzug, draußen im Schiff.',
-  '2d': 'Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte von oben.',
-  '3d': 'Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.',
-};
 
 /**
  * **Was die Startseite zeigt: eine Frage und einen Knopf.**
@@ -574,7 +465,6 @@ function showStart(): void {
   postureField.hidden = !options.askPosture;
   screenField.hidden = !options.askView;
   paintEnterLabel();
-  hauntEnterHint.textContent = ENTRY_HINTS[options.way];
   showPosture(playerPosture());
   showScreenView(view);
 }
@@ -588,11 +478,9 @@ function paintEnterLabel(): void {
   if (noGraphics) return;
   const options = startOptions(headset, screenView(detectFlatRole()));
   const busy = fullLabel(fullState);
-  hauntEnter.textContent = busy ?? options.label;
-  // **Die Spielwiese sagt „Spielen" — und darunter, wohin.** Die Lobby einer
-  // Runde bleibt bei _Beitreten_: Dort tritt man einer Runde bei, hier fängt
-  // man an zu spielen. Ohne die beiden Zeilen im HTML (ein altes Bild aus
-  // dem Speicher) steht wie früher nur ein Wort da.
+  // **Der Knopf sagt „Spielen" — und darunter, wohin.** Ohne die beiden
+  // Zeilen im HTML (ein altes Bild aus dem Speicher) steht wie früher nur ein
+  // Wort da.
   const where = findWorld(startWorld)?.title ?? '';
   const how = options.way === 'vr' ? 'mit Brille' : SCREEN_VIEW_LABELS[options.way];
   const label = busy ?? (options.way === 'vr' ? 'In VR spielen' : 'Spielen');
@@ -615,17 +503,14 @@ onScreenViewChange(showStart);
  * dafür zurück (`stopWarming`) — eine Welt, die niemand mehr will, bekommt
  * keine Leitung mehr.
  *
- * **Die Lobby-Karte wählt nicht**, sie schlägt eine andere Startseite auf:
- * Haunting will erst Name und Raum-Code (`hauntLanding`), und die Seite
- * entscheidet das beim Laden. Also Adresse setzen und einmal neu laden —
- * mit `replaceState`, damit kein `hashchange` die Welt ohne Lobby lädt.
+ * **Auch Haunting ist eine Karte wie jede andere.** Bis Oktober 2026 schlug sie
+ * eine eigene Startseite auf (Name, Raum-Code, Verbinden, Lobby); gewünscht
+ * war: _„Beim start screen wo ich mich eigentlich anmelden soll will ich gar
+ * nicht erst hin, sondern ich will lieber, dass das menü in der spielwelt
+ * ist."_ Die Verbindung stellt man jetzt in der Station ein, am Rechner
+ * _Verbindung_ der Einsatzzentrale.
  */
 function pickWorld(card: WorldCard): void {
-  if (card.lobby) {
-    window.history.replaceState(null, '', `#${card.id}`);
-    window.location.reload();
-    return;
-  }
   if (card.id === startWorld) return;
   startWorld = card.id;
   window.history.replaceState(null, '', `#${card.id}`);
@@ -637,7 +522,7 @@ function pickWorld(card: WorldCard): void {
   void ensureWorld();
 }
 
-if (worldCardsEl && !hauntLanding) {
+if (worldCardsEl) {
   renderWorldCards(
     worldCardsEl,
     worldCards(WORLDS, import.meta.env.BASE_URL, WORLD_FOLDERS),
@@ -792,9 +677,6 @@ function warmSignals(): WarmSignals {
   const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } })
     .connection;
   return {
-    // Siehe `hauntLanding` weiter oben: Hinter einer Lobby wird nichts
-    // vorgewärmt, und das ist keine Frage der Bandbreite.
-    lobby: hauntLanding,
     hidden: document.hidden,
     busy: playerAsked || fullRunning,
     saveData: connection?.saveData,
@@ -964,7 +846,7 @@ paintStart();
  * nicht mehr braucht.
  *
  * **Die XR-Sitzung wird zuerst angefragt, die Welt läuft daneben** — dieselbe
- * Reihenfolge wie in `startHaunting`, und aus demselben Grund: Ein Browser
+ * Reihenfolge wie früher in der Lobby von Haunting, und aus demselben Grund: Ein Browser
  * gibt eine immersive Sitzung nur auf eine frische Geste, und die wäre nach
  * dem Warten auf einen Chunk verbraucht.
  */
@@ -1035,187 +917,6 @@ function startFlat(): void {
   hud.hidden = false;
   showPads();
 }
-
-// --- Haunting: Name, Raum-Code, drei Wege in denselben Raum -------------------
-
-/** Wie die Geräte in der Lobby heißen — nach dem, was sie sind. */
-const DEVICE_LABELS: Record<string, string> = {
-  vr: 'Brille',
-  desktop: 'Bildschirm',
-  handheld: 'Handy',
-};
-
-/**
- * Die Statuszeile, die Lobby und die Knöpfe der Runden-Startseite, aus dem
- * Stand der Verbindung — gezeichnet bei jedem `onNetChanged`, also auch dann,
- * wenn in den Raum noch jemand kommt, während man die Seite offen hat. **Die
- * drei Wege gibt es erst in der Lobby**: Wer noch nicht verbunden ist, sieht
- * nur Name, Code und Verbinden — so kommen erst alle zusammen, und dann geht
- * jeder seinen Weg in denselben Raum.
- */
-function refreshHaunt(): void {
-  if (!hauntLanding) return;
-  // Ohne App gibt es noch keine Verbindung — und „noch nicht verbunden" ist
-  // dann die richtige Auskunft und nicht ein Fehler.
-  const net = app?.net ?? null;
-  let text: string;
-  if (hauntBusy) text = 'Verbinde …';
-  else if (hauntError) text = `Verbindung fehlgeschlagen: ${hauntError}`;
-  else if (net?.connected) {
-    const others = net.peers.size;
-    text =
-      `Lobby „${net.room}" · ` +
-      (others === 0
-        ? 'noch niemand sonst da'
-        : others === 1
-          ? 'ein weiteres Gerät'
-          : `${others} weitere Geräte`);
-  } else text = 'Noch nicht verbunden — Name und Raum-Code eintragen.';
-  hauntStatus.textContent = text;
-  hauntStatus.classList.toggle('is-error', Boolean(hauntError) && !hauntBusy);
-  hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && Boolean(net?.connected));
-  hauntConnect.textContent = hauntBusy ? '…' : net?.connected ? 'Neu verbinden' : 'Verbinden';
-  hauntConnect.disabled = hauntBusy || hauntEntering;
-  hauntEnter.disabled = hauntBusy || hauntEntering || fullBlocks(fullState);
-  hauntLobby.hidden = !net?.connected;
-  if (net?.connected) renderHauntPeers();
-}
-
-/** Die Liste der Lobby: ich zuerst, dann alle anderen im Raum. */
-function renderHauntPeers(): void {
-  const net = app!.net;
-  const row = (name: string, role: string, note: string, me: boolean): HTMLElement => {
-    const item = document.createElement('li');
-    const dot = document.createElement('span');
-    dot.className = 'haunt-peers__dot';
-    dot.style.color = me ? '#4aa8ff' : '#7fe0a8';
-    const who = document.createElement('strong');
-    // `textContent`, nie `innerHTML`: fremde Namen sind fremder Text.
-    who.textContent = name;
-    const what = document.createElement('span');
-    what.className = 'haunt-peers__role';
-    what.textContent = note
-      ? `${DEVICE_LABELS[role] ?? role} · ${note}`
-      : (DEVICE_LABELS[role] ?? role);
-    item.append(dot, who, what);
-    if (me) {
-      const tag = document.createElement('span');
-      tag.className = 'haunt-peers__me';
-      tag.textContent = 'du';
-      item.append(tag);
-    }
-    return item;
-  };
-  const rows = [row(net.name, net.role, '', true)];
-  for (const peer of net.peers.values())
-    rows.push(row(peer.name, peer.role, peer.world === 'haunting' ? 'schon drin' : '', false));
-  hauntPeers.replaceChildren(...rows);
-}
-
-/**
- * **In den Raum, der in den Feldern steht** — mit dem Namen daneben.
- *
- * Steht man schon in genau diesem Raum, wird höchstens der Name nachgetragen;
- * steht man in einem anderen, wird umgezogen. Ohne Code gilt der gemeinsame
- * Raum `haunting`, und ein eigener Code wandert als `?room=` in die Adresse,
- * damit ein Neuladen ihn behält und der Link sich weitergeben lässt — genau
- * die Zeile, die die Welt selbst liest (`hauntRoomFrom`).
- *
- * @returns ob man danach im Raum steht.
- */
-async function joinHaunting(): Promise<boolean> {
-  const { HAUNT_ROOM } = await hauntNet();
-  const ready = await ensureApp();
-  if (!ready) return false;
-  const wanted = normalizeRoomCode(hauntRoom.value) || HAUNT_ROOM;
-  const name = hauntName.value.trim();
-  rememberName(name);
-  if (ready.net.connected && ready.net.room === wanted) {
-    if (name && name !== ready.net.name) ready.setPlayerName(name);
-    refreshHaunt();
-    return true;
-  }
-  if (hauntBusy) return false;
-  hauntBusy = true;
-  hauntError = '';
-  refreshHaunt();
-  try {
-    if (ready.net.connected) ready.disconnect();
-    await ready.connect({ room: wanted, name, local: ready.preferLocal });
-    writeRoomToAddress(wanted, HAUNT_ROOM);
-    return true;
-  } catch (error) {
-    hauntError = (error as Error).message;
-    return false;
-  } finally {
-    hauntBusy = false;
-    refreshHaunt();
-  }
-}
-
-function writeRoomToAddress(code: string, shared: string): void {
-  const url = new URL(window.location.href);
-  if (code === shared) url.searchParams.delete('room');
-  else url.searchParams.set('room', code);
-  window.history.replaceState(null, '', url);
-}
-
-/**
- * **Einer der drei Wege aus der Lobby hinein** — alle bleiben im Raum, und
- * welcher es ist, hat der eine Knopf schon entschieden
- * (`core/screenView.startOptions`).
- *
- * - `vr`: die Brille. Die XR-Sitzung wird **zuerst** angefragt, noch aus dem
- *   Klick heraus: Ein Browser gibt eine immersive Sitzung nur auf eine frische
- *   Geste, und die wäre nach einem Verbinden verbraucht. Der Rest läuft daneben.
- * - `technician`: Web 3D, der Techniker am Bildschirm; `centre`: die 2D
- *   Einsatzzentrale. Beide sagen der Lobby, was dieses Gerät ist und wie es
- *   sieht (`arriveAs`), **bevor** die Welt geladen wird — sie liest die Wahl
- *   beim Aufbau aus dem Speicher.
- *
- * Der Knopf steht nur in der Lobby, man ist also verbunden; `joinHaunting`
- * läuft trotzdem noch einmal — wer den Code nach dem Verbinden geändert hat,
- * zieht damit um. Scheitert das, geht es trotzdem hinein: Die Welt versucht
- * es beim Betreten noch einmal (`joinTable`) und sagt dort, woran es hängt.
- */
-async function startHaunting(way: 'vr' | Entry): Promise<void> {
-  // Auch hier gilt: Was der Spieler will, hat Vorrang vor dem Vorrat.
-  stopWarming();
-  // Und für die ganze Strecke — verbinden **und** die Welt — ist der Knopf
-  // stumpf: Ein zweiter Druck schickte sonst eine zweite Runde los.
-  hauntEntering = true;
-  refreshHaunt();
-  const session = way === 'vr' ? startVR(hauntEnter) : null;
-  try {
-    if (way !== 'vr') {
-      const { arriveAs, loadLobby, saveLobby } = await import('./worlds/haunting/rules/lobby');
-      saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
-    }
-    await joinHaunting();
-    if (way !== 'vr') startFlat();
-    await (await ensureApp())?.goTo('haunting');
-    if (session) await session;
-  } finally {
-    // Im Normalfall ist die Startseite längst weg; für jeden anderen — eine
-    // XR-Sitzung, die der Browser ablehnt, eine Welt, die nicht kam — steht
-    // hier, dass es noch einmal gehen darf.
-    hauntEntering = false;
-    refreshHaunt();
-  }
-}
-
-hauntConnect.addEventListener('click', () => void joinHaunting());
-for (const input of [hauntName, hauntRoom]) {
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') void joinHaunting();
-  });
-}
-// **Ein Knopf, drei Wege.** Welcher, sagt das Gerät und die Wahl darüber —
-// dieselbe Rechnung wie auf der Spielwiese (`core/screenView.startOptions`).
-hauntEnter.addEventListener('click', () => {
-  const way = startOptions(headset, screenView(detectFlatRole())).way;
-  void startHaunting(way === 'vr' ? 'vr' : way === '2d' ? 'centre' : 'technician');
-});
 
 hudMenu.addEventListener('click', () => withApp((ready) => ready.toggleMenu()));
 
@@ -1393,7 +1094,6 @@ function paintFull(): void {
   offlineStop.hidden = fullState.kind !== 'läuft';
   paintEnterLabel();
   paintStart();
-  refreshHaunt();
 }
 
 /** Was der Browser über die Leitung sagt. Die API ist optional (Safari). */

@@ -92,8 +92,12 @@ export type HintZone =
     }
   | {
       readonly kind: 'haunting';
-      /** Wer man ist: Techniker, Monster, eine Karte (Farbplätze) oder Zuschauer. */
-      readonly role: 'technician' | 'monster' | 'map' | 'watch';
+      /**
+       * Wer man ist: Techniker, Monster, eine Karte (Farbplätze), Zuschauer —
+       * oder `crew`: zu Fuß in der Einsatzzentrale, noch an keinem Rechner
+       * und ohne Anzug.
+       */
+      readonly role: 'technician' | 'monster' | 'map' | 'watch' | 'crew';
     };
 
 /** Wie eine Zone auf ihrem Schildchen heißt. */
@@ -123,6 +127,7 @@ const ROLE_LABELS: Readonly<Record<HauntingRole, string>> = {
   monster: 'Monster',
   map: 'Karte',
   watch: 'Zuschauer',
+  crew: 'Zentrale',
 };
 
 /** Wie die Werkzeuge der Baukasten-Leiste heißen — dieselben Wörter wie auf ihr. */
@@ -374,6 +379,13 @@ function zoneHints(ctx: HintContext, zone: HintZone): HintItem[] {
       tag(`${ZONE_LABELS.haunting}: ${ROLE_LABELS[zone.role]}`);
       if (zone.role === 'map' || zone.role === 'watch') {
         add(touch ? 'Finger' : 'Klick', zone.role === 'map' ? 'Karte bedienen' : 'Platz wählen');
+        menu();
+        return out;
+      }
+      if (zone.role === 'crew') {
+        // Zu Fuß: gehen, und `A` an Monitor, Anzug oder Rechner _Verbindung_.
+        if (!touch) add(pad ? 'LS' : moveKeys(ctx), 'Gehen');
+        add(use, ctx.useCandidate ? 'Benutzen' : 'Monitor · Anzug · Verbindung');
         menu();
         return out;
       }

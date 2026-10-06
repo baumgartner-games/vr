@@ -174,6 +174,14 @@ export interface WorldContext {
    */
   openOutfit(): void;
   /**
+   * **Das Menü _Verbindung_ aufmachen** — Raum-Code, Name, wer da ist,
+   * Mikrofon und Chat (`App.networkMenu`). In _Haunting_ ruft es der Rechner
+   * _Verbindung_ an der Nordwand der Einsatzzentrale; die Startseite der Runde
+   * mit Lobby gibt es seit Oktober 2026 nicht mehr. Optional, weil nur die App
+   * eine Verbindung hat (die Werkzeugseite nicht).
+   */
+  openNetwork?(): void;
+  /**
    * **_Halten einstellen_ aufmachen** (`ui/HoldMenu.ts`) — die Seite hinter
    * dem Knopf auf der Detailseite eines Möbels: das Ding in der Luft, der
    * Halterzylinder darin, die Hand daran. Nur am Schirm und nur in der App

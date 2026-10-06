@@ -311,22 +311,27 @@ sagt dafür nichts. Er kann dabei in jeden anderen Platz hineinsehen, ohne ihn
 zu besetzen.
 
 **Gemeinsam starten:** Auf allen Geräten dieselbe Adresse mit `#haunting`
-öffnen — sie zeigt die **Startseite der Runde**, in zwei Schritten. Erst die
-**Lobby**: Name und Raum-Code eintragen, **Verbinden**; wer denselben Code
-eingibt, steht dann bei allen in der Liste (Name und Gerät). Dann drückt jeder
-denselben Knopf, und alle bleiben in diesem Raum. Wohin er führt, steht schon
-oben auf der Seite: **mit Brille** heißt er **Enter VR** (der Techniker im
-Anzug), **am Bildschirm** heißt er **Beitreten** — und ob das **Web 3D** ist
-(der Techniker am Bildschirm, im Schiff) oder die **2D Einsatzzentrale** (Handy
-oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte
-der Station), sagt die Wahl **„Von oben"** oder **„Aus den Augen"**; am Handy
-ist _Von oben_ vorbelegt. Die Zeile unter dem Knopf sagt es vor dem Drücken. In der Zentrale erst die Tafel
-einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
-über die Reiter; ein **Ich** auf der Tafel gibt es nicht. Wer über **Enter VR** oder
-**Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
-seinen Namen, die Zentrale sieht ihn auf der Karte, und ihr „Mission starten"
-schickt den Start zu ihm. Wer in der Quest im Hub **Haunting /
-Orbital** wählt, kommt ebenfalls in den Raum der Adresse. Wer in der Brille
+öffnen und **Spielen** drücken — eine eigene Startseite mit Anmeldung gibt es
+nicht mehr, das Menü ist in der Spielwelt. Jeder steht dann als **Figur in der
+Einsatzzentrale**, auf seinem Startplatz: Spieler 1 vorn links, die nächsten
+daneben, ab dem fünften die zweite Reihe. Am Handy läuft man von oben mit dem
+Stock, am Bildschirm mit WASD, in der Brille wie überall. In der Zentrale
+stehen drei Dinge, an denen `A` (bzw. `E`) etwas tut:
+
+- **Die vier Monitore am Tisch** (Rot, Gelb, Blau, Monster): Platz nehmen —
+  dann kommt die Seite der Zentrale mit Karte, Reitern und Zahnrad, und die
+  anderen sehen einen auf dem Hocker sitzen. **⏏ Aufstehen** führt wieder
+  hinaus. Nur am Handy und am Bildschirm; in der Brille trägt man den Anzug.
+- **Der Techniker-Anzug** am Ständer an der Nordwand: Wer ihn anzieht, ist
+  der Techniker (auch in der Brille — niemand kommt mehr im Anzug an); noch
+  einmal `A` am Ständer legt ihn ab. Solange ihn jemand trägt, ist der Ständer
+  leer.
+- **Der Rechner _Verbindung_** daneben, mit dem Schild an der Wand: Er öffnet
+  das Menü _Verbindung_ — Raum-Code (**Raum wechseln**), Name, wer da ist,
+  Mikrofon und Chat.
+
+Wer in der Quest im Hub **Haunting / Orbital** wählt, kommt ebenfalls in den
+Raum der Adresse. Wer in der Brille
 im Boden steckt, holt sich am Handgelenk heraus: Menü → _Haunting / Orbital_ → **Feststecken? Zurück
 auf den Boden** setzt einen mitten ins eigene Zimmer, draußen in die Zentrale.
 Ein weiteres Telefon kann das **Monster** spielen:
@@ -334,9 +339,8 @@ Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
 einem Knopf — zugeschlagen wird von selbst, wer in Reichweite steht; der Knopf
 gilt dem nächsten Ding, das die Karte hervorhebt (Klappe, Kabine, gesperrte
 Tür) — auch dann, wenn der Techniker die Station am Bildschirm spielt. Für
-eine eigene Gruppe auf allen Geräten denselben Raum-Code
-eintragen — oder gleich den Link `?room=euer-gruppenname#haunting` teilen, der
-ihn vorausfüllt; ein getippter Code wandert beim Verbinden selbst in die Adresse.
+eine eigene Gruppe am Rechner _Verbindung_ denselben Raum-Code
+eintragen — oder gleich den Link `?room=euer-gruppenname#haunting` teilen.
 Ohne Code ist der Raum `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
 Update alle Geräte neu laden, damit sie dieselbe Protokollversion verwenden.
 
@@ -1095,7 +1099,7 @@ Für dieses Projekt sortiert; der Stand ist September 2026.
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `#test`              | startet direkt in dieser Welt (jede Welt-ID funktioniert: `hub`, `sandbox`, `plateup`, `haunting`)                                                                    |
 | `?world=test`        | dasselbe als Query-Parameter                                                                                                                                      |
-| `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` in die Startseite der Runde, die ihn beim Verbinden auch selbst hier ablegt |
+| `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` der Raum, in den die Station beim Betreten verbindet |
 | `?net=local`         | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner                                                                                               |
 
 Im Browser liegt die App zum Debuggen auf `window.bgvr`.

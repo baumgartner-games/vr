@@ -71,6 +71,90 @@ export const SPACE_LOCKER: GameElement = {
   parts: [{ model: 'prototype-bits/Locker.glb', height: 2 }],
 };
 
+/** Der Space Ranger — der Anzug des Technikers in _Haunting_ (`ShipExperience`). */
+const SPACE_RANGER_DIR = 'mystery-monthly-4/7-january-2024-space-ranger';
+const SPACE_RANGER_FIGURE = `${SPACE_RANGER_DIR}/character/SpaceRanger.glb`;
+/** Der Pfosten aus dem Dungeon — Stange und Füße des Ständers, wie bei der Garderobe. */
+const STAND_POST = 'dungeon/post.glb';
+
+/**
+ * **Der Anzugständer** — der Anzug des Technikers zum Anziehen. Gewünscht
+ * (Oktober 2026): _„Der techniker muss den techniker anzug ausrüsten der als
+ * interaktion item rumsteht, ähnlich wie die computer bildschirme."_ In
+ * _Haunting_ steht er in der Einsatzzentrale (`haunting/world3d/commandRoom.ts`),
+ * und `A` daran zieht den Anzug an oder wieder aus; anderswo steht er da.
+ *
+ * Gebaut wie die Garderobe (`coatRack.ts`) aus einem Pfosten: Stange und
+ * Kreuzfuß. Darauf hängt, was der Techniker trägt — Rumpf und Beine des Space
+ * Ranger, sein Raumhelm und der Rucksack hinten. Eine Kachel, zwei Meter hoch.
+ */
+export const SPACE_SUIT_STAND: GameElement = {
+  id: 'space-suit-stand',
+  label: 'Techniker-Anzug',
+  aka: ['Anzug', 'Raumanzug', 'Anzugständer', 'Space Ranger', 'Haunting'],
+  tiles: [1, 1],
+  height: 2,
+  kind: null,
+  lit: true,
+  parts: [
+    // Die Stange, und der Kreuzfuß aus zwei flachen Balken.
+    { model: STAND_POST, size: [0.06, 1.2, 0.06], pose: { at: [0, 0.04, 0] } },
+    { model: STAND_POST, size: [0.62, 0.05, 0.08], pose: { at: [0, 0, 0] } },
+    { model: STAND_POST, size: [0.08, 0.05, 0.62], pose: { at: [0, 0, 0] } },
+    // Die Beine, dann der Rumpf darüber, der Rucksack hinten am Rücken.
+    {
+      model: SPACE_RANGER_FIGURE,
+      node: 'SpaceRanger_LegLeft',
+      height: 0.5,
+      pose: { at: [0.09, 0.42, 0] },
+    },
+    {
+      model: SPACE_RANGER_FIGURE,
+      node: 'SpaceRanger_LegRight',
+      height: 0.5,
+      pose: { at: [-0.09, 0.42, 0] },
+    },
+    {
+      model: SPACE_RANGER_FIGURE,
+      node: 'SpaceRanger_Body',
+      height: 0.5,
+      pose: { at: [0, 0.9, 0] },
+    },
+    {
+      model: `${SPACE_RANGER_DIR}/SpaceRanger_Jetpack.glb`,
+      height: 0.48,
+      pose: { at: [0, 0.95, -0.2] },
+    },
+    // Der Helm obenauf.
+    { model: `${SPACE_RANGER_DIR}/SpaceRanger_Helmet.glb`, fit: 0.42, pose: { at: [0, 1.38, 0] } },
+  ],
+};
+
+/**
+ * **Der Rechner _Verbindung_** — ein Schreibtisch mit Bildschirm, Tastatur
+ * und Maus. In _Haunting_ steht er an der Nordwand der Einsatzzentrale, unter
+ * dem Schild _Verbindung_, und `A` öffnet dort das Menü _Verbindung_
+ * (Raum-Code, Name, wer da ist). Gewünscht: _„Es gibt zu dem an der oberen
+ * wand einen Computer wo an der wand steht Verbindung. Damit interagiert mit
+ * dem pc kommt das menü wo die alles mit verbindung etc. einstellen
+ * können."_ Zwei Kacheln breit, eine tief, wie der Schreibtisch.
+ */
+export const SPACE_LINK_TERMINAL: GameElement = {
+  id: 'space-link-terminal',
+  label: 'Rechner Verbindung',
+  aka: ['Computer', 'Terminal', 'Verbindung', 'Netzwerk', 'Haunting'],
+  tiles: [2, 1],
+  height: BODY,
+  kind: null,
+  lit: true,
+  parts: [
+    { model: 'furniture-bits/desk.glb' },
+    { model: 'furniture-bits/monitor.glb', stack: true, at: [0, -0.1] },
+    { model: 'furniture-bits/keyboard.glb', on: 0, at: [-0.1, 0.12] },
+    { model: 'furniture-bits/mouse.glb', on: 0, at: [0.32, 0.12] },
+  ],
+};
+
 /**
  * **Die Elemente des Weltraums** — im Katalog unter _Weltraum_
  * (`SPACE_FOLDER`), nach Art: Module, Versorgung, Fracht, Fahrzeuge, Tunnel,
@@ -183,6 +267,8 @@ export const SPACE_ELEMENTS: readonly GameElement[] = [
   space('space-rocks-a', 'Mondsteine A', 'rocks_A', [3, 4]), // 2,63 × 0,71 × 3,29
   space('space-rocks-b', 'Mondsteine B', 'rocks_B', [4, 4]), // 3,76 × 2,13 × 3,48
   SPACE_LOCKER,
+  SPACE_SUIT_STAND,
+  SPACE_LINK_TERMINAL,
 ];
 
 /** Die Ids in der Reihenfolge des Katalogs. */
@@ -213,6 +299,8 @@ const SPACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
   ],
   supply: [
     'space-locker',
+    'space-suit-stand',
+    'space-link-terminal',
     'space-water-storage',
     'space-farm-small',
     'space-farm-large',

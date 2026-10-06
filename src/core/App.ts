@@ -823,6 +823,7 @@ export class App {
       wear: (kind) => this.wear(kind),
       dress: (figure) => this.dress(figure),
       openOutfit: () => this.openOutfit(),
+      openNetwork: () => this.openNetwork(),
       openHoldEditor: (subject) => this.openHoldEditor(subject),
     };
   }
@@ -2427,6 +2428,16 @@ export class App {
   }
 
   /**
+   * **_Verbindung_ aufmachen** (`WorldContext.openNetwork`) — dieselbe Seite
+   * wie im Reiter _Zusammen_, am Bildschirm und in der Brille.
+   */
+  private openNetwork(): void {
+    if (!this.world) return;
+    if (this.menuDirty) this.refreshMenu();
+    this.gameMenu.openSubmenu('net');
+  }
+
+  /**
    * **_Halten einstellen_ aufmachen** (`ui/HoldMenu.ts`) — nur am Schirm; in
    * der Brille gibt es die Detailseite, von der aus man hierher kommt, gar
    * nicht. Das Menü geht dafür zu (seine Detailseite hält sonst einen zweiten
@@ -3581,6 +3592,17 @@ export class App {
             label: this.net.room,
             sub: `Raum-Code · ${this.net.statusDetail || this.net.status}`,
             accent: 0x4aa8ff,
+          },
+          {
+            // **Den Raum wechseln, ohne erst zu trennen** — wer in _Haunting_
+            // ankommt, steht schon im gemeinsamen Raum (`HauntingWorld.joinTable`)
+            // und tippt den Code seiner Gruppe am Rechner _Verbindung_ ein.
+            id: 'net:switch',
+            label: 'Raum wechseln',
+            sub: 'Anderen Raum-Code eintippen — man bleibt in der Welt, wo man steht',
+            icon: 'worlds',
+            accent: 0x5ee0a0,
+            run: () => this.askRoom(),
           },
           this.nameEntry(),
           this.voiceEntry(),

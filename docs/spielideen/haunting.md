@@ -35,7 +35,10 @@ Leere Plätze können Bots übernehmen.
 
 ## Eine Runde
 
-1. **Lobby**: alle öffnen `#haunting`, gleicher Raum-Code, Rollen verteilen.
+1. **Einsatzzentrale**: alle öffnen `#haunting` und stehen als Figuren in der
+   Zentrale, jeder auf seinem Startplatz. Am Rechner _Verbindung_ den Raum-Code
+   der Gruppe eintragen; der Techniker zieht am Ständer den Anzug an, die
+   anderen setzen sich an einen Monitor (Rot, Gelb, Blau, Monster).
 2. **Übungsrunde**: hell, ohne Uhr, ohne Treffer — zum Kennenlernen.
 3. **Echte Runde**: Die Station ist dunkel, der Sauerstoff reicht **10 Minuten**.
    - **Ziel**: drei ausgefallene Systeme reparieren (Ersatzteil aus der
@@ -77,7 +80,7 @@ echten Durchlauf. Der erste Punkt ist deshalb der wichtigste.
       Weltraum-Katalog. Prüfen: Sind alle Kisten und Konsolen erreichbar?
       Passen 10 Minuten noch zur Größe?
 - [ ] **Ablauf für Neulinge testen**: Schafft jemand, der es nie gesehen hat,
-      vom Link bis in die Runde zu kommen? (Lobby → Rolle → Übungsrunde →
+      vom Link bis in die Runde zu kommen? (Zentrale → Anzug oder Monitor → Übungsrunde →
       echte Runde). Eine Erklärung je Rolle in einem Satz bereithalten.
 - [ ] **Deploy-Stopp vor dem Abend**: Nach jedem Update müssen alle Geräte neu
       laden (Protokollversion). Ein paar Tage vorher nichts mehr deployen.

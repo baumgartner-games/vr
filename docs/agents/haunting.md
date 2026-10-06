@@ -7,6 +7,93 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Die Einsatzzentrale zum Herumlaufen (Oktober 2026)
+
+Gewünscht: _„Beim start screen wo ich mich eigentlich anmelden soll will ich
+gar nicht erst hin, sondern ich will lieber, dass das menü in der spielwelt
+ist. Auch die techniker mit dem handy bekommen ganz normal rumlaufende
+charaktere wie spieler von oben, können nur mit einem computer in der
+einsatzzentrale interagieren um deren plätze dort einzunehmen. Zudem spawnen
+spieler nicht alle an der selben stelle in der einsatz zentrale, sondern haben
+plätze (abhängig welcher spieler nummer diese sind). Der techniker muss den
+techniker anzug ausrüsten der als interaktion item rumsteht, ähnlich wie die
+computer bildschirme. Es gibt zu dem an der oberen wand einen Computer wo an
+der wand steht Verbindung."_
+
+- **Keine Startseite mit Anmeldung.** `#haunting` ist eine Karte der
+  Weltauswahl wie jede andere; die Lobby (`#haunt-start`, `hauntLanding`,
+  `startHaunting`, `ui/hauntFlow.ts`, `roundFlow.LOBBY_FLOW`,
+  `lobby.arriveAs`) ist weg. Die Station verbindet sich beim Betreten selbst
+  (`joinTable`: `?room=` oder `haunting`). Das Vorwärmen kennt keine Lobby
+  mehr (`warmStart.WarmSignals.lobby` ist weg).
+- **Jeder kommt als Figur an, niemand im Anzug** (`HauntingWorld.suited`,
+  `roleCtx`). Die Rolle, mit der die Welt rechnet, folgt allein dem Anzug: im
+  Anzug `vr` (der Techniker — Kern, Herzschlag, Space Ranger, Tafel), ohne ihn
+  `desktop`, **auch in der Brille**. Hände, Kamera und Sitzung hängen an
+  `renderer.xr` und bleiben, was sie sind; die Portalwelt fragt die Rolle nie.
+  Wer den Anzug trägt, sagt nur noch der Herzschlag (`wearsSuit`); eine Brille
+  ohne Anzug ist ein Mitspieler wie jeder andere (`roomHasVr`: Brille **und**
+  Anzug). Der alte Name `flatTechnician` ist `suited`.
+- **Ohne Anzug und ohne Platz läuft man** — am Handy von oben mit dem
+  Bordstock, am Bildschirm mit WASD, in der Brille wie überall. Die Physik
+  trägt (der Kern geht nur beim Techniker, `kernelLoco.active`), die Türen
+  öffnen sich für Läufer nicht (`doorOccupants` zählt nur den Anzug). Die
+  Tastenhilfe heißt dann _Station: Zentrale_ (`controlHints`, Rolle `crew`).
+- **Die Monitore am Tisch nehmen den Platz** (`placeCommandRoom`,
+  `openConsole`). `A` an einem der vier Monitore — angemeldet an der
+  Vorderkante des Tischs vor dem Hocker, leuchten tut der Monitor
+  (`Usable.highlight`) — setzt einen auf Rot, Gelb, Blau oder Monster: erst
+  jetzt wird die Seite der Zentrale gebaut (`stationUi(ctx)`,
+  `StationUi.open`), aufgeschlagen auf diesem Platz. **⏏ Aufstehen**
+  (`StationHost.leave`, in beiden Kopfzeilen und im Zahnrad) baut sie wieder
+  ab (`standUp`) und gibt den Platz für alle sofort frei
+  (`net.releaseMessage`/`readRelease`; ohne die Ansage verfiel er erst nach
+  zehn Sekunden). Im Anzug und in der Brille sagt der Monitor, warum nicht
+  (`DESK_SUITED`, `DESK_IN_VR`). Gezeichnet wird bei den anderen nur noch,
+  wer an einem Rechner sitzt, auf seinem Hocker (`crewPlace` →
+  `commandSeats.crewPlacement`); wer läuft, steht dort, wo er steht.
+- **Der Techniker-Anzug hängt am Ständer** (`space-suit-stand`,
+  `elements/spaceCatalog.SPACE_SUIT_STAND`, an der Nordwand,
+  `world3d/commandRoom.SUIT_SPOT`). `A` zieht ihn an (`toggleSuit`,
+  `SUIT_ON`) oder wieder aus (`SUIT_OFF`); trägt ihn jemand anders, sagt der
+  Ständer, wer. Solange ihn jemand trägt, ist der Ständer leer
+  (`showSuitStand`). Der Reiter „Techniker" am Telefon setzt nicht mehr an den
+  Stock, sondern steht auf und sagt, wo der Anzug hängt (`takeStick` →
+  `SUIT_FIRST`); ebenso ein Start, der einen Techniker im Anzug bräuchte
+  (`shipStart` Fall `stick`). „Rollen & Aufbau" und „Zur Einsatzzentrale"
+  legen den Anzug ab und öffnen den Aufbau (`leaveSuit('setup')`,
+  `pendingConsole`). Am Bildschirm bringt der Menüeintrag _Zum
+  Techniker-Anzug_ vor den Ständer (`goToSuit`). Die Neustart-Taste der
+  Endkarte am Telefon zieht keinen Anzug mehr an, sie startet wie jeder
+  Start aus der Zentrale (`startRound('play')`); `pendingStart` und
+  `pendingRestart` sind weg.
+- **Der Rechner _Verbindung_** (`space-link-terminal`, Schreibtisch mit
+  Monitor, Tastatur und Maus, `commandRoom.LINK_SPOT`) steht an der Nordwand
+  rechts vom Titelschild, darüber das Schild „VERBINDUNG" (`shipArt.label`).
+  `A` öffnet das Menü _Verbindung_ der App (`WorldContext.openNetwork` →
+  `App.openNetwork`); dort gibt es jetzt auch verbunden **Raum wechseln**
+  (`net:switch`).
+- **Startplätze nach Spielernummer** (`commandRoom.SPAWN_SLOTS`,
+  `spawnSlot`, `playerRank`): zwei Reihen zu vier östlich vom Tisch, 1,5 m
+  auseinander. Die Nummer ist, wie viele in Haunting schon länger da sind
+  (`NetSession.seniorityOf`); beim Aufbau gilt man selbst als der Neueste,
+  weil die Leitung die neue Welt erst nach `init` ansagt. Weil die
+  Mitspieler sich erst nach dem Verbinden melden, rückt man vier gespielte
+  Sekunden lang auf den Platz nach, der dann stimmt — solange man noch nicht
+  losgegangen ist (`settleSpawn`, in Bildern gezählt, nicht auf der Uhr).
+- **Ein Fehler der Leitung, der dabei auffiel** (`NetSession`, `greeted`):
+  Kam von einem Neuen zuerst eine Pose und dann sein `hello`, antwortete man
+  nicht — er kannte einen nie richtig (Welt `hub`, Standzeit null). Jetzt
+  zählt als begrüßt, wer sein `hello` geschickt hat.
+- **Die Zellen** sperrt der Plan (`map/geometry.fixtureBlocks` enthält
+  `commandRoom.commandBlocks`), den Körper stellt `placeCommandRoom` in die
+  Physik (`commandHost.blockSolid`, `vanRig`), damit beides den Neubau des
+  Gitters übersteht.
+
+Was weiter unten über die Lobby der Startseite, „Web 3D", „Enter VR", den
+Reiter „Techniker" als Weg an den Stock und die Brille, die den Anzug von
+selbst trägt, steht, ist die Geschichte bis Oktober 2026.
+
 **Das 1-m-Gitter und das Ende der gemalten 2D-Welt** (Paket H, September
 2026, `docs/plan-haunting-1m.md`) — was seither gilt, in Zahlen und Namen:
 

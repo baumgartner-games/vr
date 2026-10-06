@@ -606,6 +606,17 @@ export function readClaim(data: unknown, from: string): Claim | null {
   return { id: from, station: it['station'], seniority: Math.max(0, num(it['seniority'])) };
 }
 
+/**
+ * **Aufgestanden** — der Absender sitzt an keinem Rechner der Zentrale mehr
+ * (`HauntingWorld.standUp`). Ohne die Ansage verfiele sein Platz erst nach
+ * zehn Sekunden ohne Meldung, und so lange säße seine Figur bei den anderen
+ * noch auf dem Hocker, während er längst durch die Zentrale läuft.
+ */
+export function readRelease(data: unknown): boolean {
+  const it = bag(data);
+  return !!it && it['kind'] === 'release';
+}
+
 export function readFlip(data: unknown): { id: string; on: boolean } | null {
   const it = bag(data);
   if (!it || it['kind'] !== 'flip' || typeof it['id'] !== 'string') return null;
@@ -867,6 +878,10 @@ export function stopMessage(): unknown {
 
 export function claimMessage(station: StationId, seniority: number): unknown {
   return { kind: 'claim', station, seniority };
+}
+
+export function releaseMessage(): unknown {
+  return { kind: 'release' };
 }
 
 export function flipMessage(id: string, on: boolean): unknown {

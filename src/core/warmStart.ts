@@ -37,15 +37,6 @@
  * Vorwärmen ist eine Freundlichkeit und kein Auftrag. Es unterbleibt, wenn
  * es jemandem zur Last fiele — oder wenn es das Falsche täte:
  *
- * - **Die Startseite ist eine Lobby** (`lobby`). Das ist die Bedingung, die
- *   einen Abend gekostet hat, und sie ist keine Frage von Bandbreite: Wer
- *   `#haunting` öffnet, trägt erst Namen und Raum-Code ein und wählt dann
- *   seinen Weg hinein. Die Welt **liest diese Wahl beim Aufbau aus dem
- *   Speicher** (`worlds/haunting/rules/lobby.ts`, `arriveAs`) — eine
- *   vorgewärmte Runde ist also eine, die mit der falschen Rolle dasteht und
- *   sich obendrein selbst schon einen Raum genommen hat (`joinTable`), bevor
- *   die Lobby ihren kennt. Genau davor warnte der Kommentar in `main.ts`
- *   schon vorher; jetzt ist es ein Signal statt einer Warnung.
  * - **Der Spieler hat selbst etwas angefordert** (`busy`). Was er wollte, hat
  *   die Leitung; was wir ihm vorschlagen, wartet. Das ist die wichtigste der
  *   fünf Bedingungen, denn sie ist die einzige, die während des Wärmens
@@ -88,11 +79,6 @@ export type WarmStep = (typeof WARM_ORDER)[number];
 
 /** So viel von der Lage braucht die Entscheidung. */
 export interface WarmSignals {
-  /**
-   * Ob die Startseite eine **Lobby** ist (`#haunting`): erst verbinden, dann
-   * die Rolle wählen, dann hinein. Dann wird gar nichts gewärmt — siehe oben.
-   */
-  lobby?: boolean | undefined;
   /** `document.hidden` — der Tab liegt im Hintergrund. */
   hidden: boolean;
   /** Ob der Spieler gerade selbst etwas angefordert hat. */
@@ -107,12 +93,11 @@ export interface WarmSignals {
 const TOO_THIN = new Set(['slow-2g', '2g']);
 
 /**
- * **Darf überhaupt gewärmt werden?** Die fünf Bedingungen, die für jeden
+ * **Darf überhaupt gewärmt werden?** Die vier Bedingungen, die für jeden
  * Schritt gelten — gefragt wird vor **jedem**, denn `busy` und `hidden`
  * schlagen mitten im Wärmen um.
  */
 export function mayWarm(signals: WarmSignals): boolean {
-  if (signals.lobby === true) return false;
   if (signals.busy || signals.hidden) return false;
   if (signals.saveData === true) return false;
   return !(signals.effectiveType !== undefined && TOO_THIN.has(signals.effectiveType));
@@ -225,7 +210,6 @@ export function startButton(
    */
   once = false,
 ): StartButton {
-  if (signals.lobby === true) return { disabled: false, note: '', busy: false };
   if (once && (world === 'lädt' || world === 'ruht')) {
     return { disabled: false, note: '', busy: false };
   }

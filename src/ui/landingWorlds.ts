@@ -27,11 +27,6 @@ export interface WorldCard {
   /** Adresse des Bildes, oder `null` — dann steht die Fläche in der Akzentfarbe. */
   readonly image: string | null;
   /**
-   * **Diese Welt hat ihre eigene Startseite** — Haunting mit Lobby und
-   * Raum-Code. Die Karte schlägt sie auf, statt die Welt zu wählen.
-   */
-  readonly lobby: boolean;
-  /**
    * **Ein Ordner** (`WorldDefinition.folder`): die Karten darin. Ein Tipp
    * schlägt ihn auf, statt eine Welt zu wählen (`renderWorldCards`).
    */
@@ -62,9 +57,6 @@ export interface WorldSource {
   readonly folder?: string;
 }
 
-/** Welten mit einer eigenen Startseite (`main.ts`, `hauntLanding`). */
-export const LOBBY_WORLDS: ReadonlySet<string> = new Set(['haunting']);
-
 /**
  * Die Karten, in der Reihenfolge des Menüs — Spiele, Baustellen, Prüfstände
  * (`menuGroups.sortWorlds`). `base` ist die Wurzel der Seite
@@ -85,12 +77,9 @@ export function worldCards(
       title: world.title,
       tagline: world.tagline,
       kind,
-      // Eine Lobby sagt es mit einem Schildchen — das Wort in der Zeile
-      // darunter hätte der Karte eine dritte Zeile gekostet.
-      badge: WORLD_BADGES[kind] ?? (LOBBY_WORLDS.has(world.id) ? 'LOBBY' : undefined),
+      badge: WORLD_BADGES[kind],
       accent: colour(world.accent),
       image: world.preview ? `${root}${world.preview}` : null,
-      lobby: LOBBY_WORLDS.has(world.id),
     };
   };
   return folderWorlds(worlds, folders).map((item) => {
@@ -106,7 +95,6 @@ export function worldCards(
       badge: `ORDNER · ${children.length}`,
       accent: colour(item.folder.accent),
       image: first.image,
-      lobby: false,
       children,
     };
   });
@@ -164,7 +152,7 @@ function backCard(folder: WorldCard, back: () => void): HTMLElement {
 function cardNode(card: WorldCard, onClick: () => void): HTMLElement {
   const node = document.createElement('button');
   node.type = 'button';
-  node.className = `wcard wcard--${card.kind}${card.lobby ? ' wcard--lobby' : ''}`;
+  node.className = `wcard wcard--${card.kind}`;
   node.dataset['world'] = card.id;
   node.setAttribute('role', 'radio');
   node.style.setProperty('--wcard-accent', card.accent);
@@ -194,7 +182,6 @@ function cardNode(card: WorldCard, onClick: () => void): HTMLElement {
   const line = document.createElement('span');
   line.className = 'wcard__line';
   line.textContent = card.tagline;
-  if (card.lobby) node.title = 'Eigene Startseite mit Lobby und Raum-Code';
   if (card.children) {
     node.dataset['contains'] = card.children.map((child) => child.id).join(' ');
     node.setAttribute('aria-haspopup', 'true');

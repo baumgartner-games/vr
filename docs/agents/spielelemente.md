@@ -370,6 +370,18 @@ Hydroponik klein (Hydroponikbeet). Gezeichnet wird das Element
 (`FIXTURE_CATALOG`) — die Station hängt an diesen Maßen, nicht an den Kacheln
 des Katalogs.
 
+**Und zwei Stücke für die Einsatzzentrale von Haunting**, zusammengesetzt aus
+dem Regal und ebenfalls unter _Weltraum → Versorgung_ (Oktober 2026, siehe
+[Haunting](haunting.md#die-einsatzzentrale-zum-herumlaufen-oktober-2026)):
+der **Techniker-Anzug** (`space-suit-stand`, eine Kachel, 2 m) — Stange und
+Kreuzfuß aus dem Pfosten des Dungeons wie bei der Garderobe, darauf Beine und
+Rumpf des Space Ranger (`node`), sein Rucksack und sein Helm — und der
+**Rechner Verbindung** (`space-link-terminal`, 2 × 1 Kacheln): Schreibtisch,
+Monitor, Tastatur und Maus aus _Furniture Bits_. Beide haben keinen Zweck in
+der Küche (`kind: null`) und leuchten (`lit`); was `A` an ihnen tut, hängt
+Haunting selbst an (`HauntingWorld.bindCommandSpot`): den Anzug an- und
+ausziehen, das Menü _Verbindung_ öffnen. Anderswo hingestellt, stehen sie da.
+
 
 ### Stadt: Straßen, Plätze und Häuser aus _City Builder Bits_
 

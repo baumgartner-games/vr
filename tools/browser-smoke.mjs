@@ -249,17 +249,29 @@ for (const name of browserNames) {
         url.searchParams.set('room', `smoke-${name}-${Date.now()}`);
         url.hash = 'haunting';
         await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
-        // Die Startseite der Runde (`#haunting`): erst in die Lobby (Raum-Code
-        // aus `?room=`, Verbinden), dann der eine Knopf hinein — „2D" wählen
-        // (am Schreibtisch ist 3D vorbelegt), und `Beitreten` führt in die
-        // Einsatzzentrale.
-        await page.locator('#haunt-connect').click();
+        // `#haunting` hat keine eigene Startseite mehr: „2D" wählen (am
+        // Schreibtisch ist 3D vorbelegt), _Spielen_ — und man steht als Figur
+        // in der Einsatzzentrale, den Raum aus `?room=`. Hinein lädt die
+        // Station samt ihrer Modelle — lokal gut 25 s mit Software-Grafik, auf
+        // dem Runner knapp an der Minute. Also dieselbe Frist wie beim Laden
+        // der Startwelt.
         await page.locator('#screen-view [data-view="2d"]').click();
-        await page.locator('#haunt-enter').click();
-        // Hinein lädt die Station samt ihrer Modelle — lokal gut 25 s mit
-        // Software-Grafik, auf dem Runner knapp an der Minute. Also dieselbe
-        // Frist wie beim Laden der Startwelt.
-        await page.locator('.haunt').waitFor({ timeout: 90000 });
+        await page.locator('#enter:not([disabled])').waitFor({ timeout: 90000 });
+        await page.locator('#enter').click();
+        await page.waitForFunction(() => window.bgvr?.world?.commandMonitors?.size === 4, null, {
+          timeout: 90000,
+        });
+        // **Platz nehmen: an den roten Monitor treten und `E`** — erst dann
+        // liegt die Seite der Zentrale über dem Bild.
+        await page.evaluate(() => {
+          const world = window.bgvr.world;
+          const seat = world.vanRig.getObjectByName('command-seat-red');
+          const at = seat.position.clone().setY(0);
+          at.z += 0.6;
+          world.movePlayerTo(world.context, at, 0);
+        });
+        await page.keyboard.press('e', { delay: 200 });
+        await page.locator('.haunt').waitFor({ timeout: 30000 });
         await shot('roles');
 
         await assignPowers();
@@ -369,9 +381,12 @@ for (const name of browserNames) {
         // Blickwinkel darauf. Übrig bleibt die Wahl des Platzes — zurück auf
         // die Karte, dann der Reiter „Techniker"; ein „Ich" auf der Tafel gibt
         // es nicht, die Reiterzeile ist die Wahl.
-        await toSetup();
-        await page.locator('[data-test-roles]').click();
-        await page.locator('[data-me="technician"]').click();
+        // Der Anzug hängt am Ständer an der Nordwand: aufstehen, hingehen,
+        // `E` — dann ist dieses Gerät der Techniker.
+        await page.locator('[data-stand-up]').first().click();
+        await page.waitForFunction(() => !document.querySelector('.haunt'));
+        await page.evaluate(() => window.bgvr.world.goToSuit());
+        await page.keyboard.press('e', { delay: 200 });
         await page.locator('.orbital-player').waitFor();
         await page.waitForFunction(() => window.bgvr.world?.stationTorch?.visible);
         // Set up a reachable eye pose, then use the real keyboard/pointer path.

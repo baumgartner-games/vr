@@ -38,6 +38,7 @@ import {
   roomOf,
   spacesOf,
   stationBounds,
+  APRON,
   APRON_INNER,
   APRON_OUTER,
   type HouseDoor,
@@ -54,7 +55,14 @@ import {
 import { housePlan, LIFT_DOOR } from './plan';
 import { flickerLevel, freshSpook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
-import { buildShip, buildCorridorBeacons, roomAccent, type StationBeacon } from './shipArt';
+import {
+  buildShip,
+  buildCorridorBeacons,
+  label,
+  roomAccent,
+  SHIP,
+  type StationBeacon,
+} from './shipArt';
 import { StationWalls, wallRun, type StationFeature, type WallRun } from './world3d/stationWalls';
 import { dressProp } from './world3d/stationProps';
 import {
@@ -68,7 +76,24 @@ import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
-import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandSeats';
+import {
+  COMMAND_STOOLS,
+  COMMAND_TABLE,
+  crewPlacement,
+  type CommandStool,
+} from './world3d/commandSeats';
+import {
+  COMMAND_SPOTS,
+  LINK_SPOT,
+  LINK_TILES,
+  SUIT_SPOT,
+  inFront,
+  playerRank,
+  spawnSlot,
+} from './world3d/commandRoom';
+import { placeElement, type ElementHost, type PlacedElement } from '../elements/elementView';
+import { kaykitModel } from '../../core/kaykitModel';
+import type { Usable } from '../../core/usable';
 import { lampReach, stationLighting } from './stationLighting';
 import { ENTITY_PROFILES } from './threat';
 import { acousticField, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
@@ -161,6 +186,11 @@ import {
   ROUND_STOPPED,
   SHIP_NEEDS_TECHNICIAN,
   SHIP_OCCUPIED,
+  SUIT_FIRST,
+  SUIT_OFF,
+  SUIT_ON,
+  DESK_IN_VR,
+  DESK_SUITED,
   shipStart,
   startBlocker,
   startedRound,
@@ -186,6 +216,7 @@ import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './statio
 import {
   claimMessage,
   flipMessage,
+  releaseMessage,
   handoverMessage,
   HAUNT_CHANNEL,
   hauntRoomFrom,
@@ -193,6 +224,7 @@ import {
   readClaim,
   readFlip,
   readHandover,
+  readRelease,
   readMonsterInput,
   readSetupMessage,
   readSharedSetup,
@@ -263,6 +295,14 @@ const STATE_RATE = 1 / 4;
  * Millisekunden (`crewPlace`) — so oft, wie die Plätze angesagt werden.
  */
 const CREW_PLACE_RATE = 250;
+/**
+ * **So lange rückt man auf den Startplatz nach**, in Sekunden gespielter
+ * Bilder (`settleSpawn`) — die Mitspieler melden sich nach dem Verbinden
+ * innerhalb einer, höchstens zweier Sekunden. Gezählt in Bildern und nicht
+ * auf der Uhr: Ein Tab im Hintergrund bekommt keine, und wer erst danach
+ * hinschaut, soll trotzdem auf seinem Platz stehen.
+ */
+const SPAWN_SETTLE = 4;
 /** Die Pose, die einen Mitspieler aus dem Bild nimmt (`RemoteAvatars.placement`). */
 const HIDDEN_POSE: PeerPose = {
   head: [0, 0, 0, 0, 0, 0, 1],
@@ -460,7 +500,57 @@ export class HauntingWorld extends GridWorld {
   private readonly lamps = new Map<string, Lamp>();
   private experience: ShipExperience | null = null;
   private mountedRole = '';
-  private flatTechnician = false;
+  /**
+   * **Ob dieses Gerät den Anzug trägt** — also der Techniker ist. Bis Oktober
+   * 2026 war die Brille das von selbst, und ein Bildschirm wurde es über die
+   * Startseite oder den Reiter „Techniker" (damals `flatTechnician`). Jetzt
+   * zieht man den Anzug **am Ständer in der Einsatzzentrale** an
+   * (`world3d/commandRoom.SUIT_SPOT`), in der Brille wie am Bildschirm.
+   * Gewünscht: _„Der techniker muss den techniker anzug ausrüsten der als
+   * interaktion item rumsteht."_ Gerechnet wird mit der Rolle, die daraus
+   * folgt (`roleCtx`): im Anzug `vr`, ohne ihn nicht.
+   */
+  private suited = false;
+  /**
+   * **An welchem Rechner der Zentrale ich sitze** — `null`, solange ich
+   * herumlaufe. Wer nicht im Anzug steckt, ist eine Figur in der Zentrale wie
+   * jede andere; erst `A` an einem der vier Monitore setzt ihn auf dessen Platz,
+   * und dann liegt die Seite der Zentrale (`StationUi`) über dem Bild.
+   * Gewünscht: _„Auch die techniker mit dem handy bekommen ganz normal
+   * rumlaufende charaktere wie spieler von oben, können nur mit einem computer
+   * in der einsatzzentrale interagieren um deren plätze dort einzunehmen."_
+   */
+  private atDesk = false;
+  /**
+   * **Mein Startplatz** (`world3d/commandRoom.spawnSlot`) und wann ich dort
+   * abgesetzt wurde. Die Spielernummer kennt man erst, wenn die Leitung steht
+   * — beim Betreten aus dem Hub verbindet die Welt sich selbst (`joinTable`),
+   * und die Mitspieler melden sich eine Sekunde später. Solange man noch nicht
+   * losgegangen ist, rückt man deshalb ein paar Sekunden lang auf den Platz
+   * nach, der jetzt stimmt (`settleSpawn`).
+   */
+  private spawnRank = 0;
+  /** Wie viele Sekunden noch nachgerückt wird — gezählt in Bildern, nicht auf der Uhr. */
+  private spawnSettle = 0;
+  private readonly spawnedHere = new THREE.Vector3();
+  /** Die Spielelemente der Zentrale, wie sie stehen (`placeCommandRoom`). */
+  private readonly commandPlaced: PlacedElement[] = [];
+  /** Die Körper ihrer Grundflächen in der Physik — zum Abräumen. */
+  private readonly commandSlabs: THREE.Mesh[] = [];
+  /** Die Anker, an denen `A` hängt — Monitore, Anzug, Rechner. */
+  private readonly commandUsables: THREE.Object3D[] = [];
+  /**
+   * **Was am Ständer hängt** — Beine, Rumpf, Rucksack, Helm. Trägt jemand den
+   * Anzug, hängt er nicht mehr dort (`showSuitStand`): So sieht jeder in der
+   * Zentrale, ob der Techniker schon draußen ist.
+   */
+  private suitParts: THREE.Object3D[] = [];
+  /** Die vier Monitore des Tischs, je Platz (`buildVan`). */
+  private readonly commandMonitors = new Map<CommandStool['station'], THREE.Object3D>();
+  /** Hochgezählt beim Abräumen: Was danach noch aus dem Netz kommt, wird verworfen. */
+  private commandRound = 0;
+  /** Welche Seite der Zentrale nach dem Ablegen des Anzugs aufgeht (`leaveSuit`). */
+  private pendingConsole: MyRole | 'setup' | null = null;
   /**
    * Ob der Bordstock der Seite gerade gezeigt wird (`WorldContext.touchStick`)
    * — gemerkt, damit `syncTouchStick` ihn nur bei einem Wechsel anfasst.
@@ -469,15 +559,6 @@ export class HauntingWorld extends GridWorld {
   /** Der Strahl, der beim Versetzen den Boden sucht (`movePlayerTo`). */
   private readonly floorRay = new THREE.Raycaster();
   private pendingBotRound = false;
-  private pendingRestart = false;
-  /**
-   * **Ein Start, der erst noch in den Anzug steigt.** Wer im Aufbau auf
-   * „Mission starten" drückt und den Anzug tragen soll, steht in diesem Bild
-   * noch am Telefon: Der Stock kommt erst, wenn `update` die Rolle neu
-   * aufbaut (`flatTechnician`). Bis dahin wartet die Absicht hier — vorher
-   * brach der Start an dieser Stelle wortlos ab (`rules/worldMenu.shipStart`).
-   */
-  private pendingStart: Intent | null = null;
   private readonly automaticDoors = new AutomaticDoors();
   private hearing = new Map<number, number>();
   private perceptionClock = 0;
@@ -1108,12 +1189,20 @@ export class HauntingWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Mission oder Test am Terminal wählen. Archiv + Schalttafel auf zwei Handys.';
+    return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Techniker: Anzug am Ständer anziehen. Zentrale: an einem Monitor Platz nehmen. Raum-Code am Rechner „Verbindung".';
   }
 
-  /** Man fängt **draußen** an, an der Einsatzzentrale, mit dem Haus vor sich. */
+  /**
+   * **Man fängt in der Einsatzzentrale an — jeder auf seinem Platz.** Bis
+   * Oktober 2026 standen alle auf derselben Stelle (`COMMAND_HOME`), Figur in
+   * Figur. Jetzt hat jede Spielernummer ihren Startplatz
+   * (`world3d/commandRoom.spawnSlot`): Spieler 1 vorn links, die nächsten
+   * daneben, ab dem fünften die zweite Reihe.
+   */
   protected override spawnPoint(): THREE.Vector3 {
-    return new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z);
+    const ctx = this.context;
+    const slot = spawnSlot(ctx ? this.rankNow(ctx) : 0);
+    return new THREE.Vector3(slot.x, 0, slot.z);
   }
 
   /**
@@ -1173,6 +1262,11 @@ export class HauntingWorld extends GridWorld {
 
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
+    // Wo der Spawn gerade abgesetzt hat — und mit welcher Nummer (`settleSpawn`).
+    this.spawnRank = this.rankNow(ctx);
+    const slot = spawnSlot(this.spawnRank);
+    this.spawnedHere.set(slot.x, 0, slot.z);
+    this.spawnSettle = SPAWN_SETTLE;
     // **Das Board schaltet auch die Lampen aus dem Regal** (`core/Lamps.ts`):
     // Eine Lampe, an der niemand den Betrieb eingestellt hat, brennt, wenn
     // ihr Raum Licht hat — dieselbe Frage wie für das Glas der Raumlampe.
@@ -1190,25 +1284,27 @@ export class HauntingWorld extends GridWorld {
     ctx.scene.fog = new THREE.FogExp2(0x020711, 0.008);
     ctx.net.on(HAUNT_CHANNEL, (data, from) => this.receive(data, from));
     this.joinTable(ctx);
-    // Die Zentrale steht nicht am Spawn, sie sitzt am Tisch (`crewPlace`).
+    // Wer am Rechner sitzt, sitzt am Tisch; alle anderen laufen (`crewPlace`).
     ctx.avatars.placement = (peer) => this.crewPlace(peer);
+    this.placeCommandRoom();
 
-    // **„Web 3D" heißt: am Stock, und zwar sofort.** Die Startseite hat der
-    // Lobby gesagt, dass dieses Gerät der Techniker ist und das Schiff will
-    // (`rules/lobby.arriveAs`). Bis hierher stand er trotzdem erst in der
-    // Zentrale und musste den Reiter „Techniker" antippen, bevor er für die
-    // anderen einer war — bis dahin startete ein Telefon in der Zentrale eine
-    // Runde mit einem Techniker aus Zahlen, während er im Schiff wartete. Mit
-    // Brille im Raum bleibt es beim alten Weg: Sie trägt den Anzug.
-    if (
-      ctx.role !== 'vr' &&
-      this.lobbyChoice.me === 'technician' &&
-      ![...ctx.net.peers.values()].some((peer) => peer.world === 'haunting' && peer.role === 'vr')
-    )
-      this.flatTechnician = true;
-
-    this.setupRole(ctx);
+    // **Niemand kommt im Anzug an** — auch die Brille nicht. Den Anzug zieht
+    // man am Ständer an (`suited`), die Plätze nimmt man an den Monitoren.
+    this.setupRole(this.roleCtx(ctx));
     this.applyLights();
+  }
+
+  /**
+   * **Die Rolle, mit der diese Welt rechnet** — die Rolle des Geräts, nur der
+   * Anzug entscheidet: Im Anzug ist jedes Gerät `vr` (der Techniker), ohne
+   * ihn ist auch die Brille ein Mitspieler der Zentrale (`desktop`). Die
+   * Portalwelt darunter fragt die Rolle nie; Hände, Brille und Kamera hängen
+   * an der Sitzung (`renderer.xr`) und bleiben, was sie sind.
+   */
+  private roleCtx(ctx: WorldContext): WorldContext {
+    if (this.suited && ctx.role !== 'vr') return { ...ctx, role: 'vr' };
+    if (!this.suited && ctx.role === 'vr') return { ...ctx, role: 'desktop' };
+    return ctx;
   }
 
   /**
@@ -1220,7 +1316,7 @@ export class HauntingWorld extends GridWorld {
    * weg (`docs/plan-haunting-1m.md`).
    */
   private syncTouchStick(ctx: WorldContext): void {
-    const shown = !this.ui || this.flatTechnician;
+    const shown = !this.ui || this.suited;
     if (shown === this.stickShown) return;
     this.stickShown = shown;
     ctx.touchStick(shown);
@@ -1261,7 +1357,6 @@ export class HauntingWorld extends GridWorld {
       this.stationTorch?.setLit(true);
     } else {
       this.pendingBotRound = false;
-      this.pendingStart = null;
       this.stationTorch?.setLit(false);
       this.buildStationViews();
       this.netPort = new NetMonsterPort({
@@ -1269,59 +1364,63 @@ export class HauntingWorld extends GridWorld {
         state: () => this.state,
         owned: () => seatOf(this.currentClaims(), ctx.net.localId) === 'monster',
       });
-      this.ui = new StationUi({
-        spec: () => this.spec,
-        state: () => this.state,
-        claims: () => this.currentClaims(),
-        me: () => ctx.net.localId,
-        technician: () => this.takeStick(),
-        leaveTechnician: () => {
-          this.flatTechnician = false;
-        },
-        stopRound: () => this.stopRound(ctx),
-        menu: () => ctx.menu.toggle(),
-        vr: () => this.roomHasVr(),
-        lobby: () => this.lobbyChoice,
-        setLobby: (choice) => this.setLobby(choice),
-        setup: () => this.setup,
-        setSetup: (setup) => this.applySetup(setup),
-        // **„Echte Runde starten" ist immer die echte Runde** (`rules/roundFlow.ts`):
-        // Die Übung ist der Stand vor dem Start, kein zweiter Start daneben.
-        startSetup: () => this.startRound('play', ctx),
-        snapshot: () => this.mapSnapshot(),
-        monsterPort: () => this.netPort,
-        notify: (text) => ctx.notify(text),
-        round: () => this.rules.status(this.state),
-        restart: () => {
-          // Auch hier kein stummes `return`: Wer nicht rechnet, startet keine
-          // Runde — und erfährt es, statt einen toten Knopf zu drücken.
-          if (!this.isHost) {
-            this.say(HOST_BUSY);
-            return;
-          }
-          this.flatTechnician = true;
-          this.pendingRestart = true;
-        },
-        link: () => ({
-          peers: [...ctx.net.peers.values()].filter((p) => p.world === 'haunting').length,
-          vr: [...ctx.net.peers.values()].some(
-            (p) =>
-              p.world === 'haunting' &&
-              (p.role === 'vr' || clock() - (this.technicians.get(p.id) ?? -Infinity) < 3000),
-          ),
-          room: ctx.net.room,
-          technician: this.suitName(ctx),
-        }),
-        nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
-        seat: () => seatOf(this.currentClaims(), ctx.net.localId),
-        arriving: () => Math.max(0, MOVE_TIME - this.seated),
-        sit: (station) => this.sit(station),
-        door: (id) => this.panelSwitch('door', id),
-        light: (id) => this.panelSwitch('light', id),
-        archiveDesk: () => this.desk,
-      });
+      // **Die Seite der Zentrale kommt erst am Rechner** (`openConsole`):
+      // Bis dahin läuft man als Figur durch die Einsatzzentrale.
+      this.atDesk = false;
+      const page = this.pendingConsole;
+      this.pendingConsole = null;
+      if (page) this.openConsole(page);
     }
     this.applyLights();
+  }
+
+  /**
+   * **Die Seite der Zentrale** (`StationUi`) — gebaut, sobald man sich an
+   * einen Rechner setzt (`openConsole`), und abgebaut beim Aufstehen.
+   */
+  private stationUi(ctx: WorldContext): StationUi {
+    return new StationUi({
+      spec: () => this.spec,
+      state: () => this.state,
+      claims: () => this.currentClaims(),
+      me: () => ctx.net.localId,
+      technician: () => this.takeStick(),
+      leave: () => this.standUp(),
+      stopRound: () => this.stopRound(ctx),
+      menu: () => ctx.menu.toggle(),
+      vr: () => this.roomHasVr(),
+      lobby: () => this.lobbyChoice,
+      setLobby: (choice) => this.setLobby(choice),
+      setup: () => this.setup,
+      setSetup: (setup) => this.applySetup(setup),
+      // **„Echte Runde starten" ist immer die echte Runde** (`rules/roundFlow.ts`):
+      // Die Übung ist der Stand vor dem Start, kein zweiter Start daneben.
+      startSetup: () => this.startRound('play', ctx),
+      snapshot: () => this.mapSnapshot(),
+      monsterPort: () => this.netPort,
+      notify: (text) => ctx.notify(text),
+      round: () => this.rules.status(this.state),
+      restart: () => {
+        // Auch hier kein stummes `return`: Wer nicht rechnet, startet keine
+        // Runde — und erfährt es, statt einen toten Knopf zu drücken.
+        // Wer am Rechner sitzt, trägt keinen Anzug: Der Neustart geht den
+        // Weg jedes Starts aus der Zentrale — zum Gastgeber im Anzug.
+        this.startRound('play', ctx);
+      },
+      link: () => ({
+        peers: [...ctx.net.peers.values()].filter((p) => p.world === 'haunting').length,
+        vr: [...ctx.net.peers.values()].some((p) => this.wearsSuit(p)),
+        room: ctx.net.room,
+        technician: this.suitName(ctx),
+      }),
+      nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
+      seat: () => seatOf(this.currentClaims(), ctx.net.localId),
+      arriving: () => Math.max(0, MOVE_TIME - this.seated),
+      sit: (station) => this.sit(station),
+      door: (id) => this.panelSwitch('door', id),
+      light: (id) => this.panelSwitch('light', id),
+      archiveDesk: () => this.desk,
+    });
   }
 
   override dispose(ctx: WorldContext): void {
@@ -1349,7 +1448,9 @@ export class HauntingWorld extends GridWorld {
     this.liftLid(false);
     this.ui?.dispose();
     this.ui = null;
+    this.atDesk = false;
     this.netPort = null;
+    this.dropCommandRoom();
     this.experience?.dispose();
     this.experience = null;
     this.releaseMonster();
@@ -1383,10 +1484,9 @@ export class HauntingWorld extends GridWorld {
     this.technicians.clear();
     this.hostId = '';
     this.mountedRole = '';
-    this.flatTechnician = false;
+    this.suited = false;
+    this.spawnSettle = 0;
     this.pendingBotRound = false;
-    this.pendingRestart = false;
-    this.pendingStart = null;
     this.topCam = null;
     this.paperLight = null;
     this.paperSun = null;
@@ -1464,7 +1564,7 @@ export class HauntingWorld extends GridWorld {
   private pressButtons(ctx: WorldContext): void {
     const occupants = this.doorOccupants();
     // **Auch die eigenen Füße** — am Schirm ist der Techniker die Figur, die
-    // läuft (`flatTechnician`, dann ist `ctx.role` hier `vr`), und deren Kopf
+    // läuft (`suited`, dann ist `ctx.role` hier `vr`), und deren Kopf
     // steht nicht unbedingt in `doorOccupants`.
     if (ctx.role === 'vr') occupants.push({ x: ctx.rig.position.x, z: ctx.rig.position.z });
     this.pressedDoors.clear();
@@ -1536,12 +1636,8 @@ export class HauntingWorld extends GridWorld {
       start: () => this.startMission(),
       test: () => this.testMission(),
       stop: () => this.stopRound(ctx),
-      stations: () => {
-        this.flatTechnician = false;
-        this.pendingBotRound = false;
-        this.pendingStart = null;
-        ctx.menu.toggle(false);
-      },
+      // „Zur Einsatzzentrale": den Anzug ablegen und an den Aufbau der Zentrale.
+      stations: () => this.leaveSuit('setup'),
       door: (id) => this.manualDoor(id),
       // Was im Schiff `bind` bekommt, ist auch beim Kern benutzbar
       // (`PortalWorld.addUsable`): `A`, Saum und Hinweis über der Figur.
@@ -1673,11 +1769,13 @@ export class HauntingWorld extends GridWorld {
     // aber sie sagen, wer gerade an welchem sitzt, und das ist die Auskunft,
     // für die der VR-Spieler den Weg zurückgeht. Der Fernseher hat keinen:
     // kein Gerät, sondern das Fenster für die, die zusehen.
-    for (const { colour, x: stoolX, z: stoolZ } of COMMAND_STOOLS) {
+    for (const { station, colour, x: stoolX, z: stoolZ } of COMMAND_STOOLS) {
       // Der Monitor aus dem Regal auf dem Tisch, das farbige Bild vorn darauf.
       const monitor = new THREE.Group();
+      monitor.name = `command-monitor-${station}`;
       monitor.position.set(stoolX, COMMAND_DESK_TOP, z - 0.5);
       this.vanRig.add(monitor);
+      this.commandMonitors.set(station, monitor);
       dressProp(monitor, COMMAND_MONITOR, COMMAND_MONITOR_SIZE, []);
       const screen = new THREE.Mesh(
         new THREE.PlaneGeometry(0.42, 0.24),
@@ -2101,8 +2199,10 @@ export class HauntingWorld extends GridWorld {
   }
 
   private tick(dt: number, ctx: WorldContext, last = true): void {
-    if (this.flatTechnician) ctx = { ...ctx, role: 'vr' };
+    ctx = this.roleCtx(ctx);
     this.syncTouchStick(ctx);
+    this.settleSpawn(ctx, dt);
+    this.showSuitStand(ctx);
     if (this.mountedRole !== ctx.role) {
       this.context = ctx;
       this.setupRole(ctx);
@@ -2124,22 +2224,10 @@ export class HauntingWorld extends GridWorld {
       if (this.stationTorch.visible) this.stationTorch.setLit(true);
     }
     this.refreshHost(ctx);
-    if (this.pendingRestart && this.isHost && ctx.role === 'vr') {
-      this.pendingRestart = false;
-      this.startMission();
-    }
     if (this.pendingBotRound && this.isHost && ctx.role === 'vr') {
       this.pendingBotRound = false;
       this.testMission();
       this.experience?.startBotRound();
-    }
-    // **Der Start, der auf den Anzug gewartet hat.** Jetzt steht dieses Gerät
-    // am Stock (`shipStart`, Fall `stick`), und dieselbe Absicht läuft noch
-    // einmal durch — diesmal bis zur Runde.
-    if (this.pendingStart && ctx.role === 'vr') {
-      const wanted = this.pendingStart;
-      this.pendingStart = null;
-      this.startRound(wanted, ctx);
     }
 
     // **Der Gastgeber rechnet nichts selbst** — die 2D-Runde ist der Kern
@@ -2446,7 +2534,7 @@ export class HauntingWorld extends GridWorld {
       {
         id: ctx.net.localId,
         seniority: ctx.net.localSeniority,
-        technician: ctx.role === 'vr' || this.flatTechnician,
+        technician: ctx.role === 'vr' || this.suited,
       },
       ...here.map((peer) => ({
         id: peer.id,
@@ -2509,6 +2597,11 @@ export class HauntingWorld extends GridWorld {
     const claim = readClaim(data, from);
     if (claim) {
       this.claims.set(from, { ...claim, heardAt: clock() });
+      return;
+    }
+    if (readRelease(data)) {
+      this.claims.delete(from);
+      this.crewPlacedAt = -Infinity;
       return;
     }
     // **Die Tafel darf jeder im Raum stellen** — angewendet wird sie beim
@@ -3042,11 +3135,7 @@ export class HauntingWorld extends GridWorld {
     const bot = this.experience?.botPosition;
     if (bot) occupants.push(bot);
     for (const peer of this.context?.net.peers.values() ?? []) {
-      if (
-        peer.world === 'haunting' &&
-        peer.pose &&
-        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000)
-      )
+      if (peer.pose && this.wearsSuit(peer))
         occupants.push({ x: peer.pose.head[0], y: peer.pose.head[1], z: peer.pose.head[2] });
     }
     return occupants;
@@ -3278,7 +3367,7 @@ export class HauntingWorld extends GridWorld {
    * Figur nicht sieht (`world3d/topDownFog.ts`).
    */
   private cullRoomArt(dt: number, ctx: WorldContext): void {
-    const full = (!!this.ui && !this.flatTechnician) || this.state.crew.simulation;
+    const full = (!!this.ui && !this.suited) || this.state.crew.simulation;
     const topDown = ctx.topDown && !full;
     this.fog?.setTopDown(topDown);
     ctx.rig.getHeadPosition(_head);
@@ -3858,11 +3947,9 @@ export class HauntingWorld extends GridWorld {
         ...build,
         entry(
           'haunt:technician',
-          'Als Techniker spielen',
-          'Den Anzug am Bildschirm tragen, ohne Brille · WASD und Maus',
-          () => {
-            this.flatTechnician = true;
-          },
+          'Zum Techniker-Anzug',
+          'Bringt dich vor den Anzugständer der Einsatzzentrale · dort mit A anziehen',
+          () => this.goToSuit(),
         ),
         rescue,
       ];
@@ -3903,13 +3990,8 @@ export class HauntingWorld extends GridWorld {
             entry(
               'haunt:roles',
               FLOW.setup,
-              'Zur Zentrale: Archiv, Schalttafel, Späher, Zuschauer oder Monster',
-              () => {
-                this.flatTechnician = false;
-                this.pendingBotRound = false;
-                this.pendingStart = null;
-                this.context?.menu.toggle(false);
-              },
+              'Anzug ablegen und an den Aufbau der Zentrale: Archiv, Schalttafel, Späher, Zuschauer oder Monster',
+              () => this.leaveSuit('setup'),
             ),
           ]
         : []),
@@ -4107,18 +4189,16 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Ob dieser Mitspieler den Anzug trägt** — in der Brille, oder am
-   * Bildschirm mit frischem Herzschlag (`receive`, `kind: 'technician'`). Die
+   * **Ob dieser Mitspieler den Anzug trägt** — an seinem frischen Herzschlag
+   * (`receive`, `kind: 'technician'`), in der Brille wie am Bildschirm. Die
    * eine Frage, die vorher an vier Stellen mit `peer.role === 'vr'` beantwortet
-   * wurde: Der Techniker am Desktop („Web 3D") war damit für Zuschauer, Späher
-   * und Start unsichtbar — die Runde lief bei ihm, und die Zentrale sah einen
-   * Bot.
+   * wurde. Seit der Anzug am Ständer hängt (`suited`), ist auch die Brille
+   * kein Techniker mehr, bis sie ihn angezogen hat — und der Herzschlag ist
+   * die einzige Antwort: Ein Gerät im Anzug rechnet mit der Rolle `vr` und
+   * schickt ihn (`tickNet`), eines ohne schickt ihn nicht.
    */
   private wearsSuit(peer: Peer, world = 'haunting'): boolean {
-    return (
-      peer.world === world &&
-      (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000)
-    );
+    return peer.world === world && clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000;
   }
 
   /**
@@ -4127,7 +4207,7 @@ export class HauntingWorld extends GridWorld {
    * Herzschlag; `null`, wenn ihn niemand trägt.
    */
   private suitName(ctx: WorldContext): string | null {
-    if (ctx.role === 'vr' || this.flatTechnician) return ctx.net.name;
+    if (this.suited) return ctx.net.name;
     for (const peer of ctx.net.peers.values()) if (this.wearsSuit(peer)) return peer.name;
     return null;
   }
@@ -4159,9 +4239,12 @@ export class HauntingWorld extends GridWorld {
       this.crewPlacedAt = now;
       const claims = this.currentClaims();
       const me = this.context?.net.localId ?? '';
+      // **Nur wer an einem Rechner sitzt**, sitzt am Tisch: Ohne Platz läuft
+      // man als Figur durch die Zentrale, und dort wird man gezeichnet.
       const crew = [...(this.context?.net.peers.values() ?? [])]
         .filter((one) => one.id !== me && one.world === 'haunting' && !this.wearsSuit(one))
-        .map((one) => ({ id: one.id, station: seatOf(claims, one.id) }));
+        .map((one) => ({ id: one.id, station: seatOf(claims, one.id) }))
+        .filter((one) => one.station !== null);
       this.crewPlaces = crewPlacement(crew);
     }
     return this.crewPlaces.get(peer.id) ?? null;
@@ -4183,20 +4266,21 @@ export class HauntingWorld extends GridWorld {
    * Anzug ab.
    */
   private roomHasTechnician(ctx: WorldContext): boolean {
-    return ctx.role === 'vr' || this.flatTechnician || this.roomOccupied(ctx);
+    return this.suited || this.roomOccupied(ctx);
   }
 
   /**
-   * Ob jemand mit der Brille im Raum ist — dann trägt er den Anzug. Dieselbe
-   * Frage wie `roomOccupied`, nur ohne den Techniker am Desktop: Der ist ein
-   * Mensch wie jeder andere und darf seine Rolle abgeben.
+   * Ob jemand **mit der Brille im Anzug** steckt. Dieselbe Frage wie
+   * `roomOccupied`, nur ohne den Techniker am Desktop: Der ist ein Mensch wie
+   * jeder andere und darf seine Rolle abgeben. Eine Brille ohne Anzug zählt
+   * nicht — sie steht in der Zentrale wie jeder andere.
    */
   private roomHasVr(): boolean {
     const ctx = this.context;
     if (!ctx) return false;
     return (
-      ctx.role === 'vr' ||
-      [...ctx.net.peers.values()].some((peer) => peer.world === ctx.net.world && peer.role === 'vr')
+      this.suited ||
+      [...ctx.net.peers.values()].some((peer) => peer.role === 'vr' && this.wearsSuit(peer))
     );
   }
 
@@ -4234,6 +4318,7 @@ export class HauntingWorld extends GridWorld {
    * Farbplatz hält, bedient seine Karte, und wer zuschaut, wählt einen Platz.
    */
   override hintZone(): HintZone | null {
+    if (!this.suited && !this.atDesk) return { kind: 'haunting', role: 'crew' };
     const me = this.myPlace();
     if (me === 'technician' || me === 'monster') return { kind: 'haunting', role: me };
     if (me.startsWith('watch:')) return { kind: 'haunting', role: 'watch' };
@@ -4242,12 +4327,13 @@ export class HauntingWorld extends GridWorld {
 
   private myPlace(): MyRole {
     const ctx = this.context;
-    // Die Brille trägt den Anzug — immer; ein Desktop, der sich an den Stock
-    // gesetzt hat (`flatTechnician`), auch. Sonst gilt die Wahl der Lobby.
-    if (ctx?.role === 'vr') return 'technician';
+    // Wer den Anzug trägt, ist der Techniker — in der Brille wie am
+    // Bildschirm. Wer am Monster sitzt, ist das Monster. Sonst gilt die Wahl
+    // der Lobby; nur „Techniker" gilt ohne Anzug nicht mehr (`suited`).
+    if (this.suited) return 'technician';
     if (ctx && seatOf(this.currentClaims(), ctx.net.localId) === 'monster') return 'monster';
-    if (this.flatTechnician) return 'technician';
-    return this.lobbyChoice.me;
+    const me = this.lobbyChoice.me;
+    return me === 'technician' ? 'watch:technician' : me;
   }
 
   /**
@@ -4353,11 +4439,9 @@ export class HauntingWorld extends GridWorld {
         this.say(SHIP_NEEDS_TECHNICIAN);
         return;
       case 'stick':
-        // Der Stock kommt erst im nächsten Bild (`update`): Dort wird die Rolle
-        // neu aufgebaut, und erst danach ist dieses Gerät wirklich Techniker.
-        this.flatTechnician = true;
-        this.pendingStart = asIntent(what);
-        ctx.menu.toggle(false);
+        // Der Anzug hängt am Ständer: Wer der Techniker sein soll, zieht ihn
+        // dort an — der Startknopf tut das nicht mehr mit (`SUIT_FIRST`).
+        this.say(SUIT_FIRST);
         return;
       default:
         break;
@@ -4367,20 +4451,311 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Dieses Gerät an den Stock setzen** — der Reiter „Techniker" auf dem
-   * Telefon (`StationHost.technician`). Es wird der Techniker im Schiff
-   * (`flatTechnician`): Die Seite der Zentrale geht zu, der Bordstock der
-   * Seite kommt (`syncTouchStick`), und die Figur steht im hellen Vorplatz —
-   * läuft im Raum schon eine Mission, kennt sie den Stand vom Gastgeber
-   * (`adopt`) und steigt beim nächsten Bild in sie ein (`ensureKernel`). Die
-   * Brille rührt niemand an.
+   * **Der Reiter „Techniker" auf dem Telefon** (`StationHost.technician`).
+   * Bis Oktober 2026 setzte er dieses Gerät an den Stock; jetzt hängt der
+   * Anzug am Ständer in der Einsatzzentrale. Der Reiter steht deshalb vom
+   * Rechner auf und sagt, wo der Anzug hängt — oder wer ihn schon trägt.
    */
   private takeStick(): void {
-    if (this.roomHasVr()) {
-      this.say(VR_KEEPS_TECHNICIAN);
+    const ctx = this.context;
+    if (ctx && this.roomOccupied(ctx)) {
+      this.say(this.roomHasVr() ? VR_KEEPS_TECHNICIAN : SHIP_OCCUPIED);
       return;
     }
-    this.flatTechnician = true;
+    this.standUp();
+    this.say(SUIT_FIRST);
+  }
+
+  // --- die Zentrale zum Herumlaufen -------------------------------------------
+
+  /**
+   * **An einen Rechner der Zentrale setzen** — `A` an einem der vier Monitore
+   * (oder der Aufbau, `'setup'`). Erst jetzt kommt die Seite der Zentrale
+   * (`StationUi`) über das Bild, aufgeschlagen auf dem Platz dieses Monitors;
+   * bis dahin läuft man als Figur herum. In der Brille gibt es diese Seite
+   * nicht, und im Anzug bedient man keine Zentrale.
+   */
+  private openConsole(me: MyRole | 'setup'): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.suited) {
+      this.say(DESK_SUITED);
+      return;
+    }
+    if (ctx.renderer.xr.isPresenting) {
+      this.say(DESK_IN_VR);
+      return;
+    }
+    this.atDesk = true;
+    this.ui ??= this.stationUi(ctx);
+    this.ui.open(me);
+    ctx.menu.toggle(false);
+    ctx.refreshWorldMenu();
+  }
+
+  /**
+   * **Vom Rechner aufstehen** (`StationHost.leave`, der Knopf „Aufstehen") —
+   * die Seite der Zentrale geht zu, der Bordstock kommt wieder
+   * (`syncTouchStick`), und der Platz wird frei, für alle sofort
+   * (`net.releaseMessage`).
+   */
+  private standUp(): void {
+    const ctx = this.context;
+    this.atDesk = false;
+    this.ui?.dispose();
+    this.ui = null;
+    this.paperTint(false);
+    if (ctx && this.wanted) {
+      this.claims.delete(ctx.net.localId);
+      ctx.net.emit(HAUNT_CHANNEL, releaseMessage());
+    }
+    this.wanted = null;
+    ctx?.refreshWorldMenu();
+  }
+
+  /**
+   * **`A` am Anzugständer**: anziehen — dann ist dieses Gerät der Techniker
+   * (`suited`, im nächsten Bild baut `tick` die Rolle um) — oder, wer ihn
+   * trägt, wieder ausziehen. Trägt ihn schon jemand anders, sagt der Ständer,
+   * wer.
+   */
+  private toggleSuit(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.suited) {
+      this.leaveSuit(null);
+      this.say(SUIT_OFF);
+      return;
+    }
+    if (this.roomOccupied(ctx)) {
+      const name = this.suitName(ctx);
+      this.say(name ? `Den Anzug trägt schon ${name}.` : SHIP_OCCUPIED);
+      return;
+    }
+    if (this.atDesk) this.standUp();
+    this.suited = true;
+    this.say(SUIT_ON);
+  }
+
+  /**
+   * **Den Anzug ablegen** — und auf Wunsch gleich an eine Seite der Zentrale
+   * (`then`, etwa der Aufbau aus „Rollen & Aufbau"). Die Seite kommt erst,
+   * wenn `tick` die Rolle umgebaut hat (`pendingConsole`): Der Umbau räumt
+   * die Seite der Zentrale ab, und eine, die vorher aufging, wäre gleich
+   * wieder weg.
+   */
+  private leaveSuit(then: MyRole | 'setup' | null): void {
+    this.suited = false;
+    this.pendingBotRound = false;
+    this.pendingConsole = then;
+    this.context?.menu.toggle(false);
+  }
+
+  /** Vor den Anzugständer — für den Menüeintrag „Zum Techniker-Anzug". */
+  private goToSuit(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.atDesk) this.standUp();
+    const at = inFront(SUIT_SPOT);
+    this.movePlayerTo(ctx, new THREE.Vector3(at.x, 0, at.z), 0);
+    ctx.menu.toggle(false);
+    this.say('Der Techniker-Anzug steht vor dir — A zieht ihn an.');
+  }
+
+  /**
+   * **Meine Spielernummer, minus eins** — wie viele in dieser Welt schon
+   * länger da sind (`commandRoom.playerRank`).
+   */
+  private rankNow(ctx: WorldContext): number {
+    const others = [...ctx.net.peers.values()]
+      .filter((peer) => peer.world === 'haunting')
+      .map((peer) => ({ id: peer.id, seniority: ctx.net.seniorityOf(peer) }));
+    // Beim Aufbau ist die Leitung noch in der alten Welt (`App.goTo` sagt die
+    // neue erst nach `init` an): Dann bin ich der Neueste hier.
+    const mine = ctx.net.world === 'haunting' ? ctx.net.localSeniority : 0;
+    return playerRank({ id: ctx.net.localId, seniority: mine }, others);
+  }
+
+  /**
+   * **Auf den Startplatz nachrücken**, solange die Spielernummer noch nicht
+   * feststand (`spawnRank`): ein paar Sekunden nach dem Betreten und nur, wer
+   * sich noch nicht bewegt hat. Wer schon losgegangen ist, bleibt, wo er ist.
+   */
+  private settleSpawn(ctx: WorldContext, dt: number): void {
+    if (this.spawnSettle <= 0) return;
+    this.spawnSettle -= dt;
+    const rank = this.rankNow(ctx);
+    if (rank === this.spawnRank) return;
+    ctx.rig.getHeadPosition(_head);
+    if (Math.hypot(_head.x - this.spawnedHere.x, _head.z - this.spawnedHere.z) > 0.4) {
+      this.spawnSettle = 0;
+      return;
+    }
+    this.spawnRank = rank;
+    const slot = spawnSlot(rank);
+    this.spawnedHere.set(slot.x, 0, slot.z);
+    this.movePlayerTo(ctx, new THREE.Vector3(slot.x, 0, slot.z));
+  }
+
+  /**
+   * **Die Spielelemente der Zentrale hinstellen** — Anzugständer und Rechner
+   * _Verbindung_ (`world3d/commandRoom.COMMAND_SPOTS`), dazu das Schild über
+   * dem Rechner und `A` an den vier Monitoren des Tischs. Die Zellen sperrt
+   * schon der Plan (`map/geometry.fixtureBlocks`); hier kommen Körper, Bild
+   * und was `A` daran tut.
+   */
+  private placeCommandRoom(): void {
+    const host = this.commandHost();
+    for (const spot of COMMAND_SPOTS)
+      void placeElement(host, spot)
+        .then((placed) => {
+          if (!host.alive()) return;
+          this.commandPlaced.push(placed);
+          this.bindCommandSpot(placed);
+        })
+        .catch((error: unknown) => console.warn(`Zentrale: ${spot.element} fehlt`, error));
+
+    // **Das Schild an der Wand** — „Verbindung", über dem Rechner.
+    const sign = label('VERBINDUNG\nRaum-Code · Name · Mitspieler', 1.7, 0.46, SHIP.cyan);
+    sign.position.set((LINK_SPOT.x + LINK_TILES / 2) * TILE, 1.85, APRON.z * TILE + 0.25);
+    sign.name = 'command-link-sign';
+    this.vanRig.add(sign);
+
+    // **Die vier Monitore auf dem Tisch** — `A` setzt einen auf diesen Platz.
+    // Angemeldet an der Vorderkante des Tischs, vor dem Hocker, und nicht am
+    // Monitor selbst: Der steht hinten auf der Platte, fast zwei Meter vom
+    // Hocker, und so weit reicht `A` nicht. Leuchten tut trotzdem der Monitor.
+    for (const [station, monitor] of this.commandMonitors) {
+      const name = SEAT_LABELS[station];
+      const edge = new THREE.Group();
+      edge.name = `command-seat-${station}`;
+      edge.position.set(monitor.position.x, 0.9, COMMAND_TABLE.z + 0.55);
+      this.vanRig.add(edge);
+      this.bindCommand(
+        edge,
+        {
+          use: () => {
+            this.openConsole(station);
+            return true;
+          },
+          usePrompt: () => `Platz nehmen: ${name}`,
+          highlight: () => monitor,
+          interaction: { kind: 'press' },
+        },
+        { radius: 0.28, half: 0.6 },
+      );
+    }
+  }
+
+  /** `A` an einem hingestellten Spielelement der Zentrale. */
+  private bindCommandSpot(placed: PlacedElement): void {
+    // Wie die Garderobe (`elements/stationLayer.addOpener`): angemeldet in der
+    // Mitte der Grundfläche, alle Teile darunter, damit das ganze Möbel
+    // leuchtet, sobald man darauf schaut.
+    const [, depth] = placed.element.tiles;
+    const anchor = new THREE.Group();
+    anchor.name = `command:${placed.spot.id}`;
+    anchor.position.set(0, 0, -depth / 2);
+    placed.anchor.add(anchor);
+    for (const part of placed.parts) if (part) anchor.attach(part);
+    // Die ersten drei Teile sind der Ständer selbst (`SPACE_SUIT_STAND`).
+    if (placed.spot.id === SUIT_SPOT.id)
+      this.suitParts = placed.parts.slice(3).filter((part): part is THREE.Object3D => !!part);
+    if (placed.spot.id === SUIT_SPOT.id)
+      this.bindCommand(
+        anchor,
+        {
+          use: () => {
+            this.toggleSuit();
+            return true;
+          },
+          usePrompt: () => (this.suited ? 'Anzug ausziehen' : 'Techniker-Anzug anziehen'),
+          interaction: { kind: 'press' },
+        },
+        { radius: 0.5, half: 1.8 },
+      );
+    else if (placed.spot.id === LINK_SPOT.id)
+      this.bindCommand(
+        anchor,
+        {
+          use: () => {
+            this.openNetwork();
+            return true;
+          },
+          usePrompt: () => 'Verbindung: Raum-Code, Name, Mitspieler',
+          interaction: { kind: 'press' },
+        },
+        { radius: 0.8, half: 1.4 },
+      );
+  }
+
+  private bindCommand(
+    anchor: THREE.Object3D,
+    usable: Usable,
+    options?: { radius?: number; half?: number },
+  ): void {
+    this.addUsable(anchor, usable, options);
+    this.commandUsables.push(anchor);
+  }
+
+  /**
+   * **Das Menü _Verbindung_ aufmachen** — der Rechner an der Nordwand. Darin
+   * stehen Raum-Code, Name, wer da ist, Mikrofon und Chat (`App.networkMenu`);
+   * wer vom Rechner aus einen anderen Raum will, tippt den Code dort ein.
+   */
+  private openNetwork(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.atDesk) this.standUp();
+    ctx.openNetwork?.();
+  }
+
+  /** Was die Zentrale beim Hinstellen von der Welt braucht (`elements/elementView.ElementHost`). */
+  private commandHost(): ElementHost {
+    const round = this.commandRound;
+    return {
+      // Die Zellen sperrt der Plan schon (`fixtureBlocks`); hier kommt nur der
+      // Körper in die Physik — für Werkzeuge und den Spieler, den sie trägt.
+      blockSolid: (cx, cz, w, d, height) => {
+        const mesh = this.slab(
+          this.vanRig,
+          this.fixtureMaterial,
+          [w, height, d],
+          [cx, height / 2, cz],
+          false,
+        );
+        mesh.visible = false;
+        this.commandSlabs.push(mesh);
+        return { cells: [], mesh };
+      },
+      placeModel: (path, at, yaw) => this.placeModel(path, at, yaw),
+      measure: async (path) => {
+        const model = await kaykitModel(path);
+        if (!model) return null;
+        const box = new THREE.Box3().setFromObject(model);
+        return box.isEmpty() ? null : box.getSize(new THREE.Vector3());
+      },
+      load: (path) => kaykitModel(path),
+      add: (object) => this.vanRig.add(object),
+      alive: () => round === this.commandRound,
+    };
+  }
+
+  /** Die Zentrale wieder abräumen — beim Verlassen der Welt. */
+  private dropCommandRoom(): void {
+    this.commandRound++;
+    for (const anchor of this.commandUsables) this.removeUsable(anchor);
+    this.commandUsables.length = 0;
+    for (const slab of this.commandSlabs) this.dropSlab(slab);
+    this.commandSlabs.length = 0;
+    this.commandPlaced.length = 0;
+    this.suitParts = [];
+  }
+
+  /** Der Anzug hängt am Ständer — oder nicht, weil ihn jemand trägt. */
+  private showSuitStand(ctx: WorldContext): void {
+    const worn = this.suited || this.roomOccupied(ctx);
+    for (const part of this.suitParts) part.visible = !worn;
   }
 
   /**
@@ -4572,7 +4947,7 @@ export class HauntingWorld extends GridWorld {
           const technician = this.state.technician;
           if (technician) return { ...technician, sprinting: this.state.crew.exertion > 0.3 };
           const ctx = this.context;
-          if (!ctx || (ctx.role !== 'vr' && !this.flatTechnician)) {
+          if (!ctx || (ctx.role !== 'vr' && !this.suited)) {
             // **Der Techniker im Schiff eines anderen Geräts** — Brille oder
             // Bildschirm — steht in seiner Pose auf der Leitung (`Peer.pose`).
             // Ohne diese Zeile sah die Zentrale ihn nur, wenn er in der Brille
@@ -4636,13 +5011,13 @@ export class HauntingWorld extends GridWorld {
   private requestBotRound(ctx: WorldContext): void {
     // Hier zählt **nur** der belegte Raum und nicht die Rolle: Die Bot-Runde
     // ist gerade das, was auch ein Zuschauer am Desktop anwirft — sie macht
-    // ihn dafür selbst zum Techniker (`flatTechnician`).
+    // ihn dafür selbst zum Techniker (`suited`).
     if (this.roomOccupied(ctx)) {
       this.pendingBotRound = false;
       this.say(ROOM_BUSY);
       return;
     }
-    this.flatTechnician = true;
+    this.suited = true;
     this.pendingBotRound = true;
     ctx.menu.toggle(false);
   }

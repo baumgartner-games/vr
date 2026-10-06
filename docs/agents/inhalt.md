@@ -36,9 +36,10 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Einen **Hinweiskasten** mit fünf Zeilen Steuerung gab es hier auch einmal; er
   ist weg — was darin stand, steht im Menü, in dieser Datei und in der README,
   und auf einer Startseite liest es niemand.
-  Unter `#haunting` hat sie ein zweites Gesicht: die **Startseite der Runde**
-  — Name, Raum-Code, Verbinden, und derselbe eine Knopf in denselben Raum
-  (`main.ts`, `data-landing="haunting"`; siehe [Haunting](./haunting.md#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
+  Unter `#haunting` hatte sie bis Oktober 2026 ein zweites Gesicht, die
+  **Startseite der Runde** mit Name, Raum-Code und Lobby. Die ist weg: Haunting
+  ist eine Karte wie jede andere, verbunden wird in der Station am Rechner
+  _Verbindung_ (siehe [Haunting](./haunting.md#die-einsatzzentrale-zum-herumlaufen-oktober-2026)).
 
 - **Von oben: dieselbe Welt, eine Kamera** (`core/TopDownCamera.ts`,
   `core/topDownPose.ts` mit Test). Die Ansicht _Von oben_ ist kein zweites
