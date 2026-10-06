@@ -626,10 +626,33 @@ Boden (`floor`). Die Ids fangen mit dem Ordner an (`tavern-`, `halloween-`,
     nachgemessen: Eisentor ±0,8 m ohne Sturz, Torbögen ±0,8 m bis 85 % der
     Höhe, Holztorbogen ±0,88 m bis 1,65 m): Gesperrt sind nur die Zellen der
     Pfosten, die Kante dazwischen ist offen. Getragen werden sie wie eine Tür,
-    die Vorderseite zu sich (`isDoorModel`). **Die Flügel stehen offen**
-    (`props.openGate`): Die Gitterflügel von Eisentor und Torbogen mit Gitter
-    drehen sich 90° um ihre äußere Kante, beide zur Vorderseite — erst nach
-    dem Messen, sonst wäre das Tor 0,8 m tief und keine Wand mehr.
+    die Vorderseite zu sich (`isDoorModel`). Eisentor und Torbogen mit Gitter haben **Flügel**, die die Welt Bild für Bild stellt (`props.GateRig`, `swingGate`, `PortalWorld.updateGates`); gemessen wird vorher, geschlossen — offen wäre das Tor 0,8 m tief und keine Wand mehr.
+  - **Abschließen** (Oktober 2026, gewünscht: _„dass Türen an sich ein
+    Schloss Element (das gibt es in modelregal) hängen haben, wenn die Tür
+    verschlossen ist. Dann soll z.B. beim Zaun Tor auch das Gitter so sein
+    dass es zu ist. Wenn das Tor unabgeschlossen ist, soll der Zaun dort
+    leicht auf stehen […] Wenn der Spieler näher kommt, schwingen die Tore
+    auch auf (immer weg vom Spieler)."_):
+    - **Umgestellt wird im Element-Menü** (Rechtsklick, langes Drücken,
+      Trigger in der Brille; nur im _Einrichten_ und _Baukasten_ wie die
+      Lampen): Das Menü trifft auch Tore (`GridWorld.pickGate`), die Seite
+      heißt wie das Tor, die Zeile _Abschließen_ / _Aufschließen_
+      (`inspectMenu.gateRow`).
+    - **Abgeschlossen** (`PortalWorld.setGateLocked`, `userData.gateLocked`):
+      Flügel zu, mittig davor hängt das Vorhängeschloss aus dem Regal
+      (`rpg-tools-bits/lock_B`, 90 %, 85 cm hoch), und für das Gitter ist es
+      eine Wand über die ganze Kante (`GridWorld.collectWalls` ohne
+      `MODEL_ARCHES`; `wallsMoved` vergleicht das Schloss mit).
+    - **Offen** (ab Werk): angelehnt um `GATE_AJAR` (18°) zur Vorderseite.
+      Kommt der Kopf näher als 1,7 m (`GATE_REACH`), schwingen die Flügel
+      knapp 90° auf, **vom Spieler weg** — die Seite wird beim Aufschwingen
+      gewählt und bleibt, bis man wieder weg ist, sonst schlügen sie einem
+      beim Durchgehen entgegen. Im Weltbau und in der Hand nicht.
+    - Torbogen, Holztorbogen und die Durchgänge unter _Haus_ haben keine
+      Flügel und lassen sich nicht abschließen (`isLockableGate`).
+    - Gespeichert wird es wie das Tor selbst: in der Liste der
+      Weltänderungen (`ModelChange.locked`), nicht übers Netz — andere sehen
+      das Tor angelehnt.
   - **Ein Zaun macht keine Decke** (`elementCatalog.isFenceModel`,
     `HausbauWorld.coverRooms`): Er sperrt wie jede Wand, aber ein umzäunter
     Platz ist kein Raum ([Hausbau](hausbau.md#die-decke-über-jedem-raum)).

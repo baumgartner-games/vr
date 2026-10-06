@@ -191,6 +191,10 @@ import {
   modelKind,
   modelPathOf,
   modelPropShape,
+  gateRigOf,
+  swingGate,
+  GATE_AJAR,
+  type GateRig,
   propGripOf,
   propLabel,
   type BagKind,
@@ -628,6 +632,26 @@ const ERASER_SHOWN = 0.4;
  * Modell auf der Hand und keine Wand vor den Augen.
  */
 const HAND_FIT = 0.35;
+
+/**
+ * **Wie weit ein Tor aufschwingt**, wenn jemand davorsteht (Bogenmaß) — knapp
+ * 90°, vom Spieler weg (`updateGates`).
+ */
+const GATE_OPEN = 1.45;
+/** Wie nah der Kopf dem Tor kommen muss, damit es aufschwingt (m, waagerecht). */
+const GATE_REACH = 1.7;
+/** Wie schnell die Flügel schwingen (Bogenmaß je Sekunde). */
+const GATE_SPEED = 3.2;
+/**
+ * **Das Schloss an einem abgeschlossenen Tor** — aus dem Regal, das eiserne
+ * Vorhängeschloss (`rpg-tools-bits/lock_B`), auf 90 % gebracht (30 × 40 cm),
+ * mittig, wo die Flügel aneinanderstoßen, 85 cm über dem Boden.
+ */
+const GATE_LOCK = 'rpg-tools-bits/lock_B.glb';
+const GATE_LOCK_SCALE = 0.9;
+const GATE_LOCK_HEIGHT = 0.85;
+const _gateHead = new THREE.Vector3();
+const _gateLocal = new THREE.Vector3();
 /** Wie weit vor der Mitte des Schranks man beim Aussteigen steht (m). */
 const HIDE_STEP_OUT = 0.95;
 /** Wie viel vom Schrank man von innen sieht. */
@@ -1449,6 +1473,15 @@ export class PortalWorld implements World {
    */
   private readonly handShrunk = new Map<PhysicsBody, THREE.Vector3>();
   /**
+   * **Die Tore mit Flügeln** (`props.gateRigOf`) — ihre Flügel, zu welcher
+   * Seite sie gerade aufschwingen (+1 Vorderseite, −1 Rückseite, 0 keine) und
+   * das Schloss, sobald es einmal hing (`updateGates`).
+   */
+  private readonly gates = new Map<
+    PhysicsBody,
+    { rig: GateRig; side: number; lock: THREE.Object3D | null }
+  >();
+  /**
    * **Wie weit eine Hand von einem Ding weg sein darf und es trotzdem
    * anfasst** (`grabReach.reachDepth`), je Bild aus der Größe des Gestells
    * (`updateGrabs`): am Boden der feste Zuschlag, im Weltbau mal zehn.
@@ -2257,6 +2290,7 @@ export class PortalWorld implements World {
     // zeigt, und das steht erst nach `updateGrabs` fest (`showUse`).
     this.showUse(dt, ctx);
     this.updateFoam(dt);
+    this.updateGates(dt, ctx);
     this.updateGhosts(ctx);
     this.updateHandProbes(ctx);
     this.handleReset(ctx);
@@ -4078,7 +4112,8 @@ export class PortalWorld implements World {
    */
   private async placeModelChange(change: ModelChange): Promise<void> {
     const at = new THREE.Vector3(change.at.x, change.at.y, change.at.z);
-    await this.placeModelAt(change.path, at, (change.yaw * Math.PI) / 180);
+    const entry = await this.placeModelAt(change.path, at, (change.yaw * Math.PI) / 180);
+    if (entry && change.locked) this.setGateLocked(entry, true);
   }
 
   /**
@@ -4304,7 +4339,14 @@ export class PortalWorld implements World {
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
     _euler.setFromQuaternion(_quaternion, 'YXZ');
-    recordModel(key, path, _point, (_euler.y * 180) / Math.PI, this.context?.net.world);
+    recordModel(
+      key,
+      path,
+      _point,
+      (_euler.y * 180) / Math.PI,
+      this.context?.net.world,
+      this.gateLocked(entry),
+    );
   }
 
   // --- Möbelkatalog (`worlds/elements/`) -------------------------------------
@@ -14977,6 +15019,8 @@ export class PortalWorld implements World {
     const path = modelPathOf(kind);
     const blueprint = modelPropShape(model, propLabel(kind), path);
     const entry = this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
+    const gate = gateRigOf(blueprint.object);
+    if (gate) this.gates.set(entry, { rig: gate, side: 0, lock: null });
     if (path !== null) {
       const size = blueprint.halfExtents.clone().multiplyScalar(2);
       const stance = modelStance(path, size);
@@ -16253,6 +16297,108 @@ export class PortalWorld implements World {
       HAND_POST_HEIGHT,
       half.z > 0 ? HAND_POST / (2 * half.z) : 1,
     );
+  }
+
+  // --- Tore -------------------------------------------------------------------
+
+  /** **Ob dieses Tor abgeschlossen ist** — steht im `userData`, damit das Gitter es lesen kann. */
+  protected gateLocked(entry: PhysicsBody): boolean {
+    return (entry.object.userData as { gateLocked?: boolean }).gateLocked === true;
+  }
+
+  /**
+   * **Ein Tor ab- oder aufschließen** — gewünscht: _„dass Türen an sich ein
+   * Schloss Element (das gibt es in modelregal) hängen haben, wenn die Tür
+   * verschlossen ist. Dann soll z.B. beim Zaun Tor auch das Gitter so sein
+   * dass es zu ist."_ Abgeschlossen ist die Kante für das Gitter zu wie eine
+   * Wand (`GridWorld.collectWalls`), die Flügel schließen sich und das Schloss
+   * hängt daran. Umgestellt wird im Element-Menü (`GridWorld.inspectAt`), wie
+   * eine Lampe.
+   */
+  protected setGateLocked(entry: PhysicsBody, locked: boolean): void {
+    if (!this.gates.has(entry)) return;
+    const data = entry.object.userData as { gateLocked?: boolean };
+    if (locked) data.gateLocked = true;
+    else delete data.gateLocked;
+    const path = this.modelPath(entry);
+    // Die Gitterwelt merkt es selbst (`GridWorld.wallsMoved` vergleicht das Schloss mit).
+    if (path !== null && this.changeKeys.has(entry)) this.noteModel(entry, path);
+  }
+
+  /** Die Tore mit Flügeln, die gerade stehen (für das Element-Menü). */
+  protected standingGates(): PhysicsBody[] {
+    return [...this.gates.keys()].filter((entry) => !entry.removed && !entry.carried);
+  }
+
+  /**
+   * **Die Flügel jedes Tors, Bild für Bild.** Abgeschlossen: zu, mit Schloss.
+   * Sonst angelehnt (`GATE_AJAR`) — und kommt der Kopf näher als
+   * `GATE_REACH`, schwingen sie auf, **vom Spieler weg**: Die Seite wird beim
+   * Aufschwingen gewählt und bleibt, bis man wieder weg ist, sonst schlügen sie
+   * einem beim Durchgehen entgegen. Gewünscht: _„Wenn der Spieler näher
+   * kommt, schwingen die Tore auch auf (immer weg vom Spieler)."_
+   */
+  private updateGates(dt: number, ctx: WorldContext): void {
+    if (this.gates.size === 0) return;
+    ctx.rig.getHeadPosition(_gateHead);
+    for (const [entry, gate] of this.gates) {
+      if (entry.removed) {
+        this.gates.delete(entry);
+        continue;
+      }
+      const locked = this.gateLocked(entry);
+      let target = locked ? 0 : GATE_AJAR;
+      if (!locked && !entry.carried && !ctx.rig.flying) {
+        _gateLocal.copy(_gateHead);
+        entry.object.worldToLocal(_gateLocal);
+        const scale = entry.object.scale.x || 1;
+        const near =
+          Math.hypot(_gateLocal.x * scale, _gateLocal.z * scale) < GATE_REACH &&
+          Math.abs(_gateLocal.x * scale) < GATE_REACH;
+        if (!near) gate.side = 0;
+        else if (gate.side === 0) gate.side = _gateLocal.z > 0 ? -1 : 1;
+        if (gate.side !== 0) target = gate.side * GATE_OPEN;
+      } else {
+        gate.side = 0;
+      }
+      const step = GATE_SPEED * dt;
+      const angle = gate.rig.angle;
+      if (angle !== target) {
+        swingGate(
+          gate.rig,
+          Math.abs(target - angle) <= step ? target : angle + Math.sign(target - angle) * step,
+        );
+      }
+      this.showGateLock(entry, gate, locked);
+    }
+  }
+
+  /** Das Schloss an- oder abhängen — beim ersten Mal aus dem Regal geholt. */
+  private showGateLock(
+    entry: PhysicsBody,
+    gate: { lock: THREE.Object3D | null },
+    locked: boolean,
+  ): void {
+    if (gate.lock) {
+      gate.lock.visible = locked;
+      return;
+    }
+    if (!locked) return;
+    const model = kaykitModelNow(GATE_LOCK);
+    if (!model) {
+      void kaykitModel(GATE_LOCK);
+      return;
+    }
+    model.scale.multiplyScalar(GATE_LOCK_SCALE);
+    model.name = 'gate-lock';
+    const half = entry.halfExtents;
+    const front = Math.min(half.x, half.z);
+    // Die Flügel stoßen in der Mitte aneinander; das Schloss hängt davor.
+    model.position.set(0, -half.y + GATE_LOCK_HEIGHT, half.x >= half.z ? front * 0.5 : 0);
+    if (half.x < half.z) model.position.x = front * 0.5;
+    if (half.x < half.z) model.rotation.y = Math.PI / 2;
+    entry.object.add(model);
+    gate.lock = model;
   }
 
   /** Die echte Größe eines Dings, auch wenn es gerade kleiner gezeichnet wird. */

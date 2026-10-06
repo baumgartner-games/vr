@@ -379,52 +379,114 @@ export const MODEL_ARCHES: Readonly<Record<string, { open: number; top: number }
 };
 
 /**
- * **Die Flügel eines Tors stehen offen** — die Knoten dieser Namen drehen sich
- * um 90° um ihre äußere Kante, beide zur selben Seite (+z der Datei). Durch
- * ein Tor geht man wie durch eine Tür (`MODEL_ARCHES`), und durch ein
- * geschlossenes Gitter sähe das aus wie durch eine Wand.
+ * **Die Flügel eines Tors** — die Knoten dieser Namen drehen sich um ihre
+ * äußere Kante (`GateRig`). Durch ein Tor geht man wie durch eine Tür
+ * (`MODEL_ARCHES`); ob es zu, angelehnt oder offen steht, sagt die Welt Bild
+ * für Bild (`PortalWorld.updateGates`). Diese Tore lassen sich abschließen
+ * (`isLockableGate`); Torbogen und Holztorbogen haben keine Flügel.
  */
 const GATE_LEAVES: Readonly<Record<string, RegExp>> = {
   'halloween-bits/fence_gate.glb': /^fence_gate_(left|right)$/,
   'halloween-bits/arch_gate.glb': /^arch_gate_(left|right)$/,
 };
 
+/** Ob dieses Regalmodell ein Tor mit Flügeln ist, das sich abschließen lässt. */
+export function isLockableGate(path: string | null): boolean {
+  return path !== null && path in GATE_LEAVES;
+}
+
 /**
- * Dreht die Flügel auf (`GATE_LEAVES`). Erst **nach** dem Messen: Offen ragten
- * sie 0,8 m quer, und das Tor wäre für das Einrasten keine Wand mehr
- * (`gridSnap.wallAxis`).
+ * **Wie weit ein unverschlossenes Tor angelehnt steht** (Bogenmaß, zur
+ * Vorderseite) — gewünscht: _„Wenn das Tor unabgeschlossen ist, soll der Zaun
+ * dort leicht auf stehen, zur symbolisiert dass es auf geht."_
  */
-function openGate(model: THREE.Object3D, path: string | null): void {
-  const leaves = path === null ? undefined : GATE_LEAVES[path];
-  if (!leaves) return;
+export const GATE_AJAR = 0.32;
+
+/** Ein Flügel: seine Lage geschlossen, die Angel und die Hochachse im Rahmen seines Elternknotens. */
+interface GateLeaf {
+  readonly node: THREE.Object3D;
+  readonly position: THREE.Vector3;
+  readonly quaternion: THREE.Quaternion;
+  readonly hinge: THREE.Vector3;
+  readonly axis: THREE.Vector3;
+  /** +1: positiver Winkel schwingt den Flügel zur Vorderseite (+z der Datei). */
+  readonly sign: 1 | -1;
+}
+
+/** **Die Flügel eines Tors und ihr Winkel** — positiv zur Vorderseite, 0 geschlossen. */
+export interface GateRig {
+  readonly leaves: readonly GateLeaf[];
+  angle: number;
+}
+
+/**
+ * Die Flügel je gebautem Tor — nicht in `userData`: Das wird beim Klonen
+ * (Geister, Kopien) als JSON abgeschrieben, und Knoten darin wären es nicht.
+ */
+const gateRigs = new WeakMap<THREE.Object3D, GateRig>();
+
+/** Die Flügel dieses Tors (`modelPropShape`) — `null`, wenn es keine hat. */
+export function gateRigOf(object: THREE.Object3D): GateRig | null {
+  return gateRigs.get(object) ?? null;
+}
+
+/** Stellt die Flügel auf diesen Winkel (Bogenmaß, positiv zur Vorderseite). */
+export function swingGate(rig: GateRig, angle: number): void {
+  rig.angle = angle;
+  for (const leaf of rig.leaves) {
+    _gateTurn.setFromAxisAngle(leaf.axis, leaf.sign * angle);
+    leaf.node.position
+      .copy(leaf.position)
+      .sub(leaf.hinge)
+      .applyQuaternion(_gateTurn)
+      .add(leaf.hinge);
+    leaf.node.quaternion.copy(leaf.quaternion).premultiply(_gateTurn);
+  }
+}
+const _gateTurn = new THREE.Quaternion();
+
+/**
+ * Findet die Flügel (`GATE_LEAVES`) und stellt sie angelehnt (`GATE_AJAR`).
+ * Erst **nach** dem Messen: Offen ragten sie bis 0,8 m quer, und das Tor wäre
+ * für das Einrasten keine Wand mehr (`gridSnap.wallAxis`).
+ */
+function rigGate(model: THREE.Object3D, path: string | null): GateRig | null {
+  const names = path === null ? undefined : GATE_LEAVES[path];
+  if (!names) return null;
   model.updateMatrixWorld(true);
   const found: THREE.Object3D[] = [];
   model.traverse((node) => {
-    if (leaves.test(node.name)) found.push(node);
+    if (names.test(node.name)) found.push(node);
   });
-  for (const leaf of found) {
-    const parent = leaf.parent;
+  const centre = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+  const leaves: GateLeaf[] = [];
+  for (const node of found) {
+    const parent = node.parent;
     if (!parent) continue;
     // Die Angel: die Kante des Flügels, die weiter von der Mitte des Tors weg ist.
-    const box = new THREE.Box3().setFromObject(leaf);
-    const centre = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+    const box = new THREE.Box3().setFromObject(node);
     const outer = Math.abs(box.max.x - centre.x) > Math.abs(box.min.x - centre.x);
-    const hinge = new THREE.Vector3(
-      outer ? box.max.x : box.min.x,
-      box.min.y,
-      (box.min.z + box.max.z) / 2,
+    const hinge = parent.worldToLocal(
+      new THREE.Vector3(outer ? box.max.x : box.min.x, box.min.y, (box.min.z + box.max.z) / 2),
     );
-    parent.worldToLocal(hinge);
-    const turn = new THREE.Quaternion().setFromAxisAngle(
-      _gateUp,
-      outer ? Math.PI / 2 : -Math.PI / 2,
-    );
-    leaf.position.sub(hinge).applyQuaternion(turn).add(hinge);
-    leaf.quaternion.premultiply(turn);
+    const axis = new THREE.Vector3(0, 1, 0)
+      .applyQuaternion(parent.getWorldQuaternion(new THREE.Quaternion()).invert())
+      .normalize();
+    leaves.push({
+      node,
+      position: node.position.clone(),
+      quaternion: node.quaternion.clone(),
+      hinge,
+      axis,
+      sign: outer ? 1 : -1,
+    });
   }
+  if (leaves.length === 0) return null;
+  const rig: GateRig = { leaves, angle: 0 };
+  swingGate(rig, GATE_AJAR);
   model.updateMatrixWorld(true);
+  return rig;
 }
-const _gateUp = new THREE.Vector3(0, 1, 0);
 
 export function modelPropShape(
   model: THREE.Object3D,
@@ -451,7 +513,8 @@ export function modelPropShape(
     if (across && box.min[across] < origin && origin < box.max[across]) centre[across] = origin;
     model.position.sub(centre);
   }
-  openGate(model, path);
+  const gate = rigGate(model, path);
+  if (gate) gateRigs.set(object, gate);
   object.add(stretchWall(model, box.isEmpty() ? null : size));
   const tread = treadOf(model) ?? size.y / 2;
 
