@@ -370,17 +370,28 @@ Hydroponik klein (Hydroponikbeet). Gezeichnet wird das Element
 (`FIXTURE_CATALOG`) — die Station hängt an diesen Maßen, nicht an den Kacheln
 des Katalogs.
 
-**Und zwei Stücke für die Einsatzzentrale von Haunting**, zusammengesetzt aus
+**Und drei Stücke für die Einsatzzentrale von Haunting**, zusammengesetzt aus
 dem Regal und ebenfalls unter _Weltraum → Versorgung_ (Oktober 2026, siehe
 [Haunting](haunting.md#die-einsatzzentrale-zum-herumlaufen-oktober-2026)):
 der **Techniker-Anzug** (`space-suit-stand`, eine Kachel, 2 m) — Stange und
 Kreuzfuß aus dem Pfosten des Dungeons wie bei der Garderobe, darauf Beine und
-Rumpf des Space Ranger (`node`), sein Rucksack und sein Helm — und der
-**Rechner Verbindung** (`space-link-terminal`, 2 × 1 Kacheln): Schreibtisch,
-Monitor, Tastatur und Maus aus _Furniture Bits_. Beide haben keinen Zweck in
-der Küche (`kind: null`) und leuchten (`lit`); was `A` an ihnen tut, hängt
-Haunting selbst an (`HauntingWorld.bindCommandSpot`): den Anzug an- und
-ausziehen, das Menü _Verbindung_ öffnen. Anderswo hingestellt, stehen sie da.
+Rumpf des Space Ranger (`node`), sein Rucksack und sein Helm —, der
+**Monster-Anzug** (`space-monster-stand`, derselbe Ständer mit Beinen, Rumpf
+und Kopf von `Robot_Two`) und der **Rechner** (`space-terminal`, 2 × 1
+Kacheln): Schreibtisch, Monitor, Tastatur und Maus aus _Furniture Bits_. Alle
+drei haben keinen Zweck in der Küche (`kind: null`) und leuchten (`lit`); was
+`A` an ihnen tut, hängt Haunting selbst an (`HauntingWorld.bindCommandSpot`):
+Anzüge an- und ausziehen, Platz nehmen, _Verbindung_ oder
+_Spiel-Einstellungen_ öffnen. Anderswo hingestellt, stehen sie da.
+
+**Sitzen.** Alles aus _Möbel → Sitzen_ — Sessel, Sofas, Stühle, Bürostühle,
+Hocker — hat `opens: 'sit'` (`furnitureCatalog.seat`): `A` setzt einen in die
+Mitte der Sitzfläche, mit Blick nach vorn und um `SIT_DROP` tiefer
+(`PortalWorld.sitOn`, derselbe Weg wie in den Schutzschrank, ohne
+Durchsichtigkeit), und `A`, `E` oder ein Klick stehen wieder auf. Gewünscht:
+_„Jedenfalls sollten wir alle möbel von "sitzen" interagierbar machen, um
+darauf sitzen zu können."_ Eine Sitzhaltung für die eigene Figur gibt es noch
+nicht; sie sinkt mit.
 
 
 ### Stadt: Straßen, Plätze und Häuser aus _City Builder Bits_

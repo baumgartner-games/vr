@@ -327,6 +327,7 @@ const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = {
   outfit: 'Aussehen ändern',
   hide: 'Verstecken',
   swap: 'Laterne tauschen',
+  sit: 'Hinsetzen',
 };
 
 /** Wie die Station gerade gebaut ist. */

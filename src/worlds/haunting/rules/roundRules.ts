@@ -121,10 +121,14 @@ export class RoundRules {
   /**
    * Nach jedem Zeitschritt: Ist der Sauerstoff aufgebraucht, ist die Runde
    * verloren. Gibt die Meldung dafür zurück — genau einmal, im Bild des
-   * Ablaufs — oder `null`.
+   * Ablaufs — oder `null`. **In der Übung nie** (`options.test`): Solange
+   * keine echte Runde läuft, ist es eine Übung ohne Sauerstoff-Uhr
+   * (gewünscht: _„Wenn das spiel noch nicht gestartet wird, ist das immer
+   * eine übung (nur eben ohne sauerstoff timer)."_).
    */
   step(state: HauntState): { kind: 'bad'; text: string } | null {
-    if (state.phase !== 'running' || this.oxygenLeft(state) > 0) return null;
+    if (state.phase !== 'running' || state.crew.options.test || this.oxygenLeft(state) > 0)
+      return null;
     state.phase = 'lost';
     return { kind: 'bad', text: 'MISSION GESCHEITERT · Sauerstoff aufgebraucht.' };
   }

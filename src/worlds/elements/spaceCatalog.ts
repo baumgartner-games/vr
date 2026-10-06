@@ -130,19 +130,48 @@ export const SPACE_SUIT_STAND: GameElement = {
   ],
 };
 
+/** Der Roboter, als der „Der Verlorene" durch die Station geht (`haunting/actorFit.ts`). */
+const ROBOT_FIGURE = 'mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb';
+
 /**
- * **Der Rechner _Verbindung_** — ein Schreibtisch mit Bildschirm, Tastatur
- * und Maus. In _Haunting_ steht er an der Nordwand der Einsatzzentrale, unter
- * dem Schild _Verbindung_, und `A` öffnet dort das Menü _Verbindung_
- * (Raum-Code, Name, wer da ist). Gewünscht: _„Es gibt zu dem an der oberen
- * wand einen Computer wo an der wand steht Verbindung. Damit interagiert mit
- * dem pc kommt das menü wo die alles mit verbindung etc. einstellen
- * können."_ Zwei Kacheln breit, eine tief, wie der Schreibtisch.
+ * **Der Monster-Anzug** — derselbe Ständer, darauf der Roboter, als der das
+ * Monster durch die Station geht: Beine, Rumpf und Kopf von `Robot_Two`.
+ * Gewünscht (Oktober 2026): _„Bei dem Monster soll kein Computer sein, sondern
+ * auch wie beim anzug, dass da ein "Monster" als anzug steht."_ In _Haunting_
+ * zieht `A` ihn an: Wer ihn trägt, spielt das Monster.
  */
-export const SPACE_LINK_TERMINAL: GameElement = {
-  id: 'space-link-terminal',
-  label: 'Rechner Verbindung',
-  aka: ['Computer', 'Terminal', 'Verbindung', 'Netzwerk', 'Haunting'],
+export const SPACE_MONSTER_STAND: GameElement = {
+  id: 'space-monster-stand',
+  label: 'Monster-Anzug',
+  aka: ['Monster', 'Roboter', 'Anzug', 'Anzugständer', 'Haunting'],
+  tiles: [1, 1],
+  height: 2,
+  kind: null,
+  lit: true,
+  parts: [
+    { model: STAND_POST, size: [0.06, 1.2, 0.06], pose: { at: [0, 0.04, 0] } },
+    { model: STAND_POST, size: [0.62, 0.05, 0.08], pose: { at: [0, 0, 0] } },
+    { model: STAND_POST, size: [0.08, 0.05, 0.62], pose: { at: [0, 0, 0] } },
+    { model: ROBOT_FIGURE, node: 'Robot_Two_LegLeft', height: 0.55, pose: { at: [0.1, 0.4, 0] } },
+    { model: ROBOT_FIGURE, node: 'Robot_Two_LegRight', height: 0.55, pose: { at: [-0.1, 0.4, 0] } },
+    { model: ROBOT_FIGURE, node: 'Robot_Two_Body', height: 0.55, pose: { at: [0, 0.9, 0] } },
+    { model: ROBOT_FIGURE, node: 'Robot_Two_Head', height: 0.42, pose: { at: [0, 1.4, 0] } },
+  ],
+};
+
+/**
+ * **Ein Rechner** — Schreibtisch mit Bildschirm, Tastatur und Maus. In
+ * _Haunting_ steht er fünfmal in der Einsatzzentrale: an der Nordwand als
+ * _Verbindung_ (Raum-Code, Name, wer da ist — gewünscht: _„Es gibt zu dem an
+ * der oberen wand einen Computer wo an der wand steht Verbindung."_) und als
+ * _Spiel-Einstellungen_, im Westen als die Plätze Rot, Gelb und Blau. Was `A`
+ * daran tut, hängt die Welt an (`HauntingWorld.bindCommandSpot`). Zwei Kacheln
+ * breit, eine tief, wie der Schreibtisch.
+ */
+export const SPACE_TERMINAL: GameElement = {
+  id: 'space-terminal',
+  label: 'Rechner',
+  aka: ['Computer', 'Terminal', 'Verbindung', 'Arbeitsplatz', 'Haunting'],
   tiles: [2, 1],
   height: BODY,
   kind: null,
@@ -268,7 +297,8 @@ export const SPACE_ELEMENTS: readonly GameElement[] = [
   space('space-rocks-b', 'Mondsteine B', 'rocks_B', [4, 4]), // 3,76 × 2,13 × 3,48
   SPACE_LOCKER,
   SPACE_SUIT_STAND,
-  SPACE_LINK_TERMINAL,
+  SPACE_MONSTER_STAND,
+  SPACE_TERMINAL,
 ];
 
 /** Die Ids in der Reihenfolge des Katalogs. */
@@ -300,7 +330,8 @@ const SPACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
   supply: [
     'space-locker',
     'space-suit-stand',
-    'space-link-terminal',
+    'space-monster-stand',
+    'space-terminal',
     'space-water-storage',
     'space-farm-small',
     'space-farm-large',

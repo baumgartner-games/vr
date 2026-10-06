@@ -132,17 +132,30 @@ for (const name of browserNames) {
         console.log(`[${prefix}] ${label}`);
         await summary();
       };
-      // Zwei Seiten, ein Kopf (`stationUi.ts`): Im Aufbau steht die Tafel — die
-      // drei Faehigkeiten werden dort als Laempchen je Platz angeknipst —, und
-      // „Übungsrunde" fuehrt auf die Karte; erst dort ist die Reiterzeile die
-      // Rollenwahl (`[data-me]`). Die Stuehle heissen Farben (`stations.ts`).
-      const SEAT_OF = { archive: 'red', hack: 'yellow', scout: 'blue', watch: 'watch:all' };
+      // **Ein Platz ist ein Rechner in der Einsatzzentrale** (`world3d/commandSeats.ts`):
+      // Rot, Gelb und Blau haben je einen Schreibtisch mit Buerostuhl. Wer die
+      // Rolle wechseln will, steht auf (✕, `[data-stand-up]`), geht zum
+      // naechsten Stuhl und drueckt `E`. Im Aufbau (Zahnrad → „Rollen &
+      // Aufbau") stehen die Faehigkeiten als Laempchen je Platz.
+      const SEAT_OF = { archive: 'red', hack: 'yellow', scout: 'blue' };
       const POWER_OF = { archive: 'archive', hack: 'panel', scout: 'scout' };
-      const role = async (id) => {
-        const seat = SEAT_OF[id];
-        await page.locator(`[data-me="${seat}"]`).click();
-        await page.locator(`.haunt[data-station="${id === 'watch' ? 'watch' : seat}"]`).waitFor();
+      const sitAt = async (seat) => {
+        if (await page.locator('.haunt').count()) {
+          await page.locator('[data-stand-up]').first().click();
+          await page.waitForFunction(() => !document.querySelector('.haunt'));
+        }
+        await page.evaluate((seat) => {
+          const world = window.bgvr.world;
+          const chair = world.chairAnchors.get(seat);
+          const at = chair.getWorldPosition(chair.position.clone());
+          at.y = 0;
+          at.z += 0.7;
+          world.movePlayerTo(world.context, at, 0);
+        }, seat);
+        await page.keyboard.press('e', { delay: 200 });
+        await page.locator(`.haunt[data-station="${seat}"]`).waitFor({ timeout: 30000 });
       };
+      const role = async (id) => sitAt(SEAT_OF[id]);
       // Zurueck in den Aufbau geht es ueber das Zahnrad — falls man auf der Karte steht.
       const toSetup = async () => {
         if (await page.locator('[data-options]').count()) {
@@ -159,9 +172,6 @@ for (const name of browserNames) {
           );
           if ((await lamp.getAttribute('aria-pressed')) !== 'true') await lamp.click();
         }
-        // Und auf die Karte: Ohne Runde, hell — der Test-Zustand.
-        await page.locator('[data-test-roles]').click();
-        await page.locator('[data-me]').first().waitFor();
       };
       try {
         // **Die Spielwiese von oben** — die Ansicht _Von oben_ ist seit dem
@@ -258,20 +268,12 @@ for (const name of browserNames) {
         await page.locator('#screen-view [data-view="2d"]').click();
         await page.locator('#enter:not([disabled])').waitFor({ timeout: 90000 });
         await page.locator('#enter').click();
-        await page.waitForFunction(() => window.bgvr?.world?.commandMonitors?.size === 4, null, {
+        await page.waitForFunction(() => window.bgvr?.world?.chairAnchors?.size === 3, null, {
           timeout: 90000,
         });
-        // **Platz nehmen: an den roten Monitor treten und `E`** — erst dann
-        // liegt die Seite der Zentrale über dem Bild.
-        await page.evaluate(() => {
-          const world = window.bgvr.world;
-          const seat = world.vanRig.getObjectByName('command-seat-red');
-          const at = seat.position.clone().setY(0);
-          at.z += 0.6;
-          world.movePlayerTo(world.context, at, 0);
-        });
-        await page.keyboard.press('e', { delay: 200 });
-        await page.locator('.haunt').waitFor({ timeout: 30000 });
+        // **Platz nehmen: an den roten Rechner treten und `E`** — erst dann
+        // liegt die Seite der Zentrale über dem Bild, und man sitzt.
+        await sitAt('red');
         await shot('roles');
 
         await assignPowers();
@@ -368,9 +370,6 @@ for (const name of browserNames) {
         await shot('scout-mobile');
 
         await page.setViewportSize({ width: 1440, height: 900 });
-        await role('watch');
-        await page.locator('.role--watch').waitFor();
-        await shot('watch');
 
         // **Und jetzt auf die andere Seite des Tisches: der Techniker.** Ein
         // Häkchen „2D-Welt von oben" gab es hier einmal — solange die Station

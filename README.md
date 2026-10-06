@@ -315,20 +315,30 @@ zu besetzen.
 nicht mehr, das Menü ist in der Spielwelt. Jeder steht dann als **Figur in der
 Einsatzzentrale**, auf seinem Startplatz: Spieler 1 vorn links, die nächsten
 daneben, ab dem fünften die zweite Reihe. Am Handy läuft man von oben mit dem
-Stock, am Bildschirm mit WASD, in der Brille wie überall. In der Zentrale
-stehen drei Dinge, an denen `A` (bzw. `E`) etwas tut:
+Stock, am Bildschirm mit WASD, in der Brille wie überall. Die Zentrale ist
+hell erleuchtet, 40 × 12 m groß, mit einer Sitzecke (Sofa und Sessel — `A`
+setzt einen darauf, wie auf jedes Sitzmöbel in jeder Welt). Dort tut `A` (bzw.
+`E`) etwas an:
 
-- **Die vier Monitore am Tisch** (Rot, Gelb, Blau, Monster): Platz nehmen —
-  dann kommt die Seite der Zentrale mit Karte, Reitern und Zahnrad, und die
-  anderen sehen einen auf dem Hocker sitzen. **⏏ Aufstehen** führt wieder
-  hinaus. Nur am Handy und am Bildschirm; in der Brille trägt man den Anzug.
-- **Der Techniker-Anzug** am Ständer an der Nordwand: Wer ihn anzieht, ist
-  der Techniker (auch in der Brille — niemand kommt mehr im Anzug an); noch
-  einmal `A` am Ständer legt ihn ab. Solange ihn jemand trägt, ist der Ständer
-  leer.
-- **Der Rechner _Verbindung_** daneben, mit dem Schild an der Wand: Er öffnet
-  das Menü _Verbindung_ — Raum-Code (**Raum wechseln**), Name, wer da ist,
-  Mikrofon und Chat.
+- **Drei Rechnern mit Bürostuhl** im Westen (Rot, Gelb, Blau): Platz nehmen,
+  am Rechner oder am Stuhl — dann sitzt man, und die Seite des Platzes steht
+  da, wie das Menü: links der Platz, rechts Zahnrad und **✕**, das wieder
+  aufsteht. Kein Countdown, keine Reiter: Den Platz wechselt man, indem man zum
+  nächsten Rechner geht. Nur am Handy und am Bildschirm.
+- **Dem Techniker-Anzug** am Ständer an der Nordwand: Wer ihn anzieht, ist der
+  Techniker (auch in der Brille — niemand kommt im Anzug an); noch einmal `A`
+  legt ihn ab.
+- **Dem Monster-Anzug** daneben: Wer ihn anzieht, spielt das Monster — beginnt
+  die echte Runde, steht er an dessen Startplatz und läuft selbst durch die
+  Station, `A` ist Klappe, Tür, Kabine. Über beiden Anzügen steht auf einem
+  Schild, wer ihn trägt, sonst „Bot".
+- **Dem Rechner _Verbindung_**: das Menü _Verbindung_ — Raum-Code (**Raum
+  wechseln**), Name, wer da ist, Mikrofon und Chat.
+- **Dem Rechner _Spiel-Einstellungen_**: die Seite der Runde im Menü — echte
+  Runde starten, Plätze & Fähigkeiten, Station, Gegner.
+
+Bevor eine echte Runde läuft, ist immer Übung — hell, ohne Treffer und ohne
+Sauerstoff-Uhr.
 
 Wer in der Quest im Hub **Haunting / Orbital** wählt, kommt ebenfalls in den
 Raum der Adresse. Wer in der Brille
@@ -549,8 +559,7 @@ Anzeigen erscheinen auf dem benutzten Gerät; ein dauerhaftes Radar-/Sensor-HUD 
 
 Über jedem Schott zeigen Leuchten auf beiden Seiten seinen Zustand: **grün**
 bedeutet betriebsbereit und öffnet beim Annähern, **rot** bedeutet gesperrt.
-Ein belegter Durchgang bleibt offen, bis er frei ist. Die Tür zum Übungsdeck
-startet oder ersetzt keine Mission; Tests werden am Terminal gestartet.
+Ein belegter Durchgang bleibt offen, bis er frei ist.
 
 Schon nach etwa einer Sekunde Rennen beginnt der Atem am unteren Visier zu
 kondensieren: weiche Wolken im Atemtakt und feine Tropfen auf dem Glas. Nach
@@ -624,24 +633,10 @@ Runde ohne aktiven Gegner. Das bleibt bei **Testlicht aus** so: Die Station
 wird dunkel, Raum- und Umgebungslicht gehen aus, und die Taschenlampe wird
 benötigt. Im normalen Betrieb erhalten eingeschaltete Decks etwas indirektes
 Licht, damit Gehäuse und Wege erkennbar bleiben; stromlose Räume bleiben dunkel.
-Die einzelnen Übungsräume haben ihr eigenes lokales Licht.
 
-Der Testschrank enthält die Ausrüstung und Missionsgegenstände. Über den
-Testdeck-Aufzug oder **Testdeck: einzelne Übungsräume** erreicht man vier
-separate Räume abseits der Missionskarte:
-
-- **Safe und Schutzschrank:** Links steht die Anleitung mit dem Code, daneben
-  der echte bedienbare Schutzschrank.
-- **Ausrüstung und Scanner:** Gegenstände aufnehmen, Hände wechseln und einen
-  geschlossenen Container mit Röntgen untersuchen.
-- **Reparaturen und Rätsel:** Drei voneinander unabhängige Übungen mit Lösungen
-  daneben. Ein gelöstes Display erneut drücken setzt die Übung zurück; der
-  Missionsfortschritt bleibt dabei unverändert.
-- **Modelle, Schotts und Effekte:** Einzelne Module mit Maßangaben, harmlose
-  Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
-
-Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
-verwenden freie Ankunftsplätze.
+Der Testschrank enthält die Ausrüstung und Missionsgegenstände. Testbesuche
+in Missionsräumen verwenden freie Ankunftsplätze. Testdeck und Aufzug mit den
+vier Übungsräumen gibt es seit Oktober 2026 nicht mehr.
 
 **Zuschauen** (im Optionsmenü der laufenden Runde, in der Brille auch im Menü —
 und zwar immer) heißt: der Runde folgen, die im Raum wirklich läuft. Spielt

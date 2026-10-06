@@ -4,7 +4,7 @@ import type { HauntBooks, HauntState } from './net';
 import { TechnicianBot } from './rules/technicianBot';
 import type { RoundSetup } from './rules/roundSetup';
 import type { FloorPoint } from './stationLayout';
-import { COMMAND_HOME } from './trainingLayout';
+import { COMMAND_HOME } from './house';
 
 /**
  * **Die 2D-Runde als Rechenkern der 3D-Welt.**

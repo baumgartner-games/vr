@@ -113,7 +113,7 @@ export class StationCells {
 
   /** Das Gitter mit diesen Türen zu — der Graph wird nur bei einer Änderung angefasst. */
   grid(closed: readonly string[]): CellGrid {
-    const graph = this.travel.graph(this.spec, closed, false);
+    const graph = this.travel.graph(this.spec, closed);
     if (this.cellsFor !== graph || !this.cells) {
       this.cellsFor = graph;
       this.cells = stationCellGrid(this.spec, graph);

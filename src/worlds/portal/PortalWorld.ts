@@ -659,6 +659,15 @@ const _gateLocal = new THREE.Vector3();
 const HIDE_STEP_OUT = 0.95;
 /** Wie viel vom Schrank man von innen sieht. */
 const HIDE_OPACITY = 0.22;
+/**
+ * **So tief sinkt man beim Hinsetzen** (m, `sitOn`) — die Sitzfläche eines
+ * Stuhls liegt knapp einen halben Meter über dem Boden, und so weit sinkt die
+ * Augenhöhe. Eine Sitzhaltung für die eigene Figur gibt es (noch) nicht; sie
+ * sinkt mit, die Beine stecken dann unter der Sitzfläche.
+ */
+const SIT_DROP = 0.45;
+/** Wie weit vor der Sitzfläche man beim Aufstehen steht (m). */
+const SIT_STEP_OUT = 0.75;
 /** Wie nah der Kran über der stehen gebliebenen Figur sein muss, um sie zu greifen (m). */
 const FIGURE_REACH = 0.45;
 /** Wie hoch die Figur am Haken über dem Boden hängt (m). */
@@ -2113,6 +2122,8 @@ export class PortalWorld implements World {
     readonly out: THREE.Vector3;
     readonly yaw: number;
     readonly worn: Map<THREE.Mesh, THREE.Material | THREE.Material[]>;
+    /** Auf einem Stuhl statt in einem Schrank (`sitOn`) — dann ist nichts durchsichtig. */
+    readonly sitting?: boolean;
   } | null = null;
   /** In welche Richtung die Figur dabei schaute — so steht man nach dem Kran wieder. */
   private craneStartYaw = 0;
@@ -15517,6 +15528,52 @@ export class PortalWorld implements World {
     ctx.notify('Versteckt · A / E / Klick steigt aus');
   }
 
+  /**
+   * **Sich hinsetzen** (`GameElement.opens`, `'sit'`) — auf jedes Möbel aus
+   * _Möbel → Sitzen_: Stühle, Hocker, Sessel, Sofas. Gewünscht (Oktober
+   * 2026): _„Jedenfalls sollten wir alle möbel von "sitzen" interagierbar
+   * machen, um darauf sitzen zu können."_ Derselbe Weg wie in den Schrank
+   * (`hideIn`): Man sitzt in der Mitte der Sitzfläche, schaut nach vorn, die
+   * Augen sinken um `SIT_DROP`, Laufen geht nicht — und `A`, `E` oder ein
+   * Klick stehen wieder auf, vor dem Möbel.
+   *
+   * @param anchor der Anker des Möbels (`StationLayer.addOpener`) — die Mitte
+   *   seiner Grundfläche, vorn ist sein +z
+   */
+  protected sitOn(ctx: WorldContext, anchor: THREE.Object3D): void {
+    if (this.hiding) {
+      this.leaveHiding(ctx);
+      return;
+    }
+    if (ctx.crane || this.viewOverride) return;
+    const centre = anchor.getWorldPosition(new THREE.Vector3());
+    const front = new THREE.Vector3(0, 0, 1).applyQuaternion(
+      anchor.getWorldQuaternion(_quaternion),
+    );
+    front.y = 0;
+    front.normalize();
+    const yaw = Math.atan2(-front.x, -front.z);
+    const out = centre.clone().addScaledVector(front, SIT_STEP_OUT);
+    this.hiding = { anchor, out, yaw, worn: new Map(), sitting: true };
+    // Die Füße unter die Sitzfläche — direkt am Gestell, nicht über
+    // `movePlayerTo`: Eine Welt, die dort den Boden sucht, höbe sie wieder an.
+    ctx.rig.placeFeetAt(centre.clone().setY(centre.y - SIT_DROP), yaw);
+    ctx.rig.turnHeadTo(yaw);
+    this.locomotion?.resync(ctx.rig);
+    ctx.rig.frozen = true;
+    ctx.notify('Hingesetzt · A / E / Klick steht auf');
+  }
+
+  /** Worauf man gerade sitzt (`sitOn`) — `null`, wenn man steht oder im Schrank steckt. */
+  protected get sittingOn(): THREE.Object3D | null {
+    return this.hiding?.sitting ? this.hiding.anchor : null;
+  }
+
+  /** Vom Stuhl aufstehen, auf dem man sitzt (`sitOn`) — sonst nichts. */
+  protected standFromSeat(ctx: WorldContext): void {
+    if (this.hiding?.sitting) this.leaveHiding(ctx);
+  }
+
   /** Aus dem Schrank heraus — vor seine Tür, mit Blick nach draußen. */
   private leaveHiding(ctx: WorldContext): void {
     const hiding = this.hiding;
@@ -15526,7 +15583,7 @@ export class PortalWorld implements World {
     ctx.rig.frozen = false;
     this.movePlayerTo(ctx, hiding.out, hiding.yaw);
     this.locomotion?.land(ctx.rig);
-    ctx.notify('Schrank verlassen');
+    ctx.notify(hiding.sitting ? 'Aufgestanden' : 'Schrank verlassen');
   }
 
   /** Dem Schrank seine eigenen Stoffe zurück. */

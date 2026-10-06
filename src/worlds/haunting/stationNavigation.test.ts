@@ -7,7 +7,7 @@ import { stationCellGrid } from './map/stationCells';
 import { housePlan } from './plan';
 import { stationRoute } from './stationNavigation';
 import { routeBlocked, stationLayout, type FloorPoint } from './stationLayout';
-import { COMMAND_HOME, TRAINING_ROOMS, trainingSpawn } from './trainingLayout';
+import { COMMAND_HOME } from './house';
 
 function goalFor(spec: HouseSpec, id: string): TileKey {
   const centre = roomCentre(roomOf(spec, id)!);
@@ -175,19 +175,4 @@ test('an off-grid starting point is reported without a fallback teleport', () =>
     goalFor(spec, spec.entryRoom),
   );
   expect(route).toEqual({ points: [], complete: false, grounded: false });
-});
-
-test('remote teaching rooms do not enter the mission route raster', () => {
-  const spec = generateHouse(2, 8);
-  const normal = housePlan(spec);
-  const training = housePlan(spec, new Set(), true);
-  const from = poseFor(spec, spec.entryRoom);
-  const goal = goalFor(spec, 'r0');
-  expect(stationRoute(spec, training.graph, from, goal)).toEqual(
-    stationRoute(spec, normal.graph, from, goal),
-  );
-  for (const room of TRAINING_ROOMS) {
-    const spawn = trainingSpawn(room.id);
-    expect(stationRoute(spec, training.graph, { ...spawn, yaw: 0 }, goal).grounded).toBe(false);
-  }
 });

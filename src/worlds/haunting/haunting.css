@@ -150,6 +150,28 @@ body.orbital-on #hud { display: none; }
   background: var(--haunt-bar);
   border-bottom: 1px solid var(--haunt-line);
 }
+/* **Am Rechner: ein Kopf wie das Menü** (`ui/pageMenu.css`, `.pmenu__head`) —
+   links der Platz, rechts Zahnrad und ✕, rund und 40 Punkte groß. */
+.haunt__bar--desk { align-items: center; padding: calc(8px + env(safe-area-inset-top)) 8px 8px 14px; }
+.haunt__seat { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; border-left: 4px solid var(--haunt-accent); padding-left: 10px; }
+.haunt__seat-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.haunt__seat-role { font-size: 12px; color: var(--haunt-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.haunt .haunt__close {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+  color: var(--haunt-ink);
+  font-size: 16px;
+  cursor: pointer;
+}
+.haunt .haunt__bar--desk .haunt__tool { border-radius: 50%; width: 40px; padding: 0; }
 .haunt__roles { flex: 1; }
 /* `.haunt button` verlangt 44 px Mindesthöhe — für die Pillen im Panel gilt das Maß des Panels. */
 .haunt .haunt__roles .role-strip__key { min-height: 36px; }

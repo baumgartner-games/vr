@@ -13,7 +13,7 @@ import {
 } from './house';
 import { TILE, type Dir } from '../nav/navTile';
 import { stationLayout, type FloorPoint } from './stationLayout';
-import { COMMAND_HOME } from './trainingLayout';
+import { COMMAND_HOME } from './house';
 import type { RoutineWorld } from './monsterRoutine';
 
 /**

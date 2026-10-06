@@ -824,6 +824,7 @@ export class App {
       dress: (figure) => this.dress(figure),
       openOutfit: () => this.openOutfit(),
       openNetwork: () => this.openNetwork(),
+      openMenu: (id) => this.openMenuAt(id),
       openHoldEditor: (subject) => this.openHoldEditor(subject),
     };
   }
@@ -2432,9 +2433,14 @@ export class App {
    * wie im Reiter _Zusammen_, am Bildschirm und in der Brille.
    */
   private openNetwork(): void {
+    this.openMenuAt('net');
+  }
+
+  /** Eine Seite des Menüs nach ihrer Id (`WorldContext.openMenu`). */
+  private openMenuAt(id: string): void {
     if (!this.world) return;
     if (this.menuDirty) this.refreshMenu();
-    this.gameMenu.openSubmenu('net');
+    this.gameMenu.openSubmenu(id);
   }
 
   /**

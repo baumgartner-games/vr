@@ -6,6 +6,7 @@ import { turnWithView } from '../../ui/billboard';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   APRON,
+  doorEdges,
   MARKS,
   roomCode,
   cutAt,
@@ -330,13 +331,19 @@ export function closedTileX(spec: HouseSpec, room: HouseRoom, dir: 0 | 2): numbe
   const centre = room.rect.x + room.rect.w / 2 - 0.5;
   let best: number | null = null;
   for (let x = room.rect.x; x < room.rect.x + room.rect.w; x++) {
+    // **Jede Kachel einer Tür**, nicht nur die erste: Türen sind zwei Kacheln
+    // breit (`doorEdges`). Vorher galt die zweite Hälfte der Schleuse zur
+    // Einsatzzentrale als geschlossene Wand, und das Raumschild der Kantine
+    // hing genau über der Tür — auf dem Wegweiser „EINSATZZENTRALE".
     const open =
-      spec.doors.some(
-        (door) =>
-          (door.x === x && door.z === z && door.dir === dir) ||
-          (door.x + dirX(door.dir) === x &&
-            door.z + dirZ(door.dir) === z &&
-            (door.dir + 2) % 4 === dir),
+      spec.doors.some((door) =>
+        doorEdges(door).some(
+          (edge) =>
+            (edge.x === x && edge.z === z && edge.dir === dir) ||
+            (edge.x + dirX(edge.dir) === x &&
+              edge.z + dirZ(edge.dir) === z &&
+              (edge.dir + 2) % 4 === dir),
+        ),
       ) || spec.windows.some((window) => window.x === x && window.z === z && window.dir === dir);
     if (open) continue;
     // Nur, wo die Wand gerade läuft — nicht über einer Schräge oder vor einer

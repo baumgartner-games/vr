@@ -49,7 +49,7 @@ import { Hearing, reachOf } from '../audio/hearing';
 import { NOISE, stepLoudness } from '../audio/cues';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
-import { COMMAND_HOME } from '../trainingLayout';
+import { COMMAND_HOME } from '../house';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark, type CargoSlot } from '../rules/cargo';
