@@ -1083,3 +1083,56 @@
 .pmenu__head[hidden] {
   display: none;
 }
+
+/* **Die Ordnerkachel als Mappe** (`folderFace` in `ui/PageMenu.ts`): ein
+   Reiter oben links, darunter der Körper, und im Körper das Modell. Gezeichnet
+   von zwei Pseudo-Elementen hinter dem Bildkasten; die Leinwand der Vorschauen
+   hängt nach den Kacheln im Kasten und malt das Modell darüber. Gefärbt in der
+   Farbe des Menüs, damit die Mappe zur Kachel gehört und nicht zu macOS. */
+.pmenu__fold {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 40dvh;
+}
+.pmenu__fold::before,
+.pmenu__fold::after {
+  content: '';
+  position: absolute;
+}
+/* Der Reiter: links oben, etwas dunkler als der Körper, der ihn halb verdeckt. */
+.pmenu__fold::before {
+  top: 6%;
+  left: 6%;
+  width: 38%;
+  height: 16%;
+  border-radius: 10px 10px 0 0;
+  background: color-mix(in srgb, var(--accent) 52%, #0b1220);
+}
+/* Der Körper: vorne heller, damit die Mappe Tiefe hat und das Modell sich
+   nicht im Grund verliert. */
+.pmenu__fold::after {
+  inset: 14% 3% 3%;
+  border-radius: 10px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 74%, #0b1220),
+    color-mix(in srgb, var(--accent) 50%, #0b1220)
+  );
+  border-top: 2px solid color-mix(in srgb, var(--accent) 70%, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+/* Der Bildkasten sitzt im Körper — kleiner als die Kachel, und über den
+   Pseudo-Elementen, damit eine Ikone (solange kein Modell steht) zu sehen ist. */
+.pmenu__tile .pmenu__fold .pmenu__prev {
+  position: absolute;
+  top: 22%;
+  left: 15%;
+  width: 70%;
+  height: 70%;
+  max-height: none;
+  aspect-ratio: auto;
+  display: grid;
+  place-items: center;
+}

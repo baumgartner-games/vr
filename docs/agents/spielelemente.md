@@ -898,6 +898,11 @@ Möbelkatalog gibt **Spielelemente** her.
   `folderCover`): gerendert wie jede Kachel, der Herd auf _Restaurant_, der
   Durchgang auf _Haus_, die Pizza-Vorratsbox auf _Pizza_ … Ohne Angabe das
   erste Stück darin; solange es lädt, steht die Ordner-Ikone da.
+- **Ein Ordner sieht aus wie eine Mappe** — Reiter und Körper in der Farbe
+  des Menüs, das Stück steht darin (`PageMenu.folderFace`, `.pmenu__fold`;
+  am Handgelenk `UIPanel.drawFolder`). Gewünscht: _„eine visuelle
+  unterscheidung zwischen ordnern und items"_. Gilt für jeden Eintrag mit
+  `children` und `preview`.
 - **Ein Suchfeld wie im Modellregal** (`elements/catalogSearch.ts`, an jeder
   Seite des Katalogs über `MenuEntry.find`): gesucht wird im ganzen Katalog,
   alle Wörter müssen vorkommen, Umlaute gefaltet. Die Ordnernamen zählen mit

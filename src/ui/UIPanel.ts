@@ -1216,6 +1216,9 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     if (entry.icon && !entry.preview) {
       drawMenuIcon(ctx, entry.icon, x + cellW / 2, y + cellW / 2, cellW * 0.52, accent);
     }
+    // **Ein Ordner mit Bild als Mappe**, das Modell davor steht darin —
+    // dieselbe Unterscheidung wie auf der Seite (`ui/PageMenu.folderFace`).
+    if (entry.children && entry.preview) drawFolder(ctx, x, y, cellW, accent);
 
     // A grid can be a choice as well as a shelf — then one cell is the one
     // that is on, and a dot in the corner says which.
@@ -1232,6 +1235,30 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.fillText(clip(ctx, entry.label, cellW - 20), x + cellW / 2, y + cellH - 16);
     ctx.textAlign = 'left';
   }
+}
+
+/** Reiter und Körper einer Mappe im oberen Quadrat einer Kachel. */
+function drawFolder(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  accent: string,
+): void {
+  ctx.beginPath();
+  ctx.roundRect(x + size * 0.12, y + size * 0.12, size * 0.32, size * 0.14, [10, 10, 0, 0]);
+  ctx.fillStyle = withAlpha(accent, 0.45);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(x + size * 0.08, y + size * 0.2, size * 0.84, size * 0.7, 12);
+  ctx.fillStyle = withAlpha(accent, 0.6);
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = withAlpha(accent, 0.9);
+  ctx.beginPath();
+  ctx.moveTo(x + size * 0.11, y + size * 0.2);
+  ctx.lineTo(x + size * 0.89, y + size * 0.2);
+  ctx.stroke();
 }
 
 function toCss(color: number): string {
