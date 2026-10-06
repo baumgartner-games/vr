@@ -12,6 +12,7 @@ import {
 } from '../../core/dayClock';
 import { lampsInScene } from '../../core/Lamps';
 import { gameMode, movesFurniture } from '../../core/gameMode';
+import { BUILD_LABELS } from '../elements/elementCatalog';
 import { INSPECT_PAGE, inspectRows, inspectTitle, type InspectTarget } from './inspectMenu';
 import { lampBook, type WorldLamps } from '../../core/lamps/lampBook';
 import { joinRuns, StationWalls, wallRun, type WallRun } from '../haunting/world3d/stationWalls';
@@ -191,8 +192,8 @@ const _footprintFeet = new THREE.Vector3();
 
 /** Wie oft die Wandtests neu geprüft werden, in Sekunden (`refreshMarks`). */
 const MARK_EVERY = 0.4;
-/** Wie viele Zahlen je Wand in `wallStamp.values` stehen: Lage, Drehung, halbe Größe. */
-const WALL_STAMP = 10;
+/** Wie viele Zahlen je Wand in `wallStamp.values` stehen: Lage, Drehung, halbe Größe, Schloss. */
+const WALL_STAMP = 11;
 
 /** Eine Kante als Schlüssel, immer von der Kachel aus, an deren Nord- oder Westseite sie liegt. */
 function edgeId(tx: number, tz: number, dir: Dir, level: number): string {
@@ -1253,7 +1254,8 @@ export abstract class GridWorld extends PortalWorld {
         stamp.values[at + 6] === q.w &&
         stamp.values[at + 7] === h.x &&
         stamp.values[at + 8] === h.y &&
-        stamp.values[at + 9] === h.z;
+        stamp.values[at + 9] === h.z &&
+        stamp.values[at + 10] === (this.gateLocked(entry) ? 1 : 0);
     }
     if (same) return false;
     stamp.graph = graph;
@@ -1264,7 +1266,7 @@ export abstract class GridWorld extends PortalWorld {
     stamp.values = models.flatMap((entry) => {
       const { position: p, quaternion: q } = entry.object;
       const h = entry.halfExtents;
-      return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, h.x, h.y, h.z];
+      return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, h.x, h.y, h.z, this.gateLocked(entry) ? 1 : 0];
     });
     return true;
   }
@@ -1288,7 +1290,9 @@ export abstract class GridWorld extends PortalWorld {
       const level = wallLevel(graph, _spot.y - entry.halfExtents.y);
       const wall = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
       const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind);
-      const arch = path === null ? undefined : MODEL_ARCHES[path];
+      // **Ein abgeschlossenes Tor ist eine Wand** (`PortalWorld.setGateLocked`):
+      // ohne Durchgang sperrt es seine ganze Kante.
+      const arch = path === null || this.gateLocked(entry) ? undefined : MODEL_ARCHES[path];
       if (wall) {
         // **Ein Durchgang unter 45° ist keine Schräge** — gemeldet: _„türen
         // bei diagonalen wänden scheinen nicht zu klappen um durchzugehen"_.
@@ -3473,8 +3477,15 @@ export abstract class GridWorld extends PortalWorld {
       ? lamps!.worldBox(lamp, _inspectBox).distanceToPoint(ray.origin)
       : Infinity;
     const element = this.pickElement(ctx, ray);
+    const gate = this.pickGate(ray);
     let target: InspectTarget | null = null;
-    if (lamp && (!element || lampDistance <= element.distance + 0.5)) {
+    if (
+      gate &&
+      (!element || gate.distance <= element.distance) &&
+      (!lamp || gate.distance < lampDistance)
+    ) {
+      target = { lamp: null, element: null, gate: this.inspectGate(gate.entry) };
+    } else if (lamp && (!element || lampDistance <= element.distance + 0.5)) {
       target = { lamp, element: elementAbove(lamp.object) };
     } else if (element) {
       target = { lamp: null, element: element.object };
@@ -3493,6 +3504,35 @@ export abstract class GridWorld extends PortalWorld {
 
   /** **Das Element an dieser Stelle tauschen** — hier nichts (`FurnishedWorld`). */
   protected swapAt(_spot: string): void {}
+
+  /** Das nächste Tor mit Flügeln (`standingGates`), dessen Kasten der Strahl schneidet. */
+  private pickGate(ray: THREE.Ray): { entry: PhysicsBody; distance: number } | null {
+    let best: { entry: PhysicsBody; distance: number } | null = null;
+    for (const entry of this.standingGates()) {
+      _inspectBox.setFromObject(entry.object);
+      if (_inspectBox.isEmpty()) continue;
+      const hit = ray.intersectBox(_inspectBox, _inspectHit);
+      if (!hit) continue;
+      const distance = hit.distanceTo(ray.origin);
+      if (distance > INSPECT_REACH || (best && best.distance <= distance)) continue;
+      best = { entry, distance };
+    }
+    return best;
+  }
+
+  /** Das Tor für die Seite im Menü — Name und Schloss. */
+  private inspectGate(entry: PhysicsBody): NonNullable<InspectTarget['gate']> {
+    const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
+    return {
+      object: entry.object,
+      label: (path !== null && BUILD_LABELS[path]) || 'Tor',
+      locked: () => this.gateLocked(entry),
+      setLocked: (locked) => {
+        this.setGateLocked(entry, locked);
+        this.context?.refreshWorldMenu();
+      },
+    };
+  }
 
   /** Das nächste Spielelement, dessen Kasten der Strahl schneidet. */
   private pickElement(

@@ -32,6 +32,16 @@ export interface InspectTarget {
   readonly element: THREE.Object3D | null;
   /** Die Lampe, falls eine getroffen wurde (`core/Lamps.ts`). */
   readonly lamp: LampInstance | null;
+  /** Ein Tor mit Flügeln aus dem Regal, falls eines getroffen wurde (`props.isLockableGate`). */
+  readonly gate?: InspectGate;
+}
+
+/** **Ein Tor im Element-Menü** — abschließen oder aufschließen (`PortalWorld.setGateLocked`). */
+export interface InspectGate {
+  readonly object: THREE.Object3D;
+  readonly label: string;
+  locked(): boolean;
+  setLocked(locked: boolean): void;
 }
 
 export interface InspectHost {
@@ -59,6 +69,7 @@ const ACCENT = 0xe0b04a;
 /** Der Titel der Seite: die Lampe, das Element, oder ein Modell. */
 export function inspectTitle(target: InspectTarget): string {
   if (target.lamp) return target.lamp.type.label;
+  if (target.gate) return target.gate.label;
   const id = elementIdOf(target.element);
   return id && hasElement(id) ? elementById(id).label : 'Element';
 }
@@ -90,7 +101,32 @@ export function inspectRows(target: InspectTarget, host: InspectHost): MenuEntry
     });
   }
   if (target.lamp) rows.push(...lampRows(target.lamp, host));
+  if (target.gate) rows.push(gateRow(target.gate, host));
   return rows;
+}
+
+/**
+ * **Abschließen oder aufschließen** — gewünscht: _„dass Türen an sich ein
+ * Schloss Element (das gibt es in modelregal) hängen haben, wenn die Tür
+ * verschlossen ist"_. Ein Druck schaltet um und macht das Menü zu, damit man
+ * Schloss und Flügel sieht.
+ */
+function gateRow(gate: InspectGate, host: InspectHost): MenuEntry {
+  const locked = gate.locked();
+  return {
+    id: `${INSPECT_PAGE}:lock`,
+    label: locked ? 'Aufschließen' : 'Abschließen',
+    sub: locked
+      ? 'Abgeschlossen: Flügel zu, Schloss daran, niemand kommt durch'
+      : 'Offen: angelehnt, schwingt vor dem Spieler auf',
+    icon: 'sign',
+    accent: ACCENT,
+    run: () => {
+      gate.setLocked(!locked);
+      host.notify(locked ? `${gate.label} aufgeschlossen` : `${gate.label} abgeschlossen`);
+      host.closeMenu();
+    },
+  };
 }
 
 function infoRows(target: InspectTarget): MenuEntry[] {
@@ -110,7 +146,7 @@ function infoRows(target: InspectTarget): MenuEntry[] {
       detail: { preview: `element-cells:${id}`, facts: elementFacts(id) },
     });
   }
-  const where = target.lamp?.object ?? target.element;
+  const where = target.lamp?.object ?? target.element ?? target.gate?.object ?? null;
   if (where) {
     const p = where.getWorldPosition(_where);
     const model = target.lamp ? `${target.lamp.type.id}.glb · ` : '';

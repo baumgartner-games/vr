@@ -75,6 +75,8 @@ export interface ModelChange {
   readonly yaw: number;
   /** In welcher Welt (`worlds/index.ts`, z. B. `test-restaurant`) — fehlt in alten Listen. */
   readonly world?: string;
+  /** **Abgeschlossen** — nur an einem Tor mit Flügeln (`PortalWorld.setGateLocked`). */
+  readonly locked?: true;
 }
 
 /**
@@ -279,6 +281,7 @@ export function recordModel(
   at: { x: number; y: number; z: number },
   yaw: number,
   world?: string,
+  locked = false,
 ): void {
   load();
   if (!tracking) return;
@@ -288,6 +291,7 @@ export function recordModel(
     at: roundPoint(at),
     yaw: Math.round(yaw),
     ...(world ? { world } : {}),
+    ...(locked ? { locked: true as const } : {}),
   });
   save();
 }
@@ -576,7 +580,8 @@ function parseRow(row: unknown): WorldChange | null {
     if (typeof data.note === 'string') {
       return { kind: 'note', text: data.note, at: point, yaw, ...world };
     }
-    return { kind: 'model', path: data.model as string, at: point, yaw, ...world };
+    const locked = data.locked === true ? { locked: true as const } : {};
+    return { kind: 'model', path: data.model as string, at: point, yaw, ...world, ...locked };
   }
   return null;
 }
@@ -653,7 +658,13 @@ function toRow(change: WorldChange): unknown {
   const at = [change.at.x, change.at.y, change.at.z];
   return change.kind === 'note'
     ? { note: change.text, at, yaw: change.yaw, ...world }
-    : { model: change.path, at, yaw: change.yaw, ...world };
+    : {
+        model: change.path,
+        at,
+        yaw: change.yaw,
+        ...world,
+        ...(change.locked ? { locked: true } : {}),
+      };
 }
 
 /** Nur für Tests: alles auf Anfang, als wäre die Seite frisch geladen. */
