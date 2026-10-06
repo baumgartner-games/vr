@@ -154,7 +154,12 @@ der richtigen Position landet"_.
   des gedrehten Kastens den Boden berührt. **Dann springt sie** so hoch, wie
   sie selbst ist, mal 1,5 (`HOP`), und dreht sich in diesem Sprung in die
   richtige Lage — fehlt dazu kaum etwas, eine ganze Runde dazu (`FLIP_BELOW`)
-  — und bleibt genau dort liegen, wo sie ohne Optik stünde. Gewünscht:
+  — und bleibt genau dort liegen, wo sie ohne Optik stünde. **Drall, hoher
+  Sprung und Salto nur aus großer Höhe** (`HIGH_DROP`, 1,5 m mal der
+  Gestellgröße): Was man bloß absetzt, fällt ohne Zufallsdrall, wippt kurz
+  nach (`LOW_HOP`, `LOW_HOP_TIME`) und dreht sich auf dem kürzesten Weg in
+  seine Lage. Gemeldet: _„aktuell macht es beim absetzen gefühlt einen salto,
+  auch wenn es fast schon perfekt fallen würde."_ Gewünscht:
   _„beim Aufprall eher wie ein [Sprung] so hoch, wie das Objekt ist ×1,5,
   und in diesem Hochspringen dann in der Luft drehen, sodass es beim
   Runterfallen am Ende korrekt wieder liegen bleibt."_ **Der Sprung hat eine

@@ -390,8 +390,46 @@ Mitte der Sitzfläche, mit Blick nach vorn und um `SIT_DROP` tiefer
 (`PortalWorld.sitOn`, derselbe Weg wie in den Schutzschrank, ohne
 Durchsichtigkeit), und `A`, `E` oder ein Klick stehen wieder auf. Gewünscht:
 _„Jedenfalls sollten wir alle möbel von "sitzen" interagierbar machen, um
-darauf sitzen zu können."_ Eine Sitzhaltung für die eigene Figur gibt es noch
-nicht; sie sinkt mit.
+darauf sitzen zu können."_
+
+**Die Figur sitzt wirklich** (Oktober 2026, gemeldet: _„Der körper soll sich
+nicht drehen durch umherschauen, die füße sollten sauber sitzen. Das sofa
+sollte nicht durchsichtig werden."_): `sitOn` misst mit einem Strahl von oben
+die Sitzfläche (`seatTop`) und gibt sie der Figur (`PlayerAvatar.sitting` →
+`AvatarBody.seat`). Solange schaut der Rumpf stur nach vorn, nur der Kopf
+sieht sich um; eine Figur aus dem Regal spielt `Sit_Chair_Idle` und wird so
+verschoben, dass ihr Becken (`FIGURE_BONES.hips`) über der Mitte der
+Sitzfläche liegt — nie tiefer als der Boden. Nur die Kamera sinkt um
+`SIT_DROP`. Und das Möbel trägt solange `occluderGhost.KEEP_SOLID`: Die Regel
+„Figur nie verdeckt" machte es sonst durchsichtig, weil die Figur darin steckt.
+
+**Stühle füllen eine Kachel** (`furnitureCatalog.chair`, `CHAIR_SCALE` 2):
+Stühle, Bürostühle und Hocker stehen doppelt so groß wie im Regal, die
+Sitzfläche auf 0,5 m. Sofas und Sessel bleiben, wie sie sind. Gewünscht:
+_„Aktuell wirkt der stuhl zu klein neben den charakteren."_ Dazu zwei
+Merkmale, die jedes Element haben kann:
+
+- `fine` — **rastet je Zelle ein** statt je Kachel (`elementPlace.snapsToCells`):
+  der Bürostuhl mittig vor einem Schreibtisch von zwei Kacheln.
+- `holdFacing` — **liegt mit der Vorderseite zur Figur in der Hand**
+  (`PortalWorld.elementHold`) und steht abgesetzt damit zu einem hin: Wer nach
+  Süden absetzt, stellt den Stuhl nach Norden, an den Tisch vor sich.
+
+### Der Hologramm-Sockel
+
+`space-hologram` (_Weltraum → Versorgung_, `spaceCatalog.SPACE_HOLOGRAM`):
+das Dachmodul `roofmodule_base` auf zwei Kacheln gebracht (4 × 4 Zellen), darüber
+schwebt ein Modell aus dem Regal als Hologramm und dreht sich langsam
+(`PortalWorld.showHologram`, `HOLOGRAM_*`). `A` (`opens: 'hologram'`) öffnet
+das Modellregal; was man dort nimmt, kommt nicht in die Hand, sondern in den
+Sockel (`chooseHologram`, `pickFromShelf`, `shelfPick` — geht das Menü ohne
+Wahl zu, gilt das Regal wieder der Hand). Gemerkt wird die Wahl je Stelle für
+die Sitzung (`hologramChoice`), nicht gespeichert und nicht übers Netz. Zu
+Beginn zeigt er `GameElement.hologram`, das Küken `mixed-bag/chicken_plushie_A.glb`.
+
+**Die Ecken bleiben frei** (`openCorners`): gesperrt ist ein Kreuz aus zwei
+Kästen (`elementPlace.spotSolidBoxes`, `SolidBlock.more`), die vier Eckzellen
+nicht. Gewünscht: _„die ecken können dabei gemacht werden als kein obstacle."_
 
 
 ### Stadt: Straßen, Plätze und Häuser aus _City Builder Bits_

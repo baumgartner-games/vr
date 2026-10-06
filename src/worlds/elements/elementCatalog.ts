@@ -191,8 +191,10 @@ export interface ElementPart {
  * (`PortalWorld.hideIn`), der Schutzschrank. `'swap'`: gegen die nächste
  * Fassung tauschen (`GameElement.swap`) — die Laternen einer Straße. `'sit'`:
  * sich daraufsetzen (`PortalWorld.sitOn`) — alles aus _Möbel → Sitzen_.
+ * `'hologram'`: ein Modell aus dem Regal wählen, das darüber als Hologramm
+ * schwebt (`PortalWorld.chooseHologram`) — der Hologramm-Sockel.
  */
-export type ElementOpens = 'outfit' | 'hide' | 'swap' | 'sit';
+export type ElementOpens = 'outfit' | 'hide' | 'swap' | 'sit' | 'hologram';
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
 export interface GameElement {
@@ -321,6 +323,32 @@ export interface GameElement {
    * Kran zuerst, was darauf steht.
    */
   readonly floor?: boolean;
+  /**
+   * **Rastet je Zelle ein statt je Kachel** — eine Grundfläche aus ganzen
+   * Kacheln, die trotzdem auf einer halben anfangen darf (`elementPlace.snapsToCells`).
+   * Für die Stühle: Gewünscht ist _„ein Item, welches ich gern nicht zwingend
+   * an ein feld setzen muss, sondern auch zwischen zwei felder"_ — der
+   * Bürostuhl mittig vor einem Schreibtisch von zwei Kacheln.
+   */
+  readonly fine?: boolean;
+  /**
+   * **Liegt mit der Vorderseite zur Figur in der Hand** statt von ihr weg
+   * (`PortalWorld.elementHold`) — und steht abgesetzt damit zu einem hin. Für
+   * die Stühle: Man stellt sie an einen Tisch, vor dem man steht.
+   */
+  readonly holdFacing?: boolean;
+  /**
+   * **Die vier Eckzellen bleiben frei** — gesperrt ist ein Kreuz statt der
+   * ganzen Grundfläche (`elementPlace.spotSolidBoxes`). Für den
+   * Hologramm-Sockel: _„die ecken können dabei gemacht werden als kein
+   * obstacle"_ — er ist rund, und an seinen Ecken geht man vorbei.
+   */
+  readonly openCorners?: boolean;
+  /**
+   * **Was zu Beginn darüber als Hologramm schwebt** (`opens: 'hologram'`) —
+   * eine Adresse im Regal. Mit `A` wählt man ein anderes.
+   */
+  readonly hologram?: string;
   /** Die Modelle, das erste steht auf dem Boden. */
   readonly parts: readonly ElementPart[];
 }

@@ -185,6 +185,37 @@ export const SPACE_TERMINAL: GameElement = {
 };
 
 /**
+ * **Der Hologramm-Sockel** — ein Dachmodul aus _Space Base Bits_
+ * (`roofmodule_base`) als runder Sockel von zwei Kacheln, darüber schwebt ein
+ * Modell aus dem Regal als Hologramm und dreht sich langsam. Gewünscht
+ * (Oktober 2026): _„ein neues möbel stück im katalog haben
+ * "space-roofmodule-base" als basis unten und man kann aber damit
+ * interagieren um ein menü zu öffnen, wo ich ein item aus modelregal
+ * aussuchen kann. Dieses item wird dann darin als hologramm angezeigt und
+ * dreht sich langsam. Diese space-roofmodule-base hologram base soll aber 2x2
+ * felder, also 4x4 kacheln groß sein und ein obstacle sein. die ecken können
+ * dabei gemacht werden als kein obstacle."_
+ *
+ * Zwei Kacheln (4 × 4 Zellen), gesperrt als Kreuz: die vier Eckzellen bleiben
+ * frei (`openCorners`). Zu Beginn das Küken aus der Wundertüte; `A` öffnet das
+ * Modellregal, und was man dort nimmt, kommt in den Sockel
+ * (`PortalWorld.chooseHologram`). In _Haunting_ steht er mitten in der
+ * Einsatzzentrale.
+ */
+export const SPACE_HOLOGRAM: GameElement = {
+  id: 'space-hologram',
+  label: 'Hologramm-Sockel',
+  aka: ['Hologramm', 'Projektor', 'Dachmodul', 'Sockel', 'roofmodule', 'Haunting'],
+  tiles: [2, 2],
+  height: BODY,
+  kind: null,
+  opens: 'hologram',
+  openCorners: true,
+  hologram: 'mixed-bag/chicken_plushie_A.glb',
+  parts: [{ model: spaceBits('roofmodule_base'), fit: 2 }], // 2,00 × 0,29 × 2,00
+};
+
+/**
  * **Die Elemente des Weltraums** — im Katalog unter _Weltraum_
  * (`SPACE_FOLDER`), nach Art: Module, Versorgung, Fracht, Fahrzeuge, Tunnel,
  * Gelände. Gemessen bei 2 m je Einheit: Breite × Höhe × Tiefe.
@@ -299,6 +330,7 @@ export const SPACE_ELEMENTS: readonly GameElement[] = [
   SPACE_SUIT_STAND,
   SPACE_MONSTER_STAND,
   SPACE_TERMINAL,
+  SPACE_HOLOGRAM,
 ];
 
 /** Die Ids in der Reihenfolge des Katalogs. */
@@ -332,6 +364,7 @@ const SPACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'space-suit-stand',
     'space-monster-stand',
     'space-terminal',
+    'space-hologram',
     'space-water-storage',
     'space-farm-small',
     'space-farm-large',

@@ -1,3 +1,4 @@
+import { KEEP_SOLID } from '../../core/occluderGhost';
 import * as THREE from 'three';
 import type { World, WorldContext, WorldPreview } from '../../core/types';
 import type { HintZone } from '../../core/controlHints';
@@ -77,6 +78,7 @@ import { loadItemModel } from '../elements/itemTemplate';
 import {
   faceYaw,
   onCells,
+  snapsToCells,
   spotAround,
   spotCentre,
   spotFootprintCells,
@@ -662,10 +664,103 @@ const HIDE_OPACITY = 0.22;
 /**
  * **So tief sinkt man beim Hinsetzen** (m, `sitOn`) — die Sitzfläche eines
  * Stuhls liegt knapp einen halben Meter über dem Boden, und so weit sinkt die
- * Augenhöhe. Eine Sitzhaltung für die eigene Figur gibt es (noch) nicht; sie
- * sinkt mit, die Beine stecken dann unter der Sitzfläche.
+ * Augenhöhe — das gilt für die Kamera. Die Figur sinkt nicht mit: Sie sitzt
+ * auf dem Möbel (`PlayerAvatar.sitting`, `AvatarBody.seat`).
  */
 const SIT_DROP = 0.45;
+/**
+ * **Wie hoch die Sitzfläche liegt** (m über dem Boden des Ankers) — ein Strahl
+ * von oben auf die Mitte des Möbels, der erste Treffer unter Lehnenhöhe. So
+ * passt es zu jedem Stuhl, Hocker und Sofa, wie groß es auch steht; ohne
+ * Treffer (noch nicht geladen) eine gewöhnliche Stuhlhöhe.
+ */
+function seatTop(anchor: THREE.Object3D, centre: THREE.Vector3): number {
+  _seatRay.set(_seatFrom.set(centre.x, centre.y + SEAT_PROBE, centre.z), _seatDown);
+  anchor.updateMatrixWorld(true);
+  for (const hit of _seatRay.intersectObject(anchor, true)) {
+    const top = hit.point.y - centre.y;
+    if (top < SEAT_PROBE - 0.05 && top < SEAT_HIGHEST) return Math.max(0, top);
+  }
+  return SEAT_FALLBACK;
+}
+const _seatRay = new THREE.Raycaster();
+const _seatFrom = new THREE.Vector3();
+const _seatDown = new THREE.Vector3(0, -1, 0);
+/** Von so hoch über dem Boden schaut der Strahl hinab (m). */
+const SEAT_PROBE = 2;
+/** Höher liegt keine Sitzfläche — was darüber trifft, ist Lehne oder Kissen oben (m). */
+const SEAT_HIGHEST = 0.75;
+/** Ohne Treffer: eine Stuhlhöhe (m). */
+const SEAT_FALLBACK = 0.45;
+/** Wie groß ein Hologramm über seinem Sockel steht — die längste Seite (m). */
+const HOLOGRAM_SIZE = 1.1;
+/** Wie hoch die Oberkante des Sockels liegt, von dort steigt das Licht (m). */
+const HOLOGRAM_BASE = 0.3;
+/** Und wie weit darüber das Modell schwebt (m). */
+const HOLOGRAM_LIFT = 0.25;
+/** Wie weit es auf und ab schwebt (m). */
+const HOLOGRAM_BOB = 0.04;
+/** Wie schnell es sich dreht, rad/s — eine Runde in gut zwölf Sekunden. */
+const HOLOGRAM_SPIN = 0.5;
+/** Die Farbe des Lichts, aus dem es ist. */
+const HOLOGRAM_COLOR = 0x7fe4ff;
+
+/**
+ * **Ein Modell als Hologramm** — auf `HOLOGRAM_SIZE` gebracht, die Mitte über
+ * dem Sockel, die Unterkante auf null, jeder Stoff ein eigener aus Licht (die
+ * Textur bleibt, damit man erkennt, was es ist). Die Stoffe des Regals teilen
+ * sich alle Kopien; ersetzt wird deshalb, nicht verändert.
+ */
+function hologramOf(model: THREE.Object3D): THREE.Object3D {
+  const holder = new THREE.Group();
+  holder.name = 'hologram-model';
+  holder.add(model);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const longest = Math.max(size.x, size.y, size.z);
+  const scale = longest > 1e-6 ? HOLOGRAM_SIZE / longest : 1;
+  const centre = box.getCenter(new THREE.Vector3());
+  model.position.set(-centre.x, -box.min.y, -centre.z);
+  holder.scale.setScalar(scale);
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    const light = (worn: THREE.Material): THREE.Material =>
+      new THREE.MeshBasicMaterial({
+        map: (worn as THREE.MeshStandardMaterial).map ?? null,
+        color: HOLOGRAM_COLOR,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+      });
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(light) : light(mesh.material);
+  });
+  return holder;
+}
+
+/** Die eigenen Stoffe eines Hologramms freigeben und es abnehmen. */
+function clearHologram(root: THREE.Object3D): void {
+  for (const child of [...root.children]) {
+    if (child.name !== 'hologram-model' && root.name === 'hologram-spin') continue;
+    child.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const worn = mesh.material;
+      for (const one of Array.isArray(worn) ? worn : [worn]) one.dispose();
+    });
+    child.removeFromParent();
+  }
+}
+
+/** Ob ein Ding (noch) unter dieser Wurzel hängt. */
+function inTree(object: THREE.Object3D, root: THREE.Object3D): boolean {
+  for (let at: THREE.Object3D | null = object; at; at = at.parent) if (at === root) return true;
+  return false;
+}
+
 /** Wie weit vor der Sitzfläche man beim Aufstehen steht (m). */
 const SIT_STEP_OUT = 0.75;
 /** Wie nah der Kran über der stehen gebliebenen Figur sein muss, um sie zu greifen (m). */
@@ -1279,6 +1374,18 @@ const ELEMENT_CELLS = 'element-cells:';
 const ELEMENT_HOLD = Math.PI;
 
 /**
+ * **Wie ein bestimmtes Element in den Händen liegt** — `ELEMENT_HOLD`, und bei
+ * einem Stuhl eine halbe Drehung mehr (`GameElement.holdFacing`): Er kommt mit
+ * der Lehne zur Figur, und wer ihn nach Süden absetzt, stellt ihn nach Norden
+ * — an den Tisch, vor dem man steht. Gemeldet: _„Der bürostuhl sollte in der
+ * hand und beim platzieren anders herum gesetzt werden (Falls South dann
+ * north, falls north dann south)"_.
+ */
+function elementHold(id: string): number {
+  return elementById(id).holdFacing ? 0 : ELEMENT_HOLD;
+}
+
+/**
  * **Bis zu welcher Höhe über dem Boden eine Hand ein stehendes Element
  * anfasst** (`reachElement`), in Metern — der Körper jedes Spielelements ist
  * 1,40 m hoch (`elements/*Catalog`, `BODY`), dazu kommt der Greifzuschlag.
@@ -1286,7 +1393,8 @@ const ELEMENT_HOLD = Math.PI;
 const ELEMENT_REACH_HEIGHT = 1.4;
 
 /** Das Bodenstück eines Elements, gewendet (`ELEMENT_HOLD`), als getragenes Modell. */
-function heldElement(model: THREE.Object3D, part: ElementPart | undefined): THREE.Object3D {
+function heldElement(model: THREE.Object3D, id: string): THREE.Object3D {
+  const part: ElementPart | undefined = elementById(id).parts[0];
   const holder = new THREE.Group();
   // **So groß wie in der Welt** (`ElementPart.scale`, `height`, `size`): Das
   // Auto der Stadt steht mit achtfachem Maßstab (`cityCatalog.CITY_SCALE`) —
@@ -1307,7 +1415,7 @@ function heldElement(model: THREE.Object3D, part: ElementPart | undefined): THRE
     else if (part.height !== undefined) model.scale.multiplyScalar(ratio(part.height, raw.y));
     else model.scale.multiplyScalar(part.scale ?? 1);
   }
-  model.rotation.y += ELEMENT_HOLD;
+  model.rotation.y += elementHold(id);
   holder.add(model);
   return holder;
 }
@@ -2127,6 +2235,19 @@ export class PortalWorld implements World {
   } | null = null;
   /** In welche Richtung die Figur dabei schaute — so steht man nach dem Kran wieder. */
   private craneStartYaw = 0;
+  /** Die Hologramme über ihren Sockeln (`showHologram`), je Anker. */
+  private readonly holograms = new Map<
+    THREE.Object3D,
+    { spot: string; root: THREE.Group; spin: THREE.Group; path: string; era: number }
+  >();
+  /** Was an welcher Stelle gewählt wurde — es bleibt beim Umstellen (`showHologram`). */
+  private readonly hologramChoice = new Map<string, string>();
+  /**
+   * **Für welchen Sockel das Regal gerade wählt** (`chooseHologram`) — und ob
+   * das Menü schon offen war: Geht es danach zu, ohne dass etwas gewählt
+   * wurde, gilt das Regal wieder der Hand.
+   */
+  private shelfPick: { anchor: THREE.Object3D; opened: boolean } | null = null;
   /**
    * **Ob der Kran die eigene Figur am Haken hat** (`liftFigure`) — sie hängt
    * dann unter ihm, bis der nächste Druck sie absetzt.
@@ -2284,6 +2405,7 @@ export class PortalWorld implements World {
     this.time += dt;
     // Zwei Bilder nach `readSign`: Jetzt steht die Seite im Baum.
     if (this.openReading > 0 && --this.openReading === 0) ctx.menu.openSubmenu(READ_PAGE);
+    this.updateHolograms(dt, ctx);
     this.portalBlue.setTime(this.time);
     this.portalRed.setTime(this.time);
     this.restoreNotes(ctx);
@@ -5003,7 +5125,7 @@ export class PortalWorld implements World {
     }
     const lifted = this.liftElementAt(_point.x, _point.z);
     if (!lifted) return false;
-    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') - ELEMENT_HOLD : null;
+    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') - elementHold(lifted.id) : null;
     void this.conjureModel(ctx, elementById(lifted.id).parts[0]!.model, null, yaw, null, lifted);
     return true;
   }
@@ -5062,7 +5184,7 @@ export class PortalWorld implements World {
     const commit = (refilled: boolean): void => {
       const ctx = this.context;
       if (!ctx) return;
-      const spot = this.furnishAt(carried, x, z, yaw + ELEMENT_HOLD, level);
+      const spot = this.furnishAt(carried, x, z, yaw + elementHold(id), level);
       const label = elementById(id).label;
       if (spot) this.recordElementOf(spot);
       else if (carried.from) {
@@ -5159,7 +5281,7 @@ export class PortalWorld implements World {
     z: number,
     yaw: number,
   ): boolean {
-    const centre = spotCentre(spotAround('', id, x, z, yawFace(yaw + ELEMENT_HOLD)));
+    const centre = spotCentre(spotAround('', id, x, z, yawFace(yaw + elementHold(id))));
     const target = this.decorTarget(ctx, entry, x, z);
     const end = {
       position: new THREE.Vector3(
@@ -6908,6 +7030,10 @@ export class PortalWorld implements World {
     this.setViewOverride(null);
     if (this.hiding) this.unghostHiding(this.hiding);
     this.hiding = null;
+    ctx.avatar.sitting = null;
+    for (const view of this.holograms.values()) clearHologram(view.root);
+    this.holograms.clear();
+    this.shelfPick = null;
     ctx.rig.frozen = false;
     this.joints.length = 0;
     this.timeScale = 1;
@@ -10449,7 +10575,7 @@ export class PortalWorld implements World {
     }
     const lifted = this.liftElementAt(_hand.x, _hand.z);
     if (!lifted) return true;
-    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') - ELEMENT_HOLD : null;
+    const yaw = lifted.from ? faceYaw(lifted.from.face ?? 'S') - elementHold(lifted.id) : null;
     void this.conjureModel(ctx, elementById(lifted.id).parts[0]!.model, hand, yaw, null, lifted);
     controller.pulse(0.5, 30);
     return true;
@@ -11106,10 +11232,13 @@ export class PortalWorld implements World {
       // (+z) zeigt zur Figur, egal wie sie vorher stand; `R` dreht sie danach
       // wie jedes Stück am Kran.
       const door = isDoorModel(modelPathOf(kind)) && !controller;
-      if (door || (this.elementBodies.has(entry) && gameMode() === 'play')) {
+      const held = this.elementBodies.get(entry);
+      if (door || (held && gameMode() === 'play')) {
         const scale = new THREE.Vector3();
         offset.decompose(_point, _quaternion, scale);
-        _quaternion.setFromAxisAngle(UP, door ? 0 : -ELEMENT_HOLD);
+        // Die Vorderseite zur Figur — beim Stuhl ist das die Lehne
+        // (`elementHold`), damit er abgesetzt zum Tisch vor einem schaut.
+        _quaternion.setFromAxisAngle(UP, door || !held ? 0 : -ELEMENT_HOLD);
         offset.compose(_point, _quaternion, scale);
         entry.object.getWorldPosition(_point);
       }
@@ -11880,11 +12009,11 @@ export class PortalWorld implements World {
     }
     if (element) {
       this.markReplaced([]);
-      const face = yawFace(quarterYaw(yawOf(_quaternion)) + ELEMENT_HOLD);
+      const face = yawFace(quarterYaw(yawOf(_quaternion)) + elementHold(element.id));
       const spot = spotAround('', element.id, _point.x, _point.z, face);
       // **Ein schmaler Baum leuchtet auf seiner Zelle** und nicht auf der
       // ganzen Kachel (`onCells`) — er steht auf jeder der vier.
-      if (onCells(elementById(element.id))) {
+      if (snapsToCells(elementById(element.id))) {
         const cells = spotFootprintCells(spot).map((key) => {
           const [ix, iz] = key.split(',').map(Number) as [number, number];
           return { x: (ix + 0.5) * CELL, z: (iz + 0.5) * CELL };
@@ -14328,7 +14457,7 @@ export class PortalWorld implements World {
       // Deutsch (`core/kaykitTerms.ts`).
       find: (query) =>
         kaykitSearchEntries(this.shelfFiles, query, (path, hand) =>
-          this.takeModel(ctx(), path, hand),
+          this.pickFromShelf(ctx(), path, hand),
         ),
       // **Vorn im Regal der Zettel** (`takeNote`): Wer aus dem Regal baut,
       // beschriftet damit, was er baut — und nimmt ihn auf demselben Weg.
@@ -14360,7 +14489,9 @@ export class PortalWorld implements World {
         },
       ];
     }
-    this.shelfMenu ??= kaykitMenu(this.shelf, (path, hand) => this.takeModel(ctx(), path, hand));
+    this.shelfMenu ??= kaykitMenu(this.shelf, (path, hand) =>
+      this.pickFromShelf(ctx(), path, hand),
+    );
     const entries = this.shelfMenu;
     if (entries.length > 0) return entries;
     return [
@@ -14525,7 +14656,7 @@ export class PortalWorld implements World {
       id,
       kind,
       element !== null
-        ? heldElement(model, elementById(element.id).parts[0])
+        ? heldElement(model, element.id)
         : note === null
           ? model
           : buildNote(model, note),
@@ -15555,6 +15686,12 @@ export class PortalWorld implements World {
     const yaw = Math.atan2(-front.x, -front.z);
     const out = centre.clone().addScaledVector(front, SIT_STEP_OUT);
     this.hiding = { anchor, out, yaw, worn: new Map(), sitting: true };
+    // **Die Figur sitzt auf der Sitzfläche**, mit festem Rumpf
+    // (`AvatarBody.seat`) — gemessen, wie hoch sie liegt.
+    ctx.avatar.sitting = { at: centre.clone(), top: seatTop(anchor, centre), yaw };
+    // Und von oben wird es nicht durchsichtig, obwohl die Figur darin steckt
+    // (`core/occluderGhost.KEEP_SOLID`).
+    anchor.userData[KEEP_SOLID] = true;
     // Die Füße unter die Sitzfläche — direkt am Gestell, nicht über
     // `movePlayerTo`: Eine Welt, die dort den Boden sucht, höbe sie wieder an.
     ctx.rig.placeFeetAt(centre.clone().setY(centre.y - SIT_DROP), yaw);
@@ -15562,6 +15699,120 @@ export class PortalWorld implements World {
     this.locomotion?.resync(ctx.rig);
     ctx.rig.frozen = true;
     ctx.notify('Hingesetzt · A / E / Klick steht auf');
+  }
+
+  /**
+   * **Ein Hologramm über einem Sockel zeigen** (`GameElement.hologram`,
+   * `spaceCatalog.SPACE_HOLOGRAM`) — gewünscht: _„man kann aber damit
+   * interagieren um ein menü zu öffnen, wo ich ein item aus modelregal
+   * aussuchen kann. Dieses item wird dann darin als hologramm angezeigt und
+   * dreht sich langsam."_
+   *
+   * Das Modell kommt aus dem Regal wie jedes (`kaykitModel`), wird auf
+   * `HOLOGRAM_SIZE` gebracht, schwebt über dem Sockel und bekommt einen Stoff
+   * aus Licht: türkis und durchscheinend, mit seiner eigenen Textur
+   * darin. Darunter steht ein Lichtkegel, der aus dem Sockel kommt. Es hängt
+   * am Anker des Sockels — umgestellt geht es mit, abgerissen mit weg; was
+   * man gewählt hat, merkt sich die Welt je Stelle (`hologramChoice`).
+   *
+   * @param spot die Id der Stelle des Sockels
+   * @param model die Adresse im Regal, die er mitbringt — eine gewählte geht vor
+   */
+  protected showHologram(anchor: THREE.Object3D, spot: string, model: string): void {
+    const path = this.hologramChoice.get(spot) ?? model;
+    let view = this.holograms.get(anchor);
+    if (!view) {
+      const root = new THREE.Group();
+      root.name = `hologram:${spot}`;
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          HOLOGRAM_SIZE * 0.62,
+          HOLOGRAM_SIZE * 0.32,
+          HOLOGRAM_LIFT + HOLOGRAM_SIZE,
+          32,
+          1,
+          true,
+        ),
+        new THREE.MeshBasicMaterial({
+          color: HOLOGRAM_COLOR,
+          transparent: true,
+          opacity: 0.1,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      beam.name = 'hologram-beam';
+      beam.position.y = HOLOGRAM_BASE + (HOLOGRAM_LIFT + HOLOGRAM_SIZE) / 2;
+      root.add(beam);
+      const spin = new THREE.Group();
+      spin.name = 'hologram-spin';
+      spin.position.y = HOLOGRAM_BASE + HOLOGRAM_LIFT;
+      root.add(spin);
+      anchor.add(root);
+      view = { spot, root, spin, path: '', era: 0 };
+      this.holograms.set(anchor, view);
+    }
+    if (view.path === path) return;
+    view.path = path;
+    const era = ++view.era;
+    const shown = view;
+    void kaykitModel(path).then((loaded) => {
+      if (!loaded || shown.era !== era || !this.holograms.has(anchor)) return;
+      clearHologram(shown.spin);
+      shown.spin.add(hologramOf(loaded));
+    });
+  }
+
+  /**
+   * **Am Sockel `A`: ein Modell aussuchen** — das Modellregal geht auf, und was
+   * man darin nimmt, kommt nicht in die Hand, sondern in den Sockel
+   * (`shelfPick`). Wer das Regal ohne Wahl zumacht, hat nichts geändert.
+   */
+  protected chooseHologram(ctx: WorldContext, anchor: THREE.Object3D): void {
+    const view = this.holograms.get(anchor);
+    if (!view) return;
+    this.shelfPick = { anchor, opened: false };
+    ctx.openMenu?.('assets');
+    ctx.notify('Hologramm: ein Modell im Regal wählen');
+  }
+
+  /**
+   * **Was das Regal mit einer Wahl tut** — in den Sockel, wenn gerade für
+   * einen gewählt wird (`chooseHologram`), sonst in die Hand (`takeModel`).
+   */
+  private pickFromShelf(ctx: WorldContext, path: string, hand: Handedness | null): void {
+    const pick = this.shelfPick;
+    if (!pick) {
+      this.takeModel(ctx, path, hand);
+      return;
+    }
+    this.shelfPick = null;
+    ctx.menu.toggle(false);
+    const view = this.holograms.get(pick.anchor);
+    if (!view) return;
+    this.hologramChoice.set(view.spot, path);
+    this.showHologram(pick.anchor, view.spot, path);
+    ctx.notify(`Hologramm: ${propLabel(modelKind(path))}`);
+  }
+
+  /** Die Hologramme drehen sich langsam; vergessen wird, was nicht mehr in der Welt steht. */
+  private updateHolograms(dt: number, ctx: WorldContext): void {
+    const pick = this.shelfPick;
+    if (pick) {
+      if (ctx.menu.isOpen) pick.opened = true;
+      else if (pick.opened) this.shelfPick = null;
+    }
+    for (const [anchor, view] of this.holograms) {
+      if (!inTree(anchor, this.root)) {
+        clearHologram(view.root);
+        this.holograms.delete(anchor);
+        continue;
+      }
+      view.spin.rotation.y += dt * HOLOGRAM_SPIN;
+      view.spin.position.y =
+        HOLOGRAM_BASE + HOLOGRAM_LIFT + Math.sin(this.time * 1.3) * HOLOGRAM_BOB;
+    }
   }
 
   /** Worauf man gerade sitzt (`sitOn`) — `null`, wenn man steht oder im Schrank steckt. */
@@ -15579,6 +15830,8 @@ export class PortalWorld implements World {
     const hiding = this.hiding;
     if (!hiding) return;
     this.hiding = null;
+    ctx.avatar.sitting = null;
+    delete hiding.anchor.userData[KEEP_SOLID];
     this.unghostHiding(hiding);
     ctx.rig.frozen = false;
     this.movePlayerTo(ctx, hiding.out, hiding.yaw);

@@ -71,6 +71,32 @@ function seat(
   return { ...thing(id, label, file, tiles), opens: 'sit' };
 }
 
+/**
+ * **So viel größer stehen die Stühle** als im Regal — gemeldet: _„Die
+ * Burostühle sollten auch gerne ein feld ausfüllen bzw. 2x2 felder groß sein.
+ * Aktuell wirkt der stuhl zu klein neben den charakteren. Das gilt für alle
+ * Stühle (Sofas sehen passend aus)"_. Doppelt so groß füllen sie eine Kachel
+ * (0,75 × 0,85 m beim Stuhl A), und die Sitzfläche liegt auf 0,5 m — so hoch
+ * wie die Tische, an die sie gehören.
+ */
+export const CHAIR_SCALE = 2;
+
+/**
+ * **Ein Stuhl** — Sitzen wie auf dem Sofa (`seat`), aber doppelt so groß
+ * (`CHAIR_SCALE`) auf einer Kachel, die je Zelle einrastet (`fine`: auch
+ * zwischen zwei Kacheln, mittig vor einem Schreibtisch), und in der Hand mit
+ * der Lehne zur Figur (`holdFacing`): Wer nach Süden absetzt, stellt ihn nach
+ * Norden — mit dem Gesicht zum Tisch, vor dem man steht.
+ */
+function chair(id: string, label: string, file: string): GameElement {
+  return {
+    ...seat(id, label, file, [1, 1]),
+    fine: true,
+    holdFacing: true,
+    parts: [{ model: furnitureBits(file), scale: CHAIR_SCALE }],
+  };
+}
+
 /** Ein Tisch: Ablage für Möbel und Fläche für die Küche. */
 function table(
   id: string,
@@ -188,15 +214,15 @@ export const FURNITURE_BITS_ELEMENTS: readonly GameElement[] = [
   seat('furniture-armchair-pillows', 'Sessel mit Kissen', 'armchair_pillows', [1, 1]), // 0,90 × 0,61 × 0,80
   seat('furniture-couch', 'Sofa', 'couch', [2, 1]), // 1,50 × 0,61 × 0,80
   seat('furniture-couch-pillows', 'Sofa mit Kissen', 'couch_pillows', [2, 1]), // 1,50 × 0,61 × 0,80
-  seat('furniture-chair-a', 'Stuhl A', 'chair_A', [0.5, 0.5]), // 0,37 × 0,63 × 0,42
-  seat('furniture-chair-a-wood', 'Holzstuhl A', 'chair_A_wood', [0.5, 0.5]), // 0,37 × 0,63 × 0,42
-  seat('furniture-chair-b', 'Stuhl B', 'chair_B', [0.5, 0.5]), // 0,37 × 0,63 × 0,42
-  seat('furniture-chair-b-wood', 'Holzstuhl B', 'chair_B_wood', [0.5, 0.5]), // 0,37 × 0,63 × 0,42
-  seat('furniture-chair-c', 'Stuhl C', 'chair_C', [0.5, 0.5]), // 0,38 × 0,60 × 0,47
-  seat('furniture-chair-desk-a', 'Bürostuhl A', 'chair_desk_A', [0.5, 0.5]), // 0,35 × 0,65 × 0,46
-  seat('furniture-chair-desk-b', 'Bürostuhl B', 'chair_desk_B', [0.5, 0.5]), // 0,54 × 0,60 × 0,46
-  seat('furniture-chair-stool', 'Hocker', 'chair_stool', [0.5, 0.5]), // 0,38 × 0,25 × 0,38
-  seat('furniture-chair-stool-wood', 'Holzhocker', 'chair_stool_wood', [0.5, 0.5]), // 0,38 × 0,25 × 0,38
+  chair('furniture-chair-a', 'Stuhl A', 'chair_A'), // 0,74 × 1,26 × 0,84
+  chair('furniture-chair-a-wood', 'Holzstuhl A', 'chair_A_wood'), // 0,74 × 1,26 × 0,84
+  chair('furniture-chair-b', 'Stuhl B', 'chair_B'), // 0,74 × 1,26 × 0,84
+  chair('furniture-chair-b-wood', 'Holzstuhl B', 'chair_B_wood'), // 0,74 × 1,26 × 0,84
+  chair('furniture-chair-c', 'Stuhl C', 'chair_C'), // 0,76 × 1,20 × 0,94
+  chair('furniture-chair-desk-a', 'Bürostuhl A', 'chair_desk_A'), // 0,70 × 1,30 × 0,92
+  chair('furniture-chair-desk-b', 'Bürostuhl B', 'chair_desk_B'), // 1,08 × 1,20 × 0,92
+  chair('furniture-chair-stool', 'Hocker', 'chair_stool'), // 0,76 × 0,50 × 0,76
+  chair('furniture-chair-stool-wood', 'Holzhocker', 'chair_stool_wood'), // 0,76 × 0,50 × 0,76
   // Tische
   table('furniture-table-small', 'Beistelltisch', 'table_small', [0.5, 0.5]), // 0,50 × 0,50 × 0,50
   table('furniture-table-medium', 'Tisch', 'table_medium', [1, 1]), // 1,00 × 0,50 × 1,00

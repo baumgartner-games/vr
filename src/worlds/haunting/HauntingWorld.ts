@@ -427,10 +427,14 @@ const _showTarget = new THREE.Vector3();
 
 /** Wie hell eine brennende Zimmerlampe ist, wenn niemand an ihr rüttelt. */
 const LAMP_ON = 48;
-/** So hell brennt eine Deckenleuchte der Einsatzzentrale (`buildDusk`). */
-const COMMAND_LAMP = 36;
+/** So hell brennt eine Deckenleuchte der Einsatzzentrale (`buildDusk`) — Tageslicht. */
+const COMMAND_LAMP = 28;
 /** Und so weit reicht sie, in Metern — bis knapp hinter die Fensterfront. */
-const COMMAND_LAMP_REACH = 11;
+const COMMAND_LAMP_REACH = 12;
+/** Wie schnell ihr Licht abfällt — flacher als echt, damit die Ecken nicht absaufen. */
+const COMMAND_LAMP_DECAY = 1.2;
+/** Die Farbe: kühles Tageslicht statt warmer Abendlampe. */
+const COMMAND_DAYLIGHT = 0xf2f6ff;
 /** Die Figur, die der Monster-Anzug leiht — der Roboter des Verlorenen (`actorFit.ts`). */
 const MONSTER_FIGURE = 'mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb';
 /** Die Farbe des Monsters — dieselbe wie sein Platz am Telefon (`haunting.css`). */
@@ -567,6 +571,8 @@ export class HauntingWorld extends FurnishedWorld {
     x: number;
     y: number;
     z: number;
+    /** Wohin es schaut, um die Hochachse — 0 nach Süden. */
+    yaw: number;
     colour: number;
     mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null;
     text: string;
@@ -1821,13 +1827,28 @@ export class HauntingWorld extends FurnishedWorld {
     // Reichweite (`distance`) endet kurz hinter der Fensterfront, und in der
     // Kantine kommt davon nur ein Rest an. Ohne Schatten, wie die Lampen der
     // Station.
-    const z = APRON.z + APRON.d * 0.45;
-    for (let x = APRON.x + 5; x < APRON.x + APRON.w; x += 10) {
-      const light = new THREE.PointLight(0xfff1dc, COMMAND_LAMP, COMMAND_LAMP_REACH, 2);
-      light.position.set(x * TILE, PLAN_WALL_H - 0.35, z * TILE);
-      this.vanRig.add(light);
-      this.commandLights.push(light);
-    }
+    //
+    // **Und hell wie bei Tag** (Oktober 2026): _„Dann finde ich es in dem raum
+    // immer noch düster. Es soll in dem raum so erleuchtet sein, als wenn
+    // tageslicht da ist."_ Seit die Zentrale quadratisch ist, hängen die vier
+    // als Raster von 2 × 2 über ihr, heller, kühler und mit flacherem Abfall
+    // (`COMMAND_LAMP_DECAY`), damit auch die Ecken hell sind.
+    for (const fx of [0.25, 0.75])
+      for (const fz of [0.25, 0.75]) {
+        const light = new THREE.PointLight(
+          COMMAND_DAYLIGHT,
+          COMMAND_LAMP,
+          COMMAND_LAMP_REACH,
+          COMMAND_LAMP_DECAY,
+        );
+        light.position.set(
+          (APRON.x + APRON.w * fx) * TILE,
+          PLAN_WALL_H - 0.35,
+          (APRON.z + APRON.d * fz) * TILE,
+        );
+        this.vanRig.add(light);
+        this.commandLights.push(light);
+      }
   }
 
   /** Die Kameras, aus denen die Stationen ihr Bild bekommen. */
@@ -4777,8 +4798,20 @@ export class HauntingWorld extends FurnishedWorld {
     this.addSign('settings', over(SETTINGS_SPOT, TERMINAL_TILES), 1.85, wall, SHIP.amber);
     this.addSign('technician', over(SUIT_SPOT), 2.25, wall, SHIP.cyan);
     this.addSign('monster', over(MONSTER_SPOT), 2.25, wall, MONSTER_COLOUR);
-    for (const desk of COMMAND_DESKS)
-      this.addSign(`desk-${desk.station}`, desk.x, 1.95, desk.tileZ * TILE + 0.05, desk.colour);
+    // Die Schreibtische stehen an den Seitenwänden: ihr Schild hängt an der
+    // Wand über dem Tisch und schaut in den Raum.
+    for (const desk of COMMAND_DESKS) {
+      const west = desk.face === 'E';
+      const x = west ? desk.tileX * TILE + 0.05 : (desk.tileX + 1) * TILE - 0.05;
+      this.addSign(
+        `desk-${desk.station}`,
+        x,
+        1.95,
+        desk.z,
+        desk.colour,
+        west ? Math.PI / 2 : -Math.PI / 2,
+      );
+    }
     this.refreshSigns(true);
   }
 
@@ -4885,8 +4918,8 @@ export class HauntingWorld extends FurnishedWorld {
    * **Ein Schild der Zentrale** — gemalt von `refreshSigns`, sobald es etwas
    * zu sagen hat. Nach Süden, also lesbar von jedem, der davorsteht.
    */
-  private addSign(id: string, x: number, y: number, z: number, colour: number): void {
-    this.commandSigns.push({ id, x, y, z, colour, mesh: null, text: '' });
+  private addSign(id: string, x: number, y: number, z: number, colour: number, yaw = 0): void {
+    this.commandSigns.push({ id, x, y, z, yaw, colour, mesh: null, text: '' });
   }
 
   /** Was auf den Schildern steht — je Schild zwei Zeilen. */
@@ -4933,6 +4966,7 @@ export class HauntingWorld extends FurnishedWorld {
       }
       const mesh = label(text, 1.7, 0.46, sign.colour);
       mesh.position.set(sign.x, sign.y, sign.z);
+      mesh.rotation.y = sign.yaw;
       mesh.name = `command-sign-${sign.id}`;
       this.vanRig.add(mesh);
       sign.mesh = mesh;

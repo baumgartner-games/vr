@@ -53,6 +53,13 @@ import { LAYER_SELF_ONLY } from './PlayerAvatar';
  *   nicht sehen soll (`haunting/world3d/topDownFog.ts`).
  */
 
+/**
+ * **Die Marke für „bleibt fest"** (`userData`) — gesetzt am Möbel, auf dem die
+ * Figur sitzt (`PortalWorld.sitOn`). Gemeldet: _„Das sofa sollte nicht
+ * durchsichtig werden."_ Alles darunter wird nie durchsichtig.
+ */
+export const KEEP_SOLID = 'bgvrKeepSolid';
+
 /** Wie viel Deckkraft übrig bleibt — wie bei den Wänden (`GridWorld`). */
 export const OCCLUDER_OPACITY = 0.25;
 
@@ -242,6 +249,9 @@ export class OccluderGhosts {
   ): void {
     for (const child of node.children) {
       if (!child.visible || child === rig) continue;
+      // **Worauf die Figur sitzt, das verdeckt sie nicht** (`KEEP_SOLID`):
+      // Sitzend steckt sie im Sofa, und jeder Strahl von ihr ginge hindurch.
+      if (child.userData[KEEP_SOLID]) continue;
       const mesh = child as THREE.Mesh;
       if (mesh.isMesh && this.counts(mesh, layers)) {
         const geometry = mesh.geometry;

@@ -134,6 +134,14 @@ export function onCells(element: GameElement): boolean {
 }
 
 /**
+ * **Ob ein Element je Zelle einrastet** — wer auf Zellen steht (`onCells`),
+ * und wer es ausdrücklich will (`GameElement.fine`, die Stühle).
+ */
+export function snapsToCells(element: GameElement): boolean {
+  return onCells(element) || element.fine === true;
+}
+
+/**
  * Die belegten Kacheln als `'x,z'` — bei einem Element auf Zellen (`onCells`)
  * die Kachel, in der seine Zelle liegt.
  */
@@ -171,10 +179,30 @@ export function spotSolid(spot: ElementSpot): [number, number] {
  * unter dem Stamm (`spotSolid`), bei Gras keine.
  */
 export function spotCells(spot: ElementSpot): string[] {
+  const keys = spotSolidBoxes(spot).flatMap((box) =>
+    footprintCellKeys(box.x, box.z, box.w, box.d, spot.level ?? 0),
+  );
+  return [...new Set(keys)];
+}
+
+/**
+ * **Die Kästen, die eine Stelle sperrt** — Mitte und Maße in Metern. Meist
+ * einer, die ganze gesperrte Fläche (`spotSolid`); mit freien Ecken
+ * (`GameElement.openCorners`) zwei, die sich zu einem Kreuz überlagern: Jede
+ * Seite ist um eine Zelle je Ende kürzer, und genau die vier Eckzellen bleiben
+ * frei.
+ */
+export function spotSolidBoxes(
+  spot: ElementSpot,
+): { x: number; z: number; w: number; d: number }[] {
   const [w, d] = spotSolid(spot);
   if (w <= 0 || d <= 0) return [];
   const { x, z } = spotCentre(spot);
-  return footprintCellKeys(x, z, w, d, spot.level ?? 0);
+  if (!spotElement(spot).openCorners || w <= 2 * CELL || d <= 2 * CELL) return [{ x, z, w, d }];
+  return [
+    { x, z, w, d: d - 2 * CELL },
+    { x, z, w: w - 2 * CELL, d },
+  ];
 }
 
 /**
@@ -261,7 +289,7 @@ export function spotAround(
 ): ElementSpot {
   const probe: ElementSpot = { id, element, x: 0, z: 0, face };
   const [w, d] = spotSize(probe);
-  const step = onCells(spotElement(probe)) ? CELL : 1;
+  const step = snapsToCells(spotElement(probe)) ? CELL : 1;
   const snap = (value: number): number => Math.round(value / step) * step;
   return { ...probe, x: snap(x - w / 2), z: snap(z - d / 2) };
 }

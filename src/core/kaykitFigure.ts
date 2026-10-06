@@ -60,6 +60,7 @@ export interface KaykitFigure {
     handLeft: THREE.Object3D | null;
     handRight: THREE.Object3D | null;
     head: THREE.Object3D | null;
+    hips: THREE.Object3D | null;
   };
   /** Überblenden auf einen Clip; `null`, wenn es ihn nicht gibt. once=true spielt einmal und hält am Ende (clampWhenFinished). */
   play(
@@ -68,6 +69,8 @@ export interface KaykitFigure {
   ): THREE.AnimationAction | null;
   /** Der Gang aus dem Tempo: Idle/Walk/Run per gaitFor, nur bei Wechsel überblenden. */
   gait(speed: number): void;
+  /** Zurück in den Gang, nachdem eine eigene Spur lief (Sitzen) — auch wenn er derselbe ist. */
+  resumeGait(speed: number): void;
   /** Eine der Aktionen (`attack`/`hit`/`death`) — spielt einmal und kehrt (außer death) danach zum Gang zurück. */
   act(kind: FigureAct): boolean;
   update(dt: number): void;
@@ -120,6 +123,7 @@ class Figure implements KaykitFigure {
     handLeft: THREE.Object3D | null;
     handRight: THREE.Object3D | null;
     head: THREE.Object3D | null;
+    hips: THREE.Object3D | null;
   };
 
   /** Die Spuren nach Namen — `play` sucht nicht in einer Liste. */
@@ -169,6 +173,7 @@ class Figure implements KaykitFigure {
       handLeft: findBone(model, 'handLeft'),
       handRight: findBone(model, 'handRight'),
       head: findBone(model, 'head'),
+      hips: findBone(model, 'hips'),
     };
 
     // **Stehen ist der Anfang.** Ohne das bliebe die Figur in ihrer Bindepose
@@ -213,6 +218,11 @@ class Figure implements KaykitFigure {
     this.kind = kind;
     if (this.acting || this.dead) return;
     this.startGait(FIGURE_FADE);
+  }
+
+  resumeGait(speed: number): void {
+    this.kind = null;
+    this.gait(speed);
   }
 
   act(kind: FigureAct): boolean {

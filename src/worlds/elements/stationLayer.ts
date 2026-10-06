@@ -313,6 +313,12 @@ export interface StationHost {
    * öffnet _Aussehen_. Ohne Angabe meldet sich so ein Element nicht an.
    */
   open?(what: ElementOpens, anchor: THREE.Object3D): void;
+  /**
+   * **Das Hologramm über einem Sockel zeigen** (`GameElement.hologram`) —
+   * sobald er steht, mit dem Modell, das er mitbringt. `spot` ist die Id
+   * seiner Stelle: Was jemand dort gewählt hat, bleibt beim Umstellen.
+   */
+  hologram?(anchor: THREE.Object3D, spot: string, model: string): void;
 }
 
 /**
@@ -328,6 +334,7 @@ const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = {
   hide: 'Verstecken',
   swap: 'Laterne tauschen',
   sit: 'Hinsetzen',
+  hologram: 'Hologramm wählen',
 };
 
 /** Wie die Station gerade gebaut ist. */
@@ -522,6 +529,8 @@ export class StationLayer {
     placed.anchor.add(anchor);
     for (const part of placed.parts) if (part) anchor.attach(part);
     this.openers.push(anchor);
+    if (what === 'hologram' && placed.element.hologram)
+      this.host.hologram?.(anchor, placed.spot.id, placed.element.hologram);
     if (!this.host.open) return;
     this.host.addUsable(
       anchor,

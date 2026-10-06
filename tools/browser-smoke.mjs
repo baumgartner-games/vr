@@ -146,11 +146,16 @@ for (const name of browserNames) {
         }
         await page.evaluate((seat) => {
           const world = window.bgvr.world;
+          // Vor den Stuhl, mit dem Blick auf ihn — die Stühle stehen an den
+          // Seitenwänden und schauen nach Westen oder Osten (`commandSeats`).
           const chair = world.chairAnchors.get(seat);
           const at = chair.getWorldPosition(chair.position.clone());
+          const front = chair.localToWorld(chair.position.clone().set(0, 0, 1)).sub(at);
+          front.y = 0;
+          front.normalize();
           at.y = 0;
-          at.z += 0.7;
-          world.movePlayerTo(world.context, at, 0);
+          at.addScaledVector(front, 0.9);
+          world.movePlayerTo(world.context, at, Math.atan2(front.x, front.z));
         }, seat);
         await page.keyboard.press('e', { delay: 200 });
         await page.locator(`.haunt[data-station="${seat}"]`).waitFor({ timeout: 30000 });
