@@ -144,6 +144,17 @@ export const STATION_BOUNDS: Rect = {
 export const VAN_W = 4;
 
 /**
+ * **Wie tief die Einsatzzentrale ist**, in Kacheln zu einem Meter. Bis
+ * Oktober 2026 waren es fünf — ein Schlauch von 40 × 5 m, in dem alles an der
+ * Wand stand. Gewünscht: _„die einsatzzentrale soll bitte kein schlauch raum
+ * sein, sondern kann schöner gestaltet werden."_ Jetzt zwölf, nach Norden
+ * gewachsen: Die Südwand mit der Fensterfront zur Kantine bleibt, wo sie war.
+ * Mit dem alten Zufallsgrundriss (`HOUSE`, nur noch ohne `roomCount`)
+ * überlappt sie dessen Südrand — der wird nicht mehr gespielt.
+ */
+const APRON_DEPTH = 12;
+
+/**
  * **Der Vorplatz** — die zwei Kachelreihen der Einsatzzentrale, und seit
  * dieser Runde liegen sie **an der Kantine** statt am anderen Ende der
  * Station.
@@ -165,20 +176,26 @@ export const VAN_W = 4;
  * an der abgelegt wird, und was dort steht, macht aus einer Runde eine
  * Belagerung.
  */
-export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 5 };
+export const APRON: Rect = {
+  x: HOUSE.x,
+  z: STATION_ORIGIN.z - APRON_DEPTH,
+  w: HOUSE.w,
+  d: APRON_DEPTH,
+};
 
 /** Die Vorplatzreihe an der Fensterfront: Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt. */
 export const APRON_INNER = APRON.z + APRON.d - 1;
 /** Die äußere Reihe mit Hüllenfenstern: Abendlicht über dem Vorplatz. */
 export const APRON_OUTER = APRON.z;
-/**
- * Der Aufzugsschacht zum Testdeck, in Kacheln: **zwei mal zwei** in der
- * Nordostecke des Vorplatzes. Eine Kachel war er, solange eine Kachel
- * zweieinhalb Meter maß; ein Aufzug von einem Quadratmeter wäre ein Spind.
- */
-export const COMMAND_LIFT = { x: APRON.x + APRON.w - 3, z: APRON_OUTER, w: 2, d: 2 } as const;
 /** Die Kachelreihe, in der die Einsatzzentrale steht. */
 export const VAN_Z = APRON_INNER;
+
+/**
+ * **Der Rückkehrpunkt** in Metern: mitten in der Zentrale, zweieinhalb Meter
+ * vor der Fensterfront zur Kantine (vorher in `trainingLayout.ts`, das mit
+ * dem Testdeck weg ist).
+ */
+export const COMMAND_HOME = { x: 0, z: (APRON.z + APRON.d - 2.5) * TILE } as const;
 
 /** Die Kennung der Einsatzzentrale — kein Zimmer des Hauses, aber ein Ort. */
 export const VAN_ID = 'van';

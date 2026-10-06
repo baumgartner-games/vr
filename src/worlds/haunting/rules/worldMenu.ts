@@ -81,6 +81,8 @@ export interface WorldMenuEntry {
   label: string;
   /** Die Zeile unter der Beschriftung. Ist etwas im Weg, steht der Grund darin. */
   sub: string;
+  /** Die Absicht dieses Eintrags — auch dann, wenn er sie gerade nicht starten kann. */
+  intent: Intent;
   /** Die Absicht, die dieser Eintrag startet — `null`, wenn er es gerade nicht kann. */
   starts: Intent | null;
   /** Warum nicht, als ganzer Satz; `null`, wenn nichts im Weg ist. */
@@ -249,6 +251,7 @@ export function startEntries(state: WorldMenuState): WorldMenuEntry[] {
       // endet, steht in der Zeile darunter und nicht im Namen.
       label: INTENT_LABELS[intent],
       sub: blocked ?? notes.join(' · '),
+      intent,
       starts: blocked ? null : intent,
       blocked,
       active: state.intent === intent,

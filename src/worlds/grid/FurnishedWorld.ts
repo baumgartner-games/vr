@@ -939,6 +939,8 @@ export abstract class FurnishedWorld extends GridWorld {
       open: (what, anchor) => {
         if (what === 'outfit') this.context?.openOutfit();
         else if (what === 'swap') this.swapElement(anchor);
+        // Stühle, Hocker, Sessel und Sofas (`furnitureCatalog`, _Sitzen_).
+        else if (what === 'sit' && this.context) this.sitOn(this.context, anchor);
         else if (this.context) this.hideIn(this.context, anchor);
       },
     };

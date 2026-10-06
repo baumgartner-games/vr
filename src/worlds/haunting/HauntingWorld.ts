@@ -3,7 +3,7 @@ import { cellKey } from '../nav/cellGrid';
 import { stationFixtureCells } from './map/stationCells';
 import { NavigationOverlay } from './navigationOverlay';
 import * as THREE from 'three';
-import { GridWorld } from '../grid/GridWorld';
+import { FurnishedWorld } from '../grid/FurnishedWorld';
 import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import {
   DIRS,
@@ -40,7 +40,7 @@ import {
   stationBounds,
   APRON,
   APRON_INNER,
-  APRON_OUTER,
+  COMMAND_HOME,
   type HouseDoor,
   type HouseRoom,
   type HouseSpec,
@@ -52,7 +52,7 @@ import {
   doorMiddle,
   doorWidth,
 } from './house';
-import { housePlan, LIFT_DOOR } from './plan';
+import { housePlan } from './plan';
 import { flickerLevel, freshSpook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import {
@@ -64,7 +64,6 @@ import {
   type StationBeacon,
 } from './shipArt';
 import { StationWalls, wallRun, type StationFeature, type WallRun } from './world3d/stationWalls';
-import { dressProp } from './world3d/stationProps';
 import {
   buttonPressed,
   DOOR_OPEN_DEPTH,
@@ -75,22 +74,22 @@ import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
-import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
-import {
-  COMMAND_STOOLS,
-  COMMAND_TABLE,
-  crewPlacement,
-  type CommandStool,
-} from './world3d/commandSeats';
+import { COMMAND_DESKS, crewPlacement, type CommandDesk } from './world3d/commandSeats';
 import {
   COMMAND_SPOTS,
   LINK_SPOT,
-  LINK_TILES,
+  LOUNGE_SPOTS,
+  MONSTER_SPOT,
+  SETTINGS_SPOT,
   SUIT_SPOT,
+  TERMINAL_TILES,
+  chairSpot,
+  deskSpot,
   inFront,
   playerRank,
   spawnSlot,
 } from './world3d/commandRoom';
+import type { ElementSpot } from '../elements/elementPlace';
 import { placeElement, type ElementHost, type PlacedElement } from '../elements/elementView';
 import { kaykitModel } from '../../core/kaykitModel';
 import type { Usable } from '../../core/usable';
@@ -161,6 +160,8 @@ import {
   sameSetup,
   saveSetup,
   SEAT_LABELS,
+  roleName,
+  seatAbilities,
   SEATS,
   technicianLabel,
   VR_KEEPS_TECHNICIAN,
@@ -173,6 +174,7 @@ import {
 } from './rules/roundSetup';
 import {
   applyIntent,
+  INTENT_HINTS,
   intentOf,
   loadLobby,
   saveLobby,
@@ -212,7 +214,7 @@ import { NetMonsterPort } from './monster/netMonsterPort';
 import { rescueHeight } from '../shared/fallRescue';
 import type { MapSnapshot } from './map/mapSnapshot';
 import { FlatRound, type FlatEvent, type FlatInput } from './map/flatRound';
-import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
+import { ownerOf, seatOf, seating, type Claim, type StationId } from './stations';
 import {
   claimMessage,
   flipMessage,
@@ -425,6 +427,16 @@ const _showTarget = new THREE.Vector3();
 
 /** Wie hell eine brennende Zimmerlampe ist, wenn niemand an ihr rüttelt. */
 const LAMP_ON = 48;
+/** So hell brennt eine Deckenleuchte der Einsatzzentrale (`buildDusk`). */
+const COMMAND_LAMP = 36;
+/** Und so weit reicht sie, in Metern — bis knapp hinter die Fensterfront. */
+const COMMAND_LAMP_REACH = 11;
+/** Die Figur, die der Monster-Anzug leiht — der Roboter des Verlorenen (`actorFit.ts`). */
+const MONSTER_FIGURE = 'mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb';
+/** Die Farbe des Monsters — dieselbe wie sein Platz am Telefon (`haunting.css`). */
+const MONSTER_COLOUR = 0xff4d55;
+/** Wie hell das Licht um das Monster ist, das ein Mensch steuert (`monsterSight`). */
+const MONSTER_SIGHT = 14;
 
 /** Die Lampe eines Zimmers: das Licht und das Glas, das zeigt, dass es an ist. */
 interface Lamp {
@@ -467,7 +479,7 @@ const _lidOn = [_lid];
  */
 export const STATION_SEED = 1;
 
-export class HauntingWorld extends GridWorld {
+export class HauntingWorld extends FurnishedWorld {
   /**
    * **Die Ansicht von oben ist die des Kerns** (`core/TopDownCamera.ts`):
    * dieselbe Szene, in der die Brille steht, schräg von oben — aufgeschnitten
@@ -545,8 +557,33 @@ export class HauntingWorld extends GridWorld {
    * Zentrale, ob der Techniker schon draußen ist.
    */
   private suitParts: THREE.Object3D[] = [];
-  /** Die vier Monitore des Tischs, je Platz (`buildVan`). */
-  private readonly commandMonitors = new Map<CommandStool['station'], THREE.Object3D>();
+  /** Was am Monster-Ständer hängt — leer, solange ihn jemand trägt. */
+  private monsterParts: THREE.Object3D[] = [];
+  /** Die Bürostühle vor den Rechnern, je Farbplatz — dort sitzt, wer Platz nimmt. */
+  private readonly chairAnchors = new Map<CommandDesk['station'], THREE.Object3D>();
+  /** Die Schilder der Zentrale und was zuletzt darauf gemalt wurde (`refreshSigns`). */
+  private readonly commandSigns: Array<{
+    id: string;
+    x: number;
+    y: number;
+    z: number;
+    colour: number;
+    mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null;
+    text: string;
+  }> = [];
+  private signClock = 0;
+  /** Ob dieses Gerät den Monster-Anzug trägt (`toggleMonsterSuit`). */
+  private monsterSuited = false;
+  /** Ob es gerade das Monster steuert — eine Runde mit Monster läuft (`driveMonster`). */
+  private drivingMonster = false;
+  /**
+   * **Was das Monster im Dunkeln sieht** — ein schwaches rotes Licht um die
+   * eigene Figur, nur auf dem Gerät dessen, der es steuert (die Szene gehört
+   * jedem Gerät selbst). Ohne es stand der Monster-Spieler in einer dunklen
+   * Station und sah nichts; die Karte des Telefons hatte ihm gezeigt, was das
+   * Monster wahrnimmt.
+   */
+  private readonly monsterSight = new THREE.PointLight(0xff5a5a, 0, 8, 2);
   /** Hochgezählt beim Abräumen: Was danach noch aus dem Netz kommt, wird verworfen. */
   private commandRound = 0;
   /** Welche Seite der Zentrale nach dem Ablegen des Anzugs aufgeht (`leaveSuit`). */
@@ -573,7 +610,8 @@ export class HauntingWorld extends GridWorld {
   private crewPlacedAt = -Infinity;
   private lampPool: THREE.PointLight[] = [];
   private testLight: THREE.AmbientLight | null = null;
-  private commandLight: THREE.SpotLight | null = null;
+  /** Die Deckenleuchten der Einsatzzentrale (`buildDusk`). */
+  private readonly commandLights: THREE.PointLight[] = [];
   private readonly fixtureSlabs: THREE.Object3D[] = [];
   private readonly fixtureMaterial = new THREE.MeshBasicMaterial({ visible: false });
   private nextPhoneRender = 0;
@@ -896,7 +934,7 @@ export class HauntingWorld extends GridWorld {
   // --- die Welt ------------------------------------------------------------
 
   protected override layout(): GridPlan {
-    return this.stationPlan(new Set(this.state.shut), this.state.crew.options.test);
+    return this.stationPlan(new Set(this.state.shut));
   }
 
   /**
@@ -910,8 +948,8 @@ export class HauntingWorld extends GridWorld {
    * mit dem vollen Grundriss aus `housePlan` — sie hängt am Samen, nicht an
    * dem, was hier steht.
    */
-  private stationPlan(shut: ReadonlySet<string>, test: boolean): GridPlan {
-    const plan = housePlan(this.spec, new Set(shut), test);
+  private stationPlan(shut: ReadonlySet<string>): GridPlan {
+    const plan = housePlan(this.spec, new Set(shut));
     clearPlanWalls(plan);
     return plan;
   }
@@ -925,13 +963,12 @@ export class HauntingWorld extends GridWorld {
    * und ersetzen. Ein anderes Haus (Raumzahl, Test) räumt die alten weg.
    */
   private placeStationWalls(): void {
-    const test = this.state.crew.options.test;
-    const key = `${this.spec.seed}:${this.spec.rooms.length}:${test ? 1 : 0}`;
+    const key = `${this.spec.seed}:${this.spec.rooms.length}`;
     if (key === this.stationShelfFor || !this.context || !this.physics) return;
     for (const entry of this.stationShelf) if (!entry.removed) this.removeProp(entry, true);
     this.stationShelf = [];
     this.stationShelfFor = key;
-    for (const wall of planShelfWalls(housePlan(this.spec, new Set(), test)))
+    for (const wall of planShelfWalls(housePlan(this.spec)))
       void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw).then(
         (entry) => {
           if (!entry) return;
@@ -1099,8 +1136,6 @@ export class HauntingWorld extends GridWorld {
     // Ein offener Durchgang hat keinen Rahmen (`HouseDoor.passage`).
     const doors: Array<{ x: number; z: number; dir: Dir; span?: number }> = [
       ...leafDoors(this.spec),
-      LIFT_DOOR,
-      ...(this.state.crew.options.test ? [TRAINING_DOOR] : []),
     ];
     const doorEdgeKeys = new Set<string>();
     for (const door of doors) {
@@ -1182,6 +1217,12 @@ export class HauntingWorld extends GridWorld {
    * hat.
    */
   protected override useForward(ctx: WorldContext): boolean {
+    // **Als Monster ist `A` der eine Knopf des Monsters**: Klappe, Tür, Kabine
+    // (`monster/monsterHelm.interact`) — wie der Knopf am Telefon.
+    if (this.drivingMonster) {
+      this.netPort?.act('interact');
+      return true;
+    }
     const experience = this.experience;
     if (experience?.useSpecial()) return true;
     if (super.useForward(ctx)) return true;
@@ -1228,6 +1269,16 @@ export class HauntingWorld extends GridWorld {
     // Die Figur der Runde geht mit — wenn die Stelle auf der Karte begehbar ist.
     this.kernel?.place({ x: at.x, z: at.z });
     this.kernelHead = null;
+  }
+
+  /**
+   * **Was diese Welt von selbst hinstellt** (`FurnishedWorld.spots`): die
+   * Sitzecke der Einsatzzentrale — Sofa, Couchtisch, Sessel, Kakteen
+   * (`world3d/commandRoom.LOUNGE_SPOTS`). Auf Sofa und Sessel setzt man sich
+   * mit `A`, wie überall (`opens: 'sit'`).
+   */
+  protected override spots(): readonly ElementSpot[] {
+    return LOUNGE_SPOTS;
   }
 
   /** Portal-lab cubes and dominoes have no place in the station — nur ihre Wände aus dem Regal. */
@@ -1287,6 +1338,8 @@ export class HauntingWorld extends GridWorld {
     // Wer am Rechner sitzt, sitzt am Tisch; alle anderen laufen (`crewPlace`).
     ctx.avatars.placement = (peer) => this.crewPlace(peer);
     this.placeCommandRoom();
+    // Die Sitzecke steht als Möbel des Katalogs da (`spots`), wie in jeder Welt.
+    this.furnishSpots();
 
     // **Niemand kommt im Anzug an** — auch die Brille nicht. Den Anzug zieht
     // man am Ständer an (`suited`), die Plätze nimmt man an den Monitoren.
@@ -1415,7 +1468,10 @@ export class HauntingWorld extends GridWorld {
       }),
       nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
       seat: () => seatOf(this.currentClaims(), ctx.net.localId),
-      arriving: () => Math.max(0, MOVE_TIME - this.seated),
+      // **Kein Hinlaufen mehr** (`MOVE_TIME`): Man ist schon zum Rechner
+      // gelaufen, also steht die Karte sofort da. Gewünscht: _„Wenn ich mit
+      // einem interagiere, braucht es keinen countdown"_.
+      arriving: () => 0,
       sit: (station) => this.sit(station),
       door: (id) => this.panelSwitch('door', id),
       light: (id) => this.panelSwitch('light', id),
@@ -1449,6 +1505,12 @@ export class HauntingWorld extends GridWorld {
     this.ui?.dispose();
     this.ui = null;
     this.atDesk = false;
+    // Die geliehene Figur des Monsters geht mit der Welt zurück.
+    if (this.monsterSuited) ctx.dress?.(null);
+    this.monsterSuited = false;
+    this.drivingMonster = false;
+    this.monsterSight.intensity = 0;
+    this.monsterSight.removeFromParent();
     this.netPort = null;
     this.dropCommandRoom();
     this.experience?.dispose();
@@ -1474,6 +1536,7 @@ export class HauntingWorld extends GridWorld {
     this.bloodShape?.dispose();
     this.bloodShape = null;
     dispose(this.vanRig);
+    this.commandLights.length = 0;
     dispose(this.paperMask);
     dispose(this.paperDoors);
     this.doorMarks.clear();
@@ -1542,11 +1605,7 @@ export class HauntingWorld extends GridWorld {
       beacon.root.userData.level = 1;
       this.stage.add(beacon.root);
     }
-    this.buttonDoors = [
-      ...leafDoors(this.spec),
-      TEST_BAY_DOOR,
-      ...(this.state.crew.options.test ? [TRAINING_DOOR] : []),
-    ];
+    this.buttonDoors = [...leafDoors(this.spec)];
     this.doorButtons = new DoorButtons(this.stage, this.buttonDoors);
     if (this.context) this.mountExperience(this.context);
     if (this.ui) this.buildDoorMarks();
@@ -1590,15 +1649,12 @@ export class HauntingWorld extends GridWorld {
    * die Tür noch zu. Beides rechnet jeder Spieler bei sich.
    */
   private leafOpen(id: string): boolean {
-    return (
-      (id === 'test-bay' ? this.state.crew.options.test : this.openDoors.has(id)) &&
-      this.approachedDoors.has(id)
-    );
+    return this.openDoors.has(id) && this.approachedDoors.has(id);
   }
 
-  /** Ob eine Tür gesperrt ist — die Übungstür, solange kein Testdeck läuft. */
+  /** Ob eine Tür gesperrt ist. */
   private doorLocked(id: string): boolean {
-    return id === TEST_BAY_DOOR.id ? !this.state.crew.options.test : this.state.shut.includes(id);
+    return this.state.shut.includes(id);
   }
 
   private buildFixtureColliders(): void {
@@ -1727,105 +1783,12 @@ export class HauntingWorld extends GridWorld {
     });
   }
 
-  /** Die Einsatzzentrale vor der Haustür: der Ablagetisch und die Monitore. */
+  /**
+   * **Die Einsatzzentrale vor der Haustür** — hier nur noch das Licht. Tisch,
+   * Monitore und Hocker sind seit Oktober 2026 Spielelemente an eigenen
+   * Stellen (`placeCommandRoom`, `world3d/commandRoom.ts`).
+   */
   private buildVan(): void {
-    // Die Reihe an der Kantinenfront: Wer hier sitzt, schaut durch die
-    // Scheibe in den Raum, den die Drohne gleich abfliegt. Wo Tisch und
-    // Hocker stehen, rechnet `world3d/commandSeats.ts` — dieselben Zahlen,
-    // mit denen die Mitspieler der Zentrale auf die Hocker gesetzt werden.
-    const { x, z } = COMMAND_TABLE;
-    const metal = new THREE.MeshStandardMaterial({
-      color: 0x39414f,
-      roughness: 0.5,
-      metalness: 0.4,
-    });
-
-    const table = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 1.1), metal);
-    table.position.set(x, 0.85, z);
-    this.vanRig.add(table);
-    const built: THREE.Object3D[] = [table];
-    for (const side of [-1, 1]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.85, 0.1), metal);
-      leg.position.set(x + side * 1.05, 0.42, z);
-      this.vanRig.add(leg);
-      built.push(leg);
-    }
-    // Der Tisch aus dem Regal (`world3d/stationProps.ts`); der gebaute ist Ersatz.
-    const desk = new THREE.Group();
-    desk.position.set(x, 0, z);
-    this.vanRig.add(desk);
-    // Gestreckt, damit die Platte genau auf `COMMAND_DESK_TOP` liegt — darauf
-    // stehen die Monitore.
-    dressProp(
-      desk,
-      COMMAND_DESK,
-      { width: 2.4, height: COMMAND_DESK_TOP, depth: 1.1 },
-      built,
-      true,
-    );
-
-    // Ein Monitor je Gerät — Rot, Gelb, Blau und das Monster, in den Farben
-    // der Reiter am Telefon. Sie zeigen (noch) nicht, was die Geräte sehen —
-    // aber sie sagen, wer gerade an welchem sitzt, und das ist die Auskunft,
-    // für die der VR-Spieler den Weg zurückgeht. Der Fernseher hat keinen:
-    // kein Gerät, sondern das Fenster für die, die zusehen.
-    for (const { station, colour, x: stoolX, z: stoolZ } of COMMAND_STOOLS) {
-      // Der Monitor aus dem Regal auf dem Tisch, das farbige Bild vorn darauf.
-      const monitor = new THREE.Group();
-      monitor.name = `command-monitor-${station}`;
-      monitor.position.set(stoolX, COMMAND_DESK_TOP, z - 0.5);
-      this.vanRig.add(monitor);
-      this.commandMonitors.set(station, monitor);
-      dressProp(monitor, COMMAND_MONITOR, COMMAND_MONITOR_SIZE, []);
-      const screen = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.42, 0.24),
-        new THREE.MeshBasicMaterial({
-          color: colour,
-          toneMapped: false,
-          opacity: 0.55,
-          transparent: true,
-        }),
-      );
-      screen.position.set(stoolX, COMMAND_DESK_TOP + 0.235, z - 0.5 + 0.06);
-      this.vanRig.add(screen);
-
-      // **Und ein Platz davor, in derselben Farbe.** Vier Leute sitzen an
-      // diesem Tisch, und der VR-Spieler sah von ihnen lange nichts als vier
-      // Monitore — ein Hocker je Gerät macht aus der Ansage „ich hab den
-      // roten" eine Stelle im Raum, an der jemand sitzt. Und seit die Zentrale
-      // im Schiff nicht mehr am Spawn steht, sitzt dort wirklich jemand:
-      // `crewPlace` setzt den Besitzer des Geräts auf genau diesen Hocker.
-      // Sie stehen hinter dem Tisch, also südlich davon: Wer die Brille
-      // aufsetzt, steht zwischen ihnen und dem Haus und läuft nicht durch
-      // sie hindurch.
-      const stool = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.19, 0.19, 0.08, 14),
-        new THREE.MeshStandardMaterial({
-          color: colour,
-          roughness: 0.6,
-          emissive: colour,
-          emissiveIntensity: 0.25,
-        }),
-      );
-      stool.position.set(stoolX, 0.52, stoolZ);
-      this.vanRig.add(stool);
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.07), metal);
-      post.position.set(stoolX, 0.24, stoolZ);
-      this.vanRig.add(post);
-      // Der Hocker aus dem Regal, in der Farbe seines Geräts.
-      const seat = new THREE.Group();
-      seat.position.set(stoolX, 0, stoolZ);
-      this.vanRig.add(seat);
-      dressProp(
-        seat,
-        COMMAND_STOOL,
-        { width: 0.45, height: 0.56, depth: 0.45 },
-        [stool, post],
-        false,
-        colour,
-      );
-    }
-
     this.buildDusk();
   }
 
@@ -1849,15 +1812,22 @@ export class HauntingWorld extends GridWorld {
    * mehr übrig, weil dort die Reichweite zu Ende ist.
    */
   private buildDusk(): void {
-    const sun = new THREE.SpotLight(0xb7e2ef, 22, 5.5, 1.05, 0.5, 2);
-    // Aus Südwesten und von oben: Von genau oben glänzt nur der Boden, von der
-    // Seite bekommt auch die Hauswand etwas ab — und die ist das, worauf der
-    // Pilot in seinem ersten Bild schaut.
-    sun.position.set(-2.2, 2.7, (APRON_OUTER + 0.9) * TILE);
-    sun.target.position.set(-1.5, 0, (APRON_OUTER + 0.9) * TILE);
-    this.vanRig.add(sun);
-    this.vanRig.add(sun.target);
-    this.commandLight = sun;
+    // **Hell erleuchtet, überall** (Oktober 2026): _„In der Einsatzzentrale
+    // soll licht an sein, sodass der gesamte bereich beleuchtet ist."_ Statt
+    // des einen Abendscheinwerfers, der fünf Meter um die Mitte ausleuchtete,
+    // hängen vier Deckenleuchten in einer Reihe über die ganze Zentrale —
+    // vier und nicht mehr, weil jedes Licht in der Brille jedes Pixel kostet. Punkt-
+    // und keine gerichteten Lichter, aus demselben Grund wie oben: Ihre
+    // Reichweite (`distance`) endet kurz hinter der Fensterfront, und in der
+    // Kantine kommt davon nur ein Rest an. Ohne Schatten, wie die Lampen der
+    // Station.
+    const z = APRON.z + APRON.d * 0.45;
+    for (let x = APRON.x + 5; x < APRON.x + APRON.w; x += 10) {
+      const light = new THREE.PointLight(0xfff1dc, COMMAND_LAMP, COMMAND_LAMP_REACH, 2);
+      light.position.set(x * TILE, PLAN_WALL_H - 0.35, z * TILE);
+      this.vanRig.add(light);
+      this.commandLights.push(light);
+    }
   }
 
   /** Die Kameras, aus denen die Stationen ihr Bild bekommen. */
@@ -2203,6 +2173,7 @@ export class HauntingWorld extends GridWorld {
     this.syncTouchStick(ctx);
     this.settleSpawn(ctx, dt);
     this.showSuitStand(ctx);
+    this.refreshSigns(false, dt);
     if (this.mountedRole !== ctx.role) {
       this.context = ctx;
       this.setupRole(ctx);
@@ -2236,6 +2207,9 @@ export class HauntingWorld extends GridWorld {
     // dort einmal für beide Welten.
     if (this.isHost && !this.waitingHandover && ctx.role === 'vr') this.stepKernel(dt, ctx);
     else if (this.kernelLoco) this.kernelLoco.active = false;
+    this.driveMonster(ctx, dt);
+    // Wer am Rechner saß und mit `A` aufgestanden ist, macht auch die Seite zu.
+    if (this.atDesk && !this.sittingOn && !ctx.renderer.xr.isPresenting) this.standUp();
     this.applyDoors(dt);
     this.pressButtons(ctx);
     this.stationWalls?.setTopDown(ctx.topDown);
@@ -2683,15 +2657,11 @@ export class HauntingWorld extends GridWorld {
 
   /** Den Stand des Gastgebers übernehmen — samt Haus, wenn es ein anderes ist. */
   private adopt(next: HauntState): void {
-    if (
-      next.seed !== this.spec.seed ||
-      next.crew.options.rooms !== this.spec.rooms.length ||
-      next.crew.options.test !== this.state.crew.options.test
-    ) {
+    if (next.seed !== this.spec.seed || next.crew.options.rooms !== this.spec.rooms.length) {
       this.spec = generateHouse(next.seed, next.crew.options.rooms);
       this.state = next;
       this.automaticDoors.clear();
-      this.grid?.replaceWith(this.stationPlan(new Set(next.shut), next.crew.options.test));
+      this.grid?.replaceWith(this.stationPlan(new Set(next.shut)));
       this.builtDoors = '?';
       this.buildHouse();
       this.placeStationWalls();
@@ -2821,7 +2791,8 @@ export class HauntingWorld extends GridWorld {
       this.live.add(this.blob.root);
     }
     const body = this.blob.root;
-    body.visible = true;
+    // Wer das Monster selbst steuert, ist es: Seine eigene Figur steht dort.
+    body.visible = !this.drivingMonster;
     const step = Math.hypot(body.position.x - at.x, body.position.z - at.z);
     body.position.set(at.x, 0, at.z);
     if (this.kernel) body.rotation.y = this.kernel.round.monster.yaw;
@@ -3001,8 +2972,7 @@ export class HauntingWorld extends GridWorld {
   private manualDoor(id: string): void {
     if (!this.isHost || this.context?.role !== 'vr' || !this.stepping) return;
     const door = leafDoors(this.spec).find((d) => d.id === id);
-    const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
-    if (!door && !trainingDoor) return;
+    if (!door) return;
     // Gewollt gesperrt ist immer nur eine Tür, sie hält bis zum Ablauf, und
     // die nächste wartet — auch vor Ort, auch im Test (`rules/doorLocks.ts`).
     const out = toggleLock(this.locks, this.state.shut, id, this.state.time);
@@ -3146,9 +3116,7 @@ export class HauntingWorld extends GridWorld {
     const before = this.builtDoors;
     this.builtDoors = now;
     const shut = new Set(this.state.shut);
-    const doors = this.state.crew.options.test
-      ? [...this.spec.doors, TRAINING_DOOR]
-      : this.spec.doors;
+    const doors = this.spec.doors;
     // **Die abkühlenden Riegel hinaus an alle** (`rules/doorLocks.ts`). Die
     // Buchführung bleibt beim Gastgeber; diese eine Liste daraus muss über
     // die Leitung, weil sonst der Hacker vierzig Sekunden lang einen Schalter
@@ -3182,11 +3150,10 @@ export class HauntingWorld extends GridWorld {
       const at = doorEdge(door);
       const ghosts = door.id === glitch ? [...occupants, { x: at.x, z: at.z }] : occupants;
       // Beim Gastgeber fährt die Runde die Blätter (`FlatRound.stepDoors`,
-      // dieselbe Automatik); nur die Übungstür kennt sie nicht.
-      const open =
-        kernel && door.id !== TRAINING_DOOR.id
-          ? kernel.round.doorOpen(door.id)
-          : this.automaticDoors.step(door.id, at, shut.has(door.id), ghosts, dt);
+      // dieselbe Automatik).
+      const open = kernel
+        ? kernel.round.doorOpen(door.id)
+        : this.automaticDoors.step(door.id, at, shut.has(door.id), ghosts, dt);
       if (open) this.openDoors.add(door.id);
       else this.openDoors.delete(door.id);
       for (const edge of doorEdges(door)) this.setSlidingGridDoor(edge.x, edge.z, edge.dir, open);
@@ -3213,7 +3180,6 @@ export class HauntingWorld extends GridWorld {
     if (before === '?' || this.context?.role !== 'vr') return;
     const had = new Set(before ? before.split(',') : []);
     for (const id of shut) {
-      if (id === TRAINING_DOOR.id) continue;
       if (had.has(id)) continue;
       playSlam();
       return;
@@ -3264,11 +3230,7 @@ export class HauntingWorld extends GridWorld {
     const viewRoom = roomAt(this.spec, tileX, tileZ);
     const poweredDeck =
       onApron(tileX, tileZ) || (!!viewRoom && this.state.lit.includes(viewRoom.id));
-    const lighting = stationLighting(
-      this.state.crew,
-      !!trainingRoomAt(_head.x, _head.z),
-      poweredDeck,
-    );
+    const lighting = stationLighting(this.state.crew, poweredDeck);
     // In der Bot-Runde entscheidet die Schalttafel und nicht die Runde: Wer
     // zuschaut, will dieselbe Szene einmal hell und einmal im Alarmlicht
     // sehen (`botLighting.ts`).
@@ -3295,7 +3257,7 @@ export class HauntingWorld extends GridWorld {
         8,
         dt,
       );
-    if (this.commandLight) this.commandLight.intensity = lighting.command;
+    for (const light of this.commandLights) light.intensity = COMMAND_LAMP * lighting.command;
     // **Im Test und in der Bot-Runde ist alles hell**, und weil es nur zwei
     // Punktleuchten gibt, brennt dort nur die des eigenen Raums. In der Mission
     // ist das nicht mehr nötig: Dort brennen ohnehin höchstens zwei Lampen
@@ -3942,17 +3904,11 @@ export class HauntingWorld extends GridWorld {
     // _Bauen & Gestalten_ und die Weltänderungen in die Werkstatt — ein
     // eigener Eintrag „Baukasten" blieb dabei leer zurück.
     const build = super.menu();
-    if (this.context?.role !== 'vr')
-      return [
-        ...build,
-        entry(
-          'haunt:technician',
-          'Zum Techniker-Anzug',
-          'Bringt dich vor den Anzugständer der Einsatzzentrale · dort mit A anziehen',
-          () => this.goToSuit(),
-        ),
-        rescue,
-      ];
+    // **Die Runde stellt jeder ein, nicht nur der Techniker** (Oktober 2026):
+    // Der Rechner _Spiel-Einstellungen_ in der Zentrale öffnet genau diese
+    // Seite (`openSettings`), für jeden, der davorsteht. Ein Start von
+    // jemandem ohne Anzug geht an den Gastgeber (`startRound`).
+    const suited = this.context?.role === 'vr';
     // **Oben steht, in welcher Runde man ist** (`rules/roundFlow.ts`) — der
     // Befund des Besitzers war „wie, wann mit Test, wann echt". Darunter die
     // Starts; läuft eine echte Runde, steht statt „Übungsrunde" ihr Abbruch
@@ -3980,12 +3936,30 @@ export class HauntingWorld extends GridWorld {
           ? entry('haunt:stop', FLOW.stop, FLOW.stopHint, () => {
               if (this.context) this.stopRound(this.context);
             })
-          : entry(row.id, `${row.active ? '● ' : ''}${row.label}`, row.sub, () => {
-              if (row.starts && this.context) this.startRound(row.starts, this.context);
-              else if (row.blocked) this.context?.notify(row.blocked);
-            }),
+          : entry(
+              row.id,
+              `${row.active ? '● ' : ''}${row.label}`,
+              suited ? row.sub : INTENT_HINTS[row.intent],
+              () => {
+                if (!this.context) return;
+                if (row.starts) this.startRound(row.starts, this.context);
+                // Ohne Anzug: Der Start geht an den, der rechnet.
+                else if (!suited) this.startRound(row.intent, this.context);
+                else if (row.blocked) this.context.notify(row.blocked);
+              },
+            ),
       ),
-      ...(!immersive
+      ...(!suited
+        ? [
+            entry(
+              'haunt:technician',
+              'Zum Techniker-Anzug',
+              'Bringt dich vor den Anzugständer der Einsatzzentrale · dort mit A anziehen',
+              () => this.goToSuit(),
+            ),
+          ]
+        : []),
+      ...(suited && !immersive
         ? [
             entry(
               'haunt:roles',
@@ -4234,6 +4208,14 @@ export class HauntingWorld extends GridWorld {
     if (this.wearsSuit(peer)) {
       return this.state.technician && peer.role !== 'vr' ? HIDDEN_POSE : null;
     }
+    // **Wer das Monster steuert, ist das Monster** — gezeichnet wird es als
+    // Kreatur der Runde (`applyBlob`), die eigene Figur verschwindet so lange.
+    if (
+      this.state.phase === 'running' &&
+      this.state.monsterOn &&
+      seatOf(this.currentClaims(), peer.id) === 'monster'
+    )
+      return HIDDEN_POSE;
     const now = clock();
     if (now - this.crewPlacedAt > CREW_PLACE_RATE) {
       this.crewPlacedAt = now;
@@ -4244,7 +4226,8 @@ export class HauntingWorld extends GridWorld {
       const crew = [...(this.context?.net.peers.values() ?? [])]
         .filter((one) => one.id !== me && one.world === 'haunting' && !this.wearsSuit(one))
         .map((one) => ({ id: one.id, station: seatOf(claims, one.id) }))
-        .filter((one) => one.station !== null);
+        // Wer den Monster-Anzug trägt, sitzt nirgends — er läuft.
+        .filter((one) => one.station !== null && one.station !== 'monster');
       this.crewPlaces = crewPlacement(crew);
     }
     return this.crewPlaces.get(peer.id) ?? null;
@@ -4318,6 +4301,7 @@ export class HauntingWorld extends GridWorld {
    * Farbplatz hält, bedient seine Karte, und wer zuschaut, wählt einen Platz.
    */
   override hintZone(): HintZone | null {
+    if (this.drivingMonster) return { kind: 'haunting', role: 'monster' };
     if (!this.suited && !this.atDesk) return { kind: 'haunting', role: 'crew' };
     const me = this.myPlace();
     if (me === 'technician' || me === 'monster') return { kind: 'haunting', role: me };
@@ -4486,9 +4470,22 @@ export class HauntingWorld extends GridWorld {
       this.say(DESK_IN_VR);
       return;
     }
+    if (this.monsterSuited) {
+      this.say('Im Monster-Anzug bedienst du keinen Platz der Zentrale — erst am Ständer ablegen.');
+      return;
+    }
     this.atDesk = true;
     this.ui ??= this.stationUi(ctx);
     this.ui.open(me);
+    // **Wer am Rechner sitzt, sitzt** — auf dem Bürostuhl davor. Gewünscht:
+    // _„Und wenn ein spieler damit intergaiert und das menü auf hat, sitzt der
+    // spieler."_ Die anderen sehen ihn dort (`crewPlace`); hier sinkt die
+    // eigene Figur auf den Stuhl (`PortalWorld.sitOn`).
+    const chair = me === 'setup' ? null : this.chairAnchors.get(me as CommandDesk['station']);
+    if (chair && this.sittingOn !== chair) {
+      this.standFromSeat(ctx);
+      this.sitOn(ctx, chair);
+    }
     ctx.menu.toggle(false);
     ctx.refreshWorldMenu();
   }
@@ -4505,6 +4502,8 @@ export class HauntingWorld extends GridWorld {
     this.ui?.dispose();
     this.ui = null;
     this.paperTint(false);
+    if (ctx && this.sittingOn && [...this.chairAnchors.values()].includes(this.sittingOn))
+      this.standFromSeat(ctx);
     if (ctx && this.wanted) {
       this.claims.delete(ctx.net.localId);
       ctx.net.emit(HAUNT_CHANNEL, releaseMessage());
@@ -4532,9 +4531,143 @@ export class HauntingWorld extends GridWorld {
       this.say(name ? `Den Anzug trägt schon ${name}.` : SHIP_OCCUPIED);
       return;
     }
+    if (this.monsterSuited) {
+      this.say('Erst den Monster-Anzug ablegen — einer trägt nur einen Anzug.');
+      return;
+    }
     if (this.atDesk) this.standUp();
     this.suited = true;
     this.say(SUIT_ON);
+  }
+
+  // --- der Monster-Anzug ------------------------------------------------------
+
+  /**
+   * **Wer den Monster-Anzug trägt** — ich, oder wer den Platz `monster` hält
+   * (`stations.ownerOf`). `null`, wenn ihn niemand trägt: Dann rechnet die
+   * Routine, und auf dem Schild steht „Bot".
+   */
+  private monsterName(): string | null {
+    const ctx = this.context;
+    if (!ctx) return null;
+    if (this.monsterSuited) return ctx.net.name;
+    const owner = ownerOf(this.currentClaims(), 'monster');
+    return owner ? (ctx.net.peers.get(owner)?.name ?? 'jemand') : null;
+  }
+
+  /**
+   * **`A` am Monster-Anzug**: anziehen oder wieder ausziehen. Wer ihn trägt,
+   * hält den Platz `monster` (`sit`), die Tafel sagt „Monster: Mensch", und
+   * die Figur wird zum Roboter des Monsters. Läuft die Runde, steht man an der
+   * Stelle des Monsters und steuert es selbst (`driveMonster`); vorher läuft
+   * man wie jeder durch die Zentrale. Gewünscht: _„Wenn jemand das monster als
+   * anzug nimmt, wird es zur start position teleportiert, wenn die runde
+   * beginnt."_
+   */
+  private toggleMonsterSuit(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.monsterSuited) {
+      this.leaveMonsterSuit(ctx);
+      this.say('Monster-Anzug abgelegt — die Routine übernimmt wieder.');
+      return;
+    }
+    if (this.suited) {
+      this.say('Erst den Techniker-Anzug ablegen — einer trägt nur einen Anzug.');
+      return;
+    }
+    if (ctx.renderer.xr.isPresenting) {
+      this.say(
+        'Das Monster spielt man am Handy oder Bildschirm — in der Brille trägst du den Techniker-Anzug.',
+      );
+      return;
+    }
+    const owner = ownerOf(this.currentClaims(), 'monster');
+    if (owner && owner !== ctx.net.localId) {
+      this.say(`Den Monster-Anzug trägt schon ${ctx.net.peers.get(owner)?.name ?? 'jemand'}.`);
+      return;
+    }
+    if (this.atDesk) this.standUp();
+    this.monsterSuited = true;
+    this.sit('monster');
+    this.applySetup(withWho(this.setup, 'monster', 'human'));
+    ctx.dress?.(MONSTER_FIGURE);
+    this.say(
+      'Monster-Anzug an — wenn die echte Runde beginnt, stehst du am Start des Monsters. A: Klappe, Tür, Kabine.',
+    );
+  }
+
+  /** Den Monster-Anzug ablegen: Platz frei, die Routine übernimmt, die eigene Figur zurück. */
+  private leaveMonsterSuit(ctx: WorldContext): void {
+    if (!this.monsterSuited) return;
+    if (this.drivingMonster) this.stopDriving(ctx);
+    this.monsterSuited = false;
+    if (this.wanted === 'monster') {
+      this.claims.delete(ctx.net.localId);
+      ctx.net.emit(HAUNT_CHANNEL, releaseMessage());
+      this.wanted = null;
+    }
+    this.applySetup(withWho(this.setup, 'monster', 'bot'));
+    ctx.dress?.(null);
+  }
+
+  /**
+   * **Das Monster selbst steuern** — jedes Bild, solange man den Anzug trägt
+   * und eine Runde mit Monster läuft. Der Stock geht als Steuer an den, der
+   * rechnet (`NetMonsterPort`, zehnmal in der Sekunde über `tickNet`), und die
+   * eigene Figur steht, wo das Monster steht: beim ersten Bild versetzt —
+   * das ist der Startplatz des Monsters —, danach weich hinterher, weil der
+   * Stand nur viermal in der Sekunde kommt. Ist die Runde vorbei, geht es
+   * zurück in die Zentrale.
+   */
+  private driveMonster(ctx: WorldContext, dt: number): void {
+    const monster = this.kernel?.round.monster ?? this.state.monster;
+    const live =
+      this.monsterSuited && this.state.phase === 'running' && this.state.monsterOn && !!monster;
+    if (!live) {
+      if (this.drivingMonster) this.stopDriving(ctx);
+      return;
+    }
+    const loco = this.kernelLoco;
+    // Die Physik trägt die Figur nicht — sie hängt am Monster.
+    if (loco) loco.active = true;
+    ctx.rig.getHeadPosition(this.monsterSight.position);
+    this.monsterSight.position.y = 2.2;
+    if (!this.drivingMonster) {
+      this.drivingMonster = true;
+      this.monsterSight.intensity = MONSTER_SIGHT;
+      if (!this.monsterSight.parent) this.root.add(this.monsterSight);
+      this.movePlayerTo(ctx, new THREE.Vector3(monster.x, 0, monster.z));
+      this.say('Du bist das Monster — such den Techniker.');
+      return;
+    }
+    // Das Steuer greifen, sobald der Platz bestätigt ist (`NetMonsterPort.claim`).
+    if (this.netPort && !this.netPort.claimed()) this.netPort.claim();
+    const pace = PLAYER_WALK_SPEED;
+    const wish = loco && !ctx.rig.paused ? loco.wish : _zero;
+    const wished = Math.hypot(wish.x, wish.z);
+    const magnitude = Math.min(1, wished / pace);
+    this.netPort?.input({
+      x: wished > 1e-6 ? (wish.x / wished) * magnitude : 0,
+      z: wished > 1e-6 ? (wish.z / wished) * magnitude : 0,
+      sprint: ctx.rig.sprinting,
+    });
+    ctx.rig.getHeadPosition(_head);
+    const follow = Math.min(1, dt * 10);
+    ctx.rig.position.x += (monster.x - _head.x) * follow;
+    ctx.rig.position.z += (monster.z - _head.z) * follow;
+    ctx.rig.updateMatrixWorld(true);
+    loco?.resync(ctx.rig);
+  }
+
+  /** Nicht mehr das Monster — zurück auf den eigenen Startplatz in der Zentrale. */
+  private stopDriving(ctx: WorldContext): void {
+    this.drivingMonster = false;
+    this.monsterSight.intensity = 0;
+    this.netPort?.release();
+    if (this.kernelLoco) this.kernelLoco.active = false;
+    const slot = spawnSlot(this.spawnRank);
+    this.movePlayerTo(ctx, new THREE.Vector3(slot.x, 0, slot.z));
   }
 
   /**
@@ -4615,53 +4748,84 @@ export class HauntingWorld extends GridWorld {
         })
         .catch((error: unknown) => console.warn(`Zentrale: ${spot.element} fehlt`, error));
 
-    // **Das Schild an der Wand** — „Verbindung", über dem Rechner.
-    const sign = label('VERBINDUNG\nRaum-Code · Name · Mitspieler', 1.7, 0.46, SHIP.cyan);
-    sign.position.set((LINK_SPOT.x + LINK_TILES / 2) * TILE, 1.85, APRON.z * TILE + 0.25);
-    sign.name = 'command-link-sign';
-    this.vanRig.add(sign);
+    // **Ein Bürostuhl vor jedem Rechner**, durch den man hindurchgeht — er
+    // sperrt nichts (`commandRoom.chairSpot`). `A` an ihm tut dasselbe wie am
+    // Rechner, und wer dort Platz nimmt, sitzt auf ihm (`openConsole`).
+    const loose: ElementHost = {
+      ...host,
+      blockSolid: () => ({ cells: [], mesh: new THREE.Mesh() }),
+      placeModel: () => Promise.resolve(null),
+    };
+    for (const desk of COMMAND_DESKS)
+      void placeElement(loose, chairSpot(desk))
+        .then((placed) => {
+          if (!host.alive()) return;
+          this.commandPlaced.push(placed);
+          const anchor = this.openerAnchor(placed);
+          this.chairAnchors.set(desk.station, anchor);
+          this.bindDesk(anchor, desk.station);
+        })
+        .catch((error: unknown) => console.warn('Zentrale: Bürostuhl fehlt', error));
 
-    // **Die vier Monitore auf dem Tisch** — `A` setzt einen auf diesen Platz.
-    // Angemeldet an der Vorderkante des Tischs, vor dem Hocker, und nicht am
-    // Monitor selbst: Der steht hinten auf der Platte, fast zwei Meter vom
-    // Hocker, und so weit reicht `A` nicht. Leuchten tut trotzdem der Monitor.
-    for (const [station, monitor] of this.commandMonitors) {
-      const name = SEAT_LABELS[station];
-      const edge = new THREE.Group();
-      edge.name = `command-seat-${station}`;
-      edge.position.set(monitor.position.x, 0.9, COMMAND_TABLE.z + 0.55);
-      this.vanRig.add(edge);
-      this.bindCommand(
-        edge,
-        {
-          use: () => {
-            this.openConsole(station);
-            return true;
-          },
-          usePrompt: () => `Platz nehmen: ${name}`,
-          highlight: () => monitor,
-          interaction: { kind: 'press' },
-        },
-        { radius: 0.28, half: 0.6 },
-      );
-    }
+    // **Die Schilder** — an der Nordwand über Rechnern und Anzügen, über jedem
+    // Schreibtisch frei hängend. Was darauf steht, rechnet `commandSignTexts`
+    // und `refreshSigns` malt es neu, wenn es sich ändert: Wer den Anzug
+    // trägt, steht mit Namen darauf, sonst „Bot".
+    const wall = APRON.z * TILE + 0.25;
+    const over = (spot: ElementSpot, tiles = 1): number => (spot.x + tiles / 2) * TILE;
+    this.addSign('link', over(LINK_SPOT, TERMINAL_TILES), 1.85, wall, SHIP.cyan);
+    this.addSign('settings', over(SETTINGS_SPOT, TERMINAL_TILES), 1.85, wall, SHIP.amber);
+    this.addSign('technician', over(SUIT_SPOT), 2.25, wall, SHIP.cyan);
+    this.addSign('monster', over(MONSTER_SPOT), 2.25, wall, MONSTER_COLOUR);
+    for (const desk of COMMAND_DESKS)
+      this.addSign(`desk-${desk.station}`, desk.x, 1.95, desk.tileZ * TILE + 0.05, desk.colour);
+    this.refreshSigns(true);
   }
 
-  /** `A` an einem hingestellten Spielelement der Zentrale. */
-  private bindCommandSpot(placed: PlacedElement): void {
-    // Wie die Garderobe (`elements/stationLayer.addOpener`): angemeldet in der
-    // Mitte der Grundfläche, alle Teile darunter, damit das ganze Möbel
-    // leuchtet, sobald man darauf schaut.
+  /**
+   * **Der Anker, an dem `A` hängt** — wie bei der Garderobe
+   * (`elements/stationLayer.addOpener`): in der Mitte der Grundfläche, alle
+   * Teile darunter, damit das ganze Möbel leuchtet, sobald man darauf schaut.
+   * Sein +z zeigt, wohin das Möbel schaut.
+   */
+  private openerAnchor(placed: PlacedElement): THREE.Group {
     const [, depth] = placed.element.tiles;
     const anchor = new THREE.Group();
     anchor.name = `command:${placed.spot.id}`;
     anchor.position.set(0, 0, -depth / 2);
     placed.anchor.add(anchor);
     for (const part of placed.parts) if (part) anchor.attach(part);
+    return anchor;
+  }
+
+  /** `A` an Rechner oder Stuhl eines Farbplatzes: dort Platz nehmen. */
+  private bindDesk(anchor: THREE.Object3D, station: CommandDesk['station']): void {
+    const name = SEAT_LABELS[station];
+    this.bindCommand(
+      anchor,
+      {
+        use: () => {
+          this.openConsole(station);
+          return true;
+        },
+        usePrompt: () => `Platz nehmen: ${name}`,
+        interaction: { kind: 'press' },
+      },
+      { radius: 0.45, half: 1.2 },
+    );
+  }
+
+  /** `A` an einem hingestellten Spielelement der Zentrale. */
+  private bindCommandSpot(placed: PlacedElement): void {
+    const anchor = this.openerAnchor(placed);
+    const id = placed.spot.id;
     // Die ersten drei Teile sind der Ständer selbst (`SPACE_SUIT_STAND`).
-    if (placed.spot.id === SUIT_SPOT.id)
-      this.suitParts = placed.parts.slice(3).filter((part): part is THREE.Object3D => !!part);
-    if (placed.spot.id === SUIT_SPOT.id)
+    const hung = (): THREE.Object3D[] =>
+      placed.parts.slice(3).filter((part): part is THREE.Object3D => !!part);
+    const desk = COMMAND_DESKS.find((one) => deskSpot(one).id === id);
+    if (desk) this.bindDesk(anchor, desk.station);
+    else if (id === SUIT_SPOT.id) {
+      this.suitParts = hung();
       this.bindCommand(
         anchor,
         {
@@ -4674,7 +4838,22 @@ export class HauntingWorld extends GridWorld {
         },
         { radius: 0.5, half: 1.8 },
       );
-    else if (placed.spot.id === LINK_SPOT.id)
+    } else if (id === MONSTER_SPOT.id) {
+      this.monsterParts = hung();
+      this.bindCommand(
+        anchor,
+        {
+          use: () => {
+            this.toggleMonsterSuit();
+            return true;
+          },
+          usePrompt: () =>
+            this.monsterSuited ? 'Monster-Anzug ausziehen' : 'Monster-Anzug anziehen',
+          interaction: { kind: 'press' },
+        },
+        { radius: 0.5, half: 1.8 },
+      );
+    } else if (id === LINK_SPOT.id)
       this.bindCommand(
         anchor,
         {
@@ -4687,6 +4866,93 @@ export class HauntingWorld extends GridWorld {
         },
         { radius: 0.8, half: 1.4 },
       );
+    else if (id === SETTINGS_SPOT.id)
+      this.bindCommand(
+        anchor,
+        {
+          use: () => {
+            this.openSettings();
+            return true;
+          },
+          usePrompt: () => 'Spiel-Einstellungen: Runde, Plätze, Station, Gegner',
+          interaction: { kind: 'press' },
+        },
+        { radius: 0.8, half: 1.4 },
+      );
+  }
+
+  /**
+   * **Ein Schild der Zentrale** — gemalt von `refreshSigns`, sobald es etwas
+   * zu sagen hat. Nach Süden, also lesbar von jedem, der davorsteht.
+   */
+  private addSign(id: string, x: number, y: number, z: number, colour: number): void {
+    this.commandSigns.push({ id, x, y, z, colour, mesh: null, text: '' });
+  }
+
+  /** Was auf den Schildern steht — je Schild zwei Zeilen. */
+  private commandSignTexts(): Map<string, string> {
+    const ctx = this.context;
+    const out = new Map<string, string>();
+    out.set('link', `VERBINDUNG\n${ctx?.net.connected ? `Raum ${ctx.net.room}` : 'Offline'}`);
+    out.set('settings', 'SPIEL-EINSTELLUNGEN\nRunde · Plätze · Station');
+    out.set('technician', `TECHNIKER\n${ctx ? (this.suitName(ctx) ?? 'Bot') : 'Bot'}`);
+    out.set('monster', `MONSTER\n${this.monsterName() ?? 'Bot'}`);
+    const claims = this.currentClaims();
+    const owners = seating(claims);
+    for (const desk of COMMAND_DESKS) {
+      const owner = owners.get(desk.station);
+      const who = !owner
+        ? 'frei'
+        : owner === ctx?.net.localId
+          ? (ctx?.net.name ?? 'du')
+          : (ctx?.net.peers.get(owner)?.name ?? 'jemand');
+      const role = roleName(seatAbilities(this.setup, desk.station)) || 'keine Fähigkeit';
+      out.set(
+        `desk-${desk.station}`,
+        `${SEAT_LABELS[desk.station].toUpperCase()} · ${role}\n${who}`,
+      );
+    }
+    return out;
+  }
+
+  /** Die Schilder neu malen, deren Text sich geändert hat — zweimal in der Sekunde. */
+  private refreshSigns(now = false, dt = 0): void {
+    this.signClock -= dt;
+    if (!now && this.signClock > 0) return;
+    this.signClock = 0.5;
+    const texts = this.commandSignTexts();
+    for (const sign of this.commandSigns) {
+      const text = texts.get(sign.id) ?? '';
+      if (text === sign.text && sign.mesh) continue;
+      sign.text = text;
+      if (sign.mesh) {
+        sign.mesh.removeFromParent();
+        sign.mesh.geometry.dispose();
+        sign.mesh.material.map?.dispose();
+        sign.mesh.material.dispose();
+      }
+      const mesh = label(text, 1.7, 0.46, sign.colour);
+      mesh.position.set(sign.x, sign.y, sign.z);
+      mesh.name = `command-sign-${sign.id}`;
+      this.vanRig.add(mesh);
+      sign.mesh = mesh;
+    }
+  }
+
+  /**
+   * **Die Seite der Runde im Menü** — der Rechner _Spiel-Einstellungen_.
+   * Gewünscht: _„ich denke es wäre leichter bei den einstellungen, wenn es
+   * einen Computer gibt (mit einem Schild "Spiel-Einstellungen") und wenn man
+   * mit dem PC interagiert, kommt ein Menü in den man alles einstellen
+   * kann."_ Das ist die Seite dieser Welt im Menü (`welt`, `menu()`): Starts,
+   * Plätze & Fähigkeiten, Einstellungen der Runde.
+   */
+  private openSettings(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.atDesk) this.standUp();
+    ctx.refreshWorldMenu();
+    ctx.openMenu?.('welt');
   }
 
   private bindCommand(
@@ -4750,12 +5016,17 @@ export class HauntingWorld extends GridWorld {
     this.commandSlabs.length = 0;
     this.commandPlaced.length = 0;
     this.suitParts = [];
+    this.monsterParts = [];
+    this.chairAnchors.clear();
+    this.commandSigns.length = 0;
   }
 
   /** Der Anzug hängt am Ständer — oder nicht, weil ihn jemand trägt. */
   private showSuitStand(ctx: WorldContext): void {
     const worn = this.suited || this.roomOccupied(ctx);
     for (const part of this.suitParts) part.visible = !worn;
+    const monster = this.monsterSuited || ownerOf(this.currentClaims(), 'monster') !== '';
+    for (const part of this.monsterParts) part.visible = !monster;
   }
 
   /**
@@ -5112,7 +5383,7 @@ export class HauntingWorld extends GridWorld {
     // Frische Bücher, frischer Kern (`ensureKernel`).
     this.pendingBooks = null;
     this.kernel = null;
-    this.grid?.replaceWith(this.stationPlan(new Set(), options.test));
+    this.grid?.replaceWith(this.stationPlan(new Set()));
     this.builtDoors = '?';
     this.blob?.dispose();
     this.blob = null;
@@ -5256,9 +5527,6 @@ function describeSeat(setup: RoundSetup, seat: SeatId): string {
 /** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
 export const STATION_FLOOR = 'prototype-bits/Floor.glb';
 
-/** Die Aufzugstür (`plan.LIFT_DOOR`) — für die Knöpfe davor. */
-const TEST_BAY_DOOR: ButtonDoor = LIFT_DOOR;
-
 /** So lange läuft eine Runde, bevor ihre Shader vorab übersetzt werden (`warmShaders`), in Sekunden. */
 const WARM_AFTER = 1;
 /** Wie viele Punktleuchten die Deckenlampen der Station unter sich teilen. */
@@ -5285,15 +5553,6 @@ function edgeOfKey(key: string): { x: number; z: number; alongX: boolean } {
     ? { x: (Number(a) + 0.5) * TILE, z: Number(b) * TILE, alongX }
     : { x: Number(a) * TILE, z: (Number(b) + 0.5) * TILE, alongX };
 }
-
-/** Der Tisch und die Hocker der Einsatzzentrale aus dem Regal. */
-const COMMAND_DESK = 'furniture-bits/desk_large.glb';
-const COMMAND_STOOL = 'furniture-bits/chair_stool.glb';
-const COMMAND_MONITOR = 'furniture-bits/monitor.glb';
-/** Der Monitor auf dem Tisch: so breit wie das farbige Bild davor und etwas mehr. */
-const COMMAND_MONITOR_SIZE = { width: 0.5, height: 0.4, depth: 0.2 };
-/** Die Höhe der Tischplatte — der Tisch wird darauf eingepasst, die Monitore stehen darauf. */
-const COMMAND_DESK_TOP = 0.9;
 
 const _corner = new THREE.Vector4();
 

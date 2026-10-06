@@ -2,7 +2,6 @@ import type { GridPlan } from '../grid/gridPlan';
 import type { NavGraph } from '../nav/navGraph';
 import { doorEdges, leafDoors, type HouseSpec } from './house';
 import { housePlan } from './plan';
-import { TRAINING_DOOR } from './trainingLayout';
 
 /**
  * Navigation plans through functional automatic doors before their sensor opens
@@ -12,35 +11,31 @@ import { TRAINING_DOOR } from './trainingLayout';
 export class StationTravelPlan {
   private spec: HouseSpec | null = null;
   private plan: GridPlan | null = null;
-  private testing = false;
   private locks = '';
 
   clear(): void {
     this.spec = null;
     this.plan = null;
-    this.testing = false;
     this.locks = '';
   }
 
   graph(
     spec: HouseSpec,
     locked: readonly string[],
-    test: boolean,
     occupiedOpen: readonly string[] = [],
   ): NavGraph {
     // An occupied threshold holds its leaf open even after a logical lock.
     // Keep that escape edge until the proximity system can physically close it.
     locked = locked.filter((id) => !occupiedOpen.includes(id));
     const stamp = locked.join('|');
-    if (this.spec !== spec || this.testing !== test || !this.plan) {
+    if (this.spec !== spec || !this.plan) {
       this.spec = spec;
-      this.testing = test;
       this.locks = stamp;
-      this.plan = housePlan(spec, new Set(locked), test);
+      this.plan = housePlan(spec, new Set(locked));
     } else if (this.locks !== stamp) {
       const shut = new Set(locked);
       // Offene Durchgänge haben kein Blatt und bleiben, wie `housePlan` sie legt.
-      for (const door of test ? [...leafDoors(spec), TRAINING_DOOR] : leafDoors(spec))
+      for (const door of leafDoors(spec))
         for (const edge of doorEdges(door))
           this.plan.door(edge.x, edge.z, edge.dir, 0, !shut.has(door.id));
       this.locks = stamp;

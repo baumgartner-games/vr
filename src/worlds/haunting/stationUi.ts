@@ -561,6 +561,31 @@ export class StationUi {
       node.setAttribute('aria-label', title);
       tools.append(node);
     };
+    // **Am Rechner der Zentrale: ein Kopf wie das Menü** (`ui/pageMenu.css`) —
+    // links, welcher Platz das ist, rechts das Zahnrad und ✕. Gewünscht:
+    // _„Wenn ich einen Computer anwähle, soll das Menü so gezeigt werden wie
+    // bei dem Menü (mit Katalog) oben Rechts ein Kreuz zum schließen. Dann
+    // links Welche rolle/platz das ist."_ Reiter gibt es hier keine: Den
+    // Platz wechselt man, indem man an einen anderen Rechner geht.
+    if (this.host.leave) {
+      this.bar.classList.add('haunt__bar--desk');
+      const head = el('div', 'haunt__seat');
+      const seat = this.tab === 'setup' ? null : this.tab;
+      const name = seat ? `Platz: ${MY_ROLE_LABELS[seat]}` : 'Spiel-Einstellungen';
+      head.append(el('strong', 'haunt__seat-name', name));
+      const what = seat && isColour(seat) ? this.roleLabel || 'keine Fähigkeit' : '';
+      if (what) head.append(el('span', 'haunt__seat-role', what));
+      if (seat) {
+        tool('options', '⚙', 'Optionen: Runde starten oder stoppen');
+        tools.firstElementChild?.setAttribute('aria-pressed', this.menuOpen ? 'true' : 'false');
+      }
+      const close = el('button', 'haunt__close', '✕');
+      close.dataset['standUp'] = '';
+      close.setAttribute('aria-label', 'Schließen und aufstehen');
+      tools.append(close);
+      this.bar.replaceChildren(head, tools);
+      return;
+    }
     if (this.tab === 'setup') {
       const title = el('span', 'haunt__title', 'Aufbau · Rollen');
       // Menü, Verbindung und VR hängen an der Seite (`main.ts`); die Kopfzeile
@@ -621,7 +646,8 @@ export class StationUi {
     // einer fehlt, ruft es dem Techniker zu, ohne erst „2/3" lesen zu müssen.
     const round = this.host.round?.() ?? null;
     const phase = round?.phase ?? state.phase;
-    const live = phase === 'running';
+    // Die Übung hat keine Sauerstoff-Uhr — auch nicht als „laufende" Übungsrunde.
+    const live = phase === 'running' && !state.crew.options.test;
     const suit = round ? round.suit : state.crew.hp;
     const suitMax = round ? round.suitMax : 3;
     const lives = el('span', 'haunt__pips haunt__pips--suit');
@@ -810,7 +836,7 @@ export class StationUi {
         note(
           'warn',
           `${MY_ROLE_LABELS[this.me]}: keine Fähigkeit`,
-          'Dieser Platz hält keine Karte. Im Aufbau Späher, Schalttafel oder Archiv zuweisen — Zahnrad, „Zurück zu den Rollen".',
+          'Dieser Platz hält keine Karte. Am Rechner „Spiel-Einstellungen" unter „Plätze & Fähigkeiten" Späher, Schalttafel oder Archiv zuweisen.',
         ),
       ];
     }

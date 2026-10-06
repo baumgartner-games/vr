@@ -182,6 +182,12 @@ export interface WorldContext {
    */
   openNetwork?(): void;
   /**
+   * **Eine Seite des Menüs aufmachen**, nach ihrer Id (`GameMenu.openSubmenu`)
+   * — in _Haunting_ öffnet der Rechner _Spiel-Einstellungen_ so die Seite der
+   * Welt (`welt`). Optional, weil nur die App ein Menü hat.
+   */
+  openMenu?(id: string): void;
+  /**
    * **_Halten einstellen_ aufmachen** (`ui/HoldMenu.ts`) — die Seite hinter
    * dem Knopf auf der Detailseite eines Möbels: das Ding in der Luft, der
    * Halterzylinder darin, die Hand daran. Nur am Schirm und nur in der App

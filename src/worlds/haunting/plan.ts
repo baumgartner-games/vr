@@ -4,7 +4,6 @@ import { DIR_E, DIR_N, DIR_S, DIR_W, dirX, dirZ, tileKey, type Dir } from '../na
 import {
   APRON,
   APRON_OUTER,
-  COMMAND_LIFT,
   cutAt,
   cutOf,
   cutSides,
@@ -12,7 +11,6 @@ import {
   roomAt,
   spacesOf,
   STATION_DOOR_W,
-  STATION_DOOR_SPAN,
   doorEdges,
   isPassage,
   tilesOf,
@@ -22,7 +20,6 @@ import {
 import type { PlanSolid } from '../grid/solids';
 import { likeness, mergeFloors } from '../grid/mergeSolids';
 import { TILE } from '../nav/navTile';
-import { TRAINING_DOOR, TRAINING_ROOMS } from './trainingLayout';
 
 /** Open station leaves retract into their frame instead of swinging into a route. */
 class StationPlan extends GridPlan {
@@ -141,11 +138,7 @@ function mergeWalls(walls: readonly PlanSolid[]): PlanSolid[] {
  * unter diesen Modellen würden Türen versperren und Flächen doppelt zeichnen.
  * Dieser Plan beschreibt deshalb nur die begehbare Hülle.
  */
-export function housePlan(
-  spec: HouseSpec,
-  shut: ReadonlySet<string> = new Set(),
-  test = false,
-): GridPlan {
+export function housePlan(spec: HouseSpec, shut: ReadonlySet<string> = new Set()): GridPlan {
   const plan = new StationPlan([0]);
   if (spec.passages) {
     for (const room of spacesOf(spec)) stationSpace(plan, room);
@@ -153,28 +146,11 @@ export function housePlan(
   // Die geschlossene Einsatzzentrale bleibt Teil des Missionsgraphen: Der
   // Techniker geht durch dieselbe Schleuse hinaus und wieder herein.
   plan.room(APRON, { walls: true, ceiling: PLAN_WALL_H });
-  // Der Testdeck-Aufzug liegt in der Zentrale; die Lehrzimmer selbst liegen
-  // mit eigenen Böden, Wänden und Decken weit außerhalb der Missionskarte.
   // Die Hüllenfenster sitzen in der äußeren Reihe: dort ist Weltraum, in der
-  // inneren steht die Fensterfront zur Kantine.
-  for (let x = APRON.x + 1; x < COMMAND_LIFT.x; x++) plan.window(x, APRON_OUTER, DIR_N);
-  // Ein Aufzugsschacht von zwei mal zwei Kacheln, keine Trennwand quer durch
-  // die Zentrale: Wand nach Süden und Osten, die Tür nach Westen in der
-  // äußeren Reihe, eine Wand nach Westen in der inneren.
-  for (let dx = 0; dx < COMMAND_LIFT.w; dx++)
-    plan.wall(COMMAND_LIFT.x + dx, COMMAND_LIFT.z + COMMAND_LIFT.d - 1, DIR_S);
-  for (let dz = 0; dz < COMMAND_LIFT.d; dz++)
-    plan.wall(COMMAND_LIFT.x + COMMAND_LIFT.w - 1, COMMAND_LIFT.z + dz, DIR_E);
-  // Die Aufzugstür ist wie jede Tür der Station zwei Kacheln breit
-  // (`house.STATION_DOOR_SPAN`) — die ganze Westseite des Schachts.
-  for (const edge of doorEdges(LIFT_DOOR)) plan.door(edge.x, edge.z, edge.dir, 0, test);
-  if (test) {
-    for (const room of TRAINING_ROOMS) {
-      plan.room(room, { walls: true, ceiling: PLAN_WALL_H });
-    }
-  }
-  if (test)
-    plan.door(TRAINING_DOOR.x, TRAINING_DOOR.z, TRAINING_DOOR.dir, 0, !shut.has(TRAINING_DOOR.id));
+  // inneren steht die Fensterfront zur Kantine. Aufzug und Testdeck mit den
+  // Lehrzimmern sind seit Oktober 2026 weg (_„Den testraum rechts brauchen wir
+  // nicht mehr"_).
+  for (let x = APRON.x + 1; x < APRON.x + APRON.w - 1; x++) plan.window(x, APRON_OUTER, DIR_N);
   if (!spec.passages) innerWalls(plan, spec);
 
   // Eine Tür über zwei Kacheln sind zwei Türen im Plan, die zusammen auf- und
@@ -259,15 +235,3 @@ function innerWalls(plan: GridPlan, spec: HouseSpec): void {
 // **`blockFor` steht bei den Maßen**, nicht hier: Die 2D-Szene braucht die
 // Höhe eines Möbels und darf dafür nicht den halben Bauplan mitladen.
 export { blockFor } from './fixtureDimensions';
-
-/**
- * **Die Aufzugstür zum Testdeck**, wie der Plan sie setzt: nach Westen aus dem
- * Schacht, über seine ganze Breite. Offen nur mit Testdeck.
- */
-export const LIFT_DOOR = {
-  id: 'test-bay',
-  x: COMMAND_LIFT.x,
-  z: COMMAND_LIFT.z,
-  dir: DIR_W,
-  span: STATION_DOOR_SPAN,
-} as const;

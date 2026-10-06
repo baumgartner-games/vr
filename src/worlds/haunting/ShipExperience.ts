@@ -53,13 +53,11 @@ import {
 } from './shipHandUse';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
-import { MirrorSurface } from '../shared/Mirror';
 import { ShipEffects } from './ShipEffects';
 import { CONDENSATION_FRAGMENT } from './helmetCondensation';
 import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { TILE, dirX } from '../nav/navTile';
 import { canLoadModels } from '../../core/chefFit';
-import { LIFT_DOOR } from './plan';
 import {
   CONSOLE_MODEL,
   dressMesh,
@@ -105,7 +103,7 @@ import {
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
   APRON,
-  COMMAND_LIFT,
+  COMMAND_HOME,
   MARKS,
   roomAt,
   roomCode,
@@ -141,15 +139,6 @@ import {
   type Chore,
 } from './rules/chore';
 import { archiveRadio } from './rules/archiveRadio';
-import {
-  COMMAND_HOME,
-  TRAINING_ROOMS,
-  TRAINING_DOOR,
-  trainingRoomAt,
-  trainingSpawn,
-  type TrainingRoomId,
-} from './trainingLayout';
-import { buildTrainingDeck } from './trainingDeck';
 import {
   MONSTERS,
   ROOM_COUNTS,
@@ -318,11 +307,6 @@ const _head = new THREE.Vector3(),
   _pos = new THREE.Vector3(),
   _direction = new THREE.Vector3();
 
-/** Ein Objekt mit Namen — damit ein Test es in der Szene findet. */
-function named<T extends THREE.Object3D>(object: T, name: string): T {
-  object.name = name;
-  return object;
-}
 /**
  * **Der Saum um die Zielkiste** (`core/outlineShell.ts`) — dasselbe Gelb wie
  * das Randdreieck auf der Karte und der Kompass, damit „das da vorn" und „das
@@ -382,7 +366,6 @@ interface BindExtra {
 /** Station-only interactions. All game state belongs to the VR host snapshot. */
 export class ShipExperience {
   readonly root = new THREE.Group();
-  readonly bay = new THREE.Group();
   private readonly targets: THREE.Object3D[] = [];
   /** Was beim Kern an einem anderen Objekt hängt als am Zeiger (`BindExtra.usableOn`). */
   private readonly usableTargets: THREE.Object3D[] = [];
@@ -461,7 +444,6 @@ export class ShipExperience {
    * und „Benutzen" legt ihn um, wenn nichts vor einem liegt.
    */
   private torchLit = true;
-  private labMirror: MirrorSurface | null = null;
   private visibleRooms: ReadonlySet<string> | null = null;
   private readonly crosshair = el('div', 'orbital-crosshair');
   private readonly consoles: Console[] = [];
@@ -561,7 +543,6 @@ export class ShipExperience {
    * trotzdem einen Takt: Eine Figur aus dem Regal ohne Mischerbild stünde in
    * ihrer Bindepose mit ausgestreckten Armen da (`actorArt.ShipActor.update`).
    */
-  private readonly bayActors: ShipActor[] = [];
   private followBot = true;
   private readonly followEye = new THREE.Vector3();
   private readonly followTarget = new THREE.Vector3();
@@ -584,7 +565,6 @@ export class ShipExperience {
    * `undefined`: noch nichts gewählt.
    */
   private chosen: string | null | undefined;
-  private readonly bayLight = named(new THREE.PointLight(0xddefff, 0, 6, 2), 'training-bay-light');
   private suitImmersive: boolean | null = null;
   private readonly lockerHome = new THREE.Vector3();
 
@@ -625,7 +605,6 @@ export class ShipExperience {
     this.buildCabinets();
     this.buildConsoles();
     this.buildDoors();
-    this.buildBay();
     this.status = this.screen(1.1, 0.62, 768);
     this.status.mesh.name = 'mission-status-panel';
     this.status.mesh.position.set(0, 0, -1.2);
@@ -719,8 +698,7 @@ export class ShipExperience {
         document.body.append(this.compass.element);
       }
     }
-    this.root.add(this.bay, this.effects.root);
-    this.root.add(this.bayLight);
+    this.root.add(this.effects.root);
     this.buildTorch();
     this.paint();
   }
@@ -1733,11 +1711,6 @@ export class ShipExperience {
   }
   private inLockerRoom(id: string): boolean {
     this.host.ctx.rig.getHeadPosition(_head);
-    if (id.startsWith('training-'))
-      return (
-        this.crew.options.test &&
-        trainingRoomAt(_head.x, _head.z)?.id === id.slice('training-'.length)
-      );
     return (
       roomAt(this.host.spec(), Math.floor(_head.x / TILE), Math.floor(_head.z / TILE))?.id === id
     );
@@ -2006,11 +1979,7 @@ export class ShipExperience {
     const occupied = new Set<string>();
     // Offene Durchgänge zwischen zwei Gangstücken haben kein Blatt und keinen
     // Hebel (`HouseDoor.passage`).
-    for (const d of [
-      ...leafDoors(this.host.spec()),
-      LIFT_DOOR,
-      ...(this.crew.options.test ? [TRAINING_DOOR] : []),
-    ]) {
+    for (const d of [...leafDoors(this.host.spec())]) {
       const g = new THREE.Group();
       g.name = `door-${d.id}`;
       const middle = doorMiddle(d);
@@ -2050,49 +2019,12 @@ export class ShipExperience {
         rooms,
       });
       const action = (): void => {
-        if (d.id === 'test-bay' || d.id === TRAINING_DOOR.id) {
-          this.host.say(
-            this.crew.options.test
-              ? 'Übungsdeck bereit. Die Tür öffnet beim Näherkommen.'
-              : 'Übungsdeck gesperrt. Test am Terminal in der Zentrale starten.',
-          );
-          return;
-        }
         if (!this.active) return;
         this.host.door(d.id);
         this.sound('door');
       };
       for (const lever of levers) this.bind(lever.hit, action);
     }
-  }
-
-  private buildBay(): void {
-    if (!this.crew.options.test) return;
-    this.labMirror = buildTrainingDeck({
-      root: this.bay,
-      spec: this.host.spec(),
-      cabinet: (id, at, loot) => this.cabinet(id, '', at, loot),
-      locker: (id, at, code) => this.locker(id, at, 0, code),
-      console: (repair, at) => this.addConsole(repair, at, 0, true),
-      button: (mesh, action) => this.bind(mesh, action),
-      visit: (id) => this.visitLab(id),
-      home: () => this.home(),
-      effect: (kind, at) => {
-        this.burst(kind, at);
-        this.sound('error');
-      },
-      actor: (actor) => this.bayActors.push(actor),
-    });
-    const lift = label(
-      `TESTDECK
-SAFE · WERKZEUGE · RÄTSEL · MODELLE
-ANTIPPEN: ZUM SAFE-RAUM`,
-      1.8,
-      0.65,
-    );
-    lift.position.set((COMMAND_LIFT.x + 0.5) * TILE, 1.55, COMMAND_LIFT.z * TILE + 0.35);
-    this.root.add(lift);
-    this.bind(lift, () => this.visitLab('safe'));
   }
 
   private buildTorch(): void {
@@ -2488,28 +2420,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.stepChore(dt, _head);
     this.stepArchiveRadio();
     this.updateTools(dt);
-    const lab = crew.options.test ? trainingRoomAt(_head.x, _head.z) : null;
-    this.bay.visible = crew.options.test;
-    this.bayLight.intensity = this.player && lab ? 34 : 0;
-    // Außerhalb der Lehrzimmer ist die Deckenleuchte aus — und dann auch für
-    // den Shader (siehe `FlashlightTool.applyBeam`): Eine unsichtbare Lampe
-    // kostet in der Station keinen Bildpunkt.
-    this.bayLight.visible = this.bayLight.intensity > 0;
-    if (lab) this.bayLight.position.set(_head.x, 2.6, _head.z);
-    // **Die Attrappen atmen, gehen aber nicht** (`actorArt.ts`): ein Takt mit
-    // Tempo null. Und nur, solange das Deck überhaupt zu sehen ist — ein
-    // Mischer hinter einer unsichtbaren Gruppe rechnet für niemanden.
-    if (this.bay.visible) for (const actor of this.bayActors) actor.update(dt, 0);
-    if (this.labMirror)
-      this.labMirror.visible =
-        this.player && lab?.id === 'models' && _head.distanceTo(this.labMirror.position) < 8;
     this.command.mesh.visible = true;
     for (const door of this.doors) {
-      const locked =
-        this.host.doorLocked?.(door.id) ??
-        (door.id === 'test-bay' || door.id === TRAINING_DOOR.id
-          ? !crew.options.test
-          : state.shut.includes(door.id));
+      const locked = this.host.doorLocked?.(door.id) ?? state.shut.includes(door.id);
       const goal = Number(this.host.doorOpen?.(door.id) ?? !locked);
       door.light.color.setHex(locked ? 0xff5267 : 0x78ffd0);
       for (const lever of door.levers) lever.set(locked, dt);
@@ -2995,15 +2908,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     return {
       cabinet: this.cabinets.find(
         (c) =>
-          (c.id === 'test-supply' || c.id.startsWith('training')
-            ? this.crew.options.test
-            : c.room === room?.id) && _head.distanceTo(_pos.copy(c.at).setY(1)) < 2.8,
+          (c.id === 'test-supply' ? this.crew.options.test : c.room === room?.id) &&
+          _head.distanceTo(_pos.copy(c.at).setY(1)) < 2.8,
       ),
       console: this.consoles.find(
-        (c) =>
-          (c.training
-            ? this.crew.options.test && !!trainingRoomAt(_head.x, _head.z)
-            : c.repair.roomId === room?.id) && _head.distanceTo(c.at) < PANEL_RANGE,
+        (c) => !c.training && c.repair.roomId === room?.id && _head.distanceTo(c.at) < PANEL_RANGE,
       ),
       room,
       locker: this.lockers.find(
@@ -3058,6 +2967,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const state = this.host.state(),
       crew = this.crew,
       near = this.nearby();
+    // **In der Bot-Runde zählt nicht, was neben der Kamera liegt** — sie folgt
+    // dem Techniker aus Zahlen, und in einer Türöffnung kippten Raum und Tür
+    // je Bild hin und her: Das Panel baute sich ohne Pause neu, und kein Knopf
+    // darin blieb lange genug stehen, um ihn zu drücken.
+    const shown = crew.simulation ? {} : near;
     const signature = JSON.stringify([
       crew.options,
       crew.simulation ? null : this.keysText(),
@@ -3072,15 +2986,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.rightItem,
       state.phase,
       state.done,
-      near.cabinet?.id,
-      near.console?.repair.id,
-      near.console?.practice,
-      near.console?.selected,
-      near.console?.solved,
-      near.room?.id,
-      near.door?.id,
-      near.locker?.id,
-      near.locker?.open,
+      shown.cabinet?.id,
+      shown.console?.repair.id,
+      shown.console?.practice,
+      shown.console?.selected,
+      shown.console?.solved,
+      shown.room?.id,
+      shown.door?.id,
+      shown.locker?.id,
+      shown.locker?.open,
       state.destroyed,
       this.messages,
     ]);
@@ -3091,7 +3005,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // Die Uhr läuft außerhalb der Signatur: Sie ändert sich jede Sekunde, und
     // ein Titel, der deshalb jede Sekunde neu gebaut wird, nähme dem Spieler
     // die Knöpfe unter dem Finger weg. Also nur der eine Text.
-    const round = state.phase === 'running' ? (this.host.round?.() ?? null) : null;
+    // Die Übung hat keine Sauerstoff-Uhr (`options.test`).
+    const round =
+      state.phase === 'running' && !state.crew.options.test ? (this.host.round?.() ?? null) : null;
     const oxygenText = round ? ` · ${roundHud(round).oxygen}` : '';
     const currentOxygen = this.dom.querySelector('[data-oxygen]');
     if (currentOxygen && currentOxygen.textContent !== oxygenText)
@@ -3293,7 +3209,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
       button('Zur Zentrale', 'home', details);
       details.append(this.buildTunePanel());
-      for (const lab of TRAINING_ROOMS) button(lab.name, `lab:${lab.id}`, details);
       for (const room of this.host.spec().rooms)
         button(`Testbesuch: ${room.name} / ${roomCode(room.id)}`, `visit:${room.id}`, details);
       if (crew.simulation) {
@@ -3674,7 +3589,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (kind === 'deck-light') this.host.setLighting?.({});
     else if (kind === 'visit' && this.crew.options.test) this.visit(id!);
     else if (kind === 'home') this.home();
-    else if (kind === 'lab') this.visitLab(id as TrainingRoomId);
     this.stamp = '';
     this.paint();
   };
@@ -3733,16 +3647,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (['won', 'lost'].includes(this.host.state().phase))
       rows.unshift(row('restart', FLOW.again, FLOW.realHint, () => this.host.start()));
     if (this.crew.options.test) {
-      rows.push({
-        id: 'orbital:labs',
-        label: 'Testdeck: einzelne Übungsräume',
-        sub: 'Abseits der Mission · mit Anleitung und Lösung',
-        icon: 'cube',
-        accent: SHIP.amber,
-        children: TRAINING_ROOMS.map((lab) =>
-          row(`lab:${lab.id}`, lab.name, 'Zum sicheren Übungsraum', () => this.visitLab(lab.id)),
-        ),
-      });
       rows.push(
         row(
           'simulation',
@@ -3780,16 +3684,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.leaveLocker();
     const c = safeRoomSpawn(this.host.spec(), room.id);
     this.host.travel(new THREE.Vector3(c.x, 0, c.z));
-  }
-  private visitLab(id: TrainingRoomId): void {
-    if (!this.crew.options.test || !TRAINING_ROOMS.some((r) => r.id === id)) return;
-    this.leaveLocker();
-    if (this.crew.simulation) this.toggleSimulation();
-    const at = trainingSpawn(id);
-    this.host.travel(new THREE.Vector3(at.x, at.y, at.z));
-    this.host.say(
-      `${TRAINING_ROOMS.find((r) => r.id === id)!.name} · Benutzen (A / E) oder Trigger zum Ausprobieren. Kein Monster.`,
-    );
   }
   private home(): void {
     this.leaveLocker();
@@ -4067,8 +3961,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // Methode kennt die Ausnahme nicht und gäbe sie allen weg.
     this.simulated?.dispose();
     this.simulated = null;
-    for (const actor of this.bayActors) actor.dispose();
-    this.bayActors.length = 0;
     if (this.player) {
       window.removeEventListener('keydown', this.keyDown);
       window.removeEventListener('keyup', this.keyUp);

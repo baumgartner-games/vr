@@ -97,14 +97,12 @@ export interface FlatLeg {
 }
 
 /**
- * Was die 3D-Welt dem Navigator zusätzlich sagt: ob der Test läuft (dann gibt
- * es die Übungstür) und welche gesperrten Türen ein belegter Durchgang gerade
+ * Was die 3D-Welt dem Navigator zusätzlich sagt: welche gesperrten Türen ein belegter Durchgang gerade
  * noch offen hält (`automaticDoors`, `occupiedOpen`) — sonst sperrte das
  * Monster beim Spuken seine eigene Startposition ein. Die 2D-Runde lässt
  * beides weg.
  */
 export interface FlatNavigatorOptions {
-  test?: () => boolean;
   occupiedOpen?: () => readonly string[];
 }
 
@@ -161,12 +159,7 @@ export class FlatNavigator {
     avoid: RouteAvoid | null = null,
     detourLimit = Infinity,
   ): FlatLeg {
-    const graph = this.travel.graph(
-      this.spec,
-      shut,
-      this.options.test?.() ?? false,
-      this.options.occupiedOpen?.() ?? [],
-    );
+    const graph = this.travel.graph(this.spec, shut, this.options.occupiedOpen?.() ?? []);
     const wandered = Math.hypot(goal.x - this.wanted.x, goal.z - this.wanted.z);
     const stale =
       !this.route ||

@@ -37,8 +37,10 @@ Leere Plätze können Bots übernehmen.
 
 1. **Einsatzzentrale**: alle öffnen `#haunting` und stehen als Figuren in der
    Zentrale, jeder auf seinem Startplatz. Am Rechner _Verbindung_ den Raum-Code
-   der Gruppe eintragen; der Techniker zieht am Ständer den Anzug an, die
-   anderen setzen sich an einen Monitor (Rot, Gelb, Blau, Monster).
+   der Gruppe eintragen, am Rechner _Spiel-Einstellungen_ die Runde stellen;
+   der Techniker zieht am Ständer den Anzug an, wer das Monster spielt, den
+   Monster-Anzug daneben, die anderen setzen sich an einen Rechner (Rot, Gelb,
+   Blau).
 2. **Übungsrunde**: hell, ohne Uhr, ohne Treffer — zum Kennenlernen.
 3. **Echte Runde**: Die Station ist dunkel, der Sauerstoff reicht **10 Minuten**.
    - **Ziel**: drei ausgefallene Systeme reparieren (Ersatzteil aus der

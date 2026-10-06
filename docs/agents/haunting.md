@@ -89,6 +89,89 @@ der wand steht Verbindung."_
   `commandRoom.commandBlocks`), den Körper stellt `placeCommandRoom` in die
   Physik (`commandHost.blockSolid`, `vanRig`), damit beides den Neubau des
   Gitters übersteht.
+- Was hier über `space-link-terminal` und den Tisch mit vier Monitoren steht,
+  hat die zweite Runde gleich darunter abgelöst.
+
+### Die zweite Runde: ein Raum statt eines Schlauchs (Oktober 2026)
+
+Gewünscht, in einem Zug: die Zentrale hell, kein Schlauch, getrennte Rechner
+mit Bürostuhl, das Monster als Anzug statt als Rechner, Namensschilder über den
+Anzügen, ein Rechner _Spiel-Einstellungen_, kein Testdeck mehr, der Katalog
+wie in jeder Welt, Sitzen auf allen Sitzmöbeln, keine Sauerstoff-Uhr in der
+Übung, kein Countdown am Rechner.
+
+- **Die Zentrale ist 40 × 12 m** (`house.APRON_DEPTH`), nach Norden
+  gewachsen; die Südwand mit Fensterfront und Schleuse zur Kantine bleibt.
+  `COMMAND_HOME` steht jetzt in `house.ts` und hängt an der Südkante
+  (`trainingLayout.ts` ist weg). Aufbau in `world3d/commandRoom.ts`:
+  Nordwand von West nach Ost — Rechner _Spiel-Einstellungen_
+  (`SETTINGS_SPOT`), Konsole, Titelschild, Rechner _Verbindung_
+  (`LINK_SPOT`), Techniker-Anzug (`SUIT_SPOT`), Monster-Anzug
+  (`MONSTER_SPOT`); im Westen die drei Schreibtische; im Osten die Sitzecke
+  (`LOUNGE_SPOTS`: Sofa, Couchtisch, zwei Sessel, Kakteen); die Startplätze
+  (`SPAWN_SLOTS`) in der Mitte vor der Fensterfront. Alles, was sperrt, steht
+  in `commandBlocks` und damit in `map/geometry.fixtureBlocks`.
+- **Hell erleuchtet** (`buildDusk`): vier Deckenleuchten in einer Reihe statt
+  des einen Abendscheinwerfers, `COMMAND_LAMP`/`COMMAND_LAMP_REACH`, und
+  `stationLighting(...).command` ist immer 1 — auch in der dunklen Übung und
+  in der echten Runde. Vier und nicht mehr, weil jedes Licht in der Brille
+  jedes Pixel kostet.
+- **Das Schild über der Schleuse**: `shipArt.closedTileX` sah nur die erste
+  Kachel einer Tür als offen (Türen sind zwei breit, `doorEdges`) und hängte
+  das Raumschild der Kantine über die Schleuse, auf den Wegweiser
+  „EINSATZZENTRALE". Jetzt zählt jede Kachel der Tür.
+- **Testdeck und Aufzug sind weg** (`trainingLayout.ts`, `trainingDeck.ts`,
+  `COMMAND_LIFT`, `plan.LIFT_DOOR`, der Menüeintrag `orbital:labs`).
+  `housePlan` und `StationTravelPlan.graph` haben ihren Parameter `test`
+  verloren. Die Übungsrunde (`options.test`) und die Bot-Runde bleiben.
+- **Getrennte Rechner** (`world3d/commandSeats.COMMAND_DESKS`): Rot, Gelb,
+  Blau je ein `space-terminal` (2 × 1 Kacheln), vier Meter auseinander, davor
+  ein Bürostuhl (`furniture-chair-desk-a`, `commandRoom.chairSpot`), der
+  nichts sperrt. `A` an Rechner **oder** Stuhl öffnet den Platz
+  (`bindDesk` → `openConsole`), und wer die Seite offen hat, **sitzt** auf
+  dem Stuhl (`PortalWorld.sitOn`); ✕ oder `A` steht wieder auf (`standUp`).
+  Die anderen sehen ihn dort sitzen (`crewPlacement` → Stuhl,
+  `SEATED_EYE`). Tisch, Monitore und Hocker von früher sind weg.
+- **Kein Countdown**: `StationHost.arriving` ist immer 0 (`MOVE_TIME` zählt
+  nur noch für den Schubser).
+- **Die Seite am Rechner sieht aus wie das Menü** (`stationUi.writeBar`,
+  `.haunt__bar--desk`): links „Platz: Rot" und die Fähigkeiten, rechts
+  Zahnrad und ein rundes ✕ (`[data-stand-up]`). Reiter gibt es dort keine —
+  den Platz wechselt man, indem man an einen anderen Rechner geht. Der
+  Zuschauer (`watch`) hat damit zurzeit keinen Ort in der Zentrale.
+- **Rechner _Spiel-Einstellungen_** (`openSettings`): öffnet die Seite der
+  Welt im Menü (`WorldContext.openMenu('welt')`, `App.openMenuAt`). Dort
+  stehen jetzt für **jeden** Starts, Plätze & Fähigkeiten und die
+  Einstellungen der Runde — vorher nur für den Techniker. Ein Start von
+  jemandem ohne Anzug geht an den Gastgeber (`startRound`, über
+  `WorldMenuEntry.intent`).
+- **Schilder mit Namen** (`addSign`, `commandSignTexts`, `refreshSigns`
+  zweimal je Sekunde): über den Anzügen „TECHNIKER" bzw. „MONSTER" und der
+  Name dessen, der ihn trägt — sonst „Bot"; über den Rechnern
+  „VERBINDUNG · Raum …", „SPIEL-EINSTELLUNGEN", und über jedem Schreibtisch
+  Farbe, Fähigkeiten und wer dort sitzt (oder „frei").
+- **Der Monster-Anzug** (`space-monster-stand`, Beine, Rumpf und Kopf von
+  `Robot_Two` auf dem Ständer): `toggleMonsterSuit` nimmt den Platz `monster`
+  (`sit`), stellt die Tafel auf „Monster: Mensch" und leiht die Figur des
+  Roboters (`ctx.dress`). Vor der Runde läuft man wie jeder. **Beginnt eine
+  Runde mit Monster, steht man an dessen Startplatz** (`driveMonster`): Der
+  Stock geht über `NetMonsterPort` an den Gastgeber (`claim`, zehnmal je
+  Sekunde über `tickNet`), die eigene Figur folgt dem Monster, `A` ist der
+  Knopf des Monsters (`useForward` → `act('interact')`), ein rotes Licht
+  (`monsterSight`) zeigt dem Monster-Spieler die Umgebung, und die Kreatur
+  der Runde blendet sich bei ihm aus (`applyBlob`), bei den anderen seine
+  Figur (`crewPlace` → `HIDDEN_POSE`). Nach der Runde geht es zurück auf den
+  Startplatz (`stopDriving`). Ständer leer, solange einer den Anzug trägt
+  (`showSuitStand`).
+- **Der Katalog wie überall**: `HauntingWorld` erbt jetzt von
+  `FurnishedWorld` — Möbelkatalog, Umstellen im Bau-Modus, Stationen der
+  Küche; die Sitzecke steht über `spots()`/`furnishSpots()`.
+- **Sitzen** (`ElementOpens` `'sit'`, `PortalWorld.sitOn`, `SIT_DROP`): Alle
+  Möbel aus _Möbel → Sitzen_ (`furnitureCatalog.seat`) setzen einen mit `A`
+  hin, in jeder Welt; `A`, `E` oder Klick steht wieder auf.
+- **Übung ohne Sauerstoff-Uhr**: `RoundRules.step` verliert in der Übung
+  (`options.test`) nie, und Telefon (`writeQuest`) wie Tafel des Technikers
+  zeigen dort keine O₂-Uhr.
 
 Was weiter unten über die Lobby der Startseite, „Web 3D", „Enter VR", den
 Reiter „Techniker" als Weg an den Stock und die Brille, die den Anzug von

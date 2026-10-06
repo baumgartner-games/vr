@@ -189,9 +189,10 @@ export interface ElementPart {
  * — eine Seite im Menü. `'outfit'`: _Aussehen_ (`WorldContext.openOutfit`),
  * die Garderobe. `'hide'`: hineinsteigen und sich verstecken
  * (`PortalWorld.hideIn`), der Schutzschrank. `'swap'`: gegen die nächste
- * Fassung tauschen (`GameElement.swap`) — die Laternen einer Straße.
+ * Fassung tauschen (`GameElement.swap`) — die Laternen einer Straße. `'sit'`:
+ * sich daraufsetzen (`PortalWorld.sitOn`) — alles aus _Möbel → Sitzen_.
  */
-export type ElementOpens = 'outfit' | 'hide' | 'swap';
+export type ElementOpens = 'outfit' | 'hide' | 'swap' | 'sit';
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
 export interface GameElement {
