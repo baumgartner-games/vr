@@ -770,6 +770,9 @@ export class PageMenu {
       // Eine versteckte Liste vergisst ihre Blätterstellung; beim nächsten
       // Öffnen wird sie neu gebaut und dort aufgeschlagen, wo sie verlassen wurde.
       this.renderedPage = '';
+      // **Ein Schild ist kein Ort im Menü** (`MenuEntry.sheet`): Wer es zumacht
+      // und später das Menü öffnet, will das Menü und nicht wieder das Schild.
+      if (this.page.sheet && this.nav.path.at(-1) === this.page.id) this.nav.pop();
     }
     this.onToggle?.(next);
   }
@@ -782,6 +785,10 @@ export class PageMenu {
    * statt dass nichts passiert.
    */
   goBack(): boolean {
+    if (this.open && this.page.sheet) {
+      this.toggle(false);
+      return true;
+    }
     if (!this.open || (this.query === '' && this.stack.length <= this.floor)) return false;
     this.back();
     return true;
@@ -1063,6 +1070,9 @@ export class PageMenu {
     // der Schirm, mit dem ✕ oben rechts (`MenuEntry.sheet`).
     const full = page.full || this.tabs || page.sheet !== undefined;
     this.element.classList.toggle('pmenu--full', full);
+    // **Vom Kopf bleibt auf einem Blatt nur das ✕** (`pageMenu.css`,
+    // `pmenu--reading`): keine Reiter, kein Zurück, kein Titel.
+    this.element.classList.toggle('pmenu--reading', page.sheet !== undefined);
     this.showSheet(this.open ? (page.sheet ?? null) : null);
     // **Eine Detailseite zeigt ein Ding und keine Liste.** Beide liegen im
     // selben scrollenden Kasten; hier wird nur entschieden, welche dasteht.
@@ -1737,6 +1747,11 @@ export class PageMenu {
    */
   back(): void {
     if (!this.open) return;
+    // Ein Blatt zum Lesen geht mit einem Schritt ganz zu, wie mit dem ✕.
+    if (this.page.sheet) {
+      this.toggle(false);
+      return;
+    }
     if (this.query !== '') {
       this.clearSearch();
       this.render();

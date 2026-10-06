@@ -2401,8 +2401,6 @@ export class PortalWorld implements World {
     title: string;
     text: string;
     settings?: Partial<SignSettings>;
-    /** Zeilen über dem Blatt — etwa _Beschriften_. */
-    rows?: MenuEntry[];
   }): void {
     const ctx = this.context;
     if (!ctx) return;
@@ -2413,7 +2411,7 @@ export class PortalWorld implements World {
       icon: 'sign',
       accent: 0xe0b04a,
       hidden: true,
-      children: request.rows ?? [],
+      children: [],
       sheet: new SignSheet(request.text, request.settings ?? {}),
     };
     ctx.refreshWorldMenu();

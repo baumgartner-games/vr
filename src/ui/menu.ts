@@ -354,11 +354,15 @@ export interface MenuEntry {
    * aus Zeilen mehr auf, sondern sich selbst: dieselbe Leinwand wie auf der
    * Tafel, so breit wie die Seite, mit Überschriften, fetter Schrift und
    * Bildern. Am Schirm nimmt die Seite dafür den ganzen Platz
-   * (`ui/PageMenu.ts`), in der Brille die Fläche unter dem Kopf des
-   * Bildschirms (`ui/UIPanel.ts`) — beide mit dem ✕ oben rechts.
+   * (`ui/PageMenu.ts`), in der Brille den ganzen Bildschirm (`ui/UIPanel.ts`).
+   * **Vom Kopf bleibt nur das ✕** — keine Reiter, kein Zurück, kein Titel:
+   * _„Bei den sign posts, brauche ich bitte nicht oben den Menü Header,
+   * sondern nur das x und dann kann darin der sign Post stehen."_ Zurück
+   * (`B`/`Y`, `Esc`) macht ein Blatt ganz zu, und wer danach das Menü öffnet,
+   * landet nicht wieder darauf.
    *
-   * Die Kinder (`children`) stehen als Zeilen **über** dem Blatt: dort ist
-   * Platz für eine Tat wie _Beschriften_.
+   * Die Kinder (`children`) stünden als Zeilen fest über dem Blatt; die
+   * Schilder geben keine.
    */
   sheet?: MenuSheet;
   /**

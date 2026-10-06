@@ -1151,3 +1151,25 @@
 .pmenu__sheetview[hidden] {
   display: none;
 }
+
+/* **Auf einem Blatt bleibt vom Kopf nur das ✕** (`pmenu--reading`) — keine
+   Reiter, kein Zurück, kein Titel. Gewünscht: „Bei den sign posts, brauche ich
+   bitte nicht oben den Menü Header, sondern nur das x und dann kann darin der
+   sign Post stehen." */
+.pmenu--reading .pmenu__top > :not(.pmenu__close),
+.pmenu--reading .pmenu__head > :not(.pmenu__close),
+.pmenu--tabs.pmenu--reading .pmenu__head,
+.pmenu--reading .pmenu__tools,
+.pmenu--reading .pmenu__status,
+.pmenu--reading .pmenu__foot {
+  display: none;
+}
+.pmenu--reading .pmenu__top,
+.pmenu--reading .pmenu__head {
+  justify-content: flex-end;
+  padding: 8px 8px 0;
+  border-bottom: none;
+}
+.pmenu--reading .pmenu__list:empty {
+  display: none;
+}

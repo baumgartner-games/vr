@@ -2127,8 +2127,10 @@ im Spiel also zwei Kacheln —, und in eine
   **Anwählen schlägt es groß auf** (`SignRoom.read`, `PortalWorld.readSign`):
   Trigger mit leerer Hand oder ein Klick zeigt das Schild als Seite im Menü —
   in der Brille auf dem großen Bildschirm, am Schirm und am Telefon als
-  Vollbildseite, beide mit dem ✕ oben rechts und mit _Beschriften_ als Zeile
-  darüber. Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
+  Vollbildseite — **ohne Menükopf**, nur mit dem ✕ oben rechts (_„nicht oben
+  den Menü Header, sondern nur das x"_). Zurück schließt es ganz, und das
+  nächste Öffnen des Menüs landet nicht wieder darauf. Beschriftet wird mit
+  dem Werkzeug (A/X) oder im Menü unter dem Werkzeug. Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
   gerendert werden (z. B. katalog) also auch groß mit einem x."_ Gezeichnet
   wird es von denselben Zeilen wie die Tafel (`signPaint.ts`), nur in der
   Breite der Seite (`signSheet.ts`, `MenuEntry.sheet`).

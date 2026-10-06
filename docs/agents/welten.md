@@ -217,8 +217,8 @@ posts anwähle, dass diese wie die menüs gerendert werden (z. B. katalog) also
 auch groß mit einem x. Im web und handy wäre mir das auch sehr lieb."_ Am
 Schirm nimmt die Seite den ganzen Platz (`PageMenu`, `pmenu--full`), in der
 Brille steht sie auf dem großen Bildschirm vor dem Kopf, und der Stick rollt
-sie (`UIPanel`, `SHEET_STEP`) — beide mit dem ✕ oben rechts, **derselbe Baum**
-wie überall. Davor stand dort eine Liste von Zeilen (`fixtures/signRows.ts`,
+sie (`UIPanel`, `SHEET_STEP`) — beide ohne Menükopf, nur mit dem ✕ oben
+rechts, **derselbe Baum** wie überall. Davor stand dort eine Liste von Zeilen (`fixtures/signRows.ts`,
 gelöscht), in der Überschrift und Fließtext gleich aussahen. Gelesen wird derselbe kleine Markdown-Dialekt, den
 auch die Schildwelt kann (`worlds/signs/signMarkup.ts`): Überschriften,
 Aufzählungen, Zitat, Trennlinie, Code, Bild. `props.markdown: false` schaltet
