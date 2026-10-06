@@ -1838,7 +1838,8 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
     if (entry.sub) node.append(el('small', '', entry.sub));
     return node;
   }
-  const art = face(entry, accent, ready);
+  const art = folderFace(entry, face(entry, accent, ready));
+  if (art.classList.contains('pmenu__fold')) node.classList.add('pmenu__tile--folder');
   node.append(art, el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
@@ -1898,6 +1899,26 @@ function face(entry: MenuEntry, accent: string, ready: (id: string) => boolean):
   box.dataset['preview'] = id;
   if (!ready(id)) box.append(icon(entry, accent));
   return box;
+}
+
+/**
+ * **Ein Ordner sieht aus wie ein Ordner** — gewünscht: _„bei katalog wäre es
+ * schon eine visuelle unterscheidung zwischen ordnern und items zu haben. Die
+ * idee wäre die kachel die ein ordner ist, auch als ordner angedeutet zu
+ * zeigen mit dem icon bzw. gerenderten element darin."_
+ *
+ * Seit die Ordner ihr prägnantestes Möbel zeigen (`folderCover`), sah eine
+ * Ordnerkachel aus wie die Kachel eines Möbels. Jetzt steht das Bild in einer
+ * Mappe mit Reiter (`.pmenu__fold`), und zwar **im** Körper der Mappe: Das
+ * Quadrat, in das die Vorschauschicht zeichnet, ist kleiner als die Kachel
+ * und sitzt unter dem Reiter — das Modell steht also im Ordner und nicht
+ * davor. Ein Ordner ohne Bild behält seine Ikone; die ist schon eine Mappe.
+ */
+function folderFace(entry: MenuEntry, art: HTMLElement): HTMLElement {
+  if (!entry.children || !entry.preview) return art;
+  const fold = el('span', 'pmenu__fold');
+  fold.append(art);
+  return fold;
 }
 
 /**
