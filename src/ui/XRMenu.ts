@@ -414,9 +414,10 @@ export class XRMenu extends THREE.Group {
     }
   }
 
-  /** Eine Seite zurück — ganz oben macht es zu. */
+  /** Eine Seite zurück — ganz oben macht es zu. Ein Blatt zum Lesen geht ganz zu. */
   goBack(): void {
-    if (this.stack.length > this.floor) {
+    if (this.page.sheet) this.toggle(false);
+    else if (this.stack.length > this.floor) {
       this.keepScroll();
       this.nav.pop();
     } else this.toggle(false);
@@ -457,6 +458,11 @@ export class XRMenu extends THREE.Group {
     // of a list, one level up — and the title on the panel plus the *Zurück*
     // row say plainly where you are.
     if (!this.open) this.keepScroll();
+    // **Ein Schild ist kein Ort im Menü** (`MenuEntry.sheet`): Wer es zumacht
+    // und später das Menü öffnet, will das Menü und nicht wieder das Schild.
+    if (!this.open && wasOpen && this.page.sheet && this.nav.path.at(-1) === this.page.id) {
+      this.nav.pop();
+    }
     if (this.open !== wasOpen) this.onToggle?.(this.open);
   }
 

@@ -5,7 +5,6 @@ import { clampSign, type SignSettings } from './signSettings';
 import { signSummary } from './signMarkup';
 import { saveSignTemplate, saveSigns, signTemplate, storedSigns } from './signStore';
 import type { WorldContext } from '../../core/types';
-import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
 
 /**
@@ -77,9 +76,9 @@ export interface SignWorld {
   askText(request: SignAskText): void;
   /**
    * **Ein Schild groß aufschlagen** — als Seite im Menü, mit dem ✕
-   * (`PortalWorld.readSign`). `rows` stehen über dem Blatt.
+   * (`PortalWorld.readSign`).
    */
-  read(request: { title: string; text: string; settings: SignSettings; rows: MenuEntry[] }): void;
+  read(request: { title: string; text: string; settings: SignSettings }): void;
 }
 
 export interface SignPlacement {
@@ -306,8 +305,9 @@ export class SignRoom implements SignControl {
    * Gewünscht: _„wenn ich sign posts anwähle, dass diese wie die menüs
    * gerendert werden (z. B. katalog) also auch groß mit einem x."_ Bis dahin
    * ging beim Anwählen gleich die Tastatur auf; lesen konnte man ein Schild
-   * nur, indem man davorstand. Die Tastatur ist jetzt eine Zeile über dem
-   * Blatt.
+   * nur, indem man davorstand. Über dem Blatt steht nur das ✕ — beschriftet
+   * wird mit A/X und dem Schild-Werkzeug oder im Menü unter dem Werkzeug
+   * (_Beschriften_ meint dann dieses Schild, `focus`).
    */
   read(board: SignBoard): void {
     if (!this.entryOf(board)) return;
@@ -316,20 +316,6 @@ export class SignRoom implements SignControl {
       title: signSummary(board.text, 48) || 'Schild',
       text: board.text,
       settings: board.settings,
-      rows: [
-        {
-          id: 'sign:read:edit',
-          label: 'Beschriften',
-          sub: 'Die Tastatur auf, mit dem Text dieses Schildes',
-          icon: 'sign',
-          accent: 0x5ee0a0,
-          run: () => {
-            // Die Tastatur steht vor dem Kopf — dort, wo eben noch das Menü stand.
-            this.world.context()?.menu.toggle(false);
-            this.edit(board);
-          },
-        },
-      ],
     });
   }
 
@@ -427,8 +413,7 @@ export class SignRoom implements SignControl {
           if (hovered === board) this.hovered.delete(hand);
         }
       },
-      // **Anwählen heißt lesen**, groß und mit dem ✕ — beschriftet wird von
-      // dort aus oder mit A/X (`read`).
+      // **Anwählen heißt lesen**, groß und mit dem ✕ (`read`).
       onSelect: () => this.read(board),
     });
   }

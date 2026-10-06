@@ -335,9 +335,21 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.home = options.home ?? false;
     this.aside = options.aside ?? null;
     this.setSheet(this.screen ? (options.sheet ?? null) : null);
-    // Auf einem Blatt stehen die Einträge fest darüber: eine Tat wie
-    // _Beschriften_, und gerollt wird nur das Blatt.
-    if (this.sheet) this.pinned = entries.length;
+    if (this.sheet) {
+      // Auf einem Blatt stehen die Einträge fest darüber, gerollt wird nur das
+      // Blatt.
+      this.pinned = entries.length;
+      // **Und vom Kopf bleibt nur das ✕** — keine Reiter, kein Zurück, kein
+      // Titel. Gewünscht: _„Bei den sign posts, brauche ich bitte nicht oben
+      // den Menü Header, sondern nur das x und dann kann darin der sign Post
+      // stehen."_
+      this.tabs = [];
+      this.tab = -1;
+      this.back = false;
+      this.home = false;
+      this.aside = null;
+      this.crumb = '';
+    }
     if (this.screen) {
       this.head = screenHead(
         this.tabs.length,
@@ -643,6 +655,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   /** Wo die Liste anfängt: unter dem Titel — und unter den Reitern, wenn es welche gibt. */
   private get headerH(): number {
+    // Auf einem Blatt steht oben nur das ✕; darunter fängt das Schild an.
+    if (this.screen && this.sheet && this.head) return this.head.close.y + this.head.close.h + 14;
     if (this.screen) return SCREEN_BODY_TOP;
     return this.tabs.length > 0 ? HEADER_H + TAB_H : HEADER_H;
   }
@@ -882,6 +896,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       this.status ||
       // Eine lange Seite unter einer anderen (angeheftetes _Zurück_): Blättern
       // und Zurück in einer Zeile — `B`/`Y` ist sonst nirgends zu lesen.
+      (this.scrollable && this.sheet ? 'Stick oder wischen blättert · B/Y schließt' : '') ||
       (this.scrollable
         ? this.pinned > 0 || this.back
           ? 'Stick oder wischen blättert · B/Y zurück'
@@ -966,6 +981,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
     this.drawAside();
 
+    // Ein Blatt hat keinen Titel: Was oben steht, steht auf dem Schild.
+    if (this.sheet) return;
     const text = head.text;
     ctx.fillStyle = '#8ea0c4';
     ctx.font = '600 22px system-ui, sans-serif';
