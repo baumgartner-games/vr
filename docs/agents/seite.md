@@ -786,8 +786,8 @@ nach unten steht jetzt da (`index.html`, `style.css` am Ende):
    Experimente".
 2. **Welt wählen** — eine Karte je Welt, mit Bild, Name und einer Zeile
    (`ui/landingWorlds.ts`, mit Test). Die Reihenfolge ist die des Menüs:
-   Spiele zuerst, dann Baustellen (`WIP`), dann Prüfstände (`TEST`);
-   Haunting trägt `LOBBY`. Am Schreibtisch vier nebeneinander, am Telefon
+   Spiele zuerst, dann Baustellen (`WIP`), dann Prüfstände (`TEST`).
+   Das Schildchen `LOBBY` an Haunting ist seit Oktober 2026 weg. Am Schreibtisch vier nebeneinander, am Telefon
    zwei — die Karten sind ohne Scrollen zu sehen. **Telefon quer** (ab 700
    breit, höchstens 520 hoch, `style.css`): zwei Spalten, links die Karten,
    rechts Titel, Ansicht und Knopf; die Karten beginnen dort 22 px unter
@@ -798,8 +798,7 @@ nach unten steht jetzt da (`index.html`, `style.css` am Ende):
 4. **Der eine Knopf**, `#enter`: groß _Spielen_ (mit Brille _In VR spielen_),
    klein darunter, wohin — „Testwelt · Aus den Augen" (`paintEnterLabel`).
    Während des Downloads steht oben „Lädt … 17 %" und die Zeile darunter
-   schweigt. Die Lobby einer Runde (`#haunt-enter`) bleibt bei _Beitreten_:
-   dort tritt man einer Runde bei.
+   schweigt.
 5. Ladebalken, Download, Brillen-Status — unverändert.
 6. **Nebenwege, dezent:** _Zusammen spielen_ zugeklappt, darunter zwei stille
    Verweise (_Controller prüfen_, _Werkzeuge & Beutel_), die Version ganz
@@ -816,10 +815,18 @@ beim Start. Damit eine ältere Ladung nichts mehr meldet, merkt sich
 Startseite eine andere Welt, ziehen Karte und Knopf nach
 (`onWorldChanged`).
 
-**Die Lobby-Karte wählt nicht**: Haunting braucht erst Name und Raum-Code,
-und welche Startseite gilt, entscheidet `main.ts` beim Laden
-(`hauntLanding`). Die Karte setzt also `#haunting` und lädt einmal neu; von
-dort führt _← Andere Welt wählen_ zurück.
+**Haunting hat keine eigene Startseite mehr** (Oktober 2026). Bis dahin
+schlug seine Karte eine zweite Startseite auf — Name, Raum-Code, Verbinden,
+die Lobby mit allen Geräten im Raum und der Knopf _Beitreten_ (`hauntLanding`,
+`#haunt-start`, `ui/hauntFlow.ts`). Gewünscht: _„Beim start screen wo ich mich
+eigentlich anmelden soll will ich gar nicht erst hin, sondern ich will
+lieber, dass das menü in der spielwelt ist."_ Jetzt wählt die Karte wie jede
+andere, _Spielen_ führt in die Station, und die Station verbindet sich beim
+Betreten selbst (`HauntingWorld.joinTable`, Raum aus `?room=` oder
+`haunting`). Raum-Code und Name stellt man dort am Rechner _Verbindung_ ein
+(`WorldContext.openNetwork`, im Menü _Verbindung_ die Zeile _Raum wechseln_).
+Was weiter unten noch über die Lobby von `#haunting` steht — kein Vorwärmen
+hinter ihr, `#haunt-enter`, `startHaunting` —, ist Geschichte.
 
 **Die Bilder** liegen in `public/worlds/` (WebP, 480 × 270, zusammen rund
 35 kB, `loading="lazy"`) und stehen in der Definition der Welt

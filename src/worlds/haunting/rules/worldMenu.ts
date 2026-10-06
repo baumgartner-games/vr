@@ -121,7 +121,7 @@ export function mayCompute(state: Pick<WorldMenuState, 'hostId' | 'me'>): boolea
  * einmal als Meldung, wenn jemand den Eintrag trotzdem drückt.
  */
 export const NOT_TECHNICIAN =
-  'Nur der Techniker startet eine Runde: Brille aufsetzen oder „Als Techniker spielen" wählen.';
+  'Nur der Techniker startet eine Runde: Zieh am Ständer in der Einsatzzentrale den Anzug an (A).';
 export const HOST_BUSY =
   'Ein anderer Techniker rechnet diese Runde gerade — eine zweite lässt sich hier nicht starten.';
 export const ROOM_BUSY =
@@ -160,8 +160,10 @@ export function startBlocker(state: WorldMenuState, what: Intent | RoundKind): s
  *
  * - `start` — dieses Gerät steht schon am Stock (Brille oder Techniker am
  *   Desktop); die Runde geht sofort los.
- * - `stick` — es soll den Anzug tragen und trägt ihn noch nicht: erst an den
- *   Stock (`HauntingWorld.flatTechnician`), dann starten.
+ * - `stick` — es soll den Anzug tragen und trägt ihn noch nicht. Bis Oktober
+ *   2026 zog der Startknopf ihn gleich mit an; seitdem hängt der Anzug am
+ *   Ständer in der Einsatzzentrale (`HauntingWorld.suited`), und der Knopf
+ *   sagt, wo (`SUIT_FIRST`).
  * - `others` — im Raum trägt schon jemand anders den Anzug. Im Schiff gibt es
  *   einen Techniker je Raum.
  * - `nobody` — die Tafel will einen Menschen im Anzug, und dieses Gerät hat
@@ -185,11 +187,26 @@ export function shipStart(state: ShipStartState): ShipStart {
 }
 
 export const SHIP_NEEDS_TECHNICIAN =
-  'Im Schiff braucht die Runde einen Menschen im Anzug. Nimm oben den Reiter „Techniker" — ' +
-  'oder stell auf der Tafel „Techniker: Bot", dann läuft sie als Vorführung.';
+  'Im Schiff braucht die Runde einen Menschen im Anzug — jemand zieht ihn am Ständer in der ' +
+  'Einsatzzentrale an (A). Oder stell auf der Tafel „Techniker: Bot", dann läuft sie als Vorführung.';
+/** Wer der Techniker sein soll und den Anzug noch nicht trägt (`ShipStart` `stick`). */
+export const SUIT_FIRST =
+  'Erst den Anzug anziehen: Er hängt am Ständer an der Nordwand der Einsatzzentrale — hingehen, A drücken.';
 export const SHIP_OCCUPIED =
   'Im Schiff trägt schon jemand anders den Anzug — es gibt einen Techniker je Raum. ' +
   'Nimm die Karte von oben oder einen Platz in der Zentrale.';
+/** Was der Anzugständer beim Anziehen sagt. */
+export const SUIT_ON =
+  'Anzug an — du bist der Techniker. Noch einmal A am Ständer legt ihn wieder ab.';
+/** Und beim Ausziehen. */
+export const SUIT_OFF = 'Anzug abgelegt — du läufst wieder durch die Einsatzzentrale.';
+/** Wer im Anzug an einen Monitor der Zentrale tritt. */
+export const DESK_SUITED =
+  'Im Anzug bedienst du keinen Platz der Zentrale — erst am Ständer den Anzug ablegen.';
+/** Wer in der Brille an einen Monitor tritt: Die Plätze sind Seiten am Handy oder Bildschirm. */
+export const DESK_IN_VR =
+  'Die Plätze der Zentrale bedient man am Handy oder Bildschirm — in der Brille trägst du den Anzug.';
+
 /**
  * **Und auf der Karte von oben genauso**: Steht auf der Tafel „Techniker:
  * Mensch" und niemand hat den Reiter genommen, läuft kein Techniker aus Zahlen

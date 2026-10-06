@@ -104,18 +104,18 @@ export interface StationHost {
    */
   link(): { peers: number; vr: boolean; room: string; technician?: string | null };
   /**
-   * **Dieses Gerät an den Stock setzen** — der Reiter „Techniker". Auf der
-   * Karte von oben öffnet die Welt dafür die 2D-Welt im Test-Zustand
-   * (`HauntingWorld.takeStick`), im Schiff wird es der Desktop-Techniker.
+   * **Der Reiter „Techniker"** (`HauntingWorld.takeStick`). Seit Oktober 2026
+   * hängt der Anzug am Ständer in der Einsatzzentrale: Die Welt lässt einen
+   * vom Rechner aufstehen und sagt, wo er hängt.
    */
   technician(): void;
   /**
-   * **Und ihn wieder loslassen**: Wer sich am Desktop einen anderen Platz
-   * nimmt — das Monster, einen Stuhl, den Fernseher —, ist kein Techniker
-   * mehr. Ohne diesen Haken blieb der Desktop nach einem Ausflug an den Stock
-   * für immer der Techniker, und ein gewähltes Monster rechnete die Routine.
+   * **Vom Rechner aufstehen** — die Seite geht zu, und man läuft wieder als
+   * Figur durch die Einsatzzentrale (`HauntingWorld.standUp`). Seit Oktober
+   * 2026 kommt man an diese Seite nur über einen Monitor der Zentrale, also
+   * führt auch ein Knopf wieder hinaus.
    */
-  leaveTechnician?(): void;
+  leave?(): void;
   /** Das globale Spielmenü bleibt aus jeder Telefonrolle erreichbar. */
   menu?(): void;
   /**
@@ -409,6 +409,22 @@ export class StationUi {
   }
 
   /**
+   * **Die Seite auf einem Platz aufschlagen** — von der Welt gerufen, wenn
+   * sich jemand an einen Monitor der Zentrale setzt (`HauntingWorld.openConsole`):
+   * derselbe Weg wie ein Tipp auf dessen Reiter (`choose`). `'setup'` schlägt
+   * den Aufbau auf.
+   */
+  open(me: MyRole | 'setup'): void {
+    if (me === 'setup') {
+      this.goSetup();
+      return;
+    }
+    this.choose(me);
+    this.drawn = '';
+    this.refresh();
+  }
+
+  /**
    * **Zurück in den Aufbau** — von der Welt gerufen, wenn die 2D-Welt mit
    * „Zurück zu den Rollen" zugeht: Das Telefon soll dann dort stehen, wo
    * Tafel und Knöpfe sind, und nicht auf der Karte einer Rolle von eben.
@@ -554,6 +570,7 @@ export class StationUi {
       tool('gameMenu', '☰', 'Spielmenü öffnen');
       tool('pageNet', '⇄', 'Verbindung der Seite öffnen');
       tool('pageVr', 'VR', 'VR starten oder beenden');
+      if (this.host.leave) tool('standUp', '⏏', 'Aufstehen: wieder durch die Zentrale laufen');
       this.bar.replaceChildren(title, tools);
       return;
     }
@@ -577,6 +594,7 @@ export class StationUi {
 
     tool('options', '⚙', 'Optionen: Mission starten oder stoppen, zurück zu den Rollen');
     tools.firstElementChild?.setAttribute('aria-pressed', this.menuOpen ? 'true' : 'false');
+    if (this.host.leave) tool('standUp', '⏏', 'Aufstehen: wieder durch die Zentrale laufen');
     this.bar.replaceChildren(nav, tools);
   }
 
@@ -703,6 +721,8 @@ export class StationUi {
         items.push(option('stopRound', FLOW.back, FLOW.practiceHint));
     }
     items.push(head('Aufmachen'));
+    if (this.host.leave)
+      items.push(option('standUp', 'Aufstehen', 'Vom Rechner weg — als Figur durch die Zentrale'));
     items.push(
       option('setup', FLOW.setup, FLOW.setupHint),
       option('gameMenu', 'Menü', 'Das Spielmenü der Seite: Welten, Bewegung, Grafik'),
@@ -951,8 +971,8 @@ export class StationUi {
       out.push(modes);
     } else if (!link.vr) {
       // Eine Welt ohne Aufbau-Anschluss (ältere Hosts, Tests): wenigstens der
-      // Weg an den Stock bleibt erreichbar.
-      out.push(key('haunt__tile', { text: 'Als Techniker spielen', data: { technician: '' } }));
+      // Weg zum Anzug bleibt erreichbar.
+      out.push(key('haunt__tile', { text: 'Techniker werden', data: { technician: '' } }));
     }
 
     if (shoved(claims, me)) {
@@ -1062,7 +1082,6 @@ export class StationUi {
     // **„Ich bin der Techniker" heißt: an den Stock** — die Welt entscheidet,
     // ob das die Karte von oben ist oder das Schiff.
     if (me === 'technician') this.host.technician();
-    else this.host.leaveTechnician?.();
   }
 
   /** Wer diesen Platz gerade über das Netz hält — als Name, `null` für niemanden. */
@@ -1117,7 +1136,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-me],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],' +
+      '[data-me],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-stand-up],' +
         '[data-restart],[data-start-setup],[data-stop-round],[data-test-roles],[data-setup],' +
         '[data-options],[data-close-options]',
     );
@@ -1127,6 +1146,12 @@ export class StationUi {
     this.say('');
     const data = hit.dataset;
 
+    if (data['standUp'] !== undefined) {
+      // Die Welt baut diese Seite dabei ab — danach gibt es nichts mehr zu zeichnen.
+      this.menuOpen = false;
+      this.host.leave?.();
+      return;
+    }
     if (data['options'] !== undefined) {
       this.menuOpen = !this.menuOpen;
     } else if (data['closeOptions'] !== undefined) {

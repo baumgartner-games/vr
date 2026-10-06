@@ -19,6 +19,19 @@ betreten**, **Neuen Raum aufmachen** (würfelt und verbindet gleich) und
 Name liegen in **einem** Speicher (`net/room.ts`), den sich Startseite und
 Brille teilen; zwei wären zwei Namen, die auseinanderlaufen.
 
+**Und verbunden: _Raum wechseln_** (`net:switch`) — einen anderen Code
+eintippen, ohne erst zu trennen. In _Haunting_ ist das der Weg in den Raum der
+eigenen Gruppe: Die Station verbindet sich beim Betreten in den gemeinsamen
+Raum, und der Rechner _Verbindung_ in der Einsatzzentrale öffnet genau dieses
+Menü (`WorldContext.openNetwork`).
+
+**Begrüßt ist, wer sein `hello` geschickt hat** (`NetSession.greeted`). Auf
+ein `hello` antwortet man einmal mit dem eigenen — aber gefragt wurde bis
+Oktober 2026, ob man den Absender schon _kennt_. Kam von ihm vorher eine Pose
+oder ein Ereignis, stand er mit Vorgaben in der Liste (Welt `hub`, Standzeit
+null), die Antwort blieb aus, und er kannte einen nie richtig: In _Haunting_
+standen so alle Neuen auf dem Startplatz von Spieler 1.
+
 **Verbinden fasst nichts an außer der Verbindung.** Keine Welt wird neu
 geladen, kein Startpunkt angesprungen, keine Sitzung beendet: wer sich mitten
 im Spiel dazuschaltet, steht danach genau dort, wo er vorher stand. Das ist

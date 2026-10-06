@@ -85,6 +85,8 @@ export class NetSession {
    * aus dem `localSeniority` eine **Dauer** macht. Nur die geht über das Netz.
    */
   private worldSince = now();
+  /** Von wem schon ein `hello` kam — nur die bekommen keins mehr zurück. */
+  private readonly greeted = new Set<string>();
   /** Cleared while the local camera is glued to someone else's head. */
   visible = true;
   status: NetStatus = 'offline';
@@ -317,7 +319,15 @@ export class NetSession {
 
     switch (message.type) {
       case 'hello': {
-        const known = this.peers.has(message.from);
+        // **Begrüßt ist, wer sein `hello` geschickt hat** — nicht, wen man
+        // schon kennt. Kam von ihm vorher eine Pose oder ein Ereignis, steht er
+        // mit Vorgaben in der Liste (`touchPeer`: Welt `hub`, Standzeit null),
+        // und auf sein `hello` hin blieb die Antwort aus: Er kannte einen dann
+        // nie richtig — in _Haunting_ stand so jeder Neue auf dem Startplatz
+        // von Spieler 1, und wer den Anzug trug, war für ihn in einer anderen
+        // Welt.
+        const known = this.greeted.has(message.from);
+        this.greeted.add(message.from);
         const peer = this.touchPeer(message.from, stamp);
         peer.role = message.role;
         peer.name = message.name;
@@ -406,6 +416,7 @@ export class NetSession {
   }
 
   private dropPeer(id: string): void {
+    this.greeted.delete(id);
     const peer = this.peers.get(id);
     if (!peer) return;
     this.peers.delete(id);

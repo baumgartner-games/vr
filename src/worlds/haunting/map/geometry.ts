@@ -16,6 +16,7 @@ import {
 } from '../house';
 import { COMMAND } from '../roomGraph';
 import { stationLayout, type FloorBounds } from '../stationLayout';
+import { commandBlocks } from '../world3d/commandRoom';
 import type { MapPoint, MapSegment, MapSnapshot } from './mapSnapshot';
 
 /**
@@ -339,7 +340,9 @@ const blockCache = new WeakMap<HouseSpec, readonly FloorBounds[]>();
 export function fixtureBlocks(spec: HouseSpec): readonly FloorBounds[] {
   let blocks = blockCache.get(spec);
   if (!blocks) {
-    blocks = stationLayout(spec).map((placement) => placement.bounds);
+    // Dazu die Spielelemente der Zentrale — Anzugständer und Rechner
+    // _Verbindung_ (`world3d/commandRoom.ts`).
+    blocks = [...stationLayout(spec).map((placement) => placement.bounds), ...commandBlocks()];
     blockCache.set(spec, blocks);
   }
   return blocks;

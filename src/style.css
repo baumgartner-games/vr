@@ -649,40 +649,6 @@ h1 {
 .offline__stop[hidden] { display: none; }
 .offline .field__hint:empty { display: none; }
 
-/* Zwei Gesichter der Startseite (`index.html`): `main.ts` setzt unter `#haunting`
-   `data-landing="haunting"`, und dann steht dort die Startseite der Runde statt
-   der Spielwiese. Versteckt, nicht abgebaut — `NetPanel` hängt an den Feldern. */
-.landing:not([data-landing="haunting"]) .only-haunting { display: none; }
-.landing[data-landing="haunting"] .only-generic { display: none; }
-
-/* Haunting: Name, Raum-Code, Verbinden — und in der Lobby drei Wege in denselben Raum. */
-.haunt-start { margin: 4px 0 8px; text-align: left; }
-.haunt-start .btn { margin: 14px 0 0; }
-.haunt-lobby { margin-top: 14px; padding: 14px 16px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
-.haunt-lobby[hidden] { display: none; }
-.haunt-lobby__title { margin: 0 0 8px; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-.haunt-peers { margin: 0 0 8px; padding: 0; list-style: none; }
-.haunt-peers li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
-.haunt-peers li:last-child { border-bottom: 0; }
-.haunt-peers__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; align-self: center; }
-.haunt-peers__role { font-size: 12px; color: var(--muted); }
-.haunt-peers__me { margin-left: auto; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-.haunt-start code { font-size: 12px; color: var(--fg); }
-.haunt-start__hint { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
-/* Was nach dem Beitreten kommt (`ui/hauntFlow.ts`): zwei Schritte, zwei Schilder in den Farben von `.haunt__mode`. */
-.haunt-flow { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
-.haunt-flow__title { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-.haunt-flow__steps { margin: 0 0 10px; padding-left: 20px; font-size: 13px; line-height: 1.6; }
-.haunt-flow__modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-@media (max-width: 480px) { .haunt-flow__modes { grid-template-columns: 1fr; } }
-.haunt-flow__mode { padding: 10px 12px; border-radius: 12px; border: 1px solid; }
-.haunt-flow__mode--calm { border-color: rgba(74, 168, 255, 0.55); background: rgba(16, 36, 64, 0.6); }
-.haunt-flow__mode--live { border-color: rgba(255, 94, 104, 0.6); background: rgba(64, 18, 24, 0.6); }
-.haunt-flow__badge { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
-.haunt-flow__mode--calm .haunt-flow__badge { color: #8cc8ff; }
-.haunt-flow__mode--live .haunt-flow__badge { color: #ff7a82; }
-.haunt-flow__when { margin: 8px 0 4px; font-size: 13px; line-height: 1.45; }
-.haunt-flow__hint { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .status.is-online { color: #7fe0a8; }
 
 .net__lead {
@@ -1048,7 +1014,7 @@ input[type="range"] {
    `ui/landingWorlds.ts`; hier steht nur, wie sie aussehen. */
 
 /* Die Spielwiese bekommt mehr Breite als eine Lobby: vier Karten nebeneinander. */
-.landing:not([data-landing="haunting"]) .landing__inner { width: min(760px, 100%); }
+.landing .landing__inner { width: min(760px, 100%); }
 .landing .lead { margin-bottom: 22px; }
 
 .landing__label { margin: 0 0 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); text-align: center; }
@@ -1071,7 +1037,6 @@ input[type="range"] {
 .wcard--wip .wcard__badge { color: #9fe3ff; border-color: rgba(57, 208, 255, 0.55); }
 .wcard__title { padding: 0 10px; font-size: 14px; line-height: 1.25; }
 .wcard__line { display: -webkit-box; padding: 0 10px; font-size: 12px; line-height: 1.35; color: var(--muted); -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.wcard--lobby .wcard__badge { color: #ffd27a; border-color: rgba(255, 190, 90, 0.55); }
 
 /* Der Hauptknopf: groß, was er tut — klein darunter, wohin (`paintEnterLabel`). */
 .btn--play { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 24px; }
@@ -1083,7 +1048,7 @@ input[type="range"] {
 .landing .screen-view { margin-bottom: 14px; }
 .landing .screen-view legend { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
 /* Titel und Einleitung etwas kleiner als früher: Die Karten sind jetzt das Bild der Seite. */
-.landing:not([data-landing="haunting"]) h1 { font-size: clamp(32px, 6vw, 48px); margin-bottom: 10px; }
+.landing h1 { font-size: clamp(32px, 6vw, 48px); margin-bottom: 10px; }
 
 /* Nebenwege: zwei stille Verweise nebeneinander, keine Knöpfe. */
 .landing__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin: 16px 0 0; font-size: 13px; }
@@ -1103,16 +1068,16 @@ input[type="range"] {
    läge _Spielen_ eine Bildschirmhöhe tiefer. Also zwei Spalten — links die
    Karten, rechts Titel, Ansicht und Knopf. */
 @media (min-width: 700px) and (max-height: 520px) {
-  .landing:not([data-landing="haunting"]) .landing__inner { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
-  .landing:not([data-landing="haunting"]) .landing__inner > * { grid-column: 2; }
-  .landing:not([data-landing="haunting"]) .worlds { grid-column: 1; grid-row: 1 / span 30; margin: 0; }
+  .landing .landing__inner { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  .landing .landing__inner > * { grid-column: 2; }
+  .landing .worlds { grid-column: 1; grid-row: 1 / span 30; margin: 0; }
   /* Die Karten beginnen unter dem ☰ (oben links, 10 + 44 px) — vorher lag
      die erste Karte ein paar Pixel darunter. */
-  .landing:not([data-landing="haunting"]) .worlds__cards { margin-top: 22px; }
+  .landing .worlds__cards { margin-top: 22px; }
   /* Titel und „Ansicht am Bildschirm" standen Zeile an Zeile. */
-  .landing:not([data-landing="haunting"]) h1 { font-size: 30px; line-height: 1.15; margin-bottom: 12px; }
-  .landing:not([data-landing="haunting"]) .eyebrow { margin-bottom: 2px; }
-  .landing .lead.only-generic { display: none; }
+  .landing h1 { font-size: 30px; line-height: 1.15; margin-bottom: 12px; }
+  .landing .eyebrow { margin-bottom: 2px; }
+  .landing .lead { display: none; }
   .landing .worlds__cards { gap: 8px; }
   .landing .wcard__line { display: none; }
   .landing .btn--play { padding: 12px 18px; }
