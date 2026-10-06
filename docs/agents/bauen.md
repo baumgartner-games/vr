@@ -226,7 +226,12 @@ viel zu groß in der hand."_
   kleiner gerendert werden (wie beim burger)"_. Höchstens halb so groß
   (`dishHold.HAND_SCALE`, wie der Burger), und so, dass die längste Seite in
   `HAND_FIT` (0,35 m) passt — ein Tisch von 1 m ist ein Modell auf der Hand.
-  Nicht im Weltbau: Da ist man selbst der Riese (siehe oben).
+  Nicht im Weltbau: Da ist man selbst der Riese (siehe oben). **Nur in der
+  Faust eines Controllers** (`carryGrab`, Anker nicht `screenHand.carry`):
+  Die Bildschirmhand führt ihr Getragenes durch dieselbe Rechnung, hat ihre
+  Größe aber schon (`shrinkScreenCarry`, halb so groß aus den Augen wie von
+  oben, siehe [Waffe und Kart](waffe-und-kart.md)). Von oben fiel sie bis
+  Oktober 2026 hier durch und bekam die 35 cm.
   Verkleinert wird um die Faust, nicht um die Mitte. Nur das Bild: Körper,
   Geist und Einrasten rechnen mit der echten Größe, beim Loslassen ist es
   sofort wieder groß (`release` → `unshrinkInHand`). Nicht beim Nahgreifen

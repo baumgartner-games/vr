@@ -366,7 +366,65 @@ export const MODEL_ARCHES: Readonly<Record<string, { open: number; top: number }
   // im Spiel 2 m mit 0,8 m Durchgang. Gemeldet: _„betrifft wohl die tür auch,
   // dass ich da nicht durch kann?"_ Sie war ein voller Kasten.
   'restaurant-bits/wall_doorway.glb': { open: 0.4, top: 0.75 },
+  // **Die Tore der Halloween-Zäune** (`halloweenCatalog.HALLOWEEN_GATES`),
+  // nachgemessen: Das Eisentor ist 2 m breit mit Flügeln von ±0,8 m und ohne
+  // Sturz; die Torbögen 2,11 m mit ±0,8 m offen, der Bogen beginnt bei 85 %
+  // der Höhe (1,88 m); der Holztorbogen hat Pfosten von 12 cm und den Balken
+  // bei 1,65 m. Gewünscht: _„Zudem müsste z. B. Zauntor auch wie eine tür
+  // sein."_
+  'halloween-bits/fence_gate.glb': { open: 0.8, top: 1 },
+  'halloween-bits/arch.glb': { open: 0.76, top: 0.85 },
+  'halloween-bits/arch_gate.glb': { open: 0.76, top: 0.85 },
+  'halloween-bits/wooden_gate.glb': { open: 0.88, top: 0.82 },
 };
+
+/**
+ * **Die Flügel eines Tors stehen offen** — die Knoten dieser Namen drehen sich
+ * um 90° um ihre äußere Kante, beide zur selben Seite (+z der Datei). Durch
+ * ein Tor geht man wie durch eine Tür (`MODEL_ARCHES`), und durch ein
+ * geschlossenes Gitter sähe das aus wie durch eine Wand.
+ */
+const GATE_LEAVES: Readonly<Record<string, RegExp>> = {
+  'halloween-bits/fence_gate.glb': /^fence_gate_(left|right)$/,
+  'halloween-bits/arch_gate.glb': /^arch_gate_(left|right)$/,
+};
+
+/**
+ * Dreht die Flügel auf (`GATE_LEAVES`). Erst **nach** dem Messen: Offen ragten
+ * sie 0,8 m quer, und das Tor wäre für das Einrasten keine Wand mehr
+ * (`gridSnap.wallAxis`).
+ */
+function openGate(model: THREE.Object3D, path: string | null): void {
+  const leaves = path === null ? undefined : GATE_LEAVES[path];
+  if (!leaves) return;
+  model.updateMatrixWorld(true);
+  const found: THREE.Object3D[] = [];
+  model.traverse((node) => {
+    if (leaves.test(node.name)) found.push(node);
+  });
+  for (const leaf of found) {
+    const parent = leaf.parent;
+    if (!parent) continue;
+    // Die Angel: die Kante des Flügels, die weiter von der Mitte des Tors weg ist.
+    const box = new THREE.Box3().setFromObject(leaf);
+    const centre = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+    const outer = Math.abs(box.max.x - centre.x) > Math.abs(box.min.x - centre.x);
+    const hinge = new THREE.Vector3(
+      outer ? box.max.x : box.min.x,
+      box.min.y,
+      (box.min.z + box.max.z) / 2,
+    );
+    parent.worldToLocal(hinge);
+    const turn = new THREE.Quaternion().setFromAxisAngle(
+      _gateUp,
+      outer ? Math.PI / 2 : -Math.PI / 2,
+    );
+    leaf.position.sub(hinge).applyQuaternion(turn).add(hinge);
+    leaf.quaternion.premultiply(turn);
+  }
+  model.updateMatrixWorld(true);
+}
+const _gateUp = new THREE.Vector3(0, 1, 0);
 
 export function modelPropShape(
   model: THREE.Object3D,
@@ -393,6 +451,7 @@ export function modelPropShape(
     if (across && box.min[across] < origin && origin < box.max[across]) centre[across] = origin;
     model.position.sub(centre);
   }
+  openGate(model, path);
   object.add(stretchWall(model, box.isEmpty() ? null : size));
   const tread = treadOf(model) ?? size.y / 2;
 

@@ -7,7 +7,13 @@ import { SPACE_ELEMENTS, SPACE_FOLDER } from './spaceCatalog';
 import { CITY_ELEMENTS, CITY_FOLDER } from './cityCatalog';
 import { FURNITURE_BITS_ELEMENTS, FURNITURE_BITS_FOLDER } from './furnitureCatalog';
 import { TAVERN_ELEMENTS, TAVERN_FOLDER } from './tavernCatalog';
-import { HALLOWEEN_ELEMENTS, HALLOWEEN_FOLDER } from './halloweenCatalog';
+import {
+  HALLOWEEN_ELEMENTS,
+  HALLOWEEN_FENCE_LABELS,
+  HALLOWEEN_FENCES,
+  HALLOWEEN_FOLDER,
+  HALLOWEEN_GATES,
+} from './halloweenCatalog';
 import { HOLIDAY_ELEMENTS, HOLIDAY_FOLDER } from './holidayCatalog';
 
 /**
@@ -556,9 +562,24 @@ export const DOOR_MODELS: readonly string[] = [
   'prototype-bits/Wall_Doorway_Wide.glb',
 ];
 
-/** Ob dieses Modell aus dem Regal eine Tür ist (`DOOR_MODELS`). */
+/**
+ * Ob dieses Modell aus dem Regal eine Tür ist (`DOOR_MODELS`) — oder ein Tor
+ * in einem Zaun (`halloweenCatalog.HALLOWEEN_GATES`), das man trägt wie eine.
+ */
 export function isDoorModel(path: string | null): boolean {
-  return path !== null && DOOR_MODELS.includes(path);
+  return path !== null && (DOOR_MODELS.includes(path) || HALLOWEEN_GATES.includes(path));
+}
+
+/**
+ * **Ob diese Wand ein Zaun ist** (`halloweenCatalog.HALLOWEEN_FENCES`) — sie
+ * steht auf der Fuge und sperrt wie jede Wand, aber ein umzäunter Platz ist
+ * kein Raum und bekommt keine Decke (`HausbauWorld.coverRooms`). Gewünscht:
+ * _„Ich brauche nur bei denen wenn die einen raum umschließen keine Decke
+ * automatisch. Hier sollten wir unterscheiden vlt. zwischen Zaun und Wand, die
+ * aber beide zwischen den feldern gesetzt werden."_
+ */
+export function isFenceModel(path: string | null): boolean {
+  return path !== null && HALLOWEEN_FENCES.includes(path);
 }
 
 /**
@@ -608,6 +629,7 @@ export const BUILD_LABELS: Readonly<Record<string, string>> = {
   [PLASTER_WALL_HALF]: 'Putzwand',
   [CATALOG_DOOR]: 'Tür',
   [SHELF_WINDOW_PIECES.half]: 'Fenster',
+  ...HALLOWEEN_FENCE_LABELS,
 };
 
 /**

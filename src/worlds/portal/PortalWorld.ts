@@ -10528,8 +10528,15 @@ export class PortalWorld implements World {
         // **Nicht im Weltbau**: Dort ist man selbst zehnmal so groß, und ein
         // Tisch in echter Größe liegt in der Riesenhand wie ein Modell — so
         // groß, wie er gleich in der Welt steht.
-        const factor = ctx.rig.flying ? 1 : this.shrinkInHand(grab.entry);
-        if (ctx.rig.flying) this.unshrinkInHand(grab.entry);
+        // **Und nur in der Faust der Brille**: Die Bildschirmhand führt ihr
+        // Getragenes auch hier herum, hat ihre Größe aber schon gesetzt
+        // (`shrinkScreenCarry`). Von oben fiel sie hier durch und bekam die
+        // 35 cm der Brille — ein Zaun von 2 m lag 35 cm lang in der Hand,
+        // gemeldet: _„die größe der elemente in der hand bei "von Oben" passt
+        // nicht"_.
+        const fist = !ctx.rig.flying && anchor !== this.screenHand?.carry;
+        const factor = fist ? this.shrinkInHand(grab.entry) : 1;
+        if (!fist) this.unshrinkInHand(grab.entry);
         if (factor < 1) {
           anchor.getWorldPosition(_hand);
           _point.sub(_hand).multiplyScalar(factor).add(_hand);
@@ -16068,13 +16075,14 @@ export class PortalWorld implements World {
     ctx.rig.useBusy = true;
     // Und die linke Maustaste legt es ab wie `E` (`PlayerRig.carrying`).
     ctx.rig.carrying = true;
-    // **Aus den Augen halb so groß** (`eyeHand.EYE_SCALE`), von oben in echt —
-    // und der Anker rückt dafür so nah, wie es der gezeichneten Größe
-    // entspricht, sonst schwebte eine halbe Tomate einen Meter vor einem her.
-    // Der Radiergummi ist von oben klein, sonst verdeckte er, was er löschen
-    // will — dessen Saum zeigt die Stelle (`eraserTarget`).
-    const shrink =
-      (ctx.topDown ? 1 : EYE_SCALE) * (this.elementErasers.has(grab.entry) ? ERASER_SHOWN : 1);
+    // **Halb so groß, aus den Augen wie von oben** (`eyeHand.EYE_SCALE`) —
+    // eine Größe für beide Ansichten, gewünscht: _„Wir sollten hier eine
+    // vereinheitlichung haben zwischen in der hand bei "aus den Augen / VR"
+    // und "von Oben""_. Der Anker rückt dafür so nah, wie es der gezeichneten
+    // Größe entspricht, sonst schwebte eine halbe Tomate einen Meter vor einem
+    // her. Der Radiergummi ist noch kleiner, sonst verdeckte er, was er
+    // löschen will — dessen Saum zeigt die Stelle (`eraserTarget`).
+    const shrink = EYE_SCALE * (this.elementErasers.has(grab.entry) ? ERASER_SHOWN : 1);
     this.shrinkScreenCarry(grab.entry, shrink, this.handPost(ctx, grab.entry));
     _screenSpanShown.radius = this.screenSpan.radius * shrink;
     _screenSpanShown.half = this.screenSpan.half * shrink;
@@ -16199,7 +16207,7 @@ export class PortalWorld implements World {
 
   /**
    * **Was getragen wird, in der Größe zeichnen, die die Ansicht will** — aus
-   * den Augen halb so groß (`EYE_SCALE`), von oben wie es ist.
+   * den Augen wie von oben halb so groß (`EYE_SCALE`).
    *
    * Nur das Bild wird kleiner und nicht der Körper: Getroffen, gestapelt und
    * eingerastet wird weiter mit der echten Größe (`halfExtents`), und beim

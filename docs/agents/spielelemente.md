@@ -606,9 +606,36 @@ Boden (`floor`). Die Ids fangen mit dem Ordner an (`tavern-`, `halloween-`,
   Särge, Gruft, Bildstock, Erde), Zäune & Tore, Kürbisse & Deko, Bauernhof
   (Vogelscheuche, Heu, Wagen, Traktor, Wegweiser, Maisfeld, Trittsteine) und
   Bäume (die übrigen Größen der Herbstbäume und toten Bäume, auf einer Zelle
-  wie die Natur). **Die offenen Tore sperren nichts** (Torbogen, Holztor,
-  Kürbistor: `solid: [0, 0]`), sonst käme niemand hindurch; das Maisfeld ist
-  auf eine Kachel gebracht (`fit: 1`), damit es sich zu einem Irrgarten reiht.
+  wie die Natur). Das Maisfeld ist auf eine Kachel gebracht (`fit: 1`), damit
+  es sich zu einem Irrgarten reiht.
+  - **Zäune und Tore sind Wände** (Oktober 2026, `HALLOWEEN_FENCES`).
+    Gewünscht: _„es wäre besser, wenn zaun von halloween wie wände behandelt
+    werden? Zudem müsste z. B. Zauntor auch wie eine tür sein. Ich brauche
+    nur bei denen wenn die einen raum umschließen keine Decke automatisch.
+    Hier sollten wir unterscheiden vlt. zwischen Zaun und Wand, die aber
+    beide zwischen den feldern gesetzt werden."_ Eisenzaun, Lattenzaun (je
+    auch kaputt), Eisentor, Torbogen, Torbogen mit Gitter und Holztorbogen
+    stehen im Ordner _Zäune & Tore_ (und unter _Alles_) als **Regalmodelle**
+    wie die Wände unter _Haus_ (`FurnitureFolder.models`, Namen aus
+    `HALLOWEEN_FENCE_LABELS` über `BUILD_LABELS`): Sie rasten auf der Fuge
+    ein, werden wie eine Wand gezogen (Pfeiler in der Hand, Geisterzaun,
+    `drawnWall`), lassen sich schräg setzen und mit _Wand abreißen_
+    wegnehmen. Alle sind 2 m lang und haben kein halbes Stück — eine Linie
+    ungerader Länge endet eine Kachel früher.
+  - **Die Tore sind Durchgänge wie die Tür** (`props.MODEL_ARCHES`,
+    nachgemessen: Eisentor ±0,8 m ohne Sturz, Torbögen ±0,8 m bis 85 % der
+    Höhe, Holztorbogen ±0,88 m bis 1,65 m): Gesperrt sind nur die Zellen der
+    Pfosten, die Kante dazwischen ist offen. Getragen werden sie wie eine Tür,
+    die Vorderseite zu sich (`isDoorModel`). **Die Flügel stehen offen**
+    (`props.openGate`): Die Gitterflügel von Eisentor und Torbogen mit Gitter
+    drehen sich 90° um ihre äußere Kante, beide zur Vorderseite — erst nach
+    dem Messen, sonst wäre das Tor 0,8 m tief und keine Wand mehr.
+  - **Ein Zaun macht keine Decke** (`elementCatalog.isFenceModel`,
+    `HausbauWorld.coverRooms`): Er sperrt wie jede Wand, aber ein umzäunter
+    Platz ist kein Raum ([Hausbau](hausbau.md#die-decke-über-jedem-raum)).
+  - **Element bleiben** die Zaunpfeiler (eine Zelle, keine Fuge) und das
+    Kürbistor: 70 cm tief, für eine Fuge zu dick, sperrt nichts
+    (`solid: [0, 0]`).
 - **Weihnachten** (`holidayCatalog.ts`, `HOLIDAY_FOLDER`): Tannenbaum,
   Geschenke, Schnee, Deko, Wohnzimmer (Ohrensessel, Fußbänke, Teppiche,
   Kakao, Plätzchen), Spielzeug und Lebkuchen-Bausteine. **Die Eisenbahn ist ein
@@ -1372,7 +1399,7 @@ eigenen Zellen (`HauntingWorld.cellBlocked`, `map/stationCells.ts`).
 | `worlds/elements/cityCatalog.ts`      | **Rein**: der Ordner _Stadt_ — `CITY_ELEMENTS`, `CITY_CATALOGUE`, `CITY_FOLDER`, `CITY_SCALE` (4 m je Einheit der Quelle), `CITY_BLOCK` (12 × 12 Kacheln: 6 m Fahrbahn, je 3 m Gehweg); Straßen und Plätze als Boden mit Laternen und Ampeln |
 | `worlds/elements/natureCatalog.ts`    | **Rein**: der Ordner _Natur_ — `NATURE_ELEMENTS`, `NATURE_FOLDER`; die sieben anderen Farben von _Forest Nature_ als `NATURE_COLORS`, `NATURE_COLOR_ELEMENTS`, `NATURE_COLOR_FOLDER` |
 | `worlds/elements/tavernCatalog.ts`    | **Rein**: der Ordner _Taverne_ aus _Dungeon_ — `TAVERN_ELEMENTS`, `TAVERN_FOLDER` |
-| `worlds/elements/halloweenCatalog.ts` | **Rein**: der Ordner _Halloween_ aus _Halloween Bits_ — `HALLOWEEN_ELEMENTS`, `HALLOWEEN_FOLDER`; offene Tore ohne Sperre |
+| `worlds/elements/halloweenCatalog.ts` | **Rein**: der Ordner _Halloween_ aus _Halloween Bits_ — `HALLOWEEN_ELEMENTS`, `HALLOWEEN_FOLDER`; Zäune und Tore als Wände (`HALLOWEEN_FENCES`, `HALLOWEEN_GATES`, `HALLOWEEN_FENCE_LABELS`) |
 | `worlds/elements/holidayCatalog.ts`   | **Rein**: der Ordner _Weihnachten_ aus _Holiday Bits_ — `HOLIDAY_ELEMENTS`, `HOLIDAY_FOLDER`; Eisenbahn und Geschenkehaufen als ein Stück |
 | `worlds/elements/elementPlace.ts`     | **Rein**: `ElementSpot`, `Face`, `faceYaw`, `spotSize`/`spotCentre`/`spotCells`/`spotFront`, `rotateOffset`, `overlaps`                                                                                                                |
 | `worlds/elements/elementView.ts`      | `ElementHost`, `placeElement`, `PlacedElement` (Anker, Ablage, Zellen, Kasten), `FALLBACK_TOP`                                                                                                                                         |

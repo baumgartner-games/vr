@@ -12,12 +12,17 @@ import type { FurnitureFolder, GameElement } from './elementCatalog';
  * Maße, aufgerundet; was höchstens 0,6 m im Quadrat misst, steht auf einer
  * Zelle.
  *
- * **Durch die offenen Tore geht man durch.** Der Torbogen (`arch`) und die
- * beiden Holztore (`wooden_gate`, `wooden_gate_halloween` — ein Rahmen ohne
- * Flügel) sperren gar nichts (`solid: [0, 0]`): Ihre Pfosten stehen am Rand
- * und sind dünner als eine Zelle, und eine Sperre über die ganze Breite
- * machte den Durchgang zu. Der Bogen mit Gitter (`arch_gate`) und das
- * Eisentor sind zu.
+ * **Zäune und Tore sind Wände** (`HALLOWEEN_FENCES`, Oktober 2026) — keine
+ * Spielelemente, sondern Regalmodelle wie die Wände unter _Haus_: Sie rasten
+ * auf der Fuge zwischen zwei Kacheln ein, lassen sich wie eine Wand ziehen
+ * und schräg setzen, und die Tore sind Durchgänge wie die Tür
+ * (`props.MODEL_ARCHES`, `elementCatalog.isDoorModel`). Gewünscht: _„es wäre
+ * besser, wenn zaun von halloween wie wände behandelt werden? Zudem müsste
+ * z. B. Zauntor auch wie eine tür sein. Ich brauche nur bei denen wenn die
+ * einen raum umschließen keine Decke automatisch."_ Ein umzäunter Platz
+ * bekommt deshalb keine Decke (`isFenceModel`, `HausbauWorld.coverRooms`).
+ * Das Kürbistor ist 70 cm tief, für eine Fuge zu dick, und bleibt ein
+ * Element, das nichts sperrt; die Pfeiler stehen auf einer Zelle.
  *
  * **Das Maisfeld ist auf eine Kachel gebracht** (`fit: 1`): In der Quelle
  * ist es 1,28 × 1,34 m und ließe sich ohne das nicht zu einem Irrgarten
@@ -124,25 +129,12 @@ export const HALLOWEEN_ELEMENTS: readonly GameElement[] = [
   thing('halloween-pillar', 'Steinpfeiler', 'pillar', ONE_CELL, ['Säule']), // 0,50 × 2,20 × 0,50
   ground('halloween-dirt', 'Erdboden', 'floor_dirt', [2, 2]), // 2,00 × 0,01 über dem Boden × 2,00
   ground('halloween-dirt-small', 'Erdfleck', 'floor_dirt_small', [1, 1]), // 1,00 × 0,02 × 1,00
-  // Zäune & Tore
-  thing('halloween-fence', 'Eisenzaun', 'fence', [2, 1], ['Zaun']), // 2,00 × 1,10 × 0,25
-  thing('halloween-fence-broken', 'Kaputter Eisenzaun', 'fence_broken', [2, 1], ['Zaun']), // 2,00 × 1,10 × 0,25
-  thing('halloween-fence-gate', 'Eisentor', 'fence_gate', [2, 1], ['Zaun', 'Tor']), // 2,00 × 1,50 × 0,25
+  // Zäune & Tore — die Zäune selbst sind Wände (`HALLOWEEN_FENCES`); hier
+  // stehen nur, was keine Fuge hat: die Pfeiler und das Kürbistor.
   thing('halloween-fence-pillar', 'Zaunpfeiler', 'fence_pillar', ONE_CELL, ['Zaun']), // 0,25 × 1,10 × 0,25
   thing('halloween-fence-pillar-broken', 'Kaputter Zaunpfeiler', 'fence_pillar_broken', ONE_CELL, [
     'Zaun',
   ]), // 0,25 × 0,75 × 0,25
-  thing('halloween-fence-wood', 'Lattenzaun', 'fence_seperate', [2, 1], ['Zaun']), // 2,00 × 1,00 × 0,08
-  thing(
-    'halloween-fence-wood-broken',
-    'Kaputter Lattenzaun',
-    'fence_seperate_broken',
-    [2, 1],
-    ['Zaun'],
-  ), // 2,00 × 1,00 × 0,08
-  { ...thing('halloween-arch', 'Torbogen', 'arch', [2, 1], ['Tor', 'Friedhof']), solid: NOTHING }, // 2,11 × 2,21 × 0,38
-  thing('halloween-arch-gate', 'Torbogen mit Gitter', 'arch_gate', [2, 1], ['Tor', 'Friedhof']), // 2,11 × 2,21 × 0,38
-  { ...thing('halloween-gate', 'Holztorbogen', 'wooden_gate', [2, 1], ['Tor']), solid: NOTHING }, // 2,00 × 2,00 × 0,20
   {
     ...thing(
       'halloween-gate-spooky',
@@ -247,6 +239,43 @@ export const HALLOWEEN_ELEMENTS: readonly GameElement[] = [
 /** Die Ids in der Reihenfolge des Katalogs. */
 export const HALLOWEEN_CATALOGUE: readonly string[] = HALLOWEEN_ELEMENTS.map((one) => one.id);
 
+/**
+ * **Die Zäune und Tore als Wände** — Regalmodelle, die auf der Fuge stehen
+ * (siehe oben). Alle 2 m lang; ein halbes Stück gibt es nicht, eine gezogene
+ * Linie ungerader Länge endet also eine Kachel früher
+ * (`elementCatalog.wallHalfOf`). Gemessen bei 0,5: Breite × Höhe × Tiefe.
+ */
+export const HALLOWEEN_FENCES: readonly string[] = [
+  spooky('fence'), // 2,00 × 1,10 × 0,25
+  spooky('fence_broken'), // 2,00 × 1,10 × 0,25
+  spooky('fence_seperate'), // 2,00 × 1,00 × 0,08
+  spooky('fence_seperate_broken'), // 2,00 × 1,00 × 0,08
+  spooky('fence_gate'), // 2,00 × 1,50 × 0,25
+  spooky('arch'), // 2,11 × 2,21 × 0,38
+  spooky('arch_gate'), // 2,11 × 2,21 × 0,38
+  spooky('wooden_gate'), // 2,00 × 2,00 × 0,20
+];
+
+/** **Welche davon Tore sind** — Durchgänge wie die Tür (`props.MODEL_ARCHES`). */
+export const HALLOWEEN_GATES: readonly string[] = [
+  spooky('fence_gate'),
+  spooky('arch'),
+  spooky('arch_gate'),
+  spooky('wooden_gate'),
+];
+
+/** **Die Namen der Zäune im Katalog** (`elementCatalog.BUILD_LABELS`). */
+export const HALLOWEEN_FENCE_LABELS: Readonly<Record<string, string>> = {
+  [spooky('fence')]: 'Eisenzaun',
+  [spooky('fence_broken')]: 'Kaputter Eisenzaun',
+  [spooky('fence_seperate')]: 'Lattenzaun',
+  [spooky('fence_seperate_broken')]: 'Kaputter Lattenzaun',
+  [spooky('fence_gate')]: 'Eisentor',
+  [spooky('arch')]: 'Torbogen',
+  [spooky('arch_gate')]: 'Torbogen mit Gitter',
+  [spooky('wooden_gate')]: 'Holztorbogen',
+};
+
 /** Die Ids, deren Name so anfängt. */
 function ofKind(...prefixes: string[]): string[] {
   return HALLOWEEN_CATALOGUE.filter((id) => prefixes.some((prefix) => id.startsWith(prefix)));
@@ -279,8 +308,9 @@ export const HALLOWEEN_FOLDER: FurnitureFolder = {
     {
       id: 'halloween-fences',
       label: 'Zäune & Tore',
-      elements: ofKind('halloween-fence', 'halloween-arch', 'halloween-gate'),
-      cover: { element: 'halloween-arch-gate' },
+      elements: ofKind('halloween-fence', 'halloween-gate'),
+      models: HALLOWEEN_FENCES,
+      cover: { model: spooky('arch_gate') },
     },
     {
       id: 'halloween-decor',
@@ -320,6 +350,11 @@ export const HALLOWEEN_FOLDER: FurnitureFolder = {
       elements: ofKind('halloween-tree'),
       cover: { element: 'halloween-tree-dead-decorated' },
     },
-    { id: 'halloween-all', label: 'Alles', elements: HALLOWEEN_CATALOGUE },
+    {
+      id: 'halloween-all',
+      label: 'Alles',
+      elements: HALLOWEEN_CATALOGUE,
+      models: HALLOWEEN_FENCES,
+    },
   ],
 };
