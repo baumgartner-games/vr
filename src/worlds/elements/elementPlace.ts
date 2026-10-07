@@ -62,6 +62,14 @@ export interface ElementSpot {
    * Hand (`GridWorld.handLevel`).
    */
   readonly level?: number;
+  /**
+   * **Nicht benutzbar** — `A` tut an diesem Element nichts, und es leuchtet
+   * nicht (`StationLayer.addOpener`). Gewünscht für die Stühle im Restaurant:
+   * _„dass wir die Stühle nicht benutzen können (z.B. sinnvoll in Restaurant,
+   * da hier nur Gäste drauf sitzen sollen für die Spiel Mechanik)"_.
+   * Umgeschaltet im Einrichten über das Element-Menü (`grid/inspectMenu.ts`).
+   */
+  readonly idle?: boolean;
 }
 
 /** Das Element einer Stelle. */

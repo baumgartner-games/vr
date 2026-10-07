@@ -531,6 +531,24 @@ export class StationLayer {
     this.openers.push(anchor);
     if (what === 'hologram' && placed.element.hologram)
       this.host.hologram?.(anchor, placed.spot.id, placed.element.hologram);
+    // **Im Einrichten ausgeschaltet** (`ElementSpot.idle`): Es steht nur da.
+    if (!placed.spot.idle) this.listenOpener(anchor, what);
+  }
+
+  /**
+   * **Benutzbar ein- oder ausschalten** (`ElementSpot.idle`), ohne das Element
+   * neu hinzustellen — es bleibt, wo es steht, nur `A` meldet sich an oder ab.
+   */
+  setUsable(placed: PlacedElement, usable: boolean): void {
+    const what = placed.element.opens;
+    const anchor = this.openers.find((one) => one.name === `opens:${placed.spot.id}`);
+    if (!what || !anchor) return;
+    this.host.removeUsable(anchor);
+    if (usable) this.listenOpener(anchor, what);
+  }
+
+  /** `A` an einem Element, das eine Seite aufmacht, anmelden. */
+  private listenOpener(anchor: THREE.Group, what: ElementOpens): void {
     if (!this.host.open) return;
     this.host.addUsable(
       anchor,
