@@ -415,11 +415,13 @@ for (const name of browserNames) {
         });
         await page.locator('.orbital-result').waitFor();
         await shot('lost-restart');
-        // Nach dem Ende heißt der Knopf wie überall (`rules/roundFlow.ts`, `FLOW.again`).
-        await page.getByRole('button', { name: 'Nochmal: echte Runde', exact: true }).click();
+        // Nach dem Ende steht oben nur „Mission gescheitert" und darunter der
+        // eine Knopf, der herunterzählt (`ShipExperience.stepEnd`) — gedrückt
+        // geht es sofort zurück in die Einsatzzentrale, die Runde in die Übung.
+        await page.getByRole('button', { name: /Zur Einsatzzentrale/ }).click();
         await page.waitForFunction(() => {
           const state = window.bgvr.world?.state;
-          return state?.phase === 'running' && state.crew.hp === 3;
+          return state && state.phase !== 'lost' && state.crew.hp === 3;
         });
         const controls = page.locator('details[data-main]');
         if (!(await controls.evaluate((node) => node.open)))
@@ -458,8 +460,6 @@ for (const name of browserNames) {
           await tests.locator(':scope > summary').click();
         await page.locator('[data-action="simulate"]').click();
         await page.locator('.orbital-player').waitFor();
-        // Die Bot-Runde ist die Vorführung (`roundFlow.MODE_TEXT.demo`).
-        await page.locator('.orbital-player strong').filter({ hasText: /VORFÜHRUNG/ }).waitFor();
         await page
           .locator('[data-action="simulate"]')
           .filter({ hasText: /beenden/ })
@@ -562,7 +562,7 @@ for (const name of browserNames) {
         // **Der Weg ins Menü ist im Schiff ein anderer.** Die Kopfzeile der
         // Seite ist dort aus (`haunting.css`, `body.orbital-on #hud`), weil sie
         // über dem Rand lag, den Kompass und Tafel brauchen; Menü, Verbindung
-        // und VR stehen stattdessen im Zahnrad des Technikers
+        // und VR stehen stattdessen hinter dem Menüknopf oben links
         // (`ShipExperience.shipOptions`, `pagemenu`) und drücken die Knöpfe der
         // Seite stellvertretend. Also wird hier genau dieser Weg geklickt.
         await page.locator('button[data-action="options"]').click();

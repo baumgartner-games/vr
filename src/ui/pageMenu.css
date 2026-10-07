@@ -1189,7 +1189,9 @@
 }
 .pmenu--bare .pmenu__top {
   position: absolute;
-  top: 8px;
+  /* Das Polster des Blattes (`safe-area--top`) hält ein absolut gesetztes ✕
+     nicht frei — der Rand des Geräts kommt hier noch einmal dazu. */
+  top: calc(8px + var(--safe-top, 0px));
   right: 0;
   z-index: 2;
   border-bottom: none;

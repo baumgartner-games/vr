@@ -1093,7 +1093,12 @@ export class PageMenu {
     // sein" — wie der Katalog.
     // **Ein Blatt zum Lesen nimmt ebenfalls alles** — ein Schild, so groß wie
     // der Schirm, mit dem ✕ oben rechts (`MenuEntry.sheet`).
-    const full = page.full || this.tabs || page.sheet !== undefined;
+    // **Und ein Menü ohne Kopf ebenso** (`openSubmenu`, `bare`, der Rechner
+    // _Spiel-Einstellungen_): Es stand als Blatt von unten da, reichte am
+    // Telefon trotzdem bis unter die Uhr, und sein ✕ saß in der Batterie.
+    // Gewünscht: _„Bitte Beispiel am eigentlichen Menü nehmen"_ — also wie
+    // das Inventar: ganzer Schirm, der Kopf unter dem sicheren Rand.
+    const full = page.full || this.tabs || page.sheet !== undefined || this.bare;
     this.element.classList.toggle('pmenu--full', full);
     // **Vom Kopf bleibt auf einem Blatt nur das ✕** (`pageMenu.css`,
     // `pmenu--reading`): keine Reiter, kein Zurück, kein Titel.

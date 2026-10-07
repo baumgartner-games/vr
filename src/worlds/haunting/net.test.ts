@@ -292,7 +292,7 @@ describe('Die Tafel auf der Leitung', () => {
   });
 
   it('trägt Rundentyp und Bots der Zentrale mit — dann verteilt der Gastgeber die Plätze', () => {
-    const crew = { type: 'real' as const, bots: 3 };
+    const crew = { type: 'real' as const, bots: 3, monsterPace: 1.25 };
     const wire = JSON.parse(JSON.stringify(startMessage('play', table, crew))) as unknown;
     expect(readStart(wire)).toEqual({ intent: 'play', setup: table, crew });
   });

@@ -73,6 +73,8 @@ export interface KaykitFigure {
   resumeGait(speed: number): void;
   /** Eine der Aktionen (`attack`/`hit`/`death`) — spielt einmal und kehrt (außer death) danach zum Gang zurück. */
   act(kind: FigureAct): boolean;
+  /** Nach `act('death')` wieder aufstehen: zurück in den Gang, der gerade gemeint ist. */
+  revive(): void;
   update(dt: number): void;
   dispose(): void;
 }
@@ -234,6 +236,13 @@ class Figure implements KaykitFigure {
     this.acting = action;
     this.dead = kind === 'death';
     return true;
+  }
+
+  revive(): void {
+    if (this.gone || !this.dead) return;
+    this.dead = false;
+    this.acting = null;
+    this.startGait(FIGURE_FADE);
   }
 
   update(dt: number): void {

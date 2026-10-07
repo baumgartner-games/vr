@@ -253,7 +253,9 @@ import {
   ROUND_TYPE_LABELS,
   fillSeats,
   loadCrew,
+  monsterPaceLabel,
   nextBotCount,
+  nextMonsterPace,
   saveCrew,
   type CrewSettings,
   type Takers,
@@ -600,6 +602,12 @@ export class HauntingWorld extends FurnishedWorld {
   private monsterSuited = false;
   /** Rundentyp und Bots der Zentrale (`rules/crewBots.ts`) — je Gerät gespeichert. */
   private crewSettings: CrewSettings = loadCrew();
+  /**
+   * **Das Monster-Tempo der laufenden Runde** (`CrewSettings.monsterPace`):
+   * die eigene Einstellung — oder die, die ein anderes Gerät beim Start
+   * mitgeschickt hat (`startCrewRound`). Gerechnet wird nur beim Gastgeber.
+   */
+  private monsterPace = this.crewSettings.monsterPace;
   /** Die Bots der Zentrale als Figuren (`world3d/commandBots.ts`). */
   private crewBots: CommandBots | null = null;
   /** Ob beim letzten Bild eine Runde lief — für `CommandBots.release`. */
@@ -2370,6 +2378,7 @@ export class HauntingWorld extends FurnishedWorld {
     });
     this.pendingBooks = null;
     kernel.round.driver = this.netMonster;
+    kernel.round.monsterPace = this.monsterPace;
     kernel.round.onLamp = (_kind, room) => this.lampSound(room);
     // Eine Buchführung für alle: Tafel, Techniker vor Ort und Runde teilen
     // sich Riegel und Lampen (`rules/doorLocks.ts`, `rules/lamps.ts`).
@@ -4101,6 +4110,17 @@ export class HauntingWorld extends FurnishedWorld {
         `Station: ${this.state.crew.options.rooms} Räume`,
         'Feste Skeld-Karte · hier nicht einstellbar',
       ),
+      entry(
+        'haunt:monster-pace',
+        `Monster-Tempo: ${monsterPaceLabel(crew.monsterPace)}`,
+        'Wie viel schneller als du das Monster laufen kann · antippen: nächste Stufe',
+        () => {
+          this.crewSettings = { ...crew, monsterPace: nextMonsterPace(crew.monsterPace) };
+          saveCrew(this.crewSettings);
+          this.setMonsterPace(this.crewSettings.monsterPace);
+          this.context?.refreshWorldMenu();
+        },
+      ),
       greyed(
         'haunt:monster-kind',
         `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
@@ -4402,6 +4422,7 @@ export class HauntingWorld extends FurnishedWorld {
       return;
     }
     const fill = fillSeats(this.setup, crew, this.takers(ctx));
+    this.setMonsterPace(crew.monsterPace);
     if (fill.missing) {
       this.say(MISSING_TEXT[fill.missing]);
       return;
@@ -4409,6 +4430,12 @@ export class HauntingWorld extends FurnishedWorld {
     this.applySetup(fill.setup);
     this.crewBots?.assign(fill.bots);
     this.launchRound(ctx, intent, crew);
+  }
+
+  /** Das Monster-Tempo setzen — auch in einer Runde, die schon läuft. */
+  private setMonsterPace(pace: number): void {
+    this.monsterPace = pace;
+    if (this.kernel) this.kernel.round.monsterPace = pace;
   }
 
   /** Wer seinen Platz schon selbst genommen hat (`rules/crewBots.Takers`). */

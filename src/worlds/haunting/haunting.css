@@ -374,33 +374,34 @@ body.orbital-on #hud { display: none; }
 /* Eine Zeile im Optionsmenü, die nur Auskunft gibt und kein Knopf ist. */
 .flat__note { color: #9aa6c0; font-size: 12px; line-height: 1.45; }
 /* **Der Streifen des Technikers am Bildschirm** (`ShipExperience.paintHudDom`):
-   Sauerstoff, Bildrate und Anzug in einer Zeile, darunter die Aufträge und
-   der Balken eines Handgriffs — dieselben Zeilen wie an der Kamera in der
-   Brille, nur im DOM, weil die Kamera von oben eine andere ist. Unten in der
-   Mitte, über dem Bordstock der Seite und unter der Tafel. */
-.orbital-hud { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 96px); transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: 10px; border: 1px solid #33556a; background: rgba(8, 24, 35, 0.86); color: #d8e7ec; font: 12px system-ui, sans-serif; pointer-events: none; z-index: 4; }
+   links die Zeit, rechts der Anzug als Herzen, darunter der Balken eines
+   Handgriffs. Er steht seit Oktober 2026 **oben in der Tafel** und nicht mehr
+   unten über dem Bordstock — gewünscht: _„Darunter kann dann gerne das Panel
+   sein mit Zeit links, rechts Anzug (mit Herzen)"_. */
+.orbital-hud { display: flex; flex-direction: column; gap: 4px; color: #d8e7ec; font: 12px system-ui, sans-serif; }
 .orbital-hud[hidden] { display: none; }
 /* **Die Meldungen des Schiffs** (`ui/shipToast.ts`): Lage und Breite setzt `toastPlace`; Form und ✕ sind die aller Meldungen (`ui/screenMessage.css`). */
 .orbital-toast { --msg-accent: #96eddb; position: fixed; z-index: 5; font-size: 13px; text-align: center; animation: orbital-toast-in .18s ease-out; }
 @keyframes orbital-toast-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .orbital-toast { animation: none; } }
-.orbital-hud__row { display: flex; align-items: baseline; gap: 10px; }
+.orbital-hud__row { display: flex; align-items: center; gap: 10px; }
 .orbital-hud__row.is-low { border-color: #ff5a5f; }
-.orbital-hud__oxygen { font-size: 15px; font-variant-numeric: tabular-nums; }
+.orbital-player .orbital-hud__oxygen { padding: 0; font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
 .orbital-hud__fps { flex: 1 1 auto; color: #8fb0bd; font-size: 10px; }
-.orbital-hud__suit { font-size: 12px; letter-spacing: .06em; }
+.orbital-hud__suit { margin-left: auto; display: flex; gap: 3px; font-size: 19px; line-height: 1; }
+.orbital-hud__suit i { font-style: normal; color: #5d6f78; }
+.orbital-hud__suit i.is-full { color: #ff5a6e; text-shadow: 0 0 6px rgba(255, 90, 110, 0.45); }
 .orbital-hud__tasks { border-top: 1px solid #1e3a4a; padding-top: 4px; color: #d8e7ec; }
 .orbital-hud__pips { color: #7de9ec; letter-spacing: .1em; }
 .orbital-hud__chore { position: relative; display: flex; flex-direction: column; gap: 3px; padding-top: 4px; color: #c8ffd9; }
 .orbital-hud__chore span { font-size: 11px; }
 .orbital-hud__fill { display: block; height: 6px; border-radius: 999px; background: #8ff0b0; }
-.orbital-player.has-compass { --orbital-head: 44px; }
 /* **Die Kante, an der die Anzeigen des Schiffs anfangen.** Bis hierher waren
    das 58 px mehr, weil darüber die Kopfzeile der Seite lag (`#hud`). Die ist
    in dieser Welt weg (`body.orbital-on #hud`), und damit rücken Kompass und
    Tafel an den oberen Rand — dieselbe Rechnung wie in der 2D-Welt, wo
    `--flat-top` nach oben rückt, sobald der Streifen verschwindet. */
-.orbital-player, .orbital-compass { --orbital-top: max(12px, env(safe-area-inset-top)); }
+.orbital-player, .orbital-compass, .orbital-menu { --orbital-top: max(12px, env(safe-area-inset-top)); --orbital-left: max(12px, env(safe-area-inset-left)); --orbital-right: max(12px, env(safe-area-inset-right)); }
 /* **Oben links, unter dem Kompass** — nicht unten links, wo es dem Weltmenü
    ins Bild lief (Befund 1.1, letzter Punkt). `--orbital-head` sind die 44 px
    des Kompasses (`.orbital-compass`, 38 px hoch) — und zwar nur dann, wenn er
@@ -580,7 +581,7 @@ body.orbital-on #hud { display: none; }
 .lobby__help .ui-note { margin-bottom: 8px; }
 
 /* --- Der Kompass am oberen Bildrand (`objectiveCompass.ts`), unter dem HUD der Seite --- */
-.orbital-compass { position: fixed; left: 50%; top: var(--orbital-top); transform: translateX(-50%); width: min(560px, 90vw); height: 38px; z-index: 4; pointer-events: none; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(7, 14, 22, 0.72); overflow: hidden; font: 11px system-ui, sans-serif; color: #dfeded; }
+.orbital-compass { position: fixed; left: calc(var(--orbital-left) + 52px); right: var(--orbital-right); top: var(--orbital-top); height: 44px; box-sizing: border-box; z-index: 4; pointer-events: none; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(7, 14, 22, 0.72); overflow: hidden; font: 11px system-ui, sans-serif; color: #dfeded; }
 .orbital-compass[hidden] { display: none; }
 .orbital-compass__ticks, .orbital-compass__marks { position: absolute; inset: 0; }
 .orbital-compass__cardinal { position: absolute; top: 3px; transform: translateX(-50%); font-weight: 600; letter-spacing: 0.08em; color: #96eddb; }
@@ -588,7 +589,40 @@ body.orbital-on #hud { display: none; }
 .orbital-compass__centre { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(150, 237, 219, 0.6); }
 .orbital-compass__mark { position: absolute; bottom: 2px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 1px; white-space: nowrap; transition: left .12s linear; }
 .orbital-compass__mark i { display: block; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 9px solid rgba(255, 216, 74, 0.55); }
-.orbital-compass__mark span { font-size: 10px; color: rgba(255, 232, 160, 0.75); }
+.orbital-compass__mark span { font-size: 10px; color: rgba(255, 232, 160, 0.75); transform: translateX(calc(var(--edge, 0) * -42%)); }
+.orbital-compass__mark span:empty { display: none; }
 .orbital-compass__mark.is-next i { border-bottom-color: #ffd84a; border-left-width: 8px; border-right-width: 8px; border-bottom-width: 12px; }
 .orbital-compass__mark.is-next span { color: #ffd84a; font-weight: 600; }
 .orbital-compass__mark.is-behind i { transform: rotate(180deg); opacity: .8; }
+
+/* ---------- Die Anzeigen des Technikers am Bildschirm (Oktober 2026) ----------
+   Gewünscht: _„Es fehlt mir oben links der Menü Button, soll immer da sein,
+   und den restlichen Platz kann die Navigation oben einnehmen. Darunter kann
+   dann gerne das Panel sein."_ Also eine Zeile oben — Menüknopf, daneben der
+   Kompass bis an den rechten Rand — und darunter die Tafel. Von oben gibt es
+   keinen Kompass (der Pfeil steht an der Figur, `.orbital-arrow`); dann rückt
+   die Tafel neben den Menüknopf in die obere Zeile. Alle Kanten halten den
+   sicheren Bereich frei (`--orbital-top`, `--orbital-left`). */
+.orbital-menu { position: fixed; top: var(--orbital-top); left: var(--orbital-left); z-index: 5; width: 44px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; border: 1px solid var(--hud-line, #34433f); border-radius: 12px; background: rgba(7, 14, 16, 0.88); box-shadow: var(--hud-shadow); cursor: pointer; touch-action: manipulation; }
+.orbital-menu span { display: block; width: 18px; height: 2px; border-radius: 2px; background: #d8f3ec; }
+.orbital-menu:focus-visible { outline: 2px solid #96eddb; outline-offset: 2px; }
+.orbital-menu[hidden] { display: none; }
+.orbital-player { top: var(--orbital-top); left: calc(var(--orbital-left) + 52px); width: min(420px, calc(100vw - var(--orbital-left) - var(--orbital-right) - 52px)); max-height: calc(100dvh - var(--orbital-top) - 16px); }
+.orbital-player.has-compass { top: calc(var(--orbital-top) + 52px); left: var(--orbital-left); width: min(420px, calc(100vw - var(--orbital-left) - var(--orbital-right))); max-height: calc(100dvh - var(--orbital-top) - 68px); }
+.orbital-player .orbital-hud:not([hidden]) + * { margin-top: 4px; }
+@media (max-width: 480px) { .orbital-player { --orbital-gap: 8px; } }
+/* **Das Ende**: oben nur „Mission gescheitert", darunter der eine Knopf, der
+   herunterzählt (`ShipExperience.stepEnd`). Er steht in der Tafel und nicht
+   mehr als Karte mitten im Bild — die Mitte gehört der Figur, die umfällt. */
+.orbital-result { position: static; transform: none; width: auto; padding: 4px 0 0; border: none; border-radius: 0; background: none; box-shadow: none; font: 600 15px/1.4 system-ui, sans-serif; text-align: center; }
+.orbital-player .orbital-result__title { display: block; padding: 2px 0 10px; font-size: 18px; letter-spacing: .08em; text-transform: uppercase; color: #ff9aa5; }
+.orbital-player .orbital-result button { width: 100%; margin: 0; min-height: 48px; font: 700 15px system-ui, sans-serif; font-variant-numeric: tabular-nums; border-color: #a2e8e7; background: #8ae2dc; color: #08212a; }
+.orbital-player .orbital-result button:hover { background: #b3f6ec; }
+@media (max-height: 500px) { .orbital-result { padding-top: 0; } }
+/* **Der Pfeil zum Ziel, von oben** (`ShipExperience.stepArrow`): ein gelbes
+   Dreieck neben der Figur, in Richtung des nächsten Ziels gedreht, darunter
+   Name und Entfernung. Lage und Drehung setzt das Skript je Bild. */
+.orbital-arrow { position: fixed; left: 0; top: 0; z-index: 3; width: 0; height: 0; pointer-events: none; }
+.orbital-arrow[hidden] { display: none; }
+.orbital-arrow i { position: absolute; left: -9px; top: -11px; width: 0; height: 0; border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 18px solid #ffd84a; transform: rotate(var(--arrow-turn, 0rad)); transform-origin: 9px 11px; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9)); }
+.orbital-arrow span { position: absolute; left: 0; top: 14px; transform: translateX(-50%); white-space: nowrap; padding: 2px 7px; border-radius: 999px; background: rgba(7, 14, 22, 0.78); color: #ffe7a0; font: 600 11px system-ui, sans-serif; }

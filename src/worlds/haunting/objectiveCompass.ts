@@ -129,7 +129,14 @@ export class ObjectiveCompass {
       node.classList.toggle('is-behind', mark.behind);
       // Am Rand bleibt die Beschriftung im Streifen, statt halb abgeschnitten zu werden.
       node.style.left = `${50 + Math.max(-0.86, Math.min(0.86, mark.offset)) * 50}%`;
-      const text = `${mark.label} · ${Math.round(mark.distance)} m`;
+      // Und die Beschriftung rückt zur Mitte hin, damit sie am Rand nicht
+      // abgeschnitten wird (`--edge`, `haunting.css`).
+      node.style.setProperty('--edge', mark.offset.toFixed(2));
+      // **Beschriftet ist nur das nächste Ziel.** Standen alle mit Namen da,
+      // lagen auf dem Telefon drei Beschriftungen übereinander und keine war
+      // zu lesen („Die Navigations Leiste ist aktuell etwas überladen"). Die
+      // anderen bleiben als Dreieck stehen.
+      const text = mark.next ? `${mark.label} · ${Math.round(mark.distance)} m` : '';
       const label = node.lastElementChild!;
       if (label.textContent !== text) label.textContent = text;
     }

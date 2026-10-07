@@ -7,6 +7,63 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Der Techniker am Bildschirm: weniger Tafel, ein Ende mit Uhr (Oktober 2026)
+
+Gewünscht, vom Telefon aus, in einem Zug: das Menü des Rechners
+_Spiel-Einstellungen_ unter der Uhr des Telefons, ein einstellbares
+Monster-Tempo, ein Tod mit Bild und Rückkehr, und eine Tafel, die nicht mehr
+die halbe Station verdeckt.
+
+- **Das Menü ohne Kopf hält den sicheren Rand frei** (`PageMenu`, `bare`):
+  Es nimmt jetzt den ganzen Schirm wie das Reitermenü (`pmenu--full`, also
+  `safe-area--top`), und sein absolut gesetztes ✕ rückt um `--safe-top`
+  nach unten (`pageMenu.css`, `.pmenu--bare .pmenu__top`). Vorher saß das ✕
+  in der Batterie. _„Bitte Beispiel am eigentlichen Menü nehmen."_
+- **Monster-Tempo** (`haunt:monster-pace`, zwischen Station und Gegner):
+  `CrewSettings.monsterPace` (`rules/crewBots.ts`, `MONSTER_PACES` 1 · 1,1 ·
+  1,25 · 1,5 · 1,75, Vorgabe 1 = „gleich schnell"). Das ist ein **Deckel**:
+  `FlatRound.monsterPace` × `PLAYER_WALK_SPEED`, über den das Monster in
+  keiner Gangart kommt (`FlatRound.capped`, gilt für die KI wie für einen
+  Spieler am Monster). Warum das Gehtempo: Am Telefon gibt es keinen Sprint,
+  der Techniker läuft 2,6 m/s — das Monster patrouillierte mit ~2,95 und jagte
+  mit ~4,4 m/s, und genau das war _„aktuell wirkt es als wenn ich als Spieler
+  langsamer wäre"_. +75 % entspricht dem Monster von vorher. Gerechnet wird
+  beim Gastgeber; ein Start von einem anderen Gerät trägt die Stufe mit
+  (`startCrewRound`, `setMonsterPace`). Training und Tests (`roundSim`) lassen
+  den Deckel weg (`monsterPace = null`).
+- **Oben links der Menüknopf** (`.orbital-menu`, `ShipExperience.menuButton`,
+  `data-action="options"`): immer da, öffnet das Pausemenü (`showOptions`) mit
+  Runde, Ansicht, Menü, Verbindung, VR, Ton. **Daneben bis zum rechten Rand
+  der Kompass** (`.orbital-compass`, 44 px hoch); beschriftet ist dort nur
+  noch das nächste Ziel, und die Beschriftung rückt am Rand zur Mitte
+  (`--edge`). **Darunter die Tafel** (`.orbital-player`), oben darin der
+  Streifen (`.orbital-hud`, `paintHudDom`): links die Zeit (in der Übung
+  „ÜBUNGSRUNDE"), rechts der Anzug als Herzen (♥/♡), darunter der Balken
+  eines Handgriffs. Weg sind: die Titelzeile, _Zuklappen_, _⚙ Optionen_, die
+  Zeile der Hände (`rules/playerKeys.ts` gelöscht) und am Bildschirm die
+  Auftragszeile unten (die Brille behält ihren Streifen an der Kamera mit
+  Aufträgen und Bildrate). „Mission, Ausrüstung & Testdeck" bleibt als
+  zugeklappte Zeile — dort stehen die Rätselknöpfe der Konsole.
+- **Von oben kein Kompass, sondern ein Pfeil an der Figur** (`stepArrow`,
+  `.orbital-arrow`): Figur und nächstes Ziel (`objectives`, `next`) werden
+  durch `ctx.viewCamera` geworfen, der Pfeil steht 64 Punkte neben der Figur
+  in Richtung des Ziels, darunter Name und Entfernung; unter 1,5 m keiner.
+  Die Tafel rückt dann neben den Menüknopf in die obere Zeile. **Offen:** ein
+  Ziel, das die Zentrale auf ihrer Karte setzt (_„was z. B. ein Spieler an den
+  Bildschirmen setzen kann"_) — der Pfeil nimmt bisher das nächste Ziel aus
+  `objectives`.
+- **Das Ende** (`stepEnd`, `respawn`): Wird die Runde `lost`, fällt die Figur
+  um (`AvatarBody.act('death')` → `Death_A` des Space Rangers;
+  `KaykitFigure.revive` stellt sie wieder hin), die Kamera von oben fährt auf
+  60 % ihres Abstands heran (`DEATH_ZOOM`) (`ctx.topDownView`, gemerkt in `viewBefore`), und in der
+  Tafel steht nur noch **„Mission gescheitert"** und darunter **„Zur
+  Einsatzzentrale … 5"**, das herunterzählt (`END_SECONDS`). Bei null, auf
+  Druck oder mit `A`: `host.stop()` (zurück in die Übung, voller Anzug) und
+  `home()` (Rückkehrpunkt der Zentrale, im Anzug). Gewonnen geht derselbe
+  Weg, nur ohne Umfallen („Mission erfüllt"). Der Schirm an der Kamera
+  (`status`) zeigt das Ende nur noch in der Brille. Die alte Endkarte mitten
+  im Bild mit „Nochmal: echte Runde" ist weg.
+
 ## Die Einsatzzentrale zum Herumlaufen (Oktober 2026)
 
 Gewünscht: _„Beim start screen wo ich mich eigentlich anmelden soll will ich
@@ -2716,8 +2773,9 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     (`data-action="fold"`, `ShipExperience.folded`, `.is-folded`): Zu bleiben
     die Titelzeile — Anzug, Systeme, Sauerstoff — und die zwei Knöpfe, die
     wieder hinausführen; welche Klappen darin offen standen, merkt sich das
-    Panel (`mainOpen`, `testsOpen`). Oben im Panel steht **⚙ Optionen**
-    (`data-action="options"`, `ShipExperience.showOptions`) und klappt das
+    Panel (`mainOpen`, `testsOpen`). Oben im Panel stand **⚙ Optionen**
+    (seit Oktober 2026 der Menüknopf oben links, `.orbital-menu`, siehe oben;
+    _Zuklappen_ ist ebenfalls weg) und klappt das
     Optionsmenü des Schiffs auf — nur im Browser, nie in der Brille. Wo es
     liegt, sagt `haunting.css` (`.flat.orbital-options`, `.flat__panel`,
     `.flat__note`; bis Paket H stand das in `map/flat.css`).

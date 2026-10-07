@@ -17,7 +17,7 @@ import {
   figureLift,
   isLargeFigure,
 } from './avatarFigures';
-import { figureBoneName, pickClip } from './kaykitFigureFit';
+import { figureBoneName, pickClip, type FigureAct } from './kaykitFigureFit';
 import type { KaykitFigure } from './kaykitFigure';
 import {
   bodyJacket,
@@ -1151,6 +1151,20 @@ export class AvatarBody extends THREE.Group {
    * Gebaut wird trotzdem nur, was sich wirklich geändert hat — das hier läuft
    * je Mitspieler in jedem Bild.
    */
+  /**
+   * **Eine Aktion der Figur aus dem Regal** (`KaykitFigure.act`) — der Tod
+   * des Technikers (`ShipExperience`, `act('death')`). `false`, wenn keine
+   * Figur getragen wird oder sie die Spur nicht hat; dann bleibt sie stehen.
+   */
+  act(kind: FigureAct): boolean {
+    return this.figure?.act(kind) ?? false;
+  }
+
+  /** Nach dem Tod wieder aufstehen (`KaykitFigure.revive`). */
+  revive(): void {
+    this.figure?.revive();
+  }
+
   setLook(look: Appearance): void {
     if (look.head !== this.look.head) this.buildFace(look.head);
     if (look.body !== this.look.body) this.buildTorso(look.body);

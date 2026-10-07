@@ -37,13 +37,10 @@ import type { ToolChoice, ToolOption, WorldContext } from '../../core/types';
 import type { Usable } from '../../core/usable';
 import type { InteractionLike } from '../../core/interaction';
 import { isTyping } from '../../core/textEntry';
+import type { TopDownViewState } from '../../core/TopDownCamera';
+import { TOP_DOWN_MIN } from '../../core/topDownPose';
 import { hintDevice } from '../../core/controlHints';
-import { keyLabel, keysFor, padSlotsFor, type KeyAction } from '../../core/inputMap';
-import { inputConfig } from '../../core/inputStore';
-import { padSlotIcon } from '../../core/gamepadReport';
-import { hintsOn } from '../../ui/ControlHints';
 import { padNav } from '../../ui/padNav';
-import { playerKeysText } from './rules/playerKeys';
 import {
   SHIP_HAND_USE,
   lockerExitPress,
@@ -497,6 +494,29 @@ export class ShipExperience {
   private testsOpen = false;
   /** Der Kompass am oberen Bildrand — nur am Desktop; in der Brille gibt es ihn (noch) nicht. */
   private compass: ObjectiveCompass | null = null;
+  /**
+   * **Der Menüknopf oben links** — immer da, solange man am Bildschirm im
+   * Anzug steckt. Er öffnet das Pausemenü (`showOptions`), in dem Menü,
+   * Verbindung, VR und Ton stehen. Gewünscht: _„Es fehlt mir oben links der
+   * Menü Button, soll immer da sein"_ — die Kopfzeile der Seite ist in dieser
+   * Welt aus (`body.orbital-on #hud`).
+   */
+  private readonly menuButton = el('button', 'orbital-menu');
+  /**
+   * **Der Pfeil am Techniker, von oben** (`stepArrow`): Dort zeigt kein
+   * Kompassstreifen, sondern ein Pfeil an der Figur zum nächsten Ziel.
+   */
+  private readonly arrow = el('div', 'orbital-arrow');
+  private readonly arrowLabel = el('span');
+  /**
+   * **Sekunden bis zur Rückkehr in die Einsatzzentrale** nach dem Ende einer
+   * Runde (`stepEnd`) — `null`, solange keine zu Ende ist.
+   */
+  private endClock: number | null = null;
+  /** Ob nach diesem Ende schon zurückgekehrt wurde — dann zählt nichts mehr. */
+  private endDone = false;
+  /** Wie die Kamera von oben stand, bevor sie zum Toten heranfuhr. */
+  private viewBefore: TopDownViewState | null = null;
   private sensorMode: 'off' | 'flashlight' | 'radar' | 'xray' = 'off';
   private audioOn = true;
   private readonly audio = new ShipAudio();
@@ -616,7 +636,7 @@ export class ShipExperience {
       this.status.mesh,
       () => {
         if (this.crew.hidden) this.leaveLocker();
-        else if (['lost', 'won'].includes(this.host.state().phase)) this.host.start();
+        else if (['lost', 'won'].includes(this.host.state().phase)) this.respawn();
       },
       false,
       true,
@@ -682,7 +702,17 @@ export class ShipExperience {
       document.body.classList.add('orbital-on');
       this.hudDom.hidden = true;
       this.hudDom.setAttribute('role', 'status');
+      this.menuButton.type = 'button';
+      this.menuButton.dataset['action'] = 'options';
+      this.menuButton.setAttribute('aria-label', 'Menü');
+      this.menuButton.innerHTML = '<span></span><span></span><span></span>';
+      this.menuButton.addEventListener('click', () => this.showOptions(!this.optionsOpen));
+      this.arrow.hidden = true;
+      this.arrow.setAttribute('aria-hidden', 'true');
+      this.arrow.append(el('i'), this.arrowLabel);
       document.body.append(
+        this.menuButton,
+        this.arrow,
         this.dom,
         this.crosshair,
         this.optionsRoot,
@@ -712,7 +742,7 @@ export class ShipExperience {
   useSpecial(): boolean {
     if (!this.player) return false;
     if (['lost', 'won'].includes(this.host.state().phase)) {
-      this.host.start();
+      this.respawn();
       return true;
     }
     if (this.crew.hidden && !this.crew.simulation) {
@@ -2114,17 +2144,6 @@ export class ShipExperience {
   }
 
   /**
-   * **Was auf dem rechten Knopf steht.** Bei der Lampe gehört ihr Schalter
-   * dazu: „Taschenlampe an" oder „Taschenlampe aus" — vorher stand dort nur
-   * „Taschenlampe", und ob sie brennt, musste man an der Wand ablesen.
-   */
-  private get rightLabel(): string {
-    return this.rightItem === 'flashlight'
-      ? `Taschenlampe ${this.torchLit ? 'an' : 'aus'}`
-      : HAND_LABEL[this.rightItem];
-  }
-
-  /**
    * **Der Anzug** ist seit dem Space Ranger dessen eigener
    * (`SPACE_RANGER`): Umgefärbte Materialien und ein Brustgurt aus Quadern
    * gehörten zur gebauten Figur. Geblieben ist die Wunde, die der Anzug zeigt,
@@ -2473,8 +2492,12 @@ export class ShipExperience {
     this.effects.update(dt);
     if (this.player) {
       this.updateSuitVisibility();
+      // Das Ende zeigt am Bildschirm die Tafel (`stepEnd`, „Mission
+      // gescheitert" und der Knopf mit der Uhr); der Schirm an der Kamera ist
+      // dann nur noch für die Brille da.
       this.status.mesh.visible =
-        (!crew.simulation && !!crew.hidden) || state.phase === 'lost' || state.phase === 'won';
+        (!crew.simulation && !!crew.hidden) ||
+        ((state.phase === 'lost' || state.phase === 'won') && ctx.renderer.xr.isPresenting);
       this.visor.visible =
         !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
       this.visor.material.uniforms.fogAmount!.value = crew.exertion;
@@ -2507,7 +2530,10 @@ export class ShipExperience {
       this.optionsRoot.hidden =
         !this.optionsOpen || ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.stepCrouch(dt);
+      this.menuButton.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
+      this.stepEnd(ctx, dt);
       this.stepCompass(ctx, state.phase === 'running' && !crew.simulation);
+      this.stepArrow(ctx, state.phase === 'running' && !crew.simulation);
       // Solange die Mission läuft, nie in der Bot-Runde und nie im Menü: Ohne
       // Runde gibt es nichts zu zählen, und wer einer Bot-Runde zusieht, hat
       // weder Sauerstoff noch Aufträge. In der Brille **und** am Desktop —
@@ -2538,6 +2564,8 @@ export class ShipExperience {
       this.status.mesh.visible = false;
       this.hud.mesh.visible = false;
       this.hudDom.hidden = true;
+      this.menuButton.hidden = true;
+      this.arrow.hidden = true;
     }
     this.paintTimer -= dt;
     if (this.paintTimer <= 0) {
@@ -2549,7 +2577,8 @@ export class ShipExperience {
   /** Der Kompass folgt dem Blick: Himmelsrichtungen und die Ziele des Technikers. */
   private stepCompass(ctx: WorldContext, running: boolean): void {
     if (!this.compass) return;
-    const shown = running && !ctx.renderer.xr.isPresenting && !ctx.menu.isOpen;
+    // **Von oben kein Streifen, sondern der Pfeil an der Figur** (`stepArrow`).
+    const shown = running && !ctx.topDown && !ctx.renderer.xr.isPresenting && !ctx.menu.isOpen;
     this.compass.element.hidden = !shown;
     // Und die Tafel rückt unter ihn — oder an den oberen Rand, wenn er weg
     // ist. Vorher blieben die 44 px seiner Zeile auch dann frei, wenn dort
@@ -2559,6 +2588,106 @@ export class ShipExperience {
     ctx.camera.getWorldDirection(_direction);
     const yaw = Math.atan2(-_direction.x, -_direction.z);
     this.compass.update(yaw, { x: _head.x, z: _head.z }, this.host.objectives?.() ?? []);
+  }
+
+  /**
+   * **Der Pfeil zum Ziel, von oben** — gewünscht: _„Die Navigation kann bei
+   * (von oben) […] das aktuelle Ziel […] mit einer Pfeil Richtung am Spieler
+   * gezeigt"_ werden. Gerechnet wird auf dem Schirm: Figur und Ziel werden
+   * durch dieselbe Kamera geworfen, und der Pfeil steht ein Stück neben der
+   * Figur in Richtung des Ziels — so stimmt er bei jeder Drehung der Kamera.
+   * Ziele sind dieselben wie im Kompass (`HauntingWorld.objectives`); gezeigt
+   * wird nur das nächste.
+   */
+  private stepArrow(ctx: WorldContext, running: boolean): void {
+    const goal = running ? (this.host.objectives?.() ?? []).find((one) => one.next) : undefined;
+    const camera = ctx.viewCamera;
+    if (!goal || !ctx.topDown || !camera || ctx.renderer.xr.isPresenting || ctx.menu.isOpen) {
+      this.arrow.hidden = true;
+      return;
+    }
+    const distance = Math.hypot(goal.at.x - _head.x, goal.at.z - _head.z);
+    const me = _pos.set(_head.x, 0.9, _head.z).project(camera);
+    const mx = (me.x * 0.5 + 0.5) * window.innerWidth;
+    const my = (-me.y * 0.5 + 0.5) * window.innerHeight;
+    const there = _arrowGoal.set(goal.at.x, 0.9, goal.at.z).project(camera);
+    const dx = (there.x * 0.5 + 0.5) * window.innerWidth - mx;
+    const dy = (-there.y * 0.5 + 0.5) * window.innerHeight - my;
+    // Wer schon davorsteht, braucht keinen Pfeil mehr.
+    if (distance < 1.5 || Math.hypot(dx, dy) < 1) {
+      this.arrow.hidden = true;
+      return;
+    }
+    const angle = Math.atan2(dy, dx);
+    const ring = ARROW_RING;
+    this.arrow.hidden = false;
+    this.arrow.style.transform = `translate(${mx + Math.cos(angle) * ring}px, ${my + Math.sin(angle) * ring}px)`;
+    this.arrow.style.setProperty('--arrow-turn', `${angle}rad`);
+    const text = `${goal.label} · ${Math.round(distance)} m`;
+    if (this.arrowLabel.textContent !== text) this.arrowLabel.textContent = text;
+  }
+
+  /**
+   * **Das Ende einer Runde am Bildschirm.** Gewünscht: _„Wenn der Techniker
+   * stirbt […] Kamera zoomt zum Techniker, [Tod-]Animation wird gespielt.
+   * Spieler spawnt nach ein paar Sekunden automatisch in Einsatzzentrale.
+   * Oben nur Text Mission gescheitert. Darunter ein Button „Zur
+   * Einsatzzentrale … 3" (und zählt runter)."_
+   *
+   * Beim Wechsel auf „vorbei" fällt die Figur um (`AvatarBody.act('death')`,
+   * die Spur `Death_A` des Space Rangers), die Kamera von oben fährt bis auf
+   * 60 % des Abstands heran (`DEATH_ZOOM`), und die Uhr läuft `END_SECONDS`. Bei null — oder
+   * auf Druck — geht es zurück (`respawn`). Danach, sobald die Runde nicht
+   * mehr vorbei ist, steht die Figur wieder auf und die Kamera fährt zurück.
+   * Gewonnen geht derselbe Weg, nur ohne Umfallen.
+   */
+  private stepEnd(ctx: WorldContext, dt: number): void {
+    const phase = this.host.state().phase;
+    const over = (phase === 'lost' || phase === 'won') && !this.crew.simulation;
+    if (!over) {
+      if (this.endClock !== null) {
+        this.endClock = null;
+        this.endDone = false;
+        ctx.avatar.revive();
+        if (this.viewBefore) ctx.topDownView?.set(this.viewBefore);
+        this.viewBefore = null;
+      }
+      return;
+    }
+    if (this.endClock === null) {
+      this.endClock = END_SECONDS;
+      this.endDone = false;
+      if (phase === 'lost') ctx.avatar.act('death');
+      const view = ctx.topDown ? ctx.topDownView : undefined;
+      if (view) {
+        this.viewBefore = view.get();
+        view.set({
+          heading: this.viewBefore.heading,
+          zoom: Math.max(TOP_DOWN_MIN, this.viewBefore.zoom * DEATH_ZOOM),
+        });
+      }
+      this.stamp = '';
+    }
+    if (this.endDone) return;
+    this.endClock = Math.max(0, this.endClock - dt);
+    const count = this.dom.querySelector('[data-countdown]');
+    const text = String(Math.max(1, Math.ceil(this.endClock)));
+    if (count && count.textContent !== text) count.textContent = text;
+    if (this.endClock <= 0) this.respawn();
+  }
+
+  /**
+   * **Zurück in die Einsatzzentrale** — der Knopf der Endkarte, `A` nach dem
+   * Ende und der Ablauf der Uhr (`stepEnd`): Die Runde geht zurück in die
+   * Übung (`host.stop`, heile Kabinen, voller Anzug), und man steht am
+   * Rückkehrpunkt der Zentrale (`home`), immer noch im Anzug.
+   */
+  private respawn(): void {
+    if (this.endDone) return;
+    this.endDone = true;
+    this.host.stop?.();
+    this.home();
+    this.stamp = '';
   }
 
   private paint(): void {
@@ -2706,7 +2835,7 @@ export class ShipExperience {
     c.fillStyle = '#adffe8';
     c.font = 'bold 42px system-ui';
     c.fillText(
-      hidden ? 'AUSGANG · ANTIPPEN / E' : 'NEU STARTEN · ANTIPPEN / E',
+      hidden ? 'AUSGANG · ANTIPPEN / E' : 'ZUR EINSATZZENTRALE · ANTIPPEN / E',
       w / 2,
       h * 0.78,
       w - 44,
@@ -2775,7 +2904,7 @@ export class ShipExperience {
     const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${fps}|${pips}|${line}|${orders}|${chore?.label ?? ''}|${filled}`;
     if (this.hud.mesh.userData.paint === key) return;
     this.hud.mesh.userData.paint = key;
-    this.paintHudDom(hud, round, fps, orders, pips, line, chore, filled);
+    this.paintHudDom(hud, round, chore, filled);
     const c = this.hud.ctx;
     const { width: w, height: h } = this.hud.canvas;
     // Ohne Auftragszeile ist der Streifen **eine** Zeile hoch und nicht eine
@@ -2833,29 +2962,30 @@ export class ShipExperience {
     this.hud.texture.needsUpdate = true;
   }
 
-  /** Dieselben Zeilen als DOM (`.orbital-hud`) — für den Bildschirm, von oben wie aus den Augen. */
+  /**
+   * **Der Streifen am Bildschirm** (`.orbital-hud`, oben in der Tafel): links
+   * die Zeit, rechts der Anzug als Herzen — gewünscht: _„Darunter kann dann
+   * gerne das Panel sein mit Zeit links, rechts Anzug (mit Herzen)"_. Die
+   * Auftragszeile steht hier nicht mehr (_„Die Mission unten am Bildschirm
+   * kann weg"_); wohin es geht, sagt der Kompass oder von oben der Pfeil. Die
+   * Brille behält ihren Streifen an der Kamera (`paintHud`).
+   */
   private paintHudDom(
     hud: ReturnType<typeof roundHud>,
     round: MapRound,
-    fps: string,
-    orders: boolean,
-    pips: string,
-    line: string,
     chore: Chore | null,
     filled: number,
   ): void {
     const top = el('div', `orbital-hud__row${hud.low ? ' is-low' : ''}`);
     const oxygen = el('strong', 'orbital-hud__oxygen', hud.oxygen);
     oxygen.style.color = hud.color;
-    const suit = el('span', 'orbital-hud__suit', hud.suit);
-    suit.style.color = round.suit > 0 ? '#adffe8' : hud.color;
-    top.append(oxygen, el('small', 'orbital-hud__fps', fps), suit);
+    const suit = el('span', 'orbital-hud__suit');
+    suit.setAttribute('aria-label', `Anzug ${round.suit} von ${round.suitMax}`);
+    const alive = Math.max(0, Math.min(round.suitMax, round.suit));
+    for (let i = 0; i < round.suitMax; i++)
+      suit.append(el('i', i < alive ? 'is-full' : '', i < alive ? '♥' : '♡'));
+    top.append(oxygen, suit);
     const rows: HTMLElement[] = [top];
-    if (orders) {
-      const tasks = el('div', 'orbital-hud__row orbital-hud__tasks');
-      tasks.append(el('span', 'orbital-hud__pips', pips), el('span', '', line));
-      rows.push(tasks);
-    }
     if (chore) {
       const bar = el('div', 'orbital-hud__chore');
       const fill = el('i', 'orbital-hud__fill');
@@ -2923,39 +3053,6 @@ export class ShipExperience {
       door: this.doors.find((d) => _head.distanceTo(_pos.copy(d.at).setY(1)) < 2.8),
     };
   }
-  /**
-   * **Die Tastenzeile der Tafel** (`rules/playerKeys.ts`): die Hände immer,
-   * die Tasten nur mit Tastatur und ohne Tastenhilfe — sonst stünden dort
-   * `E` und `Tab` auch am Telefon und am Pad.
-   */
-  private keysText(): string {
-    const config = inputConfig();
-    const pads = document.getElementById('touch');
-    const device = hintDevice(padNav.device, pads !== null && !pads.hidden);
-    const key = (action: KeyAction): string => {
-      const code = keysFor(config, action)[0];
-      return code ? keyLabel(code) : '–';
-    };
-    const padUse = padSlotsFor(config, 'use')[0];
-    return playerKeysText({
-      device,
-      hintsShown: hintsOn(),
-      useKey:
-        device === 'pad'
-          ? padUse
-            ? padSlotIcon(padUse, padNav.kind)
-            : '–'
-          : device === 'touch'
-            ? 'A'
-            : key('use'),
-      toolsKey: key('tools'),
-      moveKeys: (['forward', 'left', 'back', 'right'] as const).map(key).join(''),
-      lightOn: this.rightItem === 'flashlight' && this.torchLit,
-      left: this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode],
-      right: this.rightItem === 'off' ? 'Hand frei' : this.rightLabel,
-    });
-  }
-
   private paintDom(): void {
     if (!this.player) return;
     // **In der Brille gibt es dieses Panel nicht** (`dom.hidden`, `update`) —
@@ -2974,7 +3071,6 @@ export class ShipExperience {
     const shown = crew.simulation ? {} : near;
     const signature = JSON.stringify([
       crew.options,
-      crew.simulation ? null : this.keysText(),
       crew.hp,
       crew.hidden,
       crew.inventory,
@@ -3002,16 +3098,6 @@ export class ShipExperience {
     const intentText = `Techniker: ${stage === 'flee' ? 'Flucht vor Gefahr' : stage === 'hide' ? 'Leise im Schutzschrank' : 'Mission erfüllen'} · Monster: ${{ patrol: 'Patrouille', investigate: 'Geräusch untersuchen', hunt: 'Verfolgung', search: 'Letzte Position absuchen' }[crew.threat.mode]}`;
     const currentIntent = this.dom.querySelector('[data-ai-intent]');
     if (currentIntent) currentIntent.textContent = intentText;
-    // Die Uhr läuft außerhalb der Signatur: Sie ändert sich jede Sekunde, und
-    // ein Titel, der deshalb jede Sekunde neu gebaut wird, nähme dem Spieler
-    // die Knöpfe unter dem Finger weg. Also nur der eine Text.
-    // Die Übung hat keine Sauerstoff-Uhr (`options.test`).
-    const round =
-      state.phase === 'running' && !state.crew.options.test ? (this.host.round?.() ?? null) : null;
-    const oxygenText = round ? ` · ${roundHud(round).oxygen}` : '';
-    const currentOxygen = this.dom.querySelector('[data-oxygen]');
-    if (currentOxygen && currentOxygen.textContent !== oxygenText)
-      currentOxygen.textContent = oxygenText;
     if (signature === this.stamp) return;
     this.stamp = signature;
     // Welche Klappen offen standen, steht an ihnen selbst — und solange die
@@ -3024,33 +3110,36 @@ export class ShipExperience {
       this.dom.querySelector<HTMLDetailsElement>('details[data-tests]')?.open ?? this.testsOpen;
     this.mainOpen = expanded;
     this.testsOpen = testsExpanded;
-    this.dom.replaceChildren();
-    const title = el(
-      'strong',
-      '',
-      // **Vorn das Schild der Runde** (`rules/roundFlow.ts`): Übungsrunde, echte
-      // Runde, Vorführung — dieselben Worte wie auf dem Telefon und in der Brille.
-      `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : MODE_TEXT[this.roundMode()].badge} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`,
-    );
-    const oxygen = el('span', '', oxygenText);
-    oxygen.dataset['oxygen'] = '';
-    title.append(oxygen);
-    this.dom.append(title);
-    // **Zuklappen.** Die Tafel steht über der Station, und auf dem Telefon
-    // ließ sie von ihr wenig übrig. Der Knopf davor räumt sie weg, bis auf die
-    // Titelzeile und diese zwei Knöpfe — wer sie wiederhaben will, drückt
-    // denselben Knopf. Er steht vor dem Zahnrad, weil er häufiger gebraucht
-    // wird als alles darunter.
-    const fold = actionKey(this.folded ? '▾ Aufklappen' : '▴ Zuklappen', 'fold');
-    fold.setAttribute('aria-expanded', String(!this.folded));
-    this.dom.append(fold);
-    // **Das Zahnrad** (`showOptions`): Zentrale, Menü, Verbindung, VR, Ton,
-    // Runde verlassen — ein Menü statt loser Knöpfe, die dasselbe anders
-    // nannten. Oben, weil es eine Ansicht ist und kein Handgriff — und
-    // zugeklappt der einzige Weg nach draußen, deshalb bleibt es stehen.
-    this.dom.append(actionKey('⚙ Optionen', 'options'));
-    this.dom.classList.toggle('is-folded', this.folded);
-    if (this.folded) return;
+    // **Oben die Anzeige und sonst nur, was gerade zu tun ist.** Gewünscht:
+    // _„Das ui des Technikers ist überladen."_ Weg sind die Titelzeile
+    // („ORBITAL · ECHTE RUNDE · ANZUG 3/3 …" — Uhr und Anzug stehen jetzt im
+    // Streifen `hudDom`, links die Zeit, rechts die Herzen), _Zuklappen_,
+    // _⚙ Optionen_ (das Pausemenü hängt am Menüknopf oben links,
+    // `menuButton`) und die Zeile mit den Händen.
+    this.dom.replaceChildren(this.hudDom);
+    // **Nach dem Ende nur noch das Ende** (`stepEnd`): oben „Mission
+    // gescheitert", darunter der eine Knopf „Zur Einsatzzentrale … 5", der
+    // herunterzählt und am Ende von selbst drückt.
+    const over = (state.phase === 'lost' || state.phase === 'won') && !crew.simulation;
+    this.dom.classList.toggle('is-over', over);
+    if (over) {
+      const result = el('div', 'orbital-result');
+      result.setAttribute('role', 'alert');
+      const go = actionKey('Zur Einsatzzentrale … ', 'respawn');
+      const count = el('span', '', String(Math.max(1, Math.ceil(this.endClock ?? END_SECONDS))));
+      count.dataset['countdown'] = '';
+      go.append(count);
+      result.append(
+        el(
+          'strong',
+          'orbital-result__title',
+          state.phase === 'lost' ? 'Mission gescheitert' : 'Mission erfüllt',
+        ),
+        go,
+      );
+      this.dom.append(result);
+      return;
+    }
     if (crew.simulation) {
       const intent = el('div', '', intentText);
       intent.dataset.aiIntent = '';
@@ -3062,35 +3151,16 @@ export class ShipExperience {
           'KI-Wege: Cyan = Techniker · Rot = Monster · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag',
         ),
         intent,
-      );
-    }
-    if (state.phase === 'lost' || state.phase === 'won') {
-      const result = el('div', 'orbital-result');
-      result.setAttribute('role', 'alert');
-      result.append(
         el(
-          'p',
-          '',
-          state.phase === 'lost'
-            ? 'Dein Anzug wurde zerstört. Die Runde ist vorbei.'
-            : 'Alle Reparaturen abgeschlossen. Die Crew ist gerettet.',
+          'div',
+          'orbital-player__keys',
+          this.followBot
+            ? 'Kamera folgt dem Bot · Freie Kamera: selbst durch das Schiff laufen'
+            : 'Freie Kamera · WASD oder Stock · Bot folgen holt dich zurück',
         ),
-        actionKey(FLOW.again, 'start'),
       );
-      this.dom.append(result);
     }
     if (crew.hidden) this.dom.append(actionKey('Schutzschrank verlassen', 'leave'));
-    this.dom.append(
-      el(
-        'div',
-        'orbital-player__keys',
-        crew.simulation
-          ? this.followBot
-            ? 'Kamera folgt dem Bot · Freie Kamera: selbst durch das Schiff laufen'
-            : 'Freie Kamera · WASD oder Stock · Bot folgen holt dich zurück'
-          : this.keysText(),
-      ),
-    );
     const panel = el('details');
     panel.dataset.main = '';
     panel.open = expanded;
@@ -3573,6 +3643,7 @@ export class ShipExperience {
     } else if (kind === 'stations') this.host.stations?.();
     else if (kind === 'fold') this.folded = !this.folded;
     else if (kind === 'options') this.showOptions(!this.optionsOpen);
+    else if (kind === 'respawn') this.respawn();
     else if (kind === 'follow-bot') this.setFollowBot(!this.followBot);
     else if (kind === 'crouch') this.crouchToggle = !this.crouchToggle;
     else if (kind === 'rooms' || kind === 'monster' || kind === 'light') this.commandAction(kind);
@@ -3989,6 +4060,8 @@ export class ShipExperience {
     disposeObject(this.hud.mesh);
     this.dom.remove();
     this.hudDom.remove();
+    this.menuButton.remove();
+    this.arrow.remove();
     this.toast.dispose();
     this.dom.removeEventListener('click', this.domClick);
     document.body.classList.remove('orbital-on');
@@ -4080,6 +4153,14 @@ function buildLockerSlits(): THREE.Group {
 }
 
 /** Ein Knopf der Tafel des Technikers: sein Text, und die Absicht als `data-action` (`onPanelClick`). */
+/** Wie lange die Endkarte zählt, bevor es von selbst in die Einsatzzentrale geht (s). */
+const END_SECONDS = 5;
+/** Wie nah die Kamera von oben an den Toten heranfährt — ein Anteil des Abstands davor. */
+const DEATH_ZOOM = 0.6;
+/** Wie weit der Zielpfeil von oben neben der Figur steht, in CSS-Punkten. */
+const ARROW_RING = 64;
+const _arrowGoal = new THREE.Vector3();
+
 function actionKey(text: string, action: string): HTMLButtonElement {
   return uiKey('', { text, data: { action } });
 }

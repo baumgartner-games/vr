@@ -28,6 +28,14 @@ export interface CrewSettings {
   type: RoundType;
   /** Wie viele Bots in der Einsatzzentrale stehen — 0 bis `MAX_BOTS`. */
   bots: number;
+  /**
+   * **Wie schnell das Monster neben dem Spieler laufen darf** — ein Faktor auf
+   * das Gehtempo des Technikers (`mission.PLAYER_WALK_SPEED`), über das das
+   * Monster nie hinauskommt (`monsterSpeedCap`). Gewünscht: _„anpassen können
+   * den Modifikator, wie viel schneller das Monster laufen kann. Am besten
+   * sollen beide erstmal gleich schnell laufen können"_ — Vorgabe 1.
+   */
+  monsterPace: number;
 }
 
 export const MAX_BOTS = 4;
@@ -35,7 +43,33 @@ export const CREW_STORAGE = 'bgvr.haunting.crew.v1';
 
 /** Gewünscht: _„per default sollen 4 bots in der einsatzzentrale stehen"_. */
 export function defaultCrew(): CrewSettings {
-  return { type: 'practice', bots: MAX_BOTS };
+  return { type: 'practice', bots: MAX_BOTS, monsterPace: 1 };
+}
+
+/**
+ * **Die Stufen des Monster-Tempos**, relativ zum Spieler. Bei 1,75 liegt der
+ * Deckel über allem, was die Gewichte hergeben — das ist das Monster wie vor
+ * der Einstellung (Jagd bis 4,55 m/s).
+ */
+export const MONSTER_PACES: readonly number[] = [1, 1.1, 1.25, 1.5, 1.75];
+
+/** „gleich schnell", „+10 %" … — so steht die Stufe im Menü. */
+export function monsterPaceLabel(pace: number): string {
+  return pace <= 1 ? 'gleich schnell' : `+${Math.round((pace - 1) * 100)} %`;
+}
+
+/** Die nächste Stufe: reihum, nach der letzten wieder „gleich schnell". */
+export function nextMonsterPace(pace: number): number {
+  const at = MONSTER_PACES.findIndex((one) => Math.abs(one - pace) < 0.001);
+  return MONSTER_PACES[(at + 1) % MONSTER_PACES.length]!;
+}
+
+/** Eine gelesene Stufe auf eine bekannte ziehen — fremde Zahlen werden die nächste. */
+export function clampMonsterPace(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+  return MONSTER_PACES.reduce((best, one) =>
+    Math.abs(one - value) < Math.abs(best - value) ? one : best,
+  );
 }
 
 export const ROUND_TYPE_LABELS: Readonly<Record<RoundType, string>> = {
@@ -54,6 +88,7 @@ export function readCrewSettings(value: unknown): CrewSettings {
       typeof bots === 'number' && Number.isFinite(bots)
         ? Math.max(0, Math.min(MAX_BOTS, Math.round(bots)))
         : fallback.bots,
+    monsterPace: clampMonsterPace(bag['monsterPace']),
   };
 }
 

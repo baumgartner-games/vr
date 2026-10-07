@@ -89,7 +89,7 @@ const FLATTEN = new Set(['ship:comfort']);
  * **Ausgegraut gleich hinter den Plätzen** — Station und Gegner: Sie stehen
  * da, damit man sieht, was gilt, sind aber nicht einzustellen.
  */
-const AFTER_SEATS = new Set(['haunt:rooms', 'haunt:monster-kind']);
+const AFTER_SEATS = new Set(['haunt:rooms', 'haunt:monster-pace', 'haunt:monster-kind']);
 
 /** Was oben bleibt, aber hinter die Unterseiten gehört. */
 const TAIL = new Set(['haunt:rescue']);

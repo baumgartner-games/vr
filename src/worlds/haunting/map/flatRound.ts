@@ -477,6 +477,13 @@ export class FlatRound implements MapSource {
   private spooking: Spook = freshSpook();
   private moving = false;
   private sprinting = false;
+  /**
+   * **Das Monster-Tempo der Einstellung** (`rules/crewBots.CrewSettings.monsterPace`):
+   * ein Faktor auf das Gehtempo des Spielers, über den das Monster nie
+   * hinauskommt — 1 heißt gleich schnell. `null` lässt die Gewichte allein
+   * entscheiden, wie im Training und in den Tests.
+   */
+  monsterPace: number | null = null;
   private seen = false;
   private caught = '';
   private radarPing = 0;
@@ -1159,7 +1166,9 @@ export class FlatRound implements MapSource {
       if (decision.goal)
         this.stepMonster(
           decision.goal,
-          paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, decision.pace, 0),
+          this.capped(
+            paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, decision.pace, 0),
+          ),
           dt,
         );
       this.haunt.monster = { x: this.monster.x, z: this.monster.z };
@@ -1303,7 +1312,7 @@ export class FlatRound implements MapSource {
       if (decision.goal)
         this.stepMonster(
           decision.goal,
-          paceSpeed(base, this.tuning.monster, decision.pace, decision.boost),
+          this.capped(paceSpeed(base, this.tuning.monster, decision.pace, decision.boost)),
           dt,
         );
     } else {
@@ -1313,7 +1322,7 @@ export class FlatRound implements MapSource {
         this.moveMonster(
           steered,
           dt,
-          paceSpeed(base, this.tuning.monster, steered.pace, steered.boost),
+          this.capped(paceSpeed(base, this.tuning.monster, steered.pace, steered.boost)),
         );
       // Wer steht und horcht, dreht sich zur Richtung des Geräuschs.
       if (decision.face && decision.pace === 'still')
@@ -1371,6 +1380,13 @@ export class FlatRound implements MapSource {
   }
 
   /** Die Schritte des Monsters als Wellen: leise beim Schleichen, weit beim Rennen. */
+  /** Das Tempo des Monsters unter dem Deckel der Einstellung (`monsterPace`). */
+  private capped(speed: number): number {
+    return this.monsterPace === null
+      ? speed
+      : Math.min(speed, PLAYER_WALK_SPEED * this.monsterPace);
+  }
+
   private stepMonsterNoise(decision: RoutineOutput, dt: number): void {
     if (decision.pace === 'still') {
       this.monsterPulse = 0;
