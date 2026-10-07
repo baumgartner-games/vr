@@ -1200,6 +1200,18 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   private drawRow(entry: MenuEntry, rect: Rect, hovered: boolean): void {
+    // Eine ausgegraute Zeile (`MenuEntry.disabled`) steht blass da und leuchtet nicht auf.
+    if (!entry.disabled) {
+      this.drawRowBody(entry, rect, hovered);
+      return;
+    }
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.45;
+    this.drawRowBody(entry, rect, false);
+    this.ctx.restore();
+  }
+
+  private drawRowBody(entry: MenuEntry, rect: Rect, hovered: boolean): void {
     const ctx = this.ctx;
     const accent = toCss(entry.accent ?? 0x4aa8ff);
     const active = hovered && this.flash > 0;

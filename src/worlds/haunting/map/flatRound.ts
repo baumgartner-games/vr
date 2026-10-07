@@ -786,6 +786,13 @@ export class FlatRound implements MapSource {
    * 2,6 m) — ein Türblatt, das hier offen stand und dort zu war, war für das
    * Gehör und die Sicht des Monsters ein anderes Türblatt.
    */
+  /**
+   * **Wer außer Techniker und Monster vor einer Tür steht** — der Monster-Anzug
+   * ohne laufende Runde (`HauntingWorld.monsterWalkers`). Die Tür fährt für ihn
+   * auf wie für den Techniker.
+   */
+  guests: FloorPoint[] = [];
+
   private stepDoors(dt: number): void {
     // **Ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`) —
     // ein Stationsfehler, damit ein fahrendes Blatt nicht länger heißt „da ist
@@ -800,7 +807,7 @@ export class FlatRound implements MapSource {
       () => this.rng.next(),
     );
     if (faulty.opened) this.events.push({ kind: 'info', text: 'Irgendwo fährt ein Schott auf.' });
-    const occupants: FloorPoint[] = [{ x: this.player.x, z: this.player.z }];
+    const occupants: FloorPoint[] = [{ x: this.player.x, z: this.player.z }, ...this.guests];
     if (this.haunt.monsterOn && !this.ventRide.concealed)
       occupants.push({ x: this.monster.x, z: this.monster.z });
     for (const door of leafDoors(this.house)) {

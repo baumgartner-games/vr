@@ -664,15 +664,34 @@ export class PageMenu {
     this.applyNav();
   }
 
-  /** Ein Untermenü nach seiner Id aufschlagen — wo es auch steht — und das Menü dazu öffnen. */
-  openSubmenu(id: string): void {
+  /**
+   * Ein Untermenü nach seiner Id aufschlagen — wo es auch steht — und das Menü dazu öffnen.
+   *
+   * **`bare`: ohne den Kopf des Menüs.** Gewünscht für den Rechner
+   * _Spiel-Einstellungen_ in Haunting: _„will ich nicht den header sehen der
+   * bei dem normal default menü (inventar, katalog etc) ist"_. Die Reiter und
+   * ihre Pfeile verschwinden (`pmenu--bare`), es bleiben Titel, ✕ und — eine
+   * Stufe tiefer — *Zurück*. Wer auf der aufgeschlagenen Seite zurückgeht,
+   * macht zu; beim nächsten Öffnen über den Knopf ist alles wie immer.
+   */
+  openSubmenu(id: string, options: { bare?: boolean } = {}): void {
     // Die Seite kann eine Ebene tiefer liegen — unter ihrem Hauptbereich
     // (`ui/menuGroups.ts`). Wer sie aufruft, nennt nur ihre Id.
     const path = findMenuPath(this.root, id);
     if (!path) return;
     this.keepScroll();
+    this.bareRoot = options.bare ? id : null;
     this.nav.goTo(path);
     this.toggle(true);
+    if (this.open) this.render();
+  }
+
+  /** Die Seite, die ohne Kopf aufgeschlagen wurde (`openSubmenu`, `bare`) — sonst `null`. */
+  private bareRoot: string | null = null;
+
+  /** Ob gerade ohne Kopf gezeigt wird: auf der Seite selbst oder darunter. */
+  private get bare(): boolean {
+    return this.bareRoot !== null && this.nav.path.includes(this.bareRoot);
   }
 
   /**
@@ -754,6 +773,7 @@ export class PageMenu {
     // nächsten Öffnen wieder ganz oben an. In jsdom fällt das nicht auf, weil
     // `scrollTop` dort eine gewöhnliche Zahl ist; im Browser sofort.
     if (!next) this.keepScroll();
+    if (!next) this.bareRoot = null;
     this.open = next;
     this.element.hidden = !next;
     if (!next) this.showAside(false);
@@ -785,7 +805,7 @@ export class PageMenu {
    * statt dass nichts passiert.
    */
   goBack(): boolean {
-    if (this.open && this.page.sheet) {
+    if (this.open && (this.page.sheet || this.atBareRoot)) {
       this.toggle(false);
       return true;
     }
@@ -847,6 +867,11 @@ export class PageMenu {
   }
 
   // --- Seiten -------------------------------------------------------------
+
+  /** Steht man auf der Seite, die ohne Kopf aufgeschlagen wurde? */
+  private get atBareRoot(): boolean {
+    return this.bareRoot !== null && this.nav.path.at(-1) === this.bareRoot;
+  }
 
   private get page(): Page {
     return this.stack[this.stack.length - 1]!;
@@ -1104,6 +1129,17 @@ export class PageMenu {
     // Mit Reitern sagt der Reiter schon, wo man steht — Titel und Brotkrumen
     // braucht es erst eine Stufe tiefer.
     if (this.tabs) this.headEl.hidden = this.stack.length <= this.floor;
+    // **Ohne Kopf** (`openSubmenu`, `bare`): keine Reiter, aber der Titel —
+    // und *Zurück* erst unter der aufgeschlagenen Seite.
+    const bare = this.bare;
+    if (this.bareRoot !== null && !bare) this.bareRoot = null;
+    this.element.classList.toggle('pmenu--bare', bare);
+    if (bare) {
+      this.headEl.hidden = false;
+      this.crumbsEl.hidden = true;
+      this.backButton.hidden = this.atBareRoot;
+      this.toolsEl.hidden = this.searchEl.hidden && this.colsEl.hidden && this.backButton.hidden;
+    }
     this.colsValue.textContent = String(columns);
     const source = this.source;
     const key = this.pageKey;
@@ -1711,7 +1747,8 @@ export class PageMenu {
     // Wer im Regal `crate buns` suchte und zugriff, bekam die erste Figur der
     // Sammlung. Der Index gehört dem, was gezeichnet wurde.
     const entry = this.source[index];
-    if (!entry) return;
+    // Eine ausgegraute Zeile steht nur da (`MenuEntry.disabled`).
+    if (!entry || entry.disabled) return;
     // Der Pfeil einer Nimm-Zeile geht in ihre Einstellungen, das ⓘ einer
     // Kachel in ihren Steckbrief; die Zeile selbst nimmt. Überall sonst öffnet
     // die Zeile ihre Seite, wenn sie eine hat. **Eine Detailseite erreicht man
@@ -1747,8 +1784,9 @@ export class PageMenu {
    */
   back(): void {
     if (!this.open) return;
-    // Ein Blatt zum Lesen geht mit einem Schritt ganz zu, wie mit dem ✕.
-    if (this.page.sheet) {
+    // Ein Blatt zum Lesen geht mit einem Schritt ganz zu, wie mit dem ✕ —
+    // und eine Seite ohne Kopf ebenso (`openSubmenu`, `bare`).
+    if (this.page.sheet || this.atBareRoot) {
       this.toggle(false);
       return;
     }
@@ -1852,6 +1890,10 @@ function row(
   node.dataset['key'] = `row:${entry.id}`;
   node.style.setProperty('--accent', accent);
   if (entry.selected) node.classList.add('is-selected');
+  if (entry.disabled) {
+    node.classList.add('is-disabled');
+    node.setAttribute('aria-disabled', 'true');
+  }
   if (entry.checked !== undefined) {
     node.setAttribute('role', 'switch');
     node.setAttribute('aria-checked', entry.checked ? 'true' : 'false');

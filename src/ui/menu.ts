@@ -233,6 +233,13 @@ export interface MenuEntry {
    * Figur.
    */
   hidden?: boolean;
+  /**
+   * **Ausgegraut: steht da, tut aber nichts.** Für eine Einstellung, die man
+   * sehen, aber an dieser Stelle nicht ändern kann — die Station und der
+   * Gegner der Haunting-Runde (`HauntingWorld.menu`), der Techniker, solange
+   * ein Mensch den Anzug trägt. Die Zeile sagt in `sub`, warum.
+   */
+  disabled?: boolean;
   /** Opens a submenu instead of running something. */
   children?: MenuEntry[];
   /** Draw the children as a grid of icons instead of a list. */

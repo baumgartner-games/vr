@@ -256,12 +256,32 @@ export class Npc {
       if (!this.posture) return;
       this.posture = null;
       this.model.setPose(null);
+      this.perch(false);
       return;
     }
     if (!this.posture) this.sendTo(null);
     this.posture = { pose, yaw, at: at ? { ...at } : null };
     this.model.setPose(pose);
+    this.perch(pose === 'sit' && at !== null);
   }
+
+  /**
+   * **Auf dem Sitz ohne Zylinder** — ein Sofa oder Stuhl, der in der Welt
+   * selbst ein fester Körper ist (die Sitzecke der Haunting-Zentrale,
+   * `haunting/world3d/commandBots.ts`), schöbe den Sitzenden sonst von seinem
+   * Platz. Solange er sitzt, stößt sein Körper an nichts und fällt nicht;
+   * beim Aufstehen ist er wieder, was er war.
+   */
+  private perch(on: boolean): void {
+    if (!this.bodied || this.perched === on) return;
+    this.perched = on;
+    this.entry.collider.setEnabled(!on);
+    this.entry.body.setGravityScale(on ? 0 : 1, true);
+    if (on) this.entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  }
+
+  /** Ob er gerade ohne Zylinder sitzt (`perch`). */
+  private perched = false;
 
   /** Die Haltung, die er gerade hat, oder `null`. */
   get pose(): NpcPose | null {

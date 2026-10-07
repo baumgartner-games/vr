@@ -1,3 +1,4 @@
+import { readCrewSettings, type CrewSettings } from './rules/crewBots';
 import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission';
 import { freshSpook, type Spook } from './haunt';
 import type { RoomNote, Sighting } from './monster/monsterMemory';
@@ -582,12 +583,17 @@ export function readSetupMessage(data: unknown): RoundSetup | null {
 }
 
 /** **Ein Startwunsch** vom Netz: die Absicht und die Tafel dazu, oder `null`. */
-export function readStart(data: unknown): { intent: Intent; setup: RoundSetup } | null {
+export function readStart(
+  data: unknown,
+): { intent: Intent; setup: RoundSetup; crew: CrewSettings | null } | null {
   const it = bag(data);
   if (!it || it['kind'] !== 'start' || !bag(it['seats'])) return null;
   const intent = it['intent'];
   if (intent !== 'play' && intent !== 'watch' && intent !== 'train') return null;
-  return { intent, setup: readSetup(it) };
+  // **Mit Rundentyp und Bots** (`rules/crewBots.ts`): Dann verteilt der
+  // Gastgeber die Plätze selbst — er weiß, wer welchen Anzug trägt.
+  const crew = bag(it['crew']) ? readCrewSettings(it['crew']) : null;
+  return { intent, setup: readSetup(it), crew };
 }
 
 /**
@@ -868,8 +874,14 @@ export function setupMessage(setup: RoundSetup): unknown {
 }
 
 /** Der Startwunsch an den Gastgeber: fang mit dieser Absicht und dieser Tafel an. */
-export function startMessage(intent: Intent, setup: RoundSetup): unknown {
-  return { kind: 'start', intent, seats: setup.seats };
+export function startMessage(
+  intent: Intent,
+  setup: RoundSetup,
+  crew: CrewSettings | null = null,
+): unknown {
+  return crew
+    ? { kind: 'start', intent, seats: setup.seats, crew }
+    : { kind: 'start', intent, seats: setup.seats };
 }
 
 export function stopMessage(): unknown {

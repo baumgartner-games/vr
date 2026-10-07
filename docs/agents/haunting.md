@@ -141,11 +141,9 @@ wie in jeder Welt, Sitzen auf allen Sitzmöbeln, keine Sauerstoff-Uhr in der
   den Platz wechselt man, indem man an einen anderen Rechner geht. Der
   Zuschauer (`watch`) hat damit zurzeit keinen Ort in der Zentrale.
 - **Rechner _Spiel-Einstellungen_** (`openSettings`): öffnet die Seite der
-  Welt im Menü (`WorldContext.openMenu('welt')`, `App.openMenuAt`). Dort
-  stehen jetzt für **jeden** Starts, Plätze & Fähigkeiten und die
-  Einstellungen der Runde — vorher nur für den Techniker. Ein Start von
-  jemandem ohne Anzug geht an den Gastgeber (`startRound`, über
-  `WorldMenuEntry.intent`).
+  Welt im Menü (`WorldContext.openMenu('welt')`, `App.openMenuAt`), für
+  **jeden** — vorher nur für den Techniker. Seit der vierten Runde ohne Kopf
+  und mit Rundentyp, „Runde starten" und Bots (siehe unten).
 - **Schilder mit Namen** (`addSign`, `commandSignTexts`, `refreshSigns`
   zweimal je Sekunde): über den Anzügen „TECHNIKER" bzw. „MONSTER" und der
   Name dessen, der ihn trägt — sonst „Bot"; über den Rechnern
@@ -199,6 +197,71 @@ breite kleiner machen. Dann finde ich es in dem raum immer noch düster."_
   Sitzecke.
 - **Taghell** (`buildDusk`): die vier Deckenleuchten als Raster 2 × 2, kühles
   Tageslicht (`COMMAND_DAYLIGHT`) mit flacherem Abfall (`COMMAND_LAMP_DECAY`).
+
+### Die vierte Runde: der Rechner _Spiel-Einstellungen_ und die Bots (Oktober 2026)
+
+Gewünscht: _„wenn ich beim haunting computer für die settings der runde das
+menü öffne, will ich nicht den header sehen …"_ — und eine kurze Liste statt
+Starts, Wegen und Unterseiten, dazu Bots in der Zentrale, die beim Start die
+freien Plätze nehmen.
+
+- **Ohne Kopf** (`openSettings` → `WorldContext.openMenu('welt', { bare: true })`,
+  `GameMenu.openSubmenu`, `PageMenu.openSubmenu`, CSS `pmenu--bare`): keine
+  Reiter, keine Pfeile durch die Reiter, das ✕ in der Titelzeile; *Zurück*
+  erst auf einer Unterseite, und Zurück auf der Seite selbst macht zu. Beim
+  nächsten Öffnen über den Menüknopf ist alles wie immer (`bareRoot` fällt
+  beim Schließen weg).
+- **Ausgegraute Zeilen** (`MenuEntry.disabled`): blass, ohne Wirkung — am
+  Schirm `.pmenu__row.is-disabled`, in der Brille `UIPanel.drawRow` mit
+  `globalAlpha` und `XRMenu.runSelect`, das sie überspringt.
+- **Die Liste** (`HauntingWorld.menu`, `rules/menuPages.ts`):
+  1. **Rundentyp: Übungsrunde** ⇄ **Echte Runde** (`haunt:round-type`),
+  2. **Runde starten** (`haunt:start`; darunter, was gespielt wird und
+     welche Plätze Bots nehmen — oder was fehlt); läuft eine echte Runde oder
+     Vorführung, steht dort ihr Abbruch (`haunt:stop`),
+  3. **Bots in der Einsatzzentrale: 0–4** (`haunt:bots`, Vorgabe 4),
+  4. **Plätze & Fähigkeiten** (`haunt:seats`): Techniker und Monster sagen
+     nur „Ziehe den Anzug an, um diese Rolle einzunehmen" — trägt ein Mensch
+     den Anzug, ausgegraut mit seinem Namen; Rot, Gelb, Blau führen in ein
+     Untermenü mit Späher, Schalttafel, Archiv als Schalter. Wer dort sitzt,
+     stellt niemand mehr ein.
+  5. ausgegraut **Station** und **Gegner** (`AFTER_SEATS`),
+  6. _Ansicht & Komfort_ (nur in der Brille: der VR-Komfort), _Ton_,
+     **_Entwickler-Einstellungen_** (`haunt:dev`: Grundriss-Vorlage),
+     „Feststecken?" und _Zurücksetzen_.
+
+  Weg sind „Jetzt: …", „Echte Runde starten", „Bots spielen lassen",
+  „Übungsrunde", „Zum Techniker-Anzug", „Rollen & Aufbau", Übungslicht,
+  _Einstellungen der Runde_, _Anzug & Ausrüstung_ (Linke Hand, Medkit,
+  Schutzschrank) und aus der Welt Tageslauf, „Zur Einsatzzentrale" und
+  „Nochmal" (`DROPPED`). Die Absichten (`startRound`, `rules/lobby.ts`)
+  bleiben für die Seite am Telefon.
+- **Rundentyp und Bots** (`rules/crewBots.ts`: `CrewSettings`, `loadCrew`,
+  `saveCrew` unter `bgvr.haunting.crew.v1`, je Gerät). **„Runde starten"**
+  (`startCrewRound`) füllt die Plätze mit `fillSeats`: Menschen behalten,
+  was sie genommen haben (`takers`: Techniker-Anzug, Monster-Anzug oder Platz
+  `monster`, belegte Farbplätze); die Bots nehmen den Rest, einer je Platz —
+  **Techniker, dann Monster** (nur in der echten Runde; in der Übung ist es
+  aus), **dann Rot, Gelb, Blau**. Ein Bot nimmt nie einen Platz, auf dem ein
+  Mensch sitzt. Fehlt Techniker oder Monster und kein Bot ist übrig, sagt es
+  `MISSING_TEXT`, und nichts startet. Ohne Anzug geht der Wunsch mit
+  `startMessage(…, crew)` an den Gastgeber, der mit dem verteilt, was er sieht
+  (`readStart().crew`). „Warten, bis alle gewählt haben" heißt hier: verteilt
+  wird erst beim Druck auf „Runde starten".
+- **Die Bots als Figuren** (`world3d/commandBots.CommandBots`, Roboter aus
+  dem Regal: 4GTN und Kampf-Mech): schlendern durch die Zentrale
+  (`strollPoint`, Hirn `errand`) und setzen sich aufs Sofa, wenn es frei ist
+  (`COUCH_SEATS`, von der Seite her; sitzt man selbst darauf, `couchTaken`,
+  stehen sie auf). Sofa und Stuhl stehen auf gesperrten Zellen: Der Bot wird
+  auf den Sitz versetzt (`Npc.warp`) und sitzt dort ohne Zylinder
+  (`Npc.hold('sit', …, at)` → `perch`). Beim Start bekommt jeder Bot mit Platz
+  seinen Auftrag (`assign`): an den Schreibtisch seiner Farbe und hinsetzen,
+  oder an den Anzugständer — dann ist er in der Runde und verschwindet aus der
+  Zentrale. Nach der Runde (`release`, aus `tick`) sitzen und schlendern alle
+  wieder. Jedes Gerät zeigt seine eigenen; sie gehen nicht übers Netz.
+- **Der Monster-Anzug geht durch die Tür** — solange keine Runde läuft
+  (`monsterWalkers` in `doorOccupants`; beim Gastgeber mit Kern als
+  `FlatRound.guests`). In der Runde ist er das Monster.
 
 Was weiter unten über die Lobby der Startseite, „Web 3D", „Enter VR", den
 Reiter „Techniker" als Weg an den Stock und die Brille, die den Anzug von

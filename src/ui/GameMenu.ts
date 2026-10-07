@@ -152,10 +152,15 @@ export class GameMenu extends THREE.Group {
     return true;
   }
 
-  openSubmenu(id: string): void {
+  /**
+   * Ein Untermenü nach seiner Id aufschlagen. `bare`: ohne die Reiter oben —
+   * die Seite steht allein da, wie das Menü eines Rechners in der Welt
+   * (`PageMenu.openSubmenu`).
+   */
+  openSubmenu(id: string, options: { bare?: boolean } = {}): void {
     if (this.onPage) {
       this.xr.toggle(false);
-      this.page!.openSubmenu(id);
+      this.page!.openSubmenu(id, options);
       return;
     }
     this.xr.openSubmenu(id);

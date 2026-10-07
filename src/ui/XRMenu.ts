@@ -845,7 +845,8 @@ export class XRMenu extends THREE.Group {
    */
   private runSelect(index: number, hand: Handedness | null, viaTrigger: boolean): void {
     const entry = this.displayed()[index];
-    if (!entry) return;
+    // Eine ausgegraute Zeile steht nur da (`MenuEntry.disabled`).
+    if (!entry || entry.disabled) return;
 
     if (entry.children) {
       if (this.page.take && !viaTrigger) return;
