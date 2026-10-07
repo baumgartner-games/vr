@@ -82,6 +82,7 @@ import {
   MONSTER_SPOT,
   SETTINGS_SPOT,
   SUIT_SPOT,
+  inFront,
   TERMINAL_TILES,
   chairSpot,
   deskSpot,
@@ -4764,6 +4765,21 @@ export class HauntingWorld extends FurnishedWorld {
     this.pendingBotRound = false;
     this.pendingConsole = then;
     this.context?.menu.toggle(false);
+  }
+
+  /**
+   * Vor den Anzugständer. Kein Menüeintrag mehr (der Rechner
+   * _Spiel-Einstellungen_ sagt nur, wo der Anzug hängt) — der Rauchtest
+   * im Browser (`tools/browser-smoke.mjs`) stellt sich damit davor.
+   */
+  goToSuit(): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    if (this.atDesk) this.standUp();
+    const at = inFront(SUIT_SPOT);
+    this.movePlayerTo(ctx, new THREE.Vector3(at.x, 0, at.z), 0);
+    ctx.menu.toggle(false);
+    this.say('Der Techniker-Anzug steht vor dir — A zieht ihn an.');
   }
 
   /**
