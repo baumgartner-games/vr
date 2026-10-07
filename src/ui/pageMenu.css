@@ -314,6 +314,11 @@
 .pmenu__row:active {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
+.pmenu__row.is-disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: grayscale(0.8);
+}
 .pmenu__row.is-selected {
   border-color: var(--accent);
 }
@@ -1170,6 +1175,30 @@
   padding: 8px 8px 0;
   border-bottom: none;
 }
+/* **Ohne Kopf aufgeschlagen** (`PageMenu.openSubmenu`, `bare`) — das Menü
+   eines Rechners in der Welt: keine Reiter, keine Pfeile durch die Reiter,
+   nur das ✕; Titel und Zurück stehen darunter wie immer. Gewünscht: „will ich
+   nicht den header sehen der bei dem normal default menü (inventar, katalog
+   etc) ist". */
+.pmenu--bare .pmenu__top > :not(.pmenu__close) {
+  display: none;
+}
+/* Das ✕ rückt in die Zeile des Titels: oben rechts über dem Blatt. */
+.pmenu--bare .pmenu__sheet {
+  position: relative;
+}
+.pmenu--bare .pmenu__top {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  z-index: 2;
+  border-bottom: none;
+}
+.pmenu--bare .pmenu__head,
+.pmenu--bare .pmenu__tools {
+  padding-right: 56px;
+}
+
 .pmenu--reading .pmenu__list:empty {
   display: none;
 }

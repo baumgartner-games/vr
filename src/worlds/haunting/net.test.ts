@@ -288,7 +288,13 @@ describe('Die Tafel auf der Leitung', () => {
 
   it('trägt einen Startwunsch mit Absicht und Tafel hinüber', () => {
     const wire = JSON.parse(JSON.stringify(startMessage('train', table))) as unknown;
-    expect(readStart(wire)).toEqual({ intent: 'train', setup: table });
+    expect(readStart(wire)).toEqual({ intent: 'train', setup: table, crew: null });
+  });
+
+  it('trägt Rundentyp und Bots der Zentrale mit — dann verteilt der Gastgeber die Plätze', () => {
+    const crew = { type: 'real' as const, bots: 3 };
+    const wire = JSON.parse(JSON.stringify(startMessage('play', table, crew))) as unknown;
+    expect(readStart(wire)).toEqual({ intent: 'play', setup: table, crew });
   });
 
   it('gibt bei Unsinn null zurück und stutzt eine halbe Tafel auf den Anfang', () => {
@@ -305,6 +311,7 @@ describe('Die Tafel auf der Leitung', () => {
     ).toEqual({
       intent: 'play',
       setup: withWho(defaultSetup(), 'monster', 'off'),
+      crew: null,
     });
   });
 

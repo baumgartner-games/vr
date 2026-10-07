@@ -824,7 +824,7 @@ export class App {
       dress: (figure) => this.dress(figure),
       openOutfit: () => this.openOutfit(),
       openNetwork: () => this.openNetwork(),
-      openMenu: (id) => this.openMenuAt(id),
+      openMenu: (id, options) => this.openMenuAt(id, options),
       openHoldEditor: (subject) => this.openHoldEditor(subject),
     };
   }
@@ -2437,10 +2437,10 @@ export class App {
   }
 
   /** Eine Seite des Menüs nach ihrer Id (`WorldContext.openMenu`). */
-  private openMenuAt(id: string): void {
+  private openMenuAt(id: string, options: { bare?: boolean } = {}): void {
     if (!this.world) return;
     if (this.menuDirty) this.refreshMenu();
-    this.gameMenu.openSubmenu(id);
+    this.gameMenu.openSubmenu(id, options);
   }
 
   /**

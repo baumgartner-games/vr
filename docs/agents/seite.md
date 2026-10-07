@@ -384,6 +384,20 @@ Inventar eine eigene Vorschauschicht).
   Streifen über den Kacheln (Figur links, Name und Knopf rechts), am
   Schreibtisch als Spalte rechts (`pageMenu.css`, `playerCard.css`).
 
+### Ohne Kopf aufgeschlagen, ausgegraute Zeilen
+
+- **`openSubmenu(id, { bare: true })`** (`PageMenu`, `GameMenu`,
+  `WorldContext.openMenu`, `App.openMenuAt`): die Seite ohne Reiter und ohne
+  die Pfeile durch die Reiter, das ✕ oben rechts in der Titelzeile
+  (`pmenu--bare`). Zurück auf der aufgeschlagenen Seite macht zu, darunter
+  geht es Stufe für Stufe zurück; beim Schließen fällt der Modus weg
+  (`bareRoot`). Gebraucht vom Rechner _Spiel-Einstellungen_ in Haunting —
+  ein Menü eines Dings in der Welt und nicht das Menü des Spiels.
+- **`MenuEntry.disabled`**: steht blass da und tut nichts — am Schirm
+  `.pmenu__row.is-disabled` (Klick wird übergangen), in der Brille
+  halbdurchsichtig gezeichnet (`UIPanel.drawRow`) und von `XRMenu.runSelect`
+  übersprungen. Warum, sagt die Zeile in `sub`.
+
 ### Aussehen im Inventar
 
 Gewünscht: _„beim menü aussehen anpassen, bitte auch das menü voll machen.
