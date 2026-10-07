@@ -31,6 +31,13 @@ die halbe Station verdeckt.
   beim Gastgeber; ein Start von einem anderen Gerät trägt die Stufe mit
   (`startCrewRound`, `setMonsterPace`). Training und Tests (`roundSim`) lassen
   den Deckel weg (`monsterPace = null`).
+  **Nachgemessen** (_„Das Monster ist definitiv schneller als ich !!"_): Der
+  Deckel griff — Spieler und Monster je 2,6 m/s —, aber nur bei vollem
+  Ausschlag. Der Stock am Glas braucht dafür 56 Punkte bis an den Ring, und
+  den geht kaum ein Daumen; mit zwei Dritteln lief man ~1,7 m/s. Jetzt gilt
+  volles Tempo ab 60 % Ausschlag (`HauntingWorld.STICK_FULL`). Und im Schacht
+  kroch das Monster mit 3,5 m/s ohne Deckel; `VentTravel.speed` nimmt ihn
+  jetzt mit (`FlatRound`, `capped(VENT_SPEED)`).
 - **Oben links der Menüknopf** (`.orbital-menu`, `ShipExperience.menuButton`,
   `data-action="options"`): immer da, öffnet das Pausemenü (`showOptions`) mit
   Runde, Ansicht, Menü, Verbindung, VR, Ton. **Daneben bis zum rechten Rand

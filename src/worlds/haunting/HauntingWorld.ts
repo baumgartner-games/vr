@@ -293,6 +293,8 @@ import {
  */
 
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
+/** Ab welchem Ausschlag des Stocks der Techniker sein volles Tempo läuft. */
+const STICK_FULL = 0.6;
 const _zero = new THREE.Vector3();
 /** Der Stock in Ruhe — wenn das Gestell außerhalb der Karte steht oder im Schrank. */
 const IDLE_INPUT: FlatInput = { x: 0, z: 0, sprint: false };
@@ -2470,7 +2472,12 @@ export class HauntingWorld extends FurnishedWorld {
     const sprint = ctx.rig.sprinting;
     const pace = ctx.rig.pace?.(sprint) ?? PLAYER_WALK_SPEED;
     const wished = Math.hypot(wish.x, wish.z);
-    const magnitude = pace > 0 ? Math.min(1, wished / pace) : 0;
+    // **Volles Tempo schon bei 60 % Ausschlag** (`STICK_FULL`). Der Stock am
+    // Glas braucht für 1,0 den ganzen Weg bis an den Ring (56 Punkte,
+    // `FlatControls.clampStick`), und den geht kaum ein Daumen: Gemessen lief
+    // man am Telefon meist mit zwei Dritteln, also ~1,7 m/s, und das Monster
+    // mit seinen 2,6 m/s war _„definitiv schneller als ich"_.
+    const magnitude = pace > 0 ? Math.min(1, wished / pace / STICK_FULL) : 0;
     return {
       x: wished > 1e-6 ? (wish.x / wished) * magnitude : 0,
       z: wished > 1e-6 ? (wish.z / wished) * magnitude : 0,

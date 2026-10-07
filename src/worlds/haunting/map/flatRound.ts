@@ -85,7 +85,7 @@ import {
 } from '../rules/blood';
 import { freshGhosts, markGhost } from '../rules/ghosts';
 import { VentNet } from '../vents/ventGraph';
-import { VentTravel } from '../vents/ventTravel';
+import { VENT_SPEED, VentTravel } from '../vents/ventTravel';
 import { VentPilot } from '../vents/ventPilot';
 import type { MonsterDriver } from '../monster/monsterDriver';
 import { FlatNavigator } from '../navmesh';
@@ -1146,6 +1146,8 @@ export class FlatRound implements MapSource {
     // --- Im Schacht: nichts hören, nichts sehen, nur fahren (`vents/ventTravel.ts`).
     const piloted = this.driver?.active() === true;
     if (this.ventRide.busy) {
+      // Auch im Schacht nicht schneller als der Deckel (`monsterPace`).
+      this.ventRide.speed = this.capped(VENT_SPEED);
       const event = this.ventRide.step(dt, this.monster, !piloted);
       if (event === 'entered' || event === 'exited')
         this.wave(MONSTER_ID, this.monster, NOISE.monsterVent, 'vent');

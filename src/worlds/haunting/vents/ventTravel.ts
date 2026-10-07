@@ -38,6 +38,13 @@ export interface VentRider {
 }
 
 export class VentTravel {
+  /**
+   * Wie schnell der Reiter durch den Schacht kommt, in m/s — `VENT_SPEED`,
+   * solange niemand einen Deckel setzt (`FlatRound.monsterPace`: Das Monster
+   * kriecht nie schneller, als es laufen darf).
+   */
+  speed = VENT_SPEED;
+
   phase: VentPhase = 'out';
   from: VentFlap | null = null;
   to: VentFlap | null = null;
@@ -125,7 +132,7 @@ export class VentTravel {
       if (this.timer > 0) return '';
       const length = this.net.length(this.from!.id, this.to!.id);
       this.phase = 'riding';
-      this.total = this.timer = Math.max(VENT_MIN_RIDE, length / VENT_SPEED);
+      this.total = this.timer = Math.max(VENT_MIN_RIDE, length / Math.max(0.1, this.speed));
       rider.x = this.from!.at.x;
       rider.z = this.from!.at.z;
       return 'entered';
