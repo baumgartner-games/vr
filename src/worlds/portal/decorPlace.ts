@@ -206,12 +206,13 @@ export function surfaceSpot(
  * Wandfackeln, Zielscheiben für die Wand, Tafeln, Wandschmuck und die
  * Wandbretter aus `furniture-bits` (`shelf_A_*` — ein Brett mit Konsolen, das
  * auf dem Boden lag wie ein Stück Holz) und die Wandfliesen des Restaurants
- * (`wall_tiles_*`, eine Platte, die sonst als Wand galt und eine ersetzte).
+ * (`wall_tiles_*`, eine Platte, die sonst als Wand galt und eine ersetzte),
+ * dazu seit Oktober 2026 die Wandregale `shelf_B_*`.
  */
 export function mountsOnWall(path: string): boolean {
   const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
   if (name.startsWith('pictureframe_')) return !name.includes('standing');
-  return /^(banner_|torch_mounted|plaque_|target_wall_|wall_decoration_|wall_tiles_|shelf_a_|sign_(left|right|both))/.test(
+  return /^(banner_|torch_mounted|plaque_|target_wall_|wall_decoration_|wall_tiles_|shelf_[ab]_|sign_(left|right|both))/.test(
     name,
   );
 }

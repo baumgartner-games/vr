@@ -126,6 +126,12 @@ export interface ElementChange {
    * etwa ein Stuhl im Restaurant, auf dem nur Gäste sitzen.
    */
   readonly idle?: true;
+  /**
+   * **Wie hoch es hängt** — die Unterkante über null, in Metern: ein
+   * Wandstück (`GameElement.wall`). Dann sind `x`/`z` kein Kachelrand,
+   * sondern die Stelle an der Wand.
+   */
+  readonly y?: number;
 }
 
 export type WorldChange = FurnitureChange | ModelChange | NoteChange | ElementChange;
@@ -314,6 +320,7 @@ export function recordElement(
   world?: string,
   level = 0,
   idle = false,
+  y?: number,
 ): void {
   load();
   if (!tracking) return;
@@ -326,6 +333,7 @@ export function recordElement(
     ...(level > 0 ? { level } : {}),
     ...(world ? { world } : {}),
     ...(idle ? { idle: true as const } : {}),
+    ...(y !== undefined ? { y } : {}),
   });
   save();
 }
@@ -568,8 +576,12 @@ function parseRow(row: unknown): WorldChange | null {
     const z = data.z;
     if (typeof x !== 'number' || typeof z !== 'number') return null;
     // Ganze oder halbe Kacheln: Stühle und schmale Bäume rasten je Zelle ein
-    // (`elementPlace.snapsToCells`).
-    if (!Number.isInteger(x * 2) || !Number.isInteger(z * 2)) return null;
+    // (`elementPlace.snapsToCells`) — und ein Wandstück hängt, wo die Wand es
+    // hält (`y`), dann ist jede Stelle recht.
+    const height = typeof data.y === 'number' && Number.isFinite(data.y) ? { y: data.y } : {};
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+    if (height.y === undefined && (!Number.isInteger(x * 2) || !Number.isInteger(z * 2)))
+      return null;
     const face = data.face === undefined ? 'S' : data.face;
     if (face !== 'N' && face !== 'E' && face !== 'S' && face !== 'W') return null;
     const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
@@ -589,6 +601,7 @@ function parseRow(row: unknown): WorldChange | null {
       ...world,
       ...gone,
       ...idle,
+      ...height,
     };
   }
   if (typeof data.model === 'string' || typeof data.note === 'string') {
@@ -674,6 +687,7 @@ function toRow(change: WorldChange): unknown {
       ...world,
       ...gone,
       ...(change.idle ? { idle: true } : {}),
+      ...(change.y !== undefined ? { y: change.y } : {}),
     };
   }
   const at = [change.at.x, change.at.y, change.at.z];

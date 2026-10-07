@@ -73,6 +73,11 @@ const OPENS_WORDS: Readonly<Record<NonNullable<GameElement['opens']>, string>> =
   swap: 'Fassung tauschen — im Einrichten',
   sit: 'Sitzen — hinsetzen mit A',
   hologram: 'Hologramm — Modell wählen mit A',
+  light: 'Lampe — an und aus mit A',
+  lid: 'Truhe — aufklappen und herausnehmen mit A',
+  tap: 'Fass — etwas herausnehmen mit A',
+  unwrap: 'Geschenk — auspacken mit A',
+  roll: 'Würfel — werfen mit A',
 };
 
 /**

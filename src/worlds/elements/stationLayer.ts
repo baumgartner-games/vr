@@ -335,6 +335,11 @@ const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = {
   swap: 'Laterne tauschen',
   sit: 'Hinsetzen',
   hologram: 'Hologramm wählen',
+  light: 'Licht an / aus',
+  lid: 'Öffnen',
+  tap: 'Herausnehmen',
+  unwrap: 'Auspacken',
+  roll: 'Würfeln',
 };
 
 /** Wie die Station gerade gebaut ist. */

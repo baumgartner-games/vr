@@ -247,6 +247,18 @@ export interface StandingWall {
   readonly front: THREE.Vector3;
 }
 
+/**
+ * **Wo ein Wandstück hängt** (`PortalWorld.elementMount`) — die Mitte von
+ * oben, die Drehung (die Vorderseite in den Raum) und die Unterkante über
+ * null, in Metern.
+ */
+export interface ElementMount {
+  readonly x: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly bottom: number;
+}
+
 /** Wie eine Wand ungekürzt war (`PortalWorld.wallBase`). */
 interface WallBase {
   half: THREE.Vector3;
@@ -4275,6 +4287,7 @@ export class PortalWorld implements World {
         face: change.face,
         ...(change.level ? { level: change.level } : {}),
         ...(change.idle ? { idle: true } : {}),
+        ...(change.y !== undefined ? { y: change.y } : {}),
       };
       if (this.furnishSpot(spot)) {
         elements += 1;
@@ -4583,8 +4596,30 @@ export class PortalWorld implements World {
     _z: number,
     _yaw: number,
     _level?: number,
+    _mount?: ElementMount | null,
   ): ElementSpot | null {
     return null;
+  }
+
+  /**
+   * **Wo ein Wandstück hängt** (`GameElement.wall`) — die Rechnung der
+   * Wandmodelle aus dem Regal (`decorPlace.mountPose`): die nächste Wand
+   * unter dem Kran oder vor der Hand, die Mitte auf halben Kacheln entlang
+   * der Wand, auf Augenhöhe. `null`: Hier ist keine Wand.
+   */
+  private elementMount(
+    ctx: WorldContext,
+    entry: PhysicsBody,
+    x: number,
+    z: number,
+  ): ElementMount | null {
+    const half = entry.halfExtents;
+    const floorY = this.buildFloorY(ctx);
+    const { boxes } = this.decorScene(entry);
+    const size = mountSize(half.x, half.y, half.z);
+    const mount = mountPose(x, z, wallFaces(boxes), size, floorY, half.x >= half.z);
+    if (!mount) return null;
+    return { x: mount.x, z: mount.z, yaw: mount.yaw, bottom: mount.y - half.y };
   }
 
   // --- Straßen ziehen (`elements/roadNetwork.ts`, `FurnishedWorld`) -------
@@ -5178,15 +5213,26 @@ export class PortalWorld implements World {
     // der Hand, und hingestellt wird, sobald sie liegt — das Element lädt
     // seine Teile neu, und die sollen nicht schon unten stehen, während es
     // noch fällt.
-    const falling = !road && fall !== null && this.fallElement(ctx, entry, fall, id, x, z, yaw);
+    // **Ein Wandstück** hängt an der nächsten Wand (`elementMount`) und fällt
+    // nicht erst auf den Boden.
+    const wall = elementById(id).wall === true;
+    const mount = wall ? this.elementMount(ctx, entry, x, z) : null;
+    const falling =
+      !road && !wall && fall !== null && this.fallElement(ctx, entry, fall, id, x, z, yaw);
     const refills = fresh && refillsCatalogue(gameMode());
     // Erst nach dem Fall: `this.context` ist dann ein neues Bild (`update`
     // setzt es je Bild), die Welt aber dieselbe — weg ist sie erst bei `null`.
     const commit = (refilled: boolean): void => {
       const ctx = this.context;
       if (!ctx) return;
-      const spot = this.furnishAt(carried, x, z, yaw + elementHold(id), level);
       const label = elementById(id).label;
+      if (wall && !mount) {
+        ctx.notify(`${label}: hier ist keine Wand — näher an eine Wand halten`);
+        if (carried.from) this.furnishBack(carried);
+        else if (!refilled) this.takeElement(ctx, id, hand, yaw);
+        return;
+      }
+      const spot = this.furnishAt(carried, x, z, yaw + elementHold(id), level, mount);
       if (spot) this.recordElementOf(spot);
       else if (carried.from) {
         // **Umgestellt, aber kein Platz: zurück, wo es stand** — samt dem, was
@@ -5385,6 +5431,7 @@ export class PortalWorld implements World {
       this.context?.net.world,
       spot.level ?? 0,
       spot.idle === true,
+      elementById(spot.element).wall ? spot.y : undefined,
     );
   }
 
@@ -12011,6 +12058,12 @@ export class PortalWorld implements World {
     }
     if (element) {
       this.markReplaced([]);
+      // **Ein Wandstück** rastet an der Wand ein und nicht auf Kacheln
+      // (`elementMount`) — die Kacheln darunter wären eine falsche Auskunft.
+      if (elementById(element.id).wall) {
+        grid.hide();
+        return;
+      }
       const face = yawFace(quarterYaw(yawOf(_quaternion)) + elementHold(element.id));
       const spot = spotAround('', element.id, _point.x, _point.z, face);
       // **Ein schmaler Baum leuchtet auf seiner Zelle** und nicht auf der
@@ -14557,6 +14610,15 @@ export class PortalWorld implements World {
     // (`takeFurniture`).
     if (!eraser && this.takeFurniture(ctx, path)) return;
     void this.conjureModel(ctx, path, hand, yaw, null, null, eraser);
+  }
+
+  /**
+   * **Ein Modell aus dem Regal in die Hand, ohne Menü** — was eine Truhe, ein
+   * Fass oder ein Geschenk hergibt (`FurnishedWorld.actOn`). Derselbe Weg wie
+   * aus dem Regal (`conjureModel`): ein Gegenstand mit Hülle und Masse.
+   */
+  protected handModel(ctx: WorldContext, path: string): void {
+    void this.conjureModel(ctx, path, null);
   }
 
   /**

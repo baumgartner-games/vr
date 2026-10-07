@@ -70,6 +70,27 @@ function rug(
   return { ...thing(id, label, file, tiles, ['Teppich']), solid: [0, 0], floor: true };
 }
 
+/**
+ * **Was in einem Geschenk liegt** (`opens: 'unwrap'`) — gewünscht: _„Geschenke
+ * ja."_ `A` packt es aus (`elementActs.ts`), eines davon kommt in die Hand, und
+ * nach einer Weile ist das Geschenk wieder eingepackt.
+ */
+const PRESENT_TOYS: readonly string[] = [
+  holiday('basketball'),
+  holiday('football'),
+  holiday('train_locomotive'),
+  holiday('gingerbread_man'),
+  holiday('candy_peppermint'),
+  holiday('snowball'),
+  'mixed-bag/chicken_plushie_A.glb',
+  'mixed-bag/puzzlecube_complete.glb',
+];
+
+/** Ein Geschenk, das sich auspacken lässt. */
+function present(element: GameElement): GameElement {
+  return { ...element, opens: 'unwrap', yields: PRESENT_TOYS };
+}
+
 /** Die Farben, in denen es Geschenke und Sessel gibt. */
 const COLOR_LABEL: Readonly<Record<string, string>> = {
   red: 'rot',
@@ -111,6 +132,8 @@ function train(): GameElement {
 /** **Ein Haufen Geschenke** — fünf Päckchen in fünf Farben auf einer Kachel. */
 function presentPile(): GameElement {
   return {
+    opens: 'unwrap',
+    yields: PRESENT_TOYS,
     id: 'holiday-presents-pile',
     label: 'Geschenkehaufen',
     aka: ['Geschenke', 'Päckchen'],
@@ -164,21 +187,23 @@ export const HOLIDAY_ELEMENTS: readonly GameElement[] = [
       ['sphere_B', 'red', 'Großes rundes Geschenk'],
     ] as const
   ).map(([shape, color, label]) =>
-    small(
-      `holiday-present-${shape.replace('_', '-').toLowerCase()}`,
-      `${label}, ${COLOR_LABEL[color]}`,
-      `present_${shape}_${color}`,
-      ['Geschenk', 'Päckchen'],
+    present(
+      small(
+        `holiday-present-${shape.replace('_', '-').toLowerCase()}`,
+        `${label}, ${COLOR_LABEL[color]}`,
+        `present_${shape}_${color}`,
+        ['Geschenk', 'Päckchen'],
+      ),
     ),
   ), // 0,26–0,48 m
-  {
+  present({
     ...thing('holiday-present-e', 'Langes Geschenk, grün', 'present_E_green', [1, 1], ['Geschenk']),
     rests: true,
-  }, // 0,68 × 0,23 × 0,28
-  {
+  }), // 0,68 × 0,23 × 0,28
+  present({
     ...thing('holiday-present-f', 'Riesengeschenk, rot', 'present_F_red', [1, 1], ['Geschenk']),
     rests: true,
-  }, // 1,08 × 0,23 × 0,48
+  }), // 1,08 × 0,23 × 0,48
   // Schnee
   thing('holiday-snowman', 'Schneemann', 'snowman_B', [1, 1]), // 1,08 × 1,35 × 0,68
   thing('holiday-snowman-small', 'Kleiner Schneemann', 'snowman_A', [1, 1], ['Schneemann']), // 1,08 × 1,02 × 0,68

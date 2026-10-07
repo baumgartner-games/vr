@@ -30,9 +30,11 @@ import { COAT_RACK } from './coatRack';
  * (gut 10 cm Überstand passen noch); was höchstens 0,6 m im Quadrat misst,
  * steht auf einer Zelle.
  *
- * **Was fehlt**: die Bilderrahmen und Wandregale, die an eine Wand gehören
- * (`pictureframe_large_A`, `pictureframe_large_B`, `pictureframe_medium`, `pictureframe_small_A`, `pictureframe_small_B`, `pictureframe_small_C`, `shelf_A_big`, `shelf_A_small`, `shelf_B_large`, `shelf_B_large_decorated`, `shelf_B_small`, `shelf_B_small_decorated`) — ihr Ursprung sitzt in der Mitte, und an Wände hängt der
- * Katalog noch nichts.
+ * **An der Wand** (Oktober 2026, gewünscht: _„Fueniture Bits gerne dann habe
+ * ich mehr Deko Elemente. Auch Genre die die dann an einer Wand sind."_): die
+ * Bilderrahmen und Wandbretter (`wall`) rasten an der nächsten Wand ein und
+ * sperren keine Zelle (`GameElement.wall`). Die Lampen schaltet `A` an und aus
+ * (`opens: 'light'`, `elementActs.ts`).
  */
 
 /** Eine Adresse aus _Furniture Bits_. */
@@ -185,6 +187,30 @@ function plant(
   };
 }
 
+/**
+ * **Etwas für die Wand** — Bilderrahmen und Wandbretter: Abgesetzt rastet es
+ * an der nächsten Wand ein (`GameElement.wall`), wie ein Wandstück aus dem
+ * Regal, und sperrt nichts.
+ */
+function wall(id: string, label: string, file: string, aka: readonly string[] = []): GameElement {
+  return {
+    id,
+    label,
+    aka: ['Wand', 'Deko', ...aka],
+    tiles: [1, 0.5],
+    height: BODY,
+    kind: null,
+    solid: [0, 0],
+    wall: true,
+    parts: [{ model: furnitureBits(file) }],
+  };
+}
+
+/** Eine Lampe: `A` schaltet sie an und aus (`opens: 'light'`). */
+function lamp(element: GameElement): GameElement {
+  return { ...element, aka: ['Licht', 'Lampe'], opens: 'light' };
+}
+
 /** Ein Teppich: flach, sperrt nichts, und darauf steht, was man will. */
 function rug(
   id: string,
@@ -259,18 +285,59 @@ export const FURNITURE_BITS_ELEMENTS: readonly GameElement[] = [
     [1, 1],
   ), // 1,02 × 0,91 × 0,50
   // Lampen
-  thing('furniture-lamp-standing', 'Stehlampe', 'lamp_standing', [0.5, 0.5]), // 0,50 × 1,26 × 0,50
-  small('furniture-lamp-table', 'Tischlampe', 'lamp_table'), // 0,50 × 0,51 × 0,50
-  small('furniture-lamp-desk', 'Schreibtischlampe', 'lamp_desk'), // 0,26 × 0,59 × 0,55
-  small(
-    'furniture-lamp-desk-headphones',
-    'Schreibtischlampe mit Kopfhörern',
-    'lamp_desk_headphones',
+  lamp(thing('furniture-lamp-standing', 'Stehlampe', 'lamp_standing', [0.5, 0.5])), // 0,50 × 1,26 × 0,50
+  lamp(small('furniture-lamp-table', 'Tischlampe', 'lamp_table')), // 0,50 × 0,51 × 0,50
+  lamp(small('furniture-lamp-desk', 'Schreibtischlampe', 'lamp_desk')), // 0,26 × 0,59 × 0,55
+  lamp(
+    small(
+      'furniture-lamp-desk-headphones',
+      'Schreibtischlampe mit Kopfhörern',
+      'lamp_desk_headphones',
+    ),
   ), // 0,35 × 0,59 × 0,55
   // Schreibtisch & Technik
   computer(), // 1 Kachel: Monitor, Tastatur, Mauspad, Maus
   small('furniture-gameconsole-handheld', 'Spielkonsole', 'gameconsole_handheld'), // 0,53 × 0,09 × 0,22
   small('furniture-cup-pencils', 'Stiftebecher', 'cup_pencils'), // 0,18 × 0,34 × 0,18
+  small('furniture-mousepad-b', 'Mauspad', 'mousepad_B'), // 0,40 × 0,01 × 0,30
+  {
+    ...small('furniture-mousepad-large-a', 'Großes Mauspad', 'mousepad_large_A'),
+    tiles: [1, 0.5],
+  }, // 0,70 × 0,01 × 0,40
+  {
+    ...small('furniture-mousepad-large-b', 'Großes Mauspad B', 'mousepad_large_B'),
+    tiles: [1, 0.5],
+  }, // 0,70 × 0,01 × 0,40
+  // An der Wand — Bilderrahmen und Wandbretter (`wall`)
+  wall('furniture-pictureframe-large-a', 'Bild, hoch', 'pictureframe_large_A', ['Bild', 'Rahmen']), // 0,51 × 0,60 × 0,10
+  wall('furniture-pictureframe-large-b', 'Bild, breit', 'pictureframe_large_B', ['Bild', 'Rahmen']), // 1,00 × 0,60 × 0,10
+  wall('furniture-pictureframe-medium', 'Bild', 'pictureframe_medium', ['Bild', 'Rahmen']), // 0,35 × 0,45 × 0,10
+  wall('furniture-pictureframe-small-a', 'Kleines Bild', 'pictureframe_small_A', [
+    'Bild',
+    'Rahmen',
+  ]), // 0,25 × 0,30 × 0,10
+  wall('furniture-pictureframe-small-b', 'Kleines Bild, quer', 'pictureframe_small_B', [
+    'Bild',
+    'Rahmen',
+  ]), // 0,35 × 0,22 × 0,10
+  wall('furniture-pictureframe-small-c', 'Kleines Bild, quadratisch', 'pictureframe_small_C', [
+    'Bild',
+    'Rahmen',
+  ]), // 0,25 × 0,25 × 0,10
+  wall('furniture-shelf-a-big', 'Wandbrett, lang', 'shelf_A_big', ['Regal', 'Brett']), // 1,00 × 0,20 × 0,25
+  wall('furniture-shelf-a-small', 'Wandbrett', 'shelf_A_small', ['Regal', 'Brett']), // 0,50 × 0,20 × 0,25
+  wall('furniture-shelf-b-large', 'Wandregal, lang', 'shelf_B_large', ['Regal']), // 1,00 × 0,20 × 0,25
+  wall(
+    'furniture-shelf-b-large-decorated',
+    'Wandregal, lang, bestückt',
+    'shelf_B_large_decorated',
+    ['Regal', 'Bücher'],
+  ), // 1,00 × 0,41 × 0,25
+  wall('furniture-shelf-b-small', 'Wandregal', 'shelf_B_small', ['Regal']), // 0,50 × 0,20 × 0,25
+  wall('furniture-shelf-b-small-decorated', 'Wandregal, bestückt', 'shelf_B_small_decorated', [
+    'Regal',
+    'Bücher',
+  ]), // 0,50 × 0,51 × 0,29
   // Kleinkram
   small('furniture-cup', 'Becher', 'cup'), // 0,18 × 0,23 × 0,18
   small('furniture-mug-a', 'Tasse A', 'mug_A'), // 0,24 × 0,12 × 0,18
@@ -358,7 +425,28 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-lamp-desk',
     'furniture-lamp-desk-headphones',
   ],
-  desk: ['furniture-computer', 'furniture-gameconsole-handheld', 'furniture-cup-pencils'],
+  desk: [
+    'furniture-computer',
+    'furniture-gameconsole-handheld',
+    'furniture-cup-pencils',
+    'furniture-mousepad-b',
+    'furniture-mousepad-large-a',
+    'furniture-mousepad-large-b',
+  ],
+  wall: [
+    'furniture-pictureframe-large-a',
+    'furniture-pictureframe-large-b',
+    'furniture-pictureframe-medium',
+    'furniture-pictureframe-small-a',
+    'furniture-pictureframe-small-b',
+    'furniture-pictureframe-small-c',
+    'furniture-shelf-a-big',
+    'furniture-shelf-a-small',
+    'furniture-shelf-b-large',
+    'furniture-shelf-b-large-decorated',
+    'furniture-shelf-b-small',
+    'furniture-shelf-b-small-decorated',
+  ],
   small: [
     'furniture-cup',
     'furniture-mug-a',
@@ -434,6 +522,12 @@ export const FURNITURE_BITS_FOLDER: FurnitureFolder = {
       label: 'Schreibtisch & Technik',
       elements: FURNITURE_GROUPS['desk']!,
       cover: { element: 'furniture-computer' },
+    },
+    {
+      id: 'furniture-wall',
+      label: 'An der Wand',
+      elements: FURNITURE_GROUPS['wall']!,
+      cover: { element: 'furniture-shelf-b-large-decorated' },
     },
     {
       id: 'furniture-small',
