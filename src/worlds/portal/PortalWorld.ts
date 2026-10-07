@@ -4274,6 +4274,7 @@ export class PortalWorld implements World {
         z: change.z,
         face: change.face,
         ...(change.level ? { level: change.level } : {}),
+        ...(change.idle ? { idle: true } : {}),
       };
       if (this.furnishSpot(spot)) {
         elements += 1;
@@ -5383,6 +5384,7 @@ export class PortalWorld implements World {
       spot.face ?? 'S',
       this.context?.net.world,
       spot.level ?? 0,
+      spot.idle === true,
     );
   }
 

@@ -411,6 +411,14 @@ Merkmale, die jedes Element haben kann:
 
 - `fine` — **rastet je Zelle ein** statt je Kachel (`elementPlace.snapsToCells`):
   der Bürostuhl mittig vor einem Schreibtisch von zwei Kacheln.
+- `idle` an der **Stelle** (`ElementSpot.idle`) — **nicht benutzbar**: `A`
+  tut daran nichts, es leuchtet nicht (`StationLayer.addOpener`). Umgeschaltet
+  im Einrichten über das Element-Menü (Rechtsklick, Trigger, lange drücken):
+  _Benutzbar: Ja/Nein_ (`inspectMenu`, `FurnishedWorld.setUsableAt`), wie das
+  Tauschen der Laternen, für jedes Element mit `opens`. In der Liste der
+  Weltänderungen als `"idle": true`; eine Welt schreibt es in ihre `SPOTS`.
+  Gewünscht für das Restaurant: _„da hier nur Gäste drauf sitzen sollen für
+  die Spiel Mechanik"_.
 - `holdFacing` — **liegt mit der Vorderseite zur Figur in der Hand**
   (`PortalWorld.elementHold`) und steht abgesetzt damit zu einem hin: Wer nach
   Süden absetzt, stellt den Stuhl nach Norden, an den Tisch vor sich.

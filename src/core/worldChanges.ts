@@ -121,6 +121,11 @@ export interface ElementChange {
    * hingestelltes Element verliert stattdessen einfach seine Zeile.
    */
   readonly gone?: true;
+  /**
+   * **Nicht benutzbar** (`ElementSpot.idle`) — im Einrichten ausgeschaltet,
+   * etwa ein Stuhl im Restaurant, auf dem nur Gäste sitzen.
+   */
+  readonly idle?: true;
 }
 
 export type WorldChange = FurnitureChange | ModelChange | NoteChange | ElementChange;
@@ -308,6 +313,7 @@ export function recordElement(
   face: 'N' | 'E' | 'S' | 'W',
   world?: string,
   level = 0,
+  idle = false,
 ): void {
   load();
   if (!tracking) return;
@@ -319,6 +325,7 @@ export function recordElement(
     face,
     ...(level > 0 ? { level } : {}),
     ...(world ? { world } : {}),
+    ...(idle ? { idle: true as const } : {}),
   });
   save();
 }
@@ -435,7 +442,7 @@ export function formatChanges(list: readonly WorldChange[], view?: PlayerView): 
     `Weltänderungen · ${list.length} · ` +
     'kitchen: [x, z, Drehung] in Kacheln relativ zur Küche (wie KITCHEN_SPOTS, Drehung 0=N 1=W 2=S 3=O) · ' +
     'model: [x, y, z] in Weltmetern, yaw in Grad · note: ein Zettel mit Text, Lage wie model · ' +
-    'element: ein Spielelement, x/z die Kachel der Nordwestecke, face die Vorderseite (wie SPOTS), gone: weggeradiert · ' +
+    'element: ein Spielelement, x/z die Kachel der Nordwestecke, face die Vorderseite (wie SPOTS), gone: weggeradiert, idle: nicht benutzbar · ' +
     'world: die Welt, in der es steht';
   // **Die Zettel noch einmal zum Lesen**, vor dem JSON: Sie sind das, was ein
   // Mensch dem Leser sagen wollte, und sollen nicht zwischen Koordinaten
@@ -560,7 +567,9 @@ function parseRow(row: unknown): WorldChange | null {
     const x = data.x;
     const z = data.z;
     if (typeof x !== 'number' || typeof z !== 'number') return null;
-    if (!Number.isInteger(x) || !Number.isInteger(z)) return null;
+    // Ganze oder halbe Kacheln: Stühle und schmale Bäume rasten je Zelle ein
+    // (`elementPlace.snapsToCells`).
+    if (!Number.isInteger(x * 2) || !Number.isInteger(z * 2)) return null;
     const face = data.face === undefined ? 'S' : data.face;
     if (face !== 'N' && face !== 'E' && face !== 'S' && face !== 'W') return null;
     const world = typeof data.world === 'string' && data.world ? { world: data.world } : {};
@@ -569,7 +578,18 @@ function parseRow(row: unknown): WorldChange | null {
       typeof data.level === 'number' && Number.isInteger(data.level) && data.level > 0
         ? { level: data.level }
         : {};
-    return { kind: 'element', element: data.element, x, z, face, ...level, ...world, ...gone };
+    const idle = data.idle === true ? { idle: true as const } : {};
+    return {
+      kind: 'element',
+      element: data.element,
+      x,
+      z,
+      face,
+      ...level,
+      ...world,
+      ...gone,
+      ...idle,
+    };
   }
   if (typeof data.model === 'string' || typeof data.note === 'string') {
     const at = numbers(data.at, 3);
@@ -653,6 +673,7 @@ function toRow(change: WorldChange): unknown {
       ...(change.level ? { level: change.level } : {}),
       ...world,
       ...gone,
+      ...(change.idle ? { idle: true } : {}),
     };
   }
   const at = [change.at.x, change.at.y, change.at.z];

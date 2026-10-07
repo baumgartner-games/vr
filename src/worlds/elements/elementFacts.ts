@@ -54,6 +54,9 @@ function itemLabel(item: string): string {
 
 /** Was das Element tut, in einem Satz. */
 export function elementPurpose(element: GameElement): string {
+  // **Was `A` daran aufmacht** (`GameElement.opens`) — sonst stand beim Sofa
+  // „steht nur im Weg", obwohl man darauf sitzt.
+  if (element.kind === null && element.opens) return OPENS_WORDS[element.opens];
   if (element.kind === null) return 'keiner — steht nur im Weg';
   if (element.kind === 'board') {
     return element.work === 'roll'
@@ -62,6 +65,15 @@ export function elementPurpose(element: GameElement): string {
   }
   return KIND_WORDS[element.kind] ?? element.kind;
 }
+
+/** Was ein Element ohne Stationsart mit `A` tut (`GameElement.opens`). */
+const OPENS_WORDS: Readonly<Record<NonNullable<GameElement['opens']>, string>> = {
+  outfit: 'Garderobe — öffnet Aussehen',
+  hide: 'Versteck — hineinsteigen',
+  swap: 'Fassung tauschen — im Einrichten',
+  sit: 'Sitzen — hinsetzen mit A',
+  hologram: 'Hologramm — Modell wählen mit A',
+};
 
 /**
  * **Die Grundfläche in Worten** — `2 × 2 Kacheln`, `1 × 1 Kachel`, und für

@@ -620,6 +620,38 @@ export abstract class FurnishedWorld extends GridWorld {
     if (placed) this.swapElement(placed.anchor);
   }
 
+  /**
+   * **Ob man das Element an dieser Stelle benutzen kann** (`ElementSpot.idle`)
+   * — `null` für eines, an dem `A` ohnehin nichts tut (`GameElement.opens`).
+   */
+  protected override usableOf(spot: string): boolean | null {
+    const placed = this.placed.find((one) => one.spot.id === spot);
+    if (!placed?.element.opens) return null;
+    return !placed.spot.idle;
+  }
+
+  /**
+   * **Benutzbar ein- oder ausschalten** — aus dem Element-Menü im Einrichten.
+   * Wie beim Tauschen der Laternen (`swapElement`) unter derselben Zeile der
+   * Weltänderungen, jetzt mit `idle` — aber das Möbel bleibt stehen.
+   */
+  protected override setUsableAt(spot: string, usable: boolean): void {
+    const placed = this.placed.find((one) => one.spot.id === spot);
+    if (!placed) return;
+    // Wer gerade darauf sitzt, steht vorher auf.
+    if (this.context && this.sittingOn && placed.anchor.getObjectById(this.sittingOn.id))
+      this.standFromSeat(this.context);
+    // **Nicht neu hinstellen**, nur umschalten: Eine Welt, deren Plan die
+    // Zellen selbst sperrt (die Sitzecke in Haunting), fände sonst keinen
+    // Platz für das Möbel, das gerade noch dort stand.
+    const { idle: _was, ...rest } = placed.spot;
+    const next: ElementSpot = usable ? rest : { ...rest, idle: true };
+    this.placed[this.placed.indexOf(placed)] = { ...placed, spot: next };
+    this.stations?.setUsable(placed, usable);
+    this.recordElementOf(next);
+    this.context?.notify(`${placed.element.label}: ${usable ? 'benutzbar' : 'nicht benutzbar'}`);
+  }
+
   private swapElement(anchor: THREE.Object3D): void {
     const placed = this.placed.find((one) => one.anchor === anchor);
     const next = placed?.element.swap;

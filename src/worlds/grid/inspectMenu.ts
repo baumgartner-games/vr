@@ -59,6 +59,12 @@ export interface InspectHost {
    */
   swapOf(spot: string): string | null;
   swap(spot: string): void;
+  /**
+   * **Ob man das Element benutzen kann** (`ElementSpot.idle`) — `null`: Es
+   * hat nichts, was `A` daran täte. `setUsable` schaltet um.
+   */
+  usableOf(spot: string): boolean | null;
+  setUsable(spot: string, usable: boolean): void;
 }
 
 /** Die Id der Seite — sie hängt versteckt im Menü und wird aufgeschlagen (`openSubmenu`). */
@@ -97,6 +103,25 @@ export function inspectRows(target: InspectTarget, host: InspectHost): MenuEntry
       run: () => {
         host.closeMenu();
         host.swap(spot);
+      },
+    });
+  }
+  // **Benutzbar oder nicht** — wie das Tauschen der Laternen nur hier im
+  // Einrichten. Gewünscht für die Stühle im Restaurant, auf denen nur Gäste
+  // sitzen sollen.
+  const usable = typeof spot === 'string' ? host.usableOf(spot) : null;
+  if (typeof spot === 'string' && usable !== null) {
+    rows.push({
+      id: `${INSPECT_PAGE}:usable`,
+      label: `Benutzbar: ${usable ? 'Ja' : 'Nein'}`,
+      sub: usable
+        ? 'A tut daran, was es tut — hinsetzen, verstecken, öffnen'
+        : 'Steht nur da: kein Saum, A tut nichts · für Gäste und Kulisse',
+      icon: 'settings',
+      accent: ACCENT,
+      run: () => {
+        host.closeMenu();
+        host.setUsable(spot, !usable);
       },
     });
   }

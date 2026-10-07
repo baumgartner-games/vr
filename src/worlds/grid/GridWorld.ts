@@ -3399,6 +3399,12 @@ export abstract class GridWorld extends PortalWorld {
           this.swapAt(spot);
           this.context?.refreshWorldMenu();
         },
+        usableOf: (spot) => this.usableOf(spot),
+        setUsable: (spot, usable) => {
+          this.inspecting = null;
+          this.setUsableAt(spot, usable);
+          this.context?.refreshWorldMenu();
+        },
       }),
     };
   }
@@ -3451,6 +3457,14 @@ export abstract class GridWorld extends PortalWorld {
 
   /** **Das Element an dieser Stelle tauschen** — hier nichts (`FurnishedWorld`). */
   protected swapAt(_spot: string): void {}
+
+  /** **Ob das Element an dieser Stelle benutzbar ist** — hier keines (`FurnishedWorld`). */
+  protected usableOf(_spot: string): boolean | null {
+    return null;
+  }
+
+  /** **Benutzbar schalten** — hier nichts (`FurnishedWorld`). */
+  protected setUsableAt(_spot: string, _usable: boolean): void {}
 
   /** Das nächste Tor mit Flügeln (`standingGates`), dessen Kasten der Strahl schneidet. */
   private pickGate(ray: THREE.Ray): { entry: PhysicsBody; distance: number } | null {
