@@ -64,6 +64,25 @@ die halbe Station verdeckt.
   (`status`) zeigt das Ende nur noch in der Brille. Die alte Endkarte mitten
   im Bild mit „Nochmal: echte Runde" ist weg.
 
+- **Der Wartungskasten ist ein eigenes Menü** (`openPuzzle`, `paintPuzzle`,
+  `.orbital-puzzle`): `A` an der Konsole schraubt am Bildschirm den Kasten auf
+  (das prüft das Teil in der Hand) und schlägt das Rätsel als Panel über
+  allem auf. Kabel: links die Stecker, rechts die Buchsen, der gewählte
+  Stecker gelb, ein gesteckter zeigt seine Buchse, richtig Verbundenes grün.
+  Code und Frequenzen als große Ziffernknöpfe. Gezeichnet wird nur nach einem
+  eigenen Druck, nie im Takt der Tafel; zu geht es mit ✕, beim Weggehen
+  (`stepPuzzle`), im Versteck, am Rundenende und kurz nach der Reparatur. In
+  der Tafel steht nur noch der Weg dorthin („…: Wartungskasten"). Gemeldet:
+  _„So konnte ich es zudem nicht lösen da irgendwie das Drücken nicht ging."_
+  Die alten Knöpfe zeigten weder Auswahl noch Verbindung.
+- **Mit einem Teil in der Hand bleibt es hell** (`holdPart`, `freePart`): Die
+  rechte Hand nimmt das Ersatzteil, die brennende Lampe wandert in die linke
+  (`sensorMode = 'flashlight'`), solange die frei war, und kommt zurück,
+  sobald das Teil abgelegt oder verbaut ist. Vorher ging die Lampe am
+  Bildschirm einfach aus — gemeldet als _„Irgendwie ist die Beleuchtung
+  komplett kaputt gegangen?"_ (mit dem Wartungsschlüssel in der Hand). In der
+  Brille tat sie das schon (`equip('flashlight', 'left')`).
+
 ## Die Einsatzzentrale zum Herumlaufen (Oktober 2026)
 
 Gewünscht: _„Beim start screen wo ich mich eigentlich anmelden soll will ich

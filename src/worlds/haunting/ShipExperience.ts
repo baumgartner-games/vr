@@ -509,6 +509,17 @@ export class ShipExperience {
   private readonly arrow = el('div', 'orbital-arrow');
   private readonly arrowLabel = el('span');
   /**
+   * **Der Wartungskasten als eigenes Menü** (`openPuzzle`). Bis hierher
+   * standen seine Knöpfe in der Tafel unter „Mission, Ausrüstung & Testdeck",
+   * ohne zu zeigen, welcher Stecker gewählt und was schon verbunden war —
+   * gemeldet: _„Das Kästen soll bitte sich auch in einem Menü öffnen. So
+   * konnte ich es zudem nicht lösen da irgendwie das Drücken nicht ging."_
+   */
+  private readonly puzzleRoot = el('div', 'flat orbital-options orbital-puzzle');
+  private readonly puzzlePanel = el('div', 'ui-panel flat__panel orbital-puzzle__panel');
+  /** Die Konsole, deren Kasten gerade offen ist — `null`, wenn keiner. */
+  private puzzleAt: Console | null = null;
+  /**
    * **Sekunden bis zur Rückkehr in die Einsatzzentrale** nach dem Ende einer
    * Runde (`stepEnd`) — `null`, solange keine zu Ende ist.
    */
@@ -707,12 +718,18 @@ export class ShipExperience {
       this.menuButton.setAttribute('aria-label', 'Menü');
       this.menuButton.innerHTML = '<span></span><span></span><span></span>';
       this.menuButton.addEventListener('click', () => this.showOptions(!this.optionsOpen));
+      this.puzzleRoot.hidden = true;
+      this.puzzlePanel.setAttribute('role', 'dialog');
+      this.puzzlePanel.setAttribute('aria-label', 'Wartungskasten');
+      this.puzzlePanel.addEventListener('click', (event) => this.puzzleClick(event));
+      this.puzzleRoot.append(this.puzzlePanel);
       this.arrow.hidden = true;
       this.arrow.setAttribute('aria-hidden', 'true');
       this.arrow.append(el('i'), this.arrowLabel);
       document.body.append(
         this.menuButton,
         this.arrow,
+        this.puzzleRoot,
         this.dom,
         this.crosshair,
         this.optionsRoot,
@@ -1409,7 +1426,7 @@ export class ShipExperience {
       if (!state.taken.includes(c.loot)) state.taken.push(c.loot);
       this.crew.inventory.push(c.loot);
       this.forgetDropped(c.loot);
-      this.rightItem = 'part';
+      this.holdPart();
     } else this.crew.inventory.push(c.loot);
     this.crew.inventory.push(id);
     if (this.host.ctx.renderer.xr.isPresenting) {
@@ -1476,13 +1493,38 @@ export class ShipExperience {
     this.host.ctx.rig.getHeadPosition(_head);
     const dropped: DroppedPart = { id, x: _head.x, z: _head.z, since: state.time };
     state.dropped = [...(state.dropped ?? []).filter((one) => one.id !== id), dropped];
-    if (this.rightItem === 'part') this.rightItem = 'flashlight';
+    this.freePart();
     if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'right');
     this.host.say(`${lootLabel(spec, id)} abgelegt. Wieder aufnehmen: Benutzen.`);
     this.sound('door');
     this.paint();
     this.host.ctx.refreshWorldMenu();
   }
+
+  /**
+   * **Ein Teil in die rechte Hand — und die Lampe wandert nach links.**
+   * Bis hierher verschwand die Taschenlampe, sobald man ein Ersatzteil trug,
+   * und der Weg zur Konsole lag im Dunkeln: Gemeldet als _„Irgendwie ist die
+   * Beleuchtung komplett kaputt gegangen?"_ — mit dem Wartungsschlüssel in
+   * der Hand. In der Brille tat die Lampe das schon (`equip('flashlight',
+   * 'left')`); am Bildschirm jetzt auch, solange die linke Hand frei war.
+   */
+  private holdPart(): void {
+    if (this.rightItem === 'flashlight' && this.torchLit && this.sensorMode === 'off') {
+      this.sensorMode = 'flashlight';
+      this.lampMovedLeft = true;
+    }
+    this.rightItem = 'part';
+  }
+
+  /** Das Teil ist weg (abgelegt oder verbaut): die Lampe zurück nach rechts. */
+  private freePart(): void {
+    if (this.rightItem === 'part') this.rightItem = 'flashlight';
+    if (this.lampMovedLeft && this.sensorMode === 'flashlight') this.sensorMode = 'off';
+    this.lampMovedLeft = false;
+  }
+  /** Ob die Lampe nur wegen eines getragenen Teils links hängt (`holdPart`). */
+  private lampMovedLeft = false;
 
   /** Ein liegendes Teil wieder aufnehmen — wenn die Hand frei ist. */
   private takeDropped(id: string): void {
@@ -1496,7 +1538,7 @@ export class ShipExperience {
     }
     this.forgetDropped(id);
     this.crew.inventory.push(id);
-    this.rightItem = 'part';
+    this.holdPart();
     if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'left');
     this.host.say(`${lootLabel(spec, id)} wieder in der Hand. ${this.targetCall(id)}`);
     this.sound('success');
@@ -1845,12 +1887,148 @@ export class ShipExperience {
       .sort((a, b) => a.at.distanceToSquared(_head) - b.at.distanceToSquared(_head))[0];
     if (!console) return;
     const puzzle = console.practice ?? puzzleFor(this.crew, id);
+    // **Am Bildschirm geht der Kasten als Menü auf** (`openPuzzle`): erst
+    // aufschrauben (das prüft das Teil in der Hand), dann das Rätsel.
+    if (!this.host.ctx.renderer.xr.isPresenting) {
+      if (!puzzle.open) this.repairInput(id, 0.5, 0.5);
+      if ((console.practice ?? puzzleFor(this.crew, id)).open) this.openPuzzle(console);
+      return;
+    }
     this.unfold();
     if (!puzzle.open || (console.training && console.solved)) {
       this.repairInput(id, 0.5, 0.5);
       return;
     }
     this.host.say(`${console.repair.title}: Rätsel in der Tafel.`);
+  }
+
+  /** Den Wartungskasten dieser Konsole als Menü aufschlagen. */
+  private openPuzzle(console: Console): void {
+    this.puzzleAt = console;
+    this.showOptions(false);
+    this.paintPuzzle();
+  }
+
+  private closePuzzle(): void {
+    if (!this.puzzleAt) return;
+    this.puzzleAt = null;
+    this.puzzleRoot.hidden = true;
+    this.puzzlePanel.replaceChildren();
+  }
+
+  /**
+   * **Das Rätsel als Knöpfe, die zeigen, was sie getan haben.** Kabel: links
+   * die Stecker, rechts die Buchsen; der gewählte Stecker leuchtet, ein
+   * gesteckter zeigt seine Buchse, richtig Verbundenes ist grün — wie auf
+   * dem Schirm der Konsole (`paintConsole`). Gerechnet wird über dieselbe
+   * Stelle wie dort (`repairInput` mit den Koordinaten des Schirms).
+   * Neu gezeichnet wird nur nach einem eigenen Druck, nie im Takt der Tafel:
+   * Ein Knopf, der unter dem Finger ausgetauscht wird, nimmt keinen Tipp an.
+   */
+  private paintPuzzle(): void {
+    const console = this.puzzleAt;
+    if (!console) return;
+    const repair = console.repair;
+    const p = console.practice ?? puzzleFor(this.crew, repair.id);
+    const done = console.training ? !!console.solved : this.host.state().done.includes(repair.id);
+    const key = (text: string, x: number, y: number, tone = ''): HTMLButtonElement => {
+      const button = el('button', `orbital-puzzle__key${tone ? ` ${tone}` : ''}`, text);
+      button.type = 'button';
+      button.dataset['puzzle'] = `${x}:${y}`;
+      return button;
+    };
+    const head = el('div', 'orbital-puzzle__head');
+    const close = el('button', 'orbital-puzzle__close', '✕');
+    close.type = 'button';
+    close.dataset['close'] = '';
+    close.setAttribute('aria-label', 'Schließen');
+    head.append(el('strong', '', repair.title), close);
+    const body: HTMLElement[] = [head];
+    if (done) {
+      body.push(el('p', 'orbital-puzzle__done', 'Repariert ✓'));
+      if (console.training) body.push(key('Übung zurücksetzen', 0.5, 0.5));
+    } else if (repair.puzzle === 'wires') {
+      body.push(
+        el('small', 'flat__note', 'Stecker links antippen, dann die Buchse mit demselben Symbol.'),
+      );
+      const grid = el('div', 'orbital-puzzle__wires');
+      for (let i = 0; i < 4; i++) {
+        const y = 0.35 + i * 0.16;
+        const linked = p.links[i];
+        const ok = linked !== undefined && linked === repair.order.indexOf(i);
+        const plug = key(
+          `${WIRE_SYMBOLS[i]}${linked !== undefined ? ` → ${WIRE_SYMBOLS[repair.order[linked]!]}` : ''}`,
+          0.2,
+          y,
+          [console.selected === i ? 'is-selected' : '', ok ? 'is-ok' : ''].join(' ').trim(),
+        );
+        const socketOk = p.links[repair.order[i]!] === i;
+        const socket = key(WIRE_SYMBOLS[repair.order[i]!]!, 0.8, y, socketOk ? 'is-ok' : '');
+        grid.append(plug, socket);
+      }
+      body.push(grid);
+    } else if (repair.puzzle === 'sequence') {
+      body.push(
+        el('small', 'flat__note', 'Das Archiv kennt den Code: drei Ziffern nacheinander.'),
+        el('p', 'orbital-puzzle__entry', [0, 1, 2].map((i) => p.links[i] ?? '·').join(' ')),
+      );
+      const row = el('div', 'orbital-puzzle__row');
+      for (let i = 1; i <= 4; i++) row.append(key(String(i), (i - 0.5) / 4, 0.7));
+      body.push(row);
+    } else {
+      body.push(
+        el(
+          'small',
+          'flat__note',
+          'Das Archiv sagt die Frequenzen an: Ziffern drehen, dann bestätigen.',
+        ),
+      );
+      const row = el('div', 'orbital-puzzle__row');
+      for (let i = 0; i < 3; i++) row.append(key(String(p.digits[i] ?? 1), (i + 0.5) / 3, 0.5));
+      body.push(row, key('Bestätigen', 0.5, 0.9, 'is-confirm'));
+    }
+    this.puzzlePanel.replaceChildren(...body);
+    this.puzzleRoot.hidden = false;
+  }
+
+  private puzzleClick(event: Event): void {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+    const console = this.puzzleAt;
+    if (!button || !console) return;
+    if (button.dataset['close'] !== undefined) {
+      this.closePuzzle();
+      return;
+    }
+    const [x, y] = (button.dataset['puzzle'] ?? '').split(':').map(Number);
+    if (x === undefined || y === undefined || Number.isNaN(x) || Number.isNaN(y)) return;
+    const was = this.host.state().done.length;
+    this.repairInput(console.repair.id, x, y);
+    this.paintPuzzle();
+    // Fertig repariert: Das Menü geht nach einem Augenblick von selbst zu.
+    if (this.host.state().done.length > was) {
+      const shown = console;
+      window.setTimeout(() => {
+        if (this.puzzleAt === shown) this.closePuzzle();
+      }, 900);
+    }
+  }
+
+  /** Der Kasten geht zu, wenn man weggeht, sich versteckt, die Runde endet oder ein Menü davorliegt. */
+  private stepPuzzle(ctx: WorldContext): void {
+    const console = this.puzzleAt;
+    if (!console) return;
+    const away = console.at.distanceTo(_head) > PANEL_RANGE + 1;
+    if (
+      away ||
+      ctx.renderer.xr.isPresenting ||
+      this.crew.hidden ||
+      this.crew.hp <= 0 ||
+      this.host.state().phase !== 'running'
+    ) {
+      this.closePuzzle();
+      return;
+    }
+    this.puzzleRoot.hidden = ctx.menu.isOpen;
   }
   private repairInput(id: string, x: number, y: number): void {
     if (!this.roundOnly() || this.crew.hidden) return;
@@ -2315,7 +2493,7 @@ export class ShipExperience {
     // Inventar steht (`carriedPart`). Sonst wäre ein Umschalten auf die Lampe
     // ein Weg, das Teil verschwinden zu lassen.
     const part = carriedPart(this.host.spec(), this.host.state());
-    if (!part && this.rightItem === 'part') this.rightItem = 'flashlight';
+    if (!part && this.rightItem === 'part') this.freePart();
     this.torch.visible = available && !immersive && this.rightItem !== 'off';
     this.heldLamp.visible = this.rightItem === 'flashlight';
     this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight' && this.torchLit);
@@ -2532,6 +2710,7 @@ export class ShipExperience {
       this.stepCrouch(dt);
       this.menuButton.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.stepEnd(ctx, dt);
+      this.stepPuzzle(ctx);
       this.stepCompass(ctx, state.phase === 'running' && !crew.simulation);
       this.stepArrow(ctx, state.phase === 'running' && !crew.simulation);
       // Solange die Mission läuft, nie in der Bot-Runde und nie im Menü: Ohne
@@ -3215,35 +3394,10 @@ export class ShipExperience {
         );
     }
     if (near.door && !crew.hidden) button('Schiebetür bedienen', `door:${near.door.id}`);
-    if (near.console && !crew.hidden) {
-      const r = near.console.repair,
-        p = near.console.practice ?? puzzleFor(crew, r.id);
-      const box = el('div', 'orbital-player__puzzle');
-      panel.append(box);
-      box.append(
-        el(
-          'p',
-          '',
-          `${r.title} · ${p.open ? (r.puzzle === 'wires' ? 'Kabelstart → passendes Symbol' : 'Archiv nach dem Code fragen') : `Benötigt: ${r.item}`}`,
-        ),
-      );
-      if (near.console.training && near.console.solved)
-        button('Übung geschafft — zurücksetzen', `repair:${r.id}:0.5:0.5`, box);
-      else if (!p.open) button('Wartungskasten öffnen', `repair:${r.id}:0.5:0.5`, box);
-      else if (r.puzzle === 'wires') {
-        const symbols = ['▲', '●', '■', '◆'];
-        for (let i = 0; i < 4; i++) {
-          button(`Start ${symbols[i]}`, `repair:${r.id}:0.2:${0.35 + i * 0.16}`, box);
-          button(`Anschluss ${symbols[r.order[i]!]}`, `repair:${r.id}:0.8:${0.35 + i * 0.16}`, box);
-        }
-      } else if (r.puzzle === 'sequence') {
-        for (let i = 1; i <= 4; i++) button(String(i), `repair:${r.id}:${(i - 0.5) / 4}:0.7`, box);
-      } else {
-        for (let i = 0; i < 3; i++)
-          button(`Frequenz ${i + 1}: ${p.digits[i]}`, `repair:${r.id}:${(i + 0.5) / 3}:0.5`, box);
-        button('Bestätigen', `repair:${r.id}:0.5:0.9`, box);
-      }
-    }
+    // Der Wartungskasten ist ein eigenes Menü (`openPuzzle`) — hier steht nur
+    // der Weg dorthin, für wen `A` gerade nicht zur Hand ist.
+    if (near.console && !crew.hidden)
+      button(`${near.console.repair.title}: Wartungskasten`, `console:${near.console.repair.id}`);
     if (near.locker && !crew.hidden) {
       const box = el('div');
       panel.append(box);
@@ -3497,6 +3651,7 @@ export class ShipExperience {
    */
   showOptions(open: boolean): void {
     this.optionsOpen = open;
+    if (open) this.closePuzzle();
     if (open) renderOptions(this.optionsPanel, this.shipOptions());
     this.optionsRoot.hidden = !open;
   }
@@ -3644,6 +3799,7 @@ export class ShipExperience {
     else if (kind === 'fold') this.folded = !this.folded;
     else if (kind === 'options') this.showOptions(!this.optionsOpen);
     else if (kind === 'respawn') this.respawn();
+    else if (kind === 'console') this.useConsole(id!);
     else if (kind === 'follow-bot') this.setFollowBot(!this.followBot);
     else if (kind === 'crouch') this.crouchToggle = !this.crouchToggle;
     else if (kind === 'rooms' || kind === 'monster' || kind === 'light') this.commandAction(kind);
@@ -4062,6 +4218,7 @@ export class ShipExperience {
     this.hudDom.remove();
     this.menuButton.remove();
     this.arrow.remove();
+    this.puzzleRoot.remove();
     this.toast.dispose();
     this.dom.removeEventListener('click', this.domClick);
     document.body.classList.remove('orbital-on');
@@ -4153,6 +4310,8 @@ function buildLockerSlits(): THREE.Group {
 }
 
 /** Ein Knopf der Tafel des Technikers: sein Text, und die Absicht als `data-action` (`onPanelClick`). */
+/** Die Symbole des Kabelrätsels — dieselben wie auf dem Schirm der Konsole. */
+const WIRE_SYMBOLS = ['▲', '●', '■', '◆'] as const;
 /** Wie lange die Endkarte zählt, bevor es von selbst in die Einsatzzentrale geht (s). */
 const END_SECONDS = 5;
 /** Wie nah die Kamera von oben an den Toten heranfährt — ein Anteil des Abstands davor. */

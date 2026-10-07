@@ -422,7 +422,6 @@ body.orbital-on #hud { display: none; }
 .orbital-player button { min-height: 40px; margin: 3px; padding: 8px 11px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-sm); color: var(--hud-ink); background: var(--hud-raise); font: 12px var(--hud-font); cursor: pointer; touch-action: manipulation; }
 .orbital-player button:hover { background: var(--hud-raise-hi); }
 .orbital-player button:focus-visible { outline: 2px solid #96eddb; outline-offset: 2px; }
-.orbital-player__puzzle { border-top: 1px solid #365565; margin-top: 6px; padding-top: 3px; }
 /* Zugeklappt bleibt nur die Titelzeile stehen; der Kasten schrumpft auf sie
    zusammen, weil nichts mehr darin steht (`paintDom`). */
 .orbital-player.is-folded { background: var(--hud-bg-soft); }
@@ -626,3 +625,22 @@ body.orbital-on #hud { display: none; }
 .orbital-arrow[hidden] { display: none; }
 .orbital-arrow i { position: absolute; left: -9px; top: -11px; width: 0; height: 0; border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 18px solid #ffd84a; transform: rotate(var(--arrow-turn, 0rad)); transform-origin: 9px 11px; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9)); }
 .orbital-arrow span { position: absolute; left: 0; top: 14px; transform: translateX(-50%); white-space: nowrap; padding: 2px 7px; border-radius: 999px; background: rgba(7, 14, 22, 0.78); color: #ffe7a0; font: 600 11px system-ui, sans-serif; }
+
+/* **Der Wartungskasten als Menü** (`ShipExperience.openPuzzle`): dasselbe
+   Panel wie das Pausemenü, darin große Knöpfe, die zeigen, was sie getan
+   haben — der gewählte Stecker leuchtet, richtig Verbundenes ist grün. */
+.orbital-puzzle__panel { display: flex; flex-direction: column; gap: 10px; }
+.orbital-puzzle__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.orbital-puzzle__head strong { color: #96eddb; font: 700 16px system-ui, sans-serif; letter-spacing: .03em; }
+.orbital-puzzle__close { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--hud-line, #34433f); background: rgba(20, 32, 40, 0.9); color: #e6f4f1; font-size: 16px; cursor: pointer; }
+.orbital-puzzle__wires { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; }
+.orbital-puzzle__row { display: flex; gap: 10px; }
+.orbital-puzzle__row > * { flex: 1; }
+.orbital-puzzle__key { min-height: 52px; padding: 8px 10px; border: 1px solid #3c5a64; border-radius: 10px; background: rgba(18, 36, 46, 0.95); color: #eaf6f4; font: 600 20px system-ui, sans-serif; cursor: pointer; touch-action: manipulation; }
+.orbital-puzzle__key.is-selected { border-color: #ffd84a; box-shadow: 0 0 0 2px #ffd84a inset; color: #ffe7a0; }
+.orbital-puzzle__key.is-ok { border-color: #6ee69a; background: rgba(22, 64, 40, 0.95); color: #c8ffd9; }
+.orbital-puzzle__key.is-confirm { font-size: 15px; background: #8ae2dc; color: #08212a; border-color: #a2e8e7; }
+.orbital-puzzle__entry { margin: 0; text-align: center; font: 700 28px ui-monospace, monospace; letter-spacing: .3em; color: #ffe7a0; }
+.orbital-puzzle__done { margin: 8px 0; text-align: center; font: 700 20px system-ui, sans-serif; color: #8ff0b0; }
+/* Der Kasten hat man selbst aufgemacht: Er liegt über allem anderen im Bild, auch über der Willkommens-Karte. */
+.flat.orbital-puzzle { z-index: 70; }
