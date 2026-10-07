@@ -15,6 +15,10 @@ import {
   HALLOWEEN_GATES,
 } from './halloweenCatalog';
 import { HOLIDAY_ELEMENTS, HOLIDAY_FOLDER } from './holidayCatalog';
+import { BOARD_GAME_ELEMENTS, BOARD_GAME_FOLDER } from './boardGameCatalog';
+import { RESOURCE_ELEMENTS, RESOURCE_FOLDER } from './resourceCatalog';
+import { PLATFORMER_ELEMENTS, PLATFORMER_FOLDER } from './platformerCatalog';
+import { MYSTERY_ELEMENTS, MYSTERY_FOLDER } from './mysteryCatalog';
 
 /**
  * **Die Spielelemente** — was eine Welt als Möbel hinstellt, und zwar als
@@ -193,8 +197,14 @@ export interface ElementPart {
  * sich daraufsetzen (`PortalWorld.sitOn`) — alles aus _Möbel → Sitzen_.
  * `'hologram'`: ein Modell aus dem Regal wählen, das darüber als Hologramm
  * schwebt (`PortalWorld.chooseHologram`) — der Hologramm-Sockel.
+ *
+ * Dazu, gewünscht im Oktober 2026 (`elementActs.ts`): `'light'` schaltet eine
+ * Lampe an und aus, `'lid'` klappt den Deckel einer Truhe auf und gibt, was
+ * darin liegt (`yields`), `'tap'` gibt aus einem Fass, `'unwrap'` packt ein
+ * Geschenk aus, `'roll'` wirft einen Würfel auf seiner Zelle hoch.
  */
-export type ElementOpens = 'outfit' | 'hide' | 'swap' | 'sit' | 'hologram';
+export type ElementOpens =
+  'outfit' | 'hide' | 'swap' | 'sit' | 'hologram' | 'light' | 'lid' | 'tap' | 'unwrap' | 'roll';
 
 /** **Ein Spielelement** — zusammengesetzt, mit Grundfläche, Körper und Zweck. */
 export interface GameElement {
@@ -349,6 +359,19 @@ export interface GameElement {
    * eine Adresse im Regal. Mit `A` wählt man ein anderes.
    */
   readonly hologram?: string;
+  /**
+   * **Was man herausbekommt** (`opens: 'lid' | 'tap' | 'unwrap'`) — Adressen
+   * im Regal, eine davon zufällig, als Gegenstand in die Hand: Gold aus der
+   * Truhe, eine Flasche aus dem Fass, ein Spielzeug aus dem Geschenk.
+   */
+  readonly yields?: readonly string[];
+  /**
+   * **Hängt an einer Wand** statt auf dem Boden zu stehen — Bilderrahmen und
+   * Wandbretter. Abgesetzt rastet es an der nächsten Wand ein, wie ein
+   * Wandstück aus dem Regal (`portal/decorPlace.mountPose`), und sperrt keine
+   * Zelle. Gewünscht: _„Auch gerne die die dann an einer Wand sind."_
+   */
+  readonly wall?: boolean;
   /** Die Modelle, das erste steht auf dem Boden. */
   readonly parts: readonly ElementPart[];
 }
@@ -1008,6 +1031,10 @@ export const ELEMENTS: readonly GameElement[] = [
   ...TAVERN_ELEMENTS,
   ...HALLOWEEN_ELEMENTS,
   ...HOLIDAY_ELEMENTS,
+  ...BOARD_GAME_ELEMENTS,
+  ...RESOURCE_ELEMENTS,
+  ...PLATFORMER_ELEMENTS,
+  ...MYSTERY_ELEMENTS,
 ];
 
 /**
@@ -1346,6 +1373,13 @@ export const FURNITURE_FOLDERS: readonly FurnitureFolder[] = [
   TAVERN_FOLDER,
   HALLOWEEN_FOLDER,
   HOLIDAY_FOLDER,
+  // **Brettspiel, Rohstoffe, Parcours, Requisiten** — gewünscht (Oktober
+  // 2026): _„Die Game Board Bits gerne als eigenen Ordner in Katalog. Resource
+  // Bits auch gerne. Mystery monthly 5 und 6 gern. Plattformer ja"_.
+  BOARD_GAME_FOLDER,
+  RESOURCE_FOLDER,
+  PLATFORMER_FOLDER,
+  MYSTERY_FOLDER,
 ];
 
 /**

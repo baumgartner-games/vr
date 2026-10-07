@@ -66,6 +66,43 @@ function table(
   return { ...thing(id, label, file, tiles, aka), kind: 'top', shelf: true };
 }
 
+/**
+ * **Was in einer Truhe liegt** (`opens: 'lid'`) — Münzen, ein Schlüssel,
+ * Edelsteine. Gewünscht: _„Truhen und Fässer in dungeon und Taverne ja"_;
+ * der Deckel klappt auf, eines davon kommt in die Hand (`elementActs.ts`).
+ */
+const CHEST_YIELDS: readonly string[] = [
+  'dungeon/coin_stack_small.glb',
+  'dungeon/key_gold.glb',
+  'resource-bits/Gems_Pile_Small.glb',
+  'resource-bits/Gold_Bar.glb',
+];
+
+/** Und in der goldenen Truhe: Gold. */
+const GOLD_YIELDS: readonly string[] = [
+  'dungeon/coin_stack_large.glb',
+  'resource-bits/Gold_Bars.glb',
+  'resource-bits/Gem_Large.glb',
+];
+
+/** **Was ein Fass hergibt** (`opens: 'tap'`) — eine Flasche. */
+const BARREL_YIELDS: readonly string[] = [
+  'dungeon/bottle_A_labeled_brown.glb',
+  'dungeon/bottle_A_labeled_green.glb',
+  'dungeon/bottle_B_green.glb',
+  'dungeon/bottle_C_brown.glb',
+];
+
+/** Eine Truhe: Deckel auf, und etwas daraus in die Hand. */
+function chest(element: GameElement, yields: readonly string[] = CHEST_YIELDS): GameElement {
+  return { ...element, opens: 'lid', yields };
+}
+
+/** Ein Fass: etwas daraus in die Hand. */
+function barrel(element: GameElement): GameElement {
+  return { ...element, opens: 'tap', yields: BARREL_YIELDS };
+}
+
 /** Etwas Kleines, das auf eine Ablage passt — oder auf den Boden. */
 function small(id: string, label: string, file: string): GameElement {
   return { ...thing(id, label, file, ONE_CELL), rests: true };
@@ -84,12 +121,30 @@ export const TAVERN_ELEMENTS: readonly GameElement[] = [
   table('tavern-bar-outer', 'Theke, Außenecke', 'bar_outercorner', [1, 1], ['Tresen', 'Bar']), // 1,10 × 0,50 × 1,10
   thing('tavern-backbar-a', 'Schankregal', 'bartop_A_large', [2, 1], ['Bar', 'Regal']), // 2,00 × 1,10 × 0,25
   thing('tavern-backbar-b', 'Schankregal, niedrig', 'bartop_B_large', [2, 1], ['Bar', 'Regal']), // 2,00 × 1,00 × 0,25
-  thing('tavern-keg', 'Zapffass', 'keg', [1, 1], ['Fass', 'Bier']), // 0,90 × 1,03 × 1,00
-  thing('tavern-keg-table', 'Zapffass mit Schanktisch', 'keg_decorated', [2, 1], ['Fass', 'Bier']), // 1,76 × 1,03 × 1,00
-  thing('tavern-barrel', 'Fass', 'barrel_large', [1, 1], ['Tonne']), // 0,90 × 1,00 × 0,90
-  thing('tavern-barrel-decorated', 'Fass mit Krügen', 'barrel_large_decorated', [1, 1], ['Tonne']), // 0,97 × 1,28 × 0,93
-  thing('tavern-barrel-small', 'Kleines Fass', 'barrel_small', ONE_CELL, ['Tonne']), // 0,50 × 0,51 × 0,50
-  thing('tavern-barrels-stacked', 'Fässer, gestapelt', 'barrel_small_stack', [1, 1], ['Tonne']), // 0,93 × 0,89 × 0,50
+  barrel(thing('tavern-keg', 'Zapffass', 'keg', [1, 1], ['Fass', 'Bier'])), // 0,90 × 1,03 × 1,00
+  barrel(
+    thing(
+      'tavern-keg-table',
+      'Zapffass mit Schanktisch',
+      'keg_decorated',
+      [2, 1],
+      ['Fass', 'Bier'],
+    ),
+  ), // 1,76 × 1,03 × 1,00
+  barrel(thing('tavern-barrel', 'Fass', 'barrel_large', [1, 1], ['Tonne'])), // 0,90 × 1,00 × 0,90
+  barrel(
+    thing(
+      'tavern-barrel-decorated',
+      'Fass mit Krügen',
+      'barrel_large_decorated',
+      [1, 1],
+      ['Tonne'],
+    ),
+  ), // 0,97 × 1,28 × 0,93
+  barrel(thing('tavern-barrel-small', 'Kleines Fass', 'barrel_small', ONE_CELL, ['Tonne'])), // 0,50 × 0,51 × 0,50
+  barrel(
+    thing('tavern-barrels-stacked', 'Fässer, gestapelt', 'barrel_small_stack', [1, 1], ['Tonne']),
+  ), // 0,93 × 0,89 × 0,50
   small('tavern-bottle-a', 'Flasche', 'bottle_A_labeled_brown'), // 0,18 × 0,44 × 0,18
   small('tavern-bottle-b', 'Grüne Flasche', 'bottle_B_green'), // 0,28 × 0,44 × 0,28
   small('tavern-bottle-c', 'Bauchige Flasche', 'bottle_C_brown'), // 0,37 × 0,45 × 0,37
@@ -130,9 +185,19 @@ export const TAVERN_ELEMENTS: readonly GameElement[] = [
   thing('tavern-bed-straw', 'Strohlager', 'bed_floor', [1, 2], ['Bett', 'Matratze']), // 0,75 × 0,28 × 1,50
   thing('tavern-bed-frame', 'Einfaches Bett', 'bed_frame', [1, 2], ['Bett']), // 0,75 × 0,53 × 1,50
   // Truhen & Lager
-  thing('tavern-chest', 'Truhe', 'chest', [1, 1], ['Schatz', 'Kiste']), // 0,85 × 0,65 × 0,72
-  thing('tavern-chest-large', 'Große Truhe', 'chest_large', [1, 1], ['Schatz', 'Kiste']), // 1,10 × 0,65 × 0,92
-  thing('tavern-chest-large-gold', 'Große goldene Truhe', 'chest_large_gold', [1, 1], ['Schatz']), // 1,10 × 0,65 × 0,92
+  chest(thing('tavern-chest', 'Truhe', 'chest', [1, 1], ['Schatz', 'Kiste'])), // 0,85 × 0,65 × 0,72
+  chest(
+    thing('tavern-chest-gold', 'Goldene Truhe', 'chest_gold', [1, 1], ['Schatz', 'Kiste']),
+    GOLD_YIELDS,
+  ), // 0,85 × 0,65 × 0,72
+  chest(thing('tavern-chest-large', 'Große Truhe', 'chest_large', [1, 1], ['Schatz', 'Kiste'])), // 1,10 × 0,65 × 0,92
+  chest(
+    thing('tavern-chest-large-gold', 'Große goldene Truhe', 'chest_large_gold', [1, 1], ['Schatz']),
+    GOLD_YIELDS,
+  ), // 1,10 × 0,65 × 0,92
+  chest(thing('tavern-chest-mimic', 'Mimic-Truhe', 'chest_mimic', [1, 1], ['Schatz', 'Monster']), [
+    'dungeon/key_gold.glb',
+  ]), // 0,85 × 0,65 × 0,72
   thing('tavern-trunk-a', 'Reisekiste', 'trunk_large_A', [1, 1], ['Koffer', 'Kiste']), // 0,75 × 0,50 × 0,65
   thing('tavern-trunk-b', 'Dunkle Reisekiste', 'trunk_large_B', [1, 1], ['Koffer', 'Kiste']), // 0,75 × 0,50 × 0,65
   thing('tavern-trunk-small', 'Kleine Reisekiste', 'trunk_medium_A', ONE_CELL, ['Koffer']), // 0,48 × 0,36 × 0,44

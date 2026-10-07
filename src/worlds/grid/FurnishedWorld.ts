@@ -53,6 +53,11 @@ import { NATURE_CATALOGUE } from '../elements/natureCatalog';
 import { SPACE_CATALOGUE } from '../elements/spaceCatalog';
 import { FURNITURE_BITS_CATALOGUE } from '../elements/furnitureCatalog';
 import { StationLayer, type StationHost } from '../elements/stationLayer';
+import { ElementActs } from '../elements/elementActs';
+import type { ElementMount } from '../portal/PortalWorld';
+import { lampsInScene } from '../../core/Lamps';
+import { lampBook } from '../../core/lamps/lampBook';
+import type { ElementOpens } from '../elements/elementCatalog';
 import { DEFAULT_BURN, type StationState } from '../plateup/plateUpStations';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
@@ -217,6 +222,7 @@ export abstract class FurnishedWorld extends GridWorld {
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
+    this.acts.step(dt);
     this.stations?.step(dt, ctx.rig.position);
     this.spray(dt, ctx);
     const leaking = this.stations?.leakingAt(this.leakAt) ?? null;
@@ -243,6 +249,7 @@ export abstract class FurnishedWorld extends GridWorld {
     this.roadGhost = null;
     this.roadTemplates.clear();
     this.elementRound++;
+    this.acts.clear();
     ctx.avatar.carry = null;
     this.stations?.dispose();
     this.stations = null;
@@ -277,6 +284,54 @@ export abstract class FurnishedWorld extends GridWorld {
 
   // --- Spielelemente ----------------------------------------------------------
 
+  /** Die Bewegungen der Möbel — Deckel, Würfel, Geschenke (`elementActs.ts`). */
+  private readonly acts = new ElementActs();
+
+  /**
+   * **`A` an einer Lampe, einer Truhe, einem Fass, einem Geschenk oder einem
+   * Würfel** (`ElementOpens`). Gewünscht (Oktober 2026): _„Steh Lampen und
+   * Tischlampen ja, Truhen und Fässer in dungeon und Taverne ja. Geschenke ja.
+   * Würfel zum würfeln ja."_
+   *
+   * - **Lampe** (`light`): Sie bekommt einen eigenen Schalter (`lampBook`,
+   *   Betrieb _Schalter_) und wird umgelegt — dasselbe, was das Element-Menü
+   *   im Einrichten einstellt, nur mit einem Druck.
+   * - **Truhe** (`lid`): Der Deckel klappt auf, und was darin liegt
+   *   (`GameElement.yields`), kommt in die Hand.
+   * - **Fass** (`tap`): Es gibt heraus, was darin ist — ohne Deckel.
+   * - **Geschenk** (`unwrap`): Es packt sich aus und gibt sein Spielzeug; nach
+   *   einer Weile ist es wieder eingepackt.
+   * - **Würfel** (`roll`): fliegt auf seiner Zelle hoch und landet.
+   */
+  private actOn(ctx: WorldContext, what: ElementOpens, anchor: THREE.Object3D): void {
+    const placed = this.placed.find((one) => one.anchor === anchor.parent);
+    if (!placed) return;
+    const element = placed.element;
+    if (what === 'light') {
+      const lamp = lampsInScene()
+        ?.instances()
+        .find((one) => anchor.getObjectById(one.object.id) !== undefined);
+      if (!lamp) {
+        ctx.notify(`${element.label}: noch kein Licht`);
+        return;
+      }
+      const burns = lampsInScene()?.state(lamp).burns ?? false;
+      lampBook.setLamp(lamp.key, { mode: 'switch', on: !burns });
+      ctx.notify(`${element.label}: ${burns ? 'aus' : 'an'}`);
+      return;
+    }
+    if (what === 'roll') {
+      this.acts.roll(anchor, /d6/.test(element.id));
+      return;
+    }
+    if (this.acts.busy(anchor)) return;
+    if (what === 'lid') this.acts.lid(anchor);
+    if (what === 'unwrap' && !this.acts.unwrap(anchor)) return;
+    const yields = element.yields ?? [];
+    const path = yields[Math.floor(Math.random() * yields.length)];
+    if (path) this.handModel(ctx, path);
+  }
+
   /**
    * **Der Möbelkatalog im Menü** (`PortalWorld.elementMenu`): Arbeitsplatte,
    * Schneidebrett, Herdplatte mit Pfanne, mit Topf und blank, Waschbecken,
@@ -309,9 +364,29 @@ export abstract class FurnishedWorld extends GridWorld {
     z: number,
     yaw: number,
     level: number = this.standLevel,
+    mount: ElementMount | null = null,
   ): ElementSpot | null {
     if (!hasElement(carried.id)) return null;
     const id = carried.from?.id ?? `katalog-${++this.furnished}`;
+    // **An der Wand** (`GameElement.wall`): die Mitte, wo die Wand es hält, die
+    // Vorderseite in den Raum und die Unterkante auf Augenhöhe — die Stelle
+    // ist dann keine Kachel, sondern ein Punkt an der Wand.
+    if (mount) {
+      const face = yawFace(mount.yaw);
+      const probe: ElementSpot = { id, element: carried.id, x: 0, z: 0, face };
+      const [w, d] = spotSize(probe);
+      const hung = onLevel(
+        {
+          ...(carried.from ?? {}),
+          ...probe,
+          x: round2(mount.x - w / 2),
+          z: round2(mount.z - d / 2),
+          y: round2(mount.bottom),
+        },
+        level,
+      );
+      return this.furnishSpot(hung, keptStates(carried)) ? hung : null;
+    }
     const at = spotAround(id, carried.id, x, z, yawFace(yaw));
     // **Auf die Etage, auf der gebaut wird** (`standLevel`) — im Weltbau die
     // unter der Hand (`GridWorld.handLevel`), etwa das Dach. Wer erst fallen
@@ -568,7 +643,10 @@ export abstract class FurnishedWorld extends GridWorld {
       const [tx, tz] = tile.split(',').map(Number);
       return level > 0 ? (graph?.has(tileKey(tx!, tz!, level)) ?? false) : this.onGround(tx!, tz!);
     });
-    if (!inside || !this.cellsFree(spotCells(flat))) return false;
+    // Ein Wandstück ragt mit seiner Grundfläche über die Wand hinaus und
+    // sperrt nichts — gefragt wird dann gar nicht erst.
+    const hangs = elementById(flat.element).wall === true;
+    if (!hangs && (!inside || !this.cellsFree(spotCells(flat)))) return false;
     this.track(
       flat,
       this.placeSpot(flat, keep).then((placed) => {
@@ -975,6 +1053,8 @@ export abstract class FurnishedWorld extends GridWorld {
         else if (what === 'sit' && this.context) this.sitOn(this.context, anchor);
         // Der Hologramm-Sockel (`spaceCatalog.SPACE_HOLOGRAM`): ein Modell wählen.
         else if (what === 'hologram' && this.context) this.chooseHologram(this.context, anchor);
+        // Lampe, Truhe, Fass, Geschenk, Würfel (`elementActs.ts`).
+        else if (ACTS.has(what) && this.context) this.actOn(this.context, what, anchor);
         else if (this.context) this.hideIn(this.context, anchor);
       },
       hologram: (anchor, spot, model) => this.showHologram(anchor, spot, model),
@@ -1208,12 +1288,22 @@ function onLevel(spot: ElementSpot, level: number): ElementSpot {
   return level > 0 ? { ...flat, level } : flat;
 }
 
+/** Auf Zentimeter gerundet — so steht eine Wandstelle in der Liste der Weltänderungen. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Was `A` an einem Element mit Bewegung tut (`FurnishedWorld.actOn`). */
+const ACTS: ReadonlySet<ElementOpens> = new Set(['light', 'lid', 'tap', 'unwrap', 'roll']);
+
 /**
  * **Eine Stelle ohne Höhe** — die Höhe (`ElementSpot.y`) rechnet die Welt
  * beim Hinstellen neu aus, aus der Ablage, die dann darunter steht.
  */
 function grounded(spot: ElementSpot): ElementSpot {
-  if (spot.y === undefined) return spot;
+  // Ein Wandstück hängt in seiner Höhe (`GameElement.wall`) — die bleibt.
+  if (spot.y === undefined || (hasElement(spot.element) && elementById(spot.element).wall))
+    return spot;
   const { y: _height, ...flat } = spot;
   return flat;
 }

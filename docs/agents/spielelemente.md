@@ -736,6 +736,74 @@ Boden (`floor`). Die Ids fangen mit dem Ordner an (`tavern-`, `halloween-`,
   auf das Raster (die Kurve misst 1,12 m). Was hängt (Kranz, Mistelzweig,
   Glocke) und das Dach des Lebkuchenhauses fehlen.
 
+### Brettspiel, Rohstoffe, Parcours, Requisiten — und was `A` an Möbeln tut
+
+Gewünscht (Oktober 2026), in einem Zug: _„Steh Lampen und Tischlampen ja,
+Truhen und Fässer in dungeon und Taverne ja. Geschenke ja. Würfel zum würfeln
+ja. Dann wird der Würfel nur animiert auf dem eigenen Feld hochgeworfen und
+dreht sich. Die Game Board Bits gerne als eigenen Ordner in Katalog. Resource
+Bits auch gerne. Mystery monthly 5 und 6 gern. Plattformer ja. Fueniture Bits
+gerne dann habe ich mehr Deko Elemente. Auch Genre die die dann an einer Wand
+sind."_
+
+**Vier neue Ordner** (zusammen gut 960 Elemente, `ELEMENTS` hat jetzt 1662):
+
+- **Brettspiel** (`boardGameCatalog.ts`, _Board Game Bits_): ein
+  Riesen-Brettspiel im Maßstab des Regals — das Brett fünf mal fünf Kacheln
+  (ein Belag, `floor`), Figuren, Würfel und Münzen auf je einer Zelle, die
+  Spielkarten flach auf dem Boden (`tilt`, `fit` 0,9), die Pokerchips auf ein
+  Drittel.
+- **Rohstoffe** (`resourceCatalog.ts`, _Resource Bits_): Kisten & Paletten
+  (Paletten sind ein Belag), Erze & Barren, Essen, Treibstoff, Geld &
+  Edelsteine, Stein, Holz & Stoff.
+- **Parcours** (`platformerCatalog.ts`, _Platformer_, 151 Formen): Was man
+  beklettert (`climb`: Plattformen, Rampen, Absperrungen, Säulen, Gerüste)
+  sperrt **so hoch, wie es ist**, nicht bis 1,40 m; durch Bögen, Reifen und das
+  Ziel läuft man hindurch (`GATES`, `solid: [0, 0]`); Netze und Holzböden
+  sind Beläge. Die Zeilen sind aus den gemessenen Maßen erzeugt (Breite ×
+  Höhe × Tiefe stehen dahinter). Die Förderbänder fehlen: Die hat die Küche.
+- **Requisiten** (`mysteryCatalog.ts`, _Mystery Monthly_ 5 und 6, Maßstab
+  0,7): Hexenküche und Spielzeugwerkstatt, Zelt, Lagerfeuer, Bauernhof,
+  Vampirthron (`sit`), Riesengeschenk (`unwrap`) — und Waffen und Schilde als
+  Wandschmuck. Gewehre und Bogen fehlen: Sie liegen in der Datei längs in der
+  Tiefe und stünden von der Wand ab.
+
+**Farben sind Fassungen** (`elementFamily.swapRing`): Dasselbe Stück in vier
+Farben (Parcours, Brettspiel) oder vier Metallen (Rohstoffe) steht **einmal**
+im Ordner; die übrigen sind seine Fassungen (`GameElement.swap`) und werden im
+Element-Menü reihum getauscht, wie die Laternen. `catalogueOf` nimmt je
+Familie die erste.
+
+**An der Wand** (`GameElement.wall`): Bilderrahmen und Wandregale aus
+_Furniture Bits_ (_Möbel → An der Wand_), die Waffen der Requisiten, der
+Wandpfeil des Parcours. Beim Absetzen rechnet `PortalWorld.elementMount` mit
+derselben Rechnung wie die Wandmodelle des Regals (`decorPlace.mountPose`,
+`wallFaces`): nächste Wand unter dem Kran, halbe Kacheln entlang der Wand,
+Augenhöhe. Die Stelle ist dann ein Punkt an der Wand mit Höhe (`ElementSpot.y`,
+in den Weltänderungen `y`) und sperrt nichts (`FurnishedWorld.furnishSpot`
+fragt keine Zellen). Ohne Wand in Reichweite: _„hier ist keine Wand"_, und
+das Stück kommt zurück in die Hand. `decorPlace.mountsOnWall` kennt jetzt auch
+die Wandregale `shelf_B_*`.
+
+**Was `A` daran tut** (`elementActs.ts`, `FurnishedWorld.actOn`):
+
+- `light` — **Lampen** (Steh-, Tisch- und Schreibtischlampen): umlegen wie
+  einen Schalter (`lampBook.setLamp`, Betrieb _Schalter_).
+- `lid` — **Truhen** (Taverne, dazu die goldene und die Mimic-Truhe aus dem
+  Dungeon; die Truhen des Parcours): Der Knoten `*_lid` klappt um seine
+  Hinterkante auf (`hinge`), bleibt drei Sekunden offen, und eines aus
+  `GameElement.yields` kommt als Gegenstand in die Hand (`PortalWorld.handModel`).
+- `tap` — **Fässer** der Taverne: eine Flasche in die Hand.
+- `unwrap` — **Geschenke**: Die von Weihnachten schrumpfen weg und kommen nach
+  25 s wieder; das Riesengeschenk der Requisiten klappt seine vier Seiten
+  nach außen und lässt den Deckel aufsteigen. Ein Spielzeug in die Hand.
+- `roll` — **Würfel**: fliegt auf seiner Zelle 0,9 m hoch, dreht sich um seine
+  Mitte und landet; ein W6 auf einer zufälligen Seite, die anderen nur
+  anders gedreht (ein W8 auf einer Vierteldrehung stünde auf einer Kante).
+
+Nichts davon wird gespeichert oder übers Netz geschickt — nach dem Neuladen
+ist die Truhe zu und das Geschenk eingepackt.
+
 ### Die Garderobe: `A` öffnet _Aussehen_
 
 Gewünscht (Oktober 2026): _„haben wir einen garderoben ständer als model? das
