@@ -35,7 +35,8 @@ die halbe Station verdeckt.
   Deckel griff — Spieler und Monster je 2,6 m/s —, aber nur bei vollem
   Ausschlag. Der Stock am Glas braucht dafür 56 Punkte bis an den Ring, und
   den geht kaum ein Daumen; mit zwei Dritteln lief man ~1,7 m/s. Jetzt gilt
-  volles Tempo ab 60 % Ausschlag (`HauntingWorld.STICK_FULL`). Und im Schacht
+  volles Tempo ab 60 % Ausschlag (das wurde gleich danach von den drei Zonen
+  abgelöst, siehe unten). Und im Schacht
   kroch das Monster mit 3,5 m/s ohne Deckel; `VentTravel.speed` nimmt ihn
   jetzt mit (`FlatRound`, `capped(VENT_SPEED)`).
 - **Oben links der Menüknopf** (`.orbital-menu`, `ShipExperience.menuButton`,
@@ -89,6 +90,19 @@ die halbe Station verdeckt.
   Bildschirm einfach aus — gemeldet als _„Irgendwie ist die Beleuchtung
   komplett kaputt gegangen?"_ (mit dem Wartungsschlüssel in der Hand). In der
   Brille tat sie das schon (`equip('flashlight', 'left')`).
+
+- **Drei Zonen am Stock statt Sprint** (`mission.stickPace`, `STICK_STAND`
+  15 %, `STICK_RUN` 70 %): Stehen, Schleichen (`CROUCH_FACTOR`, 1,3 m/s,
+  leise — `stepLoudness` liest es am Tempo), Rennen (2,6 m/s, laut).
+  Gewünscht: _„Stehen, Langsames gehen, Rennen. Beim PC […] mit wasd (soll
+  direkt rennen sein). Bei den vr sticks können wir das genauso machen."_
+  Gilt für Glas, Pad und Brille gleich (`HauntingWorld`, Eingabe des Kerns);
+  Tasten schlagen immer voll aus, also rennt WASD, `Strg` schleicht. **Der
+  Sprint des Technikers ist weg** (kein `sprint` mehr an den Kern, `rig.pace`
+  liefert immer `PLAYER_WALK_SPEED`, die Puste läuft nur noch leer mit) und mit
+  ihm der Ducken-Umschalter in der Tafel: Rennen ist auf jedem Gerät dasselbe,
+  und daran misst sich das Monster-Tempo. Am Handy zeigt ein gestrichelter
+  Ring im Stock die Grenze zum Rennen (`body.orbital-on .touch__stick::after`).
 
 ## Die Einsatzzentrale zum Herumlaufen (Oktober 2026)
 

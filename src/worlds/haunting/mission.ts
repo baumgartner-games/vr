@@ -44,6 +44,28 @@ export const PLAYER_SPRINT_SPEED = 4.94;
  */
 export const CROUCH_FACTOR = 0.5;
 export const PLAYER_CROUCH_SPEED = PLAYER_WALK_SPEED * CROUCH_FACTOR;
+
+/**
+ * **Drei Zonen am Stock** — Stehen, Schleichen, Rennen. Gewünscht: _„es wäre
+ * beim stick gut beim handy, wenn es zonen gibt. Stehen, Langsames gehen,
+ * Rennen. Beim PC habe ich das ja auch mit wasd (soll direkt rennen sein).
+ * Bei den vr sticks können wir das genauso machen."_
+ *
+ * Bis `STICK_STAND` steht man, bis `STICK_RUN` schleicht man mit
+ * `CROUCH_FACTOR` (leise — `stepLoudness` liest das am Tempo), darüber rennt
+ * man mit `PLAYER_WALK_SPEED`. Ein Sprint mit Puste obendrauf gibt es für den
+ * Techniker nicht mehr: Rennen ist auf jedem Gerät dasselbe, und das Monster
+ * misst sich daran (`FlatRound.monsterPace`). Eine Taste ist immer voll
+ * ausgeschlagen, also rennt WASD direkt; `Strg` schleicht.
+ */
+export const STICK_STAND = 0.15;
+export const STICK_RUN = 0.7;
+
+/** Welcher Anteil von `PLAYER_WALK_SPEED` zu diesem Ausschlag (0…1) gehört. */
+export function stickPace(deflection: number): number {
+  if (!(deflection >= STICK_STAND)) return 0;
+  return deflection < STICK_RUN ? CROUCH_FACTOR : 1;
+}
 /**
  * **Das Jagdtempo, das die Gewichte allein erreichen** — der Deckel *unter*
  * dem Deckel.

@@ -113,11 +113,10 @@ import { AutomaticDoors } from './automaticDoors';
 import {
   freshCrew,
   MONSTERS,
-  CROUCH_FACTOR,
-  PLAYER_SPRINT_SPEED,
   PLAYER_WALK_SPEED,
   repairsFor,
   stationOptions,
+  stickPace,
   type StationOptions,
 } from './mission';
 import { Rng } from './rng';
@@ -293,8 +292,6 @@ import {
  */
 
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
-/** Ab welchem Ausschlag des Stocks der Techniker sein volles Tempo läuft. */
-const STICK_FULL = 0.6;
 const _zero = new THREE.Vector3();
 /** Der Stock in Ruhe — wenn das Gestell außerhalb der Karte steht oder im Schrank. */
 const IDLE_INPUT: FlatInput = { x: 0, z: 0, sprint: false };
@@ -718,7 +715,6 @@ export class HauntingWorld extends FurnishedWorld {
    * Bedienung wird am Tempo des Gestells normiert (`kernelInput`), das
    * Tempo selbst macht die Runde.
    */
-  private dash = 1;
   /**
    * **Der Würfel der Routine kommt aus dem Samen der Station** — wie in der
    * 2D-Runde (`FlatRound`, `seed ^ roll`). Vorher stand hier eine Konstante,
@@ -1435,15 +1431,10 @@ export class HauntingWorld extends FurnishedWorld {
     this.claims.delete(ctx.net.localId);
     ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician', active: ctx.role === 'vr' });
     // **Das Tempo der Runde gilt für jeden Stock** (`mission.ts`, `PlayerRig.pace`):
-    // Brille, Tastatur und Bildschirmstock gehen 2,6 m/s und rennen 4,94 mal
-    // Puste — dieselben Zahlen wie in der 2D-Runde (`map/flatRound.ts`).
-    ctx.rig.pace =
-      ctx.role === 'vr'
-        ? (sprint) =>
-            sprint
-              ? PLAYER_SPRINT_SPEED * this.dash
-              : PLAYER_WALK_SPEED * (ctx.rig.crouch > 0.15 ? CROUCH_FACTOR : 1)
-        : null;
+    // Brille, Tastatur und Bildschirmstock rennen 2,6 m/s — Schleichen und
+    // Stehen machen die Zonen daraus (`mission.stickPace`). Einen Sprint gibt
+    // es für den Techniker nicht mehr.
+    ctx.rig.pace = ctx.role === 'vr' ? () => PLAYER_WALK_SPEED : null;
     if (ctx.role === 'vr') {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe in der Einsatzzentrale —
       // man muss sie im Dunkeln ja finden können.
@@ -2469,19 +2460,16 @@ export class HauntingWorld extends FurnishedWorld {
       ? { x: _head.x - this.kernelHead.x, z: _head.z - this.kernelHead.z }
       : { x: 0, z: 0 };
     const wish = ctx.rig.paused ? _zero : loco.wish;
-    const sprint = ctx.rig.sprinting;
-    const pace = ctx.rig.pace?.(sprint) ?? PLAYER_WALK_SPEED;
+    const pace = PLAYER_WALK_SPEED;
     const wished = Math.hypot(wish.x, wish.z);
-    // **Volles Tempo schon bei 60 % Ausschlag** (`STICK_FULL`). Der Stock am
-    // Glas braucht für 1,0 den ganzen Weg bis an den Ring (56 Punkte,
-    // `FlatControls.clampStick`), und den geht kaum ein Daumen: Gemessen lief
-    // man am Telefon meist mit zwei Dritteln, also ~1,7 m/s, und das Monster
-    // mit seinen 2,6 m/s war _„definitiv schneller als ich"_.
-    const magnitude = pace > 0 ? Math.min(1, wished / pace / STICK_FULL) : 0;
+    // **Drei Zonen** (`mission.stickPace`): stehen, schleichen, rennen — am
+    // Glas, am Pad, in der Brille und mit Tasten (die immer voll ausschlagen,
+    // also rennen). Kein Sprint mehr obendrauf; `Strg` schleicht.
+    const magnitude = stickPace(wished / pace);
     return {
-      x: wished > 1e-6 ? (wish.x / wished) * magnitude : 0,
-      z: wished > 1e-6 ? (wish.z / wished) * magnitude : 0,
-      sprint,
+      x: magnitude > 0 ? (wish.x / wished) * magnitude : 0,
+      z: magnitude > 0 ? (wish.z / wished) * magnitude : 0,
+      sprint: false,
       crouch: ctx.rig.crouch > 0.15,
       yaw: this.lookYaw(ctx),
       shift,

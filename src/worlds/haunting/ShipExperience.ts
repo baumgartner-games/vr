@@ -387,7 +387,6 @@ export class ShipExperience {
    * Spiel hängt an der Lautstärke (`mission.CROUCH_FACTOR`).
    */
   private crouchHeld = false;
-  private crouchToggle = false;
   /** Ob dieses Bauteil die Haltung des Gestells gerade setzt — beim Abbau zurück. */
   private ownsStance = false;
   private readonly torch = new THREE.Group();
@@ -915,8 +914,8 @@ export class ShipExperience {
   };
 
   /**
-   * Die Haltung je Bild ans Gestell — geduckt, solange `Strg` liegt oder der
-   * Umschalter steht; nie im Versteck, nie ohne Anzug, nie in der Bot-Runde.
+   * Die Haltung je Bild ans Gestell — geduckt (also schleichend), solange
+   * `Strg` liegt; nie im Versteck, nie ohne Anzug, nie in der Bot-Runde.
    */
   private stepCrouch(dt: number): void {
     const ctx = this.host.ctx;
@@ -928,7 +927,7 @@ export class ShipExperience {
       return;
     }
     const able = !this.crew.simulation && !this.crew.hidden && this.crew.hp > 0 && this.player;
-    ctx.rig.updateDesktopCrouch(able && (this.crouchHeld || this.crouchToggle), dt);
+    ctx.rig.updateDesktopCrouch(able && this.crouchHeld, dt);
     this.ownsStance = true;
   }
 
@@ -3369,13 +3368,8 @@ export class ShipExperience {
       button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
-    // **Ducken als Umschalter** — die eine Taste dieser Welt neben dem Kern,
-    // weil das Spiel an der Lautstärke hängt (`mission.CROUCH_FACTOR`).
-    if (!crew.simulation) {
-      const crouch = actionKey(`Ducken: ${this.crouchToggle ? 'an' : 'aus'}`, 'crouch');
-      crouch.setAttribute('aria-pressed', String(this.crouchToggle));
-      row.append(crouch);
-    }
+    // Kein Ducken-Knopf mehr: Schleichen liegt am Stock (`mission.stickPace`)
+    // und am Bildschirm auf `Strg`.
     button('Medkit', 'heal');
     // **Ablegen steht nur da, wenn etwas abzulegen ist.** Ein Knopf, der bei
     // leeren Händen nichts tut, ist einer, den man mitten in der Flucht trifft.
@@ -3801,7 +3795,6 @@ export class ShipExperience {
     else if (kind === 'respawn') this.respawn();
     else if (kind === 'console') this.useConsole(id!);
     else if (kind === 'follow-bot') this.setFollowBot(!this.followBot);
-    else if (kind === 'crouch') this.crouchToggle = !this.crouchToggle;
     else if (kind === 'rooms' || kind === 'monster' || kind === 'light') this.commandAction(kind);
     else if (kind === 'heal') this.heal();
     else if (kind === 'drop') this.dropPart();

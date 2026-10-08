@@ -644,3 +644,10 @@ body.orbital-on #hud { display: none; }
 .orbital-puzzle__done { margin: 8px 0; text-align: center; font: 700 20px system-ui, sans-serif; color: #8ff0b0; }
 /* Der Kasten hat man selbst aufgemacht: Er liegt über allem anderen im Bild, auch über der Willkommens-Karte. */
 .flat.orbital-puzzle { z-index: 70; }
+
+/* **Die Grenze zum Rennen am Stock** (`mission.stickPace`, `STICK_RUN` = 70 %):
+   ein feiner Ring, den der Rand des Knopfs berührt, sobald er rennt. Der Knopf
+   wandert 32 px für den vollen Ausschlag (`FlatControls.updateStickVisual`),
+   bei 70 % also gut 22 px; dazu sein halber Durchmesser von 26 px. Innen
+   schleicht man, außen rennt man. */
+body.orbital-on .touch__stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%; border: 1px dashed rgba(150, 237, 219, 0.45); pointer-events: none; }
