@@ -2470,7 +2470,7 @@ export class HauntingWorld extends FurnishedWorld {
       x: magnitude > 0 ? (wish.x / wished) * magnitude : 0,
       z: magnitude > 0 ? (wish.z / wished) * magnitude : 0,
       sprint: false,
-      crouch: ctx.rig.crouch > 0.15,
+      crouch: ctx.rig.crouch > 0.15 || this.experience?.sneaking === true,
       yaw: this.lookYaw(ctx),
       shift,
     };

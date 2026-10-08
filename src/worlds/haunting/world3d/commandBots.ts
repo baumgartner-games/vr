@@ -32,10 +32,15 @@ export interface CommandBotsHost {
   couchTaken(): boolean;
 }
 
-/** Die Figuren der Reihe nach. */
+/**
+ * **Die Figur der Bots: das Mannequin** — gewünscht: _„können wir die bots in
+ * der einsatzzentrale den skin mannequin bekommen?"_. Vorher wechselten sich
+ * 4GTN und der Kampfroboter ab; jetzt sind alle gleich, ein Bot und kein
+ * Mitspieler, auf den ersten Blick. Dasselbe Modell trägt die Crew im Schiff
+ * (`actorFit.ts`, Sorte `crew`).
+ */
 const KINDS: readonly NpcKind[] = [
-  'kaykit:mystery-monthly-6/7-january-2026-4gtn/characters/4GTN.glb',
-  'kaykit:mystery-monthly-5/1-july-2024-combat-mech/characters/CombatMech.glb',
+  'kaykit:character-animations/mannequin-character/characters/Mannequin_Medium.glb',
 ];
 
 /** Die Sitzecke: das Sofa (zwei Kacheln, Blick nach Norden), wie `commandRoom.LOUNGE_SPOTS`. */

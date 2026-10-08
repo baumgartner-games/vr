@@ -104,6 +104,21 @@ die halbe Station verdeckt.
   und daran misst sich das Monster-Tempo. Am Handy zeigt ein gestrichelter
   Ring im Stock die Grenze zum Rennen (`body.orbital-on .touch__stick::after`).
 
+- **Von oben sinkt beim Schleichen niemand ein** (`stepCrouch`,
+  `ShipExperience.sneaking`): `Strg` senkt das Gestell nur noch aus den Augen;
+  von oben bleibt die Figur stehen und schleicht nur (Eingabe des Kerns,
+  `crouch`).
+- **Von oben leuchtet die Lampe auf den Boden** (`TORCH_TILT_TOP`, −0,5 rad):
+  Lampe und linke Hand hängen an der Kamera der Augen, die von oben geradeaus
+  schaut; der Kegel traf nur Wände. Jetzt neigen sie sich dort nach unten, der
+  Kegel liegt 2–5 m vor den Füßen. Aus den Augen und in der Brille unverändert.
+- **Der Tote als Geist im Licht** (`PlayerAvatar.setSpirit`, `lightBody`):
+  halb durchsichtig und kalt leuchtend, dazu ein Spot von oben, solange die
+  Endkarte zählt. Das Licht wird erst beim ersten Tod gebaut.
+- **Die Bots der Zentrale sind Mannequins** (`world3d/commandBots.KINDS`,
+  `Mannequin_Medium`) statt 4GTN und Kampfroboter.
+- **Der Ring am Stock** steht nur im linken (Lauf-)Stock, nicht im Ziel-Stock.
+
 ## Die Einsatzzentrale zum Herumlaufen (Oktober 2026)
 
 Gewünscht: _„Beim start screen wo ich mich eigentlich anmelden soll will ich

@@ -30,6 +30,18 @@ function ghostOf(material: THREE.Material): THREE.Material {
   return ghost;
 }
 
+/** Wie `ghostOf`, nur kalt leuchtend — ein Geist, den man auch im Dunkeln sieht (`setSpirit`). */
+function spiritOf(material: THREE.Material): THREE.Material {
+  const ghost = ghostOf(material);
+  ghost.opacity = 0.6;
+  const lit = ghost as THREE.MeshStandardMaterial;
+  if (lit.emissive) {
+    lit.emissive.setHex(0x7fe9ff);
+    lit.emissiveIntensity = 0.7;
+  }
+  return ghost;
+}
+
 /**
  * The local player's body. Lives inside the rig, so everything it is fed is in
  * rig space, and sits on a layer only the portal views render.
@@ -190,15 +202,18 @@ export class PlayerAvatar extends AvatarBody {
    * **Halb durchsichtig, wie ein Geist** — mit eigenen Abzügen der Stoffe,
    * denn die Stoffe der Modelle teilen sich alle, die dasselbe Modell tragen.
    */
-  private setGhostly(on: boolean): void {
+  private setGhostly(
+    on: boolean,
+    make: (material: THREE.Material) => THREE.Material = ghostOf,
+  ): void {
     if (on) {
       this.traverse((object) => {
         const mesh = object as THREE.Mesh;
         if (!mesh.isMesh || this.ghostWorn.has(mesh)) return;
         this.ghostWorn.set(mesh, mesh.material);
         mesh.material = Array.isArray(mesh.material)
-          ? mesh.material.map(ghostOf)
-          : ghostOf(mesh.material);
+          ? mesh.material.map(make)
+          : make(mesh.material);
       });
       return;
     }
@@ -208,6 +223,16 @@ export class PlayerAvatar extends AvatarBody {
       mesh.material = worn;
     }
     this.ghostWorn.clear();
+  }
+
+  /**
+   * **Die Figur als Geist** — halb durchsichtig und kalt leuchtend, damit man
+   * sie auch im Dunkeln liegen sieht. Der Tod des Technikers in Orbital
+   * (`ShipExperience.stepEnd`): _„wenn man stirbt fehlt mir noch das licht
+   * (und der spieler als ghost charakter)"_.
+   */
+  setSpirit(on: boolean): void {
+    this.setGhostly(on, spiritOf);
   }
 
   get crane(): boolean {

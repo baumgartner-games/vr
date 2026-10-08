@@ -650,4 +650,4 @@ body.orbital-on #hud { display: none; }
    wandert 32 px für den vollen Ausschlag (`FlatControls.updateStickVisual`),
    bei 70 % also gut 22 px; dazu sein halber Durchmesser von 26 px. Innen
    schleicht man, außen rennt man. */
-body.orbital-on .touch__stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%; border: 1px dashed rgba(150, 237, 219, 0.45); pointer-events: none; }
+body.orbital-on .touch__stick:not(.touch__stick--aim)::after { content: ''; position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%; border: 1px dashed rgba(150, 237, 219, 0.45); pointer-events: none; }

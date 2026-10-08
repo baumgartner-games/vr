@@ -927,9 +927,21 @@ export class ShipExperience {
       return;
     }
     const able = !this.crew.simulation && !this.crew.hidden && this.crew.hp > 0 && this.player;
-    ctx.rig.updateDesktopCrouch(able && this.crouchHeld, dt);
+    this.sneakHeld = !!able && this.crouchHeld;
+    // **Von oben sinkt niemand in den Boden.** Das Ducken senkt das Gestell
+    // ab — aus den Augen ist das der Blick, der tiefer geht; von oben stand
+    // die Figur damit halb im Boden (_„beim schleichen der charakter einfach
+    // im boden leicht eingesunken"_). Dort bleibt sie stehen und schleicht
+    // nur (`sneaking`, in die Eingabe des Kerns).
+    ctx.rig.updateDesktopCrouch(this.sneakHeld && !ctx.topDown, dt);
     this.ownsStance = true;
   }
+
+  /** Ob am Bildschirm gerade geschlichen wird (`Strg`) — für die Eingabe des Kerns. */
+  get sneaking(): boolean {
+    return this.sneakHeld;
+  }
+  private sneakHeld = false;
 
   private get crew() {
     return this.host.state().crew;
@@ -2493,6 +2505,15 @@ export class ShipExperience {
     // ein Weg, das Teil verschwinden zu lassen.
     const part = carriedPart(this.host.spec(), this.host.state());
     if (!part && this.rightItem === 'part') this.freePart();
+    // **Von oben leuchtet die Lampe auf den Boden.** Sie hängt an der Kamera
+    // der Augen, und die schaut von oben geradeaus — der Kegel traf nur die
+    // nächste Wand, der Boden davor blieb schwarz (_„Bei von oben sollte der
+    // lichtkegel auch unten den boden bereich (wie ein dreieck) beleuchten"_).
+    // Dort neigt sie sich deshalb nach unten; aus den Augen und in der Brille
+    // zeigt sie weiter, wohin man schaut.
+    const tilt = ctx.topDown && !immersive ? TORCH_TILT_TOP : 0;
+    this.torch.rotation.x = tilt;
+    this.scanner.rotation.x = tilt;
     this.torch.visible = available && !immersive && this.rightItem !== 'off';
     this.heldLamp.visible = this.rightItem === 'flashlight';
     this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight' && this.torchLit);
@@ -2827,6 +2848,8 @@ export class ShipExperience {
         this.endClock = null;
         this.endDone = false;
         ctx.avatar.revive();
+        ctx.avatar.setSpirit(false);
+        if (this.deathLight) this.deathLight.visible = false;
         if (this.viewBefore) ctx.topDownView?.set(this.viewBefore);
         this.viewBefore = null;
       }
@@ -2835,7 +2858,13 @@ export class ShipExperience {
     if (this.endClock === null) {
       this.endClock = END_SECONDS;
       this.endDone = false;
-      if (phase === 'lost') ctx.avatar.act('death');
+      if (phase === 'lost') {
+        ctx.avatar.act('death');
+        // **Als Geist und im Licht** — sonst lag die Figur in einer dunklen
+        // Station im Schwarzen, und vom Umfallen sah man nichts.
+        ctx.avatar.setSpirit(true);
+        this.lightBody(_head);
+      }
       const view = ctx.topDown ? ctx.topDownView : undefined;
       if (view) {
         this.viewBefore = view.get();
@@ -2853,6 +2882,27 @@ export class ShipExperience {
     if (count && count.textContent !== text) count.textContent = text;
     if (this.endClock <= 0) this.respawn();
   }
+
+  /**
+   * **Ein Licht über dem Toten**: ein kühler Spot von oben, nur solange die
+   * Endkarte zählt. Er wird erst beim ersten Tod gebaut — ein Licht mehr in
+   * der Szene kostet in jedem Bild, und die Runde ist dann ohnehin vorbei.
+   */
+  private lightBody(at: THREE.Vector3): void {
+    if (!this.deathLight) {
+      const light = new THREE.SpotLight(0xb8e8ff, 40, 9, 0.6, 0.6, 1.4);
+      light.name = 'technician-death-light';
+      light.castShadow = false;
+      this.root.add(light, light.target);
+      this.deathLight = light;
+    }
+    const light = this.deathLight;
+    light.position.set(at.x, 4.2, at.z);
+    light.target.position.set(at.x, 0, at.z);
+    light.target.updateMatrixWorld();
+    light.visible = true;
+  }
+  private deathLight: THREE.SpotLight | null = null;
 
   /**
    * **Zurück in die Einsatzzentrale** — der Knopf der Endkarte, `A` nach dem
@@ -4305,6 +4355,8 @@ function buildLockerSlits(): THREE.Group {
 /** Ein Knopf der Tafel des Technikers: sein Text, und die Absicht als `data-action` (`onPanelClick`). */
 /** Die Symbole des Kabelrätsels — dieselben wie auf dem Schirm der Konsole. */
 const WIRE_SYMBOLS = ['▲', '●', '■', '◆'] as const;
+/** Wie weit sich die Lampe von oben zum Boden neigt (rad): knapp 30°, der Kegel liegt dann 2–5 m vor den Füßen. */
+const TORCH_TILT_TOP = -0.5;
 /** Wie lange die Endkarte zählt, bevor es von selbst in die Einsatzzentrale geht (s). */
 const END_SECONDS = 5;
 /** Wie nah die Kamera von oben an den Toten heranfährt — ein Anteil des Abstands davor. */
