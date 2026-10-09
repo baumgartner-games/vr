@@ -2,24 +2,16 @@ import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { GRAB_GLOW, GRAB_IDLE, GRAB_TINT } from '../../../core/colors';
 import { playPick } from '../../../core/Audio';
-import { DEFAULT_BELT, beltLabel, dragBelt, type BeltOffset } from '../beltSettings';
+import { DEFAULT_BELT, beltCode, beltFromPoint, beltLabel } from '../beltSettings';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
-/** So weit reicht der Strahl, mit dem eine Hüfte ausgesucht wird. */
-const RANGE = 3;
-/** Und so nah muss er an ihr vorbeigehen — eine Hüfte ist ein großes Ziel. */
-const REACH = 0.16;
 /** Die Kiste um eine Hüfte: breit genug, dass eine Waffe hineinpasst. */
 const BOX = new THREE.Vector3(0.22, 0.16, 0.22);
 
-const _tip = new THREE.Vector3();
-const _direction = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
 const _slotPoint = new THREE.Vector3();
 const _handPoint = new THREE.Vector3();
-const _delta = new THREE.Vector3();
-const _toSlot = new THREE.Vector3();
-const _ray = new THREE.Ray();
+const _headPoint = new THREE.Vector3();
 
 const SIDES: readonly Handedness[] = ['left', 'right'];
 
@@ -27,29 +19,24 @@ const SIDES: readonly Handedness[] = ['left', 'right'];
  * Der Gürtel-Justierer: das Werkzeug, mit dem die Hüften dorthin kommen, wo
  * die Hände sind.
  *
- * Wo der Gürtel hängt, war bis eben eine Entscheidung des Codes — 26 cm zur
- * Seite, feste Höhe, vier Zentimeter nach hinten. Das passt dem, für den
- * es gemessen wurde. Wer kürzere Arme hat, greift daneben; wer im Sitzen
- * spielt, greift in den Stuhl. Und man merkt es nicht beim Lesen, sondern beim
- * dritten Fehlgriff mitten im Spiel.
+ * Wo der Gürtel hängt, war lange eine Entscheidung des Codes — 26 cm zur
+ * Seite, feste Höhe, vier Zentimeter nach hinten. Das passt dem, für den es
+ * gemessen wurde; wer kürzere Arme hat oder sitzt, greift daneben.
  *
- * Also: **zielen, Trigger, schieben.** Solange dieses Werkzeug in der Hand
- * liegt, stehen um beide Hüften Kisten; die, auf die der Strahl zeigt,
- * leuchtet. Ein Trigger wählt sie aus. Danach greift die *andere* Hand
- * irgendwo zu und zieht — die Hüfte folgt ihr, und zwar beide: eingestellt
- * wird ein Gürtel und nicht eine Seite (`beltSettings.ts`, mit Test). Loslassen
- * schreibt die drei Zahlen in den Speicher, ein zweiter Trigger gibt die Hüfte
- * wieder frei.
+ * **Der Gürtel folgt der Hand** (Oktober 2026). Gewünscht: _„Ich will damit,
+ * dass wenn ich das werkzeug in der hand halte, die gürtel dort sind wo ich
+ * das werkzeug halte (und gespiegelt auf die andere seite). Wenn ich trigger
+ * oder loslasse dann wird diese position gespeichert (bei trigger fällt der
+ * justierer weg)."_ Solange er in der Hand liegt, stehen beide Hüften dort,
+ * wo er ist, und gespiegelt auf der anderen Seite (`beltFromPoint`); um beide
+ * steht eine Kiste. **Trigger** speichert und legt ihn weg (an die Hüfte, die
+ * jetzt dort ist, wo die Hand ist), **Loslassen** speichert ebenso, `A`/`X`
+ * setzt auf die Auslieferung zurück.
  *
- * Gezogen wird **relativ**, nicht absolut: die Hüfte springt der Hand nicht
- * entgegen, sondern nimmt mit, was die Hand seit dem Zugreifen zurückgelegt
- * hat. Nur so kann man sie um zwei Zentimeter versetzen, ohne den Arm genau
- * dorthin zu halten, wo sie am Ende sein soll.
- *
- * Während eine Hüfte gewählt ist, ist die andere Hand für den Gürtel
- * beschäftigt (`claimsHand`): sie zieht dabei kein Werkzeug von der Hüfte und
- * hebt keine Kiste auf. Das ist keine Feinheit — die Hand greift zum Ziehen
- * *genau dort* zu, wo sonst das Werkzeug aus dem Halfter kommt.
+ * **Auf dem Gerät steht der Code** des Gürtels (`beltCode`, etwa
+ * `G26-825-H04`) — _„ich will im justierer dann wissen wie der config code
+ * davon ist, dass ich den dir nennen kann."_ Vorher wurde gezielt, gewählt und
+ * mit der anderen Hand gezogen.
  */
 export class HolsterTool extends Tool {
   override readonly toolId = 'holster';
@@ -57,25 +44,20 @@ export class HolsterTool extends Tool {
 
   /** Die Kisten um die beiden Hüften, in Weltkoordinaten geführt. */
   private readonly boxes = new Map<Handedness, THREE.LineSegments>();
-  private readonly beam: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
-  private readonly muzzle = new THREE.Object3D();
-
-  /** Die Hüfte, auf die der Strahl gerade zeigt. */
-  private hovered: Handedness | null = null;
-  /** Die ausgewählte Hüfte — erst mit ihr lässt sich ziehen. */
-  private picked: Handedness | null = null;
-  /** Wo die ziehende Hand zugegriffen hat, im Rig gemessen. */
-  private readonly dragStart = new THREE.Vector3();
-  /** Der Gürtel, wie er beim Zugreifen war — gezogen wird relativ dazu. */
-  private dragBase: BeltOffset | null = null;
-  private dragging = false;
+  /** Der Code auf dem Gerät (`beltCode`). */
+  private readonly codeCanvas: HTMLCanvasElement | null;
+  private readonly codeTexture: THREE.CanvasTexture | null;
+  private codeShown = '';
+  private codeClock = 0;
+  /** Ob der Gürtel seit dem letzten Speichern der Hand gefolgt ist. */
+  private moved = false;
 
   constructor() {
     super();
     this.name = 'tool-holster';
     this.icon = 'wrench';
     this.accent = GRAB_TINT;
-    this.hint = 'Hüfte anzielen · Trigger · mit der anderen Hand schieben';
+    this.hint = 'Gürtel folgt der Hand · Trigger oder Loslassen speichert';
     this.holdPosition.set(0, -0.014, 0.03);
 
     const shell = new THREE.MeshStandardMaterial({
@@ -87,12 +69,10 @@ export class HolsterTool extends Tool {
     body.position.set(0, 0, -0.035);
     this.add(body);
 
-    // Derselbe Griff wie an der Pistole (`grip.ts`). Vorher lehnte er nach vorn
-    // und damit 24° gegen den der Pistole — die größte der alten Abweichungen.
+    // Derselbe Griff wie an der Pistole (`grip.ts`).
     this.mountGrip({ length: 0.08 });
 
-    // Vorne ein Ring in derselben Form wie die Hüften selbst: das Werkzeug
-    // sagt damit, worauf es sich versteht.
+    // Vorne ein Ring in derselben Form wie die Hüften selbst.
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.028, 0.005, 8, 24),
       new THREE.MeshStandardMaterial({
@@ -105,16 +85,21 @@ export class HolsterTool extends Tool {
     ring.position.set(0, 0, -0.105);
     this.add(ring);
 
-    this.muzzle.position.set(0, 0, -0.1);
-    this.add(this.muzzle);
-
-    this.beam = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]),
-      new THREE.LineBasicMaterial({ color: GRAB_TINT, transparent: true, opacity: 0.35 }),
-    );
-    this.beam.frustumCulled = false;
-    this.beam.position.copy(this.muzzle.position);
-    this.add(this.beam);
+    // Der Code obenauf, entlang des Geräts zu lesen.
+    this.codeCanvas = typeof document === 'undefined' ? null : document.createElement('canvas');
+    if (this.codeCanvas) {
+      this.codeCanvas.width = 256;
+      this.codeCanvas.height = 64;
+      this.codeTexture = new THREE.CanvasTexture(this.codeCanvas);
+      this.codeTexture.colorSpace = THREE.SRGBColorSpace;
+      const plate = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.12, 0.03),
+        new THREE.MeshBasicMaterial({ map: this.codeTexture, toneMapped: false }),
+      );
+      plate.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+      plate.position.set(0, 0.0145, -0.035);
+      this.add(plate);
+    } else this.codeTexture = null;
 
     for (const side of SIDES) {
       const box = new THREE.LineSegments(
@@ -132,12 +117,12 @@ export class HolsterTool extends Tool {
     for (const box of this.boxes.values()) {
       if (box.parent !== host.root) host.root.add(box);
     }
+    this.paintCode(beltCode(host.beltPose()));
   }
 
+  /** Losgelassen oder weggelegt: wo der Gürtel jetzt ist, bleibt er. */
   override onStow(host: ToolHost): void {
-    this.finishDrag(host, true);
-    this.picked = null;
-    this.hovered = null;
+    this.save(host);
     for (const box of this.boxes.values()) box.visible = false;
   }
 
@@ -145,58 +130,46 @@ export class HolsterTool extends Tool {
     this.onStow(host);
   }
 
-  /** Trigger: die angezielte Hüfte auswählen — oder die gewählte freigeben. */
+  /** Trigger: speichern und weglegen. */
   override onTrigger(controller: ControllerState, host: ToolHost): void {
-    if (this.picked) {
-      this.finishDrag(host, true);
-      host.notify(`Gürtel: ${beltLabel(host.beltPose())}`);
-      this.picked = null;
-      controller.pulse(0.3, 24);
-      playPick(false);
-      return;
-    }
-    if (!this.hovered) {
-      host.notify('Erst eine Hüfte anzielen');
-      return;
-    }
-    this.picked = this.hovered;
-    host.notify('Mit der anderen Hand greifen und schieben');
+    this.moved = true;
+    this.save(host);
     controller.pulse(0.5, 30);
     playPick(true);
+    host.stowTool(this);
   }
 
-  /** `A`/`X`: zurück auf die ausgelieferten Zahlen. */
+  /** `A`/`X`: zurück auf die ausgelieferten Zahlen — und weg damit. */
   override onPrimary(_controller: ControllerState, host: ToolHost): void {
-    this.finishDrag(host, false);
+    this.moved = false;
     host.setBeltPose({ ...DEFAULT_BELT }, true);
-    host.notify(`Gürtel zurückgesetzt · ${beltLabel(DEFAULT_BELT)}`);
+    host.notify(`Gürtel zurückgesetzt · ${beltCode(DEFAULT_BELT)}`);
+    host.stowTool(this);
   }
 
-  /**
-   * Solange eine Hüfte gewählt ist, gehört die andere Hand dem Gürtel. Sonst
-   * zöge derselbe Griff, mit dem geschoben wird, das Werkzeug aus dem Halfter.
-   */
-  override claimsHand(hand: Handedness): boolean {
-    return this.picked !== null && this.heldBy !== null && hand !== this.heldBy;
-  }
-
-  override update(_dt: number, host: ToolHost, controller: ControllerState | null): void {
+  override update(dt: number, host: ToolHost, controller: ControllerState | null): void {
     const held = Boolean(this.heldBy) && !this.parked;
     if (!held || !controller) {
       for (const box of this.boxes.values()) box.visible = false;
       return;
     }
 
-    this.muzzle.getWorldPosition(_tip);
-    this.muzzle.getWorldQuaternion(_quaternion);
-    _direction.set(0, 0, -1).applyQuaternion(_quaternion);
-    _ray.origin.copy(_tip);
-    _ray.direction.copy(_direction);
-
-    // Zeigen und Auswählen sind zwei Fragen; solange eine Hüfte gewählt ist,
-    // wandert die Auswahl nicht mit jedem Zucken des Arms weiter.
-    let hovered: Handedness | null = null;
-    let nearest = REACH;
+    // **Die Hüften an die Hand**: Punkt des Geräts und Kopf im Rig, die Höhe,
+    // an der der Gürtel hängt (`ToolBelt.update`), der Körper als Richtung.
+    const rig = host.ctx.rig;
+    this.getWorldPosition(_handPoint);
+    rig.worldToLocal(_handPoint);
+    rig.getHeadPosition(_headPoint);
+    rig.worldToLocal(_headPoint);
+    const height = Math.max(rig.getHeadHeight(), rig.flatEyeHeight * rig.eyeScale);
+    host.setBeltPose(
+      beltFromPoint(
+        { x: _handPoint.x - _headPoint.x, y: _handPoint.y, z: _handPoint.z - _headPoint.z },
+        height,
+        host.ctx.avatar.bodyYaw,
+      ),
+    );
+    this.moved = true;
 
     for (const side of SIDES) {
       const box = this.boxes.get(side);
@@ -211,102 +184,42 @@ export class HolsterTool extends Tool {
       box.position.copy(_slotPoint);
       box.quaternion.copy(_quaternion);
       box.visible = true;
-
-      if (this.picked) continue;
-      // Wie weit die Hüfte den Strahl entlang liegt: hinter der Hand zählt
-      // sie nicht, und quer durch den halben Raum auch nicht.
-      const along = _toSlot.copy(_slotPoint).sub(_ray.origin).dot(_ray.direction);
-      if (along < 0 || along > RANGE) continue;
-      const gap = Math.sqrt(_ray.distanceSqToPoint(_slotPoint));
-      if (gap >= nearest) continue;
-      nearest = gap;
-      hovered = side;
-    }
-    this.hovered = this.picked ?? hovered;
-
-    for (const side of SIDES) {
-      const box = this.boxes.get(side);
-      if (!box || !box.visible) continue;
-      const chosen = this.picked === side;
-      // Die gewählte Hüfte leuchtet, die angezielte trägt die Greiffarbe, und
-      // die dritte Antwort ist die stille: „hier ist auch eine".
       const material = box.material as THREE.LineBasicMaterial;
-      material.color.setHex(chosen ? GRAB_GLOW : this.hovered === side ? GRAB_TINT : GRAB_IDLE);
-      material.opacity = chosen ? 0.95 : this.hovered === side ? 0.8 : 0.35;
-      // Die gespiegelte Seite zeigt mit, was passiert — beide bewegen sich.
-      box.scale.setScalar(chosen ? 1.08 : 1);
+      material.color.setHex(side === this.heldBy ? GRAB_GLOW : GRAB_TINT);
+      material.opacity = side === this.heldBy ? 0.95 : 0.6;
     }
 
-    this.beam.scale.z = this.hovered ? nearest + 0.4 : 1.2;
-    this.dragBelt(host);
+    // Der Code zehnmal je Sekunde, nicht je Bild — eine Leinwand neu zu
+    // laden kostet mehr als ein Blick darauf.
+    this.codeClock -= dt;
+    if (this.codeClock <= 0) {
+      this.codeClock = 0.1;
+      this.paintCode(beltCode(host.beltPose()));
+    }
   }
 
-  /** Die andere Hand greift zu, zieht, lässt los. */
-  private dragBelt(host: ToolHost): void {
-    const picked = this.picked;
-    const hand = this.heldBy;
-    if (!picked || !hand) {
-      this.dragging = false;
-      return;
-    }
-    const other: Handedness = hand === 'left' ? 'right' : 'left';
-    const controller = host.ctx.input.get(other);
-    const grip = controller?.grip.visible ? controller.grip : controller?.targetRay;
-    if (!controller?.tracked || !grip) {
-      this.finishDrag(host, this.dragging);
-      return;
-    }
-
-    // Im Rig gemessen und nicht in der Welt: wer während des Ziehens ein paar
-    // Schritte geht, verschiebt damit seinen Gürtel nicht.
-    grip.getWorldPosition(_handPoint);
-    host.ctx.rig.worldToLocal(_handPoint);
-
-    if (controller.squeeze.justPressed) {
-      this.dragStart.copy(_handPoint);
-      this.dragBase = host.beltPose();
-      this.dragging = true;
-      controller.pulse(0.4, 20);
-      return;
-    }
-
-    if (!this.dragging || !this.dragBase) return;
-
-    if (!controller.squeeze.pressed) {
-      this.finishDrag(host, true);
-      controller.pulse(0.5, 30);
-      return;
-    }
-
-    _delta.copy(_handPoint).sub(this.dragStart);
-    const yaw = host.ctx.avatar.bodyYaw;
-    const sin = Math.sin(yaw);
-    const cos = Math.cos(yaw);
-    host.setBeltPose(
-      dragBelt(
-        this.dragBase,
-        {
-          // Rechts ist (cos, −sin), vorn ist (−sin, −cos): dieselben zwei
-          // Richtungen, aus denen `beltSlotPoint` die Hüften stellt.
-          right: _delta.x * cos - _delta.z * sin,
-          up: _delta.y,
-          forward: -_delta.x * sin - _delta.z * cos,
-        },
-        picked,
-        // Dieselbe Höhe, an der der Gürtel hängt (`ToolBelt.update`).
-        Math.max(host.ctx.rig.getHeadHeight(), host.ctx.rig.flatEyeHeight * host.ctx.rig.eyeScale),
-      ),
-    );
-  }
-
-  /** Ende eines Zugs: einmal schreiben statt neunzigmal pro Sekunde. */
-  private finishDrag(host: ToolHost, save: boolean): void {
-    if (!this.dragging) return;
-    this.dragging = false;
-    this.dragBase = null;
-    if (!save) return;
+  /** Einmal schreiben, wenn sich etwas bewegt hat — und den Code dazu sagen. */
+  private save(host: ToolHost): void {
+    if (!this.moved) return;
+    this.moved = false;
     const belt = host.setBeltPose(host.beltPose(), true);
-    host.notify(`Gürtel: ${beltLabel(belt)}`);
+    this.paintCode(beltCode(belt));
+    host.notify(`Gürtel gespeichert · ${beltCode(belt)} · ${beltLabel(belt)}`);
+  }
+
+  private paintCode(code: string): void {
+    if (code === this.codeShown || !this.codeCanvas || !this.codeTexture) return;
+    this.codeShown = code;
+    const ctx = this.codeCanvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#101624';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#ffd84a';
+    ctx.font = 'bold 40px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(code, 128, 34);
+    this.codeTexture.needsUpdate = true;
   }
 
   override disposeTool(): void {
@@ -316,8 +229,7 @@ export class HolsterTool extends Tool {
       (box.material as THREE.Material).dispose();
     }
     this.boxes.clear();
-    this.beam.geometry.dispose();
-    this.beam.material.dispose();
+    this.codeTexture?.dispose();
     disposeToolTree(this);
   }
 }

@@ -757,17 +757,20 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   - **Größe & Position**: Blender-artige Griffe — sie erscheinen **vor dir**,
     nicht am Objekt, und wirken trotzdem auf das Objekt am anderen Ende des
     Raums. Achsen sind die des Objekts, nur nach deiner Blickrichtung sortiert.
-  - **Gürtel-Justierer**: zielt auf eine Hüfte, Trigger wählt sie aus, die
-    **andere Hand** greift zu und schiebt. Solange er in der Hand liegt,
-    stehen um beide Hüften Kisten — die angezielte trägt die Greiffarbe, die
-    gewählte leuchtet. Geschoben wird **relativ**: die Hüfte springt der Hand
-    nicht entgegen, sondern nimmt mit, was die Hand seit dem Zugreifen
-    zurückgelegt hat; anders ließe sich nichts um zwei Zentimeter versetzen.
-    Beide Hüften bewegen sich dabei, gespiegelt. Loslassen speichert, ein
-    zweiter Trigger gibt die Hüfte frei, `A`/`X` setzt zurück (dasselbe steht
-    im Menü unter _Bauen & Gestalten → Werkzeuge → Gürtel-Justierer → Gürtel_). Während eine Hüfte
-    gewählt ist, gehört die andere Hand dem Gürtel (`claimsHand`): sie zieht
-    dabei kein Werkzeug aus dem Halfter — sie greift ja genau dort zu.
+  - **Gürtel-Justierer** (seit Oktober 2026): **der Gürtel folgt der Hand.**
+    Solange er in der Hand liegt, stehen beide Hüften dort, wo er ist, die
+    andere gespiegelt (`beltSettings.beltFromPoint`), mit einer Kiste um jede.
+    **Trigger** speichert und legt ihn weg (an die Hüfte, die jetzt an der
+    Hand ist), **Loslassen** speichert ebenso, `A`/`X` setzt zurück (dasselbe
+    steht im Menü unter _Bauen & Gestalten → Werkzeuge → Gürtel-Justierer →
+    Gürtel_). Oben auf dem Gerät steht der **Gürtel-Code** (`beltCode`,
+    `G26-825-H04` = 26 cm zur Seite, 0,825 der Augenhöhe, 4 cm hinten; `V`
+    davor), damit man ihn nennen und als Auslieferung übernehmen lassen kann
+    (`readBeltCode`). Gewünscht: _„wenn ich das werkzeug in der hand halte,
+    die gürtel dort sind wo ich das werkzeug halte (und gespiegelt auf die
+    andere seite). Wenn ich trigger oder loslasse dann wird diese position
+    gespeichert (bei trigger fällt der justierer weg)."_ Vorher: anzielen,
+    Trigger, mit der anderen Hand relativ schieben.
   - **Pinsel** samt Palette auf der anderen Hand. Ausgewählt wird darauf auf
     **zwei** Arten, und beide sind Gesten, die es anderswo schon gibt:
     **antippen** mit der Pinselspitze — der kurze Weg, wenn die Hand ohnehin

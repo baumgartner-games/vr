@@ -82,6 +82,17 @@ export const CALL_GAP: readonly [number, number] = [3, 6];
 export const SECOND_BEAT = 0.17;
 /** Sekunden zwischen zwei Kratzern im Schacht. */
 export const VENT_SCRAPE = 0.6;
+/**
+ * **Das Scheppern aus dem Nebenraum** — gewünscht: _„man sollte das monster
+ * als spieler hören, wenn es sich im nachbar raum befindet, dann aufjedenfall
+ * laut und deutlich (ein scheppern oder so von metall)."_ Steht das Monster in
+ * einem anderen Raum, aber auf dem Hörweg höchstens `NEIGHBOUR_REACH` Meter
+ * entfernt, schlägt Blech an — alle `CLANG_GAP` Sekunden, so laut wie
+ * `CLANG_LOUDNESS` (ein Schrei hat 4).
+ */
+export const NEIGHBOUR_REACH = 14;
+export const CLANG_GAP: readonly [number, number] = [1.6, 2.6];
+export const CLANG_LOUDNESS = 3.5;
 /** Sekunden zwischen zwei Fehlalarmen der Station, mindestens und höchstens. */
 export const AMBIENT_GAP: readonly [number, number] = [12, 30];
 
@@ -155,6 +166,7 @@ export class Soundscape {
   private callClock = 0;
   private heartClock = 0;
   private scrapeClock = 0;
+  private clangClock = 0;
   private ambientClock = 6;
   private chasing = false;
   private readonly mixScratch: Mix = { gain: 0, pan: 0, from: { x: 0, z: 0 }, distance: 0 };
@@ -233,6 +245,20 @@ export class Soundscape {
         this.world(input, cue, monster.at, out, pace === 'stalk' ? NOISE.monsterStalk : undefined);
       }
     } else this.monsterClock = Math.min(this.monsterClock, 0);
+
+    // Im Nebenraum: Blech, laut und deutlich (`NEIGHBOUR_REACH`).
+    this.clangClock -= step;
+    if (!monster.concealed && this.clangClock <= 0) {
+      const mine = roomIdAt(input.snapshot, me.at);
+      const its = roomIdAt(input.snapshot, monster.at);
+      if (mine && its && mine !== its) {
+        const mix = this.mix(input, 'metal', monster.at, CLANG_LOUDNESS);
+        if (mix.distance <= NEIGHBOUR_REACH) {
+          this.clangClock = CLANG_GAP[0] + rng() * (CLANG_GAP[1] - CLANG_GAP[0]);
+          this.world(input, 'metal', monster.at, out, CLANG_LOUDNESS);
+        }
+      }
+    }
 
     // Rennen heißt jagen — und wer jagt, ruft, egal wie weit weg.
     const chasing = pace === 'run' && !monster.concealed;

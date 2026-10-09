@@ -7,6 +7,41 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Blech im Nebenraum, Pfeil in der Brille, Abwehr der Zentrale (Oktober 2026)
+
+- **Das Monster im Nebenraum scheppert** (`audio/soundscape.ts`,
+  `NEIGHBOUR_REACH` 14 m Hörweg, `CLANG_GAP` 1,6–2,6 s, `CLANG_LOUDNESS` 3,5):
+  Steht es in einem anderen Raum und ist auf dem Hörweg nah, schlägt Blech an
+  (Cue `metal`), laut und aus der Richtung der Tür. Gewünscht: _„man sollte
+  das monster als spieler hören, wenn es sich im nachbar raum befindet, dann
+  aufjedenfall laut und deutlich (ein scheppern oder so von metall)."_
+- **Der Atem bleibt leicht** (`ShipExperience.stepHelmet`), auch beim Rennen,
+  und der Beschlag der Anstrengung höchstens 0,25 (`VISOR_FOG_MAX`):
+  _„der atem im helm ist zu stark"_.
+- **Ein Wegweiser in der Brille** (`stepPin`, `guideArrow`, `GOAL_COLOUR`):
+  Ohne Markierung steht in der Brille die Säule auf dem **nächsten Ziel der
+  Runde** (cyan; eine Markierung der Zentrale bleibt gelb und geht vor), und
+  ein kleiner Pfeil 0,55 m vor und 0,5 m unter den Augen zeigt dorthin; unter
+  1,5 m geht er weg. Ziele gibt es nur, wenn ein Archiv besetzt ist
+  (`goalPrecision`, ein Bot reicht).
+- **Die Abwehr der Zentrale** (`FlatRound.stepRepel`, `REPEL_RANGE` 9 m,
+  `REPEL_COOLDOWN` 20 s): Steht der Techniker in der Zentrale und kommt das
+  Monster näher, vergisst es, was es wahrgenommen hat, und geht in den Raum,
+  der am weitesten von der Zentrale weg ist (`repelGoal` überschreibt das
+  Ziel der Routine, bis es dort ist oder der Techniker hinausgeht). Gemessen
+  (Samen 7, fünf Minuten in der Zentrale): Anteil der Zeit näher als 9 m
+  vorher 97 %, jetzt 1 %. Gewünscht: _„das monster chillt teilweise in der
+  caferteria, weil ich in der einsatz zentrale bin. Ich bräuchte irgendeine
+  art von abschreckung"_.
+- **Der Ausrüstungstisch sind zwei Arbeitstische** (`kitchentable_A`, Platte
+  wie vorher auf 0,5 m), und den Arbeitstisch gibt es im Katalog
+  (`kitchen-table`): unter _Restaurant → Arbeitsplatten_ (neu, mit der
+  Arbeitsplatte) und unter _Möbel → Tische_.
+- **Die Bots der Zentrale meiden Möbel** (`commandBots.strollPoint`,
+  `onFurniture`): Ihr Start- und Schlenderpunkt liegt nie auf oder einen halben
+  Meter neben dem, was `commandBlocks` sperrt — einer stand auf dem
+  Ausrüstungstisch.
+
 ## Ziel von der Zentrale, Kisten mit sichtbarer Beute, Ausrüstungstisch, harmloses Monster (Oktober 2026)
 
 Gewünscht in einem Zug: der Rundenstart ruckelt noch; _„im schrank dann gerne
