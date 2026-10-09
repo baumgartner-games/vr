@@ -210,6 +210,8 @@ interface ShipHost {
   gear?(): Array<[string, Tool]>;
   /** Vom Schirm aus (`E`) ein Werkzeug vom Tisch nehmen. */
   takeGear?(id: string): void;
+  /** Eine Blendgranate zünden, wo sie ist (`HauntingWorld.blastGrenade`). */
+  blastGrenade?(at: { x: number; y?: number; z: number }): void;
   /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
   mapSnapshot?(): MapSnapshot;
   /** Die Ziele des Technikers, das nächste zuerst — für den Kompass am oberen Bildrand. */
@@ -924,6 +926,18 @@ export class ShipExperience {
 
   /** `Strg` gehalten heißt ducken — solange kein Textfeld den Fokus hat. */
   private readonly keyDown = (event: KeyboardEvent): void => {
+    // **`G` zündet die Blendgranate** am Schirm — wenn eine im Inventar ist.
+    if (
+      event.code === 'KeyG' &&
+      !event.repeat &&
+      !isTyping() &&
+      !this.host.ctx.renderer.xr.isPresenting &&
+      this.crew.inventory.includes('stun-grenade')
+    ) {
+      this.host.ctx.rig.getHeadPosition(_pos);
+      this.host.blastGrenade?.({ x: _pos.x, y: _pos.y, z: _pos.z });
+      return;
+    }
     if (!event.code.startsWith('Control') || event.altKey || event.metaKey) return;
     if (this.host.ctx.renderer.xr.isPresenting || isTyping()) return;
     event.preventDefault();
@@ -2825,6 +2839,7 @@ export class ShipExperience {
     this.stepDropped();
     this.stepMonsterProbe();
     this.stepPin(dt);
+    this.stepBlind(dt);
     ctx.camera.getWorldDirection(_direction);
     this.handheldRadar.setContact(this.host.state().monster);
     if (this.scanner.visible && this.sensorMode === 'radar')
@@ -2846,7 +2861,8 @@ export class ShipExperience {
     for (const [id, tool] of this.host.gear?.() ?? []) {
       if (this.gearBound.has(tool)) continue;
       this.gearBound.add(tool);
-      const name = id === 'xray' ? 'Röntgengerät' : 'Bewegungsradar';
+      const name =
+        id === 'xray' ? 'Röntgengerät' : id === 'radar' ? 'Bewegungsradar' : 'Blendgranate';
       tool.userData.interactionLabel = `E: ${name} nehmen`;
       const take = (): void => {
         if (ctx.renderer.xr.isPresenting) {
@@ -2856,8 +2872,12 @@ export class ShipExperience {
         this.host.ctx.pointer.remove(tool);
         this.host.unusable?.(tool);
         this.host.takeGear?.(id);
-        this.sensorMode = id as 'xray' | 'radar';
-        this.host.say(`${name} genommen.`);
+        if (id === 'xray' || id === 'radar') this.sensorMode = id;
+        this.host.say(
+          id === 'stun-grenade'
+            ? 'Blendgranate genommen · G zündet sie (eine Ladung).'
+            : `${name} genommen.`,
+        );
         this.paint();
       };
       this.bind(tool, take, false, true, { use: take, radius: 0.35 });
@@ -4439,6 +4459,45 @@ export class ShipExperience {
     this.host.say(text);
   }
 
+  /**
+   * **Der Blitz der Blendgranate** (`HauntingWorld.blastGrenade`): Funken und
+   * Rauch, wo sie hochging, und wer nah dran steht, sieht kurz weiß
+   * (`blindPlane`). Kein Licht — eines mehr übersetzte jeden Shader neu.
+   */
+  flashAt(at: THREE.Vector3): void {
+    this.burst('sparks', at);
+    this.burst('smoke', at);
+    this.host.ctx.rig.getHeadPosition(_pos);
+    const near = 1 - _pos.distanceTo(at) / 10;
+    if (near > 0) this.blind = Math.max(this.blind, 0.4 + near * 0.5);
+    this.sound('success');
+  }
+  private blind = 0;
+  private readonly blindPlane = (() => {
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    plane.name = 'grenade-flash';
+    plane.position.z = -0.3;
+    plane.renderOrder = 1000;
+    plane.visible = false;
+    return plane;
+  })();
+  private stepBlind(dt: number): void {
+    if (!this.blindPlane.parent) this.host.ctx.camera.add(this.blindPlane);
+    this.blind = Math.max(0, this.blind - dt * 1.6);
+    this.blindPlane.visible = this.blind > 0.01;
+    this.blindPlane.material.opacity = Math.min(1, this.blind);
+  }
+
   burst(kind: string, at: THREE.Vector3): void {
     if (kind !== 'sparks' && kind !== 'smoke' && kind !== 'fire') return;
     this.effects.emit(kind, at);
@@ -4609,6 +4668,8 @@ export class ShipExperience {
     disposeObject(this.suit);
     this.monsterProbe.removeFromParent();
     disposeObject(this.monsterProbe);
+    this.blindPlane.removeFromParent();
+    disposeObject(this.blindPlane);
     disposeObject(this.root);
     this.root.removeFromParent();
   }

@@ -23,6 +23,7 @@ import {
 } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import type { Tool } from '../portal/tools/Tool';
+import { StunGrenadeTool } from '../portal/tools/StunGrenadeTool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -1459,19 +1460,8 @@ export class HauntingWorld extends FurnishedWorld {
     if (ctx.role === 'vr') {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe in der Einsatzzentrale —
       // man muss sie im Dunkeln ja finden können.
-      if (!this.stationTorch) {
-        // Auf dem Ausrüstungstisch neben dem Anzug (`commandRoom.GEAR_SPOT`).
-        const at = gearSlot(0);
-        const torch = this.placeTool(
-          'flashlight',
-          new THREE.Vector3(at.x, at.y, at.z),
-          GEAR_TURN,
-          true,
-        );
-        if (torch instanceof FlashlightTool) this.stationTorch = torch;
-      }
-      this.torchImmersive = ctx.renderer.xr.isPresenting;
-      this.stationTorch?.setBeamGuide(false);
+      // Auf dem Ausrüstungstisch neben dem Anzug (`commandRoom.GEAR_SPOT`).
+      this.placeTableTorch(ctx);
       this.stationTorch?.setLit(true);
     } else {
       this.pendingBotRound = false;
@@ -1808,8 +1798,9 @@ export class HauntingWorld extends FurnishedWorld {
       monsterPace: () => this.kernel?.round.decided?.pace ?? 'still',
       noise: (at, loudness) => this.kernel?.round.noise(at, loudness),
       floatingTorch: () => this.stationTorch,
-      gear: () => [...this.practiceGear],
+      gear: () => [...this.tableGear],
       takeGear: (id) => this.takeGear(id),
+      blastGrenade: (at) => this.blastGrenade(at),
       takeFloatingTorch: () => {
         if (this.stationTorch) {
           const entry = this.props.find((prop) => prop.object === this.stationTorch);
@@ -2326,6 +2317,7 @@ export class HauntingWorld extends FurnishedWorld {
     this.paintTrail();
     this.paintGhost(dt);
     this.stepGear(ctx);
+    this.stepGrenades();
     this.experience?.update(dt);
     this.showTechnician(dt);
     // **Das Overlay läuft auch außerhalb der Simulation** (Paket U4/M4): Es
@@ -3196,52 +3188,124 @@ export class HauntingWorld extends FurnishedWorld {
   }
 
   /**
-   * **Was in der Übung auf dem Ausrüstungstisch liegt** — Röntgen und Radar
-   * (`commandRoom.gearSlot`). Gewünscht: _„in der übungsrunde kann dort z. B.
-   * auch das röntgen gerät drauf gelegt werden."_ Liegt da, solange die Übung
-   * läuft und es niemand genommen hat; wer es nimmt (Hand oder `E`), hat es
-   * auch im Inventar. Außerhalb der Übung verschwindet, was noch daliegt.
-   * Nur für den Techniker: Andere Geräte haben keinen Tisch voller Werkzeug.
+   * **Was auf dem Ausrüstungstisch liegt** (`commandRoom.gearSlot`): die
+   * Lampe (`stationTorch`, eigener Weg), in jeder Runde eine Blendgranate,
+   * in der Übung dazu Röntgen und Radar. Gewünscht: _„in der übungsrunde
+   * kann dort z. B. auch das röntgen gerät drauf gelegt werden."_ Liegt da,
+   * bis es jemand nimmt (Hand oder `E`) — dann steht es auch im Inventar und
+   * kommt erst mit der nächsten Runde wieder. Was nicht mehr dazugehört
+   * (Röntgen nach der Übung), verschwindet vom Tisch. Nur für den Techniker:
+   * Andere Geräte haben keinen Tisch voller Werkzeug.
    */
   private stepGear(ctx: WorldContext): void {
     const state = this.state;
+    const own = (this.suited || ctx.role === 'vr') && !state.crew.simulation;
     const practice =
-      ctx.role === 'vr' &&
-      !state.crew.simulation &&
-      (state.phase === 'briefing' || (state.phase === 'running' && state.crew.options.test));
-    PRACTICE_GEAR.forEach((id, index) => {
-      const tool = this.practiceGear.get(id);
+      own && (state.phase === 'briefing' || (state.phase === 'running' && state.crew.options.test));
+    const wanted = new Set<string>(
+      own && (state.phase === 'briefing' || state.phase === 'running')
+        ? practice
+          ? TABLE_GEAR
+          : ['stun-grenade']
+        : [],
+    );
+    TABLE_GEAR.forEach((id, index) => {
+      const tool = this.tableGear.get(id);
       const entry = tool ? this.props.find((prop) => prop.object === tool) : undefined;
       if (tool && (!entry || tool.heldBy)) {
         // Genommen — mit der Hand oder vom Schirm (`takeGear`).
-        this.practiceGear.delete(id);
+        this.tableGear.delete(id);
         this.gearTaken.add(id);
         if (!state.crew.inventory.includes(id)) state.crew.inventory.push(id);
         return;
       }
-      if (!practice) {
+      if (!wanted.has(id)) {
         if (entry) this.removeProp(entry, false);
-        this.practiceGear.delete(id);
+        this.tableGear.delete(id);
         return;
       }
       if (tool || this.gearTaken.has(id) || state.crew.inventory.includes(id)) return;
       const at = gearSlot(index + 1);
       const placed = this.placeTool(id, new THREE.Vector3(at.x, at.y, at.z), GEAR_TURN, true);
-      if (placed) this.practiceGear.set(id, placed);
+      if (placed) this.tableGear.set(id, placed);
     });
   }
-  private readonly practiceGear = new Map<string, Tool>();
-  /** Was in dieser Übung schon vom Tisch genommen wurde — kommt erst mit der nächsten Runde wieder. */
+  private readonly tableGear = new Map<string, Tool>();
+  /** Was in dieser Runde schon vom Tisch genommen wurde — kommt erst mit der nächsten wieder. */
   private readonly gearTaken = new Set<string>();
 
   /** Vom Schirm aus nehmen (`E`): das Werkzeug vom Tisch, ins Inventar. */
   private takeGear(id: string): void {
-    const tool = this.practiceGear.get(id);
+    const tool = this.tableGear.get(id);
     const entry = tool ? this.props.find((prop) => prop.object === tool) : undefined;
     if (entry) this.removeProp(entry, false);
-    this.practiceGear.delete(id);
+    this.tableGear.delete(id);
     this.gearTaken.add(id);
     if (!this.state.crew.inventory.includes(id)) this.state.crew.inventory.push(id);
+  }
+
+  /**
+   * **Neue Runde, leere Hände** — gewünscht: _„beim start einer runde sollen
+   * den spielern in haunting die werkzeuge wegenommen werden. Es muss dann
+   * geschaut werden und neu in die hand genommen werden wie bei der
+   * taschenlampe."_ Hände und Gürtel werden leer (`clearCarriedGear`), was
+   * noch auf dem Tisch lag, geht, und die Lampe liegt wieder dort
+   * (`placeTableTorch`); den Rest legt `stepGear` im nächsten Bild hin.
+   */
+  private resetGear(ctx: WorldContext): void {
+    if (!this.suited && ctx.role !== 'vr') return;
+    this.clearCarriedGear();
+    for (const tool of [...this.tableGear.values(), this.stationTorch]) {
+      const entry = tool ? this.props.find((prop) => prop.object === tool) : undefined;
+      if (entry) this.removeProp(entry, false);
+    }
+    this.tableGear.clear();
+    this.gearTaken.clear();
+    this.stationTorch = null;
+    this.placeTableTorch(ctx);
+  }
+
+  /** Die Lampe auf den Ausrüstungstisch (`commandRoom.gearSlot(0)`), eingeschaltet. */
+  private placeTableTorch(ctx: WorldContext): void {
+    if (this.stationTorch) return;
+    const at = gearSlot(0);
+    const torch = this.placeTool(
+      'flashlight',
+      new THREE.Vector3(at.x, at.y, at.z),
+      GEAR_TURN,
+      true,
+    );
+    if (torch instanceof FlashlightTool) this.stationTorch = torch;
+    this.torchImmersive = ctx.renderer.xr.isPresenting;
+    this.stationTorch?.setBeamGuide(false);
+    this.stationTorch?.setLit(true);
+  }
+
+  /**
+   * **Gezündete Blendgranaten** (`tools/StunGrenadeTool.ts`) — je Bild an
+   * beiden Händen nachgesehen; was gezündet wurde, geht an die Runde
+   * (`FlatRound.stun`), und es blitzt.
+   */
+  private stepGrenades(): void {
+    for (const hand of ['left', 'right'] as const) {
+      const tool = this.carriedTool(hand);
+      if (!(tool instanceof StunGrenadeTool)) continue;
+      const blast = tool.takeBlast();
+      if (blast) this.blastGrenade(blast);
+    }
+  }
+
+  /** Eine Blendgranate geht hoch — aus der Hand oder vom Schirm (`G`). */
+  private blastGrenade(at: { x: number; y?: number; z: number }): void {
+    const index = this.state.crew.inventory.indexOf('stun-grenade');
+    if (index >= 0) this.state.crew.inventory.splice(index, 1);
+    this.experience?.flashAt(new THREE.Vector3(at.x, at.y ?? 1.2, at.z));
+    const round = this.kernel?.round;
+    if (!round) {
+      this.say('Die Blendgranate verpufft.');
+      return;
+    }
+    round.stun({ x: at.x, z: at.z });
   }
 
   /**
@@ -5644,7 +5708,7 @@ export class HauntingWorld extends FurnishedWorld {
     this.locks = freshLocks();
     this.lampBook = freshLamps();
     this.automaticDoors.clear();
-    this.gearTaken.clear();
+    if (this.context) this.resetGear(this.context);
     this.spec = generateHouse(STATION_SEED, options.rooms);
     this.state = freshState(this.spec.seed, options);
     this.routineDice = new Rng(this.spec.seed >>> 0);
@@ -5791,8 +5855,8 @@ function framed(size: number): number {
 /** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
 export const STATION_FLOOR = 'prototype-bits/Floor.glb';
 
-/** Was in der Übung auf dem Ausrüstungstisch liegt, von West nach Ost nach der Lampe. */
-const PRACTICE_GEAR = ['xray', 'radar'] as const;
+/** Was auf dem Ausrüstungstisch liegen kann, von West nach Ost nach der Lampe (`stepGear`). */
+const TABLE_GEAR = ['stun-grenade', 'xray', 'radar'] as const;
 /** Wie die Werkzeuge auf dem Tisch liegen: wie gebaut, die Spitze nach Norden. */
 const GEAR_TURN = new THREE.Quaternion();
 

@@ -9327,6 +9327,33 @@ export class PortalWorld implements World {
     ctx.notify(tool.label);
   }
 
+  /**
+   * **Hände und Gürtel leer** — was darin war, ist weg, und die Hüften lassen
+   * nichts nachwachsen (`BeltSlot.stored`). Für eine Welt, die beim Beginn
+   * einer Runde alles neu verteilt (Orbital: _„beim start einer runde sollen
+   * den spielern in haunting die werkzeuge wegenommen werden"_).
+   */
+  protected clearCarriedGear(): void {
+    for (const [hand, tool] of [...this.held]) {
+      this.held.delete(hand);
+      tool.heldBy = null;
+      tool.parked = false;
+      if (this.host) tool.onStow(this.host);
+      this.retireTool(tool);
+    }
+    const belt = this.belt;
+    if (!belt) return;
+    for (const side of ['left', 'right'] as const) {
+      const slot = belt.slot(side);
+      const tool = slot.tool;
+      if (tool) {
+        belt.release(tool);
+        this.retireTool(tool);
+      }
+      slot.stored = null;
+    }
+  }
+
   /** Station inventory uses the same held objects and hip storage as grabbing. */
   protected carriedTool(hand: Handedness): Tool | null {
     return this.held.get(hand) ?? null;
