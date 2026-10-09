@@ -9,7 +9,12 @@ import {
 } from './figureParts';
 import { disposeCalibration, viewCalibration, viewZones } from './viewCalibration';
 import { LAYER_EYE } from './viewLayers';
-import { graphics, onGraphicsChange, type GraphicsSettings } from './graphicsSettings';
+import {
+  graphics,
+  onGraphicsChange,
+  type GraphicsSettings,
+  type VisorBreath,
+} from './graphicsSettings';
 import { breathFog } from './visorBreath';
 import { visorFog, type VisorFog } from './visorFog';
 
@@ -65,6 +70,12 @@ export class SelfHelmet {
   /** Die Einstellung, gemerkt statt je Bild aus dem Speicher gelesen. */
   private settings: GraphicsSettings = graphics();
   private readonly stopGraphics = onGraphicsChange(() => (this.settings = graphics()));
+  /**
+   * **Was eine Welt über den Atem sagt** (`WorldContext.breathe`) — `null`
+   * heißt: die Einstellung. Orbital atmet im Anzug immer, auch wenn _Visier /
+   * Atem_ aus ist.
+   */
+  breath: VisorBreath | null = null;
 
   /**
    * **Je Bild**: `kind` ist der Hut, um den es geht, oder `null` — dann ist
@@ -80,7 +91,7 @@ export class SelfHelmet {
     if (this.fogs.length === 0) return;
     if (Number.isFinite(dt) && dt > 0) this.time += dt;
     const { visorBreath, visorBreathStyle } = this.settings;
-    const fog = breathFog(visorBreath, this.time);
+    const fog = breathFog(this.breath ?? visorBreath, this.time);
     for (const one of this.fogs) one.set(fog, visorBreathStyle);
   }
 

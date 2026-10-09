@@ -212,7 +212,15 @@ export class ToolBelt {
    * @param carried world positions of the hands that currently hold a tool
    */
   update(dt: number, rig: PlayerRig, bodyYaw: number, carried: readonly THREE.Vector3[]): void {
-    const height = rig.getHeadHeight();
+    // **Der Gürtel hängt an der Figur und nicht am Kopf.** Die Figur ist
+    // immer gleich groß (`AvatarBody`), ob man steht oder sitzt; früher hing
+    // der Gürtel an der gerade gemessenen Kopfhöhe und rutschte im Sitzen auf
+    // den Schoß. Gewünscht: _„Fürs stehen ist die höhe aktuell gut, aber im
+    // sitzen sollte die gegenstände bzw. halter wesentlich höher sein. Ggf.
+    // können wir die einfach an der spieler figur ansetzen?"_ Also gilt
+    // mindestens die Augenhöhe im Stehen (`flatEyeHeight`, in derselben
+    // Stauchung wie der Kopf) — wer größer ist, behält seinen höheren Gürtel.
+    const height = Math.max(rig.getHeadHeight(), rig.flatEyeHeight * rig.eyeScale);
     rig.getHeadPosition(_hand);
     rig.worldToLocal(_hand);
 

@@ -16,8 +16,9 @@
  * Versehen; wer die rechte Hüfte nach außen zieht, meint den Gürtel.
  *
  * Die Höhe steht als **Anteil der Augenhöhe** und nicht in Zentimetern: sie
- * soll mit dem mitwachsen, der sie trägt, und wer sich hinsetzt, hat seinen
- * Gürtel nicht plötzlich auf Brusthöhe. Seite und Tiefe sind Meter, weil ein
+ * soll mit dem mitwachsen, der sie trägt. Wer sich hinsetzt, behält seit
+ * Oktober 2026 den Gürtel der stehenden Figur (`ToolBelt.update`) — er hing
+ * sonst auf dem Schoß. Seite und Tiefe sind Meter, weil ein
  * Armabstand ein Armabstand bleibt, ob man sitzt oder steht.
  *
  * Reine Rechnung, kein three.js: die Vorzeichen einer Spiegelung merkt man in

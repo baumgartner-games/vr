@@ -7,6 +7,63 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Kein Standbild bei Start und Tod, Helm in der Brille, Übung zum Ausprobieren (Oktober 2026)
+
+Gemeldet: _„beim start von einer runde und beim tod kommt es zu einem massiven
+fps drop, sogar soweit dass das bild einfriert."_ Gemessen mit Playwright
+(SwiftShader; gezählt wurden neu gebundene Programme, `gl.linkProgram`):
+
+| | vorher | nachher |
+|---|---|---|
+| Rundenstart | 42 Programme, ~0,75 s JavaScript | 3–4 (Monster, Geist) |
+| Tod | 14 Programme, ~3,5 s im Schattendurchgang | 0 |
+| Zurück in die Zentrale | 4 Programme | 0 |
+
+- **Programme über den Neubau halten** (`core/programHold.ts`,
+  `HauntingWorld.programs`): `newRound` und `mountExperience` reißen die
+  Station ab und stellen dieselbe wieder hin; mit dem `dispose()` der alten
+  Materialien gab three.js deren Shader frei und übersetzte sie gleich wieder.
+  `ProgramHold.hold(scene)` schiebt jedes `dispose()` auf, bis `warmShaders`
+  das neue Haus übersetzt hat (jetzt nach **jedem** Neubau, nicht nur einmal je
+  Runde), dann `release`.
+- **Vorab übersetzt wird ohne zu warten** (`renderer.compileAsync`,
+  `KHR_parallel_shader_compile`) statt mit `compile`, das das Bild bis zum
+  letzten Programm anhielt.
+- **Dieselbe Station wird nicht neu gebaut** (`buildHouse`, `shipArt`,
+  `shipArtKey`): gleicher Samen und gleiche Raumzahl → die Geometrie aus
+  `buildShip` bleibt stehen. Was noch je Neubau kostet: die Kisten und
+  Schränke der `ShipExperience` (~0,35 s) und `refreshWorldMenu` (~0,18 s,
+  der Möbelkatalog rechnet je Element seine Belegung, `elementFacts`).
+- **Der Tod ändert keine Lichter mehr.** Vorher ging die Lampe aus (−1 Spot
+  mit Schatten, −1 Punkt) und ein eigener Strahler über dem Toten an (+1 Spot)
+  — eine neue Lichtzahl, also jeder Shader neu. Jetzt bleibt die Lampe an,
+  ohne Gehäuse (`FlashlightTool.setHousingVisible`), und schaut senkrecht
+  hinunter (`ShipExperience.updateTools`, `fallen`); `lightBody` und
+  `deathLight` sind weg. Der Geist (`PlayerAvatar.setSpirit`) behält seine
+  Abzüge (`ghostCache`) und wird vorab übersetzt (`warmSpirit`).
+- **Der Körper schaut, wohin man schaut** (`AvatarBody.turnSlack`, ab Werk
+  38°, im Anzug 0): _„das „über die schultern" schauen wieder entfernen in vr,
+  und einfach blickrichtung gleich richtung der charakters ändern."_ Damit
+  drehen auch Gürtel und Anzug mit dem Blick.
+- **Der Gürtel hängt an der Figur** (`ToolBelt.update`, `HolsterTool`):
+  mindestens auf der Höhe, die er im Stehen hätte (`flatEyeHeight ×
+  eyeScale`), statt an der gemessenen Kopfhöhe. Im Sitzen rutschte er sonst
+  auf den Schoß. Gilt für jede Welt mit Gürtel; im Stehen unverändert.
+- **Im Anzug in der Brille der immersive Helm mit Atem**
+  (`ShipExperience.stepHelmet`, `WorldContext.breathe`,
+  `SelfHelmet.breath`): `IMMERSIVE_HAT` statt `space`, das Visier beschlägt
+  ruhig (`light`) und beim Rennen oder im Schrank schnell (`strong`). Wer
+  _Grafik → Visier / Atem_ selbst eingestellt hat, behält seine Stufe.
+- **Übungsrunde: alles einsammeln** (`ShipExperience.active`, `carryFree`):
+  Kisten, Konsolen und Medkit antworten in jeder Übungsrunde, auch vor dem
+  Start, und die Regel „eine Hand, ein Ersatzteil" gilt nur in der echten
+  Runde. Der Start der echten Runde nimmt alles mit dem frischen Stand weg.
+- **Offen:** _„auch bei der taschenlampe in die hand passt es nicht gut. Ggf.
+  sollten wir schauen, ob wir dem vr spieler einen körper geben."_ Ein
+  sichtbarer eigener Körper wurde einmal gebaut und wieder entfernt (siehe
+  `ShipExperience.buildSuit`); was an der Lampe nicht passt, ist noch nicht
+  geklärt.
+
 ## Der Techniker am Bildschirm: weniger Tafel, ein Ende mit Uhr (Oktober 2026)
 
 Gewünscht, vom Telefon aus, in einem Zug: das Menü des Rechners
@@ -3265,7 +3322,7 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   (`collectMirrors`, ~0,5–0,9 ms), sobald irgendwo ein Spiegel existiert —
   in der Station hängt einer im Übungsdeck; und jeder Wechsel der
   Taschenlampen (an/aus, aufheben) ändert die Zahl der Lichter und damit
-  einmal je Kombination alle Programme.
+  einmal je Kombination alle Programme (beim Tod nicht mehr, siehe oben).
 - Generator-/Platzierungs-/Route-Tests prüfen viele Seeds und Raumzahlen,
   maßhaltige Modelle, Türfreiheit, Kurven, Schachtwände und sichere Spawns.
   Ganze Botrunden werden auch gegen tatsächliche automatische Türen getestet.

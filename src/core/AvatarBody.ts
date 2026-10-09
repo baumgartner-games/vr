@@ -237,6 +237,15 @@ export interface AvatarSeat {
 export class AvatarBody extends THREE.Group {
   /** Yaw of the torso; follows the head with a dead zone, like a real body. */
   bodyYaw = 0;
+  /**
+   * **Wie weit der Kopf sich drehen darf, bevor der Rumpf mitgeht**, im
+   * Bogenmaß. 38° ab Werk — ein Blick über die Schulter dreht nicht den
+   * ganzen Körper. Orbital stellt in der Brille 0 ein: Der Körper schaut immer
+   * dorthin, wohin man schaut (gewünscht: _„das über die schultern schauen
+   * wieder entfernen in vr, und einfach blickrichtung gleich richtung des
+   * charakters"_).
+   */
+  turnSlack = THREE.MathUtils.degToRad(38);
 
   /**
    * **Worauf die Figur sitzt** (`PortalWorld.sitOn`), im Raum des Elternteils
@@ -1343,7 +1352,7 @@ export class AvatarBody extends THREE.Group {
     // die Drehung ganz.
     const headPitch = Math.asin(THREE.MathUtils.clamp(_forward.y, -1, 1));
     const difference = wrapAngle(headYaw - this.bodyYaw);
-    const slack = THREE.MathUtils.degToRad(38);
+    const slack = this.turnSlack;
     const seat = this.seat;
     if (seat) {
       this.bodyYaw = seat.yaw;
