@@ -153,6 +153,7 @@ import {
 import { SHIP, label } from './shipArt';
 import { buildActor, type ShipActor } from './actorArt';
 import type { HauntState } from './net';
+import { STUN_GRENADE_MODEL } from '../portal/tools/StunGrenadeTool';
 
 interface ShipHost {
   ctx: WorldContext;
@@ -277,7 +278,8 @@ const LOCKER_GHOST_OPACITY = 0.28;
 /** Ein Türblatt: das Gelenk an der Zarge, und in welche Richtung es aufschwingt. */
 interface DoorLeaf {
   pivot: THREE.Group;
-  swing: number;
+  /** Wie breit das Blatt ist — so weit gleitet es in die Wand. */
+  width: number;
 }
 interface Door {
   id: string;
@@ -359,6 +361,18 @@ const HAND_LABEL = {
   xray: 'Röntgengerät',
   medkit: 'Medkit',
   part: 'Ersatzteil',
+  grenade: 'Blendgranate',
+} as const;
+
+/** Was die Knöpfe der Hände zeigen (`stepHands`) — ein Zeichen je Ding. */
+const HAND_ICON = {
+  off: '✋',
+  flashlight: '🔦',
+  radar: '📡',
+  xray: '🩻',
+  medkit: '➕',
+  part: '🔋',
+  grenade: '💥',
 } as const;
 
 /**
@@ -445,6 +459,21 @@ export class ShipExperience {
   private readonly heldMedkit = new THREE.Group();
   /** Das Ersatzteil in der Hand — sichtbar, solange der Techniker eines trägt. */
   private readonly heldPart = new THREE.Group();
+  /** Die Blendgranate in der rechten Hand, am Schirm (`rightItem` `grenade`). */
+  private readonly heldGrenade = new THREE.Group();
+  /**
+   * **Die zwei Schnellplätze am Schirm und am Telefon** — ein Knopf je Hand,
+   * wie die zwei Hüften in der Brille; ein Tipp schaltet durch (`cycleSensor`,
+   * `cycleRight`), am Desktop dasselbe mit `1` und `2`. Alles andere steht in
+   * der Werkzeugliste (`toolChoice`, `Tab`) — dem Inventar. Gewünscht: _„Es
+   * sollte ja eine schnell zugriffleiste geben (vr Gürtel), Handy z.B. zwei
+   * Icon Buttons, Desktop 1 und 2? Für alles andere sollte es eine Inventar
+   * Verwaltung geben."_
+   */
+  private readonly handsDom = el('div', 'orbital-hands');
+  private readonly leftButton = document.createElement('button');
+  private readonly rightButton = document.createElement('button');
+  private handsShown = '';
   /**
    * Die Ersatzteile, die im Gang liegen, als Modelle — je Teil eines, gebaut
    * beim ersten Ablegen und danach nur noch ein- und ausgeblendet. Was wo
@@ -452,7 +481,7 @@ export class ShipExperience {
    * ist die Anzeige dazu und nicht die Wahrheit.
    */
   private readonly droppedParts = new Map<string, THREE.Object3D>();
-  private rightItem: 'flashlight' | 'medkit' | 'part' | 'off' = 'flashlight';
+  private rightItem: 'flashlight' | 'medkit' | 'part' | 'grenade' | 'off' = 'flashlight';
   /**
    * **Ob die Lampe in der rechten Hand brennt.** Bis hierher gab es dafür
    * keinen Schalter: Die Lampe leuchtete, sobald sie in der Hand lag, und aus
@@ -750,7 +779,21 @@ export class ShipExperience {
       this.arrow.hidden = true;
       this.arrow.setAttribute('aria-hidden', 'true');
       this.arrow.append(el('i'), this.arrowLabel);
+      this.handsDom.hidden = true;
+      for (const [button, hand] of [
+        [this.leftButton, 'left'],
+        [this.rightButton, 'right'],
+      ] as const) {
+        button.type = 'button';
+        button.dataset['hand'] = hand;
+        button.setAttribute('aria-label', hand === 'left' ? 'Linke Hand' : 'Rechte Hand');
+        button.addEventListener('click', () =>
+          hand === 'left' ? this.cycleSensor() : this.cycleRight(),
+        );
+        this.handsDom.append(button);
+      }
       document.body.append(
+        this.handsDom,
         this.menuButton,
         this.arrow,
         this.puzzleRoot,
@@ -795,7 +838,67 @@ export class ShipExperience {
       this.heal();
       return true;
     }
+    // Die Blendgranate in der Hand: `A` zündet sie (am Desktop auch `G`).
+    if (this.rightItem === 'grenade' && this.crew.inventory.includes('stun-grenade')) {
+      this.throwGrenade();
+      return true;
+    }
     return false;
+  }
+
+  /** Die Blendgranate zünden, wo man steht, und die Hand wieder der Lampe geben. */
+  private throwGrenade(): void {
+    this.host.ctx.rig.getHeadPosition(_pos);
+    this.host.blastGrenade?.({ x: _pos.x, y: _pos.y, z: _pos.z });
+    if (this.rightItem === 'grenade') this.rightItem = 'flashlight';
+    this.stamp = '';
+    this.paint();
+  }
+
+  /**
+   * **Die rechte Hand durchschalten**: frei, Lampe, Medkit, Blendgranate, das
+   * Ersatzteil — was davon im Inventar ist.
+   */
+  private cycleRight(): void {
+    const items: Array<typeof this.rightItem> = ['off', 'flashlight'];
+    if (this.crew.inventory.includes('medkit')) items.push('medkit');
+    if (this.crew.inventory.includes('stun-grenade')) items.push('grenade');
+    if (carriedPart(this.host.spec(), this.host.state())) items.push('part');
+    this.rightItem = items[(items.indexOf(this.rightItem) + 1) % items.length]!;
+    if (this.rightItem === 'flashlight') this.torchLit = true;
+    this.host.say(
+      {
+        off: 'Rechte Hand frei.',
+        flashlight: 'Taschenlampe rechts.',
+        medkit: 'Medkit in der Hand · Benutzen heilt.',
+        grenade: 'Blendgranate in der Hand · Benutzen zündet sie.',
+        part: 'Ersatzteil in der Hand.',
+      }[this.rightItem],
+    );
+    this.host.ctx.refreshWorldMenu();
+    this.stamp = '';
+    this.paint();
+  }
+
+  /** Die zwei Knöpfe der Hände nachziehen — nur, wenn sich etwas geändert hat. */
+  private stepHands(ctx: WorldContext): void {
+    const shown =
+      this.player &&
+      !ctx.renderer.xr.isPresenting &&
+      !ctx.menu.isOpen &&
+      !this.crew.simulation &&
+      this.crew.hp > 0;
+    this.handsDom.hidden = !shown;
+    if (shown) this.paintHands();
+  }
+
+  /** Die Aufschrift der zwei Knöpfe — auch gleich beim Umschalten, nicht erst im nächsten Bild. */
+  private paintHands(): void {
+    const key = `${this.sensorMode}|${this.rightItem}`;
+    if (key === this.handsShown) return;
+    this.handsShown = key;
+    this.leftButton.innerHTML = `<span>${HAND_ICON[this.sensorMode]}</span><small>1 · ${HAND_LABEL[this.sensorMode]}</small>`;
+    this.rightButton.innerHTML = `<span>${HAND_ICON[this.rightItem]}</span><small>2 · ${HAND_LABEL[this.rightItem]}</small>`;
   }
 
   /**
@@ -854,6 +957,8 @@ export class ShipExperience {
     ];
     if (this.crew.inventory.includes('medkit'))
       options.push({ id: 'medkit', label: 'Medkit', icon: 'bag' });
+    if (this.crew.inventory.includes('stun-grenade'))
+      options.push({ id: 'grenade', label: 'Blendgranate', icon: 'tools' });
     this.choice.options = options;
     const chosen = this.chosen;
     const inHand =
@@ -861,14 +966,16 @@ export class ShipExperience {
         ? this.rightItem !== 'flashlight' &&
           this.rightItem !== 'medkit' &&
           this.sensorMode === 'off'
-        : chosen === 'flashlight' || chosen === 'medkit'
+        : chosen === 'flashlight' || chosen === 'medkit' || chosen === 'grenade'
           ? this.rightItem === chosen
           : chosen === 'radar' || chosen === 'xray'
             ? this.sensorMode === chosen
             : false;
     this.choice.current = inHand
       ? (chosen as string | null)
-      : this.rightItem === 'flashlight' || this.rightItem === 'medkit'
+      : this.rightItem === 'flashlight' ||
+          this.rightItem === 'medkit' ||
+          this.rightItem === 'grenade'
         ? this.rightItem
         : this.sensorMode === 'radar' || this.sensorMode === 'xray'
           ? this.sensorMode
@@ -905,6 +1012,13 @@ export class ShipExperience {
       }
       this.rightItem = 'medkit';
       this.host.say('Medkit gewählt. Benutzen heilt.');
+    } else if (id === 'grenade') {
+      if (!this.crew.inventory.includes('stun-grenade')) {
+        this.host.say('Keine Blendgranate im Inventar.');
+        return;
+      }
+      this.rightItem = 'grenade';
+      this.host.say('Blendgranate in der Hand · Benutzen zündet sie.');
     } else if (id === 'radar' || id === 'xray') {
       if (!this.crew.inventory.includes(id)) {
         this.host.say(`${HAND_LABEL[id]} liegt noch in der Fracht.`);
@@ -926,6 +1040,19 @@ export class ShipExperience {
 
   /** `Strg` gehalten heißt ducken — solange kein Textfeld den Fokus hat. */
   private readonly keyDown = (event: KeyboardEvent): void => {
+    // **`1` und `2`: die Schnellplätze** — linke und rechte Hand durchschalten.
+    if (
+      (event.code === 'Digit1' || event.code === 'Digit2') &&
+      !event.repeat &&
+      !isTyping() &&
+      !this.host.ctx.renderer.xr.isPresenting &&
+      this.player &&
+      !this.crew.simulation
+    ) {
+      if (event.code === 'Digit1') this.cycleSensor();
+      else this.cycleRight();
+      return;
+    }
     // **`G` zündet die Blendgranate** am Schirm — wenn eine im Inventar ist.
     if (
       event.code === 'KeyG' &&
@@ -934,8 +1061,7 @@ export class ShipExperience {
       !this.host.ctx.renderer.xr.isPresenting &&
       this.crew.inventory.includes('stun-grenade')
     ) {
-      this.host.ctx.rig.getHeadPosition(_pos);
-      this.host.blastGrenade?.({ x: _pos.x, y: _pos.y, z: _pos.z });
+      this.throwGrenade();
       return;
     }
     if (!event.code.startsWith('Control') || event.altKey || event.metaKey) return;
@@ -2219,7 +2345,7 @@ export class ShipExperience {
       // Taschenlampe: Ein Türblatt, das beim Aufschwingen einen Balken über
       // den Gang zieht, lenkt vom Monster ab (Wunsch des Besitzers).
       denyShadow(stand);
-      leaves.push({ pivot, swing: left ? -1 : 1 });
+      leaves.push({ pivot, width: leafWidth });
       if (canLoadModels()) void this.fitDoorLeaf(pivot, stand, leafWidth);
     }
     return leaves;
@@ -2321,7 +2447,13 @@ export class ShipExperience {
     // das hat, was er gesucht hat.
     this.heldPart.name = 'desktop-held-part';
     dressMesh(this.mesh([0.28, 0.16, 0.22], SHIP.amber, this.heldPart, [0, 0, 0]), PART_MODEL);
-    this.torch.add(this.heldLamp, this.heldMedkit, this.heldPart);
+    // Die Blendgranate: die gelbe Bombe aus dem Regal (`STUN_GRENADE_MODEL`).
+    this.heldGrenade.name = 'desktop-held-grenade';
+    dressMesh(
+      this.mesh([0.1, 0.1, 0.1], 0xffd84a, this.heldGrenade, [0, 0, 0]),
+      STUN_GRENADE_MODEL,
+    );
+    this.torch.add(this.heldLamp, this.heldMedkit, this.heldPart, this.heldGrenade);
     this.host.ctx.camera.add(this.torch);
     this.torch.position.set(0.24, -0.24, -0.4);
     this.scanner.name = 'desktop-held-scanner';
@@ -2530,6 +2662,7 @@ export class ShipExperience {
     if (this.crew.inventory.includes('radar')) modes.push('radar');
     if (this.crew.inventory.includes('xray')) modes.push('xray');
     this.sensorMode = modes[(modes.indexOf(this.sensorMode) + 1) % modes.length]!;
+    this.paintHands();
     if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.(this.sensorMode, 'left');
     this.host.ctx.refreshWorldMenu();
     this.host.say(
@@ -2824,6 +2957,9 @@ export class ShipExperience {
     this.heldLamp.setHousingVisible(!fallen);
     this.leftLamp.setHousingVisible(!fallen);
     this.heldMedkit.visible = this.rightItem === 'medkit' && !fallen;
+    if (this.rightItem === 'grenade' && !this.crew.inventory.includes('stun-grenade'))
+      this.rightItem = 'flashlight';
+    this.heldGrenade.visible = this.rightItem === 'grenade' && !fallen;
     // In der Brille hält die Hand selbst das Teil: Der Griff des rechten
     // Controllers ist die Hand, und das Modell hängt daran, solange es
     // getragen wird. Nur beim Wechsel umgehängt — jedes Bild neu einhängen
@@ -2840,6 +2976,7 @@ export class ShipExperience {
     this.stepMonsterProbe();
     this.stepPin(dt);
     this.stepBlind(dt);
+    this.stepHands(ctx);
     ctx.camera.getWorldDirection(_direction);
     this.handheldRadar.setContact(this.host.state().monster);
     if (this.scanner.visible && this.sensorMode === 'radar')
@@ -2978,8 +3115,16 @@ export class ShipExperience {
       door.light.color.setHex(locked ? 0xff5267 : 0x78ffd0);
       for (const lever of door.levers) lever.set(locked, dt);
       const before = door.amount;
-      door.amount += Math.sign(goal - before) * Math.min(Math.abs(goal - before), dt * 2.5);
-      for (const leaf of door.leaves) leaf.pivot.rotation.y = door.amount * leaf.swing * DOOR_SWING;
+      door.amount += Math.sign(goal - before) * Math.min(Math.abs(goal - before), dt * DOOR_SPEED);
+      // **Die Blätter gleiten seitlich in die Wand** statt aufzuschwingen —
+      // gewünscht: _„Türen sollten am besten zur Seite in die Wand
+      // aufsliden"_. Ein Schiebeblatt ist offen, sobald der Spalt reicht, und
+      // klappt niemandem ins Gesicht. Ganz offen ist es unsichtbar: Was dann
+      // noch aus der Wand ragte, wäre nur ein Flimmern.
+      for (const leaf of door.leaves) {
+        leaf.pivot.position.x = -door.amount * leaf.width;
+        leaf.pivot.visible = door.amount < 0.98;
+      }
     }
     // **Der Saum sitzt auf der Zielkiste** — aber nur, wenn die Kiste
     // überhaupt verraten werden darf: Bei einem Menschen am Archiv nennt
@@ -3258,6 +3403,7 @@ export class ShipExperience {
 
   private paint(): void {
     if (this.disposed) return;
+    this.paintHands();
     // Die Konsole der Zentrale nennt die Runde wie jede andere Stelle
     // (`rules/roundFlow.ts`): oben der Modus, dann die zwei Starts — jede
     // Zeile mit ihrer Aktion (`rules/commandConsole.ts`).
@@ -4638,6 +4784,7 @@ export class ShipExperience {
     this.hudDom.remove();
     this.menuButton.remove();
     this.arrow.remove();
+    this.handsDom.remove();
     this.puzzleRoot.remove();
     this.toast.dispose();
     this.dom.removeEventListener('click', this.domClick);
@@ -4756,7 +4903,12 @@ function actionKey(text: string, action: string): HTMLButtonElement {
 /** Das Türblatt der Station aus dem Regal: `Door_A` in Grau, so hoch wie der Bogen. */
 const DOOR_LEAF = 'prototype-bits/Door_A_Metal.glb';
 /** Wie weit ein Blatt aufschwingt — knapp eine Vierteldrehung. */
-const DOOR_SWING = Math.PI * 0.48;
+/**
+ * Wie schnell ein Blatt auf- und zugleitet, als Anteil je Sekunde: 4 heißt
+ * eine Viertelsekunde. Es waren 2,5 — gemeldet: _„In vr merkte ich, dass die
+ * Türen für meinen Geschmack immer noch zu spät aufgehen."_
+ */
+const DOOR_SPEED = 4;
 /** Wie weit ein Türhebel vor der Wandmitte hängt: die halbe Dicke der Wand aus dem Regal. */
 const DOOR_LEVER_WALL = 0.14;
 /** Wie hoch die Mitte eines Türhebels hängt: auf der Zarge über der Tür, unter dem Wegweiser (`signMesh.SIGN_BOTTOM`). */

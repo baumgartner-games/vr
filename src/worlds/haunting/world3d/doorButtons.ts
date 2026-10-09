@@ -106,7 +106,12 @@ export function buttonPressed(
  * (`buttonPressed` ohne `depth`); die Automatik, die durchlässt
  * (`automaticDoors.ts`), reicht ohnehin weiter.
  */
-export const DOOR_OPEN_DEPTH = 2 * CELL + CELL;
+//
+// **Und seit Oktober 2026 drei Meter**, also fünf Felder plus die halbe Figur:
+// _„In vr merkte ich, dass die Türen für meinen Geschmack immer noch zu spät
+// aufgehen."_ Bei 2,6 m/s war man nach gut einer halben Sekunde an der Tür —
+// mitten im Aufgehen.
+export const DOOR_OPEN_DEPTH = 5 * CELL + CELL;
 
 /** Was ein Knopf gerade zeigt. */
 export interface ButtonState {

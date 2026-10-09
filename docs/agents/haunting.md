@@ -7,6 +7,29 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Schiebetüren, Schnellleiste mit zwei Händen (Oktober 2026)
+
+- **Die Türen gleiten seitlich in die Wand** statt zu schwingen
+  (`ShipExperience`, `DoorLeaf { pivot, width }`): Jedes Blatt fährt um seine
+  Breite zur Seite und verschwindet dort (`visible` erst ab 98 % offen aus).
+  Sie gehen **früher** auf — `DOOR_OPEN_DEPTH` (`world3d/doorButtons.ts`) ist
+  jetzt 3 m statt 1,5 m vor der Wand — und **schneller**: `DOOR_SPEED` 4, also
+  eine Viertelsekunde für den ganzen Weg. Gewünscht: _„in vr merkte ich, dass
+  die Türen für meinen Geschmack immer noch zu spät aufgehen […] Türen sollten
+  am besten zur Seite in die Wand aufsliden"_. Die automatischen Türen
+  (`automaticDoors.ts`) lösen ohnehin schon bei 3,2 m aus.
+- **Schnellleiste mit zwei Plätzen, Rest im Inventar.** In der Brille sind
+  das die beiden Hüften; am Schirm die Tasten `1` (linke Hand: frei, Radar,
+  Röntgen) und `2` (rechte Hand: frei, Lampe, Medkit, Blendgranate, Bauteil —
+  nur was man hat), am Telefon zwei Knöpfe unten in der Mitte
+  (`.orbital-hands`, `stepHands`, Tipp schaltet weiter). Alles Übrige steht
+  in der Werkzeugliste (`Tab` / Werkzeugknopf). Die Lampe ist der Normalfall
+  rechts; ein Bauteil kommt von selbst in die rechte Hand. Mit der Granate in
+  der rechten Hand zündet Benutzen sie (`throwGrenade`), `G` geht immer.
+  Gewünscht: _„Es sollte ja eine schnell zugriffleiste geben (vr Gürtel),
+  Handy z.B. zwei Icon Buttons, Desktop 1 und 2? Für alles andere sollte es
+  eine Inventar Verwaltung geben."_
+
 ## Leere Hände zum Start, Blendgranate (Oktober 2026)
 
 - **Jede Runde beginnt mit leeren Händen** (`HauntingWorld.resetGear`, aus
@@ -130,11 +153,11 @@ Gemeldet: _„beim start von einer runde und beim tod kommt es zu einem massiven
 fps drop, sogar soweit dass das bild einfriert."_ Gemessen mit Playwright
 (SwiftShader; gezählt wurden neu gebundene Programme, `gl.linkProgram`):
 
-| | vorher | nachher |
-|---|---|---|
-| Rundenstart | 42 Programme, ~0,75 s JavaScript | 3–4 (Monster, Geist) |
-| Tod | 14 Programme, ~3,5 s im Schattendurchgang | 0 |
-| Zurück in die Zentrale | 4 Programme | 0 |
+|                        | vorher                                    | nachher              |
+| ---------------------- | ----------------------------------------- | -------------------- |
+| Rundenstart            | 42 Programme, ~0,75 s JavaScript          | 3–4 (Monster, Geist) |
+| Tod                    | 14 Programme, ~3,5 s im Schattendurchgang | 0                    |
+| Zurück in die Zentrale | 4 Programme                               | 0                    |
 
 - **Programme über den Neubau halten** (`core/programHold.ts`,
   `HauntingWorld.programs`): `newRound` und `mountExperience` reißen die
@@ -165,7 +188,7 @@ fps drop, sogar soweit dass das bild einfriert."_ Gemessen mit Playwright
   drehen auch Gürtel und Anzug mit dem Blick.
 - **Der Gürtel hängt an der Figur** (`ToolBelt.update`, `HolsterTool`):
   mindestens auf der Höhe, die er im Stehen hätte (`flatEyeHeight ×
-  eyeScale`), statt an der gemessenen Kopfhöhe. Im Sitzen rutschte er sonst
+eyeScale`), statt an der gemessenen Kopfhöhe. Im Sitzen rutschte er sonst
   auf den Schoß. Gilt für jede Welt mit Gürtel; im Stehen unverändert.
 - **Im Anzug in der Brille der immersive Helm mit Atem**
   (`ShipExperience.stepHelmet`, `WorldContext.breathe`,
@@ -492,7 +515,7 @@ freien Plätze nehmen.
 
 - **Ohne Kopf** (`openSettings` → `WorldContext.openMenu('welt', { bare: true })`,
   `GameMenu.openSubmenu`, `PageMenu.openSubmenu`, CSS `pmenu--bare`): keine
-  Reiter, keine Pfeile durch die Reiter, das ✕ in der Titelzeile; *Zurück*
+  Reiter, keine Pfeile durch die Reiter, das ✕ in der Titelzeile; _Zurück_
   erst auf einer Unterseite, und Zurück auf der Seite selbst macht zu. Beim
   nächsten Öffnen über den Menüknopf ist alles wie immer (`bareRoot` fällt
   beim Schließen weg).
@@ -521,6 +544,7 @@ freien Plätze nehmen.
   Schutzschrank) und aus der Welt Tageslauf, „Zur Einsatzzentrale" und
   „Nochmal" (`DROPPED`). Die Absichten (`startRound`, `rules/lobby.ts`)
   bleiben für die Seite am Telefon.
+
 - **Rundentyp und Bots** (`rules/crewBots.ts`: `CrewSettings`, `loadCrew`,
   `saveCrew` unter `bgvr.haunting.crew.v1`, je Gerät). **„Runde starten"**
   (`startCrewRound`) füllt die Plätze mit `fillSeats`: Menschen behalten,
@@ -651,7 +675,7 @@ selbst trägt, steht, ist die Geschichte bis Oktober 2026.
       Grundriss-Vorlage am Boden wird seither aus dem gebauten Grundriss
       gerechnet (siehe _Die Vorlage am Boden_) und zeigt die Gänge so
       schmal, wie sie sind.
-    `stationRooms` legt die `:`-Kacheln zu Rechtecken zusammen.
+      `stationRooms` legt die `:`-Kacheln zu Rechtecken zusammen.
   - **Kein Raum berührt einen anderen** (`roomGraph.test`: keine Wandnachbarn
     ohne Tür); wo die Zeichnung zwei Schrägen dichter zusammenlegt, ist eine
     Schräge eine Kachel länger (Cafeteria unten rechts neben O2).
@@ -718,7 +742,7 @@ selbst trägt, steht, ist die Geschichte bis Oktober 2026.
   - Möbel stehen ganz auf der Innenseite und halten von Schrägen und Nischen
     Abstand (`stationLayout.cutFree` → `boxInShape`).
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
-  topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und **ganze**
+topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und **ganze**
   Nachbarräume, deren verbindende Tür gerade offen steht — **dasselbe Blatt,
   das man auffahren sieht** (`HauntingWorld.leafOpen`: die Automatik
   `openDoors` und jemand höchstens zwei Felder davor, `approachedDoors`;
@@ -2606,6 +2630,7 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   unten noch „Rollen testen", „Mission starten/stoppen", „Test starten",
   „Spielen/Trainieren" oder „Testlicht" steht, ist das die Geschichte dieser
   Knöpfe** — sie heißen jetzt wie hier.
+
 - **Die Seite „Haunting / Orbital" im Menü — wenige Unterseiten**
   (zweite Runde, `rules/menuPages.ts`, `menuPages.test.ts`). Im Bereich
   _Diese Welt_ (`ui/menuGroups.ts`) standen gut zwanzig Zeilen gleichen
@@ -2628,9 +2653,9 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   - **In die Werkstatt** (`MENU_PLACEMENT`): Testdeck (`orbital:labs`),
     Testbesuch (`orbital:visits`) und die Bot-Runde des Testdecks
     (`orbital:simulation`) — alle drei gibt es nur in der Übungsrunde.
-  Was `HAUNT_PAGE_OF` nicht kennt, bleibt oben stehen und geht nicht
-  verloren. Das ⚙-Menü des Technikers am Bildschirm
-  (`ShipExperience.shipOptions`) ist davon unberührt.
+    Was `HAUNT_PAGE_OF` nicht kennt, bleibt oben stehen und geht nicht
+    verloren. Das ⚙-Menü des Technikers am Bildschirm
+    (`ShipExperience.shipOptions`) ist davon unberührt.
 - **Die Konsole der Zentrale rechnet mit Namen, nicht mit Nummern**
   (`rules/commandConsole.ts`, mit Test). Der Bildschirm an der Wand hat
   sechs Zeilen — Modus, „ECHTE RUNDE STARTEN", „ÜBUNGSRUNDE · OHNE MONSTER",
@@ -3414,7 +3439,7 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
      einmal, auch dunkel (`lampShadowDue(…, hasMap)`). Sonst bindet three.js
      an den `samplerCubeShadow` jedes beleuchteten Materials eine leere
      Farbtextur, WebGL verwirft den Zeichenaufruf (`GL_INVALID_OPERATION:
-     Mismatch between texture format and sampler type`), und die Station stand
+Mismatch between texture format and sampler type`), und die Station stand
      in der Übungsrunde über das Menü unsichtbar da — Sterne, Schilder, sonst
      nichts —, bis eine Lampe anging. **Seit Welle 4 erledigt sich beides:**
      Die Deckenleuchten haben gar keine Schattenkarte mehr (`castShadow` aus,
@@ -3432,13 +3457,13 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
      sammelte alle Wände neu ein, auch wenn keine sich bewegt hatte (gut
      1 ms, jetzt `wallsMoved`), und gebündelte Wände sind aus dem
      Matrizenlauf genommen (`modelBatch.freeze`).
-  Zusammen, dieselbe Messstrecke vorher/nachher: `world.update` im Mittel
-  19,1 → 4,0 ms. **Noch offen**, falls die Quest weiter klemmt:
-  `MirrorRenderer.render` läuft jedes Bild über die sichtbare Szene
-  (`collectMirrors`, ~0,5–0,9 ms), sobald irgendwo ein Spiegel existiert —
-  in der Station hängt einer im Übungsdeck; und jeder Wechsel der
-  Taschenlampen (an/aus, aufheben) ändert die Zahl der Lichter und damit
-  einmal je Kombination alle Programme (beim Tod nicht mehr, siehe oben).
+     Zusammen, dieselbe Messstrecke vorher/nachher: `world.update` im Mittel
+     19,1 → 4,0 ms. **Noch offen**, falls die Quest weiter klemmt:
+     `MirrorRenderer.render` läuft jedes Bild über die sichtbare Szene
+     (`collectMirrors`, ~0,5–0,9 ms), sobald irgendwo ein Spiegel existiert —
+     in der Station hängt einer im Übungsdeck; und jeder Wechsel der
+     Taschenlampen (an/aus, aufheben) ändert die Zahl der Lichter und damit
+     einmal je Kombination alle Programme (beim Tod nicht mehr, siehe oben).
 - Generator-/Platzierungs-/Route-Tests prüfen viele Seeds und Raumzahlen,
   maßhaltige Modelle, Türfreiheit, Kurven, Schachtwände und sichere Spawns.
   Ganze Botrunden werden auch gegen tatsächliche automatische Türen getestet.

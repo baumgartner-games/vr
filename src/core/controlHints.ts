@@ -397,8 +397,8 @@ function zoneHints(ctx: HintContext, zone: HintZone): HintItem[] {
       }
       if (ctx.useCandidate) add(use, 'Benutzen');
       if (!pad && !touch) {
-        add('1', 'Sensor');
-        add('2', 'Lampe/Medkit');
+        add('1', 'Linke Hand');
+        add('2', 'Rechte Hand');
         add('Strg', 'Ducken');
       }
       turn();
