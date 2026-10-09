@@ -7,6 +7,30 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Leere Hände zum Start, Blendgranate (Oktober 2026)
+
+- **Jede Runde beginnt mit leeren Händen** (`HauntingWorld.resetGear`, aus
+  `newRound`; `PortalWorld.clearCarriedGear`): Was in den Händen und am Gürtel
+  war, ist weg, und die Hüften lassen nichts nachwachsen (`BeltSlot.stored`);
+  die Lampe liegt wieder auf dem Ausrüstungstisch (`placeTableTorch`), den Rest
+  legt `stepGear` hin. Gewünscht: _„beim start einer runde sollen den spielern
+  in haunting die werkzeuge wegenommen werden. Es muss dann geschaut werden und
+  neu in die hand genommen werden wie bei der taschenlampe."_ Gilt für Übung,
+  echte Runde und die Rückkehr nach dem Ende.
+- **Die Blendgranate** (`tools/StunGrenadeTool.ts`, Id `stun-grenade`, nicht in
+  `TOOL_IDS`; Modell `platformer/yellow/bomb_A_yellow.glb`): **eine Ladung**.
+  In jeder Runde liegt eine auf dem Tisch (`TABLE_GEAR`, Platz 1 nach der
+  Lampe; die Plätze sind jetzt Viertel der Platte). In der Brille greifen und
+  Trigger, am Schirm `E` am Tisch und `G` zum Zünden. Gezündet wird, wo sie ist
+  (`HauntingWorld.stepGrenades` → `blastGrenade` → `FlatRound.stun`): Steht das
+  Monster näher als `STUN_RANGE` (7 m) und nicht im Schacht, ist es
+  `STUN_SECONDS` (6 s) betäubt — es steht, nimmt nichts wahr, trifft nicht — und
+  hat danach vergessen, was es wusste. Dazu Funken, Rauch und ein weißer Blitz
+  vor den Augen, wer nah steht (`ShipExperience.flashAt`, `blindPlane`, kein
+  Licht). Leer wird die Granate grau. Gewünscht: _„eine "blendgranate" bzw.
+  betäubungsgranate gegen das monster […] um das monster zu beträuben um
+  wegzurennen. die haben dann z. B. nur eine ladung?"_
+
 ## Blech im Nebenraum, Pfeil in der Brille, Abwehr der Zentrale (Oktober 2026)
 
 - **Das Monster im Nebenraum scheppert** (`audio/soundscape.ts`,

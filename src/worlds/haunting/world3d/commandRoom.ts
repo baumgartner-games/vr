@@ -170,12 +170,12 @@ export const GEAR_SPOT: ElementSpot = {
 export const GEAR_TOP = 0.5;
 
 /**
- * **Die Plätze auf dem Tisch**, von West nach Ost: die Lampe, das
- * Röntgengerät, das Radar — je ein Drittel der Platte.
+ * **Die Plätze auf dem Tisch**, von West nach Ost: die Lampe, die
+ * Blendgranate, das Röntgengerät, das Radar — je ein Viertel der Platte.
  */
 export function gearSlot(index: number): { x: number; y: number; z: number } {
   return {
-    x: (GEAR_SPOT.x + 1 + (index - 1) * 0.5) * TILE,
+    x: (GEAR_SPOT.x + 1 + (index - 1.5) * 0.45) * TILE,
     y: GEAR_TOP + 0.06,
     z: (GEAR_SPOT.z + 0.5) * TILE,
   };

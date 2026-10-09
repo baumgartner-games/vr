@@ -31,6 +31,7 @@ import { WelderTool } from './WelderTool';
 import { WingsTool } from './WingsTool';
 import { RadarTool } from './RadarTool';
 import { XrayTool } from './XrayTool';
+import { StunGrenadeTool } from './StunGrenadeTool';
 import { createPortalGunTool } from './PortalGunTool';
 import { applyStoredPose } from './poseStore';
 import type { Tool } from './Tool';
@@ -118,6 +119,10 @@ function buildTool(id: string): Tool | null {
       return new TransformTool();
     case 'holster':
       return new HolsterTool();
+    // **Die Blendgranate** der Raumstation (`StunGrenadeTool.ts`) — nicht im
+    // Regal (`TOOL_IDS`): Sie liegt in Orbital auf dem Ausrüstungstisch.
+    case 'stun-grenade':
+      return new StunGrenadeTool();
     case 'grip':
       return new GripTool();
     case 'bag':

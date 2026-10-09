@@ -160,6 +160,10 @@ export const MONSTER_RADIUS = 0.3;
  * (`rules/technicianBot.DREAD_CORE`).
  */
 export const CONTACT = 1.7;
+/** Wie weit die Blendgranate reicht, in Metern (`FlatRound.stun`). */
+export const STUN_RANGE = 7;
+/** Wie lange das Monster betäubt ist, in Sekunden. */
+export const STUN_SECONDS = 6;
 /** Wie nah das Monster der Zentrale kommen darf, solange der Techniker darin steht, in Metern (`stepRepel`). */
 export const REPEL_RANGE = 9;
 /** Wie lange die Abwehr danach ruht, in Sekunden. */
@@ -1155,6 +1159,14 @@ export class FlatRound implements MapSource {
 
     if (!this.haunt.monsterOn) return;
 
+    // --- **Betäubt** (`stun`): Es steht, sieht nichts, hört nichts, trifft nicht.
+    if (this.stunClock > 0) {
+      this.stunClock = Math.max(0, this.stunClock - dt);
+      this.decision = null;
+      this.haunt.monster = { x: this.monster.x, z: this.monster.z };
+      return;
+    }
+
     // --- Im Schacht: nichts hören, nichts sehen, nur fahren (`vents/ventTravel.ts`).
     const piloted = this.driver?.active() === true;
     if (this.ventRide.busy) {
@@ -1364,6 +1376,35 @@ export class FlatRound implements MapSource {
     // Angriffsknopf verlangte, im Moment der Berührung zu tippen, und in
     // diesem Moment schaut niemand auf seine Knöpfe (`monster/monsterHelm.ts`).
     if (gap < CONTACT && !hidden && takeCrewHit(crew, true)) this.hit('Treffer.');
+  }
+
+  /**
+   * **Die Blendgranate** (`tools/StunGrenadeTool.ts`): gezündet bei `at`.
+   * Steht das Monster näher als `STUN_RANGE` und nicht im Schacht, ist es
+   * `STUN_SECONDS` lang betäubt (`tick`) und hat danach vergessen, was es
+   * wahrgenommen hatte. Gewünscht: _„eine betäubungsgranate gegen das
+   * monster […] um das monster zu beträuben um wegzurennen"_.
+   * @returns ob es getroffen hat
+   */
+  stun(at: { x: number; z: number }): boolean {
+    if (!this.haunt.monsterOn || !this.haunt.monster || this.ventRide.busy) {
+      this.events.push({ kind: 'info', text: 'Die Blendgranate verpufft.' });
+      return false;
+    }
+    if (Math.hypot(this.monster.x - at.x, this.monster.z - at.z) > STUN_RANGE) {
+      this.events.push({ kind: 'info', text: 'Zu weit weg — die Blendgranate verpufft.' });
+      return false;
+    }
+    this.stunClock = STUN_SECONDS;
+    this.repelGoal = null;
+    Object.assign(this.memory, freshThreat());
+    this.events.push({ kind: 'good', text: 'Das Monster ist betäubt — lauf!' });
+    return true;
+  }
+  /** Wie lange das Monster noch betäubt ist, in Sekunden. */
+  private stunClock = 0;
+  get stunned(): boolean {
+    return this.stunClock > 0;
   }
 
   /**
