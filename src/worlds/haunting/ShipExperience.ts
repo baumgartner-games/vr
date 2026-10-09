@@ -206,6 +206,10 @@ interface ShipHost {
   carried?(hand: Handedness): Tool | null;
   floatingTorch?(): FlashlightTool | null;
   takeFloatingTorch?(): void;
+  /** Was in der Übung auf dem Ausrüstungstisch liegt (`HauntingWorld.stepGear`). */
+  gear?(): Array<[string, Tool]>;
+  /** Vom Schirm aus (`E`) ein Werkzeug vom Tisch nehmen. */
+  takeGear?(id: string): void;
   /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
   mapSnapshot?(): MapSnapshot;
   /** Die Ziele des Technikers, das nächste zuerst — für den Kompass am oberen Bildrand. */
@@ -239,6 +243,10 @@ interface Cabinet {
   at: THREE.Vector3;
   leafY: number;
   leafHeight: number;
+  /** Die Netze der Beute, die gerade leuchten (`glowLoot`) — leer, solange nichts leuchtet. */
+  glow: THREE.Mesh[];
+  /** Ob beim Einsammeln von `glow` das Modell aus dem Regal schon da war. */
+  glowDressed: boolean;
 }
 interface Locker {
   id: string;
@@ -314,6 +322,8 @@ const _head = new THREE.Vector3(),
  * Saum macht aus einer Kiste auf zehn Metern einen gelben Klotz.
  */
 const GOAL_SEAM: OutlineLook = { width: 0.014, maxGrow: 0.05, color: 0xffd84a };
+/** Der Saum der Beute, die man aus einer offenen Kiste nehmen kann (`glowLoot`). */
+const LOOT_GLOW: OutlineLook = { width: 0.022, maxGrow: 0.06, color: 0x7cf7ff };
 /**
  * Wie weit das Röntgengerät die Kennzeichen einblendet, in Metern.
  *
@@ -1221,7 +1231,7 @@ export class ShipExperience {
     // außen keine andere Kiste als die volle — das ist der ganze Sinn —, und
     // wer sie aufmacht, sieht nichts, statt ein leeres Regal mit Beschriftung.
     const lootMesh = loot
-      ? this.mesh([0.28, 0.16, 0.22], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
+      ? this.mesh([0.36, 0.2, 0.28], loot === 'medkit' ? 0xc9ddcb : SHIP.amber, g, [
           lootMount.x,
           lootMount.y,
           lootMount.z,
@@ -1257,6 +1267,8 @@ export class ShipExperience {
       at,
       leafY: leaf.position.y,
       leafHeight: 1.15,
+      glow: [],
+      glowDressed: false,
     });
     g.userData.roomId = room;
     this.root.add(g);
@@ -2518,6 +2530,59 @@ export class ShipExperience {
    * sieht beides nicht. Jedes Bild neu eingestellt, weil der Durchlauf über die
    * Szene die Kontur sonst binnen einer Sekunde wieder schwarz färbt.
    */
+  /**
+   * **Ob man nehmen kann, was in der Kiste liegt** — nur das zeigt sie.
+   * Gewünscht: _„Es ist nicht ersichtlich ob darin etwas ist, was ich nehmen
+   * kann. Daher würde ich im schrank dann gerne nur die sachen sehen wollen,
+   * die ich aufnehmen kann (und auch dann gehighlighted)."_ Nicht dabei: was
+   * schon genommen ist, ein Teil, dessen Reparatur erledigt ist oder das man
+   * schon trägt, ein zweites Teil bei vollen Händen (außer in der Übung,
+   * `carryFree`), ein Werkzeug, das man schon hat, und die Testausrüstung
+   * außerhalb der Übung.
+   */
+  private lootTakeable(cabinet: Cabinet): boolean {
+    const crew = this.crew;
+    const loot = cabinet.loot;
+    if (!loot || crew.inventory.includes(cabinet.id)) return false;
+    if (loot === 'test-kit') return crew.options.test;
+    const spec = this.host.spec();
+    const state = this.host.state();
+    const task = spec.tasks.find((one) => one.id === loot);
+    if (task) {
+      if (state.done.includes(task.id) || crew.inventory.includes(loot)) return false;
+      return this.carryFree || canCarryPart(spec, state);
+    }
+    return loot === 'medkit' || !crew.inventory.includes(loot);
+  }
+
+  /**
+   * **Die Beute leuchtet**, solange die Kiste offen ist und man sie nehmen
+   * kann — ein Saum in der Farbe des Ziels um das Modell aus dem Regal. Jedes
+   * Bild neu eingestellt wie `seam`: Der Durchlauf über die Szene färbt
+   * Konturen sonst binnen einer Sekunde schwarz.
+   */
+  private glowLoot(cabinet: Cabinet, on: boolean): void {
+    const loot = cabinet.lootMesh;
+    if (!loot) return;
+    const dressed = loot.children.some((child) => child.name.startsWith('station-prop:'));
+    if (!on || dressed !== cabinet.glowDressed) {
+      for (const mesh of cabinet.glow) removeOutline(mesh);
+      cabinet.glow.length = 0;
+    }
+    if (!on) return;
+    if (!cabinet.glow.length) {
+      cabinet.glowDressed = dressed;
+      const meshes: THREE.Mesh[] = [];
+      (dressed ? loot.children.find((c) => c.name.startsWith('station-prop:'))! : loot).traverse(
+        (object) => {
+          if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh);
+        },
+      );
+      cabinet.glow.push(...meshes);
+    }
+    for (const mesh of cabinet.glow) addOutline(mesh, LOOT_GLOW);
+  }
+
   private seam(id: string): void {
     if (id !== this.seamOn) {
       for (const mesh of this.seams) removeOutline(mesh);
@@ -2531,9 +2596,99 @@ export class ShipExperience {
   }
 
   private get scanSubjects(): readonly { object: THREE.Object3D }[] {
-    return this.cabinets
+    const subjects = this.cabinets
       .filter((cabinet) => !!cabinet.scanSubject && !this.crew.inventory.includes(cabinet.id))
       .map((cabinet) => cabinet.scanSubject!);
+    if (this.monsterProbe.visible) subjects.push(this.monsterSubject);
+    return subjects;
+  }
+  /**
+   * **Das Röntgengerät zeigt auch das Monster.** Gewünscht: _„ein item […]
+   * eigentlich nur röntgen gerät, welches das monster aber auch anzeigen
+   * kann."_ Die Figur des Monsters ist ein gehäutetes Modell, dessen Pose die
+   * Kopie im Rahmen (`XrayScope`) nicht kennt; durchleuchtet wird darum ein
+   * Stellvertreter: eine Kapsel so groß wie das Monster, die selbst nie
+   * gezeichnet wird und jedes Bild dorthin rückt, wo die Runde es sieht
+   * (`stepMonsterProbe`) — auch im Schacht.
+   */
+  private readonly monsterProbe = (() => {
+    const probe = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.32, 1.1, 4, 12),
+      new THREE.MeshBasicMaterial({ visible: false }),
+    );
+    probe.name = 'xray-monster';
+    probe.visible = false;
+    return probe;
+  })();
+  private readonly monsterSubject = { object: this.monsterProbe as THREE.Object3D };
+  /** Die Werkzeuge des Ausrüstungstischs, die schon `E` haben. */
+  private readonly gearBound = new WeakSet<THREE.Object3D>();
+  /**
+   * **Die Markierung der Zentrale in der Station** (`HauntState.pin`): eine
+   * gelbe Leuchtsäule, sechs Meter hoch und durch Wände zu sehen, dazu ein
+   * Ring auf dem Boden. In der Brille gibt es keinen Kompass am Rand — die
+   * Säule ist das, wonach man sich umdreht. Unbeleuchtet (`MeshBasicMaterial`):
+   * kein Licht mehr in der Szene, kein Shader neu.
+   */
+  private readonly pinBeacon = (() => {
+    const group = new THREE.Group();
+    group.name = 'center-pin';
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 6, 12, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffd84a,
+        transparent: true,
+        opacity: 0.45,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    );
+    pillar.position.y = 3;
+    pillar.renderOrder = 40;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.35, 0.5, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0xffd84a,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.03;
+    group.add(pillar, ring);
+    group.visible = false;
+    return group;
+  })();
+  private pinClock = 0;
+  private stepPin(dt: number): void {
+    // Gleich eingehängt, auch unsichtbar: So übersetzt `warmShaders` ihre
+    // Stoffe mit, und das erste Ziel kostet kein Bild.
+    if (!this.pinBeacon.parent) this.root.add(this.pinBeacon);
+    const pin = this.host.state().pin;
+    const shown = !!pin && this.player && !this.crew.simulation;
+    this.pinBeacon.visible = shown;
+    if (!shown) return;
+    this.pinBeacon.position.set(pin.x, 0, pin.z);
+    this.pinClock += dt;
+    const pulse = 0.5 + 0.5 * Math.sin(this.pinClock * 4);
+    const ring = this.pinBeacon.children[1] as THREE.Mesh<
+      THREE.RingGeometry,
+      THREE.MeshBasicMaterial
+    >;
+    ring.scale.setScalar(1 + pulse * 0.35);
+  }
+  private stepMonsterProbe(): void {
+    const monster = this.host.state().monster;
+    const shown = !!monster && this.host.state().monsterOn && !this.crew.simulation;
+    this.monsterProbe.visible = shown;
+    if (!shown) return;
+    if (!this.monsterProbe.parent) this.root.add(this.monsterProbe);
+    this.monsterProbe.position.set(monster.x, 0.87, monster.z);
   }
 
   /**
@@ -2599,8 +2754,10 @@ export class ShipExperience {
     this.leftLamp.visible = this.sensorMode === 'flashlight';
     this.leftLamp.setLit(this.scanner.visible && this.sensorMode === 'flashlight');
     this.stepDropped();
+    this.stepMonsterProbe();
+    this.stepPin(dt);
     ctx.camera.getWorldDirection(_direction);
-    this.handheldRadar.setContact(this.crew.options.test ? null : this.host.state().monster);
+    this.handheldRadar.setContact(this.host.state().monster);
     if (this.scanner.visible && this.sensorMode === 'radar')
       this.handheldRadar.updateDisplay(dt, _head, _direction);
     this.handheldXray.updateView(
@@ -2612,10 +2769,30 @@ export class ShipExperience {
       for (const hand of ['left', 'right'] as const) {
         const tool = this.host.carried?.(hand);
         if (tool instanceof FlashlightTool) tool.setBeamGuide(false);
-        if (tool instanceof RadarTool)
-          tool.setContact(this.crew.options.test ? null : this.host.state().monster);
+        if (tool instanceof RadarTool) tool.setContact(this.host.state().monster);
         if (tool instanceof XrayTool) tool.setSubjects(() => this.scanSubjects);
       }
+    // **Was auf dem Ausrüstungstisch liegt** (`host.gear`, nur in der Übung):
+    // am Schirm mit `E`, in der Brille mit dem Griff wie jedes Werkzeug.
+    for (const [id, tool] of this.host.gear?.() ?? []) {
+      if (this.gearBound.has(tool)) continue;
+      this.gearBound.add(tool);
+      const name = id === 'xray' ? 'Röntgengerät' : 'Bewegungsradar';
+      tool.userData.interactionLabel = `E: ${name} nehmen`;
+      const take = (): void => {
+        if (ctx.renderer.xr.isPresenting) {
+          this.host.say(`${name} mit dem Griff greifen.`);
+          return;
+        }
+        this.host.ctx.pointer.remove(tool);
+        this.host.unusable?.(tool);
+        this.host.takeGear?.(id);
+        this.sensorMode = id as 'xray' | 'radar';
+        this.host.say(`${name} genommen.`);
+        this.paint();
+      };
+      this.bind(tool, take, false, true, { use: take, radius: 0.35 });
+    }
     const floating = this.host.floatingTorch?.();
     if (floating?.visible && floating !== this.floatingTorch) {
       this.floatingTorch = floating;
@@ -2730,7 +2907,11 @@ export class ShipExperience {
       const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);
       cabinet.leaf.scale.y = amount;
       cabinet.leaf.position.y = cabinet.leafY + ((1 - amount) * cabinet.leafHeight) / 2;
-      if (cabinet.lootMesh) cabinet.lootMesh.visible = !crew.inventory.includes(cabinet.id);
+      if (cabinet.lootMesh) {
+        const takeable = this.lootTakeable(cabinet);
+        cabinet.lootMesh.visible = takeable;
+        this.glowLoot(cabinet, takeable && opened);
+      }
       cabinet.group.visible =
         (cabinet.id !== 'test-supply' || crew.options.test) &&
         (!cabinet.room || !this.visibleRooms || this.visibleRooms.has(cabinet.room));
@@ -2843,9 +3024,25 @@ export class ShipExperience {
   }
 
   /** Der Kompass folgt dem Blick: Himmelsrichtungen und die Ziele des Technikers. */
+  /**
+   * **Die Ziele für Kompass und Pfeil** — vorneweg die Markierung der
+   * Zentrale, wenn eine steht (`HauntState.pin`): Wer sie setzt, meint „da
+   * hin", und das ist dann das nächste Ziel.
+   */
+  private goals(): MapGoal[] {
+    const goals = this.host.objectives?.() ?? [];
+    const pin = this.host.state().pin;
+    if (!pin) return goals;
+    return [
+      { id: 'pin', at: pin, label: 'Markierung', next: true, kind: 'crate', precision: 'exact' },
+      ...goals.map((goal) => ({ ...goal, next: false })),
+    ];
+  }
+
   private stepCompass(ctx: WorldContext, running: boolean): void {
     if (!this.compass) return;
     // **Von oben kein Streifen, sondern der Pfeil an der Figur** (`stepArrow`).
+    running ||= !!this.host.state().pin;
     const shown = running && !ctx.topDown && !ctx.renderer.xr.isPresenting && !ctx.menu.isOpen;
     this.compass.element.hidden = !shown;
     // Und die Tafel rückt unter ihn — oder an den oberen Rand, wenn er weg
@@ -2855,7 +3052,7 @@ export class ShipExperience {
     if (!shown) return;
     ctx.camera.getWorldDirection(_direction);
     const yaw = Math.atan2(-_direction.x, -_direction.z);
-    this.compass.update(yaw, { x: _head.x, z: _head.z }, this.host.objectives?.() ?? []);
+    this.compass.update(yaw, { x: _head.x, z: _head.z }, this.goals());
   }
 
   /**
@@ -2868,7 +3065,8 @@ export class ShipExperience {
    * wird nur das nächste.
    */
   private stepArrow(ctx: WorldContext, running: boolean): void {
-    const goal = running ? (this.host.objectives?.() ?? []).find((one) => one.next) : undefined;
+    const goal =
+      running || this.host.state().pin ? this.goals().find((one) => one.next) : undefined;
     const camera = ctx.viewCamera;
     if (!goal || !ctx.topDown || !camera || ctx.renderer.xr.isPresenting || ctx.menu.isOpen) {
       this.arrow.hidden = true;
@@ -4338,6 +4536,8 @@ export class ShipExperience {
     this.suit.removeFromParent();
     disposeObject(this.visor);
     disposeObject(this.suit);
+    this.monsterProbe.removeFromParent();
+    disposeObject(this.monsterProbe);
     disposeObject(this.root);
     this.root.removeFromParent();
   }

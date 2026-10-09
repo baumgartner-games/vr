@@ -130,6 +130,28 @@ export const SPACE_SUIT_STAND: GameElement = {
   ],
 };
 
+/**
+ * **Der Ausrüstungstisch der Einsatzzentrale** — der lange Tisch aus
+ * _Furniture Bits_, darauf liegt, womit der Techniker losgeht (Lampe, in der
+ * Übung Röntgen und Radar; `haunting/HauntingWorld.stepGear`). Gewünscht:
+ * _„in der einsatz zentrale stehen tische (wie bei restaurant) auf denen die
+ * items liegen mit denen ich starten kann."_
+ *
+ * **Sein Körper ist nur so hoch wie die Platte** (0,5 m) und nicht 1,40 m wie
+ * bei jedem anderen Möbel: Die Werkzeuge liegen als Körper der Physik darauf,
+ * und ein Klotz bis über die Brust schob sie vom Tisch. Darüber springt in der
+ * Zentrale ohnehin niemand — gesperrt sind die Zellen trotzdem.
+ */
+export const SPACE_GEAR_TABLE: GameElement = {
+  id: 'space-gear-table',
+  label: 'Ausrüstungstisch',
+  aka: ['Tisch', 'Ausrüstung', 'Haunting'],
+  tiles: [2, 1],
+  height: 0.5,
+  kind: null,
+  parts: [{ model: 'furniture-bits/table_medium_long.glb' }],
+};
+
 /** Der Roboter, als der „Der Verlorene" durch die Station geht (`haunting/actorFit.ts`). */
 const ROBOT_FIGURE = 'mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb';
 
@@ -329,6 +351,7 @@ export const SPACE_ELEMENTS: readonly GameElement[] = [
   SPACE_LOCKER,
   SPACE_SUIT_STAND,
   SPACE_MONSTER_STAND,
+  SPACE_GEAR_TABLE,
   SPACE_TERMINAL,
   SPACE_HOLOGRAM,
 ];
@@ -365,6 +388,7 @@ const SPACE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'space-monster-stand',
     'space-terminal',
     'space-hologram',
+    'space-gear-table',
     'space-water-storage',
     'space-farm-small',
     'space-farm-large',

@@ -88,6 +88,12 @@ export interface RoleHost {
    * Grundriss wühlt.
    */
   switches(): readonly import('../panel').PanelSwitch[];
+  /**
+   * **Die Markierung der Zentrale** (`HauntState.pin`): setzen, wegnehmen und
+   * lesen. Optional, weil nicht jeder Wirt eine Runde hat.
+   */
+  pin?(at: { x: number; z: number } | null): void;
+  pinned?(): { x: number; z: number } | null;
   notify(message: string): void;
   /**
    * Was der Wirt darüber hinaus kann. Bewusst untypisiert an dieser Stelle:

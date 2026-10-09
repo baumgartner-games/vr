@@ -194,6 +194,12 @@ export interface MapViewOptions {
   onDoorClick?: (doorId: string) => void;
   onLightClick?: (lightId: string) => void;
   onItemClick?: (itemId: string) => void;
+  /**
+   * **Vor allem anderen gefragt** — `true` schluckt den Tipp. Die Markierung
+   * der Zentrale (`views/seatRole.ts`): Ist sie scharf, setzt der nächste
+   * Tipp das Ziel und nicht die Tür darunter.
+   */
+  onPick?: (at: { x: number; z: number }) => boolean;
   /** Ein Tipp ins Leere — Boden ohne Raum. */
   onGroundClick?: (at: { x: number; z: number }) => void;
   /** Der Nutzer hat gezogen oder gezoomt; `follow` ist damit aus. */
@@ -1753,6 +1759,7 @@ export class MapView {
 
   /** Ein Tipp: was liegt darunter? Wesen vor Items vor Türen vor Lichtern vor Räumen. */
   tap(px: number, py: number): void {
+    if (this.options.onPick?.(this.toWorld(px, py))) return;
     const s = this.snapshot;
     const near = (at: MapPoint): boolean => {
       const p = this.toScreen(at.x, at.z);

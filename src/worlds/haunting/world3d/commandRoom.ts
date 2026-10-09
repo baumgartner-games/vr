@@ -151,6 +151,36 @@ export const COMMAND_SPOTS: readonly ElementSpot[] = [
   ...COMMAND_DESKS.map(deskSpot),
 ];
 
+/**
+ * **Der Ausrüstungstisch** neben dem Anzugständer — zwei Kacheln, eine Reihe
+ * vor der Nordwand. Darauf liegt, womit der Techniker losgeht: die Lampe
+ * immer, in der Übung dazu Röntgen und Radar (`HauntingWorld.stepGear`).
+ * Gewünscht: _„in der einsatz zentrale stehen tische (wie bei restaurant) auf
+ * denen die items liegen mit denen ich starten kann."_
+ */
+export const GEAR_SPOT: ElementSpot = {
+  id: 'command-gear',
+  element: 'space-gear-table',
+  x: 2,
+  z: NORTH_ROW + 2,
+  face: 'S',
+};
+
+/** Wie hoch die Platte des Ausrüstungstischs liegt, in Metern. */
+export const GEAR_TOP = 0.5;
+
+/**
+ * **Die Plätze auf dem Tisch**, von West nach Ost: die Lampe, das
+ * Röntgengerät, das Radar — je ein Drittel der Platte.
+ */
+export function gearSlot(index: number): { x: number; y: number; z: number } {
+  return {
+    x: (GEAR_SPOT.x + 1 + (index - 1) * 0.5) * TILE,
+    y: GEAR_TOP + 0.06,
+    z: (GEAR_SPOT.z + 0.5) * TILE,
+  };
+}
+
 /** Die Kachelreihe der Sitzecke: der Couchtisch, das Sofa eine dahinter. */
 const LOUNGE_ROW = APRON.z + 10;
 
@@ -162,6 +192,7 @@ const LOUNGE_ROW = APRON.z + 10;
  */
 export const LOUNGE_SPOTS: readonly ElementSpot[] = [
   HOLOGRAM_SPOT,
+  GEAR_SPOT,
   {
     id: 'lounge-table',
     element: 'furniture-table-low-decorated',
@@ -207,6 +238,7 @@ const TILES: Readonly<Record<string, readonly [number, number]>> = {
   'furniture-cactus-a': [1, 1],
   'furniture-cactus-b': [1, 1],
   'space-hologram': [2, 2],
+  'space-gear-table': [2, 1],
 };
 
 function tilesOf(spot: ElementSpot): readonly [number, number] {

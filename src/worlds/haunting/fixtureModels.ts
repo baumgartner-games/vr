@@ -476,7 +476,50 @@ const BAND_AT = 0.4;
 /** Und wie breit es ist, in Metern. */
 const BAND_H = 0.1;
 
+/**
+ * **Jeder Kasten wird einmal gebaut, danach kopiert.** Die Station stellt bei
+ * jedem Rundenstart alle Kisten und Schränke neu hin, und jeder kostete
+ * zwanzig gerundete Quader (`ExtrudeGeometry`) und ihr Zusammenfügen —
+ * gemessen 0,2 s im Bild des Starts. Die Vorlage hängt nie in einer Szene;
+ * jede Kopie bekommt eigene Geometrie und eigene Materialien, wie es oben
+ * steht: Wer eine wegwirft, trifft keine zweite.
+ */
+const CABINET_TEMPLATES = new Map<string, { root: THREE.Group; door: number }>();
+
 function cabinet(safety: boolean, mark?: CargoMark): CabinetModel {
+  const size = safety ? LOCKER_SIZE : CARGO_SIZE;
+  const { height: h, depth: d } = size;
+  const key = `${safety}|${mark?.colour ?? ''}|${mark?.number ?? 0}`;
+  let template = CABINET_TEMPLATES.get(key);
+  if (!template) {
+    const built = buildCabinet(safety, mark);
+    template = { root: built.root, door: built.root.children.indexOf(built.door) };
+    CABINET_TEMPLATES.set(key, template);
+  }
+  const root = template.root.clone(true);
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry = mesh.geometry.clone();
+    mesh.material = (mesh.material as THREE.Material).clone();
+  });
+  root.userData.fixtureSize = size;
+  const door = root.children[template.door] as THREE.Mesh;
+  // Das Modell aus dem Regal an die Stelle des Gebauten (`world3d/stationProps.ts`).
+  dressCabinet(root, door, safety ? LOCKER_MODEL : CARGO_MODEL, size);
+  return {
+    root,
+    door,
+    size,
+    screenMount: new THREE.Vector3(0, h / 2 + (safety ? 0.12 : 0.14), d / 2 - 0.014),
+    // Auf dem mittleren Boden des Spinds (`CARGO_MODEL`), nicht darunter —
+    // dort sah man die Beute erst, wenn man sich bückte.
+    lootMount: new THREE.Vector3(0, safety ? 0.75 : 0.72, -0.025),
+  };
+}
+
+/** Die Vorlage eines Kastens, noch ohne Modell aus dem Regal (`cabinet`). */
+function buildCabinet(safety: boolean, mark?: CargoMark): { root: THREE.Group; door: THREE.Mesh } {
   const size = safety ? LOCKER_SIZE : CARGO_SIZE;
   const { width: w, height: h, depth: d } = size;
   const body = new FixtureBuilder();
@@ -522,15 +565,7 @@ function cabinet(safety: boolean, mark?: CargoMark): CabinetModel {
   door.add(details.build('door-hardware'));
   root.add(door);
   if (!safety && mark) root.add(markBand(mark, w, h, d));
-  // Das Modell aus dem Regal an die Stelle des Gebauten (`world3d/stationProps.ts`).
-  dressCabinet(root, door, safety ? LOCKER_MODEL : CARGO_MODEL, size);
-  return {
-    root,
-    door,
-    size,
-    screenMount: new THREE.Vector3(0, h / 2 + (safety ? 0.12 : 0.14), d / 2 - 0.014),
-    lootMount: new THREE.Vector3(0, safety ? 0.75 : 0.5, -0.025),
-  };
+  return { root, door };
 }
 
 /**

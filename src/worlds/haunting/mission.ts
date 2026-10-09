@@ -403,7 +403,10 @@ export function stepVitals(
   crew.venting = Math.max(0, crew.venting - step);
   // A short sprint should be felt immediately: visible breath after ~1 second,
   // saturated exertion after 4 seconds; the visor clears over 5 seconds walking.
-  crew.exertion = Math.max(0, Math.min(1, crew.exertion + (speed > 3.6 ? 0.25 : -0.2) * step));
+  // Seit es keinen Sprint mehr gibt (drei Zonen am Stock), ist Rennen das
+  // volle Gehtempo von 2,6 m/s; die alte Schwelle von 3,6 m/s erreichte
+  // niemand mehr, und das Visier beschlug nie.
+  crew.exertion = Math.max(0, Math.min(1, crew.exertion + (speed > 2.2 ? 0.25 : -0.2) * step));
   const danger =
     (crew.options.test && !crew.simulation) || !Number.isFinite(monsterDistance)
       ? 0
