@@ -175,6 +175,47 @@ export function beltLabel(offset: BeltOffset): string {
   return `${Math.round(belt.side * 100)} cm · ${height} · ${depth} cm ${where}`;
 }
 
+/**
+ * **Der Gürtel als Code** — gewünscht: _„ich will im justierer dann wissen wie
+ * der config code davon ist, dass ich den dir nennen kann."_ Drei Zahlen, zum
+ * Vorlesen gebaut und nicht zum Packen: `G26-825-H04` heißt 26 cm zur Seite,
+ * 0,825 der Augenhöhe, 4 cm hinter der Mitte (`V` davor). Wer ihn nennt, kann
+ * ihn als `DEFAULT_BELT` übernehmen lassen; `readBeltCode` liest ihn zurück.
+ */
+export function beltCode(offset: BeltOffset): string {
+  const belt = clampBelt(offset);
+  const side = String(Math.round(belt.side * 100)).padStart(2, '0');
+  const height = String(Math.round(belt.height * 1000)).padStart(3, '0');
+  const depth = String(Math.abs(Math.round(belt.forward * 100))).padStart(2, '0');
+  return `G${side}-${height}-${belt.forward >= 0 ? 'V' : 'H'}${depth}`;
+}
+
+/** Ein Code aus `beltCode` zurück in einen Gürtel — `null`, wenn er keiner ist. */
+export function readBeltCode(code: string): BeltOffset | null {
+  const match = /^G(\d{1,2})-(\d{1,3})-([VH])(\d{1,2})$/.exec(code.trim().toUpperCase());
+  if (!match) return null;
+  return clampBelt({
+    side: Number(match[1]) / 100,
+    height: Number(match[2]) / 1000,
+    forward: (match[3] === 'V' ? 1 : -1) * (Number(match[4]) / 100),
+  });
+}
+
+/**
+ * **Der Gürtel dort, wo die Hand ist** — die Umkehrung von `beltSlotPoint`:
+ * aus einem Punkt im Rig (relativ zum Kopf, waagerecht) und seiner Höhe über
+ * dem Boden werden die drei Zahlen, gespiegelt auf beide Seiten. Der
+ * Gürtel-Justierer stellt so den Gürtel an die Hand, die ihn hält.
+ */
+export function beltFromPoint(point: BeltPoint, headHeight: number, bodyYaw: number): BeltOffset {
+  const sin = Math.sin(bodyYaw);
+  const cos = Math.cos(bodyYaw);
+  const lateral = cos * point.x - sin * point.z;
+  const forward = -sin * point.x - cos * point.z;
+  const height = Number.isFinite(headHeight) && headHeight > 0.2 ? point.y / headHeight : 0;
+  return clampBelt({ side: Math.abs(lateral), height, forward });
+}
+
 /** Was der Spieler eingestellt hat, oder die Auslieferung. */
 export function beltOffset(): BeltOffset {
   try {

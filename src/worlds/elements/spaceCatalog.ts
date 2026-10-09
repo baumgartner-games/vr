@@ -131,8 +131,8 @@ export const SPACE_SUIT_STAND: GameElement = {
 };
 
 /**
- * **Der Ausrüstungstisch der Einsatzzentrale** — der lange Tisch aus
- * _Furniture Bits_, darauf liegt, womit der Techniker losgeht (Lampe, in der
+ * **Der Ausrüstungstisch der Einsatzzentrale** — zwei Arbeitstische des
+ * Restaurants (`kitchentable_A`) nebeneinander, darauf liegt, womit der Techniker losgeht (Lampe, in der
  * Übung Röntgen und Radar; `haunting/HauntingWorld.stepGear`). Gewünscht:
  * _„in der einsatz zentrale stehen tische (wie bei restaurant) auf denen die
  * items liegen mit denen ich starten kann."_
@@ -149,7 +149,13 @@ export const SPACE_GEAR_TABLE: GameElement = {
   tiles: [2, 1],
   height: 0.5,
   kind: null,
-  parts: [{ model: 'furniture-bits/table_medium_long.glb' }],
+  // Zwei Arbeitstische aus dem Restaurant nebeneinander — gewünscht: _„Die
+  // tische auf den die items liegen ist nicht schön. Ich möchte lieber
+  // restaurant-bits/kitchentable_A.glb haben."_
+  parts: [
+    { model: 'restaurant-bits/kitchentable_A.glb', pose: { at: [-0.5, 0, 0] } },
+    { model: 'restaurant-bits/kitchentable_A.glb', pose: { at: [0.5, 0, 0] } },
+  ],
 };
 
 /** Der Roboter, als der „Der Verlorene" durch die Station geht (`haunting/actorFit.ts`). */

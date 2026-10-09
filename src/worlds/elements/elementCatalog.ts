@@ -780,6 +780,12 @@ export function wallFullOf(path: string): string | null {
 export const ELEMENTS: readonly GameElement[] = [
   // Die Arbeitsplatte ist auch eine Ablage für Möbel (`shelf`): Tasse, Lampe, Monitor.
   piece('counter', 'Arbeitsplatte', 'top', [{ model: COUNTER }], { shelf: true }),
+  // **Der Arbeitstisch** — `kitchentable_A`, die Platte auf vier Beinen, auch
+  // eine Ablage. Gewünscht (Oktober 2026): _„Zudem fehlt mir dieser
+  // arbeitsplatte auch in restaurant und in möbel unter dem ordner tische."_
+  piece('kitchen-table', 'Arbeitstisch', 'top', [{ model: bits('kitchentable_A') }], {
+    shelf: true,
+  }),
   // **Die Arbeitsplatte mit Schneidebrett** — gewünscht als ein gespeichertes
   // Element und nicht als Platte, auf die jede Welt selbst ein Brett legt.
   // Das Messer liegt flach (der Baukasten liefert es stehend) und quer, auf
@@ -1234,6 +1240,15 @@ export const KITCHEN_FOLDERS: readonly FurnitureFolder[] = [
       'ice-machine',
     ],
     cover: { element: 'stove' },
+  },
+  // **Arbeitsplatten** — gewünscht: _„In restaurant fehlen mir die
+  // Arbeitsplatten als kategorie, da soll auch
+  // restaurant-bits/kitchentable_A.glb rein."_
+  {
+    id: 'counters',
+    label: 'Arbeitsplatten',
+    elements: ['counter', 'kitchen-table'],
+    cover: { element: 'kitchen-table' },
   },
   {
     id: 'supplies',

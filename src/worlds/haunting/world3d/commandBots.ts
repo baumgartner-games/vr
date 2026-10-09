@@ -4,7 +4,7 @@ import type { NpcKind } from '../../npc/npcKinds';
 import { APRON } from '../house';
 import type { SeatId } from '../rules/roundSetup';
 import { deskOf } from './commandSeats';
-import { MONSTER_SPOT, SUIT_SPOT } from './commandRoom';
+import { commandBlocks, MONSTER_SPOT, SUIT_SPOT } from './commandRoom';
 
 /**
  * **Die Bots der Einsatzzentrale** — sichtbar, als Figuren aus dem Regal.
@@ -273,6 +273,11 @@ export class CommandBots {
       const x = APRON.x + 3 + this.random() * (APRON.w - 6);
       const z = APRON.z + 2.2 + this.random() * 6.5;
       if (Math.abs(x - cx) < 1.8 && Math.abs(z - cz) < 1.8) continue;
+      // **Nicht auf ein Möbel** — gemeldet: _„ein bot spawnt leider auf dem
+      // tisch mit der lampe. Die npcs sollten nach möglichkeit nicht auf
+      // sachen spawnen."_ Dieselbe Liste, die das Gitter sperrt
+      // (`commandBlocks`), mit einem halben Meter Abstand für den Körper.
+      if (onFurniture(x, z)) continue;
       return { x, z };
     }
     return { x: cx - 3, z: APRON.z + 3 };
@@ -283,4 +288,15 @@ export class CommandBots {
     this.host.remove(bot.npc);
     this.bots.splice(index, 1);
   }
+}
+
+/** Ob ein Punkt (Meter) auf oder dicht an einem Möbel der Zentrale liegt (`commandBlocks`). */
+function onFurniture(x: number, z: number, margin = 0.5): boolean {
+  return commandBlocks().some(
+    (box) =>
+      x > box.minX - margin &&
+      x < box.maxX + margin &&
+      z > box.minZ - margin &&
+      z < box.maxZ + margin,
+  );
 }

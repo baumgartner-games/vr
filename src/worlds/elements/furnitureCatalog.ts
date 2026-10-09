@@ -397,6 +397,8 @@ const FURNITURE_GROUPS: Readonly<Record<string, readonly string[]>> = {
     'furniture-chair-stool-wood',
   ],
   tables: [
+    // Der Arbeitstisch des Restaurants steht auch hier (`elementCatalog`).
+    'kitchen-table',
     'furniture-table-small',
     'furniture-table-medium',
     'furniture-table-medium-long',

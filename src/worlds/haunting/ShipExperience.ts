@@ -322,6 +322,14 @@ const _head = new THREE.Vector3(),
  * Saum macht aus einer Kiste auf zehn Metern einen gelben Klotz.
  */
 const GOAL_SEAM: OutlineLook = { width: 0.014, maxGrow: 0.05, color: 0xffd84a };
+/** Die Säule über einer Markierung der Zentrale — gelb wie ihr Punkt auf der Karte. */
+const PIN_COLOUR = 0xffd84a;
+/** Die Säule über dem nächsten Ziel der Runde und der Pfeil dorthin (`stepPin`). */
+const GOAL_COLOUR = 0x5ff3ff;
+const _guideHead = new THREE.Vector3();
+const _guideForward = new THREE.Vector3();
+/** Wie stark die Anstrengung das Visier höchstens beschlägt (`helmetCondensation`), 0–1. */
+const VISOR_FOG_MAX = 0.25;
 /** Der Saum der Beute, die man aus einer offenen Kiste nehmen kann (`glowLoot`). */
 const LOOT_GLOW: OutlineLook = { width: 0.022, maxGrow: 0.06, color: 0x7cf7ff };
 /**
@@ -2410,12 +2418,10 @@ export class ShipExperience {
       ctx.wear(hat);
     }
     const own = this.ownBreath;
-    const breath: VisorBreath | null =
-      !immersive || own !== 'off'
-        ? null
-        : this.crew.exertion > 0.45 || this.crew.hidden
-          ? 'strong'
-          : 'light';
+    // **Immer nur leicht**, auch beim Rennen — gemeldet: _„der atem im helm
+    // ist zu stark, Ich denke es reicht (auch beim rennen) wenn wir die sicht
+    // im helm auf leichtes atmen reduzieren."_
+    const breath: VisorBreath | null = !immersive || own !== 'off' ? null : 'light';
     if (breath !== this.breath) {
       this.breath = breath;
       ctx.breathe?.(breath);
@@ -2669,11 +2675,32 @@ export class ShipExperience {
     // Gleich eingehängt, auch unsichtbar: So übersetzt `warmShaders` ihre
     // Stoffe mit, und das erste Ziel kostet kein Bild.
     if (!this.pinBeacon.parent) this.root.add(this.pinBeacon);
+    if (!this.guideArrow.parent) this.root.add(this.guideArrow);
+    const ctx = this.host.ctx;
+    const immersive = ctx.renderer.xr.isPresenting;
     const pin = this.host.state().pin;
-    const shown = !!pin && this.player && !this.crew.simulation;
+    // **In der Brille auch ohne Markierung ein Wegweiser** — gemeldet: _„Dann
+    // fehlt mir weiterhin irgendeine art von hinweis wohin ich gehen muss."_
+    // Am Schirm gibt es Kompass und Pfeil; in der Brille steht die Säule auf
+    // dem nächsten Ziel der Runde (cyan, eine Markierung der Zentrale gelb),
+    // und ein Pfeil vor der Brust zeigt dorthin (`guideArrow`).
+    const running = this.host.state().phase === 'running';
+    const goal = pin
+      ? { at: pin, pinned: true }
+      : immersive && running
+        ? (() => {
+            const next = this.goals().find((one) => one.next);
+            return next ? { at: next.at, pinned: false } : null;
+          })()
+        : null;
+    const shown = !!goal && this.player && !this.crew.simulation && !this.crew.hidden;
     this.pinBeacon.visible = shown;
+    this.guideArrow.visible = shown && immersive && this.crew.hp > 0;
     if (!shown) return;
-    this.pinBeacon.position.set(pin.x, 0, pin.z);
+    this.pinBeacon.position.set(goal.at.x, 0, goal.at.z);
+    const colour = goal.pinned ? PIN_COLOUR : GOAL_COLOUR;
+    for (const child of this.pinBeacon.children)
+      ((child as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(colour);
     this.pinClock += dt;
     const pulse = 0.5 + 0.5 * Math.sin(this.pinClock * 4);
     const ring = this.pinBeacon.children[1] as THREE.Mesh<
@@ -2681,7 +2708,49 @@ export class ShipExperience {
       THREE.MeshBasicMaterial
     >;
     ring.scale.setScalar(1 + pulse * 0.35);
+    if (!this.guideArrow.visible) return;
+    // Der Pfeil: 0,55 m vor und 0,5 m unter den Augen, flach, zum Ziel gedreht.
+    ctx.rig.getHeadPosition(_guideHead);
+    ctx.rig.getHeadForward(_guideForward);
+    const dx = goal.at.x - _guideHead.x;
+    const dz = goal.at.z - _guideHead.z;
+    const far = Math.hypot(dx, dz);
+    // Wer davorsteht, braucht keinen Pfeil mehr.
+    this.guideArrow.visible = far > 1.5;
+    this.guideArrow.position.set(
+      _guideHead.x + _guideForward.x * 0.55,
+      _guideHead.y - 0.5,
+      _guideHead.z + _guideForward.z * 0.55,
+    );
+    this.guideArrow.rotation.set(0, Math.atan2(-dx, -dz), 0);
+    ((this.guideArrow.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(
+      colour,
+    );
   }
+  /**
+   * **Der Pfeil vor der Brust** (`stepPin`): ein flacher Pfeil aus Kegel und
+   * Stiel, der zum nächsten Ziel zeigt. Ein Stoff für beide Teile, unbeleuchtet.
+   */
+  private readonly guideArrow = (() => {
+    const group = new THREE.Group();
+    group.name = 'guide-arrow';
+    const material = new THREE.MeshBasicMaterial({
+      color: GOAL_COLOUR,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.1, 12), material);
+    head.rotation.x = -Math.PI / 2;
+    head.position.z = -0.08;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.1, 8), material);
+    shaft.rotation.x = -Math.PI / 2;
+    shaft.position.z = 0.02;
+    group.add(head, shaft);
+    group.visible = false;
+    return group;
+  })();
   private stepMonsterProbe(): void {
     const monster = this.host.state().monster;
     const shown = !!monster && this.host.state().monsterOn && !this.crew.simulation;
@@ -2948,7 +3017,9 @@ export class ShipExperience {
         ((state.phase === 'lost' || state.phase === 'won') && ctx.renderer.xr.isPresenting);
       this.visor.visible =
         !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
-      this.visor.material.uniforms.fogAmount!.value = crew.exertion;
+      // Der Beschlag der Anstrengung höchstens leicht — dieselbe Klage wie
+      // beim Atem (`stepHelmet`): Beim Rennen war die Sicht sonst weg.
+      this.visor.material.uniforms.fogAmount!.value = Math.min(crew.exertion, VISOR_FOG_MAX);
       this.visor.material.uniforms.time!.value += dt;
       this.visor.material.uniforms.damage!.value = Math.max(
         crew.hidden ? 0.2 : 0,

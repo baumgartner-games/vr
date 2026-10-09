@@ -41,6 +41,7 @@ import {
   ENTITY_PROFILES,
   hearNoises,
   stepAwareness,
+  freshThreat,
   takeAlert,
   type NoiseSource,
   type ThreatState,
@@ -49,7 +50,7 @@ import { Hearing, reachOf } from '../audio/hearing';
 import { NOISE, stepLoudness } from '../audio/cues';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
 import { freshSpook, stepHaunt, type Spook } from '../haunt';
-import { COMMAND_HOME } from '../house';
+import { APRON, COMMAND_HOME, roomCentre } from '../house';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark, type CargoSlot } from '../rules/cargo';
@@ -159,6 +160,10 @@ export const MONSTER_RADIUS = 0.3;
  * (`rules/technicianBot.DREAD_CORE`).
  */
 export const CONTACT = 1.7;
+/** Wie nah das Monster der Zentrale kommen darf, solange der Techniker darin steht, in Metern (`stepRepel`). */
+export const REPEL_RANGE = 9;
+/** Wie lange die Abwehr danach ruht, in Sekunden. */
+export const REPEL_COOLDOWN = 20;
 /** Wie weit die Taschenlampe leuchtet und wie breit. */
 export const TORCH_RANGE = 11;
 export const TORCH_FOV = (52 * Math.PI) / 180;
@@ -1185,6 +1190,10 @@ export class FlatRound implements MapSource {
       return;
     }
 
+    // --- **Die Abwehr der Zentrale** (`stepRepel`): Wer in der Zentrale
+    // steht, vor dessen Tür wartet nichts.
+    if (!piloted) this.stepRepel(dt);
+
     // --- Wahrnehmung des Monsters: Sehen über die Karte, Hören über das
     // Hörmodell, die Alarmleiter aus `threat.ts` — dieselbe wie im Headset.
     const profile = ENTITY_PROFILES[crew.options.monster];
@@ -1328,7 +1337,12 @@ export class FlatRound implements MapSource {
         );
     } else {
       // Der Lotse biegt das Ziel auf eine Klappe um, wenn der Schacht lohnt (`vents/ventPilot.ts`).
-      const steered = this.ventPilot.steer(decision, this.monster, this.haunt.time, this.prowl);
+      // Vertrieben (`stepRepel`): Es geht in den fernsten Raum, was immer die
+      // Routine wollte — solange der Techniker in der Zentrale bleibt.
+      const chosen = this.repelGoal
+        ? { ...decision, goal: this.repelGoal, pace: 'walk' as const }
+        : decision;
+      const steered = this.ventPilot.steer(chosen, this.monster, this.haunt.time, this.prowl);
       if (!this.ventRide.busy)
         this.moveMonster(
           steered,
@@ -1351,6 +1365,64 @@ export class FlatRound implements MapSource {
     // diesem Moment schaut niemand auf seine Knöpfe (`monster/monsterHelm.ts`).
     if (gap < CONTACT && !hidden && takeCrewHit(crew, true)) this.hit('Treffer.');
   }
+
+  /**
+   * **Die Abwehr der Zentrale** — gemeldet: _„das monster chillt teilweise in
+   * der caferteria, weil ich in der einsatz zentrale bin. Ich bräuchte
+   * irgendeine art von abschreckung für das monster."_ Betreten konnte es die
+   * Zentrale nie (`stepMonster`); aber sein Gedächtnis hielt den Techniker
+   * hinter der Schleuse fest, und es lauerte davor.
+   *
+   * Steht der Techniker in der Zentrale und kommt das Monster ihr näher als
+   * `REPEL_RANGE`, schlägt die Abwehr an: Es vergisst, was es wahrgenommen
+   * hat, und hört einen lauten Knall im Raum, der am weitesten von der
+   * Zentrale weg liegt — dorthin geht es nachsehen. Dann ruht die Abwehr
+   * `REPEL_COOLDOWN` Sekunden.
+   */
+  private stepRepel(dt: number): void {
+    this.repelClock = Math.max(0, this.repelClock - dt);
+    const inside = onApron(Math.floor(this.player.x / TILE), Math.floor(this.player.z / TILE));
+    // Angekommen, oder der Techniker ist hinaus: Die Routine übernimmt wieder.
+    if (
+      this.repelGoal &&
+      (!inside ||
+        Math.hypot(this.repelGoal.x - this.monster.x, this.repelGoal.z - this.monster.z) < 2.5)
+    )
+      this.repelGoal = null;
+    if (this.repelClock > 0 || this.repelGoal || !inside) return;
+    const ax = Math.max(
+      APRON.x * TILE - this.monster.x,
+      0,
+      this.monster.x - (APRON.x + APRON.w) * TILE,
+    );
+    const az = Math.max(
+      APRON.z * TILE - this.monster.z,
+      0,
+      this.monster.z - (APRON.z + APRON.d) * TILE,
+    );
+    if (Math.hypot(ax, az) > REPEL_RANGE) return;
+    let far: { x: number; z: number } | null = null;
+    let best = -1;
+    for (const room of this.house.rooms) {
+      if (room.id === this.monster.space) continue;
+      const centre = roomCentre(room);
+      const x = (centre.x + 0.5) * TILE;
+      const z = (centre.z + 0.5) * TILE;
+      const away = Math.hypot(x - COMMAND_HOME.x, z - COMMAND_HOME.z);
+      if (away > best) {
+        best = away;
+        far = { x, z };
+      }
+    }
+    if (!far) return;
+    this.repelClock = REPEL_COOLDOWN;
+    this.repelGoal = far;
+    Object.assign(this.memory, freshThreat(), { loud: far });
+    this.events.push({ kind: 'info', text: 'Die Abwehr der Zentrale vertreibt es.' });
+  }
+  private repelClock = 0;
+  /** Wohin die Abwehr das Monster geschickt hat — `null`, solange die Routine bestimmt. */
+  private repelGoal: { x: number; z: number } | null = null;
 
   /**
    * **Der Spuk der Mission** (`haunt.ts`): Das Monster macht Lampen aus und

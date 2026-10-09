@@ -146,6 +146,7 @@ Alles aus _Restaurant Bits_ (`restaurant-bits/…`), außer wo es dasteht.
 | Id                                                | Name                                 | Art (`kind`)                                 | Teile                                                                                                                                                                                                                                                         |
 | ------------------------------------------------- | ------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `counter`                                         | Arbeitsplatte                        | `top`                                        | `counter_A`                                                                                                                                                                                                                                                   |
+| `kitchen-table`                                   | Arbeitstisch (Restaurant → Arbeitsplatten, Möbel → Tische)| `top`                                        | `kitchentable_A`                                                                                                                                                                                                                                              |
 | `board`                                           | Arbeitsplatte mit Schneidebrett      | `board`, `work: 'chop'`                      | `counter_B`, `cuttingboard` (Ablage), `knife` flach und quer                                                                                                                                                                                                  |
 | `rolling-board`                                   | Nudelbrett                           | `board`, `work: 'roll'`                      | `counter_A`, `rollingpin` auf 10 cm                                                                                                                                                                                                                           |
 | `crate-buns` … `crate-mushrooms`                  | zwölf Vorratskisten                  | `crate`                                      | je eine Kiste mit Inhalt (`crate_buns`, `crate_steak`, …); `crate()` baut sie. Die Steakkiste gibt ein Steak (brät wie Schinken, auf dem Brett wird es zum Patty)                                                                                             |
@@ -383,8 +384,8 @@ drei haben keinen Zweck in der Küche (`kind: null`) und leuchten (`lit`); was
 `A` an ihnen tut, hängt Haunting selbst an (`HauntingWorld.bindCommandSpot`):
 Anzüge an- und ausziehen, Platz nehmen, _Verbindung_ oder
 _Spiel-Einstellungen_ öffnen. Anderswo hingestellt, stehen sie da. Dazu der
-**Ausrüstungstisch** (`space-gear-table`, 2 × 1 Kacheln, der lange Tisch aus
-_Furniture Bits_) — als einziges Möbel mit einem **Körper so hoch wie die
+**Ausrüstungstisch** (`space-gear-table`, 2 × 1 Kacheln, zwei Arbeitstische
+`kitchentable_A` des Restaurants) — als einziges Möbel mit einem **Körper so hoch wie die
 Platte** (0,5 m statt 1,40 m), weil auf ihm Werkzeuge als Körper der Physik
 liegen (Lampe, Röntgen, Radar; `HauntingWorld.stepGear`).
 
