@@ -822,6 +822,7 @@ export class App {
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
       dress: (figure) => this.dress(figure),
+      breathe: (mode) => (this.selfHelmet.breath = mode),
       openOutfit: () => this.openOutfit(),
       openNetwork: () => this.openNetwork(),
       openMenu: (id, options) => this.openMenuAt(id, options),

@@ -293,7 +293,8 @@ export class HolsterTool extends Tool {
           forward: -_delta.x * sin - _delta.z * cos,
         },
         picked,
-        host.ctx.rig.getHeadHeight(),
+        // Dieselbe Höhe, an der der Gürtel hängt (`ToolBelt.update`).
+        Math.max(host.ctx.rig.getHeadHeight(), host.ctx.rig.flatEyeHeight * host.ctx.rig.eyeScale),
       ),
     );
   }

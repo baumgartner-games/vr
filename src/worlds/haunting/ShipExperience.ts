@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { SPACE_RANGER } from '../../core/avatarFigures';
+import { IMMERSIVE_HAT } from '../../core/figureParts';
+import type { HeadgearKind } from '../../core/headgear';
+import { graphics, onGraphicsChange, type VisorBreath } from '../../core/graphicsSettings';
 import { denyShadow } from '../../core/graphicsScene';
 import './haunting.css';
 import { clickedKey, el } from './ui/dom';
@@ -694,6 +697,8 @@ export class ShipExperience {
       // Raumhelm aus dem Regal, geliehen für die Dauer der Station.
       host.ctx.dress?.(SPACE_RANGER);
       host.ctx.wear('space');
+      // In der Brille dreht der Körper mit dem Blick, ohne Schulterblick.
+      host.ctx.avatar.turnSlack = 0;
       this.dom.setAttribute('aria-label', 'Haunting Spielsteuerung');
       this.dom.addEventListener('click', this.domClick);
       this.crosshair.setAttribute('aria-hidden', 'true');
@@ -949,9 +954,27 @@ export class ShipExperience {
   private get player(): boolean {
     return this.host.ctx.role === 'vr';
   }
+  /**
+   * **Ob Kisten, Konsolen und Medkit antworten** — in der echten Runde und in
+   * jeder Übungsrunde, auch der vor dem Start. Gewünscht: _„in einer
+   * übungsrunde will ich auch die gegenstände alle sammeln können um die
+   * rätsel zu probieren"_. Was man dort einsammelt, nimmt der Start der
+   * echten Runde mit dem frischen Stand wieder weg (`newRound`).
+   */
   private get active(): boolean {
     const phase = this.host.state().phase;
-    return this.player && (phase === 'running' || this.crew.options.test) && !this.crew.simulation;
+    return (
+      this.player &&
+      (phase === 'running' || this.crew.options.test || this.roundMode() === 'practice') &&
+      !this.crew.simulation
+    );
+  }
+  /**
+   * **In der Übung trägt man alle Teile auf einmal** — „eine Hand, ein
+   * Ersatzteil" (`archiveGoals.canCarryPart`) gilt nur, wenn es zählt.
+   */
+  private get carryFree(): boolean {
+    return this.roundMode() === 'practice';
   }
   /**
    * **Ob der Schutzschrank antwortet** — weiter gefasst als `active`: auch in
@@ -1419,7 +1442,7 @@ export class ShipExperience {
     // danach die Konsolen ab, und der halbe Weg durch das Schiff fiele weg.
     // Die Kiste bleibt dabei **offen und unerledigt**: Wer zurückkommt, findet
     // sie so vor, wie er sie verlassen hat.
-    if (part && !canCarryPart(spec, state)) {
+    if (part && !this.carryFree && !canCarryPart(spec, state)) {
       this.host.say(fullHandsText(spec, state));
       this.sound('error');
       return;
@@ -1542,7 +1565,7 @@ export class ShipExperience {
     const spec = this.host.spec();
     const state = this.host.state();
     if (!this.roundOnly()) return;
-    if (!canCarryPart(spec, state)) {
+    if (!this.carryFree && !canCarryPart(spec, state)) {
       this.host.say(fullHandsText(spec, state));
       this.sound('error');
       return;
@@ -2356,6 +2379,42 @@ export class ShipExperience {
     this.suit.add(this.wound);
     this.updateSuitVisibility();
   }
+  /**
+   * **Im Anzug in der Brille den Helm auf — mit Atem.** Gewünscht: _„in vr
+   * soll in haunting bei dem anzug der helm mit dem atem angezogen werden"_.
+   * In der Brille trägt der Techniker den immersiven Helm
+   * (`figureParts.IMMERSIVE_HAT`, `core/selfHelmet.ts`): Die anderen sehen
+   * denselben Helm an der Figur, er selbst sieht ihn um seinen Kopf, und das
+   * Visier beschlägt im Takt des Atems — ruhig beim Gehen, schnell und dicht,
+   * wenn er rennt (`crew.exertion`) oder im Schrank still hält. Am Schirm
+   * bleibt es beim Raumhelm, der aus den Augen nichts verdeckt. Hat jemand
+   * _Visier / Atem_ selbst eingestellt, gilt seine Einstellung.
+   */
+  private stepHelmet(ctx: WorldContext): void {
+    const immersive = ctx.renderer.xr.isPresenting;
+    const hat: HeadgearKind = immersive ? IMMERSIVE_HAT : 'space';
+    if (hat !== this.hat) {
+      this.hat = hat;
+      ctx.wear(hat);
+    }
+    const own = this.ownBreath;
+    const breath: VisorBreath | null =
+      !immersive || own !== 'off'
+        ? null
+        : this.crew.exertion > 0.45 || this.crew.hidden
+          ? 'strong'
+          : 'light';
+    if (breath !== this.breath) {
+      this.breath = breath;
+      ctx.breathe?.(breath);
+    }
+  }
+  private hat: HeadgearKind = 'space';
+  /** _Visier / Atem_ der Einstellung, gemerkt statt je Bild gelesen. */
+  private ownBreath = graphics().visorBreath;
+  private readonly stopGraphics = onGraphicsChange(() => (this.ownBreath = graphics().visorBreath));
+  private breath: VisorBreath | null = null;
+
   private updateSuitVisibility(): void {
     // Nachgezogen wird trotzdem bei jedem Wechsel in die Brille und zurück:
     // Was dazwischen am Körper angebaut wurde, soll auf keiner anderen Ebene
@@ -2498,7 +2557,14 @@ export class ShipExperience {
   private updateTools(dt: number): void {
     const ctx = this.host.ctx;
     const immersive = ctx.renderer.xr.isPresenting;
-    const available = this.player && !this.crew.simulation && !this.crew.hidden && this.crew.hp > 0;
+    // **Wer fällt, behält sein Licht** (`fallen`): Lampe und Glimmlicht
+    // bleiben an, nur ohne Gehäuse, und die Lampe schaut senkrecht hinunter
+    // auf den Körper — das ist das Licht über dem Toten. Ginge sie aus, und
+    // käme dafür ein eigener Strahler, änderte sich die Zahl der Lichter, und
+    // three.js übersetzte im Augenblick des Todes jeden Shader der Station neu
+    // (gemessen: Sekunden ohne Bild).
+    const fallen = this.crew.hp <= 0;
+    const available = this.player && !this.crew.simulation && !this.crew.hidden;
     // **Das Ersatzteil bleibt in der Hand, auch wenn die Hand etwas anderes
     // zeigt.** `rightItem` sagt nur, was man *sieht*; getragen wird, was im
     // Inventar steht (`carriedPart`). Sonst wäre ein Umschalten auf die Lampe
@@ -2511,23 +2577,25 @@ export class ShipExperience {
     // lichtkegel auch unten den boden bereich (wie ein dreieck) beleuchten"_).
     // Dort neigt sie sich deshalb nach unten; aus den Augen und in der Brille
     // zeigt sie weiter, wohin man schaut.
-    const tilt = ctx.topDown && !immersive ? TORCH_TILT_TOP : 0;
+    const tilt = fallen ? -Math.PI / 2 : ctx.topDown && !immersive ? TORCH_TILT_TOP : 0;
     this.torch.rotation.x = tilt;
     this.scanner.rotation.x = tilt;
     this.torch.visible = available && !immersive && this.rightItem !== 'off';
     this.heldLamp.visible = this.rightItem === 'flashlight';
     this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight' && this.torchLit);
-    this.heldMedkit.visible = this.rightItem === 'medkit';
+    this.heldLamp.setHousingVisible(!fallen);
+    this.leftLamp.setHousingVisible(!fallen);
+    this.heldMedkit.visible = this.rightItem === 'medkit' && !fallen;
     // In der Brille hält die Hand selbst das Teil: Der Griff des rechten
     // Controllers ist die Hand, und das Modell hängt daran, solange es
     // getragen wird. Nur beim Wechsel umgehängt — jedes Bild neu einhängen
     // hieße, den Szenengraph je Bild anzufassen.
-    const inHand = !!part && available && immersive;
+    const inHand = !!part && available && !fallen && immersive;
     this.carryInHand(inHand);
-    this.heldPart.visible = inHand || (!immersive && this.rightItem === 'part');
+    this.heldPart.visible = inHand || (!immersive && !fallen && this.rightItem === 'part');
     this.scanner.visible = available && !immersive && this.sensorMode !== 'off';
-    this.handheldRadar.visible = this.sensorMode === 'radar';
-    this.handheldXray.visible = this.sensorMode === 'xray';
+    this.handheldRadar.visible = this.sensorMode === 'radar' && !fallen;
+    this.handheldXray.visible = this.sensorMode === 'xray' && !fallen;
     this.leftLamp.visible = this.sensorMode === 'flashlight';
     this.leftLamp.setLit(this.scanner.visible && this.sensorMode === 'flashlight');
     this.stepDropped();
@@ -2690,6 +2758,7 @@ export class ShipExperience {
     this.effects.update(dt);
     if (this.player) {
       this.updateSuitVisibility();
+      this.stepHelmet(ctx);
       // Das Ende zeigt am Bildschirm die Tafel (`stepEnd`, „Mission
       // gescheitert" und der Knopf mit der Uhr); der Schirm an der Kamera ist
       // dann nur noch für die Brille da.
@@ -2849,7 +2918,6 @@ export class ShipExperience {
         this.endDone = false;
         ctx.avatar.revive();
         ctx.avatar.setSpirit(false);
-        if (this.deathLight) this.deathLight.visible = false;
         if (this.viewBefore) ctx.topDownView?.set(this.viewBefore);
         this.viewBefore = null;
       }
@@ -2861,9 +2929,11 @@ export class ShipExperience {
       if (phase === 'lost') {
         ctx.avatar.act('death');
         // **Als Geist und im Licht** — sonst lag die Figur in einer dunklen
-        // Station im Schwarzen, und vom Umfallen sah man nichts.
+        // Station im Schwarzen, und vom Umfallen sah man nichts. Das Licht ist
+        // die eigene Lampe, die jetzt hinunterleuchtet (`updateTools`,
+        // `fallen`), und kein eigener Strahler mehr: Ein Licht mehr übersetzte
+        // jeden Shader der Station neu.
         ctx.avatar.setSpirit(true);
-        this.lightBody(_head);
       }
       const view = ctx.topDown ? ctx.topDownView : undefined;
       if (view) {
@@ -2882,27 +2952,6 @@ export class ShipExperience {
     if (count && count.textContent !== text) count.textContent = text;
     if (this.endClock <= 0) this.respawn();
   }
-
-  /**
-   * **Ein Licht über dem Toten**: ein kühler Spot von oben, nur solange die
-   * Endkarte zählt. Er wird erst beim ersten Tod gebaut — ein Licht mehr in
-   * der Szene kostet in jedem Bild, und die Runde ist dann ohnehin vorbei.
-   */
-  private lightBody(at: THREE.Vector3): void {
-    if (!this.deathLight) {
-      const light = new THREE.SpotLight(0xb8e8ff, 40, 9, 0.6, 0.6, 1.4);
-      light.name = 'technician-death-light';
-      light.castShadow = false;
-      this.root.add(light, light.target);
-      this.deathLight = light;
-    }
-    const light = this.deathLight;
-    light.position.set(at.x, 4.2, at.z);
-    light.target.position.set(at.x, 0, at.z);
-    light.target.updateMatrixWorld();
-    light.visible = true;
-  }
-  private deathLight: THREE.SpotLight | null = null;
 
   /**
    * **Zurück in die Einsatzzentrale** — der Knopf der Endkarte, `A` nach dem
@@ -4276,8 +4325,11 @@ export class ShipExperience {
     this.effects.dispose();
     this.audio.dispose();
     this.hearingAudio.dispose();
+    this.stopGraphics();
     if (this.player) {
       this.host.ctx.wear(null);
+      this.host.ctx.breathe?.(null);
+      this.host.ctx.avatar.turnSlack = THREE.MathUtils.degToRad(38);
       this.host.ctx.dress?.(null);
       this.host.ctx.avatar.traverse((o) => o.layers.set(LAYER_SELF_ONLY));
       this.host.ctx.rig.frozen = false;

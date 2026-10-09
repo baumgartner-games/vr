@@ -1,3 +1,4 @@
+import type { VisorBreath } from './graphicsSettings';
 import type { HintZone } from './controlHints';
 import type { GamepadFrame } from './gamepad';
 import type * as THREE from 'three';
@@ -159,6 +160,13 @@ export interface WorldContext {
    * steckt jeden in den Space Ranger. Optional, weil nur die App es kann.
    */
   dress?(figure: string | null): void;
+  /**
+   * **Wie stark das Visier des immersiven Helms beschlägt** — geliehen wie
+   * `wear`: Eine Welt, die den Helm aufsetzt, darf sagen, wie man darin atmet
+   * (Orbital: ruhig, unter Last schnell). `null` gibt es der Einstellung
+   * _Grafik → Visier / Atem_ zurück. Optional, weil nur die App es kann.
+   */
+  breathe?(mode: VisorBreath | null): void;
   /**
    * **_Aussehen_ aufmachen** (`ui/outfitMenu.ts`).
    *

@@ -3,6 +3,7 @@ import { cellKey } from '../nav/cellGrid';
 import { stationFixtureCells } from './map/stationCells';
 import { NavigationOverlay } from './navigationOverlay';
 import * as THREE from 'three';
+import { ProgramHold } from '../../core/programHold';
 import { FurnishedWorld } from '../grid/FurnishedWorld';
 import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import {
@@ -785,6 +786,15 @@ export class HauntingWorld extends FurnishedWorld {
   private blob: ShipActor | null = null;
   /** Für welche Runde die Shader schon vorab übersetzt sind (`warmShaders`). */
   private warmedFor = '';
+  /**
+   * **Die Programme des alten Hauses** (`core/programHold.ts`): Beim Neubau
+   * der Station (`newRound`, `mountExperience`) geben die alten Materialien
+   * ihre Shader erst her, wenn das neue Haus übersetzt ist (`warmShaders`).
+   */
+  private readonly programs = new ProgramHold();
+  /** Die gebaute Station und wofür (`buildHouse`) — bleibt, solange der Plan gleich ist. */
+  private shipArt: THREE.Group | null = null;
+  private shipArtKey = '';
   /** Wie lange die Runde schon läuft, bis vorab übersetzt wird. */
   private warmClock = 0;
   /** Die flachen Flecken auf dem Boden — Weltgeometrie, damit sie in der Brille steht. */
@@ -1575,6 +1585,8 @@ export class HauntingWorld extends FurnishedWorld {
     this.stationWalls = null;
     this.runMaterial?.dispose();
     this.runMaterial = null;
+    this.shipArt = null;
+    this.shipArtKey = '';
     dispose(this.stage);
     dispose(this.live);
     this.bloodShape?.dispose();
@@ -1599,6 +1611,7 @@ export class HauntingWorld extends FurnishedWorld {
     this.paperSun = null;
     this.paperTint(false);
     super.dispose(ctx);
+    this.programs.release();
   }
 
   // --- was gebaut wird ------------------------------------------------------
@@ -1610,9 +1623,20 @@ export class HauntingWorld extends FurnishedWorld {
     this.dropFixtures();
     this.doorButtons?.dispose();
     this.doorButtons = null;
+    // **Dieselbe Station wird nicht neu gebaut.** Jeder Rundenstart und jedes
+    // Zurück in die Zentrale ruft `newRound`, und der Samen ist fest
+    // (`STATION_SEED`): Wände, Böden und Einbauten kamen jedes Mal genau so
+    // wieder, für gut eine halbe Sekunde ohne Bild. Gleicher Samen, gleiche
+    // Zahl Räume — dann bleibt die Geometrie stehen (`buildShip` ist reine
+    // Rechnung aus dem Plan); was die Runde ändert, hängt nicht daran.
+    const artKey = `${this.spec.seed}|${this.spec.rooms.length}`;
+    const kept = artKey === this.shipArtKey ? this.shipArt : null;
+    kept?.removeFromParent();
     dispose(this.stage);
     this.lamps.clear();
-    const art = buildShip(this.spec);
+    const art = kept ?? buildShip(this.spec);
+    this.shipArt = art;
+    this.shipArtKey = artKey;
     this.stage.add(art);
     this.ventArt = new VentFlapArt(this.spec, this.vents);
     this.stage.add(this.ventArt.group);
@@ -1726,6 +1750,7 @@ export class HauntingWorld extends FurnishedWorld {
   }
 
   private mountExperience(ctx: WorldContext): void {
+    this.programs.hold(ctx.scene);
     this.experience?.dispose();
     this.experience = new ShipExperience({
       ctx,
@@ -2893,17 +2918,30 @@ export class HauntingWorld extends FurnishedWorld {
    * gemessen. Bis dahin steht auch das Monster (`applyBlob`).
    */
   private warmShaders(dt: number, ctx: WorldContext): void {
-    if (this.state.phase !== 'running') {
+    const running = this.state.phase === 'running';
+    const options = this.state.crew.options;
+    const key = `${this.spec.seed}|${this.spec.rooms.length}|${options.monster}|${options.test}`;
+    // **Auch nach jedem Neubau**, nicht nur einmal je Runde: Solange die
+    // alten Materialien ihre Programme halten (`programs`), ist das Übersetzen
+    // fast nur Nachschlagen — und erst danach dürfen sie gehen.
+    if (!(running && key !== this.warmedFor) && !this.programs.holding) {
       this.warmClock = 0;
       return;
     }
-    const options = this.state.crew.options;
-    const key = `${this.spec.seed}|${this.spec.rooms.length}|${options.monster}|${options.test}`;
-    if (key === this.warmedFor) return;
     this.warmClock += dt;
     if (this.warmClock < WARM_AFTER) return;
-    this.warmedFor = key;
-    ctx.renderer.compile(ctx.scene, ctx.camera);
+    this.warmClock = 0;
+    if (running) {
+      this.warmedFor = key;
+      // Und den Geist, zu dem der Techniker beim Tod wird (`setSpirit`).
+      if (ctx.role === 'vr') ctx.avatar.warmSpirit(ctx.renderer, ctx.camera, ctx.scene);
+    }
+    // **Ohne zu warten**, wo der Treiber nebenher übersetzen kann
+    // (`KHR_parallel_shader_compile`, die Quest kann es): `compile` stellt die
+    // Programme an, gebunden wird erst beim ersten Zeichnen. Vorher stand das
+    // Bild hier, bis alle fertig waren.
+    void ctx.renderer.compileAsync(ctx.scene, ctx.camera);
+    this.programs.release();
   }
 
   /**
@@ -5503,6 +5541,8 @@ export class HauntingWorld extends FurnishedWorld {
 
   private newRound(options: StationOptions = this.state.crew.options): void {
     if (!this.isHost) return;
+    // Das alte Haus behält seine Shader, bis das neue übersetzt ist.
+    if (this.context) this.programs.hold(this.context.scene);
     this.removeMonster();
     this.rules.reset();
     this.locks = freshLocks();

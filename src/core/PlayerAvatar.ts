@@ -21,6 +21,10 @@ const _feet = new THREE.Vector3();
 const _turn = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 
+function disposeAll(material: THREE.Material | THREE.Material[]): void {
+  for (const one of Array.isArray(material) ? material : [material]) one.dispose();
+}
+
 /** Ein Stoff als Geist: derselbe, halb durchsichtig. */
 function ghostOf(material: THREE.Material): THREE.Material {
   const ghost = material.clone();
@@ -138,6 +142,17 @@ export class PlayerAvatar extends AvatarBody {
   private craneLeft = false;
   /** Die eigenen Stoffe der Figur, solange sie als Geist dasteht (`setGhostly`). */
   private readonly ghostWorn = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+  /**
+   * **Die Geister-Abzüge bleiben liegen** — je Art (`ghostOf`, `spiritOf`) und
+   * Netz. Ein frischer Abzug ist ein neues Material, und ein durchsichtiges
+   * braucht andere Shader als das Original: Beim Tod des Technikers wurden
+   * die im Augenblick des Umfallens übersetzt. Liegen sie, kann man sie vorab
+   * übersetzen (`warmSpirit`), und sie halten ihre Programme.
+   */
+  private readonly ghostCache = new Map<
+    (material: THREE.Material) => THREE.Material,
+    Map<THREE.Mesh, THREE.Material | THREE.Material[]>
+  >();
 
   /**
    * **Ob man gerade der Kran ist** — der Greifer schwebt über dem Kopf
@@ -207,22 +222,45 @@ export class PlayerAvatar extends AvatarBody {
     make: (material: THREE.Material) => THREE.Material = ghostOf,
   ): void {
     if (on) {
+      let cache = this.ghostCache.get(make);
+      if (!cache) this.ghostCache.set(make, (cache = new Map()));
+      const live = new Set<THREE.Mesh>();
       this.traverse((object) => {
         const mesh = object as THREE.Mesh;
-        if (!mesh.isMesh || this.ghostWorn.has(mesh)) return;
+        if (!mesh.isMesh) return;
+        live.add(mesh);
+        if (this.ghostWorn.has(mesh)) return;
         this.ghostWorn.set(mesh, mesh.material);
-        mesh.material = Array.isArray(mesh.material)
-          ? mesh.material.map(make)
-          : make(mesh.material);
+        let ghost = cache.get(mesh);
+        if (!ghost) {
+          ghost = Array.isArray(mesh.material) ? mesh.material.map(make) : make(mesh.material);
+          cache.set(mesh, ghost);
+        }
+        mesh.material = ghost;
       });
+      // Wer die Figur gewechselt hat, hat neue Netze: Die Abzüge der alten gehen.
+      for (const [mesh, ghost] of cache)
+        if (!live.has(mesh)) {
+          disposeAll(ghost);
+          cache.delete(mesh);
+        }
       return;
     }
-    for (const [mesh, worn] of this.ghostWorn) {
-      const ghost = mesh.material;
-      for (const one of Array.isArray(ghost) ? ghost : [ghost]) one.dispose();
-      mesh.material = worn;
-    }
+    for (const [mesh, worn] of this.ghostWorn) mesh.material = worn;
     this.ghostWorn.clear();
+  }
+
+  /**
+   * **Den Geist vorab übersetzen** (`spiritOf`), damit das Umfallen kein Bild
+   * kostet: einmal anziehen, für die Lichter von `scene` übersetzen, wieder
+   * ausziehen. Die Abzüge bleiben liegen (`ghostCache`) und mit ihnen ihre
+   * Programme.
+   */
+  warmSpirit(renderer: THREE.WebGLRenderer, camera: THREE.Camera, scene: THREE.Scene): void {
+    if (this.ghostWorn.size) return;
+    this.setGhostly(true, spiritOf);
+    renderer.compile(this, camera, scene);
+    this.setGhostly(false);
   }
 
   /**
@@ -357,6 +395,9 @@ export class PlayerAvatar extends AvatarBody {
 
   override dispose(): void {
     this.setGhostly(false);
+    for (const cache of this.ghostCache.values())
+      for (const ghost of cache.values()) disposeAll(ghost);
+    this.ghostCache.clear();
     this.craneMesh?.removeFromParent();
     if (this.craneMesh) disposeCrane(this.craneMesh);
     this.craneMesh = null;

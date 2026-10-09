@@ -230,6 +230,20 @@ export class FlashlightTool extends Tool {
     this.applyBeam();
   }
 
+  /**
+   * **Das Gehäuse aus, das Licht bleibt.** Für eine Lampe, die gerade niemand
+   * hält, deren Licht aber nicht ausgehen darf: Jede Lampe, die verschwindet,
+   * ändert die Zahl der Lichter, und dafür baut three.js die Shader aller
+   * beleuchteten Materialien neu (Orbital, der Tod des Technikers).
+   */
+  setHousingVisible(on: boolean): void {
+    for (const child of this.children) {
+      if (child === this.beam || child === this.beam.target || child === this.glow) continue;
+      if (child === this.cone) continue;
+      child.visible = on;
+    }
+  }
+
   /** Switches the torch on or off without anybody pressing anything. */
   setLit(on: boolean): void {
     if (this.on === on) return;
