@@ -427,6 +427,11 @@
 .role--seat:has(> .role--archive.is-hole) > .role.is-sheet {
   background: none;
 }
+/* Das Ziel für den Techniker (`seatRole.ts`, `HauntState.pin`): unten rechts über der Karte. */
+.role__pin { position: absolute; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 3; display: flex; gap: 6px; pointer-events: auto; }
+.role__pin button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 216, 74, 0.5); background: rgba(7, 10, 16, 0.88); color: #ffd84a; font-weight: 600; font-size: 13px; }
+.role__pin button.is-armed { background: #ffd84a; color: #070a10; }
+.role__pin button[hidden] { display: none; }
 /* Die eine Zeile oben statt drei Kästchen: je Fähigkeit Name und Meldung. */
 .role__bar {
   position: absolute;

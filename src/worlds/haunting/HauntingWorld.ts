@@ -22,6 +22,7 @@ import {
   type Dir,
 } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
+import type { Tool } from '../portal/tools/Tool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -40,7 +41,6 @@ import {
   spacesOf,
   stationBounds,
   APRON,
-  APRON_INNER,
   COMMAND_HOME,
   type HouseDoor,
   type HouseRoom,
@@ -87,6 +87,7 @@ import {
   TERMINAL_TILES,
   chairSpot,
   deskSpot,
+  gearSlot,
   playerRank,
   spawnSlot,
 } from './world3d/commandRoom';
@@ -218,6 +219,8 @@ import {
   pickGameHost,
   readClaim,
   readFlip,
+  readPin,
+  pinMessage,
   readHandover,
   readRelease,
   readMonsterInput,
@@ -980,8 +983,16 @@ export class HauntingWorld extends FurnishedWorld {
   // --- die Welt ------------------------------------------------------------
 
   protected override layout(): GridPlan {
+    this.planFor = this.state.shut.length ? '' : `${this.spec.seed}|${this.spec.rooms.length}`;
     return this.stationPlan(new Set(this.state.shut));
   }
+  /**
+   * Für welche Station das Gitter steht — eine neue Runde auf derselben
+   * Station tauscht es nicht noch einmal aus (`newRound`): Die Türen stellt
+   * ohnehin jedes Bild `applyDoors`, und der Neubau des Gitters kostete beim
+   * Rundenstart eine Viertelsekunde.
+   */
+  private planFor = '';
 
   /**
    * **Der Grundriss der Station ohne feste Wände** — die stehen als
@@ -1449,10 +1460,12 @@ export class HauntingWorld extends FurnishedWorld {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe in der Einsatzzentrale —
       // man muss sie im Dunkeln ja finden können.
       if (!this.stationTorch) {
+        // Auf dem Ausrüstungstisch neben dem Anzug (`commandRoom.GEAR_SPOT`).
+        const at = gearSlot(0);
         const torch = this.placeTool(
           'flashlight',
-          new THREE.Vector3(0.6, 1.1, (APRON_INNER + 0.6) * TILE),
-          undefined,
+          new THREE.Vector3(at.x, at.y, at.z),
+          GEAR_TURN,
           true,
         );
         if (torch instanceof FlashlightTool) this.stationTorch = torch;
@@ -1527,6 +1540,7 @@ export class HauntingWorld extends FurnishedWorld {
       sit: (station) => this.sit(station),
       door: (id) => this.panelSwitch('door', id),
       light: (id) => this.panelSwitch('light', id),
+      pin: (at) => this.setPin(at),
       archiveDesk: () => this.desk,
     });
   }
@@ -1794,6 +1808,8 @@ export class HauntingWorld extends FurnishedWorld {
       monsterPace: () => this.kernel?.round.decided?.pace ?? 'still',
       noise: (at, loudness) => this.kernel?.round.noise(at, loudness),
       floatingTorch: () => this.stationTorch,
+      gear: () => [...this.practiceGear],
+      takeGear: (id) => this.takeGear(id),
       takeFloatingTorch: () => {
         if (this.stationTorch) {
           const entry = this.props.find((prop) => prop.object === this.stationTorch);
@@ -2309,6 +2325,7 @@ export class HauntingWorld extends FurnishedWorld {
     this.warmShaders(dt, ctx);
     this.paintTrail();
     this.paintGhost(dt);
+    this.stepGear(ctx);
     this.experience?.update(dt);
     this.showTechnician(dt);
     // **Das Overlay läuft auch außerhalb der Simulation** (Paket U4/M4): Es
@@ -2703,6 +2720,13 @@ export class HauntingWorld extends FurnishedWorld {
       if (this.isHost && ctx && from !== ctx.net.localId) this.stopRound(ctx);
       return;
     }
+    // **Die Markierung der Zentrale** (`HauntState.pin`): setzen darf jeder,
+    // der eine Karte hat; der Gastgeber trägt sie in den Stand.
+    const pin = readPin(data);
+    if (pin !== undefined) {
+      if (this.isHost) this.applyPin(pin);
+      return;
+    }
     const flip = readFlip(data);
     // **Schalten darf, wer die Tafel hält** — ein Farbplatz mit „Schalttafel"
     // auf der Tafel des Gastgebers (`rules/roundSetup.Seat.powers`). Vorher
@@ -2755,6 +2779,7 @@ export class HauntingWorld extends FurnishedWorld {
       this.spec = generateHouse(next.seed, next.crew.options.rooms);
       this.state = next;
       this.automaticDoors.clear();
+      this.planFor = '';
       this.grid?.replaceWith(this.stationPlan(new Set(next.shut)));
       this.builtDoors = '?';
       this.buildHouse();
@@ -2936,11 +2961,12 @@ export class HauntingWorld extends FurnishedWorld {
       // Und den Geist, zu dem der Techniker beim Tod wird (`setSpirit`).
       if (ctx.role === 'vr') ctx.avatar.warmSpirit(ctx.renderer, ctx.camera, ctx.scene);
     }
-    // **Ohne zu warten**, wo der Treiber nebenher übersetzen kann
-    // (`KHR_parallel_shader_compile`, die Quest kann es): `compile` stellt die
-    // Programme an, gebunden wird erst beim ersten Zeichnen. Vorher stand das
-    // Bild hier, bis alle fertig waren.
-    void ctx.renderer.compileAsync(ctx.scene, ctx.camera);
+    // `compile` stellt die Programme nur an; wo der Treiber nebenher übersetzen
+    // kann (`KHR_parallel_shader_compile`, die Quest kann es), wartet erst das
+    // erste Zeichnen auf sie. `compileAsync` wäre dasselbe mit einem
+    // Versprechen hinterher — und das warf an Stoffen ohne Programm
+    // (`currentProgram` leer) einen Fehler in einen Zeitgeber.
+    ctx.renderer.compile(ctx.scene, ctx.camera);
     this.programs.release();
   }
 
@@ -3167,6 +3193,73 @@ export class HauntingWorld extends FurnishedWorld {
   private doorBooks(): Pick<DoorLocks, 'chosen' | 'cooling'> {
     if (this.isHost) return this.locks;
     return { chosen: this.state.held ?? '', cooling: this.state.cooling ?? [] };
+  }
+
+  /**
+   * **Was in der Übung auf dem Ausrüstungstisch liegt** — Röntgen und Radar
+   * (`commandRoom.gearSlot`). Gewünscht: _„in der übungsrunde kann dort z. B.
+   * auch das röntgen gerät drauf gelegt werden."_ Liegt da, solange die Übung
+   * läuft und es niemand genommen hat; wer es nimmt (Hand oder `E`), hat es
+   * auch im Inventar. Außerhalb der Übung verschwindet, was noch daliegt.
+   * Nur für den Techniker: Andere Geräte haben keinen Tisch voller Werkzeug.
+   */
+  private stepGear(ctx: WorldContext): void {
+    const state = this.state;
+    const practice =
+      ctx.role === 'vr' &&
+      !state.crew.simulation &&
+      (state.phase === 'briefing' || (state.phase === 'running' && state.crew.options.test));
+    PRACTICE_GEAR.forEach((id, index) => {
+      const tool = this.practiceGear.get(id);
+      const entry = tool ? this.props.find((prop) => prop.object === tool) : undefined;
+      if (tool && (!entry || tool.heldBy)) {
+        // Genommen — mit der Hand oder vom Schirm (`takeGear`).
+        this.practiceGear.delete(id);
+        this.gearTaken.add(id);
+        if (!state.crew.inventory.includes(id)) state.crew.inventory.push(id);
+        return;
+      }
+      if (!practice) {
+        if (entry) this.removeProp(entry, false);
+        this.practiceGear.delete(id);
+        return;
+      }
+      if (tool || this.gearTaken.has(id) || state.crew.inventory.includes(id)) return;
+      const at = gearSlot(index + 1);
+      const placed = this.placeTool(id, new THREE.Vector3(at.x, at.y, at.z), GEAR_TURN, true);
+      if (placed) this.practiceGear.set(id, placed);
+    });
+  }
+  private readonly practiceGear = new Map<string, Tool>();
+  /** Was in dieser Übung schon vom Tisch genommen wurde — kommt erst mit der nächsten Runde wieder. */
+  private readonly gearTaken = new Set<string>();
+
+  /** Vom Schirm aus nehmen (`E`): das Werkzeug vom Tisch, ins Inventar. */
+  private takeGear(id: string): void {
+    const tool = this.practiceGear.get(id);
+    const entry = tool ? this.props.find((prop) => prop.object === tool) : undefined;
+    if (entry) this.removeProp(entry, false);
+    this.practiceGear.delete(id);
+    this.gearTaken.add(id);
+    if (!this.state.crew.inventory.includes(id)) this.state.crew.inventory.push(id);
+  }
+
+  /**
+   * **Eine Markierung auf der Karte setzen** — oder mit `null` wegnehmen.
+   * Wie der Schalter: bitten, nicht selbst tun; der Gastgeber trägt sie in
+   * den Stand, und mit dem nächsten Stand steht sie überall.
+   */
+  private setPin(at: { x: number; z: number } | null): void {
+    if (this.isHost) this.applyPin(at);
+    else this.context?.net.emit(HAUNT_CHANNEL, pinMessage(at));
+    // Sofort auch hier, damit der Finger nicht auf den nächsten Stand wartet.
+    if (at) this.state.pin = at;
+    else delete this.state.pin;
+  }
+
+  private applyPin(at: { x: number; z: number } | null): void {
+    if (at) this.state.pin = { x: at.x, z: at.z };
+    else delete this.state.pin;
   }
 
   /** Von der Schalttafel aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
@@ -5517,6 +5610,9 @@ export class HauntingWorld extends FurnishedWorld {
     const start = startedRound('test');
     this.newRound({ ...this.state.crew.options, test: start.test, bright: start.bright });
     this.state.phase = start.phase;
+    // **Mit Monster, aber harmlos** (`FlatRound.tick`, `harmless`): Es läuft
+    // seine Runden und nimmt die Schächte, jagt und trifft aber niemanden.
+    this.state.monsterOn = true;
     this.state.crew.opened = ['test-supply'];
     this.announce(
       'ÜBUNGSRUNDE · Kein Monster, kein Schaden. Testschrank rechts ist bestückt; Labor geöffnet. Übungslicht lässt sich abschalten.',
@@ -5548,13 +5644,18 @@ export class HauntingWorld extends FurnishedWorld {
     this.locks = freshLocks();
     this.lampBook = freshLamps();
     this.automaticDoors.clear();
+    this.gearTaken.clear();
     this.spec = generateHouse(STATION_SEED, options.rooms);
     this.state = freshState(this.spec.seed, options);
     this.routineDice = new Rng(this.spec.seed >>> 0);
     // Frische Bücher, frischer Kern (`ensureKernel`).
     this.pendingBooks = null;
     this.kernel = null;
-    this.grid?.replaceWith(this.stationPlan(new Set()));
+    const planKey = `${this.spec.seed}|${this.spec.rooms.length}`;
+    if (planKey !== this.planFor) {
+      this.planFor = planKey;
+      this.grid?.replaceWith(this.stationPlan(new Set()));
+    }
     this.builtDoors = '?';
     this.blob?.dispose();
     this.blob = null;
@@ -5689,6 +5790,11 @@ function framed(size: number): number {
 
 /** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
 export const STATION_FLOOR = 'prototype-bits/Floor.glb';
+
+/** Was in der Übung auf dem Ausrüstungstisch liegt, von West nach Ost nach der Lampe. */
+const PRACTICE_GEAR = ['xray', 'radar'] as const;
+/** Wie die Werkzeuge auf dem Tisch liegen: wie gebaut, die Spitze nach Norden. */
+const GEAR_TURN = new THREE.Quaternion();
 
 /** So lange läuft eine Runde, bevor ihre Shader vorab übersetzt werden (`warmShaders`), in Sekunden. */
 const WARM_AFTER = 1;

@@ -7,6 +7,64 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Ziel von der Zentrale, Kisten mit sichtbarer Beute, Ausrüstungstisch, harmloses Monster (Oktober 2026)
+
+Gewünscht in einem Zug: der Rundenstart ruckelt noch; _„im schrank dann gerne
+nur die sachen sehen wollen, die ich aufnehmen kann (und auch dann
+gehighlighted)"_; _„in vr sehe ich auch nicht wohin ich muss"_ — eine
+Markierung der Zentrale; ein Röntgengerät, das auch das Monster zeigt; in der
+Zentrale Tische mit der Startausrüstung; und in der Übung ein Monster, das
+patrouilliert und Schächte nimmt, aber nicht jagt und nicht trifft.
+
+- **Rundenstart, zweite Runde** (gemessen mit dem CPU-Profil, SwiftShader):
+  `refreshWorldMenu` rechnete den Steckbrief jedes Möbels neu
+  (`elementFacts`, jetzt einmal je Element, ~250 ms → ~40 ms); die Kisten
+  und Schränke bauten je zwanzig gerundete Quader (`fixtureModels.cabinet`,
+  jetzt Vorlage einmal bauen, danach kopieren); das Gitter wurde bei gleicher
+  Station noch einmal ausgetauscht (`newRound`, `planFor`). Übrig: drei
+  Programme für Monster und Geist — die übersetzt jetzt schon die Übung, weil
+  dort das Monster mitläuft. Und `warmShaders` nimmt wieder `compile` statt
+  `compileAsync`; das warf an Stoffen ohne Programm `isReady` von `undefined`.
+- **Kisten zeigen nur, was man nehmen kann** (`ShipExperience.lootTakeable`,
+  `glowLoot`, `LOOT_GLOW`): der Frachtschrank ist der schlichte Spind
+  (`stationProps.CARGO_MODEL` = `Locker.glb`, vorher der verzierte voller
+  Kram), die Beute steht auf dem mittleren Boden (`lootMount`) und trägt einen
+  cyanfarbenen Saum, solange die Kiste offen ist. Nicht gezeigt: Genommenes,
+  ein Teil einer erledigten Reparatur oder eines, das man schon trägt, ein
+  zweites Teil bei vollen Händen (außer in der Übung), ein Werkzeug, das man
+  hat.
+- **Die Markierung der Zentrale** (`HauntState.pin`, `net.pinMessage`/`readPin`,
+  `HauntingWorld.setPin`, ohne Protokollsprung): An jedem Rechner der Zentrale
+  steht unten rechts auf der Karte **„📍 Ziel markieren“** — drücken, dann auf
+  die Karte tippen (`MapView.onPick`, vor allen anderen Griffen); **✕** nimmt
+  sie weg. Gezeichnet als gelber Punkt mit Ring (`seatRole.paintPin`). Der
+  Techniker sieht sie als **gelbe Leuchtsäule** von 6 m durch Wände und einen
+  pulsierenden Ring am Boden (`ShipExperience.pinBeacon`, `MeshBasicMaterial`,
+  kein Licht), und Kompass und Pfeil nehmen sie als nächstes Ziel
+  („Markierung“, `goals`) — auch vor dem Start.
+- **Das Röntgengerät zeigt das Monster** (`monsterProbe`): eine unsichtbare
+  Kapsel in Monstergröße als Durchleuchtungsziel, jedes Bild an `state.monster`
+  — auch im Schacht. Das Radar zeigt es jetzt auch in der Übung.
+- **Der Ausrüstungstisch** (`spaceCatalog.SPACE_GEAR_TABLE`,
+  `commandRoom.GEAR_SPOT`/`gearSlot`): der lange Tisch aus _Furniture Bits_ vor
+  dem Rechner _Verbindung_, **mit einem Körper nur so hoch wie die Platte**
+  (0,5 m; ein Körper von 1,40 m schob die Werkzeuge vom Tisch). Darauf liegt
+  die Lampe (vorher schwebte sie an der Fensterfront), in der Übung dazu
+  Röntgen und Radar (`HauntingWorld.stepGear`, `PRACTICE_GEAR`): mit der Hand
+  greifen oder am Schirm `E` (`takeGear`). Genommenes kommt erst mit der
+  nächsten Runde wieder, außerhalb der Übung verschwindet, was noch liegt.
+  **Offen:** Wer Röntgen oder Radar aus der Übung in der Hand hält, behält es
+  in der echten Runde.
+- **Das harmlose Monster der Übung** (`FlatRound.tick`, `harmless` =
+  `options.test` ohne Bot-Runde; `testMission` schaltet `monsterOn` an): Es
+  geht seine Runden und nimmt die Schächte, sieht, hört und riecht den
+  Techniker aber nicht (für die Wahrnehmung steckt er „im Schrank“), jagt
+  nicht, reißt keine Kabine auf, trifft nicht; kein Türzuschlagen und kein
+  Spuk.
+- **Und das Visier beschlägt wieder** (`mission.stepVitals`): Die Anstrengung
+  stieg erst ab 3,6 m/s — seit es keinen Sprint mehr gibt, lief niemand so
+  schnell. Jetzt ab 2,2 m/s, also beim Rennen.
+
 ## Kein Standbild bei Start und Tod, Helm in der Brille, Übung zum Ausprobieren (Oktober 2026)
 
 Gemeldet: _„beim start von einer runde und beim tod kommt es zu einem massiven
@@ -26,9 +84,10 @@ fps drop, sogar soweit dass das bild einfriert."_ Gemessen mit Playwright
   `ProgramHold.hold(scene)` schiebt jedes `dispose()` auf, bis `warmShaders`
   das neue Haus übersetzt hat (jetzt nach **jedem** Neubau, nicht nur einmal je
   Runde), dann `release`.
-- **Vorab übersetzt wird ohne zu warten** (`renderer.compileAsync`,
-  `KHR_parallel_shader_compile`) statt mit `compile`, das das Bild bis zum
-  letzten Programm anhielt.
+- **Vorab übersetzt wird mit `renderer.compile`** — es stellt die Programme
+  nur an, mit `KHR_parallel_shader_compile` wartet erst das erste Zeichnen.
+  `compileAsync` war kurz drin und warf an Stoffen ohne Programm einen Fehler
+  in einen Zeitgeber (`isReady` von `undefined`).
 - **Dieselbe Station wird nicht neu gebaut** (`buildHouse`, `shipArt`,
   `shipArtKey`): gleicher Samen und gleiche Raumzahl → die Geometrie aus
   `buildShip` bleibt stehen. Was noch je Neubau kostet: die Kisten und
@@ -113,10 +172,8 @@ die halbe Station verdeckt.
   `.orbital-arrow`): Figur und nächstes Ziel (`objectives`, `next`) werden
   durch `ctx.viewCamera` geworfen, der Pfeil steht 64 Punkte neben der Figur
   in Richtung des Ziels, darunter Name und Entfernung; unter 1,5 m keiner.
-  Die Tafel rückt dann neben den Menüknopf in die obere Zeile. **Offen:** ein
-  Ziel, das die Zentrale auf ihrer Karte setzt (_„was z. B. ein Spieler an den
-  Bildschirmen setzen kann"_) — der Pfeil nimmt bisher das nächste Ziel aus
-  `objectives`.
+  Die Tafel rückt dann neben den Menüknopf in die obere Zeile. Ein Ziel, das
+  die Zentrale auf ihrer Karte setzt, geht vor (`HauntState.pin`, siehe oben).
 - **Das Ende** (`stepEnd`, `respawn`): Wird die Runde `lost`, fällt die Figur
   um (`AvatarBody.act('death')` → `Death_A` des Space Rangers;
   `KaykitFigure.revive` stellt sie wieder hin), die Kamera von oben fährt auf

@@ -382,7 +382,11 @@ Kacheln): Schreibtisch, Monitor, Tastatur und Maus aus _Furniture Bits_. Alle
 drei haben keinen Zweck in der Küche (`kind: null`) und leuchten (`lit`); was
 `A` an ihnen tut, hängt Haunting selbst an (`HauntingWorld.bindCommandSpot`):
 Anzüge an- und ausziehen, Platz nehmen, _Verbindung_ oder
-_Spiel-Einstellungen_ öffnen. Anderswo hingestellt, stehen sie da.
+_Spiel-Einstellungen_ öffnen. Anderswo hingestellt, stehen sie da. Dazu der
+**Ausrüstungstisch** (`space-gear-table`, 2 × 1 Kacheln, der lange Tisch aus
+_Furniture Bits_) — als einziges Möbel mit einem **Körper so hoch wie die
+Platte** (0,5 m statt 1,40 m), weil auf ihm Werkzeuge als Körper der Physik
+liegen (Lampe, Röntgen, Radar; `HauntingWorld.stepGear`).
 
 **Sitzen.** Alles aus _Möbel → Sitzen_ — Sessel, Sofas, Stühle, Bürostühle,
 Hocker — hat `opens: 'sit'` (`furnitureCatalog.seat`): `A` setzt einen in die

@@ -187,6 +187,16 @@ export interface HauntState {
    */
   held?: string;
   /**
+   * **Die Markierung der Zentrale** — ein Punkt in Metern, den ein Spieler an
+   * einem Rechner auf die Karte gesetzt hat, oder fehlend. Der Techniker sieht
+   * ihn als Leuchtsäule in der Station und als nächstes Ziel. Gewünscht: _„in
+   * vr sehe ich auch nicht wohin ich muss. Da wäre es hilfreich, wenn die aus
+   * der einsatzzentrale (ein spieler) eine markierung auf der karte setzen
+   * kann und ich die dann sehen kann."_ Optional und ohne Protokollsprung
+   * wie `held`: Eine Anzeige, an der keine Regel hängt.
+   */
+  pin?: { x: number; z: number };
+  /**
    * **Die Ersatzteile, die im Gang liegen** (`rules/archiveGoals.ts`).
    *
    * Der Techniker trägt höchstens eines und kann es fallen lassen; wo es dann
@@ -553,6 +563,9 @@ export function readState(data: unknown): HauntState | null {
     // Tafel eben keine Uhr.
     cooling: coolings(it['cooling']),
     ...(typeof it['held'] === 'string' ? { held: doorId(it['held']) } : {}),
+    ...(bag(it['pin'])
+      ? { pin: { x: metres(bag(it['pin'])!['x']), z: metres(bag(it['pin'])!['z']) } }
+      : {}),
     // Und die Tropfen (`rules/blood.ts`): fehlen sie, blutet eben niemand.
     blood: readDrops(it['blood']),
     dropped: droppedParts(it['dropped']),
@@ -621,6 +634,19 @@ export function readClaim(data: unknown, from: string): Claim | null {
 export function readRelease(data: unknown): boolean {
   const it = bag(data);
   return !!it && it['kind'] === 'release';
+}
+
+/** Die Markierung der Zentrale an den Gastgeber — `null` nimmt sie weg (`HauntState.pin`). */
+export function pinMessage(at: { x: number; z: number } | null): unknown {
+  return { kind: 'pin', at };
+}
+
+/** `undefined`: keine Markierungsnachricht; `null`: wegnehmen. */
+export function readPin(data: unknown): { x: number; z: number } | null | undefined {
+  const it = bag(data);
+  if (!it || it['kind'] !== 'pin') return undefined;
+  const at = bag(it['at']);
+  return at ? { x: metres(at['x']), z: metres(at['z']) } : null;
 }
 
 export function readFlip(data: unknown): { id: string; on: boolean } | null {

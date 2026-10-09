@@ -1125,7 +1125,14 @@ export class FlatRound implements MapSource {
     // Der Abstand zählt zwischen den festen Blöcken (`blockGap`), nicht
     // zwischen den gezeichneten Stellen dazwischen.
     const gap = this.haunt.monsterOn ? blockGap(this.player, this.monster) : Infinity;
-    if (live) this.stepSeal(gap);
+    // **Das harmlose Monster der Übung**: Es läuft seine Runden und nimmt die
+    // Schächte, aber es sieht, hört und riecht den Techniker nicht, jagt ihn
+    // nicht und trifft ihn nicht. Gewünscht: _„In einer übungsrunde soll auch
+    // das monster da sein, aber es verfolgt mich nicht und macht keinen
+    // schaden, sondern patruliert nur und geht durch die schächte."_ Die
+    // Bot-Runde (`simulation`) bleibt scharf — dort jagt es den Bot.
+    const harmless = crew.options.test && !crew.simulation;
+    if (live && !harmless) this.stepSeal(gap);
     stepVitals(crew, dt, speed, gap);
 
     if (
@@ -1139,7 +1146,7 @@ export class FlatRound implements MapSource {
 
     // --- Spuk — nur in der Mission. Im Test bleibt das Licht an und keine
     // Tür fällt zu: Wer Rollen ausprobiert, soll die Station sehen.
-    if (live) this.stepSpook(dt);
+    if (live && !harmless) this.stepSpook(dt);
 
     if (!this.haunt.monsterOn) return;
 
@@ -1181,7 +1188,9 @@ export class FlatRound implements MapSource {
     // --- Wahrnehmung des Monsters: Sehen über die Karte, Hören über das
     // Hörmodell, die Alarmleiter aus `threat.ts` — dieselbe wie im Headset.
     const profile = ENTITY_PROFILES[crew.options.monster];
-    const hidden = !!crew.hidden;
+    // Für das harmlose Monster steckt der Techniker immer im Schrank: kein
+    // Blick, kein Geräusch, keine Spur, kein Treffer.
+    const hidden = !!crew.hidden || harmless;
     const snapshot = this.snapshot();
     if (this.moving && !hidden)
       this.pendingNoises.push({
@@ -1265,7 +1274,7 @@ export class FlatRound implements MapSource {
     // zweimal je Sekunde und nicht je Bild: Eine Spur liegt da, sie trifft
     // nicht ein.
     let scent: Scent | null = null;
-    if (!piloted && this.haunt.time - this.sniffed >= SNIFF_EVERY) {
+    if (!piloted && !harmless && this.haunt.time - this.sniffed >= SNIFF_EVERY) {
       this.sniffed = this.haunt.time;
       scent = sniff(
         this.blood,
@@ -1282,8 +1291,8 @@ export class FlatRound implements MapSource {
           here: this.monster.space,
           signal: this.memory.memory > 0 ? this.memory.target : null,
           seen,
-          quarry: this.player.space,
-          caught: this.caught,
+          quarry: harmless ? this.monster.space : this.player.space,
+          caught: harmless ? '' : this.caught,
           rng: () => this.rng.next(),
           memory: this.brain,
           scent,
@@ -1295,7 +1304,7 @@ export class FlatRound implements MapSource {
           ...takeAlert(this.memory),
         });
     this.decision = decision;
-    if (decision.strike && decision.cabin) {
+    if (decision.strike && decision.cabin && !harmless) {
       // Die Kabine ist danach hin (`rules/roundRules.ts`) — getroffen wird
       // nur, wer genau darin steckt; eine leere Kabine ist ein Ausweg weniger.
       this.rules.destroyCabin(decision.cabin);

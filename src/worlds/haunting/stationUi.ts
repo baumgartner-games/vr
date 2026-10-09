@@ -176,6 +176,8 @@ export interface StationHost {
    */
   door(doorId: string): string;
   light(roomId: string): string;
+  /** Die Markierung der Zentrale setzen oder wegnehmen (`HauntState.pin`). */
+  pin?(at: { x: number; z: number } | null): void;
 }
 
 /** Wie oft eine Rollenansicht nachgezogen wird, in Millisekunden. */
@@ -890,6 +892,8 @@ export class StationUi {
       nameOf: (peer) => host.nameOf(peer),
       door: (id) => host.door(id),
       light: (id) => host.light(id),
+      pin: (at) => host.pin?.(at),
+      pinned: () => host.state().pin ?? null,
       // Die ganze Tafel: Jede Tür, jede Lampe hat ihren Schalter, und keiner
       // liegt mehr hinter dem Sicherungskasten (`panel.ts`).
       switches: () => host.spec().switches,

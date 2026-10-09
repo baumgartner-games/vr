@@ -87,6 +87,15 @@ class SeatView implements SeatRoleView {
       overlay: (ctx, view) => {
         this.archive?.paintTargets(ctx, view);
         this.scout?.paint(ctx, view);
+        this.paintPin(ctx, view);
+      },
+      onPick: (at) => {
+        if (!this.pinArmed) return false;
+        this.pinArmed = false;
+        this.host.pin?.(at);
+        this.toast.say('Ziel gesetzt — der Techniker sieht es als Leuchtsäule.');
+        this.renderPin();
+        return true;
       },
       // **Wer nichts schalten kann, erfährt es** — statt einer Tür, die auf
       // den Tipp nicht antwortet. Und ein Zimmer öffnet die Akte, wenn es eine
@@ -111,9 +120,75 @@ class SeatView implements SeatRoleView {
     this.panel = has('panel') ? mountPanelView(host, this.map) : null;
     this.archive = has('archive') ? mountArchiveView(host, this.map) : null;
     this.element.append(this.map.element, this.bar, this.toast.element);
+    // **Ein Ziel für den Techniker** (`HauntState.pin`): erst den Knopf, dann
+    // auf die Karte tippen. Jeder Stuhl kann das, egal mit welcher Fähigkeit.
+    if (host.pin) {
+      this.pinTools.className = 'role__pin';
+      this.pinButton.type = 'button';
+      this.pinClear.type = 'button';
+      this.pinClear.textContent = '✕';
+      this.pinClear.setAttribute('aria-label', 'Ziel löschen');
+      this.pinButton.addEventListener('click', () => {
+        this.pinArmed = !this.pinArmed;
+        this.renderPin();
+      });
+      this.pinClear.addEventListener('click', () => {
+        this.pinArmed = false;
+        host.pin?.(null);
+        this.toast.say('Ziel gelöscht.');
+        this.renderPin();
+      });
+      this.pinTools.append(this.pinButton, this.pinClear);
+      this.element.append(this.pinTools);
+      this.renderPin();
+    }
     for (const part of [this.scout, this.panel, this.archive])
       if (part) this.element.append(part.element);
     this.renderBar();
+  }
+
+  private readonly pinTools = el('div', 'role__pin');
+  private readonly pinButton = document.createElement('button');
+  private readonly pinClear = document.createElement('button');
+  /** Ob der nächste Tipp auf die Karte das Ziel setzt. */
+  private pinArmed = false;
+  private pinShown = '';
+
+  private renderPin(): void {
+    if (!this.host.pin) return;
+    const pinned = !!this.host.pinned?.();
+    const key = `${this.pinArmed}|${pinned}`;
+    if (key === this.pinShown) return;
+    this.pinShown = key;
+    this.pinButton.textContent = this.pinArmed
+      ? 'Auf die Karte tippen …'
+      : pinned
+        ? '📍 Ziel versetzen'
+        : '📍 Ziel markieren';
+    this.pinButton.classList.toggle('is-armed', this.pinArmed);
+    this.pinClear.hidden = !pinned;
+  }
+
+  /** Die Markierung auf der Karte: ein gelber Punkt mit pulsierendem Ring. */
+  private paintPin(ctx: CanvasRenderingContext2D, view: MapView): void {
+    const at = this.host.pinned?.();
+    if (!at) return;
+    const p = view.toScreen(at.x, at.z);
+    const pulse = (performance.now() / 1000) % 1.4;
+    ctx.save();
+    ctx.strokeStyle = `rgba(255, 216, 74, ${1 - pulse / 1.4})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 8 + pulse * 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd84a';
+    ctx.strokeStyle = '#070a10';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   get sheetOpen(): boolean {
@@ -131,6 +206,7 @@ class SeatView implements SeatRoleView {
     this.archive?.update(dt);
     this.toast.step(dt);
     this.renderBar();
+    this.renderPin();
   }
 
   /** Das Loch für die 3D-Welt gehört dem Archivar — solange seine Akte offen ist. */

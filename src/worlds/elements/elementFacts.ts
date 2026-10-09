@@ -161,6 +161,20 @@ export function partPlace(part: ElementPart, index: number): string {
  * hergibt oder trägt, und dann Teil für Teil Adresse und Lage.
  */
 export function elementFacts(id: string): MenuFact[] {
+  // **Einmal je Element** — der Katalog ändert sich zur Laufzeit nicht, und
+  // das Weltmenü baut den Steckbrief jedes Möbels bei jedem Auffrischen neu:
+  // gemessen eine Viertelsekunde je `refreshWorldMenu`, in Orbital bei jedem
+  // Rundenstart und jedem Tod.
+  const known = FACTS.get(id);
+  if (known) return known.map((fact) => ({ ...fact }));
+  const facts = buildFacts(id);
+  FACTS.set(id, facts);
+  return facts.map((fact) => ({ ...fact }));
+}
+
+const FACTS = new Map<string, MenuFact[]>();
+
+function buildFacts(id: string): MenuFact[] {
   const element = elementById(id);
   const [w, d] = element.tiles;
   const cells = 4 * w * d;

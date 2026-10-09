@@ -105,8 +105,15 @@ export const FIXTURE_MODELS: Readonly<Record<MarkId, string>> = {
 
 /** Der Schutzschrank, in dem man sich versteckt — der Spind des Prototyp-Pakets. */
 export const LOCKER_MODEL = 'prototype-bits/Locker.glb';
-/** Der Frachtschrank mit dem Farbband — derselbe Spind, verziert. */
-export const CARGO_MODEL = 'prototype-bits/Locker_Decorated.glb';
+/**
+ * **Der Frachtschrank mit dem Farbband — derselbe Spind, leer.** Er war der
+ * verzierte (`Locker_Decorated.glb`), und in dem liegt immer Kram: Jede
+ * offene Kiste sah voll aus, ob etwas darin war oder nicht. Gemeldet: _„Es ist
+ * nicht ersichtlich ob darin etwas ist, was ich nehmen kann."_ Jetzt liegt
+ * darin nur, was man nehmen kann, und das leuchtet
+ * (`ShipExperience.glowLoot`).
+ */
+export const CARGO_MODEL = 'prototype-bits/Locker.glb';
 /** Der Unterbau einer Reparaturkonsole: ein Schreibtisch. */
 export const CONSOLE_MODEL = 'furniture-bits/desk.glb';
 
