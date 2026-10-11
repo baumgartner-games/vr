@@ -51,7 +51,7 @@ import {
   shipRayPasses,
   type HandPress,
 } from './shipHandUse';
-import type { Handedness } from '../../core/XRInput';
+import type { ControllerState, Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { ShipEffects } from './ShipEffects';
 import { CONDENSATION_FRAGMENT } from './helmetCondensation';
@@ -120,7 +120,7 @@ import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { XrayTool } from '../portal/tools/XrayTool';
 import { addOutline, removeOutline, type OutlineLook } from '../../core/outlineShell';
 import { RadarTool } from '../portal/tools/RadarTool';
-import type { Tool } from '../portal/tools/Tool';
+import { aimQuaternion, type Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import {
   buildBrokenLocker,
@@ -206,6 +206,8 @@ interface ShipHost {
   setLighting?(lighting: Partial<BotLighting>): void;
   equip?(id: 'flashlight' | 'xray' | 'radar' | 'off', hand: Handedness): void;
   carried?(hand: Handedness): Tool | null;
+  /** Die zwei Hände vor dem Auge — aus den Augen am Schirm, sonst `null` (`PortalWorld.screenHands`). */
+  screenHands?(): { right: ControllerState; left: ControllerState } | null;
   floatingTorch?(): FlashlightTool | null;
   takeFloatingTorch?(): void;
   /** Was auf den Ausrüstungstischen liegt, außer der Lampe (`HauntingWorld.stepGear`). */
@@ -284,6 +286,20 @@ interface Locker {
 
 /** Wie durchsichtig der Schrank von innen ist — ein Geist, kein Glas. */
 const LOCKER_GHOST_OPACITY = 0.28;
+/** Woran eine blasse Kopie des Schranks zu erkennen ist (`ghostLocker`). */
+const LOCKER_GHOST = 'lockerGhost';
+
+/** Ob ein Material schon eine blasse Kopie des Schranks ist. */
+function isGhost(material: THREE.Material | THREE.Material[]): boolean {
+  const first = Array.isArray(material) ? material[0] : material;
+  return first?.userData[LOCKER_GHOST] === true;
+}
+
+/** Ob `node` unter `root` hängt (oder `root` selbst ist). */
+function insideOf(node: THREE.Object3D, root: THREE.Object3D | null): boolean {
+  for (let at: THREE.Object3D | null = node; at; at = at.parent) if (at === root) return true;
+  return false;
+}
 /** Ein Segment des Schiebeblatts: wo es zu steht und wie weit es beim Öffnen fährt. */
 /** Ein Türblatt: das Gelenk an der Zarge, und in welche Richtung es aufschwingt. */
 interface DoorLeaf {
@@ -486,6 +502,22 @@ export class ShipExperience {
    * Verwaltung geben."_
    */
   private readonly handsDom = el('div', 'orbital-hands');
+  /**
+   * **Der Beschlag des Visiers von oben — auf dem Bildschirm.** Gemeldet:
+   * _„bei "von oben" soll der atem der maske dann nicht vor dem spieler
+   * gerendert werden, sondern auf dem bildschirm."_ Die Scheibe (`visor`)
+   * hängt an der Kamera der Augen; von oben schwebte sie als Glasplatte vor
+   * der Figur. Dort zeigt jetzt diese Schicht über dem Bild dasselbe.
+   */
+  private readonly visorDom = el('div', 'orbital-visor');
+  /**
+   * **Der Balken des Handgriffs in der Bildmitte** (`rules/chore.ts`) — am
+   * Schirm, unter dem Fadenkreuz. Er stand nur im Streifen oben links, und
+   * wer auf die Kiste schaute, sah nicht, dass sie gerade aufgeht.
+   */
+  private readonly choreDom = el('div', 'orbital-chore');
+  /** Bis wann die eigene Figur wieder auf „kein Schatten" geprüft wird (`stepOwnShadow`). */
+  private shadowClock = 0;
   private readonly leftButton = document.createElement('button');
   private readonly rightButton = document.createElement('button');
   private handsShown = '';
@@ -795,6 +827,8 @@ export class ShipExperience {
       this.arrow.setAttribute('aria-hidden', 'true');
       this.arrow.append(el('i'), this.arrowLabel);
       this.handsDom.hidden = true;
+      this.visorDom.hidden = true;
+      this.choreDom.hidden = true;
       for (const [button, hand] of [
         [this.leftButton, 'left'],
         [this.rightButton, 'right'],
@@ -809,6 +843,8 @@ export class ShipExperience {
       }
       document.body.append(
         this.handsDom,
+        this.visorDom,
+        this.choreDom,
         this.menuButton,
         this.arrow,
         this.puzzleRoot,
@@ -875,7 +911,8 @@ export class ShipExperience {
    * Ersatzteil — was davon im Inventar ist.
    */
   private cycleRight(): void {
-    const items: Array<typeof this.rightItem> = ['off', 'flashlight'];
+    const items: Array<typeof this.rightItem> = ['off'];
+    if (this.sensorMode !== 'flashlight') items.push('flashlight');
     if (this.crew.inventory.includes('medkit')) items.push('medkit');
     if (this.crew.inventory.includes('stun-grenade')) items.push('grenade');
     if (carriedPart(this.host.spec(), this.host.state())) items.push('part');
@@ -927,7 +964,14 @@ export class ShipExperience {
   useEmpty(): boolean {
     if (!this.player || this.crew.simulation || this.crew.hidden || this.crew.hp <= 0) return false;
     if (this.busy) return false;
-    this.toggleTorch();
+    // **Nur eine Lampe, die schon in einer Hand liegt** — gemeldet: _„wenn ich
+    // hand 2 frei habe und e drücke ist die taschenlampe an. Ist nicht
+    // richtig?"_ Eine freie Hand bleibt frei; die Lampe nimmt man mit `2`.
+    if (this.rightItem !== 'flashlight' && this.sensorMode !== 'flashlight') return false;
+    this.torchLit = !this.torchLit;
+    this.host.say(this.torchLit ? 'Taschenlampe an.' : 'Taschenlampe aus.');
+    this.stamp = '';
+    this.paint();
     return true;
   }
 
@@ -1505,12 +1549,20 @@ export class ShipExperience {
   private openCabinet(id: string): void {
     if (!this.roundOnly()) return;
     if (this.chore) {
-      // Derselbe Knopf bricht ab — sonst wird man den Balken nur los, indem
-      // man wegläuft.
-      const stopped = this.chore;
+      // **Derselbe Knopf bricht nicht mehr ab**, er sagt, wie weit es ist —
+      // gemeldet: _„warum wird der schrank öffnen denn abgebrochen? […] das
+      // wäre gut, dass ich den schrank entweder öffnen kann und einfach nichts
+      // drin ist, oder es steht warum ich diesen nicht öffnen kann."_ Wer
+      // nachdrückt, weil er nicht sah, dass etwas passiert, will die Kiste
+      // aufhaben. Abbrechen heißt weggehen (`stepChore`).
+      const running = this.chore;
+      if (running.id === id) {
+        this.host.say(`${running.label} … noch ${Math.ceil(running.left)} s, stillstehen.`);
+        return;
+      }
+      // Eine andere Kiste: die erste ist damit aufgegeben.
       this.chore = null;
-      this.host.say(`${stopped.label} abgebrochen.`);
-      if (stopped.id === id) return;
+      this.host.say(`${running.label} abgebrochen — andere Kiste gewählt.`);
     }
     if ((id === 'test-supply' || id.startsWith('training')) && !this.crew.options.test) {
       this.host.say(`Testschrank: zuerst „${FLOW.practice}" wählen.`);
@@ -1527,6 +1579,9 @@ export class ShipExperience {
         left: CARGO_OPEN_SECONDS,
         total: CARGO_OPEN_SECONDS,
       };
+      this.host.say(
+        `${box?.mark ?? 'Kiste'}: ${CARGO_OPEN_SECONDS} s stillstehen, dann ist sie offen.`,
+      );
       return;
     }
     if (box && !box.loot && !this.crew.inventory.includes(box.key)) {
@@ -1560,11 +1615,32 @@ export class ShipExperience {
     }
     this.chore = null;
     if (step.kind === 'broken') {
-      this.host.say(`${chore.label} abgebrochen.`);
+      // **Mit Grund** — eine Meldung ohne ihn liest sich wie „geht nicht".
+      const why = this.crew.hidden
+        ? 'du bist in den Schutzschrank gestiegen'
+        : this.host.state().phase !== 'running'
+          ? 'die Runde ist vorbei'
+          : 'du bist losgegangen — beim Öffnen stillstehen';
+      this.host.say(`${chore.label} abgebrochen: ${why}.`);
       return;
     }
     if (!this.crew.opened.includes(chore.id)) this.crew.opened.push(chore.id);
     this.sound('door');
+  }
+
+  /** Den Balken in der Bildmitte nachziehen (`choreDom`) — nicht in der Brille. */
+  private paintChoreDom(): void {
+    const chore = this.chore;
+    const shown = !!chore && !this.host.ctx.renderer.xr.isPresenting;
+    this.choreDom.hidden = !shown;
+    if (!chore || !shown) return;
+    if (this.choreDom.dataset['label'] !== chore.label) {
+      this.choreDom.dataset['label'] = chore.label;
+      this.choreDom.innerHTML = '<span></span><i><b></b></i>';
+      this.choreDom.querySelector('span')!.textContent = `${chore.label} · stillstehen`;
+    }
+    const bar = this.choreDom.querySelector('b') as HTMLElement | null;
+    if (bar) bar.style.width = `${Math.round(choreProgress(chore) * 100)}%`;
   }
 
   /** Der Handgriff, an dem gerade gearbeitet wird — für den Streifen und Tests. */
@@ -1931,25 +2007,31 @@ export class ShipExperience {
       return;
     }
     const restores: Array<() => void> = [];
-    for (const part of locker.parts)
-      part.traverse((node) => {
-        if (!(node instanceof THREE.Mesh)) return;
-        const mesh = node as THREE.Mesh;
-        const original = mesh.material;
-        const pale = (Array.isArray(original) ? original : [original]).map((one) => {
-          const copy = one.clone();
-          copy.transparent = true;
-          copy.opacity = LOCKER_GHOST_OPACITY;
-          copy.side = THREE.DoubleSide;
-          copy.depthWrite = false;
-          return copy;
-        });
-        mesh.material = Array.isArray(original) ? pale : pale[0]!;
-        restores.push(() => {
-          mesh.material = original;
-          for (const copy of pale) copy.dispose();
-        });
+    // **Der ganze Schrank** und nicht nur die gebauten Teile: Das Modell aus
+    // dem Regal hängt daneben in derselben Gruppe und kommt erst nach — aus
+    // den Augen stand es als blaue Wand vor dem Gesicht (gemeldet: _„bei aus
+    // den augen, soll der schutz schrank genau wie in vr auch durchsichtig
+    // werden"_). Was später noch lädt, holt `stepLockerGhost` nach.
+    locker.group.traverse((node) => {
+      if (!(node instanceof THREE.Mesh) || insideOf(node, locker.slits)) return;
+      const mesh = node as THREE.Mesh;
+      const original = mesh.material;
+      if (isGhost(original)) return;
+      const pale = (Array.isArray(original) ? original : [original]).map((one) => {
+        const copy = one.clone();
+        copy.userData[LOCKER_GHOST] = true;
+        copy.transparent = true;
+        copy.opacity = LOCKER_GHOST_OPACITY;
+        copy.side = THREE.DoubleSide;
+        copy.depthWrite = false;
+        return copy;
       });
+      mesh.material = Array.isArray(original) ? pale : pale[0]!;
+      restores.push(() => {
+        mesh.material = original;
+        for (const copy of pale) copy.dispose();
+      });
+    });
     if (!locker.slits) {
       locker.slits = buildLockerSlits();
       locker.group.add(locker.slits);
@@ -1963,6 +2045,27 @@ export class ShipExperience {
       for (const restore of restores) restore();
     };
   }
+  /**
+   * **Was im Schrank nachlädt, wird auch durchsichtig** — zweimal je Sekunde
+   * nachgesehen, solange man drinsteckt (`ghostLocker`).
+   */
+  private stepLockerGhost(dt: number): void {
+    this.lockerGhostClock -= dt;
+    if (this.lockerGhostClock > 0) return;
+    this.lockerGhostClock = 0.5;
+    const locker = this.lockers.find((one) => one.id === this.crew.hidden);
+    if (!locker?.ghost) return;
+    let solid = false;
+    locker.group.traverse((node) => {
+      if (solid || !(node instanceof THREE.Mesh) || insideOf(node, locker.slits)) return;
+      if (!isGhost((node as THREE.Mesh).material)) solid = true;
+    });
+    if (!solid) return;
+    this.ghostLocker(locker, false);
+    this.ghostLocker(locker, true);
+  }
+  private lockerGhostClock = 0;
+
   /** Ob diese Kabine ein Wrack ist — die Liste steht im Stand (`HauntState.destroyed`). */
   private wrecked(id: string): boolean {
     return this.host.state().destroyed.includes(id);
@@ -2470,9 +2573,9 @@ export class ShipExperience {
     );
     this.torch.add(this.heldLamp, this.heldMedkit, this.heldPart, this.heldGrenade);
     this.host.ctx.camera.add(this.torch);
-    this.torch.position.set(0.24, -0.24, -0.4);
+    this.torch.position.set(TORCH_AT.x, TORCH_AT.y, TORCH_AT.z);
     this.scanner.name = 'desktop-held-scanner';
-    this.scanner.position.set(-0.3, -0.26, -0.52);
+    this.scanner.position.set(SCANNER_AT.x, SCANNER_AT.y, SCANNER_AT.z);
     this.leftLamp.name = 'desktop-flashlight-left';
     this.leftLamp.setBeamGuide(false);
     this.leftLamp.setLit(true);
@@ -2673,7 +2776,11 @@ export class ShipExperience {
    * Umhängen ist der Weg, auf dem eine verloren geht.
    */
   private cycleSensor(): void {
-    const modes: Array<typeof this.sensorMode> = ['off', 'flashlight'];
+    // **Eine Lampe, nicht zwei**: Liegt sie rechts, bietet links sie nicht an
+    // (gemeldet: _„Ich kann leider aber auch zwei mal die taschenlampe in die
+    // hand nehmen?"_).
+    const modes: Array<typeof this.sensorMode> = ['off'];
+    if (this.rightItem !== 'flashlight') modes.push('flashlight');
     if (this.crew.inventory.includes('radar')) modes.push('radar');
     if (this.crew.inventory.includes('xray')) modes.push('xray');
     this.sensorMode = modes[(modes.indexOf(this.sensorMode) + 1) % modes.length]!;
@@ -2940,6 +3047,86 @@ export class ShipExperience {
     this.heldPart.position.set(0, held ? -0.02 : 0, held ? -0.12 : 0);
   }
 
+  /** Der Beschlag als Schicht über dem Bild (`visorDom`) — nur von oben. */
+  private stepVisorDom(shown: boolean, crew: typeof this.crew): void {
+    this.visorDom.hidden = !shown;
+    if (!shown) return;
+    const fog = Math.min(crew.exertion, VISOR_FOG_MAX) / VISOR_FOG_MAX;
+    const damage = Math.max(crew.hidden ? 0.2 : 0, (3 - crew.hp) / 3);
+    this.visorDom.style.setProperty('--fog', fog.toFixed(2));
+    this.visorDom.style.setProperty('--damage', damage.toFixed(2));
+  }
+
+  /**
+   * **Die eigene Figur wirft vor der eigenen Lampe keinen Schatten.** Die
+   * Lampe hängt am Kopf, und von oben steht die Figur samt Helm im Kegel:
+   * Beim Laufen fiel ihr Schatten genau dorthin, wohin man leuchtete
+   * (gemeldet: _„beim laufen scheint bei von oben das licht verdeckt zu
+   * werden"_). Je Sekunde einmal nachgesehen, weil Teile der Figur erst
+   * nachladen (`denyShadow`).
+   */
+  private stepOwnShadow(dt: number): void {
+    this.shadowClock -= dt;
+    if (this.shadowClock > 0) return;
+    this.shadowClock = 1;
+    this.host.ctx.avatar.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) denyShadow(node);
+    });
+  }
+
+  /**
+   * **Aus den Augen halten die Hände, was sie zeigen** — gemeldet: _„bei "aus
+   * den augen" sollen die hände die lampe bzw. gegenstände so halten wie in vr
+   * und nicht unnötig dumm rum hängen"_. Bis hierher hingen Lampe und Sensor
+   * als Streifen an der Kamera, und die Handschuhe vor dem Auge
+   * (`PortalWorld.screenHands`) schwebten daneben. Jetzt liegt der rechte
+   * Streifen (Lampe, Medkit, Granate, Teil) in der rechten Faust, der linke
+   * (Radar, Röntgen, zweite Lampe) in der linken, aufs Fadenkreuz gedreht wie
+   * ein Werkzeug in der Brille (`aimQuaternion`), und die Faust trägt dessen
+   * Haltung (`screenPose`). Von oben, in der Brille und am Boden bleibt es,
+   * wie es war.
+   */
+  private holdInScreenHands(fallen: boolean): void {
+    const ctx = this.host.ctx;
+    const hands = fallen ? null : (this.host.screenHands?.() ?? null);
+    const right = hands ? hands.right.hold : ctx.camera;
+    const left = hands ? hands.left.hold : ctx.camera;
+    if (this.torch.parent !== right) right.add(this.torch);
+    if (this.scanner.parent !== left) left.add(this.scanner);
+    if (!hands) {
+      this.torch.position.set(TORCH_AT.x, TORCH_AT.y, TORCH_AT.z);
+      this.scanner.position.set(SCANNER_AT.x, SCANNER_AT.y, SCANNER_AT.z);
+      // Nur die Neigung (`updateTools`), keine Drehung aus der Hand von eben.
+      this.torch.rotation.set(this.torch.rotation.x, 0, 0);
+      this.scanner.rotation.set(this.scanner.rotation.x, 0, 0);
+      return;
+    }
+    this.torch.position.copy(this.heldLamp.holdPosition);
+    aimQuaternion(hands.right, this.torch.quaternion);
+    this.scanner.position.copy(this.leftLamp.holdPosition);
+    aimQuaternion(hands.left, this.scanner.quaternion);
+  }
+
+  /**
+   * **Welche Faust die Hand vor dem Auge macht** (`PortalWorld.screenHandPose`)
+   * — die eingemessene Haltung dessen, was sie gerade hält, oder `null`.
+   */
+  screenPose(side: Handedness): string | null {
+    if (!this.player || this.crew.hp <= 0) return null;
+    if (side === 'left') return this.sensorMode === 'off' ? null : this.sensorMode;
+    switch (this.rightItem) {
+      case 'flashlight':
+        return 'flashlight';
+      case 'grenade':
+        return 'stun-grenade';
+      case 'medkit':
+      case 'part':
+        return 'grab';
+      default:
+        return null;
+    }
+  }
+
   private updateTools(dt: number): void {
     const ctx = this.host.ctx;
     const immersive = ctx.renderer.xr.isPresenting;
@@ -2971,6 +3158,11 @@ export class ShipExperience {
     this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight' && this.torchLit);
     this.heldLamp.setHousingVisible(!fallen);
     this.leftLamp.setHousingVisible(!fallen);
+    // Eine Lampe, nicht zwei: Fällt sie rechts zurück in die Hand (Granate
+    // gezündet, Teil verbaut), ist sie links nicht mehr.
+    if (this.rightItem === 'flashlight' && this.sensorMode === 'flashlight')
+      this.sensorMode = 'off';
+    this.holdInScreenHands(fallen);
     this.heldMedkit.visible = this.rightItem === 'medkit' && !fallen;
     if (this.rightItem === 'grenade' && !this.crew.inventory.includes('stun-grenade'))
       this.rightItem = 'flashlight';
@@ -2986,7 +3178,7 @@ export class ShipExperience {
     this.handheldRadar.visible = this.sensorMode === 'radar' && !fallen;
     this.handheldXray.visible = this.sensorMode === 'xray' && !fallen;
     this.leftLamp.visible = this.sensorMode === 'flashlight';
-    this.leftLamp.setLit(this.scanner.visible && this.sensorMode === 'flashlight');
+    this.leftLamp.setLit(this.scanner.visible && this.sensorMode === 'flashlight' && this.torchLit);
     this.stepDropped();
     this.stepMonsterProbe();
     this.stepPin(dt);
@@ -3190,6 +3382,8 @@ export class ShipExperience {
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
     this.stepLockerExit();
     this.stepChore(dt, _head);
+    this.paintChoreDom();
+    if (this.crew.hidden) this.stepLockerGhost(dt);
     this.stepArchiveRadio();
     this.updateTools(dt);
     this.command.mesh.visible = true;
@@ -3264,8 +3458,11 @@ export class ShipExperience {
       this.status.mesh.visible =
         (!crew.simulation && !!crew.hidden) ||
         ((state.phase === 'lost' || state.phase === 'won') && ctx.renderer.xr.isPresenting);
-      this.visor.visible =
-        !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
+      const fogged = !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
+      const onScreen = ctx.topDown && !ctx.renderer.xr.isPresenting;
+      this.visor.visible = fogged && !onScreen;
+      this.stepVisorDom(fogged && onScreen, crew);
+      this.stepOwnShadow(dt);
       // Der Beschlag der Anstrengung höchstens leicht — dieselbe Klage wie
       // beim Atem (`stepHelmet`): Beim Rennen war die Sicht sonst weg.
       this.visor.material.uniforms.fogAmount!.value = Math.min(crew.exertion, VISOR_FOG_MAX);
@@ -4869,6 +5066,8 @@ export class ShipExperience {
     this.menuButton.remove();
     this.arrow.remove();
     this.handsDom.remove();
+    this.visorDom.remove();
+    this.choreDom.remove();
     this.puzzleRoot.remove();
     this.toast.dispose();
     this.dom.removeEventListener('click', this.domClick);
@@ -4972,6 +5171,9 @@ function buildLockerSlits(): THREE.Group {
 const WIRE_SYMBOLS = ['▲', '●', '■', '◆'] as const;
 /** Wie weit sich die Lampe von oben zum Boden neigt (rad): knapp 30°, der Kegel liegt dann 2–5 m vor den Füßen. */
 const TORCH_TILT_TOP = -0.5;
+/** Wo der rechte und der linke Streifen vor der Kamera hängen, wenn keine Hand sie hält. */
+const TORCH_AT = { x: 0.24, y: -0.24, z: -0.4 };
+const SCANNER_AT = { x: -0.3, y: -0.26, z: -0.52 };
 /** Wie lange die Endkarte zählt, bevor es von selbst in die Einsatzzentrale geht (s). */
 const END_SECONDS = 5;
 /** Wie nah die Kamera von oben an den Toten heranfährt — ein Anteil des Abstands davor. */

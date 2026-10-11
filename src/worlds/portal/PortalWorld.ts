@@ -14398,9 +14398,27 @@ export class PortalWorld implements World {
     const side = screen?.state.handedness;
     if (screen && side && !ctx.renderer.xr.isPresenting) {
       const tool = this.held.get(side) ?? null;
-      ctx.hands.setHeldTool(side, tool?.toolId ?? null);
-      ctx.hands.setGestureOverride(side, tool ? 'grip' : null);
+      const pose = tool?.toolId ?? this.screenHandPose(side);
+      ctx.hands.setHeldTool(side, pose);
+      ctx.hands.setGestureOverride(side, pose ? 'grip' : null);
+      // Die linke Hand vor dem Auge hält nur, was die Welt selbst hineinhängt.
+      const off = screen.offHand.handedness;
+      if (off && !this.held.has(off)) {
+        const offPose = this.screenHandPose(off);
+        ctx.hands.setHeldTool(off, offPose);
+        ctx.hands.setGestureOverride(off, offPose ? 'grip' : null);
+      }
     }
+  }
+
+  /**
+   * **Was eine Hand vor dem Auge hält, ohne dass es ein Werkzeug des Kerns
+   * ist** — die Haltung, unter der ihre Faust eingemessen ist (eine Werkzeug-
+   * Kennung oder `grab`), oder `null` für die leere Hand. Ab Werk nichts;
+   * Haunting nennt Lampe, Radar und Co. (`ShipExperience.screenPose`).
+   */
+  protected screenHandPose(_side: Handedness): string | null {
+    return null;
   }
 
   /**
@@ -16325,6 +16343,19 @@ export class PortalWorld implements World {
       this.useCandidates.push(candidate);
     }
     return this.useCandidates;
+  }
+
+  /**
+   * **Die zwei Hände vor dem Auge** (`ScreenHand`) — aus den Augen am Schirm,
+   * sonst `null`. Eine Welt, die selbst zeichnet, was der Spieler hält
+   * (Haunting, `ShipExperience.updateTools`), hängt es hier hinein: dann hält
+   * die Hand es wie in der Brille, statt daneben zu schweben.
+   */
+  protected screenHands(): { right: ControllerState; left: ControllerState } | null {
+    const hand = this.screenHand;
+    const ctx = this.context;
+    if (!hand || !ctx || ctx.topDown || ctx.renderer.xr.isPresenting) return null;
+    return { right: hand.state, left: hand.offHand };
   }
 
   /**

@@ -1263,6 +1263,11 @@ export class HauntingWorld extends FurnishedWorld {
     return null;
   }
 
+  /** Aus den Augen hält die Hand, was das Schiff in sie hängt (`ShipExperience.screenPose`). */
+  protected override screenHandPose(side: Handedness): string | null {
+    return this.experience?.screenPose(side) ?? null;
+  }
+
   /**
    * **Der Werkzeug-Knopf** (`#hud-tool`): die Liste des Schiffs — Hand (leer)
    * vom Kern, Taschenlampe, Radar, Röntgen, Medkit (`ShipExperience.toolChoice`).
@@ -1803,6 +1808,7 @@ export class HauntingWorld extends FurnishedWorld {
         }
       },
       carried: (hand) => this.carriedTool(hand),
+      screenHands: () => this.screenHands(),
       mapSnapshot: () => this.mapSnapshot(),
       objectives: () => this.objectives(),
       monsterPace: () => this.kernel?.round.decided?.pace ?? 'still',
