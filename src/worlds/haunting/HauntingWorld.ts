@@ -22,8 +22,9 @@ import {
   type Dir,
 } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
-import type { Tool } from '../portal/tools/Tool';
+import { Tool } from '../portal/tools/Tool';
 import { StunGrenadeTool } from '../portal/tools/StunGrenadeTool';
+import { seatTop } from '../portal/PortalWorld';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -88,7 +89,11 @@ import {
   TERMINAL_TILES,
   chairSpot,
   deskSpot,
+  GEAR_NAMES,
+  GEAR_TOOLS,
   gearSlot,
+  gearTableAt,
+  type GearTool,
   playerRank,
   spawnSlot,
 } from './world3d/commandRoom';
@@ -485,8 +490,6 @@ const DROPPED = new Set([
   'orbital:heal',
   'orbital:leave',
 ]);
-/** Die Mitte des Sofas der Sitzecke (`world3d/commandRoom.LOUNGE_SPOTS`, zwei Kacheln). */
-const COUCH_CENTRE = { x: 5, z: APRON.z + 11.5 };
 const _down = new THREE.Vector3(0, -1, 0);
 /** Wie hoch über der Stelle der Bodenstrahl beim Versetzen ansetzt, in Metern. */
 const RESPAWN_PROBE = 3;
@@ -598,6 +601,10 @@ export class HauntingWorld extends FurnishedWorld {
     /** Wohin es schaut, um die Hochachse — 0 nach Süden. */
     yaw: number;
     colour: number;
+    /** Wie weit es nach hinten gekippt ist (rad) — 0 steht senkrecht. */
+    tilt: number;
+    /** Wie breit es ist (m). */
+    width: number;
     mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null;
     text: string;
   }> = [];
@@ -1401,7 +1408,8 @@ export class HauntingWorld extends FurnishedWorld {
       remove: (npc) => {
         this.director?.remove(npc);
       },
-      couchTaken: () => this.couchTaken(),
+      seatTaken: (x, z) => this.seatTaken(x, z),
+      seatTop: (x, z) => this.botSeatTop(x, z),
     });
     this.crewBots.setCount(this.crewSettings.bots);
     // Wer am Rechner sitzt, sitzt am Tisch; alle anderen laufen (`crewPlace`).
@@ -1460,7 +1468,7 @@ export class HauntingWorld extends FurnishedWorld {
     if (ctx.role === 'vr') {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe in der Einsatzzentrale —
       // man muss sie im Dunkeln ja finden können.
-      // Auf dem Ausrüstungstisch neben dem Anzug (`commandRoom.GEAR_SPOT`).
+      // Auf ihrem Ausrüstungstisch an der Ostwand (`commandRoom.GEAR_SPOTS`).
       this.placeTableTorch(ctx);
       this.stationTorch?.setLit(true);
     } else {
@@ -1603,6 +1611,8 @@ export class HauntingWorld extends FurnishedWorld {
     this.roomWalls.clear();
     this.lamps.clear();
     this.stationTorch = null;
+    for (const hit of this.gearHits.values()) hit.removeFromParent();
+    this.gearHits.clear();
     this.automaticDoors.clear();
     this.technicians.clear();
     this.hostId = '';
@@ -1800,6 +1810,8 @@ export class HauntingWorld extends FurnishedWorld {
       floatingTorch: () => this.stationTorch,
       gear: () => [...this.tableGear],
       takeGear: (id) => this.takeGear(id),
+      gearTables: () => this.gearTables(),
+      returnGear: (id) => this.returnGear(id),
       blastGrenade: (at) => this.blastGrenade(at),
       takeFloatingTorch: () => {
         if (this.stationTorch) {
@@ -3188,28 +3200,26 @@ export class HauntingWorld extends FurnishedWorld {
   }
 
   /**
-   * **Was auf dem Ausrüstungstisch liegt** (`commandRoom.gearSlot`): die
-   * Lampe (`stationTorch`, eigener Weg), in jeder Runde eine Blendgranate,
-   * in der Übung dazu Röntgen und Radar. Gewünscht: _„in der übungsrunde
-   * kann dort z. B. auch das röntgen gerät drauf gelegt werden."_ Liegt da,
-   * bis es jemand nimmt (Hand oder `E`) — dann steht es auch im Inventar und
-   * kommt erst mit der nächsten Runde wieder. Was nicht mehr dazugehört
-   * (Röntgen nach der Übung), verschwindet vom Tisch. Nur für den Techniker:
-   * Andere Geräte haben keinen Tisch voller Werkzeug.
+   * **Was auf den Ausrüstungstischen liegt** (`commandRoom.GEAR_SPOTS`) — je
+   * Tisch genau ein Werkzeug: die Lampe (`stationTorch`, eigener Weg), in
+   * jeder Runde eine Blendgranate, in der Übung dazu Röntgen und Radar.
+   * Gewünscht: _„in der übungsrunde kann dort z. B. auch das röntgen gerät
+   * drauf gelegt werden."_ Liegt da, bis es jemand nimmt (Hand oder `E`) —
+   * dann steht es auch im Inventar — und **kommt zurück, wenn man es wieder
+   * auf seinen Tisch legt** (`adoptReturned`, `returnGear`): _„auf einem
+   * tisch soll immer nur ein werkzeug liegen, was ich auch dort ablegen
+   * kann"_. Was nicht mehr dazugehört (Röntgen nach der Übung), verschwindet
+   * vom Tisch. Nur für den Techniker: Andere Geräte haben keinen Tisch voller
+   * Werkzeug.
    */
   private stepGear(ctx: WorldContext): void {
     const state = this.state;
     const own = (this.suited || ctx.role === 'vr') && !state.crew.simulation;
-    const practice =
-      own && (state.phase === 'briefing' || (state.phase === 'running' && state.crew.options.test));
-    const wanted = new Set<string>(
-      own && (state.phase === 'briefing' || state.phase === 'running')
-        ? practice
-          ? TABLE_GEAR
-          : ['stun-grenade']
-        : [],
-    );
-    TABLE_GEAR.forEach((id, index) => {
+    // Die Lampe in der Hand ist nicht mehr die Lampe des Tischs.
+    if (this.stationTorch?.heldBy) this.stationTorch = null;
+    if (own) this.adoptReturned();
+    const wanted = new Set<string>(this.gearWanted(ctx));
+    TABLE_GEAR.forEach((id) => {
       const tool = this.tableGear.get(id);
       const entry = tool ? this.props.find((prop) => prop.object === tool) : undefined;
       if (tool && (!entry || tool.heldBy)) {
@@ -3225,14 +3235,100 @@ export class HauntingWorld extends FurnishedWorld {
         return;
       }
       if (tool || this.gearTaken.has(id) || state.crew.inventory.includes(id)) return;
-      const at = gearSlot(index + 1);
-      const placed = this.placeTool(id, new THREE.Vector3(at.x, at.y, at.z), GEAR_TURN, true);
-      if (placed) this.tableGear.set(id, placed);
+      this.layGear(id);
     });
   }
   private readonly tableGear = new Map<string, Tool>();
   /** Was in dieser Runde schon vom Tisch genommen wurde — kommt erst mit der nächsten wieder. */
   private readonly gearTaken = new Set<string>();
+
+  /** Was gerade auf die Tische gehört — außer der Lampe, die immer da ist. */
+  private gearWanted(ctx: WorldContext): readonly string[] {
+    const state = this.state;
+    const own = (this.suited || ctx.role === 'vr') && !state.crew.simulation;
+    if (!own || (state.phase !== 'briefing' && state.phase !== 'running')) return [];
+    const practice = state.phase === 'briefing' || state.crew.options.test;
+    return practice ? TABLE_GEAR : ['stun-grenade'];
+  }
+
+  /** Ein Werkzeug auf seinen Tisch legen, schwebend wie die Lampe. */
+  private layGear(id: (typeof TABLE_GEAR)[number]): void {
+    const at = gearSlot(id);
+    const placed = this.placeTool(id, new THREE.Vector3(at.x, at.y, at.z), GEAR_TURN, true);
+    if (placed) this.tableGear.set(id, placed);
+  }
+
+  /**
+   * **In der Brille zurückgelegt**: Ein Werkzeug, das losgelassen auf seinem
+   * eigenen Tisch liegt, ist wieder dessen Werkzeug — aus dem Inventar
+   * heraus, ordentlich auf die Mitte der Platte gelegt. Auf einem fremden
+   * Tisch bleibt es einfach liegen.
+   */
+  private adoptReturned(): void {
+    for (const entry of this.props) {
+      const tool = entry.object;
+      if (!(tool instanceof Tool) || tool.heldBy) continue;
+      const id = tool.toolId;
+      if (!isGearTool(id) || tool === this.tableGear.get(id) || tool === this.stationTorch)
+        continue;
+      if (tool.position.y < 0.3 || tool.position.y > 1.3) continue;
+      if (gearTableAt(tool.position.x, tool.position.z) !== id) continue;
+      if (id === 'flashlight' && this.stationTorch) continue;
+      this.removeProp(entry, false);
+      this.returnGear(id);
+      return;
+    }
+  }
+
+  /**
+   * **Ein Werkzeug auf seinen Tisch zurück** — aus der Hand (`adoptReturned`)
+   * oder vom Schirm (`E` am Tisch, `ShipExperience.useGearTable`).
+   */
+  private returnGear(id: GearTool): void {
+    const inventory = this.state.crew.inventory;
+    const index = inventory.indexOf(id);
+    if (index >= 0) inventory.splice(index, 1);
+    this.gearTaken.delete(id);
+    if (id === 'flashlight') {
+      if (this.context) this.placeTableTorch(this.context);
+      return;
+    }
+    if (!this.tableGear.has(id)) this.layGear(id);
+  }
+
+  /** Die Tische für den Schirm (`ShipExperience`): was darauf gehört und ob es da liegt. */
+  private gearTables(): Array<{
+    id: GearTool;
+    name: string;
+    object: THREE.Object3D | null;
+    onTable: boolean;
+  }> {
+    return GEAR_TOOLS.map((id) => ({
+      id,
+      name: GEAR_NAMES[id],
+      object: this.gearHits.get(id) ?? null,
+      onTable: id === 'flashlight' ? !!this.stationTorch : this.tableGear.has(id),
+    }));
+  }
+
+  /**
+   * **Woran `E` einen Ausrüstungstisch trifft** — ein unsichtbarer Kasten
+   * über der Platte. Der Tisch selbst steht als Stück der Welt da
+   * (`placeElement`) und hat keinen eigenen Knoten, an den man zeigen könnte.
+   */
+  private readonly gearHits = new Map<GearTool, THREE.Mesh>();
+
+  private placeGearHits(): void {
+    for (const id of GEAR_TOOLS) {
+      if (this.gearHits.has(id)) continue;
+      const slot = gearSlot(id);
+      const hit = new THREE.Mesh(GEAR_HIT_BOX, GEAR_HIT_MATERIAL);
+      hit.name = `gear-table-${id}`;
+      hit.position.set(slot.x, GEAR_HIT_HEIGHT / 2, slot.z);
+      this.root.add(hit);
+      this.gearHits.set(id, hit);
+    }
+  }
 
   /** Vom Schirm aus nehmen (`E`): das Werkzeug vom Tisch, ins Inventar. */
   private takeGear(id: string): void {
@@ -3265,10 +3361,10 @@ export class HauntingWorld extends FurnishedWorld {
     this.placeTableTorch(ctx);
   }
 
-  /** Die Lampe auf den Ausrüstungstisch (`commandRoom.gearSlot(0)`), eingeschaltet. */
+  /** Die Lampe auf ihren Ausrüstungstisch (`commandRoom.gearSlot`), eingeschaltet. */
   private placeTableTorch(ctx: WorldContext): void {
     if (this.stationTorch) return;
-    const at = gearSlot(0);
+    const at = gearSlot('flashlight');
     const torch = this.placeTool(
       'flashlight',
       new THREE.Vector3(at.x, at.y, at.z),
@@ -5095,6 +5191,24 @@ export class HauntingWorld extends FurnishedWorld {
         west ? Math.PI / 2 : -Math.PI / 2,
       );
     }
+    // **Ein Schild an jedem Ausrüstungstisch**, an der Ostwand gleich über
+    // der Platte — gewünscht: _„Dazu will ich am tisch ein schild haben, was
+    // es ist."_ Schräg nach oben gekippt wie ein Pult: Senkrecht an einer
+    // Seitenwand sähe man es von oben gar nicht, so liest man es von oben und
+    // in der Brille am Tisch.
+    this.placeGearHits();
+    const east = (APRON.x + APRON.w) * TILE - 0.3;
+    for (const id of GEAR_TOOLS)
+      this.addSign(
+        `gear-${id}`,
+        east,
+        1.05,
+        gearSlot(id).z,
+        SHIP.cyan,
+        -Math.PI / 2,
+        GEAR_SIGN_TILT,
+        GEAR_SIGN_WIDTH,
+      );
     this.refreshSigns(true);
   }
 
@@ -5201,8 +5315,17 @@ export class HauntingWorld extends FurnishedWorld {
    * **Ein Schild der Zentrale** — gemalt von `refreshSigns`, sobald es etwas
    * zu sagen hat. Nach Süden, also lesbar von jedem, der davorsteht.
    */
-  private addSign(id: string, x: number, y: number, z: number, colour: number, yaw = 0): void {
-    this.commandSigns.push({ id, x, y, z, yaw, colour, mesh: null, text: '' });
+  private addSign(
+    id: string,
+    x: number,
+    y: number,
+    z: number,
+    colour: number,
+    yaw = 0,
+    tilt = 0,
+    width = SIGN_WIDTH,
+  ): void {
+    this.commandSigns.push({ id, x, y, z, yaw, colour, tilt, width, mesh: null, text: '' });
   }
 
   /** Was auf den Schildern steht — je Schild zwei Zeilen. */
@@ -5213,6 +5336,15 @@ export class HauntingWorld extends FurnishedWorld {
     out.set('settings', 'SPIEL-EINSTELLUNGEN\nRunde · Plätze · Station');
     out.set('technician', `TECHNIKER\n${ctx ? (this.suitName(ctx) ?? 'Bot') : 'Bot'}`);
     out.set('monster', `MONSTER\n${this.monsterName() ?? 'Bot'}`);
+    const wanted = ctx ? this.gearWanted(ctx) : [];
+    for (const table of this.gearTables()) {
+      const state = table.onTable
+        ? 'liegt bereit'
+        : table.id === 'flashlight' || table.id === 'stun-grenade' || wanted.includes(table.id)
+          ? 'genommen · hier ablegen'
+          : 'nur in der Übung';
+      out.set(`gear-${table.id}`, `${table.name.toUpperCase()}\n${state}`);
+    }
     const claims = this.currentClaims();
     const owners = seating(claims);
     for (const desk of COMMAND_DESKS) {
@@ -5247,9 +5379,9 @@ export class HauntingWorld extends FurnishedWorld {
         sign.mesh.material.map?.dispose();
         sign.mesh.material.dispose();
       }
-      const mesh = label(text, 1.7, 0.46, sign.colour);
+      const mesh = label(text, sign.width, sign.width * SIGN_ASPECT, sign.colour);
       mesh.position.set(sign.x, sign.y, sign.z);
-      mesh.rotation.y = sign.yaw;
+      mesh.rotation.set(-sign.tilt, sign.yaw, 0, 'YXZ');
       mesh.name = `command-sign-${sign.id}`;
       this.vanRig.add(mesh);
       sign.mesh = mesh;
@@ -5264,12 +5396,26 @@ export class HauntingWorld extends FurnishedWorld {
    * kann."_ Das ist die Seite dieser Welt im Menü (`welt`, `menu()`): Starts,
    * Plätze & Fähigkeiten, Einstellungen der Runde.
    */
-  /** Ob ich gerade auf dem Sofa der Sitzecke sitze — dann machen die Bots Platz. */
-  private couchTaken(): boolean {
+  /**
+   * **Ob ich gerade auf diesem Sitz sitze** (Mitte in Metern) — dann machen
+   * die Bots Platz. Wer mitten auf dem Sofa sitzt, belegt beide Plätze.
+   */
+  private seatTaken(x: number, z: number): boolean {
     const seat = this.sittingOn;
     if (!seat) return false;
     const at = seat.getWorldPosition(_couch);
-    return Math.hypot(at.x - COUCH_CENTRE.x, at.z - COUCH_CENTRE.z) < 1.2;
+    return Math.hypot(at.x - x, at.z - z) < 0.9;
+  }
+
+  /**
+   * **Wie hoch die Sitzfläche liegt**, an der Mitte eines Sitzes der Zentrale
+   * — für die Bots, gemessen wie für einen Spieler (`PortalWorld.seatTop`): ein
+   * Strahl von oben in die Welt. Das Möbel selbst steht als Stück der Welt da
+   * (`placeElement`), nicht als eigener Knoten; also wird die ganze Welt
+   * gefragt — einmal je Hinsetzen.
+   */
+  private botSeatTop(x: number, z: number): number | null {
+    return seatTop(this.root, _couch.set(x, 0, z), this.context?.camera ?? null);
   }
 
   private openSettings(): void {
@@ -5855,8 +6001,22 @@ function framed(size: number): number {
 /** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
 export const STATION_FLOOR = 'prototype-bits/Floor.glb';
 
-/** Was auf dem Ausrüstungstisch liegen kann, von West nach Ost nach der Lampe (`stepGear`). */
+/** Was auf den Ausrüstungstischen liegen kann, außer der Lampe (`stepGear`). */
 const TABLE_GEAR = ['stun-grenade', 'xray', 'radar'] as const;
+
+function isGearTool(id: string): id is GearTool {
+  return (GEAR_TOOLS as readonly string[]).includes(id);
+}
+/** Wie breit ein Schild der Zentrale ist (m) — und wie hoch, als Anteil der Breite. */
+const SIGN_WIDTH = 1.7;
+const SIGN_ASPECT = 0.46 / 1.7;
+/** Die Schilder der Ausrüstungstische: schmaler, und schräg nach oben gekippt (rad). */
+const GEAR_SIGN_WIDTH = 1.2;
+const GEAR_SIGN_TILT = 0.85;
+/** Der unsichtbare Kasten über einem Ausrüstungstisch, an dem `E` greift (`placeGearHits`). */
+const GEAR_HIT_HEIGHT = 0.7;
+const GEAR_HIT_BOX = new THREE.BoxGeometry(0.9, GEAR_HIT_HEIGHT, 0.9);
+const GEAR_HIT_MATERIAL = new THREE.MeshBasicMaterial({ visible: false });
 /** Wie die Werkzeuge auf dem Tisch liegen: wie gebaut, die Spitze nach Norden. */
 const GEAR_TURN = new THREE.Quaternion();
 

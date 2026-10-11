@@ -33,8 +33,10 @@ import { COMMAND_DESKS, type CommandDesk } from './commandSeats';
  *   die Konsole der Station (x −4,6…−1,8, `ShipExperience`), das Titelschild
  *   (x −1,7…1,7), der Rechner _Verbindung_, der Techniker-Anzug und der
  *   Monster-Anzug — über jedem ein Schild.
- * - **An den Seitenwänden** die drei Schreibtische, Rot und Gelb im Westen,
- *   Blau im Osten, mit je einem Bürostuhl davor (`commandSeats.COMMAND_DESKS`).
+ * - **An der Westwand** die drei Schreibtische, Rot, Gelb und Blau, mit je
+ *   einem Bürostuhl davor (`commandSeats.COMMAND_DESKS`).
+ * - **An der Ostwand** die Ausrüstungswand: vier Tische mit je einem
+ *   Werkzeug und einem Schild darüber (`GEAR_SPOTS`).
  * - **In der Mitte** der Hologramm-Sockel (`HOLOGRAM_SPOT`) mit dem Küken
  *   darüber — `A` wählt ein anderes Modell aus dem Regal.
  * - **Im Südosten** eine Sitzecke: Sofa, Couchtisch, zwei Sessel — auf alles
@@ -152,33 +154,54 @@ export const COMMAND_SPOTS: readonly ElementSpot[] = [
 ];
 
 /**
- * **Der Ausrüstungstisch** neben dem Anzugständer — zwei Kacheln, eine Reihe
- * vor der Nordwand. Darauf liegt, womit der Techniker losgeht: die Lampe
- * immer, in der Übung dazu Röntgen und Radar (`HauntingWorld.stepGear`).
- * Gewünscht: _„in der einsatz zentrale stehen tische (wie bei restaurant) auf
- * denen die items liegen mit denen ich starten kann."_
+ * **Die Werkzeuge der Ausrüstungstische**, von Nord nach Süd — je Tisch genau
+ * eines. Gewünscht: _„auf einem tisch soll immer nur ein werkzeug liegen,
+ * was ich auch dort ablegen kann (wie bei anderen arbeitsplatten). Dazu will
+ * ich am tisch ein schild haben, was es ist."_
  */
-export const GEAR_SPOT: ElementSpot = {
-  id: 'command-gear',
-  element: 'space-gear-table',
-  x: 2,
-  z: NORTH_ROW + 2,
-  face: 'S',
+export const GEAR_TOOLS = ['flashlight', 'stun-grenade', 'xray', 'radar'] as const;
+export type GearTool = (typeof GEAR_TOOLS)[number];
+
+/** Wie das Werkzeug eines Tischs heißt — auf dem Schild und in den Meldungen. */
+export const GEAR_NAMES: Readonly<Record<GearTool, string>> = {
+  flashlight: 'Taschenlampe',
+  'stun-grenade': 'Blendgranate',
+  xray: 'Röntgengerät',
+  radar: 'Bewegungsradar',
 };
 
-/** Wie hoch die Platte des Ausrüstungstischs liegt, in Metern. */
+/**
+ * **Die Ausrüstungswand** — vier Tische an der Ostwand (rechts im Bild von
+ * oben), eine Kachel breit, mit einer Kachel Luft dazwischen; über jedem
+ * hängt ein Schild an der Wand (`HauntingWorld.placeCommandRoom`).
+ * Gewünscht: _„Ich denke wir sollten die ausrüstungswand rechts hinstellen an
+ * die wand mit den schildern an der wand."_ Die Schreibtische sind dafür alle
+ * an die Westwand gezogen (`commandSeats.COMMAND_DESKS`).
+ */
+export const GEAR_SPOTS: readonly ElementSpot[] = GEAR_TOOLS.map((tool, index) => ({
+  id: `command-gear-${tool}`,
+  element: 'space-gear-table',
+  x: APRON.x + APRON.w - 1,
+  z: APRON.z + 2 + index * 2,
+  face: 'W',
+}));
+
+/** Wie hoch die Platte eines Ausrüstungstischs liegt, in Metern. */
 export const GEAR_TOP = 0.5;
 
-/**
- * **Die Plätze auf dem Tisch**, von West nach Ost: die Lampe, die
- * Blendgranate, das Röntgengerät, das Radar — je ein Viertel der Platte.
- */
-export function gearSlot(index: number): { x: number; y: number; z: number } {
-  return {
-    x: (GEAR_SPOT.x + 1 + (index - 1.5) * 0.45) * TILE,
-    y: GEAR_TOP + 0.06,
-    z: (GEAR_SPOT.z + 0.5) * TILE,
-  };
+/** **Wo das Werkzeug auf seinem Tisch liegt** — die Mitte der Platte, knapp darüber. */
+export function gearSlot(tool: GearTool): { x: number; y: number; z: number } {
+  const spot = GEAR_SPOTS[GEAR_TOOLS.indexOf(tool)]!;
+  return { x: (spot.x + 0.5) * TILE, y: GEAR_TOP + 0.06, z: (spot.z + 0.5) * TILE };
+}
+
+/** Auf welchem Tisch etwas liegt, das bei (x, z) in Metern liegt — oder `null`. */
+export function gearTableAt(x: number, z: number): GearTool | null {
+  for (const tool of GEAR_TOOLS) {
+    const slot = gearSlot(tool);
+    if (Math.abs(x - slot.x) < 0.5 && Math.abs(z - slot.z) < 0.5) return tool;
+  }
+  return null;
 }
 
 /** Die Kachelreihe der Sitzecke: der Couchtisch, das Sofa eine dahinter. */
@@ -192,7 +215,7 @@ const LOUNGE_ROW = APRON.z + 10;
  */
 export const LOUNGE_SPOTS: readonly ElementSpot[] = [
   HOLOGRAM_SPOT,
-  GEAR_SPOT,
+  ...GEAR_SPOTS,
   {
     id: 'lounge-table',
     element: 'furniture-table-low-decorated',
@@ -238,7 +261,7 @@ const TILES: Readonly<Record<string, readonly [number, number]>> = {
   'furniture-cactus-a': [1, 1],
   'furniture-cactus-b': [1, 1],
   'space-hologram': [2, 2],
-  'space-gear-table': [2, 1],
+  'space-gear-table': [1, 1],
 };
 
 function tilesOf(spot: ElementSpot): readonly [number, number] {

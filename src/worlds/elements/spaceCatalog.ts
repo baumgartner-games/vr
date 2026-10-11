@@ -131,9 +131,10 @@ export const SPACE_SUIT_STAND: GameElement = {
 };
 
 /**
- * **Der Ausrüstungstisch der Einsatzzentrale** — zwei Arbeitstische des
- * Restaurants (`kitchentable_A`) nebeneinander, darauf liegt, womit der Techniker losgeht (Lampe, in der
- * Übung Röntgen und Radar; `haunting/HauntingWorld.stepGear`). Gewünscht:
+ * **Ein Ausrüstungstisch der Einsatzzentrale** — ein Arbeitstisch des
+ * Restaurants (`kitchentable_A`), darauf liegt **ein** Werkzeug, mit dem der
+ * Techniker losgeht, und dorthin legt er es zurück
+ * (`haunting/HauntingWorld.stepGear`). Gewünscht:
  * _„in der einsatz zentrale stehen tische (wie bei restaurant) auf denen die
  * items liegen mit denen ich starten kann."_
  *
@@ -146,16 +147,14 @@ export const SPACE_GEAR_TABLE: GameElement = {
   id: 'space-gear-table',
   label: 'Ausrüstungstisch',
   aka: ['Tisch', 'Ausrüstung', 'Haunting'],
-  tiles: [2, 1],
+  tiles: [1, 1],
   height: 0.5,
   kind: null,
-  // Zwei Arbeitstische aus dem Restaurant nebeneinander — gewünscht: _„Die
-  // tische auf den die items liegen ist nicht schön. Ich möchte lieber
-  // restaurant-bits/kitchentable_A.glb haben."_
-  parts: [
-    { model: 'restaurant-bits/kitchentable_A.glb', pose: { at: [-0.5, 0, 0] } },
-    { model: 'restaurant-bits/kitchentable_A.glb', pose: { at: [0.5, 0, 0] } },
-  ],
+  // Ein Arbeitstisch aus dem Restaurant — gewünscht: _„Ich möchte lieber
+  // restaurant-bits/kitchentable_A.glb haben."_ Und je Werkzeug einer:
+  // _„auf einem tisch soll immer nur ein werkzeug liegen, was ich auch dort
+  // ablegen kann"_.
+  parts: [{ model: 'restaurant-bits/kitchentable_A.glb' }],
 };
 
 /** Der Roboter, als der „Der Verlorene" durch die Station geht (`haunting/actorFit.ts`). */

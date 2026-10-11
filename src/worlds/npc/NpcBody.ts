@@ -202,6 +202,17 @@ export class NpcBody extends THREE.Group {
    */
   private posed: NpcPose | null = null;
   private posedPlaying = false;
+  /**
+   * **Wie hoch die Sitzfläche liegt** (m über den Füßen), solange er sitzt —
+   * `null`: so hoch, wie die Sitzspur es meint. Gemeldet: _„die bots auf dem
+   * sofas sollen sich auch korrekt hinsetzen können. Dafür sollen die wie ein
+   * spieler mit dem sofa interagieren."_ Dieselbe Rechnung wie bei der
+   * Spielerfigur (`core/AvatarBody.seat`): Das Becken kommt auf die Mitte der
+   * Sitzfläche, nicht die Sohlen auf den Boden.
+   */
+  seatTop: number | null = null;
+  /** Wo die Figur stand, bevor sie aufs Polster gehoben wurde — dorthin zurück beim Aufstehen. */
+  private seatBase: THREE.Vector3 | null = null;
 
   constructor(kind: NpcKind) {
     super();
@@ -636,6 +647,7 @@ export class NpcBody extends THREE.Group {
   setPose(pose: NpcPose | null): void {
     if (pose === this.posed) return;
     this.posed = pose;
+    if (pose !== 'sit') this.unseat();
     this.posedPlaying = false;
     // Zurück in den Gang: Der nächste `driveFigure` wählt ihn neu.
     this.figureGait = null;
@@ -695,10 +707,40 @@ export class NpcBody extends THREE.Group {
         this.posedPlaying = true;
       }
       figure.update(dt);
+      if (this.posed === 'sit') this.seatFigure(figure);
       return;
     }
     if (!this.figureDead) this.playGait(gaitFor(speed), FIGURE_FADE);
     figure.update(dt);
+  }
+
+  /**
+   * **Das Becken auf die Sitzfläche** — gemessen, wo es in diesem Bild steht,
+   * und die Figur so weit verschoben, dass es über der Mitte des Sitzes
+   * (dem Ursprung) und `SEAT_HIP` über `seatTop` liegt. Nie tiefer als der
+   * Boden. Ohne `seatTop` oder ohne Beckenknochen bleibt alles, wie die Spur
+   * es zeigt.
+   */
+  private seatFigure(figure: KaykitFigure): void {
+    const hips = figure.bones.hips;
+    if (this.seatTop === null || !hips) return;
+    const root = figure.root;
+    this.seatBase ??= root.position.clone();
+    this.updateWorldMatrix(true, true);
+    _hips.setFromMatrixPosition(hips.matrixWorld);
+    this.worldToLocal(_hips);
+    root.position.x -= _hips.x;
+    root.position.z -= _hips.z;
+    root.position.y = Math.max(
+      this.seatBase.y,
+      root.position.y + this.seatTop + SEAT_HIP - _hips.y,
+    );
+  }
+
+  /** Vom Polster zurück auf die Füße (`seatFigure`). */
+  private unseat(): void {
+    if (this.seatBase && this.figure) this.figure.root.position.copy(this.seatBase);
+    this.seatBase = null;
   }
 
   /** Auf einen Gang überblenden — oder nichts tun, wenn er schon läuft. */
@@ -846,6 +888,9 @@ export interface PuppetPose {
 }
 
 /** Weiter nickt und dreht keine Puppe den Kopf. */
+/** So weit über der Sitzfläche liegt das Becken — wie `core/AvatarBody` (m). */
+const SEAT_HIP = 0.08;
+const _hips = new THREE.Vector3();
 const HEAD_PITCH = Math.PI * 0.35;
 const HEAD_YAW = Math.PI * 0.4;
 

@@ -384,10 +384,10 @@ drei haben keinen Zweck in der Küche (`kind: null`) und leuchten (`lit`); was
 `A` an ihnen tut, hängt Haunting selbst an (`HauntingWorld.bindCommandSpot`):
 Anzüge an- und ausziehen, Platz nehmen, _Verbindung_ oder
 _Spiel-Einstellungen_ öffnen. Anderswo hingestellt, stehen sie da. Dazu der
-**Ausrüstungstisch** (`space-gear-table`, 2 × 1 Kacheln, zwei Arbeitstische
-`kitchentable_A` des Restaurants) — als einziges Möbel mit einem **Körper so hoch wie die
+**Ausrüstungstisch** (`space-gear-table`, 1 × 1 Kachel, ein Arbeitstisch
+`kitchentable_A` des Restaurants, in Haunting einer je Werkzeug) — als einziges Möbel mit einem **Körper so hoch wie die
 Platte** (0,5 m statt 1,40 m), weil auf ihm Werkzeuge als Körper der Physik
-liegen (Lampe, Röntgen, Radar; `HauntingWorld.stepGear`).
+liegen (Lampe, Blendgranate, Röntgen, Radar; `HauntingWorld.stepGear`).
 
 **Sitzen.** Alles aus _Möbel → Sitzen_ — Sessel, Sofas, Stühle, Bürostühle,
 Hocker — hat `opens: 'sit'` (`furnitureCatalog.seat`): `A` setzt einen in die

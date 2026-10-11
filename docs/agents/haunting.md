@@ -7,6 +7,43 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Ausrüstungswand, Schreibtische im Westen, Bots sitzen richtig (Oktober 2026)
+
+- **Je Werkzeug ein Tisch, mit Schild** (`commandRoom.GEAR_TOOLS`,
+  `GEAR_SPOTS`, `gearSlot(tool)`; `space-gear-table` ist jetzt **ein**
+  `kitchentable_A`, 1 × 1 Kachel): Taschenlampe, Blendgranate, Röntgengerät,
+  Bewegungsradar, von Nord nach Süd an der **Ostwand** mit je einer Kachel
+  Luft. Über jedem hängt ein Schild, schräg nach oben gekippt wie ein Pult
+  (`addSign` mit `tilt`, `GEAR_SIGN_TILT`), damit man es von oben und in der
+  Brille liest: Name und _liegt bereit_ / _genommen · hier ablegen_ / _nur in
+  der Übung_. Gewünscht: _„auf einem tisch soll immer nur ein werkzeug liegen,
+  was ich auch dort ablegen kann (wie bei anderen arbeitsplatten). Dazu will
+  ich am tisch ein schild haben, was es ist. Ich denke wir sollten die
+  ausrüstungswand rechts hinstellen an die wand mit den schildern an der
+  wand."_
+- **Zurücklegen.** In der Brille: über dem eigenen Tisch loslassen — ein
+  Werkzeug, das auf seinem Tisch liegt, gehört wieder dem Tisch, geht aus dem
+  Inventar und liegt ordentlich in der Mitte (`HauntingWorld.adoptReturned`).
+  Auf einem fremden Tisch bleibt es einfach liegen. Am Schirm: `E` am Tisch
+  (unsichtbarer Trefferkasten `placeGearHits`, `ShipExperience.useGearTable`)
+  legt zurück, was man dabei hat, oder nimmt, was daliegt
+  (`returnGear`/`takeGear`).
+- **Alle drei Schreibtische an der Westwand** (`commandSeats.COMMAND_DESKS`,
+  `DESK_STEP` 4): Rot, Gelb, Blau von Nord nach Süd. Blau stand an der
+  Ostwand, wo jetzt die Ausrüstungswand ist — gewünscht: _„Und den
+  schreibtisch von rechts nach links platzieren."_
+- **Bots setzen sich wie Spieler** (`commandBots.LOUNGE_SEATS`): zwei Plätze
+  auf dem Sofa und die beiden Sessel, die Sitzhöhe gemessen wie beim Spieler
+  (`PortalWorld.seatTop`, ein Strahl von oben in die Welt,
+  `HauntingWorld.botSeatTop`), und die Figur sitzt mit dem Becken auf dem
+  Polster (`Npc.hold('sit', yaw, at, seatTop)` → `NpcBody.seatTop`,
+  `seatFigure`) — dieselbe Rechnung wie `AvatarBody.seat`. Vorher spielten sie
+  die Sitzspur auf Bodenhöhe und standen im Sofa. Auch am Schreibtisch sitzen
+  sie so. Sitzt ein Mensch auf einem Sitz, macht der Bot dort Platz
+  (`seatTaken`). Gemeldet: _„die bots auf dem sofas sollen sich auch korrekt
+  hinsetzen können. Dafür sollen die wie ein spieler mit dem sofa
+  interagieren."_
+
 ## Schiebetüren, Schnellleiste mit zwei Händen (Oktober 2026)
 
 - **Die Türen gleiten seitlich in die Wand** statt zu schwingen
@@ -81,7 +118,7 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   caferteria, weil ich in der einsatz zentrale bin. Ich bräuchte irgendeine
   art von abschreckung"_.
 - **Der Ausrüstungstisch sind zwei Arbeitstische** (`kitchentable_A`, Platte
-  wie vorher auf 0,5 m), und den Arbeitstisch gibt es im Katalog
+  wie vorher auf 0,5 m; seit der Ausrüstungswand einer je Werkzeug, siehe oben), und den Arbeitstisch gibt es im Katalog
   (`kitchen-table`): unter _Restaurant → Arbeitsplatten_ (neu, mit der
   Arbeitsplatte) und unter _Möbel → Tische_.
 - **Die Bots der Zentrale meiden Möbel** (`commandBots.strollPoint`,
@@ -128,7 +165,7 @@ patrouilliert und Schächte nimmt, aber nicht jagt und nicht trifft.
   Kapsel in Monstergröße als Durchleuchtungsziel, jedes Bild an `state.monster`
   — auch im Schacht. Das Radar zeigt es jetzt auch in der Übung.
 - **Der Ausrüstungstisch** (`spaceCatalog.SPACE_GEAR_TABLE`,
-  `commandRoom.GEAR_SPOT`/`gearSlot`): der lange Tisch aus _Furniture Bits_ vor
+  damals `commandRoom.GEAR_SPOT`, heute `GEAR_SPOTS`): der lange Tisch aus _Furniture Bits_ vor
   dem Rechner _Verbindung_, **mit einem Körper nur so hoch wie die Platte**
   (0,5 m; ein Körper von 1,40 m schob die Werkzeuge vom Tisch). Darauf liegt
   die Lampe (vorher schwebte sie an der Fensterfront), in der Übung dazu
@@ -491,8 +528,8 @@ breite kleiner machen. Dann finde ich es in dem raum immer noch düster."_
   über der Kantine (x −8…8) — die Fensterfront geht genau über deren Breite.
 - **Nordwand**: _Spiel-Einstellungen_ (x −7), Konsole, Titelschild,
   _Verbindung_ (x 2), Techniker-Anzug (x 4,5) und Monster-Anzug (x 6,5).
-- **Die Schreibtische an den Seitenwänden** (`commandSeats.COMMAND_DESKS`):
-  Rot und Gelb im Westen, Blau im Osten, quer (`CommandDesk.face`), der
+- **Die Schreibtische an der Westwand** (`commandSeats.COMMAND_DESKS`):
+  Rot, Gelb und Blau (bis Oktober 2026 Blau im Osten), quer (`CommandDesk.face`), der
   Bürostuhl mittig davor auf halben Kacheln, mit dem Gesicht zur Wand
   (`CommandDesk.yaw`, auch für `crewPlacement`). Die Schilder hängen an der
   Wand über dem Tisch (`addSign` mit Drehung).
@@ -560,8 +597,8 @@ freien Plätze nehmen.
 - **Die Bots als Figuren** (`world3d/commandBots.CommandBots`, Roboter aus
   dem Regal: 4GTN und Kampf-Mech): schlendern durch die Zentrale
   (`strollPoint`, Hirn `errand`) und setzen sich aufs Sofa, wenn es frei ist
-  (`COUCH_SEATS`, von der Seite her; sitzt man selbst darauf, `couchTaken`,
-  stehen sie auf). Sofa und Stuhl stehen auf gesperrten Zellen: Der Bot wird
+  (`LOUNGE_SEATS`, Sofa von der Seite her, Sessel von Norden; sitzt man selbst
+  darauf, `seatTaken`, stehen sie auf). Sofa und Stuhl stehen auf gesperrten Zellen: Der Bot wird
   auf den Sitz versetzt (`Npc.warp`) und sitzt dort ohne Zylinder
   (`Npc.hold('sit', …, at)` → `perch`). Beim Start bekommt jeder Bot mit Platz
   seinen Auftrag (`assign`): an den Schreibtisch seiner Farbe und hinsetzen,

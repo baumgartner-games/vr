@@ -11,8 +11,9 @@ import { commandBlocks, MONSTER_SPOT, SUIT_SPOT } from './commandRoom';
  *
  * Gewünscht (Oktober 2026): _„bots in der einsatzzentrale (anzahl 0, 1, 2, 3,
  * 4), diese sitzen dann auf dem sofa (wenn es frei ist) oder gehen umher in
- * der einsatzzentrale."_ Wie viele es sind, stellt der Rechner
- * _Spiel-Einstellungen_ ein (`rules/crewBots.ts`); beim Start bekommt jeder,
+ * der einsatzzentrale."_ Gesetzt wird sich wie ein Spieler (`sit`): auf Sofa
+ * oder Sessel, das Becken auf der Sitzfläche. Wie viele es sind, stellt der
+ * Rechner _Spiel-Einstellungen_ ein (`rules/crewBots.ts`); beim Start bekommt jeder,
  * der einen Platz übernimmt, seinen Auftrag (`assign`): an einen Rechner der
  * Zentrale und dort hinsetzen, oder an den Anzugständer — dann ist er in der
  * Runde und aus der Zentrale verschwunden. Nach der Runde (`release`) sitzen
@@ -28,8 +29,13 @@ export interface CommandBotsHost {
   /** Einen NPC dieser Sorte setzen, Hirn `errand` — oder `null`. */
   spawn(kind: NpcKind, at: THREE.Vector3, yaw: number): Npc | null;
   remove(npc: Npc): void;
-  /** Ob gerade ein Mensch auf dem Sofa sitzt — dann ist es nicht frei. */
-  couchTaken(): boolean;
+  /** Ob gerade ein Mensch auf diesem Sitz sitzt (Mitte in Metern) — dann ist er nicht frei. */
+  seatTaken(x: number, z: number): boolean;
+  /**
+   * **Wie hoch die Sitzfläche an dieser Stelle liegt** (m über dem Boden) —
+   * gemessen wie für einen Spieler (`PortalWorld.seatTop`).
+   */
+  seatTop(x: number, z: number): number | null;
 }
 
 /**
@@ -43,22 +49,46 @@ const KINDS: readonly NpcKind[] = [
   'kaykit:character-animations/mannequin-character/characters/Mannequin_Medium.glb',
 ];
 
-/** Die Sitzecke: das Sofa (zwei Kacheln, Blick nach Norden), wie `commandRoom.LOUNGE_SPOTS`. */
+/** Die Kachelreihe der Sitzecke, wie `commandRoom.LOUNGE_SPOTS`. */
 const LOUNGE_ROW = APRON.z + 10;
 /**
- * Je Sitz die Mitte, die Blickrichtung (die eines NPC: null blickt nach +z,
- * also π nach Norden) — und **von wo man sich setzt**: Vor dem
- * Sofa steht der Couchtisch, also kommt man von der Seite, neben den Sesseln
- * vorbei (`approach`).
+ * **Die Sitze der Sitzecke**, wie ein Spieler sie nimmt: zwei Plätze auf dem
+ * Sofa und die zwei Sessel (`commandRoom.LOUNGE_SPOTS`). Je Sitz die Mitte,
+ * die Blickrichtung (die eines NPC: null blickt nach +z, also π nach Norden)
+ * — und **von wo man sich setzt**:
+ * Vor dem Sofa steht der Couchtisch, also kommt man von der Seite; an die
+ * Sessel von Norden (`approach`).
  */
-const COUCH_SEATS: readonly {
+const LOUNGE_SEATS: readonly {
   x: number;
   z: number;
   yaw: number;
   approach: { x: number; z: number };
 }[] = [
-  { x: 4.5, z: LOUNGE_ROW + 1.5, yaw: Math.PI, approach: { x: 3.5, z: LOUNGE_ROW + 1.5 } },
-  { x: 5.5, z: LOUNGE_ROW + 1.5, yaw: Math.PI, approach: { x: 6.5, z: LOUNGE_ROW + 1.5 } },
+  {
+    x: 4.5,
+    z: LOUNGE_ROW + 1.5,
+    yaw: Math.PI,
+    approach: { x: 3.5, z: LOUNGE_ROW + 1.5 },
+  },
+  {
+    x: 5.5,
+    z: LOUNGE_ROW + 1.5,
+    yaw: Math.PI,
+    approach: { x: 6.5, z: LOUNGE_ROW + 1.5 },
+  },
+  {
+    x: 3.5,
+    z: LOUNGE_ROW + 0.5,
+    yaw: Math.PI / 2,
+    approach: { x: 3.5, z: LOUNGE_ROW - 0.6 },
+  },
+  {
+    x: 6.5,
+    z: LOUNGE_ROW + 0.5,
+    yaw: -Math.PI / 2,
+    approach: { x: 6.5, z: LOUNGE_ROW - 0.6 },
+  },
 ];
 
 /** Wie lange einer sitzt bzw. schlendert, bevor ihm etwas anderes einfällt (s). */
@@ -145,7 +175,6 @@ export class CommandBots {
 
   update(dt: number): void {
     this.clock += dt;
-    const couchTaken = this.host.couchTaken();
     for (const bot of this.bots) {
       const plan = bot.plan;
       if (plan.kind === 'post') {
@@ -153,20 +182,21 @@ export class CommandBots {
         continue;
       }
       if (plan.kind === 'couch') {
-        // Setzt sich ein Mensch aufs Sofa, steht der Bot auf und macht Platz.
-        if (couchTaken || this.clock > plan.until) {
+        const seat = LOUNGE_SEATS[plan.seat]!;
+        // Setzt sich ein Mensch dorthin, steht der Bot auf und macht Platz.
+        if (this.host.seatTaken(seat.x, seat.z) || this.clock > plan.until) {
           this.unsettle(bot);
           bot.plan = this.newStroll();
           continue;
         }
-        const seat = COUCH_SEATS[plan.seat]!;
-        if (!bot.settled && this.near(bot, seat, SIT_REACH)) this.sit(bot, seat, seat.yaw);
+        if (!bot.settled && this.near(bot, seat, SIT_REACH))
+          this.sit(bot, seat, seat.yaw, this.host.seatTop(seat.x, seat.z));
         else if (!bot.settled) this.walk(bot, seat.approach);
         continue;
       }
-      // Schlendern: von Punkt zu Punkt, und ist das Sofa frei, irgendwann hinsetzen.
+      // Schlendern: von Punkt zu Punkt, und ist ein Sitz frei, irgendwann hinsetzen.
       if (this.clock > plan.until) {
-        const seat = couchTaken ? null : this.freeCouchSeat();
+        const seat = this.freeCouchSeat();
         if (seat !== null) {
           bot.plan = {
             kind: 'couch',
@@ -194,7 +224,8 @@ export class CommandBots {
       const at = { x: desk.x, z: desk.z };
       // `desk.yaw` ist die Drehung des Spielers (Blick nach −z); die Figur
       // eines NPC blickt bei null nach +z.
-      if (this.near(bot, at, SIT_REACH)) this.sit(bot, at, desk.yaw + Math.PI);
+      if (this.near(bot, at, SIT_REACH))
+        this.sit(bot, at, desk.yaw + Math.PI, this.host.seatTop(at.x, at.z));
       else this.walk(bot, at);
       return;
     }
@@ -212,13 +243,19 @@ export class CommandBots {
   /**
    * **Hinsetzen**: Sofa und Stuhl stehen auf gesperrten Zellen, dorthin plant
    * kein Weg. Wer nah genug davor steht, wird auf den Sitz versetzt
-   * (`Npc.warp`) und hält dort die Haltung (`Npc.hold`).
+   * (`Npc.warp`) und hält dort die Haltung (`Npc.hold`) — mit dem Becken auf
+   * der Sitzfläche (`top`), wie ein Spieler, der sich dorthin setzt.
    */
-  private sit(bot: Bot, at: { x: number; z: number }, yaw: number): void {
+  private sit(
+    bot: Bot,
+    at: { x: number; z: number },
+    yaw: number,
+    top: number | null = null,
+  ): void {
     bot.npc.feet(_at);
     bot.stood = { x: _at.x, z: _at.z };
     bot.npc.warp(_shift.makeTranslation(at.x - _at.x, 0, at.z - _at.z));
-    bot.npc.hold('sit', yaw, at);
+    bot.npc.hold('sit', yaw, at, top);
     bot.settled = true;
   }
 
@@ -250,7 +287,10 @@ export class CommandBots {
     const taken = new Set(
       this.bots.flatMap((bot) => (bot.plan.kind === 'couch' ? [bot.plan.seat] : [])),
     );
-    const free = COUCH_SEATS.map((_, index) => index).filter((index) => !taken.has(index));
+    const free = LOUNGE_SEATS.map((_, index) => index).filter(
+      (index) =>
+        !taken.has(index) && !this.host.seatTaken(LOUNGE_SEATS[index]!.x, LOUNGE_SEATS[index]!.z),
+    );
     return free.length ? free[Math.floor(this.random() * free.length)]! : null;
   }
 
