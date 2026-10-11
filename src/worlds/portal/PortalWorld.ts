@@ -684,12 +684,20 @@ const SIT_DROP = 0.45;
  * **Wie hoch die Sitzfläche liegt** (m über dem Boden des Ankers) — ein Strahl
  * von oben auf die Mitte des Möbels, der erste Treffer unter Lehnenhöhe. So
  * passt es zu jedem Stuhl, Hocker und Sofa, wie groß es auch steht; ohne
- * Treffer (noch nicht geladen) eine gewöhnliche Stuhlhöhe.
+ * Treffer (noch nicht geladen) eine gewöhnliche Stuhlhöhe. Auch die Bots der
+ * Haunting-Zentrale setzen sich so (`haunting/world3d/commandBots.ts`).
  */
-function seatTop(anchor: THREE.Object3D, centre: THREE.Vector3): number {
+export function seatTop(
+  anchor: THREE.Object3D | readonly THREE.Object3D[],
+  centre: THREE.Vector3,
+  camera: THREE.Camera | null = null,
+): number {
   _seatRay.set(_seatFrom.set(centre.x, centre.y + SEAT_PROBE, centre.z), _seatDown);
-  anchor.updateMatrixWorld(true);
-  for (const hit of _seatRay.intersectObject(anchor, true)) {
+  // Sprites (Schilder, Lebensbalken) wollen beim Strahl eine Kamera wissen.
+  if (camera) _seatRay.camera = camera;
+  const objects = Array.isArray(anchor) ? anchor : [anchor as THREE.Object3D];
+  for (const one of objects) one.updateMatrixWorld(true);
+  for (const hit of _seatRay.intersectObjects(objects as THREE.Object3D[], true)) {
     const top = hit.point.y - centre.y;
     if (top < SEAT_PROBE - 0.05 && top < SEAT_HIGHEST) return Math.max(0, top);
   }

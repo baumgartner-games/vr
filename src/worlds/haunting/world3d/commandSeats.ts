@@ -40,14 +40,16 @@ export interface CommandDesk {
 }
 
 /**
- * **Die Schreibtische stehen an den Seitenwänden** — seit die Zentrale
+ * **Die Schreibtische stehen an der Westwand** — seit die Zentrale
  * quadratisch ist (16 × 14, `house.APRON`), ist die Mitte für das Hologramm
  * frei (`commandRoom.HOLOGRAM_SPOT`), und um sie herum stehen die Plätze wie
- * auf einer Brücke: Rot und Gelb im Westen, Blau im Osten.
+ * auf einer Brücke. Bis Oktober 2026 stand Blau an der Ostwand; dort steht
+ * jetzt die Ausrüstungswand (`commandRoom.GEAR_SPOTS`) — gewünscht: _„Und den
+ * schreibtisch von rechts nach links platzieren."_
  */
 export const DESK_ROW = APRON.z + 3;
-/** Wie weit der zweite Tisch einer Wand südlich vom ersten steht, in Kacheln. */
-export const DESK_STEP = 5;
+/** Wie weit ein Tisch südlich vom vorigen steht, in Kacheln. */
+export const DESK_STEP = 4;
 /** Wie weit die Mitte des Stuhls vor der Vorderkante des Tischs steht, in Metern. */
 export const CHAIR_GAP = 0.5;
 /** Augenhöhe auf dem Stuhl: Sitzfläche plus ein sitzender Oberkörper. */
@@ -63,22 +65,21 @@ const DESK_ORDER: ReadonlyArray<[CommandDesk['station'], number]> = [
   ['blue', 0x4aa8ff],
 ];
 
-/** Die drei Schreibtische: Rot und Gelb an der Westwand, Blau an der Ostwand. */
+/** Die drei Schreibtische an der Westwand, von Nord nach Süd: Rot, Gelb, Blau. */
 export const COMMAND_DESKS: readonly CommandDesk[] = DESK_ORDER.map(([station, colour], index) => {
-  const west = index !== 2;
-  const tileX = west ? APRON.x : APRON.x + APRON.w - 1;
-  const tileZ = DESK_ROW + (index === 1 ? DESK_STEP : 0);
+  const tileX = APRON.x;
+  const tileZ = DESK_ROW + index * DESK_STEP;
   return {
     station,
     colour,
     tileX,
     tileZ,
-    face: west ? 'E' : 'W',
-    x: west ? (tileX + 1) * TILE + CHAIR_GAP : tileX * TILE - CHAIR_GAP,
+    face: 'E',
+    x: (tileX + 1) * TILE + CHAIR_GAP,
     z: (tileZ + 1) * TILE,
     // Die Einheitsdrehung blickt nach −z; eine Vierteldrehung links herum
     // nach Westen.
-    yaw: west ? Math.PI / 2 : -Math.PI / 2,
+    yaw: Math.PI / 2,
   };
 });
 

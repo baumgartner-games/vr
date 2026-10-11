@@ -154,6 +154,7 @@ import { SHIP, label } from './shipArt';
 import { buildActor, type ShipActor } from './actorArt';
 import type { HauntState } from './net';
 import { STUN_GRENADE_MODEL } from '../portal/tools/StunGrenadeTool';
+import { GEAR_NAMES, type GearTool } from './world3d/commandRoom';
 
 interface ShipHost {
   ctx: WorldContext;
@@ -207,10 +208,19 @@ interface ShipHost {
   carried?(hand: Handedness): Tool | null;
   floatingTorch?(): FlashlightTool | null;
   takeFloatingTorch?(): void;
-  /** Was in der Übung auf dem Ausrüstungstisch liegt (`HauntingWorld.stepGear`). */
+  /** Was auf den Ausrüstungstischen liegt, außer der Lampe (`HauntingWorld.stepGear`). */
   gear?(): Array<[string, Tool]>;
   /** Vom Schirm aus (`E`) ein Werkzeug vom Tisch nehmen. */
   takeGear?(id: string): void;
+  /** Die Ausrüstungstische — je einer für ein Werkzeug (`commandRoom.GEAR_SPOTS`). */
+  gearTables?(): Array<{
+    id: GearTool;
+    name: string;
+    object: THREE.Object3D | null;
+    onTable: boolean;
+  }>;
+  /** Ein Werkzeug auf seinen Tisch zurücklegen (`HauntingWorld.returnGear`). */
+  returnGear?(id: GearTool): void;
   /** Eine Blendgranate zünden, wo sie ist (`HauntingWorld.blastGrenade`). */
   blastGrenade?(at: { x: number; y?: number; z: number }): void;
   /** Der Stand als Karte und der Gang des Monsters — für das Hörmodell (`audio/`). */
@@ -363,6 +373,11 @@ const HAND_LABEL = {
   part: 'Ersatzteil',
   grenade: 'Blendgranate',
 } as const;
+
+/** Wie ein Werkzeug vom Tisch heißt, in den Meldungen. */
+function gearName(id: string): string {
+  return (GEAR_NAMES as Readonly<Record<string, string>>)[id] ?? id;
+}
 
 /** Was die Knöpfe der Hände zeigen (`stepHands`) — ein Zeichen je Ding. */
 const HAND_ICON = {
@@ -2993,31 +3008,32 @@ export class ShipExperience {
         if (tool instanceof RadarTool) tool.setContact(this.host.state().monster);
         if (tool instanceof XrayTool) tool.setSubjects(() => this.scanSubjects);
       }
-    // **Was auf dem Ausrüstungstisch liegt** (`host.gear`, nur in der Übung):
-    // am Schirm mit `E`, in der Brille mit dem Griff wie jedes Werkzeug.
+    // **Was auf den Ausrüstungstischen liegt** (`host.gear`): am Schirm mit
+    // `E`, in der Brille mit dem Griff wie jedes Werkzeug.
     for (const [id, tool] of this.host.gear?.() ?? []) {
       if (this.gearBound.has(tool)) continue;
       this.gearBound.add(tool);
-      const name =
-        id === 'xray' ? 'Röntgengerät' : id === 'radar' ? 'Bewegungsradar' : 'Blendgranate';
-      tool.userData.interactionLabel = `E: ${name} nehmen`;
-      const take = (): void => {
-        if (ctx.renderer.xr.isPresenting) {
-          this.host.say(`${name} mit dem Griff greifen.`);
-          return;
-        }
-        this.host.ctx.pointer.remove(tool);
-        this.host.unusable?.(tool);
-        this.host.takeGear?.(id);
-        if (id === 'xray' || id === 'radar') this.sensorMode = id;
-        this.host.say(
-          id === 'stun-grenade'
-            ? 'Blendgranate genommen · G zündet sie (eine Ladung).'
-            : `${name} genommen.`,
-        );
-        this.paint();
-      };
+      tool.userData.interactionLabel = `E: ${gearName(id)} nehmen`;
+      const take = (): void => this.takeTableGear(id, tool);
       this.bind(tool, take, false, true, { use: take, radius: 0.35 });
+    }
+    // **Und die Tische selbst**: `E` legt zurück, was dorthin gehört — oder
+    // nimmt es, wenn es daliegt. Gewünscht: _„auf einem tisch soll immer nur
+    // ein werkzeug liegen, was ich auch dort ablegen kann"_.
+    for (const table of this.host.gearTables?.() ?? []) {
+      const object = table.object;
+      if (!object) continue;
+      const carried = !table.onTable && this.carriesGear(table.id);
+      object.userData.interactionLabel = table.onTable
+        ? `E: ${table.name} nehmen`
+        : carried
+          ? `E: ${table.name} ablegen`
+          : `Tisch: ${table.name}`;
+      if (this.gearBound.has(object)) continue;
+      this.gearBound.add(object);
+      const id = table.id;
+      const use = (): void => this.useGearTable(id);
+      this.bind(object, use, false, true, { use, radius: 0.55 });
     }
     const floating = this.host.floatingTorch?.();
     if (floating?.visible && floating !== this.floatingTorch) {
@@ -3045,6 +3061,74 @@ export class ShipExperience {
       };
       this.bind(floating, take, false, true, { use: take, radius: 0.35 });
     }
+  }
+
+  /** Ob ich das Werkzeug dieses Tischs bei mir habe — die Lampe hat man am Schirm immer. */
+  private carriesGear(id: GearTool): boolean {
+    return id === 'flashlight' || this.crew.inventory.includes(id);
+  }
+
+  /** Ein Werkzeug vom Tisch nehmen, vom Schirm aus (`E`). */
+  private takeTableGear(id: string, tool: THREE.Object3D): void {
+    const name = gearName(id);
+    if (this.host.ctx.renderer.xr.isPresenting) {
+      this.host.say(`${name} mit dem Griff greifen.`);
+      return;
+    }
+    this.host.ctx.pointer.remove(tool);
+    this.host.unusable?.(tool);
+    this.host.takeGear?.(id);
+    if (id === 'xray' || id === 'radar') this.sensorMode = id;
+    this.host.say(
+      id === 'stun-grenade'
+        ? 'Blendgranate genommen · G zündet sie (eine Ladung).'
+        : `${name} genommen.`,
+    );
+    this.paint();
+  }
+
+  /** `E` an einem Ausrüstungstisch: zurücklegen, was dorthin gehört, oder nehmen, was daliegt. */
+  private useGearTable(id: GearTool): void {
+    const table = this.host.gearTables?.().find((one) => one.id === id);
+    if (!table) return;
+    if (this.host.ctx.renderer.xr.isPresenting) {
+      this.host.say(
+        `${table.name}: mit dem Griff nehmen, über dem Tisch loslassen legt es zurück.`,
+      );
+      return;
+    }
+    if (table.onTable) {
+      if (id === 'flashlight') {
+        const floating = this.host.floatingTorch?.();
+        if (floating) {
+          this.host.ctx.pointer.remove(floating);
+          this.host.unusable?.(floating);
+        }
+        this.host.takeFloatingTorch?.();
+        this.floatingTorch = null;
+        this.rightItem = 'flashlight';
+        this.host.say('Taschenlampe aufgenommen.');
+        this.paint();
+        return;
+      }
+      const tool = this.host.gear?.().find(([one]) => one === id)?.[1];
+      if (tool) this.takeTableGear(id, tool);
+      return;
+    }
+    if (!this.carriesGear(id)) {
+      const article = id === 'flashlight' || id === 'stun-grenade' ? 'die' : 'das';
+      this.host.say(`Hier gehört ${article} ${table.name} hin.`);
+      return;
+    }
+    this.host.returnGear?.(id);
+    if (id === 'flashlight' && this.rightItem === 'flashlight') this.rightItem = 'off';
+    if (id === 'flashlight' && this.sensorMode === 'flashlight') this.sensorMode = 'off';
+    if (id === 'stun-grenade' && this.rightItem === 'grenade') this.rightItem = 'flashlight';
+    if ((id === 'xray' || id === 'radar') && this.sensorMode === id) this.sensorMode = 'off';
+    this.host.say(`${table.name} abgelegt.`);
+    this.host.ctx.refreshWorldMenu();
+    this.stamp = '';
+    this.paint();
   }
 
   private heal(): void {

@@ -248,10 +248,17 @@ export class Npc {
   /**
    * **Am Platz bleiben** — mit einer Haltung, in eine Richtung, auf eine
    * Stelle (`npcBehavior.ts`, `BehaviorOrder.settle`) — oder wieder loslassen
-   * (`null`). Wer sitzt, hat keinen Auftrag mehr: Das Ziel wird aufgehoben,
+   * (`null`). Wer auf einem Möbel sitzt, nennt dessen Sitzhöhe (`seatTop`, m
+   * über dem Boden): Dann sitzt die Figur darauf (`NpcBody.seatTop`). Wer sitzt, hat keinen Auftrag mehr: Das Ziel wird aufgehoben,
    * damit der Läufer nicht weiter plant.
    */
-  hold(pose: NpcPose | null, yaw = this.yaw, at: { x: number; z: number } | null = null): void {
+  hold(
+    pose: NpcPose | null,
+    yaw = this.yaw,
+    at: { x: number; z: number } | null = null,
+    seatTop: number | null = null,
+  ): void {
+    this.model.seatTop = pose === 'sit' ? seatTop : null;
     if (!pose) {
       if (!this.posture) return;
       this.posture = null;
