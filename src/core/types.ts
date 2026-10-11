@@ -251,6 +251,14 @@ export interface ToolOption {
   label: string;
   icon?: MenuIcon;
   accent?: number;
+  /** Eine Zeile darunter — etwa, in welche Hand es geht. */
+  sub?: string;
+  /**
+   * **Mehr als ein Weg in die Hand** — dann öffnet die Kachel diese Liste,
+   * und jeder Eintrag wählt mit seiner eigenen Id (Haunting: die Lampe in die
+   * linke oder die rechte Hand).
+   */
+  choices?: ReadonlyArray<{ id: string; label: string }>;
 }
 
 /**

@@ -1268,6 +1268,11 @@ export class HauntingWorld extends FurnishedWorld {
     return this.experience?.screenPose(side) ?? null;
   }
 
+  /** Aus den Augen sind die Maustasten die Abzüge der zwei Hände (`ShipExperience.stepHandUse`). */
+  protected override screenArmed(): boolean {
+    return this.experience?.handsArmed() ?? false;
+  }
+
   /**
    * **Der Werkzeug-Knopf** (`#hud-tool`): die Liste des Schiffs — Hand (leer)
    * vom Kern, Taschenlampe, Radar, Röntgen, Medkit (`ShipExperience.toolChoice`).

@@ -390,6 +390,9 @@ const HAND_LABEL = {
   grenade: 'Blendgranate',
 } as const;
 
+/** So lange hält man einen Hand-Knopf, bis er wechselt statt benutzt (ms). */
+const HAND_HOLD_MS = 450;
+
 /** Wie ein Werkzeug vom Tisch heißt, in den Meldungen. */
 function gearName(id: string): string {
   return (GEAR_NAMES as Readonly<Record<string, string>>)[id] ?? id;
@@ -835,10 +838,35 @@ export class ShipExperience {
       ] as const) {
         button.type = 'button';
         button.dataset['hand'] = hand;
-        button.setAttribute('aria-label', hand === 'left' ? 'Linke Hand' : 'Rechte Hand');
-        button.addEventListener('click', () =>
-          hand === 'left' ? this.cycleSensor() : this.cycleRight(),
-        );
+        const name = hand === 'left' ? 'Linke Hand' : 'Rechte Hand';
+        button.setAttribute('aria-label', `${name}: tippen benutzt, halten wechselt`);
+        button.title = `${name} · tippen: benutzen · halten: wechseln`;
+        // **Tippen benutzt, Halten wechselt** — die Hand vor dem Auge benutzt
+        // ihr Abzug, der Knopf ist dafür die Hand am Telefon und von oben.
+        let held: number | null = null;
+        let cycled = false;
+        button.addEventListener('pointerdown', () => {
+          cycled = false;
+          if (held !== null) window.clearTimeout(held);
+          held = window.setTimeout(() => {
+            held = null;
+            cycled = true;
+            if (hand === 'left') this.cycleSensor();
+            else this.cycleRight();
+          }, HAND_HOLD_MS);
+        });
+        const cancel = (): void => {
+          if (held !== null) window.clearTimeout(held);
+          held = null;
+        };
+        button.addEventListener('pointerleave', cancel);
+        button.addEventListener('pointercancel', cancel);
+        button.addEventListener('contextmenu', (event) => event.preventDefault());
+        button.addEventListener('click', () => {
+          cancel();
+          if (!cycled) this.useHand(hand);
+          cycled = false;
+        });
         this.handsDom.append(button);
       }
       document.body.append(
@@ -885,6 +913,9 @@ export class ShipExperience {
       this.paint();
       return true;
     }
+    // Aus den Augen benutzt die Hand ihr Abzug (`stepHandUse`); `E` gehört
+    // dort nur der Welt — Türen, Kisten, Tische.
+    if (this.handsArmed()) return false;
     if (this.rightItem === 'medkit') {
       this.heal();
       return true;
@@ -932,6 +963,85 @@ export class ShipExperience {
     this.paint();
   }
 
+  /**
+   * **Ob aus den Augen die Maustasten die Abzüge der Hände sind**
+   * (`PortalWorld.screenArmed`): Linksklick benutzt die rechte Hand,
+   * Rechtsklick die linke — wie die zwei Trigger in der Brille. `E` bleibt
+   * für Türen, Kisten und Tische. Gewünscht: _„Ich kann nur items mit "E"
+   * aktivieren, die in Hand 2 sind, aber z. B. nicht wenn röntgen gerät in 1
+   * liegt."_
+   */
+  handsArmed(): boolean {
+    const ctx = this.host.ctx;
+    return (
+      this.player &&
+      !ctx.topDown &&
+      !ctx.renderer.xr.isPresenting &&
+      !this.crew.simulation &&
+      !this.crew.hidden &&
+      this.crew.hp > 0
+    );
+  }
+
+  /** Die Flanken der zwei Abzüge (`handsArmed`): Linksklick/RT rechts, Rechtsklick/LT links. */
+  private stepHandUse(ctx: WorldContext): void {
+    const armed = this.handsArmed() && !ctx.menu.isOpen;
+    const right = armed && ctx.rig.trigger > 0.5;
+    const left = armed && ctx.rig.sighting;
+    if (right && !this.rightPulled) this.useHand('right');
+    if (left && !this.leftPulled) this.useHand('left');
+    this.rightPulled = right;
+    this.leftPulled = left;
+  }
+  private rightPulled = false;
+  private leftPulled = false;
+  /** Ob Radar oder Röntgengerät in der linken Hand ausgeschaltet ist (`useHand`). */
+  private sensorOff = false;
+
+  /**
+   * **Was in einer Hand liegt, benutzen** — vom Abzug (`stepHandUse`) oder
+   * vom Knopf der Hand (`.orbital-hands`): die Lampe an und aus, das Medkit
+   * heilt, die Granate zündet, Radar und Röntgengerät an und aus.
+   */
+  private useHand(side: Handedness): void {
+    if (!this.player || this.crew.simulation || this.crew.hp <= 0) return;
+    if (side === 'right') {
+      switch (this.rightItem) {
+        case 'flashlight':
+          this.torchLit = !this.torchLit;
+          this.host.say(this.torchLit ? 'Taschenlampe an.' : 'Taschenlampe aus.');
+          break;
+        case 'medkit':
+          this.heal();
+          break;
+        case 'grenade':
+          this.throwGrenade();
+          break;
+        case 'part':
+          this.host.say('Das Ersatzteil gehört an seine Stelle — dort E.');
+          break;
+        default:
+          this.host.say('Rechte Hand ist leer · 2 nimmt etwas.');
+      }
+    } else {
+      switch (this.sensorMode) {
+        case 'flashlight':
+          this.torchLit = !this.torchLit;
+          this.host.say(this.torchLit ? 'Taschenlampe an.' : 'Taschenlampe aus.');
+          break;
+        case 'radar':
+        case 'xray':
+          this.sensorOff = !this.sensorOff;
+          this.host.say(`${HAND_LABEL[this.sensorMode]} ${this.sensorOff ? 'aus' : 'an'}.`);
+          break;
+        default:
+          this.host.say('Linke Hand ist leer · 1 nimmt etwas.');
+      }
+    }
+    this.stamp = '';
+    this.paint();
+  }
+
   /** Die zwei Knöpfe der Hände nachziehen — nur, wenn sich etwas geändert hat. */
   private stepHands(ctx: WorldContext): void {
     const shown =
@@ -946,10 +1056,10 @@ export class ShipExperience {
 
   /** Die Aufschrift der zwei Knöpfe — auch gleich beim Umschalten, nicht erst im nächsten Bild. */
   private paintHands(): void {
-    const key = `${this.sensorMode}|${this.rightItem}`;
+    const key = `${this.sensorMode}|${this.rightItem}|${this.sensorOff}`;
     if (key === this.handsShown) return;
     this.handsShown = key;
-    this.leftButton.innerHTML = `<span>${HAND_ICON[this.sensorMode]}</span><small>1 · ${HAND_LABEL[this.sensorMode]}</small>`;
+    this.leftButton.innerHTML = `<span>${HAND_ICON[this.sensorMode]}</span><small>1 · ${HAND_LABEL[this.sensorMode]}${this.sensorOff && (this.sensorMode === 'radar' || this.sensorMode === 'xray') ? ' (aus)' : ''}</small>`;
     this.rightButton.innerHTML = `<span>${HAND_ICON[this.rightItem]}</span><small>2 · ${HAND_LABEL[this.rightItem]}</small>`;
   }
 
@@ -963,7 +1073,7 @@ export class ShipExperience {
    */
   useEmpty(): boolean {
     if (!this.player || this.crew.simulation || this.crew.hidden || this.crew.hp <= 0) return false;
-    if (this.busy) return false;
+    if (this.busy || this.handsArmed()) return false;
     // **Nur eine Lampe, die schon in einer Hand liegt** — gemeldet: _„wenn ich
     // hand 2 frei habe und e drücke ist die taschenlampe an. Ist nicht
     // richtig?"_ Eine freie Hand bleibt frei; die Lampe nimmt man mit `2`.
@@ -1009,15 +1119,34 @@ export class ShipExperience {
    * steht im Streifen und wird in der Tafel abgelegt).
    */
   toolChoice(): ToolChoice {
+    // **Jede Kachel sagt, in welche Hand es geht** — die Lampe fragt, denn sie
+    // passt in beide (gewünscht: _„bei "aus den augen" kann ich meine im
+    // inventar vorhandenen items nicht schön/gut in die 2 hand legen"_).
+    const carried = (id: string): string =>
+      this.crew.inventory.includes(id) ? 'linke Hand · 1' : 'nicht dabei';
     const options: ToolOption[] = [
-      { id: 'flashlight', label: 'Taschenlampe', icon: this.heldLamp.icon },
-      { id: 'radar', label: 'Bewegungsradar', icon: this.handheldRadar.icon },
-      { id: 'xray', label: 'Röntgengerät', icon: this.handheldXray.icon },
+      {
+        id: 'flashlight',
+        label: 'Taschenlampe',
+        icon: this.heldLamp.icon,
+        sub: 'linke oder rechte Hand',
+        choices: [
+          { id: 'flashlight@left', label: 'In die linke Hand · 1' },
+          { id: 'flashlight', label: 'In die rechte Hand · 2' },
+        ],
+      },
+      {
+        id: 'radar',
+        label: 'Bewegungsradar',
+        icon: this.handheldRadar.icon,
+        sub: carried('radar'),
+      },
+      { id: 'xray', label: 'Röntgengerät', icon: this.handheldXray.icon, sub: carried('xray') },
     ];
     if (this.crew.inventory.includes('medkit'))
-      options.push({ id: 'medkit', label: 'Medkit', icon: 'bag' });
+      options.push({ id: 'medkit', label: 'Medkit', icon: 'bag', sub: 'rechte Hand · 2' });
     if (this.crew.inventory.includes('stun-grenade'))
-      options.push({ id: 'grenade', label: 'Blendgranate', icon: 'tools' });
+      options.push({ id: 'grenade', label: 'Blendgranate', icon: 'tools', sub: 'rechte Hand · 2' });
     this.choice.options = options;
     const chosen = this.chosen;
     const inHand =
@@ -1025,20 +1154,27 @@ export class ShipExperience {
         ? this.rightItem !== 'flashlight' &&
           this.rightItem !== 'medkit' &&
           this.sensorMode === 'off'
-        : chosen === 'flashlight' || chosen === 'medkit' || chosen === 'grenade'
-          ? this.rightItem === chosen
-          : chosen === 'radar' || chosen === 'xray'
-            ? this.sensorMode === chosen
-            : false;
+        : chosen === 'flashlight@left'
+          ? this.sensorMode === 'flashlight'
+          : chosen === 'flashlight' || chosen === 'medkit' || chosen === 'grenade'
+            ? this.rightItem === chosen
+            : chosen === 'radar' || chosen === 'xray'
+              ? this.sensorMode === chosen
+              : false;
+    // Die Lampe heißt in der Liste `flashlight`, in welcher Hand sie auch liegt.
     this.choice.current = inHand
-      ? (chosen as string | null)
+      ? chosen === 'flashlight@left'
+        ? 'flashlight'
+        : (chosen as string | null)
       : this.rightItem === 'flashlight' ||
           this.rightItem === 'medkit' ||
           this.rightItem === 'grenade'
         ? this.rightItem
         : this.sensorMode === 'radar' || this.sensorMode === 'xray'
           ? this.sensorMode
-          : null;
+          : this.sensorMode === 'flashlight'
+            ? 'flashlight'
+            : null;
     return this.choice;
   }
 
@@ -1061,9 +1197,16 @@ export class ShipExperience {
       this.host.say('Beide Hände frei.');
     } else if (id === 'flashlight') {
       this.rightItem = 'flashlight';
+      if (this.sensorMode === 'flashlight') this.sensorMode = 'off';
       this.torchLit = true;
       if (immersive) this.host.equip?.('flashlight', 'right');
-      this.host.say('Taschenlampe eingeschaltet.');
+      this.host.say('Taschenlampe rechts, eingeschaltet.');
+    } else if (id === 'flashlight@left') {
+      this.sensorMode = 'flashlight';
+      if (this.rightItem === 'flashlight') this.rightItem = 'off';
+      this.torchLit = true;
+      if (immersive) this.host.equip?.('flashlight', 'left');
+      this.host.say('Taschenlampe links, eingeschaltet.');
     } else if (id === 'medkit') {
       if (!this.crew.inventory.includes('medkit')) {
         this.host.say('Kein Medkit im Inventar.');
@@ -1084,6 +1227,7 @@ export class ShipExperience {
         return;
       }
       this.sensorMode = id;
+      this.sensorOff = false;
       if (immersive) this.host.equip?.(id, 'left');
       this.host.say(
         id === 'radar'
@@ -2784,6 +2928,7 @@ export class ShipExperience {
     if (this.crew.inventory.includes('radar')) modes.push('radar');
     if (this.crew.inventory.includes('xray')) modes.push('xray');
     this.sensorMode = modes[(modes.indexOf(this.sensorMode) + 1) % modes.length]!;
+    this.sensorOff = false;
     this.paintHands();
     if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.(this.sensorMode, 'left');
     this.host.ctx.refreshWorldMenu();
@@ -3184,14 +3329,15 @@ export class ShipExperience {
     this.stepPin(dt);
     this.stepBlind(dt);
     this.stepHands(ctx);
+    this.stepHandUse(ctx);
     ctx.camera.getWorldDirection(_direction);
     this.handheldRadar.setContact(this.host.state().monster);
-    if (this.scanner.visible && this.sensorMode === 'radar')
+    if (this.scanner.visible && this.sensorMode === 'radar' && !this.sensorOff)
       this.handheldRadar.updateDisplay(dt, _head, _direction);
     this.handheldXray.updateView(
       this.root,
       _head,
-      this.scanner.visible && this.sensorMode === 'xray',
+      this.scanner.visible && this.sensorMode === 'xray' && !this.sensorOff,
     );
     if (immersive)
       for (const hand of ['left', 'right'] as const) {
@@ -3413,7 +3559,7 @@ export class ShipExperience {
     // Das Röntgengerät blendet die Kennzeichen der noch vollen Kisten ein —
     // sein Schild hing hier jahrelang unbenutzt herum, während stattdessen ein
     // Inhaltsschild dauerhaft am Schrank klebte.
-    const scanning = this.sensorMode === 'xray' && !crew.hidden && crew.hp > 0;
+    const scanning = this.sensorMode === 'xray' && !this.sensorOff && !crew.hidden && crew.hp > 0;
     for (const cabinet of this.cabinets) {
       const opened = crew.opened.includes(cabinet.id);
       const amount = THREE.MathUtils.damp(cabinet.leaf.scale.y, opened ? 0.025 : 1, 8, dt);

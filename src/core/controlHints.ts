@@ -396,9 +396,15 @@ function zoneHints(ctx: HintContext, zone: HintZone): HintItem[] {
         return out;
       }
       if (ctx.useCandidate) add(use, 'Benutzen');
+      // Aus den Augen sind die Maustasten die Abzüge der Hände
+      // (`ShipExperience.handsArmed`): links die rechte, rechts die linke.
+      if (ctx.armed && ctx.view === 'firstPerson') {
+        add(pad ? 'RT' : 'Klick', 'Rechte Hand');
+        add(pad ? 'LT' : 'Rechtsklick', 'Linke Hand');
+      }
       if (!pad && !touch) {
-        add('1', 'Linke Hand');
-        add('2', 'Rechte Hand');
+        add('1', 'Linke wechseln');
+        add('2', 'Rechte wechseln');
         add('Strg', 'Ducken');
       }
       turn();
