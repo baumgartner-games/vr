@@ -7,6 +7,37 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Hände aus den Augen, Visier von oben, Schrank, Kistenbalken (Oktober 2026)
+
+- **Aus den Augen halten die Hände, was sie zeigen** (`ShipExperience.holdInScreenHands`,
+  `PortalWorld.screenHands`): Der rechte Streifen (Lampe, Medkit, Granate,
+  Teil) liegt in der rechten Bildschirmhand, der linke (Radar, Röntgen,
+  zweite Lampe) in der linken, aufs Fadenkreuz gedreht (`aimQuaternion`);
+  die Faust trägt die eingemessene Haltung (`screenPose` →
+  `PortalWorld.screenHandPose`). Von oben und in der Brille wie bisher.
+- **Eine Lampe, nicht zwei**: `1` bietet die Lampe nicht an, wenn sie rechts
+  liegt, `2` nicht, wenn sie links liegt; fällt sie rechts zurück, ist sie
+  links weg (`updateTools`).
+- **`E` ins Leere schaltet nur eine Lampe, die schon in der Hand liegt**
+  (`useEmpty`) — mit freier rechter Hand bleibt die Hand frei.
+- **Visier von oben auf dem Bildschirm** (`visorDom`, `.orbital-visor`): Die
+  Scheibe hängt an der Augenkamera und schwebte von oben als Glasplatte vor
+  der Figur; von oben zeigt jetzt eine Schicht über dem Bild Beschlag
+  (`--fog`) und roten Saum (`--damage`).
+- **Die eigene Figur wirft vor der eigenen Lampe keinen Schatten**
+  (`stepOwnShadow`, `denyShadow` je Sekunde): Von oben stand der Helm im
+  Kegel und dunkelte beim Laufen genau ab, wohin man leuchtete.
+- **Der Schutzschrank wird ganz durchsichtig** (`ghostLocker` über die ganze
+  Gruppe, `stepLockerGhost` für Nachgeladenes): Das Modell aus dem Regal kam
+  später und stand aus den Augen als blaue Wand vor dem Gesicht.
+- **Kiste öffnen**: Derselbe Knopf bricht nicht mehr ab, er sagt, wie lange
+  es noch dauert; ein Abbruch nennt den Grund (losgegangen, Schrank, Runde
+  vorbei); beim Start „5 s stillstehen"; am Schirm ein Balken unter dem
+  Fadenkreuz (`choreDom`, `.orbital-chore`). Gemeldet: _„warum wird der
+  schrank öffnen denn abgebrochen?"_
+- **Ein offenes Menü gibt die Maus frei** (`FlatControls.update`): Aus den
+  Augen blieb sie mit `Tab` gefangen, und das Bild drehte sich weiter.
+
 ## Ausrüstungswand, Schreibtische im Westen, Bots sitzen richtig (Oktober 2026)
 
 - **Je Werkzeug ein Tisch, mit Schild** (`commandRoom.GEAR_TOOLS`,

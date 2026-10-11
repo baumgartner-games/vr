@@ -477,6 +477,12 @@ export class FlatControls {
       this.rig.sighting = false;
       this.rig.useHeld = false;
       this.rig.setTrigger(0);
+      // **Ein offenes Menü gibt die Maus frei** — gemeldet: _„wenn ich "aus
+      // den augen" mit z. B. tab das menü öffne, ist die maus nicht losgelöst
+      // und ich kann die kamera immer noch bewegen, aber das menü nicht
+      // nutzen."_ Zurück ins Bild holt sie der nächste Klick, wie immer.
+      if (this.pointerLocked && document.pointerLockElement === this.canvas)
+        document.exitPointerLock();
       return;
     }
 
