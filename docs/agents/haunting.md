@@ -7,6 +7,27 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Jede Hand ihr Abzug, `E` nur für die Welt (Oktober 2026)
+
+- **Aus den Augen sind die Maustasten die Abzüge der Hände**
+  (`ShipExperience.handsArmed` → `PortalWorld.screenArmed` → `PlayerRig.armed`):
+  Linksklick/RT benutzt die rechte Hand, Rechtsklick/LT die linke
+  (`stepHandUse`, `useHand`) — Lampe an/aus, Medkit heilt, Granate zündet,
+  Radar und Röntgengerät an/aus (`sensorOff`). `E` gehört dort nur der Welt:
+  Türen, Kisten, Tische (`useSpecial`/`useEmpty` treten zurück). Wie die zwei
+  Trigger in der Brille. Gewünscht: _„Ich kann nur items mit "E" aktivieren,
+  die in Hand 2 sind, aber z. B. nicht wenn röntgen gerät in 1 liegt."_
+- **Kurze Klicks gehen nicht verloren** (`FlatControls.fireCaught`,
+  `sightCaught`): Ein Druck zählt bis zum nächsten Bild, auch wenn die Taste
+  dazwischen schon wieder oben ist.
+- **Die Hand-Knöpfe** (`.orbital-hands`, Telefon und von oben): Tippen
+  benutzt, Halten (`HAND_HOLD_MS`) wechselt; `1`/`2` wechseln weiter.
+- **Das Inventar sagt, in welche Hand es geht** (`ToolOption.sub`, Kachel
+  `caption`), und die Lampe fragt: _In die linke Hand · 1_ / _In die rechte
+  Hand · 2_ (`ToolOption.choices`, `chooseTool('flashlight@left')`).
+- **Ein offenes Menü gibt jede gefangene Maus frei** — nicht nur die der
+  Leinwand; vorher hing sie an einem anderen Element und blieb gefangen.
+
 ## Hände aus den Augen, Visier von oben, Schrank, Kistenbalken (Oktober 2026)
 
 - **Aus den Augen halten die Hände, was sie zeigen** (`ShipExperience.holdInScreenHands`,

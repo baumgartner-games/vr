@@ -14422,6 +14422,18 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Ob die Maus aus den Augen der Abzug der Hände ist**, auch ohne
+   * Werkzeug des Kerns (`PlayerRig.armed`): Dann ist der Linksklick der
+   * Trigger (`PlayerRig.trigger`) und der Rechtsklick das Zielen
+   * (`PlayerRig.sighting`), und benutzt wird nur mit `E`. Haunting liest
+   * beides als „rechte Hand benutzen" und „linke Hand benutzen"
+   * (`ShipExperience.stepHandUse`).
+   */
+  protected screenArmed(): boolean {
+    return false;
+  }
+
+  /**
    * Der Griff in den Beutel, von der Menüseite aus: das Panel geht zu, und
    * sobald das Ding wieder losgelassen ist, geht es an derselben Stelle wieder
    * auf. Wer aus dem Beutel etwas holt, holt meistens noch etwas.
@@ -16408,7 +16420,7 @@ export class PortalWorld implements World {
     const screenTool = this.held.get('right') ?? null;
     // Aus den Augen ist der Linksklick der Trigger, sobald ein Werkzeug in der
     // Hand liegt (`FlatControls`) — und nicht mehr der Portalschuss.
-    ctx.rig.armed = eye && screenTool !== null;
+    ctx.rig.armed = eye && (screenTool !== null || this.screenArmed());
     // **Die Hände vor dem Auge**: die rechte immer, die linke nur, solange die
     // rechte leer ist — eine Pistole hält man mit einer Hand.
     ctx.hands.setScreenHands(

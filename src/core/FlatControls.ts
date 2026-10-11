@@ -216,6 +216,13 @@ export class FlatControls {
    */
   private mouseSight = false;
   /**
+   * **Ein Druck, den noch kein Bild gesehen hat** — Linksklick (`fireCaught`)
+   * und Rechtsklick (`sightCaught`). Ein schneller Klick geht sonst zwischen
+   * zwei Bildern auf und zu, und wer auf Flanken achtet, verpasst ihn.
+   */
+  private fireCaught = false;
+  private sightCaught = false;
+  /**
    * Welche Maustasten zuletzt lagen (`PointerEvent.buttons`). Gebraucht, weil
    * eine **zweite** Taste kein `pointerdown` bekommt, sondern nur ein
    * `pointermove` mit neuer Maske — wer rechts zum Zielen hält und dann links
@@ -481,8 +488,7 @@ export class FlatControls {
       // den augen" mit z. B. tab das menü öffne, ist die maus nicht losgelöst
       // und ich kann die kamera immer noch bewegen, aber das menü nicht
       // nutzen."_ Zurück ins Bild holt sie der nächste Klick, wie immer.
-      if (this.pointerLocked && document.pointerLockElement === this.canvas)
-        document.exitPointerLock();
+      if (document.pointerLockElement) document.exitPointerLock();
       return;
     }
 
@@ -536,7 +542,8 @@ export class FlatControls {
     // halten — die beiden Trigger sind die Waffe (links zielen, rechts
     // schießen), wie in jedem Spiel, das man mit einem Pad in der Hand kennt.
     // Bis zum einheitlichen Schema lag das Zielen auf LB, dem Zoom von oben.
-    this.rig.sighting = this.rig.armed && (this.mouseSight || pad.sight);
+    this.rig.sighting = this.rig.armed && (this.mouseSight || this.sightCaught || pad.sight);
+    this.sightCaught = false;
 
     if (x === 0 && z === 0) {
       if (jump) this.rig.requestJump();
@@ -754,7 +761,15 @@ export class FlatControls {
 
   /** Alle Geber des Triggers zusammen: RT, die linke Maustaste, der Auslöser auf dem Glas. */
   private triggerValue(pad: GamepadFrame): number {
-    return Math.max(pad.trigger, this.mouseFire ? 1 : 0, this.firePointer !== null ? 1 : 0);
+    // Ein Klick, der zwischen zwei Bildern kam und ging, zählt einmal
+    // (`fireCaught`) — sonst sähe ein langsames Bild ihn nie.
+    const caught = this.fireCaught;
+    this.fireCaught = false;
+    return Math.max(
+      pad.trigger,
+      this.mouseFire || caught ? 1 : 0,
+      this.firePointer !== null ? 1 : 0,
+    );
   }
 
   /**
@@ -1083,9 +1098,9 @@ export class FlatControls {
         // oben. Dort ist die Maus alles, was man hat; hier liegt `E` neben
         // `WASD`, und eine Pistole, die in der Küche nicht schießt, weil
         // gerade ein Topf in Reichweite steht, sähe kaputt aus.
-        if (event.button === 2) this.mouseSight = true;
+        if (event.button === 2) this.mouseSight = this.sightCaught = true;
         if (event.button === 0 && this.rig.carrying) this.pressMouseUse();
-        else if (event.button === 0 && this.rig.armed) this.mouseFire = true;
+        else if (event.button === 0 && this.rig.armed) this.mouseFire = this.fireCaught = true;
         else if (event.button === 0 && this.rig.useCandidate) this.useQueued = true;
         return;
       }
@@ -1264,8 +1279,8 @@ export class FlatControls {
     if ((buttons & 1) === 0) this.rig.paintHeld = false;
     if ((buttons & 2) === 0) this.mouseSight = false;
     if (this.topDownOn || !this.pointerLocked || !this.rig.armed) return;
-    if ((buttons & 1) !== 0 && (was & 1) === 0) this.mouseFire = true;
-    if ((buttons & 2) !== 0 && (was & 2) === 0) this.mouseSight = true;
+    if ((buttons & 1) !== 0 && (was & 1) === 0) this.mouseFire = this.fireCaught = true;
+    if ((buttons & 2) !== 0 && (was & 2) === 0) this.mouseSight = this.sightCaught = true;
   }
 
   /**

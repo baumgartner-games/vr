@@ -44,13 +44,25 @@ export function toolEntries(choice: ToolChoice, pick: (id: string | null) => voi
       selected: choice.current === null,
       run: () => pick(null),
     },
-    ...choice.options.map((option) => ({
+    ...choice.options.map((option): MenuEntry => ({
       id: `tool:${option.id}`,
       label: option.label,
+      ...(option.sub ? { sub: option.sub } : {}),
       icon: option.icon ?? ('tools' as const),
       accent: option.accent ?? 0x9d7bff,
       selected: choice.current === option.id,
-      run: () => pick(option.id),
+      ...(option.choices?.length
+        ? {
+            children: option.choices.map((one): MenuEntry => ({
+              id: `tool:${one.id}`,
+              label: one.label,
+              icon: option.icon ?? ('tools' as const),
+              accent: option.accent ?? 0x9d7bff,
+              selected: choice.current === one.id,
+              run: () => pick(one.id),
+            })),
+          }
+        : { run: () => pick(option.id) }),
     })),
   ];
 }
