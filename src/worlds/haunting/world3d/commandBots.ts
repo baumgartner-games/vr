@@ -145,6 +145,8 @@ export class CommandBots {
       const at = this.strollPoint();
       const npc = this.host.spawn(KINDS[index % KINDS.length]!, _at.set(at.x, 0, at.z), Math.PI);
       if (!npc) return;
+      npc.asleep = !this.awake;
+      npc.holder.visible = this.awake;
       this.bots.push({ npc, plan: this.newStroll(), settled: false, stood: null });
     }
   }
@@ -210,6 +212,32 @@ export class CommandBots {
       if (!plan.goal || this.near(bot, plan.goal)) plan.goal = this.strollPoint();
       this.walk(bot, plan.goal);
     }
+  }
+
+  /**
+   * **Wach oder schlafend** — gemeldet: _„übungsrunde läuft nun mit 21 fps"_.
+   * Draußen in der Station sieht niemand die Bots der Zentrale, aber jede
+   * Figur rechnete ihre Spur und zeichnete gut tausend Dreiecke je Glied. Wer
+   * schläft, ist ausgeblendet und steht still (`Npc.asleep`); beim Aufwachen
+   * geht es weiter, wo er war.
+   */
+  setAwake(awake: boolean): void {
+    if (this.awake === awake) return;
+    this.awake = awake;
+    for (const bot of this.bots) {
+      bot.npc.asleep = !awake;
+      // Wer im Anzug in der Runde ist, bleibt auch wach unsichtbar (`post`).
+      const suited =
+        bot.settled &&
+        bot.plan.kind === 'post' &&
+        (bot.plan.seat === 'technician' || bot.plan.seat === 'monster');
+      bot.npc.holder.visible = awake && !suited;
+    }
+  }
+  private awake = true;
+
+  get isAwake(): boolean {
+    return this.awake;
   }
 
   dispose(): void {

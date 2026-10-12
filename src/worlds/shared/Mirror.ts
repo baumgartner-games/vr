@@ -17,6 +17,8 @@ const _passSize = new THREE.Vector2();
 
 /** Wie viele Spiegelflächen es gerade überhaupt gibt. */
 let live = 0;
+/** Jede Spiegelfläche, die es gerade gibt — für `collectMirrors`, das sonst umsonst sucht. */
+const everyMirror = new Set<MirrorSurface>();
 
 /**
  * Wie schmal ein Spiegel sein darf und trotzdem ein Bild bekommt.
@@ -155,6 +157,7 @@ export class MirrorSurface
     );
     this.name = 'mirror-surface';
     live += 1;
+    everyMirror.add(this);
     // Der Zähler hängt an der **Material-Entsorgung** und nicht an einer
     // eigenen `dispose`-Methode: Spiegel stecken in Werkzeugen und in
     // Beutel-Objekten, und die werden mit `disposeTree`/`disposeToolTree`
@@ -192,6 +195,7 @@ export class MirrorSurface
     if (this.retired) return;
     this.retired = true;
     live -= 1;
+    everyMirror.delete(this);
   };
 
   private retired = false;
@@ -209,6 +213,17 @@ export class MirrorSurface
  * etwas, das längst weg ist. Gezählt wird trotzdem mit (`live`) — solange es
  * gar keinen Spiegel gibt, ist auch das Durchlaufen umsonst.
  */
+/** Ob `object` in `scene` hängt und dort mitsamt allen Eltern sichtbar ist. */
+function shownIn(object: THREE.Object3D, scene: THREE.Object3D): boolean {
+  let node: THREE.Object3D | null = object;
+  while (node) {
+    if (!node.visible) return false;
+    if (node === scene) return true;
+    node = node.parent;
+  }
+  return false;
+}
+
 export function collectMirrors(
   scene: THREE.Object3D,
   mirrors: MirrorSurface[],
@@ -217,6 +232,12 @@ export function collectMirrors(
   mirrors.length = 0;
   screens.length = 0;
   if (live <= 0) return mirrors;
+  // **Hängt überhaupt einer sichtbar in dieser Szene?** Ein Spiegel kann
+  // existieren, ohne dort zu sein — als Ersatzwerkzeug, im Regal, in einem
+  // Beutel. Dann war der Durchlauf über die ganze Szene umsonst, und das je
+  // Bild: in Haunting gemessen gut 1 ms (gemeldet: _„übungsrunde läuft nun mit
+  // 21 fps"_).
+  if (![...everyMirror].some((mirror) => shownIn(mirror, scene))) return mirrors;
   scene.traverseVisible((object) => {
     if ((object as Partial<MirrorSurface>).isMirrorSurface) mirrors.push(object as MirrorSurface);
     if (isScreenSurface(object)) screens.push(object);

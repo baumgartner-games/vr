@@ -10150,6 +10150,7 @@ export class PortalWorld implements World {
    * eine Kiste zielt.
    */
   private updateGrabs(dt: number, ctx: WorldContext): void {
+    aimFrame += 1;
     const reachable = new Set<PhysicsBody>();
     this.locked.clear();
     this.handLift.clear();
@@ -18070,7 +18071,21 @@ function setEmissive(entry: PhysicsBody, color: number | null): void {
 /** Live view of a prop as something the aim can pick, without allocating. */
 interface PropAim extends AimTarget {
   entry: PhysicsBody;
+  /** Ob der Körper fest steht — dann wird seine Lage nur ab und zu neu gelesen. */
+  fixed: boolean;
+  /** In welchem Bild sie zuletzt gelesen wurde (`aimFrame`). */
+  read: number;
 }
+
+/**
+ * **Das Bild, in dem gezielt wird** — gezählt in `updateGrabs`. Ein fester
+ * Körper rührt sich nicht, also wird seine Lage nur alle `FIXED_AIM_FRAMES`
+ * Bilder neu aus der Physik gelesen: Haunting hat über 300 davon, und beide
+ * Hände fragten jedes Bild jeden zweimal ab (gemessen gut 1 ms je Bild;
+ * gemeldet: _„übungsrunde läuft nun mit 21 fps"_).
+ */
+let aimFrame = 0;
+const FIXED_AIM_FRAMES = 30;
 
 const _aimTargets: PropAim[] = [];
 const _aimCache = new WeakMap<PhysicsBody, PropAim>();
@@ -18087,9 +18102,14 @@ function aimTargetOf(entry: PhysicsBody): PropAim {
       position: { x: 0, y: 0, z: 0 },
       quaternion: { x: 0, y: 0, z: 0, w: 1 },
       halfExtents: { x: 0, y: 0, z: 0 },
+      fixed: false,
+      read: -Infinity,
     };
     _aimCache.set(entry, target);
   }
+  if (target.fixed && aimFrame - target.read < FIXED_AIM_FRAMES) return target;
+  target.fixed = entry.body.isFixed();
+  target.read = aimFrame;
   const t = entry.body.translation();
   const r = entry.body.rotation();
   target.position.x = t.x;

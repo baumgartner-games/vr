@@ -290,6 +290,14 @@ export class Npc {
   /** Ob er gerade ohne Zylinder sitzt (`perch`). */
   private perched = false;
 
+  /**
+   * **Schläft er?** Dann rechnet der Regisseur ihn nicht (`NpcDirector.update`)
+   * — kein Hirn, keine Wege, keine Spur der Figur. Die Welt setzt das für NPCs,
+   * die gerade niemand sehen kann (die Bots der Haunting-Zentrale, solange man
+   * draußen in der Station ist), und blendet sie dabei selbst aus.
+   */
+  asleep = false;
+
   /** Die Haltung, die er gerade hat, oder `null`. */
   get pose(): NpcPose | null {
     return this.posture?.pose ?? null;
