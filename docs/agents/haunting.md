@@ -7,6 +7,21 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Blick an sich hinunter: nur der Kopf dreht (Oktober 2026)
+
+- **Wer weiter als 40° nach unten schaut und steht, dreht nur den Kopf**
+  (`AvatarBody.lookDownHold`): Der Rumpf — und mit ihm der Gürtel
+  (`ToolBelt.update` nimmt `bodyYaw`) — bleibt stehen, man kann seitlich an
+  die Hüfte schauen. Hebt man den Blick, holt der Rumpf weich auf
+  (`catchUp`, `BODY_CATCH_UP`). Gilt für jede Figur, auch mit `turnSlack` 0
+  in der Brille. Gemeldet: _„wenn der vr Spieler weit nach unten an sich
+  schaut, dass er dann nur den Kopf bewegt, z.B. damit er an Seite Hüfte
+  schauen kann."_
+- **Beim Justieren des Gürtels steht der Körper still** (`AvatarBody.holdBody`,
+  gesetzt in `PortalWorld`, solange eine Hand den Justierer `holster` hält):
+  Vorher drehte der Rumpf mit dem Kopf, und der Gürtel wanderte unter der
+  Hand weg.
+
 ## Bildrate, Radar als Metalldetektor, kein Visier von oben (Oktober 2026)
 
 - **Bildrate** (gemeldet: _„in der übungsrunde eine fps von 18. Die müssen

@@ -8642,6 +8642,10 @@ export class PortalWorld implements World {
       gripOf(controller).getWorldPosition(slot);
       _carried.push(slot);
     }
+    // **Beim Justieren steht der Körper still** (`AvatarBody.holdBody`): Der
+    // Gürtel hängt an seiner Drehung, und dreht er mit dem Kopf mit, wandert
+    // der Gürtel unter der Hand weg.
+    ctx.avatar.holdBody = [...this.held.values()].some((tool) => tool.toolId === 'holster');
     belt.update(dt, ctx.rig, ctx.avatar.bodyYaw, _carried);
 
     const presenting = ctx.renderer.xr.isPresenting;
