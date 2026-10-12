@@ -55,6 +55,15 @@ entweder komplett neue 3d Elemente bauen oder nur die 3d Elemente ohne Physik
 Info (2d Grid) platzieren in den Welten."_ Fehlt ein Element, kommt es in den
 Katalog, aus Dateien des Regals zusammengesetzt, und nicht in die Welt.
 
+**Ein Menü für alles.** Wer eine Auswahl braucht — ein Werkzeug, das fragt,
+wonach es suchen soll, ein Gerät mit Einstellungen, eine Frage an den
+Spieler —, öffnet eine Seite im **einen großen Menü mit dem ✕**
+(`WorldContext.openMenu`, eine Seite der Welt, versteckt mit `hidden`, wenn
+sie nur von dort aus erreichbar sein soll). Kein eigenes Menü auf dem Schirm
+eines Werkzeugs, keine eigene Tafel, keine andere Bedienung. Gewünscht: _„keine
+Menüs oder anderen menü interaktionen sollen anders aussehen"_ (siehe README,
+_Ein Menü für alles_).
+
 **Bei sichtbaren Änderungen kommt ein Bild in den Chat.** Wer etwas baut,
 das man sieht — eine Welt, ein Möbel, eine Tafel, ein Menü, ein Effekt —,
 schickt am Ende ein bis zwei Screenshots davon direkt in die Unterhaltung

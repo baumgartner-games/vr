@@ -26,10 +26,14 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   36 m (`RADAR_RANGE`, vorher 18), kein drehender Schirm mehr, sondern Ziel,
   Entfernung und Stärkebalken, und es **piept schneller, je näher**
   (`beepGap`). Der Trigger (am Schirm Rechtsklick/LT, am Telefon Tipp auf die
-  linke Hand) öffnet auf dem Gerät **„Wonach orten?"**: Monster, Ziel der
-  Zentrale (die Markierung), Nächstes Teil (das nächste Ziel aus
-  `objectives`), Aus; wer 1,6 s nicht drückt, hat gewählt
-  (`cycle`, `setTargets`, `ShipExperience.radarTargets`).
+  linke Hand) öffnet **_Wonach orten?_ im großen Menü** — eine versteckte Seite
+  der Welt (`haunt:radar`, `HauntingWorld.radarPage`,
+  `ShipExperience.openRadarMenu`): Monster, Ziel der Zentrale (die
+  Markierung), Nächstes Teil (das nächste Ziel aus `objectives`), Aus. Ein
+  Tipp wählt und schließt; die Wahl gilt für jedes Radar
+  (`ShipExperience.radarTarget`, `RadarTool.setTarget`, `chooser`). Zuerst
+  stand die Liste auf dem Schirm des Geräts — gemeldet: _„das menü beim metall
+  detector bitte wie die anderen menüs in vr. Das große mit dem X."_
 - **Radar und Röntgengerät aus den Augen**: Sie stehen über der linken Faust
   und schauen den Betrachter an — aufs Fadenkreuz gedreht war der Schirm
   kantig. Die linke Bildschirmhand hat keinen eingehängten `hold`; gehalten

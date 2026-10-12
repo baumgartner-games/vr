@@ -76,7 +76,8 @@ import {
 } from './world3d/doorButtons';
 import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
-import { ShipExperience } from './ShipExperience';
+import { RADAR_PAGE, ShipExperience } from './ShipExperience';
+import { RADAR_LABELS, RADAR_TARGETS } from '../portal/tools/RadarTool';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_DESKS, crewPlacement, deskOf, type CommandDesk } from './world3d/commandSeats';
 import {
@@ -4461,12 +4462,55 @@ export class HauntingWorld extends FurnishedWorld {
     ];
     // **Wenige Unterseiten statt einer langen Liste** (`rules/menuPages.ts`):
     // oben die Runde, dann Plätze, das Ausgegraute, Ansicht, Ton, Entwickler.
-    return pageHauntMenu(rows, (page, children) => ({
-      ...page,
-      icon: 'cube',
-      accent: 0x65dce5,
-      children,
-    }));
+    return [
+      ...pageHauntMenu(
+        rows,
+        (page, children): MenuEntry => ({
+          ...page,
+          icon: 'cube',
+          accent: 0x65dce5,
+          children,
+        }),
+      ),
+      ...this.radarPage(),
+    ];
+  }
+
+  /**
+   * **_Wonach orten?_** — die Auswahl des Radars als gewöhnliche Seite des
+   * großen Menüs, versteckt (`hidden`): Hinein kommt man nur über den Trigger
+   * des Radars (`ShipExperience.openRadarMenu`). Gemeldet: _„keine Menüs oder
+   * anderen menü interaktionen sollen anders aussehen"_.
+   */
+  private radarPage(): MenuEntry[] {
+    const experience = this.experience;
+    if (!experience) return [];
+    return [
+      {
+        id: RADAR_PAGE,
+        label: 'Wonach orten?',
+        sub: 'Das Radar piept schneller, je näher das Ziel',
+        icon: 'xray',
+        accent: 0x8dffcc,
+        hidden: true,
+        children: RADAR_TARGETS.map((target): MenuEntry => ({
+          id: `${RADAR_PAGE}-${target}`,
+          label: RADAR_LABELS[target],
+          sub:
+            target === 'monster'
+              ? 'Wo das Monster ist'
+              : target === 'pin'
+                ? 'Die Markierung der Einsatzzentrale'
+                : target === 'item'
+                  ? 'Das nächste Teil, das gebraucht wird'
+                  : 'Kein Piepen',
+          icon: 'xray',
+          accent: 0x8dffcc,
+          selected: experience.radarTarget === target,
+          run: () => experience.chooseRadar(target),
+        })),
+      },
+    ];
   }
 
   /**

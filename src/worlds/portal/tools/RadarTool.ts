@@ -10,7 +10,7 @@ const _direction = new THREE.Vector3();
 /** Wonach das Radar ortet — oder `off`. */
 export type RadarTarget = 'monster' | 'pin' | 'item' | 'off';
 
-/** Die Reihenfolge im Menü des Geräts (`onTrigger`, `cycle`). */
+/** Die Reihenfolge in der Auswahl _Wonach orten?_ (`chooser`). */
 export const RADAR_TARGETS: readonly RadarTarget[] = ['monster', 'pin', 'item', 'off'];
 
 /** Wie die Ziele im Menü und auf dem Schirm heißen. */
@@ -27,8 +27,6 @@ export const RADAR_LABELS: Readonly<Record<RadarTarget, string>> = {
  */
 export const RADAR_RANGE = 36;
 
-/** So lange bleibt das Menü auf dem Schirm, nachdem zuletzt gedrückt wurde (s). */
-const MENU_SECONDS = 1.6;
 /** Der Abstand zweier Pieptöne ganz nah und am Rand der Reichweite (s). */
 const BEEP_NEAR = 0.1;
 const BEEP_FAR = 1.4;
@@ -55,9 +53,8 @@ export function beepGap(distance: number, range = RADAR_RANGE): number | null {
  *
  * Der Schirm zeigt, wonach gesucht wird, wie weit es weg ist und einen Balken
  * für die Stärke; dazu piept es, schneller, je näher (`beepGap`). Der Trigger
- * öffnet das Menü auf dem Schirm und schaltet darin weiter; wer
- * `MENU_SECONDS` nicht mehr drückt, hat gewählt. Was wo liegt, sagt die Welt
- * (`setTargets`).
+ * öffnet die Auswahl der Welt (`chooser`) — ein ganz gewöhnliches Menü, kein
+ * eigenes auf dem Gerät. Was wo liegt, sagt die Welt (`setTargets`).
  */
 export class RadarTool extends Tool {
   override readonly toolId = 'radar';
@@ -70,9 +67,6 @@ export class RadarTool extends Tool {
   private beepTimer = 0;
   /** Wonach gerade geortet wird. */
   private mode: RadarTarget = 'monster';
-  /** Was im offenen Menü markiert ist — `null`, solange es zu ist. */
-  private choosing: RadarTarget | null = null;
-  private menuLeft = 0;
   private readonly targets: Record<Exclude<RadarTarget, 'off'>, { x: number; z: number } | null> = {
     monster: null,
     pin: null,
@@ -122,43 +116,35 @@ export class RadarTool extends Tool {
     Object.assign(this.targets, targets);
   }
 
-  override onTrigger(controller: ControllerState, host: ToolHost): void {
-    controller.pulse(0.3, 25);
-    this.cycle((text) => host.notify(text));
-  }
-
   /**
-   * **Ein Druck aufs Menü**: Ist es zu, geht es auf und zeigt die jetzige
-   * Wahl; ist es offen, rückt die Markierung eins weiter. Gewählt ist, was
-   * markiert ist, wenn eine Weile niemand mehr drückt.
+   * **Was der Trigger tut**: Hat die Welt eine Auswahl (`chooser`), öffnet er
+   * sie — in Haunting die Seite _Wonach orten?_ im großen Menü, wie jedes
+   * andere Menü auch. Sonst schaltet er zwischen Monster und aus.
    */
-  cycle(notify?: (text: string) => void): void {
-    if (this.choosing === null) this.choosing = this.mode;
-    else {
-      const at = RADAR_TARGETS.indexOf(this.choosing);
-      this.choosing = RADAR_TARGETS[(at + 1) % RADAR_TARGETS.length]!;
-    }
-    this.menuLeft = MENU_SECONDS;
-    this.notify = notify ?? null;
+  chooser: (() => void) | null = null;
+
+  /** Wonach orten — gesetzt von außen, aus der Auswahl der Welt. */
+  setTarget(mode: RadarTarget): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.beepTimer = 0;
     this.timer = 0;
   }
-  private notify: ((text: string) => void) | null = null;
+
+  override onTrigger(controller: ControllerState, host: ToolHost): void {
+    controller.pulse(0.3, 25);
+    if (this.chooser) {
+      this.chooser();
+      return;
+    }
+    this.setTarget(this.mode === 'off' ? 'monster' : 'off');
+    host.notify(this.mode === 'off' ? 'Radar aus.' : `Radar ortet: ${RADAR_LABELS[this.mode]}.`);
+  }
 
   updateDisplay(dt: number, observer: THREE.Vector3, _forward?: THREE.Vector3): void {
-    if (this.choosing !== null) {
-      this.menuLeft -= dt;
-      if (this.menuLeft <= 0) {
-        this.mode = this.choosing;
-        this.choosing = null;
-        this.beepTimer = 0;
-        this.notify?.(
-          this.mode === 'off' ? 'Radar aus.' : `Radar ortet: ${RADAR_LABELS[this.mode]}.`,
-        );
-      }
-    }
     const at = this.mode === 'off' ? null : this.targets[this.mode];
     const distance = at ? Math.hypot(at.x - observer.x, at.z - observer.z) : Infinity;
-    const gap = this.choosing === null ? beepGap(distance) : null;
+    const gap = beepGap(distance);
     if (gap === null) this.beepTimer = 0;
     else {
       this.beepTimer -= dt;
@@ -183,7 +169,7 @@ export class RadarTool extends Tool {
 
   private draw(distance: number | null): void {
     const inRange = distance !== null && distance <= RADAR_RANGE;
-    const key = `${this.mode}|${this.choosing}|${inRange ? Math.round(distance!) : '-'}`;
+    const key = `${this.mode}|${inRange ? Math.round(distance!) : '-'}`;
     if (key === this.drawn) return;
     this.drawn = key;
     const c = this.canvas.getContext('2d');
@@ -191,41 +177,26 @@ export class RadarTool extends Tool {
     c.fillStyle = '#06131b';
     c.fillRect(0, 0, 512, 384);
     c.textAlign = 'center';
-    if (this.choosing !== null) {
-      c.fillStyle = '#a9f5de';
-      c.font = 'bold 26px system-ui';
-      c.fillText('WONACH ORTEN?', 256, 44);
-      RADAR_TARGETS.forEach((one, index) => {
-        const y = 100 + index * 62;
-        const marked = one === this.choosing;
-        c.fillStyle = marked ? '#8ff0b0' : '#173a33';
-        c.fillRect(56, y - 34, 400, 50);
-        c.fillStyle = marked ? '#06131b' : '#a9f5de';
-        c.font = `${marked ? 'bold ' : ''}26px system-ui`;
-        c.fillText(RADAR_LABELS[one], 256, y);
-      });
-    } else {
-      c.fillStyle = '#a9f5de';
-      c.font = 'bold 24px system-ui';
-      c.fillText(
-        this.mode === 'off' ? 'RADAR AUS' : `ORTET: ${RADAR_LABELS[this.mode].toUpperCase()}`,
-        256,
-        40,
-      );
-      if (this.mode !== 'off') {
-        c.font = 'bold 76px system-ui';
-        c.fillStyle = inRange ? '#ffc388' : '#4d7b70';
-        c.fillText(inRange ? `${Math.round(distance!)} m` : 'KEIN SIGNAL', 256, 170);
-        // Der Balken: voll ganz nah, leer am Rand der Reichweite.
-        const strength = inRange ? 1 - distance! / RADAR_RANGE : 0;
-        c.fillStyle = '#173a33';
-        c.fillRect(56, 222, 400, 34);
-        c.fillStyle = '#8ff0b0';
-        c.fillRect(56, 222, 400 * strength, 34);
-        c.fillStyle = '#66958d';
-        c.font = '19px system-ui';
-        c.fillText(`Reichweite ${RADAR_RANGE} m · piept schneller, je näher`, 256, 300);
-      }
+    c.fillStyle = '#a9f5de';
+    c.font = 'bold 24px system-ui';
+    c.fillText(
+      this.mode === 'off' ? 'RADAR AUS' : `ORTET: ${RADAR_LABELS[this.mode].toUpperCase()}`,
+      256,
+      40,
+    );
+    if (this.mode !== 'off') {
+      c.font = 'bold 76px system-ui';
+      c.fillStyle = inRange ? '#ffc388' : '#4d7b70';
+      c.fillText(inRange ? `${Math.round(distance!)} m` : 'KEIN SIGNAL', 256, 170);
+      // Der Balken: voll ganz nah, leer am Rand der Reichweite.
+      const strength = inRange ? 1 - distance! / RADAR_RANGE : 0;
+      c.fillStyle = '#173a33';
+      c.fillRect(56, 222, 400, 34);
+      c.fillStyle = '#8ff0b0';
+      c.fillRect(56, 222, 400 * strength, 34);
+      c.fillStyle = '#66958d';
+      c.font = '19px system-ui';
+      c.fillText(`Reichweite ${RADAR_RANGE} m · piept schneller, je näher`, 256, 300);
     }
     c.fillStyle = '#66958d';
     c.font = '17px system-ui';

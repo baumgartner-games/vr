@@ -1099,6 +1099,17 @@ Für dieses Projekt sortiert; der Stand ist September 2026.
 
 Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 
+## Ein Menü für alles
+
+**Es gibt genau ein Menü** — das große mit dem **✕** (am Schirm die Seite hinter
+☰, in der Brille die Tafel). Jede Auswahl, jede Einstellung, jede Frage eines
+Geräts öffnet eine Seite **in diesem Menü** (`WorldContext.openMenu`, eine
+Seite der Welt, gern versteckt mit `hidden`), und keine Welt und kein Werkzeug
+baut sich ein eigenes: kein Menü auf dem Schirm eines Werkzeugs, keine eigene
+Tafel, keine andere Art zu wählen. Gewünscht: _„keine Menüs oder anderen menü
+interaktionen sollen anders aussehen"_ — Anlass war die Auswahl des Radars in
+Haunting (_Wonach orten?_), die zuerst als Liste auf dem Gerät selbst stand.
+
 ## Steuerung
 
 Die Tabelle ist die **Voreinstellung**: Tastatur und Controller lassen sich

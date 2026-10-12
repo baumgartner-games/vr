@@ -119,7 +119,7 @@ import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { XrayTool } from '../portal/tools/XrayTool';
 import { addOutline, removeOutline, type OutlineLook } from '../../core/outlineShell';
-import { RadarTool } from '../portal/tools/RadarTool';
+import { RADAR_LABELS, RadarTool, type RadarTarget } from '../portal/tools/RadarTool';
 import { aimQuaternion, type Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import {
@@ -393,6 +393,9 @@ const HAND_LABEL = {
 
 /** So lange hält man einen Hand-Knopf, bis er wechselt statt benutzt (ms). */
 const HAND_HOLD_MS = 450;
+
+/** Die Seite _Wonach orten?_ im großen Menü (`HauntingWorld.menu`). */
+export const RADAR_PAGE = 'haunt:radar';
 
 /** Wie ein Werkzeug vom Tisch heißt, in den Meldungen. */
 function gearName(id: string): string {
@@ -1021,8 +1024,8 @@ export class ShipExperience {
           this.host.say(this.torchLit ? 'Taschenlampe an.' : 'Taschenlampe aus.');
           break;
         case 'radar':
-          // Wie der Trigger in der Brille: das Menü auf dem Schirm des Geräts.
-          this.handheldRadar.cycle((text) => this.host.say(text));
+          // Wie der Trigger in der Brille: die Seite _Wonach orten?_.
+          this.openRadarMenu();
           break;
         case 'xray':
           this.sensorOff = !this.sensorOff;
@@ -1034,6 +1037,28 @@ export class ShipExperience {
     }
     this.stamp = '';
     this.paint();
+  }
+
+  /** Wonach das Radar ortet — für jedes Gerät in jeder Hand dasselbe. */
+  radarTarget: RadarTarget = 'monster';
+
+  /**
+   * **_Wonach orten?_ aufmachen** — eine Seite im großen Menü, dasselbe wie
+   * jedes andere Menü (`HauntingWorld.menu`, `haunt:radar`). Gemeldet: _„das
+   * menü beim metall detector bitte wie die anderen menüs in vr. Das große
+   * mit dem X."_ Ein eigenes Menü auf dem Schirm des Geräts gibt es nicht.
+   */
+  readonly openRadarMenu = (): void => {
+    this.host.ctx.refreshWorldMenu();
+    this.host.ctx.openMenu?.(RADAR_PAGE, { bare: true });
+  };
+
+  /** Eine Zeile in _Wonach orten?_ — gilt für jedes Radar. */
+  chooseRadar(target: RadarTarget): void {
+    this.radarTarget = target;
+    this.host.say(target === 'off' ? 'Radar aus.' : `Radar ortet: ${RADAR_LABELS[target]}.`);
+    this.host.ctx.menu.toggle(false);
+    this.host.ctx.refreshWorldMenu();
   }
 
   /**
@@ -3355,6 +3380,7 @@ export class ShipExperience {
     ctx.camera.getWorldDirection(_direction);
     const targets = this.radarTargets();
     this.handheldRadar.setTargets(targets);
+    this.handheldRadar.setTarget(this.radarTarget);
     if (this.scanner.visible && this.sensorMode === 'radar')
       this.handheldRadar.updateDisplay(dt, _head, _direction);
     this.handheldXray.updateView(
@@ -3366,7 +3392,11 @@ export class ShipExperience {
       for (const hand of ['left', 'right'] as const) {
         const tool = this.host.carried?.(hand);
         if (tool instanceof FlashlightTool) tool.setBeamGuide(false);
-        if (tool instanceof RadarTool) tool.setTargets(targets);
+        if (tool instanceof RadarTool) {
+          tool.setTargets(targets);
+          tool.setTarget(this.radarTarget);
+          tool.chooser = this.openRadarMenu;
+        }
         if (tool instanceof XrayTool) tool.setSubjects(() => this.scanSubjects);
       }
     // **Was auf den Ausrüstungstischen liegt** (`host.gear`): am Schirm mit
