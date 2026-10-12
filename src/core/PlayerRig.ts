@@ -449,9 +449,56 @@ export class PlayerRig extends THREE.Group {
 
   /** Head pose in world space. Fresh, even before the frame has been rendered. */
   getHeadMatrix(target: THREE.Matrix4): THREE.Matrix4 {
-    if (this.renderer.xr.isPresenting) this.renderer.xr.updateCamera(this.camera);
+    if (this.renderer.xr.isPresenting) this.updateXrHead();
     return target.copy(this.camera.matrixWorld);
   }
+
+  /**
+   * **Die Brillenkamera einmal je Bild nachziehen, nicht bei jeder Frage.**
+   * `xr.updateCamera` rechnet beide Augen, ihre Vereinigung samt Inverse und
+   * die Weltmatrix der Kamera mit allen Kindern — und die Kopfposition wird
+   * je Bild Dutzende Male erfragt. Gemessen war das allein fast 1 ms je Bild
+   * (Haunting, Übungsrunde, gemeldet _„wir sind bei 23 fps ungefähr"_).
+   *
+   * Neu gerechnet wird nur, wenn sich etwas geändert haben kann: ein neues
+   * Bild der Brille (`xr.getFrame`), ein bewegtes Rig (Weltmatrix des
+   * Elternteils), eine von außen versetzte Kamera (`setHeadWorldPose`) oder
+   * andere Ebenen/Schnittweiten.
+   */
+  private updateXrHead(): void {
+    const camera = this.camera;
+    const parent = camera.parent;
+    const frame = this.renderer.xr.getFrame();
+    const cache = this.xrHead;
+    if (
+      frame !== null &&
+      frame === cache.frame &&
+      parent !== null &&
+      parent.matrixWorld.equals(cache.parent) &&
+      camera.matrixWorld.equals(cache.camera) &&
+      camera.layers.mask === cache.layers &&
+      camera.near === cache.near &&
+      camera.far === cache.far
+    ) {
+      return;
+    }
+    this.renderer.xr.updateCamera(camera);
+    cache.frame = frame;
+    if (parent) cache.parent.copy(parent.matrixWorld);
+    cache.camera.copy(camera.matrixWorld);
+    cache.layers = camera.layers.mask;
+    cache.near = camera.near;
+    cache.far = camera.far;
+  }
+
+  private readonly xrHead = {
+    frame: null as XRFrame | null,
+    parent: new THREE.Matrix4(),
+    camera: new THREE.Matrix4(),
+    layers: 0,
+    near: 0,
+    far: 0,
+  };
 
   /**
    * Places the head at a world pose by moving the camera inside the rig — the

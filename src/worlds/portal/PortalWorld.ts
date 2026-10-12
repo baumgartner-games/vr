@@ -552,6 +552,7 @@ import {
   shotHitsUsable,
   highlightOf,
   usableShows,
+  USE_TOUCH,
   type UseCandidate,
   type UsePick,
   type Usable,
@@ -1133,6 +1134,8 @@ interface UsableEntry {
   shot: number;
   /** Wie weit der Zylinder über und unter seiner Mitte reicht — nur fürs Treffen. */
   half: number;
+  /** Ob seine Weltmatrix schon einmal gerechnet wurde (`collectUsables`). */
+  drawn?: boolean;
 }
 
 /** Was der Pinsel an einem Objekt ändern darf. */
@@ -16166,9 +16169,10 @@ export class PortalWorld implements World {
    */
   private pickBody(ctx: WorldContext): UsePick | null {
     if (ctx.crane) {
-      return pickUsable(this.collectUsables(), _useAt, _useForward, 0, CRANE_TOUCH);
+      return pickUsable(this.collectUsables(CRANE_TOUCH), _useAt, _useForward, 0, CRANE_TOUCH);
     }
-    return pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach());
+    const reach = this.useReach();
+    return pickUsable(this.collectUsables(Math.max(reach, USE_TOUCH)), _useAt, _useForward, reach);
   }
 
   /**
@@ -16347,13 +16351,30 @@ export class PortalWorld implements World {
    * Bodenhebel verschwunden, als sein Bild aus dem Regal kam — die Regel steht
    * deshalb als eigene Funktion nebenan, wo ein Test sie nachhält.
    */
-  private collectUsables(): readonly UseCandidate[] {
+  private collectUsables(within: number): readonly UseCandidate[] {
     this.useCandidates.length = 0;
     for (const entry of this.usables) {
+      // **Die Weltmatrix vom letzten Zeichnen**, nicht `getWorldPosition`:
+      // Das rechnete für jedes Ding die ganze Kette seiner Eltern neu, je Bild
+      // (gemeldet _„wir sind bei 23 fps ungefähr"_). Ein Bild alt ist für den
+      // Saum genau genug; nur wer noch nie gezeichnet wurde, rechnet selbst.
+      const position = new THREE.Vector3();
+      if (entry.drawn) position.setFromMatrixPosition(entry.object.matrixWorld);
+      else {
+        entry.object.getWorldPosition(position);
+        entry.drawn = true;
+      }
+      // **Was außer Reichweite steht, kann `pickUsable` nicht wählen** — und
+      // braucht dann auch nicht die teure Frage, ob es zu sehen ist (sie läuft
+      // durch alle seine Netze).
+      const dx = position.x - _useAt.x;
+      const dz = position.z - _useAt.z;
+      const limit = within + Math.max(entry.radius, 0);
+      if (dx * dx + dz * dz > limit * limit) continue;
       if (!usableShows(entry.object)) continue;
       const candidate: UseCandidate = {
         usable: entry.usable,
-        position: entry.object.getWorldPosition(new THREE.Vector3()),
+        position,
         radius: entry.radius,
         object: entry.object,
       };

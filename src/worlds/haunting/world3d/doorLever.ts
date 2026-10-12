@@ -48,7 +48,10 @@ export class DoorLever {
     this.root.name = 'door-lever';
     this.hit = new THREE.Mesh(
       new THREE.BoxGeometry(LEVER_SIZE.width + 0.1, LEVER_SIZE.height + 0.1, 0.3),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+      // `visible: false` am Material: getroffen wird es, gezeichnet nicht
+      // (wie `ui/CloseButton`). Mit Deckkraft 0 kostete jede Tür zwei
+      // Zeichenaufrufe je Auge für nichts.
+      new THREE.MeshBasicMaterial({ visible: false }),
     );
     this.hit.name = 'door-lever-hit';
     this.hit.position.z = 0.15;
@@ -135,6 +138,15 @@ export class DoorLever {
     // dessen Maßstab. Zu sehen ist erst einmal nichts, `set` entscheidet.
     model.visible = false;
     if (pivot) pivot.visible = false;
+    // **Still bis auf das Gelenk**: Platte und Griff rühren sich gegeneinander
+    // nie, nur `pivot` kippt (`set`). Sonst rechnete jeder der 27 Hebel gut
+    // zwanzig Matrizen je Bild — gemeldet _„wir sind bei 23 fps ungefähr"_.
+    for (const still of [model, grip]) {
+      still?.traverse((node) => {
+        node.updateMatrix();
+        node.matrixAutoUpdate = false;
+      });
+    }
     return { model, handle: pivot };
   }
 }
