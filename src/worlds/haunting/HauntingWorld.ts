@@ -25,7 +25,8 @@ import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { Tool } from '../portal/tools/Tool';
 import { StunGrenadeTool } from '../portal/tools/StunGrenadeTool';
 import { seatTop } from '../portal/PortalWorld';
-import { holdStill, showRoom } from './showRoom';
+import { freezeTree, holdStill, showRoom, skipHiddenMatrices } from './showRoom';
+import { mergeByLook } from '../shared/mergeByLook';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -1388,6 +1389,8 @@ export class HauntingWorld extends FurnishedWorld {
     // darunter jedes Bild jede Weltmatrix neu, auch in angehaltenen Räumen.
     holdStill(this.root);
     holdStill(this.stage);
+    // Und der Lauf darunter überspringt, was nicht zu sehen ist.
+    skipHiddenMatrices(this.root);
     this.buildHouse();
     this.buildVan();
   }
@@ -1667,9 +1670,11 @@ export class HauntingWorld extends FurnishedWorld {
     this.shipArt = art;
     this.shipArtKey = artKey;
     this.stage.add(art);
-    holdStill(art);
+    // Rümpfe, Böden und Einbauten rühren sich nie (`freezeTree`).
+    freezeTree(art);
     this.ventArt = new VentFlapArt(this.spec, this.vents);
     this.stage.add(this.ventArt.group);
+    freezeTree(this.ventArt.group);
     this.fog?.dispose();
     this.fog = new TopDownFog(this.spec);
     this.root.add(this.fog.group);
@@ -5252,6 +5257,16 @@ export class HauntingWorld extends FurnishedWorld {
           if (!host.alive()) return;
           this.commandPlaced.push(placed);
           this.bindCommandSpot(placed);
+          // **Ein Netz je Aussehen** (`mergeByLook`): Rechner ganz, die Ständer
+          // ohne die Anzüge daran — die gehen beim Anziehen weg (`hung`).
+          const anchor = placed.parts.find((part) => part)?.parent;
+          const still =
+            placed.element.id === 'space-terminal' ? placed.parts : placed.parts.slice(0, 3);
+          if (anchor)
+            mergeByLook(
+              anchor,
+              still.filter((part): part is THREE.Object3D => !!part),
+            );
         })
         .catch((error: unknown) => console.warn(`Zentrale: ${spot.element} fehlt`, error));
 

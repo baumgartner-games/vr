@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Npc } from '../../npc/Npc';
 import type { NpcKind } from '../../npc/npcKinds';
 import { APRON } from '../house';
+import { pauseMatrices } from '../showRoom';
 import type { SeatId } from '../rules/roundSetup';
 import { deskOf } from './commandSeats';
 import { commandBlocks, MONSTER_SPOT, SUIT_SPOT } from './commandRoom';
@@ -232,6 +233,8 @@ export class CommandBots {
         bot.plan.kind === 'post' &&
         (bot.plan.seat === 'technician' || bot.plan.seat === 'monster');
       bot.npc.holder.visible = awake && !suited;
+      // Und schlafend rechnen ihre gut fünfzig Knoten keine Matrix (`pauseMatrices`).
+      pauseMatrices(bot.npc.holder, !awake);
     }
   }
   private awake = true;

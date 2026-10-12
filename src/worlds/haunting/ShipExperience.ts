@@ -2675,6 +2675,11 @@ export class ShipExperience {
     });
     pivot.add(model);
     stand.visible = false;
+    // Das Blatt dreht als Ganzes am Gelenk (`pivot`); in sich rührt es sich nie.
+    model.traverse((node) => {
+      node.updateMatrix();
+      node.matrixAutoUpdate = false;
+    });
   }
 
   private buildDoors(): void {
@@ -2708,6 +2713,15 @@ export class ShipExperience {
         return lever;
       });
       this.root.add(g);
+      // **Still bis auf Blätter und Griffe**: Tür, Gelenkhalter und Hebel
+      // hängen fest; es drehen nur `door-leaf` und das Gelenk des Hebels. So
+      // rechnet die Tür je Bild nur ihre zwei, drei beweglichen Knoten statt
+      // gut dreißig (`npm run perf:haunting`).
+      g.updateMatrixWorld(true);
+      for (const node of [g, ...g.children, ...levers.map((lever) => lever.hit)]) {
+        node.matrixAutoUpdate = false;
+        node.matrixWorldAutoUpdate = false;
+      }
       const at = g.position.clone();
       const rooms = 'a' in d ? [d.a, ...(d.b ? [d.b] : [])] : null;
       this.doors.push({

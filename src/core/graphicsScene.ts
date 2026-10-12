@@ -118,6 +118,12 @@ function dimAmbient(object: THREE.Object3D, profile: GraphicsProfile): boolean {
  * bekommt eine Szene, in der die Hälfte der Dinge noch nach den alten Regeln
  * beleuchtet wird.
  */
+/** Mit welcher Stufe und welchem Material ein Netz zuletzt eingestellt wurde. */
+const applied = new WeakMap<
+  THREE.Mesh,
+  { profile: GraphicsProfile; material: THREE.Material | THREE.Material[] }
+>();
+
 export function applySceneQuality(
   root: THREE.Object3D,
   profile: GraphicsProfile,
@@ -137,6 +143,13 @@ export function applySceneQuality(
     // Ein Saum ist kein Ding der Welt, sondern ein zweites Bild eines Dings:
     // Er bekommt weder Schatten noch Stufen, und schon gar keinen eigenen Saum.
     if (!mesh.isMesh || isOutline(mesh)) return;
+    // **Schon erledigt?** Derselbe Durchlauf läuft jede Sekunde über die ganze
+    // Szene; was mit dieser Stufe und diesem Material schon durch ist, braucht
+    // ihn nicht noch einmal. In Haunting kostete er sonst gemessen rund 5 ms in
+    // einem Bild, ein Ruckler je Sekunde (`npm run perf:haunting`).
+    const done = applied.get(mesh);
+    if (!recompile && done && done.profile === profile && done.material === mesh.material) return;
+    applied.set(mesh, { profile, material: mesh.material });
     const materials = materialsOf(mesh).filter((material) => !!material);
     if (!materials.some(isLit)) return;
 

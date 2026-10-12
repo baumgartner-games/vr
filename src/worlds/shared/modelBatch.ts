@@ -389,10 +389,24 @@ function freeze(one: Placed): void {
     node.matrixWorldAutoUpdate = false;
     one.frozen.push(node);
   });
+  // **Und der Matrizenlauf steigt gar nicht erst hinab.** Stillgelegt kostet
+  // jeder Knoten trotzdem einen Aufruf je Bild; in Haunting sind das rund
+  // 1 700 Knoten in 300 Stücken, gemessen gut 0,6 ms (`npm run
+  // perf:haunting`). Gezeichnet wird ein Stück im Bündel ohnehin nicht — das
+  // Bündel zeichnet es —, und `thaw` gibt den Lauf wieder frei.
+  if (one.frozen[0] === one.item.object) one.item.object.updateMatrixWorld = skipFrozen;
+}
+
+/** Der Matrizenlauf für ein Stück im Bündel: nur, wenn ein Elter ihn erzwingt. */
+function skipFrozen(this: THREE.Object3D, force?: boolean): void {
+  if (force) THREE.Object3D.prototype.updateMatrixWorld.call(this, force);
+  else this.matrixWorldNeedsUpdate = false;
 }
 
 /** Und wieder freigeben — wer einzeln steht, darf sich bewegen. */
 function thaw(one: Placed): void {
+  if (Object.prototype.hasOwnProperty.call(one.item.object, 'updateMatrixWorld'))
+    delete (one.item.object as { updateMatrixWorld?: unknown }).updateMatrixWorld;
   for (const node of one.frozen) {
     node.matrixAutoUpdate = true;
     node.matrixWorldAutoUpdate = true;

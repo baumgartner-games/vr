@@ -296,6 +296,49 @@ dreiundzwanzigmal, derselbe Tresen zwölfmal. Der Posten heißt damit
 Bodenkacheln tut) und nicht verschmelzen, und sein Haken ist derselbe wie dort:
 Ein Möbel, das man aufnimmt und woanders hinstellt, muss aus dem Bündel heraus.
 
+## Haunting: Messstrecke gegen die Brille
+
+Gewünscht (Oktober 2026): _„Wir sollten festhalten wie viel fps bei dir zu
+meinem sind, damit wir das besser sehen können."_ Dafür gibt es eine feste
+Szene und eine Zahl, `npm run perf:haunting` (`tools/perf-haunting-vr.mjs`):
+simulierte Brille, Übungsrunde, 1,5 m vor dem ersten Schrank. Sie misst
+`world.update` und den Matrizenlauf je Bild (ohne Zeichnen) und zählt die
+Zeichenaufrufe beider Augen. Jede Zeile unten ist **derselbe Rechner, dieselbe
+Strecke, drei Läufe** — die alten Stände wurden dafür nachträglich ausgecheckt
+und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
+
+| Stand | fps Quest 3 (Besitzer) | CPU je Bild hier | davon `world.update` | davon Matrizenlauf | Zeichenaufrufe |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `345ab8f` (vor #406) | 18 | 10,6 ms | 7,5 ms | 3,1 ms | 452 |
+| `8028cfc` (#406, #407) | 21 | 10,4 ms | 7,5 ms | 2,9 ms | 434 |
+| `b2c478b` (#408) | 23 | 9,0 ms | 6,0 ms | 3,1 ms | 386 |
+| `ad94bd5` (#409) | 30 | 9,0 ms | 5,6 ms | 3,4 ms | 350 |
+| diese Runde | _noch offen_ | 7,3 ms | 5,8 ms (Median 4,4) | 1,5 ms | 312 |
+
+**Was die Tabelle sagt:**
+
+- **Die Brille läuft mit 90 Hz und zeigt jedes Bild ganze Auffrischungen
+  lang.** 18, 23 und 30 fps sind 90/5, 90/4 und 90/3 — dazwischen gibt es
+  nichts (21 ist ein Mittel aus 18 und 23). Ein Bild, das 23 ms braucht, steht
+  deshalb so lange wie eines mit 33 ms: 30 fps. Die nächste Stufe sind 45 fps
+  (unter 22,2 ms), danach 90. **60 fps gibt es bei 90 Hz gar nicht**, nur bei
+  120 Hz (jedes Bild zwei Auffrischungen lang; dort liegen die Stufen bei 60,
+  40 und 30). Deshalb fragt die Welt seit dieser Runde nach 120 Hz
+  (_Grafik → Brille: Bildwiederholrate_, `GraphicsQuality.applyRate`).
+- **Die Sprünge folgen nicht der CPU-Zahl allein.** 18 → 21 fps kam mit fast
+  gleicher CPU (weniger Lichter je Bildpunkt: die Grafikkarte), 23 → 30 fps
+  ebenfalls (9,0 → 9,0 ms), dort fielen die Zeichenaufrufe und der Kopf der
+  Brille wurde nur noch einmal je Bild gerechnet (`PlayerRig.updateXrHead`,
+  das diese Strecke kaum sieht). Die Zeichenaufrufe sind die Zahl, die am
+  treuesten mitläuft — jeder zählt in der Brille doppelt.
+- **Absolute Millisekunden gelten nur für diesen Rechner.** Wer eine neue
+  Zeile einträgt, misst den Stand davor auf derselben Maschine neu.
+
+Wer an der Bildrate arbeitet: vorher und nachher `npm run perf:haunting --
+--runs=3` (mit `--lamp` die eingeschaltete Taschenlampe samt Schattenkarte),
+die neue Zeile hier eintragen und die fps des Besitzers nachtragen, sobald er
+sie meldet.
+
 ## Wie man die Messung wiederholt
 
 Zwei Befehle, zwei Terminals:

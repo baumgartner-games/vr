@@ -141,12 +141,17 @@ export class DoorLever {
     // **Still bis auf das Gelenk**: Platte und Griff rühren sich gegeneinander
     // nie, nur `pivot` kippt (`set`). Sonst rechnete jeder der 27 Hebel gut
     // zwanzig Matrizen je Bild — gemeldet _„wir sind bei 23 fps ungefähr"_.
-    for (const still of [model, grip]) {
-      still?.traverse((node) => {
-        node.updateMatrix();
-        node.matrixAutoUpdate = false;
-      });
-    }
+    // Die Platte hängt an der festen Wurzel und rechnet auch ihre Weltmatrix
+    // nicht mehr; der Griff dreht mit dem Gelenk und behält sie.
+    model.updateMatrixWorld(true);
+    model.traverse((node) => {
+      node.matrixAutoUpdate = false;
+      node.matrixWorldAutoUpdate = false;
+    });
+    grip?.traverse((node) => {
+      node.updateMatrix();
+      node.matrixAutoUpdate = false;
+    });
     return { model, handle: pivot };
   }
 }

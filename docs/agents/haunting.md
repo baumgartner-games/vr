@@ -7,6 +7,44 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Bildrate: 120 Hz, Matrizenlauf ohne Unsichtbares, Messstrecke (Oktober 2026)
+
+Gemeldet: _„Wir sind nun bei 30 fps. Wir sollten festhalten wie viel fps bei
+dir zu meinem sind, damit das besser sehen können. Bitte weiter optimieren,
+sodass ich auf 60fps kommen kann"_.
+
+- **Die Messstrecke** `npm run perf:haunting` (`tools/perf-haunting-vr.mjs`)
+  und die Vergleichstabelle mit den fps des Besitzers in
+  [`docs/quest3-referenz.md`](../quest3-referenz.md) (_Haunting: Messstrecke
+  gegen die Brille_). Wer an der Bildrate arbeitet, misst damit vorher und
+  nachher und trägt die Zeile ein.
+- **120 Hz** (`GraphicsSettings.xrRate`, `GraphicsQuality.applyRate`): Die
+  gemeldeten 18, 23 und 30 fps sind 90/5, 90/4 und 90/3 — die Brille zeigt
+  jedes Bild ganze Auffrischungen lang. 60 fps gibt es nur bei 120 Hz; die
+  Welt verlangt sie beim Aufsetzen (kann die Brille sie nicht, die höchste
+  Rate darunter). Im Menü unter _Grafik → Brille: Bildwiederholrate_.
+- **Der Matrizenlauf steigt nicht in Unsichtbares hinab**
+  (`showRoom.skipHiddenMatrices` an der Wurzel der Welt): Über die Hälfte der
+  6 000 Knoten ist unsichtbar (Räume hinter Wänden, ihre Türen, schlafende
+  Bots, Einzelwände für die Ansicht von oben). Gemessen kostete der Lauf im
+  echten Bild 3 ms — fürs Besuchen, nicht fürs Rechnen. Jetzt 1,5 ms. Wer
+  übersprungen wurde, rechnet sich beim Wiederauftauchen einmal ganz neu.
+  **Folge:** Die Weltmatrix von etwas Unsichtbarem steht still; wer sie
+  braucht, fragt `getWorldPosition`.
+- **Für immer still** (`showRoom.freezeTree`): Rümpfe und Einbauten der Räume,
+  Lüftungsklappen, Wände, Tür- und Hebelgestelle rechnen keine Matrizen mehr;
+  schlafende Bots halten ihre an (`pauseMatrices`). Gebündelte Wandstücke
+  überspringt der Lauf ganz (`modelBatch.skipFrozen`).
+- **Rechner der Zentrale als ein Netz je Aussehen** (`shared/mergeByLook.ts`):
+  Tisch, Monitor, Tastatur und Maus aus dem Regal tragen je eine eigene Kopie
+  desselben Texturatlas; gleich ist, was dasselbe Bild zeigt. 8 → 2
+  Zeichenaufrufe je Rechner, die Ständer der Anzüge ebenso. Die Modelle sind
+  gepackt (16-Bit) — gebacken wird in Fließkomma, sonst lag der Monitor flach.
+- **Der Sekundendurchlauf der Grafik** (`graphicsScene.applySceneQuality`)
+  überspringt Netze, die mit dieser Stufe und diesem Material schon
+  eingestellt sind — vorher ein Ruckler von rund 5 ms je Sekunde.
+- Gemessen (Strecke oben): CPU je Bild 9,0 → 7,3 ms, Zeichenaufrufe 350 → 312.
+
 ## Bildrate: weniger JS und weniger Zeichenaufrufe je Bild (Oktober 2026)
 
 Gemeldet: _„wir sind bei 23 fps ungefähr"_. Gemessen in der simulierten Brille
