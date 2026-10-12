@@ -118,6 +118,8 @@ import {
   IDLE_SQUISH_SPEED_SUBS,
   XR_SCALE_LABELS,
   XR_SCALE_SUBS,
+  XR_RATE_LABELS,
+  XR_RATE_SUBS,
   animationSummary,
   clearGraphics,
   graphics,
@@ -131,6 +133,7 @@ import {
   nextSquishScale,
   nextSquishSpeed,
   nextXrScale,
+  nextXrRate,
   onGraphicsChange,
   saveGraphics,
 } from './graphicsSettings';
@@ -2944,6 +2947,21 @@ export class App {
             this.notify(
               `Brille: Auflösung ${XR_SCALE_LABELS[next.xrScale]} · ab der nächsten Sitzung`,
             );
+          },
+        },
+        {
+          // **Die Bildwiederholrate der Brille** (`GraphicsSettings.xrRate`) —
+          // gilt sofort, auch mitten in der Sitzung (`GraphicsQuality.applyRate`).
+          id: 'gfx:xr-rate',
+          label: `Brille: Bildwiederholrate ${XR_RATE_LABELS[settings.xrRate]}`,
+          sub: XR_RATE_SUBS[settings.xrRate],
+          caption: '120 → 90 → 72 Hz → wie die Brille will · nur in der Brille',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ xrRate: nextXrRate(graphics().xrRate) });
+            this.menuDirty = true;
+            this.notify(`Brille: Bildwiederholrate ${XR_RATE_LABELS[next.xrRate]}`);
           },
         },
         {

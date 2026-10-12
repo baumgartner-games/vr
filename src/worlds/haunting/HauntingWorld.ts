@@ -26,6 +26,7 @@ import { Tool } from '../portal/tools/Tool';
 import { StunGrenadeTool } from '../portal/tools/StunGrenadeTool';
 import { seatTop } from '../portal/PortalWorld';
 import { freezeTree, holdStill, showRoom, skipHiddenMatrices } from './showRoom';
+import { mergeByLook } from '../shared/mergeByLook';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -5256,6 +5257,16 @@ export class HauntingWorld extends FurnishedWorld {
           if (!host.alive()) return;
           this.commandPlaced.push(placed);
           this.bindCommandSpot(placed);
+          // **Ein Netz je Aussehen** (`mergeByLook`): Rechner ganz, die Ständer
+          // ohne die Anzüge daran — die gehen beim Anziehen weg (`hung`).
+          const anchor = placed.parts.find((part) => part)?.parent;
+          const still =
+            placed.element.id === 'space-terminal' ? placed.parts : placed.parts.slice(0, 3);
+          if (anchor)
+            mergeByLook(
+              anchor,
+              still.filter((part): part is THREE.Object3D => !!part),
+            );
         })
         .catch((error: unknown) => console.warn(`Zentrale: ${spot.element} fehlt`, error));
 

@@ -3,6 +3,7 @@ import {
   graphics,
   graphicsProfile,
   onGraphicsChange,
+  pickFrameRate,
   type GraphicsProfile,
   type GraphicsSettings,
 } from './graphicsSettings';
@@ -73,6 +74,7 @@ export class GraphicsQuality {
       this.settings.weatherFog === 'spooky',
     );
     this.stopListening = onGraphicsChange(() => this.refresh());
+    this.renderer.xr.addEventListener('sessionstart', this.applyRate);
     this.applyRenderer();
     this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows;
   }
@@ -138,9 +140,30 @@ export class GraphicsQuality {
 
   dispose(): void {
     this.stopListening();
+    this.renderer.xr.removeEventListener('sessionstart', this.applyRate);
     this.blobs.dispose();
     this.lamps.dispose();
   }
+
+  /**
+   * **Die Bildwiederholrate der Brille** (`GraphicsSettings.xrRate`) — beim
+   * Aufsetzen und nach jeder Änderung im Menü. Eine Brille ohne die Frage
+   * (`updateTargetFrameRate`) bleibt, wie sie ist.
+   */
+  private readonly applyRate = (): void => {
+    const session = this.renderer.xr.getSession() as
+      | (XRSession & {
+          supportedFrameRates?: ArrayLike<number>;
+          frameRate?: number;
+          updateTargetFrameRate?: (rate: number) => Promise<void>;
+        })
+      | null;
+    if (!session?.updateTargetFrameRate) return;
+    const supported = session.supportedFrameRates ? Array.from(session.supportedFrameRates) : null;
+    const rate = pickFrameRate(this.settings.xrRate, supported);
+    if (rate === null || session.frameRate === rate) return;
+    session.updateTargetFrameRate(rate).catch(() => {});
+  };
 
   /** Nach einer Änderung im Menü: alles neu stellen, sofort sichtbar. */
   private refresh(): void {
@@ -148,6 +171,7 @@ export class GraphicsQuality {
     this.settings = graphics();
     this.profile = graphicsProfile(this.settings);
     this.applyRenderer();
+    this.applyRate();
     this.blobs.setEnabled(this.profile.blobShadows);
     this.lamps.setEnvironment(
       this.settings.weatherTime !== 'day',

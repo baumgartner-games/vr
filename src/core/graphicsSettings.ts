@@ -153,6 +153,19 @@ export interface GraphicsSettings extends WeatherSettings {
    */
   xrScale: XrScale;
   /**
+   * **Wie oft die Brille ihr Bild wechselt**, in Hz — 0: wie die Brille es
+   * will (`XRSession.updateTargetFrameRate`, `GraphicsQuality.applyRate`).
+   *
+   * Die Brille zeigt jedes Bild eine ganze Zahl von Auffrischungen lang. Bei
+   * 90 Hz gibt es deshalb nur 90, 45, 30, 22,5 und 18 fps — genau die Zahlen,
+   * die der Besitzer gemeldet hat (18, 23, 30). **60 fps gibt es nur bei
+   * 120 Hz** (jedes Bild zwei Auffrischungen lang), und dort liegt zwischen
+   * 60 und 30 noch 40. Gewünscht: _„Bitte weiter optimieren, sodass ich auf
+   * 60fps kommen kann"_. Kann die Brille die gewählte Rate nicht, nimmt sie
+   * die höchste, die sie kann und die darunter liegt.
+   */
+  xrRate: XrRate;
+  /**
    * **Die Bildrate im Bild** — das kleine Feld unten rechts (`FrameStats`),
    * das sonst nur F3 hervorholt. Als Häkchen unter Grafik, damit es auch am
    * Telefon geht, wo es kein F3 gibt; F3 schaltet dasselbe Häkchen.
@@ -664,10 +677,47 @@ export const XR_SCALE_SUBS: Readonly<Record<XrScale, string>> = {
   0.7: 'Die Hälfte der Bildpunkte · weicher, aber die Bildrate steht',
 };
 
+/** Die Bildwiederholraten der Brille, die das Menü der Reihe nach anbietet. */
+export type XrRate = 0 | 72 | 90 | 120;
+export const XR_RATES: readonly XrRate[] = [120, 90, 72, 0];
+
+export const XR_RATE_LABELS: Readonly<Record<XrRate, string>> = {
+  120: '120 Hz',
+  90: '90 Hz',
+  72: '72 Hz',
+  0: 'wie die Brille will',
+};
+
+export const XR_RATE_SUBS: Readonly<Record<XrRate, string>> = {
+  120: 'Stufen 60 · 40 · 30 fps — der einzige Weg zu 60',
+  90: 'Stufen 90 · 45 · 30 fps',
+  72: 'Stufen 72 · 36 · 24 fps — am sparsamsten',
+  0: 'Die Brille entscheidet (meist 90 Hz)',
+};
+
+/** Ein Druck auf die Zeile: die nächste Rate, unten wieder von vorn. */
+export function nextXrRate(rate: XrRate): XrRate {
+  const index = XR_RATES.indexOf(rate);
+  return XR_RATES[(index + 1) % XR_RATES.length]!;
+}
+
+/**
+ * **Welche Rate die Brille bekommt** — die gewünschte, sonst die höchste,
+ * die sie kann und die darunter liegt; `null`: nichts verlangen.
+ */
+export function pickFrameRate(wanted: XrRate, supported: readonly number[] | null): number | null {
+  if (wanted === 0 || !supported?.length) return null;
+  let best: number | null = null;
+  for (const rate of supported)
+    if (rate <= wanted + 0.5 && (best === null || rate > best)) best = rate;
+  return best;
+}
+
 /** Was ausgeliefert wird: das Bild von vorher, ohne alles Neue. */
 export const DEFAULT_GRAPHICS: GraphicsSettings = {
   mode: 'simple',
   xrScale: 1,
+  xrRate: 120,
   showFps: false,
   gridLines: false,
   cellFootprints: false,
@@ -853,6 +903,10 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const xrScale = XR_SCALES.includes(raw.xrScale as XrScale)
     ? (raw.xrScale as XrScale)
     : DEFAULT_GRAPHICS.xrScale;
+  // Ein Stand von gestern kennt die Rate nicht und bekommt die Vorgabe.
+  const xrRate = XR_RATES.includes(raw.xrRate as XrRate)
+    ? (raw.xrRate as XrRate)
+    : DEFAULT_GRAPHICS.xrRate;
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
   const cellFootprints = raw.cellFootprints === true;
@@ -916,6 +970,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   return {
     mode,
     xrScale,
+    xrRate,
     showFps,
     gridLines,
     cellFootprints,

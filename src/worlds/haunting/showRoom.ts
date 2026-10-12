@@ -100,6 +100,8 @@ export function skipHiddenMatrices(root: THREE.Object3D): void {
   root.updateMatrixWorld = updateShown;
 }
 
+// Nur zum Vergleichen, wer einen eigenen Lauf hat — aufgerufen wird sie nie lose.
+// eslint-disable-next-line @typescript-eslint/unbound-method
 const prototypeUpdate = THREE.Object3D.prototype.updateMatrixWorld;
 
 function updateShown(this: THREE.Object3D, force?: boolean): void {
