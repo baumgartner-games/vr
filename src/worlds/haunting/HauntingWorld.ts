@@ -25,7 +25,7 @@ import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { Tool } from '../portal/tools/Tool';
 import { StunGrenadeTool } from '../portal/tools/StunGrenadeTool';
 import { seatTop } from '../portal/PortalWorld';
-import { holdStill, showRoom } from './showRoom';
+import { freezeTree, holdStill, showRoom, skipHiddenMatrices } from './showRoom';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -1388,6 +1388,8 @@ export class HauntingWorld extends FurnishedWorld {
     // darunter jedes Bild jede Weltmatrix neu, auch in angehaltenen Räumen.
     holdStill(this.root);
     holdStill(this.stage);
+    // Und der Lauf darunter überspringt, was nicht zu sehen ist.
+    skipHiddenMatrices(this.root);
     this.buildHouse();
     this.buildVan();
   }
@@ -1667,9 +1669,11 @@ export class HauntingWorld extends FurnishedWorld {
     this.shipArt = art;
     this.shipArtKey = artKey;
     this.stage.add(art);
-    holdStill(art);
+    // Rümpfe, Böden und Einbauten rühren sich nie (`freezeTree`).
+    freezeTree(art);
     this.ventArt = new VentFlapArt(this.spec, this.vents);
     this.stage.add(this.ventArt.group);
+    freezeTree(this.ventArt.group);
     this.fog?.dispose();
     this.fog = new TopDownFog(this.spec);
     this.root.add(this.fog.group);

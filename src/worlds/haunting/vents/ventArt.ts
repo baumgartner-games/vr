@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { freezeTree } from '../showRoom';
 import { PLAN_WALL_T } from '../../editor/levelPlan';
 import { dirX, dirZ } from '../../nav/navTile';
 import type { HouseSpec } from '../house';
@@ -136,6 +137,8 @@ export class VentFlapArt {
         pair.shut.visible = this.openId !== flap.id;
         this.grates.set(flap.id, pair);
         this.group.add(holder);
+        // Auf und zu ist nur Sichtbarkeit — das Gitter selbst rührt sich nie.
+        freezeTree(holder);
       }
       for (const one of built) one.visible = false;
     });

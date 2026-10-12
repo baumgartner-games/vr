@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { freezeTree } from '../showRoom';
 import { canLoadModels } from '../../../core/chefFit';
 import { ModelGhosts } from '../../grid/modelGhost';
 import type { PlanSolid } from '../../grid/solids';
@@ -383,6 +384,9 @@ export class StationWalls {
         this.group.add(mesh);
         this.merged.push(mesh);
       }
+    // Alles hier steht für immer (`showRoom.freezeTree`): Umgeschaltet wird nur
+    // Sichtbarkeit und Material.
+    freezeTree(this.group);
     this.ready();
   }
 
