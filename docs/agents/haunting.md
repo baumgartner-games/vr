@@ -7,6 +7,33 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Bildrate: weniger JS und weniger Zeichenaufrufe je Bild (Oktober 2026)
+
+Gemeldet: _„wir sind bei 23 fps ungefähr"_. Gemessen in der simulierten Brille
+(Übungsrunde, vor dem Schrank): die Weltrechnung je Bild von im Mittel 6,3 auf
+4,7 ms, die Zeichenaufrufe an derselben Stelle von 386 auf 350.
+
+- **Der Kopf der Brille wird je Bild einmal gerechnet**
+  (`PlayerRig.updateXrHead`): `xr.updateCamera` lief bei jeder Frage nach der
+  Kopfposition — Dutzende Male je Bild, samt beider Augen, Inverse und der
+  Weltmatrix aller Kinder der Kamera. Neu gerechnet wird nur bei neuem Bild der
+  Brille, bewegtem Rig, versetzter Kamera oder anderen Ebenen/Schnittweiten.
+- **Stille Teile rechnen keine Matrix**: Platte und Griff der Türhebel (nur
+  das Gelenk kippt, `DoorLever.mount`) und die gebackenen Wandstücke
+  (`stationWalls`). Rund 700 Matrix-Updates je Bild weniger.
+- **Greifen und Zielen prüfen erst die Kugel um die Box**
+  (`grabReach.rayReach`, `reachDepth`) — über 300 Körper je Hand, die meisten
+  weit weg.
+- **Benutzbares**: Position aus der Weltmatrix des letzten Zeichnens statt
+  `getWorldPosition` je Ding, und was außer Reichweite steht, fragt nicht mehr
+  durch alle seine Netze, ob es zu sehen ist (`collectUsables`).
+- **Karte und Ziele je Schritt einmal** (`HauntingWorld.perTick`): Ton, Kompass,
+  Pfeil und Orter fragten jeder für sich.
+- **Weniger Zeichenaufrufe**: Der Rahmen von Röntgen und Orter ist ein Netz je
+  Material statt zehn Teile (`scannerModel`), und der unsichtbare Treffer der
+  Türhebel wird nicht mehr gezeichnet (`visible: false` am Material statt
+  Deckkraft 0).
+
 ## Teile aus dem Schrank, Orter mit Pfeil, weiter Richtung 60 fps (Oktober 2026)
 
 - **Ein Teil aus dem Schrank nimmt in der Brille nichts aus den Händen**

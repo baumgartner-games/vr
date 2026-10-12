@@ -393,6 +393,7 @@ export class StationWalls {
   ): THREE.Group | null {
     const group = new THREE.Group();
     group.name = 'station-wall-run';
+    group.matrixAutoUpdate = false;
     group.visible = this.topDown === true;
     for (const [name, material] of materials) {
       const shape = bake(parts.filter((part) => part.material === name));
@@ -412,6 +413,9 @@ export class StationWalls {
     mesh.castShadow = !material.transparent;
     mesh.receiveShadow = true;
     mesh.userData.level = 0;
+    // **Wände rühren sich nie**: gebacken in Weltkoordinaten, keine Matrix je
+    // Bild (`showRoom.holdStill`, gemeldet _„wir sind bei 23 fps ungefähr"_).
+    mesh.matrixAutoUpdate = false;
     return mesh;
   }
 }

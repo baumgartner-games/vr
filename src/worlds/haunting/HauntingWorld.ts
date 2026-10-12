@@ -1820,8 +1820,10 @@ export class HauntingWorld extends FurnishedWorld {
       },
       carried: (hand) => this.carriedTool(hand),
       screenHands: () => this.screenHands(),
-      mapSnapshot: () => this.mapSnapshot(),
-      objectives: () => this.objectives(),
+      // **Je Bild einmal gerechnet** (`perTick`): Ton, Kompass, Pfeil, Orter
+      // und Saum fragten sonst jeder für sich.
+      mapSnapshot: () => this.perTick('snapshot', () => this.mapSnapshot()),
+      objectives: () => this.perTick('objectives', () => this.objectives()),
       monsterPace: () => this.kernel?.round.decided?.pace ?? 'still',
       noise: (at, loudness) => this.kernel?.round.noise(at, loudness),
       floatingTorch: () => this.stationTorch,
@@ -2284,12 +2286,31 @@ export class HauntingWorld extends FurnishedWorld {
    * schickt Netzpakete und frischt die Anzeigen auf; alles andere wäre acht
    * gleiche Nachrichten je Bild.
    */
+  /** Der wievielte Schritt das ist — der Schlüssel von `perTick`. */
+  private tickNo = 0;
+  private readonly tickCache = new Map<string, { tick: number; value: unknown }>();
+
+  /**
+   * **Einmal je Schritt rechnen, beliebig oft lesen** — für das, was das
+   * Schiff mehrfach je Bild erfragt (Karte, Ziele). Gemessen: Die Ziele allein
+   * liefen drei-, viermal je Bild durch alle Aufträge; gemeldet _„wir sind
+   * bei 23 fps ungefähr"_. Wer das Ergebnis bekommt, liest nur.
+   */
+  private perTick<T>(key: string, compute: () => T): T {
+    const hit = this.tickCache.get(key);
+    if (hit && hit.tick === this.tickNo) return hit.value as T;
+    const value = compute();
+    this.tickCache.set(key, { tick: this.tickNo, value });
+    return value;
+  }
+
   override update(dt: number, ctx: WorldContext): void {
     const repeats = this.state.crew.simulation ? simulationRepeats(this.simulationSpeed, dt) : 1;
     for (let i = 0; i < repeats; i++) this.tick(dt, ctx, i === repeats - 1);
   }
 
   private tick(dt: number, ctx: WorldContext, last = true): void {
+    this.tickNo += 1;
     ctx = this.roleCtx(ctx);
     this.syncTouchStick(ctx);
     this.settleSpawn(ctx, dt);

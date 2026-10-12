@@ -91,6 +91,13 @@ function untransform(v: Vec3, q: Quat, out: Vec3): Vec3 {
 }
 
 const _origin: Vec3 = { x: 0, y: 0, z: 0 };
+
+const SQRT3 = Math.sqrt(3);
+
+/** Der Radius der Kugel, in der eine Box mit diesen halben Kanten steckt. */
+function boxRadius(half: Vec3): number {
+  return Math.sqrt(half.x * half.x + half.y * half.y + half.z * half.z);
+}
 const _direction: Vec3 = { x: 0, y: 0, z: 0 };
 const _local: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -104,6 +111,18 @@ export function rayReach(target: AimTarget, origin: Vec3, direction: Vec3): numb
   _local.x = origin.x - target.position.x;
   _local.y = origin.y - target.position.y;
   _local.z = origin.z - target.position.z;
+  // **Erst die Kugel um die Box**, dann die Box: Drehen ändert weder Länge
+  // noch Skalarprodukt, also lässt sich vor dem Drehen sagen, was sicher
+  // daneben geht. Haunting fragt so je Hand über 300 Körper ab.
+  const length2 = direction.x * direction.x + direction.y * direction.y + direction.z * direction.z;
+  if (Math.abs(length2 - 1) < 1e-3) {
+    const ahead = -(_local.x * direction.x + _local.y * direction.y + _local.z * direction.z);
+    if (ahead < 0.25) return null;
+    const bound =
+      boxRadius(target.halfExtents) + (REMOTE_AIM_MARGIN + ahead * REMOTE_AIM_CONE) * SQRT3;
+    const off2 = _local.x * _local.x + _local.y * _local.y + _local.z * _local.z - ahead * ahead;
+    if (off2 > bound * bound) return null;
+  }
   untransform(_local, target.quaternion, _origin);
   untransform(direction, target.quaternion, _direction);
 
@@ -138,6 +157,9 @@ export function reachDepth(target: AimTarget, point: Vec3, margin = GRAB_MARGIN)
   _local.x = point.x - target.position.x;
   _local.y = point.y - target.position.y;
   _local.z = point.z - target.position.z;
+  // Außerhalb der Kugel um die Greifbox ist auch die Box verfehlt (`rayReach`).
+  const bound = boxRadius(target.halfExtents) + Math.max(0, margin) * SQRT3;
+  if (_local.x * _local.x + _local.y * _local.y + _local.z * _local.z > bound * bound) return null;
   untransform(_local, target.quaternion, _origin);
 
   const depth = Math.max(
