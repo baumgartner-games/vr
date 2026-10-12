@@ -664,11 +664,6 @@ body.orbital-on .touch__stick:not(.touch__stick--aim)::after { content: ''; posi
 .orbital-hands button small { color: #9fc4cc; font-size: 10px; white-space: nowrap; }
 .orbital-hands button:focus-visible { outline: 2px solid #96eddb; outline-offset: 2px; }
 
-/* **Der Beschlag des Visiers von oben** (`ShipExperience.visorDom`): ein
-   weißer Hauch vom Rand her, je stärker man atmet (`--fog`), und ein roter
-   Saum, je mehr der Anzug abbekommen hat (`--damage`). Klicks gehen hindurch. */
-.orbital-visor { position: fixed; inset: 0; z-index: 3; pointer-events: none; --fog: 0; --damage: 0; background: radial-gradient(ellipse at center, transparent 48%, rgba(225, 238, 242, calc(var(--fog) * 0.45)) 100%); box-shadow: inset 0 0 calc(40px + var(--damage) * 140px) rgba(255, 50, 40, calc(var(--damage) * 0.55)); transition: background .3s; }
-.orbital-visor[hidden] { display: none; }
 
 /* **Der Balken beim Kistenöffnen** (`ShipExperience.choreDom`): unter dem
    Fadenkreuz, damit man sieht, dass die Kiste gerade aufgeht. */

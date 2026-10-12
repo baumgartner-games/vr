@@ -25,6 +25,7 @@ import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { Tool } from '../portal/tools/Tool';
 import { StunGrenadeTool } from '../portal/tools/StunGrenadeTool';
 import { seatTop } from '../portal/PortalWorld';
+import { holdStill, showRoom } from './showRoom';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
@@ -75,7 +76,8 @@ import {
 } from './world3d/doorButtons';
 import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
-import { ShipExperience } from './ShipExperience';
+import { RADAR_PAGE, ShipExperience } from './ShipExperience';
+import { RADAR_LABELS, RADAR_TARGETS } from '../portal/tools/RadarTool';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_DESKS, crewPlacement, deskOf, type CommandDesk } from './world3d/commandSeats';
 import {
@@ -1382,6 +1384,10 @@ export class HauntingWorld extends FurnishedWorld {
     this.root.add(this.stage);
     this.root.add(this.live);
     this.root.add(this.vanRig);
+    // **Die Wurzeln stehen still** (`holdStill`) — sonst rechnet three.js
+    // darunter jedes Bild jede Weltmatrix neu, auch in angehaltenen Räumen.
+    holdStill(this.root);
+    holdStill(this.stage);
     this.buildHouse();
     this.buildVan();
   }
@@ -1480,7 +1486,6 @@ export class HauntingWorld extends FurnishedWorld {
       // man muss sie im Dunkeln ja finden können.
       // Auf ihrem Ausrüstungstisch an der Ostwand (`commandRoom.GEAR_SPOTS`).
       this.placeTableTorch(ctx);
-      this.stationTorch?.setLit(true);
     } else {
       this.pendingBotRound = false;
       this.stationTorch?.setLit(false);
@@ -1662,6 +1667,7 @@ export class HauntingWorld extends FurnishedWorld {
     this.shipArt = art;
     this.shipArtKey = artKey;
     this.stage.add(art);
+    holdStill(art);
     this.ventArt = new VentFlapArt(this.spec, this.vents);
     this.stage.add(this.ventArt.group);
     this.fog?.dispose();
@@ -1860,6 +1866,7 @@ export class HauntingWorld extends FurnishedWorld {
       botStage: () => this.kernel?.botStage ?? '',
     });
     this.stage.add(this.experience.root);
+    holdStill(this.experience.root);
   }
 
   private buildLamp(roomId: string, at: { x: number; z: number }, reach: number): void {
@@ -2312,7 +2319,8 @@ export class HauntingWorld extends FurnishedWorld {
     }
     if (this.stationTorch && this.torchImmersive !== ctx.renderer.xr.isPresenting) {
       this.torchImmersive = ctx.renderer.xr.isPresenting;
-      if (this.stationTorch.visible) this.stationTorch.setLit(true);
+      // Auf dem Tisch bleibt sie aus (`placeTableTorch`).
+      if (this.stationTorch.visible && !this.stationTorch.heldBy) this.stationTorch.setLit(false);
     }
     this.refreshHost(ctx);
     if (this.pendingBotRound && this.isHost && ctx.role === 'vr') {
@@ -2982,6 +2990,12 @@ export class HauntingWorld extends FurnishedWorld {
     // Versprechen hinterher — und das warf an Stoffen ohne Programm
     // (`currentProgram` leer) einen Fehler in einen Zeitgeber.
     ctx.renderer.compile(ctx.scene, ctx.camera);
+    // Und dasselbe mit den Deckenlampen der Zentrale im anderen Zustand
+    // (`applyLights`): Wer zum ersten Mal hinaus- oder hineingeht, soll nicht
+    // auf neue Programme warten.
+    for (const light of this.commandLights) light.visible = !light.visible;
+    ctx.renderer.compile(ctx.scene, ctx.camera);
+    for (const light of this.commandLights) light.visible = !light.visible;
     this.programs.release();
   }
 
@@ -3226,8 +3240,11 @@ export class HauntingWorld extends FurnishedWorld {
   private stepGear(ctx: WorldContext): void {
     const state = this.state;
     const own = (this.suited || ctx.role === 'vr') && !state.crew.simulation;
-    // Die Lampe in der Hand ist nicht mehr die Lampe des Tischs.
-    if (this.stationTorch?.heldBy) this.stationTorch = null;
+    // Die Lampe in der Hand ist nicht mehr die Lampe des Tischs — und brennt.
+    if (this.stationTorch?.heldBy) {
+      this.stationTorch.setLit(true);
+      this.stationTorch = null;
+    }
     if (own) this.adoptReturned();
     const wanted = new Set<string>(this.gearWanted(ctx));
     TABLE_GEAR.forEach((id) => {
@@ -3385,7 +3402,13 @@ export class HauntingWorld extends FurnishedWorld {
     if (torch instanceof FlashlightTool) this.stationTorch = torch;
     this.torchImmersive = ctx.renderer.xr.isPresenting;
     this.stationTorch?.setBeamGuide(false);
-    this.stationTorch?.setLit(true);
+    // **Aus, solange sie auf dem Tisch liegt** — die Zentrale ist taghell,
+    // und ein Licht kostet jeden Bildpunkt der ganzen Station, auch dort, wo
+    // man die Lampe gar nicht sieht (gemeldet: _„leider hatte ich eben in der
+    // übungsrunde eine fps von 18"_). In der Hand geht sie an (`stepGear`).
+    // Glimmlicht hat sie keines (`setGlow`).
+    this.stationTorch?.setGlow(false);
+    this.stationTorch?.setLit(false);
   }
 
   /**
@@ -3653,7 +3676,16 @@ export class HauntingWorld extends FurnishedWorld {
         8,
         dt,
       );
-    for (const light of this.commandLights) light.intensity = COMMAND_LAMP * lighting.command;
+    // **Die Deckenlampen der Zentrale nur in ihrer Nähe.** Jedes sichtbare
+    // Licht rechnet three.js in jedem Bildpunkt jedes beleuchteten Materials
+    // mit, Reichweite hin oder her — draußen in der Station waren das vier
+    // Lichter, die dort nichts taten (gemeldet: _„in der übungsrunde eine fps
+    // von 18"_). Beide Fälle übersetzt `warmShaders` vorab.
+    const nearCommand = nearApron(_head.x, _head.z);
+    for (const light of this.commandLights) {
+      light.intensity = COMMAND_LAMP * lighting.command;
+      light.visible = nearCommand;
+    }
     // **Im Test und in der Bot-Runde ist alles hell**, und weil es nur zwei
     // Punktleuchten gibt, brennt dort nur die des eigenen Raums. In der Mission
     // ist das nicht mehr nötig: Dort brennen ohnehin höchstens zwei Lampen
@@ -3784,7 +3816,7 @@ export class HauntingWorld extends FurnishedWorld {
             if (!this.roomFrustum.intersectsBox(this.doorwayBounds)) return null;
             return doorwayRect(this.doorwayBounds, this.roomProjection);
           });
-    for (const [id, group] of this.roomArt) group.visible = !visible || visible.has(id);
+    for (const [id, group] of this.roomArt) showRoom(group, !visible || visible.has(id));
     this.experience?.setVisibleRooms(visible);
     this.fog?.update(topDown ? visible : null);
   }
@@ -4430,12 +4462,55 @@ export class HauntingWorld extends FurnishedWorld {
     ];
     // **Wenige Unterseiten statt einer langen Liste** (`rules/menuPages.ts`):
     // oben die Runde, dann Plätze, das Ausgegraute, Ansicht, Ton, Entwickler.
-    return pageHauntMenu(rows, (page, children) => ({
-      ...page,
-      icon: 'cube',
-      accent: 0x65dce5,
-      children,
-    }));
+    return [
+      ...pageHauntMenu(
+        rows,
+        (page, children): MenuEntry => ({
+          ...page,
+          icon: 'cube',
+          accent: 0x65dce5,
+          children,
+        }),
+      ),
+      ...this.radarPage(),
+    ];
+  }
+
+  /**
+   * **_Wonach orten?_** — die Auswahl des Radars als gewöhnliche Seite des
+   * großen Menüs, versteckt (`hidden`): Hinein kommt man nur über den Trigger
+   * des Radars (`ShipExperience.openRadarMenu`). Gemeldet: _„keine Menüs oder
+   * anderen menü interaktionen sollen anders aussehen"_.
+   */
+  private radarPage(): MenuEntry[] {
+    const experience = this.experience;
+    if (!experience) return [];
+    return [
+      {
+        id: RADAR_PAGE,
+        label: 'Wonach orten?',
+        sub: 'Das Radar piept schneller, je näher das Ziel',
+        icon: 'xray',
+        accent: 0x8dffcc,
+        hidden: true,
+        children: RADAR_TARGETS.map((target): MenuEntry => ({
+          id: `${RADAR_PAGE}-${target}`,
+          label: RADAR_LABELS[target],
+          sub:
+            target === 'monster'
+              ? 'Wo das Monster ist'
+              : target === 'pin'
+                ? 'Die Markierung der Einsatzzentrale'
+                : target === 'item'
+                  ? 'Das nächste Teil, das gebraucht wird'
+                  : 'Kein Piepen',
+          icon: 'xray',
+          accent: 0x8dffcc,
+          selected: experience.radarTarget === target,
+          run: () => experience.chooseRadar(target),
+        })),
+      },
+    ];
   }
 
   /**
@@ -6011,6 +6086,20 @@ function framed(size: number): number {
 
 /** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
 export const STATION_FLOOR = 'prototype-bits/Floor.glb';
+
+/** Wie weit um die Zentrale herum ihre Deckenlampen brennen, in Metern (`applyLights`). */
+const COMMAND_LIGHT_MARGIN = 6;
+
+/** Ob ein Punkt (Meter) in der Zentrale liegt oder nah genug, um hineinzusehen. */
+function nearApron(x: number, z: number): boolean {
+  const m = COMMAND_LIGHT_MARGIN;
+  return (
+    x > APRON.x * TILE - m &&
+    x < (APRON.x + APRON.w) * TILE + m &&
+    z > APRON.z * TILE - m &&
+    z < (APRON.z + APRON.d) * TILE + m
+  );
+}
 
 /** Was auf den Ausrüstungstischen liegen kann, außer der Lampe (`stepGear`). */
 const TABLE_GEAR = ['stun-grenade', 'xray', 'radar'] as const;

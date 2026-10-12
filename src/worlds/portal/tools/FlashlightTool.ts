@@ -224,6 +224,27 @@ export class FlashlightTool extends Tool {
   }
 
   /** Training worlds can show the beam volume; interiors use the real spot light alone. */
+  /**
+   * **Ohne Glimmlicht an der Linse** — ein Punktlicht weniger, das jeder
+   * Bildpunkt jedes beleuchteten Materials mitrechnet. Haunting schaltet es
+   * an allen Lampen ab: Dort zählt jedes Licht in der Brille doppelt.
+   */
+  setGlow(on: boolean): void {
+    if (this.glowing === on) return;
+    this.glowing = on;
+    this.applyBeam();
+  }
+  private glowing = true;
+
+  /**
+   * **Ob der Kegel an Wänden endet** (`stopAtWalls`) — eine Schattenkarte, die
+   * jedes Bild die Szene noch einmal zeichnet. Eine Lampe, die nur auf einem
+   * Tisch liegt, braucht sie nicht.
+   */
+  setShadow(on: boolean): void {
+    this.beam.castShadow = on;
+  }
+
   setBeamGuide(visible: boolean): void {
     if (this.beamGuide === visible) return;
     this.beamGuide = visible;
@@ -367,7 +388,7 @@ export class FlashlightTool extends Tool {
     // neu — je Kombination genau einmal, danach liegen sie im Speicher des
     // Materials (`materialProperties.programs`) und werden nur noch gewählt.
     this.beam.visible = this.on;
-    this.glow.visible = this.on;
+    this.glow.visible = this.on && this.glowing;
     this.lens.material.color.setHex(this.on ? 0xfff4d8 : 0x3a4152);
 
     const radius = Math.tan(radians) * CONE_LENGTH;

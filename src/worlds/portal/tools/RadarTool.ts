@@ -1,12 +1,61 @@
 import * as THREE from 'three';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import { scannerFrame, SCANNER_HEIGHT, SCANNER_WIDTH } from './scannerModel';
+import { playTone } from '../../../core/Audio';
 import type { ControllerState } from '../../../core/XRInput';
 
 const _eye = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 
-/** A held motion display, housed and holstered just like the x-ray scanner. */
+/** Wonach das Radar ortet — oder `off`. */
+export type RadarTarget = 'monster' | 'pin' | 'item' | 'off';
+
+/** Die Reihenfolge in der Auswahl _Wonach orten?_ (`chooser`). */
+export const RADAR_TARGETS: readonly RadarTarget[] = ['monster', 'pin', 'item', 'off'];
+
+/** Wie die Ziele im Menü und auf dem Schirm heißen. */
+export const RADAR_LABELS: Readonly<Record<RadarTarget, string>> = {
+  monster: 'Monster',
+  pin: 'Ziel der Zentrale',
+  item: 'Nächstes Teil',
+  off: 'Aus',
+};
+
+/**
+ * **Wie weit es reicht**, in Metern — doppelt so weit wie zuerst (18 m).
+ * Gewünscht: _„Der Radius sollte verdoppelt werden."_
+ */
+export const RADAR_RANGE = 36;
+
+/** Der Abstand zweier Pieptöne ganz nah und am Rand der Reichweite (s). */
+const BEEP_NEAR = 0.1;
+const BEEP_FAR = 1.4;
+
+/**
+ * Wie lange zwischen zwei Pieptönen, wenn das Ziel `distance` Meter weg ist —
+ * oder `null`, wenn es außer Reichweite ist. Je näher, desto schneller, wie ein
+ * Metalldetektor.
+ */
+export function beepGap(distance: number, range = RADAR_RANGE): number | null {
+  if (!Number.isFinite(distance) || distance > range) return null;
+  const t = Math.max(0, distance) / range;
+  return BEEP_NEAR + (BEEP_FAR - BEEP_NEAR) * t;
+}
+
+/**
+ * **Das Ortungsgerät** — ein Metalldetektor statt eines Radarschirms.
+ * Gewünscht (Oktober 2026): _„es piept, wenn das monster in der nähe ist […]
+ * und immer schneller piept, wenn es näher dran ist. […] braucht es sich
+ * dann auch nicht zu drehen? sondern eher funktionieren wie ein metall
+ * detektor"_ — und _„dass sich dann ein menü öffnet, welches dann fragt wonach
+ * wir orten wollen […] das monster, zielpunkt der zentrale, oder nächstes
+ * benötigtes item"_.
+ *
+ * Der Schirm zeigt, wonach gesucht wird, wie weit es weg ist und einen Balken
+ * für die Stärke; dazu piept es, schneller, je näher (`beepGap`). Der Trigger
+ * öffnet die Auswahl der Welt (`chooser`) — ein ganz gewöhnliches Menü, kein
+ * eigenes auf dem Gerät. Was wo liegt, sagt die Welt (`setTargets`).
+ */
 export class RadarTool extends Tool {
   override readonly toolId = 'radar';
   override readonly label = 'Bewegungsradar';
@@ -14,17 +63,24 @@ export class RadarTool extends Tool {
   private readonly canvas = document.createElement('canvas');
   private readonly texture: THREE.CanvasTexture;
   private readonly display: THREE.Mesh;
-  private enabled = true;
   private timer = 0;
-  private sweep = 0;
-  private contact: { x: number; z: number } | null = null;
+  private beepTimer = 0;
+  /** Wonach gerade geortet wird. */
+  private mode: RadarTarget = 'monster';
+  private readonly targets: Record<Exclude<RadarTarget, 'off'>, { x: number; z: number } | null> = {
+    monster: null,
+    pin: null,
+    item: null,
+  };
+  /** Was zuletzt gemalt wurde — gemalt wird nur, wenn sich etwas ändert. */
+  private drawn = '';
 
   constructor() {
     super();
     this.name = 'tool-radar';
     this.icon = 'xray';
     this.accent = 0x8dffcc;
-    this.hint = 'Bewegung im Umkreis · Trigger schaltet · am Gürtel ablegen';
+    this.hint = 'Piept schneller, je näher das Ziel · Trigger wählt, wonach es ortet';
     this.canvas.width = 512;
     this.canvas.height = 384;
     this.texture = new THREE.CanvasTexture(this.canvas);
@@ -36,30 +92,72 @@ export class RadarTool extends Tool {
     this.frame.add(this.display);
     this.add(this.frame);
     this.mountGrip({ length: 0.09 });
-    this.draw(0, 0, 0);
+    this.draw(null);
   }
 
   get scanning(): boolean {
-    return this.enabled;
+    return this.mode !== 'off';
   }
 
+  /** Wonach gerade geortet wird. */
+  get target(): RadarTarget {
+    return this.mode;
+  }
+
+  /** Wo das Monster ist — der alte Weg, dasselbe wie `setTargets({ monster })`. */
   setContact(contact: { x: number; z: number } | null): void {
-    this.contact = contact;
+    this.targets.monster = contact;
+  }
+
+  /** Wo die Ziele gerade sind (Meter, von oben) — `null`: keines. */
+  setTargets(
+    targets: Partial<Record<Exclude<RadarTarget, 'off'>, { x: number; z: number } | null>>,
+  ): void {
+    Object.assign(this.targets, targets);
+  }
+
+  /**
+   * **Was der Trigger tut**: Hat die Welt eine Auswahl (`chooser`), öffnet er
+   * sie — in Haunting die Seite _Wonach orten?_ im großen Menü, wie jedes
+   * andere Menü auch. Sonst schaltet er zwischen Monster und aus.
+   */
+  chooser: (() => void) | null = null;
+
+  /** Wonach orten — gesetzt von außen, aus der Auswahl der Welt. */
+  setTarget(mode: RadarTarget): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.beepTimer = 0;
+    this.timer = 0;
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {
-    this.enabled = !this.enabled;
-    this.timer = 0;
     controller.pulse(0.3, 25);
-    host.notify(this.enabled ? 'Bewegungsradar an' : 'Bewegungsradar aus');
+    if (this.chooser) {
+      this.chooser();
+      return;
+    }
+    this.setTarget(this.mode === 'off' ? 'monster' : 'off');
+    host.notify(this.mode === 'off' ? 'Radar aus.' : `Radar ortet: ${RADAR_LABELS[this.mode]}.`);
   }
 
-  updateDisplay(dt: number, observer: THREE.Vector3, forward: THREE.Vector3): void {
+  updateDisplay(dt: number, observer: THREE.Vector3, _forward?: THREE.Vector3): void {
+    const at = this.mode === 'off' ? null : this.targets[this.mode];
+    const distance = at ? Math.hypot(at.x - observer.x, at.z - observer.z) : Infinity;
+    const gap = beepGap(distance);
+    if (gap === null) this.beepTimer = 0;
+    else {
+      this.beepTimer -= dt;
+      if (this.beepTimer <= 0) {
+        this.beepTimer = gap;
+        const near = 1 - distance / RADAR_RANGE;
+        playTone({ type: 'sine', from: 880 + near * 660, duration: 0.07, gain: 0.05 });
+      }
+    }
     this.timer -= dt;
-    this.sweep += dt * 1.8;
     if (this.timer > 0) return;
-    this.timer = 0.1;
-    this.draw(observer.x, observer.z, Math.atan2(-forward.x, -forward.z));
+    this.timer = 0.15;
+    this.draw(Number.isFinite(distance) ? distance : null);
   }
 
   override update(dt: number, host: ToolHost, controller: ControllerState | null): void {
@@ -69,51 +167,40 @@ export class RadarTool extends Tool {
     this.updateDisplay(dt, _eye, _direction);
   }
 
-  private draw(x: number, z: number, yaw: number): void {
+  private draw(distance: number | null): void {
+    const inRange = distance !== null && distance <= RADAR_RANGE;
+    const key = `${this.mode}|${inRange ? Math.round(distance!) : '-'}`;
+    if (key === this.drawn) return;
+    this.drawn = key;
     const c = this.canvas.getContext('2d');
     if (!c) return;
     c.fillStyle = '#06131b';
     c.fillRect(0, 0, 512, 384);
-    c.fillStyle = '#a9f5de';
-    c.font = 'bold 23px system-ui';
     c.textAlign = 'center';
-    c.fillText(this.enabled ? 'BEWEGUNG / 18 M' : 'RADAR AUS', 256, 32);
-    if (this.enabled) {
-      const cx = 256,
-        cy = 206,
-        radius = 140;
-      c.strokeStyle = '#205343';
-      c.lineWidth = 2;
-      for (let i = 1; i <= 3; i++) {
-        c.beginPath();
-        c.arc(cx, cy, (radius * i) / 3, 0, Math.PI * 2);
-        c.stroke();
-      }
-      c.strokeStyle = '#83e9bb';
-      c.beginPath();
-      c.moveTo(cx, cy);
-      c.lineTo(cx + Math.sin(this.sweep) * radius, cy - Math.cos(this.sweep) * radius);
-      c.stroke();
-      c.fillStyle = '#d8fff1';
-      c.beginPath();
-      c.arc(cx, cy, 5, 0, Math.PI * 2);
-      c.fill();
-      if (this.contact) {
-        const dx = this.contact.x - x,
-          dz = this.contact.z - z;
-        if (Math.hypot(dx, dz) <= 18) {
-          const rx = dx * Math.cos(yaw) - dz * Math.sin(yaw);
-          const rz = dx * Math.sin(yaw) + dz * Math.cos(yaw);
-          c.fillStyle = '#ffc388';
-          c.beginPath();
-          c.arc(cx + (rx / 18) * radius, cy + (rz / 18) * radius, 9, 0, Math.PI * 2);
-          c.fill();
-        }
-      }
+    c.fillStyle = '#a9f5de';
+    c.font = 'bold 24px system-ui';
+    c.fillText(
+      this.mode === 'off' ? 'RADAR AUS' : `ORTET: ${RADAR_LABELS[this.mode].toUpperCase()}`,
+      256,
+      40,
+    );
+    if (this.mode !== 'off') {
+      c.font = 'bold 76px system-ui';
+      c.fillStyle = inRange ? '#ffc388' : '#4d7b70';
+      c.fillText(inRange ? `${Math.round(distance!)} m` : 'KEIN SIGNAL', 256, 170);
+      // Der Balken: voll ganz nah, leer am Rand der Reichweite.
+      const strength = inRange ? 1 - distance! / RADAR_RANGE : 0;
+      c.fillStyle = '#173a33';
+      c.fillRect(56, 222, 400, 34);
+      c.fillStyle = '#8ff0b0';
+      c.fillRect(56, 222, 400 * strength, 34);
+      c.fillStyle = '#66958d';
+      c.font = '19px system-ui';
+      c.fillText(`Reichweite ${RADAR_RANGE} m · piept schneller, je näher`, 256, 300);
     }
     c.fillStyle = '#66958d';
     c.font = '17px system-ui';
-    c.fillText('TRIGGER · EIN / AUS', 256, 373);
+    c.fillText('TRIGGER · WONACH ORTEN', 256, 373);
     this.texture.needsUpdate = true;
   }
 

@@ -119,7 +119,7 @@ import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { XrayTool } from '../portal/tools/XrayTool';
 import { addOutline, removeOutline, type OutlineLook } from '../../core/outlineShell';
-import { RadarTool } from '../portal/tools/RadarTool';
+import { RADAR_LABELS, RadarTool, type RadarTarget } from '../portal/tools/RadarTool';
 import { aimQuaternion, type Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
 import {
@@ -155,6 +155,7 @@ import { buildActor, type ShipActor } from './actorArt';
 import type { HauntState } from './net';
 import { STUN_GRENADE_MODEL } from '../portal/tools/StunGrenadeTool';
 import { GEAR_NAMES, type GearTool } from './world3d/commandRoom';
+import { showRoom } from './showRoom';
 
 interface ShipHost {
   ctx: WorldContext;
@@ -393,6 +394,9 @@ const HAND_LABEL = {
 /** So lange hält man einen Hand-Knopf, bis er wechselt statt benutzt (ms). */
 const HAND_HOLD_MS = 450;
 
+/** Die Seite _Wonach orten?_ im großen Menü (`HauntingWorld.menu`). */
+export const RADAR_PAGE = 'haunt:radar';
+
 /** Wie ein Werkzeug vom Tisch heißt, in den Meldungen. */
 function gearName(id: string): string {
   return (GEAR_NAMES as Readonly<Record<string, string>>)[id] ?? id;
@@ -505,14 +509,6 @@ export class ShipExperience {
    * Verwaltung geben."_
    */
   private readonly handsDom = el('div', 'orbital-hands');
-  /**
-   * **Der Beschlag des Visiers von oben — auf dem Bildschirm.** Gemeldet:
-   * _„bei "von oben" soll der atem der maske dann nicht vor dem spieler
-   * gerendert werden, sondern auf dem bildschirm."_ Die Scheibe (`visor`)
-   * hängt an der Kamera der Augen; von oben schwebte sie als Glasplatte vor
-   * der Figur. Dort zeigt jetzt diese Schicht über dem Bild dasselbe.
-   */
-  private readonly visorDom = el('div', 'orbital-visor');
   /**
    * **Der Balken des Handgriffs in der Bildmitte** (`rules/chore.ts`) — am
    * Schirm, unter dem Fadenkreuz. Er stand nur im Streifen oben links, und
@@ -830,7 +826,6 @@ export class ShipExperience {
       this.arrow.setAttribute('aria-hidden', 'true');
       this.arrow.append(el('i'), this.arrowLabel);
       this.handsDom.hidden = true;
-      this.visorDom.hidden = true;
       this.choreDom.hidden = true;
       for (const [button, hand] of [
         [this.leftButton, 'left'],
@@ -871,7 +866,6 @@ export class ShipExperience {
       }
       document.body.append(
         this.handsDom,
-        this.visorDom,
         this.choreDom,
         this.menuButton,
         this.arrow,
@@ -1030,6 +1024,9 @@ export class ShipExperience {
           this.host.say(this.torchLit ? 'Taschenlampe an.' : 'Taschenlampe aus.');
           break;
         case 'radar':
+          // Wie der Trigger in der Brille: die Seite _Wonach orten?_.
+          this.openRadarMenu();
+          break;
         case 'xray':
           this.sensorOff = !this.sensorOff;
           this.host.say(`${HAND_LABEL[this.sensorMode]} ${this.sensorOff ? 'aus' : 'an'}.`);
@@ -1040,6 +1037,44 @@ export class ShipExperience {
     }
     this.stamp = '';
     this.paint();
+  }
+
+  /** Wonach das Radar ortet — für jedes Gerät in jeder Hand dasselbe. */
+  radarTarget: RadarTarget = 'monster';
+
+  /**
+   * **_Wonach orten?_ aufmachen** — eine Seite im großen Menü, dasselbe wie
+   * jedes andere Menü (`HauntingWorld.menu`, `haunt:radar`). Gemeldet: _„das
+   * menü beim metall detector bitte wie die anderen menüs in vr. Das große
+   * mit dem X."_ Ein eigenes Menü auf dem Schirm des Geräts gibt es nicht.
+   */
+  readonly openRadarMenu = (): void => {
+    this.host.ctx.refreshWorldMenu();
+    this.host.ctx.openMenu?.(RADAR_PAGE, { bare: true });
+  };
+
+  /** Eine Zeile in _Wonach orten?_ — gilt für jedes Radar. */
+  chooseRadar(target: RadarTarget): void {
+    this.radarTarget = target;
+    this.host.say(target === 'off' ? 'Radar aus.' : `Radar ortet: ${RADAR_LABELS[target]}.`);
+    this.host.ctx.menu.toggle(false);
+    this.host.ctx.refreshWorldMenu();
+  }
+
+  /**
+   * **Wonach das Radar orten kann** (`RadarTool.setTargets`): das Monster, die
+   * Markierung der Zentrale und das nächste Teil, das gebraucht wird — dasselbe
+   * Ziel, auf das Kompass und Pfeil zeigen (`objectives`).
+   */
+  private radarTargets(): {
+    monster: { x: number; z: number } | null;
+    pin: { x: number; z: number } | null;
+    item: { x: number; z: number } | null;
+  } {
+    const state = this.host.state();
+    const goals = this.host.objectives?.() ?? [];
+    const item = goals.find((goal) => goal.next) ?? goals[0] ?? null;
+    return { monster: state.monster ?? null, pin: state.pin ?? null, item: item?.at ?? null };
   }
 
   /** Die zwei Knöpfe der Hände nachziehen — nur, wenn sich etwas geändert hat. */
@@ -2696,6 +2731,9 @@ export class ShipExperience {
     this.torch.name = 'desktop-held-tool';
     this.heldLamp.name = 'desktop-flashlight';
     this.heldLamp.setBeamGuide(false);
+    // Ein Punktlicht je Lampe weniger in jedem Bildpunkt (`setGlow`).
+    this.heldLamp.setGlow(false);
+    this.leftLamp.setGlow(false);
     this.heldLamp.setLit(true);
     const kit = this.mesh([0.15, 0.2, 0.07], 0xcad8c9, this.heldMedkit, [0, 0, 0]);
     const cross = [
@@ -2731,7 +2769,7 @@ export class ShipExperience {
     this.visibleRooms = ids;
     for (const object of this.root.children) {
       const roomId = object.userData.roomId as string | undefined;
-      if (roomId && !roomId.startsWith('training')) object.visible = !ids || ids.has(roomId);
+      if (roomId && !roomId.startsWith('training')) showRoom(object, !ids || ids.has(roomId));
     }
     // **Die Türen gehen mit ihren Räumen.** Jede ist ein Dutzend eigener
     // Zeichenaufrufe — Gehäuse, zwei Blätter mit Griffen, zwei Tafeln —, und
@@ -2739,7 +2777,7 @@ export class ShipExperience {
     // am anderen Ende der Station hinter drei Wänden. Eine Tür steht, solange
     // einer ihrer zwei Räume steht; die Übungsdeck-Türen immer.
     for (const door of this.doors)
-      door.group.visible = !ids || !door.rooms || door.rooms.some((room) => ids.has(room));
+      showRoom(door.group, !ids || !door.rooms || door.rooms.some((room) => ids.has(room)));
   }
   get flashlightActive(): boolean {
     return (
@@ -3192,16 +3230,6 @@ export class ShipExperience {
     this.heldPart.position.set(0, held ? -0.02 : 0, held ? -0.12 : 0);
   }
 
-  /** Der Beschlag als Schicht über dem Bild (`visorDom`) — nur von oben. */
-  private stepVisorDom(shown: boolean, crew: typeof this.crew): void {
-    this.visorDom.hidden = !shown;
-    if (!shown) return;
-    const fog = Math.min(crew.exertion, VISOR_FOG_MAX) / VISOR_FOG_MAX;
-    const damage = Math.max(crew.hidden ? 0.2 : 0, (3 - crew.hp) / 3);
-    this.visorDom.style.setProperty('--fog', fog.toFixed(2));
-    this.visorDom.style.setProperty('--damage', damage.toFixed(2));
-  }
-
   /**
    * **Die eigene Figur wirft vor der eigenen Lampe keinen Schatten.** Die
    * Lampe hängt am Kopf, und von oben steht die Figur samt Helm im Kegel:
@@ -3235,7 +3263,9 @@ export class ShipExperience {
     const ctx = this.host.ctx;
     const hands = fallen ? null : (this.host.screenHands?.() ?? null);
     const right = hands ? hands.right.hold : ctx.camera;
-    const left = hands ? hands.left.hold : ctx.camera;
+    // Links der Griff selbst: Die linke Hand vor dem Auge ist nur zum Ansehen
+    // gebaut, ihr Halteknoten (`hold`) hängt an nichts (`ScreenHand.offHand`).
+    const left = hands ? hands.left.grip : ctx.camera;
     if (this.torch.parent !== right) right.add(this.torch);
     if (this.scanner.parent !== left) left.add(this.scanner);
     if (!hands) {
@@ -3244,12 +3274,29 @@ export class ShipExperience {
       // Nur die Neigung (`updateTools`), keine Drehung aus der Hand von eben.
       this.torch.rotation.set(this.torch.rotation.x, 0, 0);
       this.scanner.rotation.set(this.scanner.rotation.x, 0, 0);
+      this.scanner.scale.setScalar(1);
       return;
     }
     this.torch.position.copy(this.heldLamp.holdPosition);
     aimQuaternion(hands.right, this.torch.quaternion);
     this.scanner.position.copy(this.leftLamp.holdPosition);
-    aimQuaternion(hands.left, this.scanner.quaternion);
+    if (this.sensorMode === 'radar' || this.sensorMode === 'xray') {
+      // **Ein Schirm schaut den an, der ihn hält** — aufs Fadenkreuz gedreht
+      // stand er kantig vor dem Auge, und man las nichts.
+      // Und er steht knapp über der Faust, wo man ihn sieht: Die linke Hand
+      // sitzt so tief am Rand, dass ein Schirm in ihr unter dem Bild läge.
+      hands.left.grip.updateWorldMatrix(true, false);
+      hands.left.grip.getWorldQuaternion(_handTurn).invert();
+      ctx.camera.getWorldQuaternion(_viewTurn);
+      this.scanner.quaternion.copy(_handTurn).multiply(_viewTurn);
+      this.scanner.scale.setScalar(SCANNER_IN_HAND);
+      ctx.camera.updateWorldMatrix(true, false);
+      ctx.camera.localToWorld(_screenAt.set(SCANNER_AT.x, SCANNER_AT.y, SCANNER_AT.z));
+      this.scanner.position.copy(hands.left.grip.worldToLocal(_screenAt));
+    } else {
+      aimQuaternion(hands.left, this.scanner.quaternion);
+      this.scanner.scale.setScalar(1);
+    }
   }
 
   /**
@@ -3331,8 +3378,10 @@ export class ShipExperience {
     this.stepHands(ctx);
     this.stepHandUse(ctx);
     ctx.camera.getWorldDirection(_direction);
-    this.handheldRadar.setContact(this.host.state().monster);
-    if (this.scanner.visible && this.sensorMode === 'radar' && !this.sensorOff)
+    const targets = this.radarTargets();
+    this.handheldRadar.setTargets(targets);
+    this.handheldRadar.setTarget(this.radarTarget);
+    if (this.scanner.visible && this.sensorMode === 'radar')
       this.handheldRadar.updateDisplay(dt, _head, _direction);
     this.handheldXray.updateView(
       this.root,
@@ -3343,7 +3392,11 @@ export class ShipExperience {
       for (const hand of ['left', 'right'] as const) {
         const tool = this.host.carried?.(hand);
         if (tool instanceof FlashlightTool) tool.setBeamGuide(false);
-        if (tool instanceof RadarTool) tool.setContact(this.host.state().monster);
+        if (tool instanceof RadarTool) {
+          tool.setTargets(targets);
+          tool.setTarget(this.radarTarget);
+          tool.chooser = this.openRadarMenu;
+        }
         if (tool instanceof XrayTool) tool.setSubjects(() => this.scanSubjects);
       }
     // **Was auf den Ausrüstungstischen liegt** (`host.gear`): am Schirm mit
@@ -3605,9 +3658,11 @@ export class ShipExperience {
         (!crew.simulation && !!crew.hidden) ||
         ((state.phase === 'lost' || state.phase === 'won') && ctx.renderer.xr.isPresenting);
       const fogged = !crew.simulation && (crew.exertion > 0.005 || crew.hp < 3 || !!crew.hidden);
-      const onScreen = ctx.topDown && !ctx.renderer.xr.isPresenting;
-      this.visor.visible = fogged && !onScreen;
-      this.stepVisorDom(fogged && onScreen, crew);
+      // **Von oben gar nicht** — die Scheibe hängt an der Kamera der Augen und
+      // schwebte dort als Glasplatte vor der Figur; eine Schicht über dem Bild
+      // war auch zu viel (_„ich denke der atem overlay kann in "von oben"
+      // gerne weg bleiben"_).
+      this.visor.visible = fogged && !(ctx.topDown && !ctx.renderer.xr.isPresenting);
       this.stepOwnShadow(dt);
       // Der Beschlag der Anstrengung höchstens leicht — dieselbe Klage wie
       // beim Atem (`stepHelmet`): Beim Rennen war die Sicht sonst weg.
@@ -5212,7 +5267,6 @@ export class ShipExperience {
     this.menuButton.remove();
     this.arrow.remove();
     this.handsDom.remove();
-    this.visorDom.remove();
     this.choreDom.remove();
     this.puzzleRoot.remove();
     this.toast.dispose();
@@ -5320,6 +5374,11 @@ const TORCH_TILT_TOP = -0.5;
 /** Wo der rechte und der linke Streifen vor der Kamera hängen, wenn keine Hand sie hält. */
 const TORCH_AT = { x: 0.24, y: -0.24, z: -0.4 };
 const SCANNER_AT = { x: -0.3, y: -0.26, z: -0.52 };
+/** So viel größer liegt ein Schirm in der Hand vor dem Auge — die Hand ist dort halb so groß. */
+const SCANNER_IN_HAND = 1.6;
+const _handTurn = new THREE.Quaternion();
+const _viewTurn = new THREE.Quaternion();
+const _screenAt = new THREE.Vector3();
 /** Wie lange die Endkarte zählt, bevor es von selbst in die Einsatzzentrale geht (s). */
 const END_SECONDS = 5;
 /** Wie nah die Kamera von oben an den Toten heranfährt — ein Anteil des Abstands davor. */
