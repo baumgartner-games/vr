@@ -200,6 +200,8 @@ const FIGURE_GAIT_DAMP = 3;
 const FIGURE_SIT_CLIPS = ['Sit_Chair_Idle', 'Sit_Floor_Idle'] as const;
 /** So lange blendet sie hinein, in Sekunden — ein Hinsetzen und kein Zucken. */
 const FIGURE_SIT_FADE = 0.3;
+/** Wie schnell der Rumpf nach dem Festhalten zum Blick aufholt (je Sekunde, `catchUp`). */
+const BODY_CATCH_UP = 6;
 /** So weit über der Sitzfläche liegt das Becken: die Dicke der Oberschenkel (m). */
 const SEAT_HIP = 0.08;
 
@@ -246,6 +248,27 @@ export class AvatarBody extends THREE.Group {
    * charakters"_).
    */
   turnSlack = THREE.MathUtils.degToRad(38);
+
+  /**
+   * **Wer weit an sich hinunterschaut, dreht nur den Kopf** — ab diesem
+   * Winkel unter der Waagerechten (Bogenmaß) bleibt der Rumpf stehen, solange
+   * man nicht geht. Gemeldet: _„wenn der vr Spieler weit nach unten an sich
+   * schaut, dass er dann nur den Kopf bewegt, z.B. damit er an Seite Hüfte
+   * schauen kann. Aktuell kann er nicht die Werkzeuge sehen, da dort dann
+   * sich der Körper mit dreht."_ Hebt man den Blick wieder, holt der Rumpf
+   * weich auf (`catchUp`).
+   */
+  lookDownHold = THREE.MathUtils.degToRad(40);
+
+  /**
+   * **Den Rumpf festhalten**, was der Kopf auch tut — gesetzt, solange etwas
+   * am Körper eingestellt wird (der Gürtel-Justierer,
+   * `PortalWorld.updateBelt`): Dreht er mit, wandert der Gürtel unter der
+   * Hand weg.
+   */
+  holdBody = false;
+  /** Ob der Rumpf nach einem Festhalten gerade weich aufholt. */
+  private catchUp = false;
 
   /**
    * **Worauf die Figur sitzt** (`PortalWorld.sitOn`), im Raum des Elternteils
@@ -1354,8 +1377,14 @@ export class AvatarBody extends THREE.Group {
     const difference = wrapAngle(headYaw - this.bodyYaw);
     const slack = this.turnSlack;
     const seat = this.seat;
+    const held = this.holdBody || (headPitch < -this.lookDownHold && this.speed <= 0.4);
     if (seat) {
       this.bodyYaw = seat.yaw;
+    } else if (held) {
+      this.catchUp = true;
+    } else if (this.catchUp) {
+      this.bodyYaw += difference * Math.min(1, dt * BODY_CATCH_UP);
+      if (Math.abs(difference) < slack + 0.03) this.catchUp = false;
     } else if (Math.abs(difference) > slack) {
       this.bodyYaw += difference - Math.sign(difference) * slack;
     } else if (this.speed > 0.4) {
