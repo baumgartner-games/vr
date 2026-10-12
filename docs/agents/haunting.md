@@ -7,6 +7,36 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Bildrate, Radar als Metalldetektor, kein Visier von oben (Oktober 2026)
+
+- **Bildrate** (gemeldet: _„in der übungsrunde eine fps von 18. Die müssen
+  wir drastisch verbessern und richtung 60 bringen"_):
+  - **Weniger Lichter je Bildpunkt.** Die vier Deckenlampen der Zentrale
+    brennen nur in ihrer Nähe (`nearApron`, `COMMAND_LIGHT_MARGIN`), die
+    Lampe auf dem Ausrüstungstisch ist aus, bis man sie nimmt
+    (`placeTableTorch`, `stepGear`), und Lampen haben in Haunting kein
+    Glimmlicht (`FlashlightTool.setGlow`). Draußen in der Station rechnet
+    jeder Bildpunkt so 3 statt 8 Punkt-/Spotlichter und eine Schattenkarte
+    statt zwei. Beide Zustände der Deckenlampen übersetzt `warmShaders` vorab.
+  - **Angehaltene Räume rechnen keine Matrizen** (`showRoom.ts`): Ein
+    ausgeblendeter Raum (samt Türen) schaltet `matrixAutoUpdate` seiner
+    Knoten ab, beim Zeigen wieder an; die Wurzeln der Station stehen still
+    (`holdStill`). Gemessen 5 235 → 4 051 Matrix-Updates je Bild.
+- **Das Radar ist ein Metalldetektor** (`tools/RadarTool.ts`): Reichweite
+  36 m (`RADAR_RANGE`, vorher 18), kein drehender Schirm mehr, sondern Ziel,
+  Entfernung und Stärkebalken, und es **piept schneller, je näher**
+  (`beepGap`). Der Trigger (am Schirm Rechtsklick/LT, am Telefon Tipp auf die
+  linke Hand) öffnet auf dem Gerät **„Wonach orten?"**: Monster, Ziel der
+  Zentrale (die Markierung), Nächstes Teil (das nächste Ziel aus
+  `objectives`), Aus; wer 1,6 s nicht drückt, hat gewählt
+  (`cycle`, `setTargets`, `ShipExperience.radarTargets`).
+- **Radar und Röntgengerät aus den Augen**: Sie stehen über der linken Faust
+  und schauen den Betrachter an — aufs Fadenkreuz gedreht war der Schirm
+  kantig. Die linke Bildschirmhand hat keinen eingehängten `hold`; gehalten
+  wird an ihrem Griff.
+- **Kein Visier-Beschlag von oben** — weder Scheibe noch Schicht über dem
+  Bild (_„ich denke der atem overlay kann in "von oben" gerne weg bleiben"_).
+
 ## Jede Hand ihr Abzug, `E` nur für die Welt (Oktober 2026)
 
 - **Aus den Augen sind die Maustasten die Abzüge der Hände**
