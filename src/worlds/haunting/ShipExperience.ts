@@ -1893,13 +1893,12 @@ export class ShipExperience {
       this.holdPart();
     } else this.crew.inventory.push(c.loot);
     this.crew.inventory.push(id);
-    if (this.host.ctx.renderer.xr.isPresenting) {
-      if (c.loot === 'radar' || c.loot === 'xray') this.host.equip?.(c.loot, 'left');
-      else if (c.loot === 'test-kit') this.host.equip?.('radar', 'left');
-      // Die rechte Hand hält jetzt das Teil — die Lampe wandert nach links,
-      // wo die zweite ohnehin am Gürtel hängt.
-      else if (part) this.host.equip?.('flashlight', 'left');
-    }
+    // **In der Brille bleibt in den Händen, was dort war** — gemeldet: _„wenn
+    // ich etwas aus dem schrank nehme, […] dann habe ich das item und direkt
+    // eine taschenlampe in der hand, aber nicht mehr die items die ich davor
+    // hatte. Das ist falsch."_ Ein Teil kommt in die freie Hand
+    // (`choosePartHand`), Werkzeuge stehen im Inventar und am Gürtel.
+    if (part) this.choosePartHand();
     this.host.say(
       part
         ? `${lootLabel(spec, c.loot)} in der Hand. ${this.targetCall(c.loot)}`
@@ -1955,10 +1954,14 @@ export class ShipExperience {
     const held = this.crew.inventory.indexOf(id);
     if (held >= 0) this.crew.inventory.splice(held, 1);
     this.host.ctx.rig.getHeadPosition(_head);
+    // In der Brille fällt es dort hin, wo die Hand es loslässt.
+    const grip = this.host.ctx.renderer.xr.isPresenting
+      ? this.host.ctx.input.get(this.partHand)?.grip
+      : null;
+    if (grip) grip.getWorldPosition(_head);
     const dropped: DroppedPart = { id, x: _head.x, z: _head.z, since: state.time };
     state.dropped = [...(state.dropped ?? []).filter((one) => one.id !== id), dropped];
     this.freePart();
-    if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'right');
     this.host.say(`${lootLabel(spec, id)} abgelegt. Wieder aufnehmen: Benutzen.`);
     this.sound('door');
     this.paint();
@@ -2003,7 +2006,7 @@ export class ShipExperience {
     this.forgetDropped(id);
     this.crew.inventory.push(id);
     this.holdPart();
-    if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'left');
+    this.choosePartHand();
     this.host.say(`${lootLabel(spec, id)} wieder in der Hand. ${this.targetCall(id)}`);
     this.sound('success');
     this.paint();
@@ -3222,12 +3225,39 @@ export class ShipExperience {
    * Lampe und Medkit, wie jedes andere Ding in der rechten Hand.
    */
   private carryInHand(inHand: boolean): void {
-    const grip = this.host.ctx.input.get('right')?.grip;
+    const controller = this.host.ctx.input.get(this.partHand);
+    const grip = controller?.grip;
     const wanted: THREE.Object3D = inHand && grip ? grip : this.torch;
     const held = wanted !== this.torch;
+    // **Loslassen lässt es fallen** — wie jedes Ding, das man greift: Wer die
+    // Greif-Taste dieser Hand drückt und wieder loslässt, legt das Teil dort
+    // ab, wo die Hand ist (`dropPart`). Gewünscht: _„Das item kann ich auch
+    // fallen lassen, es muss nicht direkt in meinem gürtel sein."_
+    if (held && controller) {
+      const squeezed = controller.squeeze.pressed;
+      if (squeezed) this.partGripped = true;
+      else if (this.partGripped) {
+        this.partGripped = false;
+        this.dropPart();
+        return;
+      }
+    } else this.partGripped = false;
     if (this.heldPart.parent === wanted) return;
     wanted.add(this.heldPart);
     this.heldPart.position.set(0, held ? -0.02 : 0, held ? -0.12 : 0);
+  }
+  /** Welche Hand in der Brille das Teil trägt (`choosePartHand`). */
+  private partHand: Handedness = 'right';
+  /** Ob die Greif-Taste der Hand mit dem Teil schon gedrückt war (`carryInHand`). */
+  private partGripped = false;
+
+  /** Die Hand für ein Teil: eine, die kein Werkzeug hält — sonst die rechte. */
+  private choosePartHand(): void {
+    const free = (hand: Handedness): boolean => !this.host.carried?.(hand);
+    this.partHand = free('right') ? 'right' : free('left') ? 'left' : 'right';
+    // Gerade erst gegriffen: Hält die Hand die Greif-Taste schon, zählt erst
+    // ihr Loslassen danach (`carryInHand`).
+    this.partGripped = !!this.host.ctx.input.get(this.partHand)?.squeeze.pressed;
   }
 
   /**
@@ -3391,7 +3421,10 @@ export class ShipExperience {
     if (immersive)
       for (const hand of ['left', 'right'] as const) {
         const tool = this.host.carried?.(hand);
-        if (tool instanceof FlashlightTool) tool.setBeamGuide(false);
+        if (tool instanceof FlashlightTool) {
+          tool.setBeamGuide(false);
+          tool.setGlow(false);
+        }
         if (tool instanceof RadarTool) {
           tool.setTargets(targets);
           tool.setTarget(this.radarTarget);

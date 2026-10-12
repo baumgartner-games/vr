@@ -7,6 +7,35 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Teile aus dem Schrank, Orter mit Pfeil, weiter Richtung 60 fps (Oktober 2026)
+
+- **Ein Teil aus dem Schrank nimmt in der Brille nichts aus den Händen**
+  (`ShipExperience.takeLoot`, `takeDropped`): Vorher hängte es die Lampe
+  links an und warf, was man hielt, weg. Gemeldet: _„wenn ich etwas aus dem
+  schrank nehme, z. B. blau dann habe ich das item und direkt eine
+  taschenlampe in der hand, aber nicht mehr die items die ich davor hatte.
+  Das ist falsch."_ Das Teil sitzt in einer freien Hand (`choosePartHand`,
+  rechts zuerst); **lässt man den Griff los, fällt es** an der Hand zu Boden
+  (`dropPart`) — _„Das item kann ich auch fallen lassen, es muss nicht direkt
+  in meinem gürtel sein."_
+- **Der Orter piept früher schneller und ist ab 5 m am schnellsten**
+  (`beepGap`, `BEEP_FASTEST`; Kurve mit Potenz 1,6). Gewünscht: _„soll bitte
+  das piepen früher schneller sein (max bei 5m)"_.
+- **Der Orter zeigt einen Richtungspfeil** links neben der Entfernung — oben
+  ist geradeaus, gemessen gegen den Blick (`updateDisplay` mit `forward`,
+  gemalt in Schritten von 1/32 Umdrehung). Gewünscht: _„zudem wäre beim orter
+  auch ein richtungspfeil gut"_.
+- **Bildrate** (gemeldet: _„übungsrunde läuft nun mit 21 fps"_) — die
+  Rechenzeit in JS je Bild sank gemessen von etwa 9,8 auf 7,3 ms:
+  - **Spiegel**: `collectMirrors` durchläuft die Szene nur noch, wenn ein
+    Spiegel (`everyMirror`) in ihr hängt und sichtbar ist.
+  - **Die Bots der Zentrale schlafen**, solange man nicht in ihrer Nähe ist
+    (`CommandBots.setAwake`, `Npc.asleep` — `NpcDirector` überspringt sie;
+    unsichtbar spart das auch etwa 27 000 Dreiecke).
+  - **Feste Körper fragt das Zielen nur alle 30 Bilder** bei Rapier ab
+    (`aimTargetOf`, `FIXED_AIM_FRAMES`).
+  - Lampen in der Brille haben keinen Glimmschein und keine Strahlhilfe mehr.
+
 ## Blick an sich hinunter: nur der Kopf dreht (Oktober 2026)
 
 - **Wer weiter als 40° nach unten schaut und steht, dreht nur den Kopf**

@@ -566,6 +566,9 @@ export class NpcDirector implements NpcControl {
     // des Durchlaufs verschwunden ist, wird nicht mehr angefasst.
     for (const npc of [...this.npcs].reverse()) {
       if (!this.npcs.includes(npc)) continue;
+      // Wer schläft (`Npc.asleep`), rechnet nicht — die Welt hat ihn
+      // ausgeblendet, weil niemand in der Nähe ist.
+      if (npc.asleep) continue;
       const hit = npc.update(dt, target, Math.random, run);
       if (hit && player) this.strike(npc, player);
       if (!this.npcs.includes(npc)) continue;

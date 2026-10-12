@@ -2315,7 +2315,10 @@ export class HauntingWorld extends FurnishedWorld {
       const running = this.state.phase === 'running';
       if (this.botsInRound && !running) this.crewBots.release();
       this.botsInRound = running;
-      this.crewBots.update(dt);
+      // Schlafend, solange man fern der Zentrale ist (`CommandBots.setAwake`).
+      ctx.rig.getHeadPosition(_head);
+      this.crewBots.setAwake(nearApron(_head.x, _head.z));
+      if (this.crewBots.isAwake) this.crewBots.update(dt);
     }
     if (this.stationTorch && this.torchImmersive !== ctx.renderer.xr.isPresenting) {
       this.torchImmersive = ctx.renderer.xr.isPresenting;
@@ -4463,15 +4466,12 @@ export class HauntingWorld extends FurnishedWorld {
     // **Wenige Unterseiten statt einer langen Liste** (`rules/menuPages.ts`):
     // oben die Runde, dann Plätze, das Ausgegraute, Ansicht, Ton, Entwickler.
     return [
-      ...pageHauntMenu(
-        rows,
-        (page, children): MenuEntry => ({
-          ...page,
-          icon: 'cube',
-          accent: 0x65dce5,
-          children,
-        }),
-      ),
+      ...pageHauntMenu(rows, (page, children): MenuEntry => ({
+        ...page,
+        icon: 'cube',
+        accent: 0x65dce5,
+        children,
+      })),
       ...this.radarPage(),
     ];
   }

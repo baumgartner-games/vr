@@ -38,9 +38,18 @@ const BEEP_FAR = 1.4;
  */
 export function beepGap(distance: number, range = RADAR_RANGE): number | null {
   if (!Number.isFinite(distance) || distance > range) return null;
-  const t = Math.max(0, distance) / range;
-  return BEEP_NEAR + (BEEP_FAR - BEEP_NEAR) * t;
+  // **Am schnellsten schon ab `BEEP_FASTEST`**, und dazwischen nicht gerade,
+  // sondern früh schneller (Potenz über 1): gemeldet _„wenn das monster
+  // geortet wird, soll bitte das piepen früher schneller sein (max bei 5m)"_.
+  const t = Math.max(0, distance - BEEP_FASTEST) / (range - BEEP_FASTEST);
+  return BEEP_NEAR + (BEEP_FAR - BEEP_NEAR) * t ** 1.6;
 }
+
+/** In welchen Schritten der Pfeil dreht (rad) — gemalt wird nur bei einem neuen Schritt. */
+const ARROW_STEP = Math.PI / 16;
+
+/** Ab dieser Entfernung piept es so schnell, wie es kann (m). */
+export const BEEP_FASTEST = 5;
 
 /**
  * **Das Ortungsgerät** — ein Metalldetektor statt eines Radarschirms.
@@ -72,6 +81,8 @@ export class RadarTool extends Tool {
     pin: null,
     item: null,
   };
+  /** Wohin das Ziel liegt, gegen den Blick (rad, im Uhrzeigersinn) — `null`: unbekannt. */
+  private bearing: number | null = null;
   /** Was zuletzt gemalt wurde — gemalt wird nur, wenn sich etwas ändert. */
   private drawn = '';
 
@@ -141,16 +152,28 @@ export class RadarTool extends Tool {
     host.notify(this.mode === 'off' ? 'Radar aus.' : `Radar ortet: ${RADAR_LABELS[this.mode]}.`);
   }
 
-  updateDisplay(dt: number, observer: THREE.Vector3, _forward?: THREE.Vector3): void {
+  updateDisplay(dt: number, observer: THREE.Vector3, forward?: THREE.Vector3): void {
     const at = this.mode === 'off' ? null : this.targets[this.mode];
     const distance = at ? Math.hypot(at.x - observer.x, at.z - observer.z) : Infinity;
+    // **Wohin der Pfeil zeigt**: das Ziel, gemessen gegen den Blick — oben ist
+    // geradeaus, rechts ist rechts (`draw`). Gewünscht: _„zudem wäre beim
+    // orter auch ein richtungspfeil gut"_.
+    this.bearing = null;
+    if (at && forward) {
+      const dx = at.x - observer.x;
+      const dz = at.z - observer.z;
+      const length = Math.hypot(forward.x, forward.z) || 1;
+      const fx = forward.x / length;
+      const fz = forward.z / length;
+      this.bearing = Math.atan2(dx * -fz + dz * fx, dx * fx + dz * fz);
+    }
     const gap = beepGap(distance);
     if (gap === null) this.beepTimer = 0;
     else {
       this.beepTimer -= dt;
       if (this.beepTimer <= 0) {
         this.beepTimer = gap;
-        const near = 1 - distance / RADAR_RANGE;
+        const near = 1 - Math.max(0, distance - BEEP_FASTEST) / (RADAR_RANGE - BEEP_FASTEST);
         playTone({ type: 'sine', from: 880 + near * 660, duration: 0.07, gain: 0.05 });
       }
     }
@@ -169,7 +192,8 @@ export class RadarTool extends Tool {
 
   private draw(distance: number | null): void {
     const inRange = distance !== null && distance <= RADAR_RANGE;
-    const key = `${this.mode}|${inRange ? Math.round(distance!) : '-'}`;
+    const turn = inRange && this.bearing !== null ? Math.round(this.bearing / ARROW_STEP) : null;
+    const key = `${this.mode}|${inRange ? Math.round(distance!) : '-'}|${turn}`;
     if (key === this.drawn) return;
     this.drawn = key;
     const c = this.canvas.getContext('2d');
@@ -187,7 +211,34 @@ export class RadarTool extends Tool {
     if (this.mode !== 'off') {
       c.font = 'bold 76px system-ui';
       c.fillStyle = inRange ? '#ffc388' : '#4d7b70';
-      c.fillText(inRange ? `${Math.round(distance!)} m` : 'KEIN SIGNAL', 256, 170);
+      c.fillText(
+        inRange ? `${Math.round(distance!)} m` : 'KEIN SIGNAL',
+        turn === null ? 256 : 310,
+        170,
+      );
+      if (turn !== null) {
+        // Der Pfeil links neben der Zahl: oben ist geradeaus.
+        c.save();
+        c.translate(120, 145);
+        c.strokeStyle = '#205343';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(0, 0, 58, 0, Math.PI * 2);
+        c.stroke();
+        c.rotate(turn * ARROW_STEP);
+        c.fillStyle = '#ffc388';
+        c.beginPath();
+        c.moveTo(0, -50);
+        c.lineTo(26, -6);
+        c.lineTo(9, -6);
+        c.lineTo(9, 40);
+        c.lineTo(-9, 40);
+        c.lineTo(-9, -6);
+        c.lineTo(-26, -6);
+        c.closePath();
+        c.fill();
+        c.restore();
+      }
       // Der Balken: voll ganz nah, leer am Rand der Reichweite.
       const strength = inRange ? 1 - distance! / RADAR_RANGE : 0;
       c.fillStyle = '#173a33';
@@ -196,7 +247,7 @@ export class RadarTool extends Tool {
       c.fillRect(56, 222, 400 * strength, 34);
       c.fillStyle = '#66958d';
       c.font = '19px system-ui';
-      c.fillText(`Reichweite ${RADAR_RANGE} m · piept schneller, je näher`, 256, 300);
+      c.fillText(`Reichweite ${RADAR_RANGE} m · am schnellsten ab ${BEEP_FASTEST} m`, 256, 300);
     }
     c.fillStyle = '#66958d';
     c.font = '17px system-ui';
