@@ -7,6 +7,24 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Schutzschränke weg von der Tür, Hologramm nicht beim Vorbeistreifen (Oktober 2026)
+
+Gemeldet: _„sehr gut, wir sind nun bei 40 FPS. In der haunting map stehen die
+schutz schränke zu nah an der tür, in zwei räumen. Bitte wo anders
+platzieren. Dazu bitte fixen, wenn ich in vr gegen das hologram laufe öffnet
+sich ein menü."_
+
+- **Der Schutzschrank sucht zuerst Stellen weit weg von jeder Tür**
+  (`stationLayout.packRoom`, `LOCKER_DOOR_DEPTH` 2,4 m tief, `LOCKER_DOOR_SIDE`
+  1,5 m zur Seite): ein Wunsch und keine Sperre — passt es nicht, steht er wie
+  vorher. In der Station mit acht Räumen: Storage 1,8 → 4,1 m, Weapons
+  2,0 → 5,2 m, Lower Engine 2,6 → 5,5 m von der Türmitte; die übrigen Räume
+  unverändert.
+- **Was ein Menü aufmacht, geht in der Brille nur mit Zeigestrahl und Trigger
+  auf** (`stationLayer.OPENS_MENU`: Hologramm, Garderobe, Laterne tauschen) —
+  nicht mehr durch Anfassen (`handTouch`). Wer am Sockel vorbeiging, streifte
+  ihn mit der Hand und hatte das Modellregal offen.
+
 ## Bildrate in der Brille beim Spielen: CPU, GPU und Hz (Oktober 2026)
 
 Gemeldet: _„120 Hz eingestellt, jetzt 30-25 hz. Können wir das noch weiter
