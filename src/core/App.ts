@@ -93,6 +93,8 @@ import { GraphicsQuality } from './GraphicsQuality';
 import { QUEST_FRUSTUM, eyeBox, saveVrView, vrViewOn } from './vrView';
 import { PovCalibrator } from './PovCalibrator';
 import { FrameStats } from './FrameStats';
+import { GpuTimer } from './gpuTimer';
+import { XrStatsBadge } from './xrStatsBadge';
 import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
 import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from './headgear';
@@ -432,6 +434,12 @@ export class App {
    */
   private readonly quality: GraphicsQuality;
   private readonly frameStats: FrameStats;
+  /** Die Zeit der Grafikkarte je Bild (`gpuTimer.ts`) — nur, solange die Bildrate gezeigt wird. */
+  private readonly gpuTimer: GpuTimer;
+  /** Die letzte Messung der Grafikkarte in ms, `null`: keine. */
+  private gpuMs: number | null = null;
+  /** Die Bildrate in der Brille beim Spielen (`xrStatsBadge.ts`). */
+  private readonly xrBadge = new XrStatsBadge();
   /** Wo man steht, als Zahl (`core/positionHud.ts`, _Grafik → Position zeigen_). */
   private readonly positionHud: PositionHud;
   /** Quest-3-Blickfeld und Mensch als Boxen (`core/playerGuides.ts`). */
@@ -542,6 +550,8 @@ export class App {
     });
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
+    this.gpuTimer = new GpuTimer(this.renderer);
+    this.camera.add(this.xrBadge.mesh);
     // Das Feld unten rechts hängt am Häkchen im Grafik-Menü — und F3 schaltet
     // dasselbe Häkchen, damit beide dasselbe sagen.
     this.frameStats.visible = graphics().showFps;
@@ -2569,8 +2579,11 @@ export class App {
     // solange das Menü offen ist (`frame`), ohne das ganze Menü neu zu bauen.
     this.fpsEntry = {
       id: 'gfx:fps',
-      label: fpsLabel(this.frameStats.latest),
-      sub: 'Mittel der letzten halben Sekunde · CPU misst nur JavaScript',
+      label: fpsLabel(this.frameStats.latest, this.gpuMs),
+      // Mit offenem Menü misst die Brille ein anderes Bild (ohne Foveated
+      // Rendering, `GraphicsQuality.setMenuOpen`) — beim Spielen zeigt das
+      // Schild unten im Blick die echte Zahl (`xrStatsBadge.ts`).
+      sub: 'Mittel der letzten halben Sekunde · CPU: JavaScript samt Zeichenbefehlen · GPU: Grafikkarte, wo die Brille es misst · beim Spielen unten links im Blick',
       icon: 'settings',
       accent: 0x6f7d99,
     };
@@ -2954,7 +2967,9 @@ export class App {
           // gilt sofort, auch mitten in der Sitzung (`GraphicsQuality.applyRate`).
           id: 'gfx:xr-rate',
           label: `Brille: Bildwiederholrate ${XR_RATE_LABELS[settings.xrRate]}`,
-          sub: XR_RATE_SUBS[settings.xrRate],
+          // Und womit sie gerade wirklich läuft — eine Brille, die 120 Hz
+          // nicht kann oder nicht freigegeben hat, bleibt darunter.
+          sub: `${XR_RATE_SUBS[settings.xrRate]}${runningRate(this.renderer)}`,
           caption: '120 → 90 → 72 Hz → wie die Brille will · nur in der Brille',
           icon: 'sphere',
           accent,
@@ -4059,6 +4074,23 @@ export class App {
     );
   }
 
+  /**
+   * **Das Schild in der Brille** (`xrStatsBadge.ts`) nachschreiben — nur beim
+   * Spielen in der Brille und nur mit _Bildrate zeigen_. Dazu die Rate, mit der
+   * die Brille gerade wirklich läuft (`XRSession.frameRate`).
+   */
+  private showXrBadge(sample: FrameSample, presenting: boolean): void {
+    const shown = presenting && this.frameStats.visible;
+    this.xrBadge.mesh.visible = shown;
+    if (!shown) return;
+    const session = this.renderer.xr.getSession() as (XRSession & { frameRate?: number }) | null;
+    const hz = session?.frameRate ? ` · ${Math.round(session.frameRate)} Hz` : '';
+    this.xrBadge.write([
+      `${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms${hz}`,
+      `CPU ${sample.cpuMs.toFixed(1)} ms · GPU ${gpuText(this.gpuMs)} · ${sample.calls.toFixed(0)} Draws`,
+    ]);
+  }
+
   private onSessionStart = (): void => {
     this.frameStats.setImmersive(true);
     this.positionHud.setImmersive(true);
@@ -4310,10 +4342,13 @@ export class App {
     // **Im Weltbau der Brille ist das Gestell zehnfach groß** — die Lichter
     // werden für dieses Bild in seinen Maßstab umgerechnet (`core/viewLights.ts`).
     this.viewLights.scale(this.scene, presenting ? this.rig.scale.x : 1);
+    const timed = this.frameStats.visible;
+    if (timed) this.gpuTimer.begin();
     try {
       const rendered = this.world?.render?.(viewContext) ?? false;
       if (!rendered) this.renderer.render(this.scene, view);
     } finally {
+      if (timed) this.gpuTimer.end();
       this.viewLights.restore();
       // Auch nach einem Fehler im Bild: Ein Ziel, das stehen bleibt, ist ein schwarzer Schirm.
       if (pass) this.levelBlur.end(view, blur, weather, this.rig.position, this.elapsed);
@@ -4330,13 +4365,17 @@ export class App {
       time,
       performance.now() - started,
       this.renderer.info.render,
-      '',
+      this.gpuTimer.available ? `GPU ${gpuText(this.gpuMs)}` : '',
     );
+    if (sample) {
+      this.gpuMs = this.gpuTimer.take();
+      this.showXrBadge(sample, presenting);
+    }
     // Die Zeile im Grafik-Menü nachschreiben, solange jemand hinsieht — nur
     // die Zeile, nicht das Menü: Ein Neubau je halbe Sekunde wäre selbst ein
     // Ruckler.
     if (sample && this.fpsEntry && this.gameMenu.isOpen) {
-      this.fpsEntry.label = fpsLabel(sample);
+      this.fpsEntry.label = fpsLabel(sample, this.gpuMs);
       this.gameMenu.refresh();
     }
     // **Und dieselbe Zeile für die Eingaben** (`inputsMenu`): Wer eine
@@ -4398,9 +4437,20 @@ function padBindingText(
 }
 
 /** Die Bildraten-Zeile des Grafik-Menüs. */
-function fpsLabel(sample: FrameSample | null): string {
+function fpsLabel(sample: FrameSample | null, gpuMs: number | null = null): string {
   if (!sample) return 'Bildrate: wird gemessen …';
-  return `Bildrate: ${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms · CPU ${sample.cpuMs.toFixed(1)} ms · ${sample.calls.toFixed(0)} Draws`;
+  return `Bildrate: ${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms · CPU ${sample.cpuMs.toFixed(1)} ms · GPU ${gpuText(gpuMs)} · ${sample.calls.toFixed(0)} Draws`;
+}
+
+/** ` · läuft mit 90 Hz` — in der Brille, sonst nichts. */
+function runningRate(renderer: THREE.WebGLRenderer): string {
+  const session = renderer.xr.getSession() as (XRSession & { frameRate?: number }) | null;
+  return session?.frameRate ? ` · läuft mit ${Math.round(session.frameRate)} Hz` : '';
+}
+
+/** Die Zeit der Grafikkarte zum Anzeigen — ohne Messung ein Strich. */
+function gpuText(gpuMs: number | null): string {
+  return gpuMs === null ? '–' : `${gpuMs.toFixed(1)} ms`;
 }
 
 const ROLE_LABELS: Record<PlayerRole, string> = {

@@ -7,6 +7,32 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Bildrate in der Brille beim Spielen: CPU, GPU und Hz (Oktober 2026)
+
+Gemeldet: _„120 Hz eingestellt, jetzt 30-25 hz. Können wir das noch weiter
+erhöhen? Default übrigens bitte 120hz einstellung"_. 25–30 fps bei 120 Hz sind
+die Stufen 120/4 und 120/5: Ein Bild braucht also 25–40 ms. Wo die Zeit
+bleibt, ließ sich bisher nicht sagen — am Schreibtisch zeichnet ein
+Software-Rasterizer, und die Zahl im Menü misst ein anderes Bild (mit offenem
+Menü ist Foveated Rendering aus, `GraphicsQuality.setMenuOpen`).
+
+- **Das Schild in der Brille** (`core/xrStatsBadge.ts`, mit _Grafik →
+  Bildrate zeigen_ bzw. F3): unten links im Blick, beim Spielen. Zeile 1 fps,
+  Bildzeit und die Rate, mit der die Brille **wirklich** läuft
+  (`XRSession.frameRate`); Zeile 2 CPU (JavaScript samt Zeichenbefehlen), GPU
+  und Zeichenaufrufe.
+- **Die Zeit der Grafikkarte** (`core/gpuTimer.ts`):
+  `EXT_disjoint_timer_query_webgl2` um das ganze Zeichnen eines Bildes, nur
+  solange die Bildrate gezeigt wird. Gibt der Browser die Erweiterung nicht
+  her, steht dort ein Strich. Auch im Menü (`fpsLabel`).
+- **120 Hz ist die Vorgabe** (`DEFAULT_GRAPHICS.xrRate`, seit der Runde
+  davor); die Zeile _Brille: Bildwiederholrate_ sagt jetzt dazu, womit die
+  Brille gerade läuft.
+- **So liest man es**: Ist GPU nahe an der Bildzeit und CPU deutlich darunter,
+  bremst die Grafikkarte — dann helfen _Brille: Auflösung_ (Mittel/Flüssig),
+  weniger Licht je Bildpunkt und weniger Durchsichtiges vor dem Auge. Ist CPU
+  nahe an der Bildzeit, bremsen Rechnung und Zeichenaufrufe.
+
 ## Bildrate: 120 Hz, Matrizenlauf ohne Unsichtbares, Messstrecke (Oktober 2026)
 
 Gemeldet: _„Wir sind nun bei 30 fps. Wir sollten festhalten wie viel fps bei
