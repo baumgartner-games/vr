@@ -329,6 +329,9 @@ export interface StationHost {
 export const OPENER_REACH = 0.5;
 
 /** Was ein Druck dort bewirkt — der Satz zum Saum (`Usable.usePrompt`). */
+/** Was eine Seite oder ein Menü aufmacht — und deshalb nicht beim Vorbeistreifen. */
+const OPENS_MENU: ReadonlySet<ElementOpens> = new Set(['outfit', 'swap', 'hologram']);
+
 const OPENS_PROMPT: Readonly<Record<ElementOpens, string>> = {
   outfit: 'Aussehen ändern',
   hide: 'Verstecken',
@@ -563,7 +566,13 @@ export class StationLayer {
           return true;
         },
         usePrompt: () => OPENS_PROMPT[what],
-        interaction: { kind: 'press' },
+        // **Was ein Menü aufmacht, geht in der Brille nicht durch Anfassen auf**
+        // (`OPENS_MENU`) — nur Zeigestrahl und Trigger. Gemeldet: _„wenn ich in
+        // vr gegen das hologram laufe öffnet sich ein menü."_ Wer daran
+        // vorbeigeht, streift es mit der Hand.
+        interaction: OPENS_MENU.has(what)
+          ? { kind: 'press', views: { vr: { inputs: ['aimTrigger'] } } }
+          : { kind: 'press' },
         aimOnly: true,
       },
       { radius: OPENER_REACH, half: 1.8 },

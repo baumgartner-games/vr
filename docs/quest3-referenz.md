@@ -313,7 +313,7 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
 | `8028cfc` (#406, #407) | 21 | 10,4 ms | 7,5 ms | 2,9 ms | 434 |
 | `b2c478b` (#408) | 23 | 9,0 ms | 6,0 ms | 3,1 ms | 386 |
 | `ad94bd5` (#409) | 30 | 9,0 ms | 5,6 ms | 3,4 ms | 350 |
-| diese Runde | _noch offen_ | 7,3 ms | 5,8 ms (Median 4,4) | 1,5 ms | 312 |
+| `b0c604e` (#410), 120 Hz | 25–30 (im Menü abgelesen), **40** beim Spielen (#411) | 7,3 ms | 5,8 ms (Median 4,4) | 1,5 ms | 312 |
 
 **Was die Tabelle sagt:**
 
@@ -331,6 +331,10 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
   Brille wurde nur noch einmal je Bild gerechnet (`PlayerRig.updateXrHead`,
   das diese Strecke kaum sieht). Die Zeichenaufrufe sind die Zahl, die am
   treuesten mitläuft — jeder zählt in der Brille doppelt.
+- **Mit offenem Menü misst die Brille ein anderes Bild** (Foveated Rendering
+  aus, `GraphicsQuality.setMenuOpen`): 25–30 fps im Menü waren beim Spielen
+  40 (120/3). Seit #411 zeigt das Schild unten links im Blick die Zahl beim
+  Spielen, samt GPU-Zeit (`core/xrStatsBadge.ts`, `core/gpuTimer.ts`).
 - **Absolute Millisekunden gelten nur für diesen Rechner.** Wer eine neue
   Zeile einträgt, misst den Stand davor auf derselben Maschine neu.
 

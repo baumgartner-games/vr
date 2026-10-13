@@ -123,6 +123,18 @@ function roomMiddle(room: HouseRoom): FloorPoint {
 const CARGO_DOOR_DEPTH = 2.4;
 
 /**
+ * **Der Schutzschrank steht nicht neben der Tür** — so tief in den Raum wie
+ * eine Kiste (`CARGO_DOOR_DEPTH`) und zusätzlich so weit zur Seite, in Metern.
+ * Gemeldet: _„In der haunting map stehen die schutz schränke zu nah an der tür,
+ * in zwei räumen. Bitte wo anders platzieren."_ (Storage 1,8 m, Weapons 2,0 m
+ * von der Türmitte.) Wer sich versteckt, soll nicht einen Schritt neben dem
+ * Eingang stehen, durch den das Monster kommt. Ein Wunsch und keine Sperre
+ * (`packRoom`): Passt es in einem engen Raum nicht, steht er wie vorher.
+ */
+const LOCKER_DOOR_DEPTH = 2.4;
+const LOCKER_DOOR_SIDE = 1.5;
+
+/**
  * Both incident rooms independently reserve the entire doorway and a deep
  * landing. `depth` sagt, wie weit die Landung in den Raum reicht — Kisten
  * bekommen mehr (`CARGO_DOOR_DEPTH`).
@@ -131,8 +143,9 @@ export function doorClearances(
   spec: HouseSpec,
   roomId: string,
   depth = 1.15,
+  side = 0,
 ): readonly FloorBounds[] {
-  const width = STATION_DOOR_W / 2 + STATION_PLAYER_RADIUS;
+  const width = STATION_DOOR_W / 2 + STATION_PLAYER_RADIUS + side;
   return spec.doors
     .filter((d) => d.a === roomId || d.b === roomId)
     .map((d) => {
@@ -514,15 +527,22 @@ function packRoom(
       ...sharedWallLandings(spec, room.id),
       ...ventApproaches(room.id),
     ];
-  const candidates = requests.map((request) => ({
-    request,
-    positions: wallCandidates(room, request).filter(
+  const lockerClearances = doorClearances(spec, room.id, LOCKER_DOOR_DEPTH, LOCKER_DOOR_SIDE);
+  const farFromDoors = (p: StationPlacement): boolean =>
+    !lockerClearances.some((one) => footprintsOverlap(p.bounds, one));
+  const candidates = requests.map((request) => {
+    const positions = wallCandidates(room, request).filter(
       (p) =>
         clear(request, p.bounds) &&
         !routes.some((door) => routeBlocked(door, centre, p.bounds)) &&
         !routeBlocked(centre, centre, p.bounds, 0.7),
-    ),
-  }));
+    );
+    // Der Schrank versucht zuerst die Stellen weit weg von jeder Tür
+    // (`LOCKER_DOOR_SIDE`) — die anderen bleiben als Rückfall dahinter.
+    if (request.kind === 'locker')
+      positions.sort((a, b) => Number(farFromDoors(b)) - Number(farFromDoors(a)));
+    return { request, positions };
+  });
   candidates.sort((a, b) => a.positions.length - b.positions.length);
   const placed: StationPlacement[] = [];
   function place(index: number): boolean {
