@@ -7,6 +7,18 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Schutzschrank auf einem Feld (Oktober 2026)
+
+Gewünscht: _„kann der schutzschrank als gegenstand im katalog und bzw. auch in
+haunting kleiner skaliert werden, sodass er nur maximal 1x1 feld groß ist"_.
+
+- **Haunting**: `fixtureDimensions.LOCKER_SIZE` 0,95 × 0,7 m, 1,95 m hoch
+  (vorher 1,15 × 0,8 m, 2,2 m). Plan, Kollision, Karte und Bildschirm am
+  Schrank lesen alle diese eine Größe.
+- **Katalog** (`spaceCatalog.SPACE_LOCKER`, `space-locker`): das Modell auf
+  0,95 m Breite gebracht (`fit`, gleichmäßig) statt auf 2 m Höhe — so war er
+  breiter als seine Kachel.
+
 ## Schutzschränke weg von der Tür, Hologramm nicht beim Vorbeistreifen (Oktober 2026)
 
 Gemeldet: _„sehr gut, wir sind nun bei 40 FPS. In der haunting map stehen die

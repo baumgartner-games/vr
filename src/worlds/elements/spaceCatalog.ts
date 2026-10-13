@@ -68,7 +68,11 @@ export const SPACE_LOCKER: GameElement = {
   height: 2,
   kind: null,
   opens: 'hide',
-  parts: [{ model: 'prototype-bits/Locker.glb', height: 2 }],
+  // **Höchstens ein Feld**: auf 0,95 m Breite gebracht (`fit`), gleichmäßig —
+  // auf zwei Meter Höhe gezogen war er breiter als seine Kachel. Gewünscht:
+  // _„kann der schutzschrank als gegenstand im katalog und bzw. auch in
+  // haunting kleiner skaliert werden, sodass er nur maximal 1x1 feld groß ist"_.
+  parts: [{ model: 'prototype-bits/Locker.glb', fit: 0.95 }],
 };
 
 /** Der Space Ranger — der Anzug des Technikers in _Haunting_ (`ShipExperience`). */
