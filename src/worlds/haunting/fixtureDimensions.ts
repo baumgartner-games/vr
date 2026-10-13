@@ -73,7 +73,13 @@ export const CARGO_BAND_COLORS: Readonly<Record<MarkColour, number>> = {
 };
 
 export const CARGO_SIZE: FixtureSize = { width: 0.9, height: 1.4, depth: 0.65 };
-export const LOCKER_SIZE: FixtureSize = { width: 1.15, height: 2.2, depth: 0.8 };
+/**
+ * **Der Schutzschrank passt auf ein Feld** (1 × 1 m): vorher 1,15 × 0,8 m und
+ * 2,2 m hoch. Gewünscht: _„kann der schutzschrank als gegenstand im katalog
+ * und bzw. auch in haunting kleiner skaliert werden, sodass er nur maximal 1x1
+ * feld groß ist"_. Hoch genug, dass man darin steht.
+ */
+export const LOCKER_SIZE: FixtureSize = { width: 0.95, height: 1.95, depth: 0.7 };
 export const CONSOLE_SIZE: FixtureSize = { width: 1.2, height: 1.65, depth: 0.55 };
 
 /**
