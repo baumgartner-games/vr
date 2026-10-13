@@ -58,6 +58,8 @@ import type { ElementMount } from '../portal/PortalWorld';
 import { lampsInScene } from '../../core/Lamps';
 import { lampBook } from '../../core/lamps/lampBook';
 import type { ElementOpens } from '../elements/elementCatalog';
+import { elementLit } from '../elements/elementCatalog';
+import { ModelBatch, type BatchItem } from '../shared/modelBatch';
 import { DEFAULT_BURN, type StationState } from '../plateup/plateUpStations';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
@@ -104,12 +106,35 @@ const ROAD_GHOST_OPACITY = 0.55;
  */
 const MARK_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
+/**
+ * **Wie groß ein Feld des Element-Bündels ist**, in Metern (`decorBatch`).
+ * Größer als bei den Wänden (16 m): In der Stadt stehen dieselben Bäume und
+ * Laternen über zweihundert Meter verteilt, und ein Bündel je 16 m hieß fast
+ * ein Bündel je Baum.
+ */
+const DECOR_CELL = 48;
+
 /** So lange bleibt eine Kopie stehen, nachdem zuletzt nach ihr gefragt wurde, in Sekunden. */
 const MARK_LINGER = 1;
 
 export abstract class FurnishedWorld extends GridWorld {
   /** Was diese Welt selbst ins Bild gehängt hat — Kopien aus dem Regal. */
   private readonly elementDecor: THREE.Object3D[] = [];
+  /** Zählt mit, wenn `elementDecor` sich ändert — dann wird die Liste fürs Bündel neu gebaut. */
+  private decorVersion = 0;
+  private decorSeen = -1;
+  private readonly decorItems: BatchItem[] = [];
+  private readonly decorItemOf = new WeakMap<THREE.Object3D, BatchItem>();
+  /**
+   * **Die Bilder der Spielelemente als Bündel** (`shared/modelBatch.ts`) —
+   * dieselbe Instanzierung wie die Wände aus dem Regal, nur für das, was ein
+   * Element als Bild hinstellt: Häuser, Bäume, Laternen, Autos. In der Stadt
+   * war jedes davon ein eigener Zeichenaufruf je Auge, 858 in der Brille, und
+   * gemeldet war: _„bei 300 draws knapp 35-40 fps, bei 1200 draws eher 20fps …
+   * 20fps bei der stadt"_. Nur, was nicht leuchtet (`elementLit`): Was einen
+   * Saum bekommt, muss für sich stehen.
+   */
+  private decorBatch: ModelBatch | null = null;
   /** Hochgezählt beim Aufräumen: Was danach noch aus dem Netz kommt, wird verworfen. */
   private elementRound = 0;
 
@@ -232,12 +257,47 @@ export abstract class FurnishedWorld extends GridWorld {
     // Erst hängt das Getragene, dann wackelt der Turm (`shared/iceCone`).
     if (this.stations) stepIceCones(dt);
     this.gauges?.update(dt);
+    this.stepDecorBatch(dt, ctx);
     this.liftClock += dt;
     for (const [placed, mark] of this.liftMarks) {
       if (this.liftClock - mark.asked < MARK_LINGER && this.placed.includes(placed)) continue;
       mark.view.removeFromParent();
       this.liftMarks.delete(placed);
     }
+  }
+
+  private readonly looseDecor = (item: BatchItem): boolean => this.isHighlighted(item.object);
+
+  /** Die Bilder der Elemente bündeln (`decorBatch`) — aus den Augen, nicht von oben. */
+  private stepDecorBatch(dt: number, ctx: WorldContext): void {
+    if (this.decorSeen !== this.decorVersion) {
+      this.decorSeen = this.decorVersion;
+      this.decorItems.length = 0;
+      for (const object of this.elementDecor) {
+        const id = object.userData.elementId as string | undefined;
+        // Was leuchten kann (`elementLit`), kommt nur mit, wenn es sich nie
+        // rührt und nur am Saum erkennbar ist, dass man es meint — die Straßen
+        // (_Laterne tauschen_). Solange sie leuchten, stehen sie für sich
+        // (`isHighlighted`).
+        if (!id || !hasElement(id)) continue;
+        const element = elementById(id);
+        if (elementLit(element) && element.opens !== 'swap') continue;
+        let item = this.decorItemOf.get(object);
+        if (!item) {
+          item = {
+            object,
+            get removed() {
+              return object.parent === null;
+            },
+          };
+          this.decorItemOf.set(object, item);
+        }
+        this.decorItems.push(item);
+      }
+    }
+    if (!this.decorItems.length && !this.decorBatch) return;
+    this.decorBatch ??= new ModelBatch(this.root, DECOR_CELL);
+    this.decorBatch.step(dt, !ctx.topDown, this.decorItems, this.looseDecor);
   }
 
   override dispose(ctx: WorldContext): void {
@@ -273,6 +333,9 @@ export abstract class FurnishedWorld extends GridWorld {
       dropMaterials(object);
     }
     this.elementDecor.length = 0;
+    this.decorVersion++;
+    this.decorBatch?.dispose();
+    this.decorBatch = null;
     this.placed.length = 0;
     this.pending.clear();
     this.riding.clear();
@@ -542,6 +605,7 @@ export abstract class FurnishedWorld extends GridWorld {
       object.removeFromParent();
       const at = this.elementDecor.indexOf(object);
       if (at >= 0) this.elementDecor.splice(at, 1);
+      this.decorVersion++;
       if (object !== placed.anchor) dropMaterials(object);
     }
     void placed.base?.then((body) => {
@@ -1026,6 +1090,7 @@ export abstract class FurnishedWorld extends GridWorld {
       add: (object) => {
         this.root.add(object);
         this.elementDecor.push(object);
+        this.decorVersion++;
       },
       alive: () => round === this.elementRound,
     };

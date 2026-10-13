@@ -1682,6 +1682,19 @@ export class PortalWorld implements World {
    * die Welt verlässt, nimmt ihn mit (`dispose`).
    */
   private readonly highlighter = new Highlight(this.root);
+
+  /**
+   * **Was gerade den Saum trägt** — für Welten, die Dinge bündeln
+   * (`FurnishedWorld.decorBatch`): Was leuchtet, muss für sich stehen.
+   */
+  protected isHighlighted(object: THREE.Object3D): boolean {
+    const first = this.highlighter.object;
+    const second = this.secondHighlighter.object;
+    if (!first && !second) return false;
+    for (let node: THREE.Object3D | null = object; node; node = node.parent)
+      if (node === first || node === second) return true;
+    return false;
+  }
   /**
    * **Der zweite Saum** — nur in der Brille und nur, wenn _zwei Gegenstände_
    * eingeschaltet ist (`core/grabSettings.GrabSettings.twoHands`).

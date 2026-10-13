@@ -335,6 +335,13 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
   aus, `GraphicsQuality.setMenuOpen`): 25–30 fps im Menü waren beim Spielen
   40 (120/3). Seit #411 zeigt das Schild unten links im Blick die Zahl beim
   Spielen, samt GPU-Zeit (`core/xrStatsBadge.ts`, `core/gpuTimer.ts`).
+- **Zeichenaufrufe sind die Stellschraube** (vom Besitzer gemessen, Oktober
+  2026): _„bei 300 draws knapp 35-40 fps, bei 1200 draws eher 20fps"_ — gut
+  0,03 ms je Aufruf in der Brille. Multiview (beide Augen in einem Aufruf) gibt
+  es in three r185 nur im `WebGPURenderer`, nicht im `WebGLRenderer` dieses
+  Projekts. Deshalb wird gebündelt: Wände (`modelBatch`), Element-Bilder
+  (`FurnishedWorld.decorBatch`, die Stadt 858 → 270), Möbel in sich
+  (`mergeByLook`).
 - **Absolute Millisekunden gelten nur für diesen Rechner.** Wer eine neue
   Zeile einträgt, misst den Stand davor auf derselben Maschine neu.
 

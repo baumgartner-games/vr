@@ -919,6 +919,23 @@ und so kam es an: _„In der Test Restaurant welt sind die Vorrats Boxen mit
 Brötchen und Käse und co beim conveyer belt nicht interagierbar."_ Ein
 Element, das scheitert, fehlt mit einer Warnung, die Welt stirbt nicht daran.
 
+### Gebündelt gezeichnet (`FurnishedWorld.decorBatch`)
+
+Was ein Element **als Bild** hinstellt (`ElementHost.add`, `elementDecor`), wird
+wie die Wände aus dem Regal instanziert gezeichnet (`shared/modelBatch.ts`):
+ein Zeichenaufruf je Feld von 48 m (`DECOR_CELL`), je Geometrie und Aussehen,
+statt einer je Teil. Gemeldet: _„bei 300 draws knapp 35-40 fps, bei 1200
+draws eher 20fps … 20fps bei der stadt"_ — in der Brille zählt jeder Aufruf
+je Auge. Die Stadt in der Brille: 858 → 270 Zeichenaufrufe, gleiches Bild.
+
+- **Nicht dabei** ist, was leuchten kann (`elementLit`) — Stationen, Sitze,
+  Truhen, das Hologramm; ihr Saum hängt am einzelnen Teil. Ausnahme sind die
+  Straßen (_Laterne tauschen_, `opens: 'swap'`): Sie rühren sich nie, und
+  solange eine den Saum trägt (`PortalWorld.isHighlighted`), steht sie für sich.
+- **Von oben** steht alles einzeln, wie bei den Wänden.
+- Wird ein Element umgestellt oder entfernt, baut das Bündel nach einer halben
+  Sekunde Ruhe neu (`ModelBatch.step`).
+
 ## Der Möbelkatalog im Menü
 
 **Auf der Detailseite eines Elements wird eingemessen** (Oktober 2026,
