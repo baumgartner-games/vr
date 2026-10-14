@@ -965,3 +965,24 @@ export function kaykitGerman(fileName: string): string {
   }
   return out.join(' ');
 }
+
+/**
+ * **Aus einem Dateinamen eine Beschriftung.**
+ *
+ * `barrel_large.glb` heißt im Raster `Barrel Large`: Endung weg, Unterstriche
+ * und Bindestriche zu Leerzeichen, und jedes Wort, das durchweg klein
+ * geschrieben ist, bekommt einen großen Anfangsbuchstaben. **Durchweg klein**
+ * ist die Bedingung, damit Namen, die der Zeichner selbst geschrieben hat
+ * (`KayKit`, `hexNW`), so bleiben, wie er sie meinte — ein `Hexnw` wäre eine
+ * Korrektur, um die niemand gebeten hat.
+ */
+export function humanLabel(fileName: string): string {
+  const bare = fileName.replace(/\.(glb|gltf)$/i, '');
+  return bare
+    .split(/[_\-\s]+/)
+    .filter((word) => word.length > 0)
+    .map((word) =>
+      word === word.toLowerCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word,
+    )
+    .join(' ');
+}

@@ -131,6 +131,11 @@ interface HandBuild {
   colors?: boolean;
 }
 
+/** Wie weit sich der Zeigefinger der leeren Hand bei ganz gedrücktem Abzug krümmt. */
+const TRIGGER_CURL = 0.7;
+/** Die Ebene dafür — nur der Zeigefinger, die anderen bleiben, wie die Haltung sie hat. */
+const _triggerLayer: (number | null)[] = [null, null, null, null, null];
+
 /** One procedural hand: a palm plus five curling fingers. */
 class ProceduralHand extends THREE.Group {
   readonly indexTip = new THREE.Object3D();
@@ -1195,6 +1200,15 @@ export class HandVisuals extends THREE.Group {
           trigger: controller.trigger.pressed,
         }),
       );
+    } else {
+      // **Die leere Hand zieht den Abzug mit** — stufenlos, so weit, wie der
+      // Trigger gedrückt ist. Gewünscht: _„Zudem fehlt es mir noch, dass wenn
+      // ich den trigger drücke, dass der zeigefinger sich mit bewegt."_ Bis
+      // hierher bewegten die Knöpfe die Finger nur an einem Werkzeug.
+      const rest = pose.curls[1] ?? 0;
+      const pull = Math.max(controller.trigger.value, controller.trigger.pressed ? 1 : 0);
+      _triggerLayer[1] = rest + (TRIGGER_CURL - rest) * Math.min(1, Math.max(0, pull));
+      hand.setCurlOverrides(_triggerLayer);
     }
     const forced = this.overrides.get(controller.handedness) ?? null;
     const gesture = this.gestureOf(controller);

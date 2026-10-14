@@ -1,5 +1,5 @@
 import { CHEF_EYE, CHEF_HEIGHT } from './chefFit';
-import { humanLabel } from './kaykitIndex';
+import { humanLabel } from './kaykitTerms';
 
 /**
  * **Wer man ist** — die vierte Zeile der Umkleide, als reine Rechnung.

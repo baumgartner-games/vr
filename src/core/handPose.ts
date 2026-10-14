@@ -157,11 +157,21 @@ export const IDLE_HAND_POSE: HandPose = {
  * Zeigefinger gestreckt zum Trigger. Eine leere Hand am Controller **ist**
  * diese Hand; hier steht sie gespiegelt für links.
  *
+ * **Bis auf die Lage quer: 1 cm statt 2,7 cm.** Gemeldet: _„ja die hände sind
+ * nun in die richtige richtung. Aber sind noch zu weit außen. Wir können am
+ * besten es so machen, dass du die quest3 controller renderst und daran die
+ * handschuhe angleichst"_. Neben dem Modell der Quest 3 (`meta-quest-touch-plus`,
+ * `ControllerModels.controllerShape`) gelegt, saß der **Handschuh** mit 2,7 cm
+ * sichtbar außen neben dem Griff — er ist dicker als die Knochenhand, um die
+ * die Faust gerechnet ist. Mit 1 cm umschließt die Faust den Griff; der Griff
+ * selbst liegt, nachgemessen am Modell, bei x ≈ 1,1 cm mit 1,5 × 2 cm
+ * Halbmesser (`controllerGrip.CONTROLLER_HANDLE` stimmt damit überein).
+ *
  * Gilt für **beide** Hände: links wie hier, rechts als Spiegelung.
  */
 export const IDLE_HAND_POSE_LEFT: HandPose = {
   ...IDLE_HAND_POSE,
-  x: -2.7,
+  x: -1,
   y: 3.7,
   z: 1.5,
   pitch: -90,

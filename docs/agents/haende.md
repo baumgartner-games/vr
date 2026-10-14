@@ -91,6 +91,21 @@ Spiegelung, und `defaultIdlePose` gibt die passende heraus. Der **☰-Knopf am
 Handgelenk** sitzt dazu auf dem wirklichen Handrücken (±X des Griffraums,
 `WristButton.update`); mit +Y saß er zwischen Kopf und Faust.
 
+**Neben dem Modell der Quest 3 eingepasst.** Gemeldet: _„ja die hände sind nun
+in die richtige richtung. Aber sind noch zu weit außen. Wir können am besten es
+so machen, dass du die quest3 controller renderst und daran die handschuhe
+angleichst"_. Neben `controllerShape` (Quest 3: `meta-quest-touch-plus`) gelegt,
+saß der Handschuh mit x 2,7 cm sichtbar außen neben dem Griff — er ist dicker
+als die Knochenhand, um die die Faust gerechnet ist. Jetzt **x 1 cm**, und die
+Faust umschließt den Griff. Nachgemessen liegt der Griff des Modells bei
+x ≈ 1,1 cm mit 1,5 × 2 cm Halbmesser, wie `CONTROLLER_HANDLE` sagt.
+
+**Der Zeigefinger folgt dem Abzug**, auch ohne Werkzeug: gewünscht _„dass wenn
+ich den trigger drücke, dass der zeigefinger sich mit bewegt"_. Stufenlos mit
+dem Wert des Triggers, bis zur Krümmung 0,7 (`HandVisuals.TRIGGER_CURL`); die
+anderen Finger bleiben, wie die Haltung sie hat. Vorher bewegten Knöpfe die
+Finger nur an einem Werkzeug (`buttonCurlLayer`).
+
 Eine im Menü gespeicherte Grundhaltung (`handPoseStore`) geht weiter vor —
 wer früher selbst justiert hat, setzt sie unter _Lage in der Hand
 zurücksetzen_ zurück. Dieselbe Haltung ist auch die Maske des Konfig-Codes und der
