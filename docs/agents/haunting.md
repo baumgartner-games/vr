@@ -7,6 +7,33 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Schränke auf Feldmitten, Türen zwei Felder frei (Oktober 2026)
+
+Gemeldet: _„bei haunting sollen die gegenstände wie der schutz schrank oder
+die schränke mit den gegenständen drin wirklich nur 1x1 feld belegen, aber es
+scheint auch welche zu geben, welche mittig stehen zwischen zwei felder? achte
+bitte und prüfe jede tür, ob die 1x2 felder davor nicht zugestellt sind (einige
+sind es)"_.
+
+- **Schutzschrank und Kiste stehen auf genau einem Feld**
+  (`stationLayout.onOneTile`, `wallCandidates` mit `onTile`): mittig auf einer
+  Kachel in der Reihe an der Wand. Vorher rückten alle Möbel in 18-cm-Schritten
+  an der Wand entlang, und keiner der 45 Schränke der Station stand auf einer
+  Feldmitte. Zwei Feld-Möbel nebeneinander brauchen keinen Abstand
+  (`gapBetween`).
+- **Rückfall in Stufen** (`packRoom`): Geht ein enger Raum so nicht auf, darf
+  ein Feld-Möbel auf eine Feldmitte frei im Raum (`tileIslandCandidates`) und
+  ein großes Möbel ohne Wandplatz (die Werkbank einer engen Werkstatt) frei in
+  den Raum (`islandCandidates`); erst danach rückt ein Schrank zwischen die
+  Felder. Über 300 Stationen: 35 von 13 842 Schränken, in der Standardstation
+  keiner.
+- **Vor jeder Tür bleibt die ganze Öffnung frei** (`doorClearances`): Die Türen
+  der Station sind zwei Felder breit (`STATION_DOOR_SPAN`), gerechnet wurde aber
+  um die Mitte der ersten Kachel — vor der zweiten blieb nur eine halbe frei.
+  Jetzt von der Türmitte (`doorMiddle`) über die ganze Breite
+  (`doorWidth`). Vorher waren in der Standardstation 7 von 27 Türen
+  zugestellt (über 300 Stationen 1 953 Türfelder), jetzt keine.
+
 ## Schutzschrank auf einem Feld (Oktober 2026)
 
 Gewünscht: _„kann der schutzschrank als gegenstand im katalog und bzw. auch in
