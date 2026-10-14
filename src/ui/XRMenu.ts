@@ -133,7 +133,9 @@ export interface XRMenuOptions {
  * Gezielt wird mit **einer** Hand: Das Panel ist ein exklusives Ziel des
  * Zeigers (`PointerTarget.exclusive`) — es gehört der Hand, die zuerst darauf
  * zeigt; die andere übernimmt es mit einem Druck. Wo der Strahl aufsetzt,
- * steht ein kleiner Kreis (`UIPanel.marker`).
+ * steht ein kleiner Kreis (`UIPanel.marker`); die andere Hand zeigt ihren
+ * blasser daneben (`Pointer.castForeign`), damit man sieht, wohin ein Druck
+ * mit ihr träfe.
  */
 export class XRMenu extends THREE.Group {
   readonly panel: UIPanel;
