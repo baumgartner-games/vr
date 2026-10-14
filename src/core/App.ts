@@ -190,6 +190,7 @@ import {
 import { DEFAULT_WORLD, WORLDS, WORLD_FOLDERS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import { MirrorRenderer } from '../worlds/shared/Mirror';
+import { allowMultiDraw, multiDrawAllowed } from '../worlds/shared/modelBatch';
 import { setImmersive } from './systemKeyboard';
 import { PlayerGuides } from './playerGuides';
 import type { PlayerRole, ToolChoice, World, WorldContext, WorldDefinition } from './types';
@@ -528,6 +529,13 @@ export class App {
     this.renderer.toneMappingExposure = BASE_EXPOSURE;
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType('local-floor');
+    // Verschiedene Modelle in einem Aufruf (`modelBatch.allowMultiDraw`) — nur,
+    // wenn die Grafikkarte es kann; `?batch=instanced` schaltet es zum
+    // Vergleichen ab.
+    allowMultiDraw(
+      this.renderer.extensions.has('WEBGL_multi_draw') &&
+        new URLSearchParams(location.search).get('batch') !== 'instanced',
+    );
 
     this.camera = new THREE.PerspectiveCamera(
       70,
@@ -4087,7 +4095,7 @@ export class App {
     const hz = session?.frameRate ? ` · ${Math.round(session.frameRate)} Hz` : '';
     this.xrBadge.write([
       `${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms${hz}`,
-      `CPU ${sample.cpuMs.toFixed(1)} ms · GPU ${gpuText(this.gpuMs)} · ${sample.calls.toFixed(0)} Draws`,
+      `CPU ${sample.cpuMs.toFixed(1)} ms · GPU ${gpuText(this.gpuMs)} · ${sample.calls.toFixed(0)} Draws${multiDrawAllowed() ? ' · MD' : ''}`,
     ]);
   }
 

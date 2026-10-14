@@ -3,7 +3,7 @@
 Ein Kapitel des [Projektwissens](../../AGENTS.md). Gewünscht: _„Kannst du deine
 Performance Verbesserungen notieren, sodass du beim nächsten Mal weist was du
 machen musst?"_ Hier steht, **wie** gemessen und **was** geändert wurde
-(Oktober 2026, Haunting 18 → 40 fps, Stadt 858 → 270 Zeichenaufrufe), und das
+(Oktober 2026, Haunting 18 → 40 fps, Stadt 858 → 58 Zeichenaufrufe), und das
 Vorgehen für das nächste Mal. Die Einzelheiten je Runde stehen in
 [Haunting](haunting.md) (Abschnitte _Bildrate …_), die Messtabelle in
 [`docs/quest3-referenz.md`](../quest3-referenz.md).
@@ -61,6 +61,8 @@ Vorgehen für das nächste Mal. Die Einzelheiten je Runde stehen in
 | Mittel | Wo | Wirkung |
 | --- | --- | --- |
 | Gleiche Stücke instanziert | `shared/modelBatch.ts` (Wände, `PortalWorld.stepWorldBatch`) | ein Aufruf je Feld, Geometrie und Aussehen |
+| Verschiedene Modelle, ein Aufruf | `modelBatch.batchedOf` (`THREE.BatchedMesh`, nur mit `WEBGL_multi_draw`, `allowMultiDraw` im `App`; `?batch=instanced` zum Vergleich) | ein Aufruf je Feld und Aussehen — Stadt 270 → 58 |
+| Editor ohne Ruck | `ModelBatch.rebuild` baut nur die Felder neu, in denen etwas kam, ging oder rückte (`Placed.stale`) | Stadt: 20 ms statt 45–80 ms, und kein Zurückfallen auf über tausend Einzelstücke |
 | Element-Bilder gebündelt | `FurnishedWorld.decorBatch` | Stadt 858 → 270 |
 | Möbel in sich verschmolzen | `shared/mergeByLook.ts` (Rechner der Zentrale) | Rechner 8 → 2 |
 | Unsichtbare Treffer nicht zeichnen | `MeshBasicMaterial({ visible: false })` statt Deckkraft 0 (Türhebel) | 2 Aufrufe je Tür und Auge |
@@ -120,5 +122,10 @@ _Brille: Auflösung_.
   (`skipHiddenMatrices`, `skipFrozen`).
 - **Die Messung im Menü** lügt (Foveation aus), **SwiftShader-Bildzeiten**
   sagen nichts über die Brille — nur Verhältnisse und Zählwerte tragen.
+- **`BatchedMesh` ohne `WEBGL_multi_draw`** zerlegt three in einen Aufruf je
+  Stück — schlechter als Instanzen. Darum entscheidet `App` beim Start
+  (`allowMultiDraw`), und das Schild zeigt „MD", wenn es an ist. Alle
+  Geometrien eines `BatchedMesh` müssen dieselben Spalten haben;
+  `modelBatch.plainOf` macht sie gleich (Fließkomma, mit Index).
 - **Prettier auf Markdown** formatiert ganze Kapitel um (`spielelemente.md`,
   README) — nur `src/` formatieren, Doku von Hand.
