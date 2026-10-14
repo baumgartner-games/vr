@@ -35,3 +35,7 @@ etwas, das nicht zurückkommt (Speicherstände, App-Hülle). Ein Fehler, der zum
 ersten Mal auftritt, wird repariert, nicht mit einem Test versehen; erst beim
 zweiten Mal bekommt er einen. Die Liste und die Begründungen stehen in
 [Tests](docs/agents/tests.md).
+
+**Bildrate**: Wer an der Performance arbeitet, liest zuerst
+[Bildrate in der Brille](docs/agents/performance.md) — messen, Zeichenaufrufe
+zählen, bündeln, und die Fallen, in die schon jemand getreten ist.
