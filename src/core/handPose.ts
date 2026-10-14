@@ -167,14 +167,23 @@ export const IDLE_HAND_POSE: HandPose = {
  * selbst liegt, nachgemessen am Modell, bei x ≈ 1,1 cm mit 1,5 × 2 cm
  * Halbmesser (`controllerGrip.CONTROLLER_HANDLE` stimmt damit überein).
  *
+ * **Und 30° nach vorn gekippt**, um die Mitte des Griffs. Gemeldet: _„die
+ * neigung passt noch nicht genau. der zeigefinger zeigt eigentlich in die
+ * richtung in der der controller auch zielt. Also müssten die hände vermutlich
+ * gf. 30 grad weiter kippen?"_ — nachgemessen stand der gestreckte Zeigefinger
+ * quer zum Griff (−Y des Griffraums), 45° unter dem Zeigestrahl der
+ * nachgestellten Quest. Gekippt um die Querachse des Griffraums (x), Drehpunkt
+ * in der Griffmitte (1,1 · 0,1 · 4 cm), bleibt die Faust am Griff und der
+ * Finger liegt 15° unter dem Strahl.
+ *
  * Gilt für **beide** Hände: links wie hier, rechts als Spiegelung.
  */
 export const IDLE_HAND_POSE_LEFT: HandPose = {
   ...IDLE_HAND_POSE,
   x: -1,
-  y: 3.7,
-  z: 1.5,
-  pitch: -90,
+  y: 4.5,
+  z: 3.6,
+  pitch: -60,
   yaw: 17,
   roll: 90,
   curls: [0.55, 0.1, 0.85, 0.9, 0.9],
