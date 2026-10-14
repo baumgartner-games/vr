@@ -591,6 +591,7 @@ export class App {
 
     this.handVisuals = new HandVisuals(this.input);
     this.rig.add(this.handVisuals);
+    this.handVisuals.showControllers = graphics().showControllers;
 
     this.avatar = new PlayerAvatar();
     this.rig.add(this.avatar);
@@ -2627,6 +2628,20 @@ export class App {
           run: () => {
             const next = saveGraphics({ showFps: !graphics().showFps });
             this.frameStats.visible = next.showFps;
+            this.menuDirty = true;
+          },
+        },
+        {
+          id: 'gfx:controllers',
+          label: 'Controller einblenden',
+          sub: 'Die echten Quest-Controller unter den Händen — zum Vergleichen',
+          caption: 'Nur in der Brille',
+          icon: 'controller',
+          accent: 0x6f7d99,
+          checked: settings.showControllers,
+          run: () => {
+            const next = saveGraphics({ showControllers: !graphics().showControllers });
+            this.handVisuals.showControllers = next.showControllers;
             this.menuDirty = true;
           },
         },
