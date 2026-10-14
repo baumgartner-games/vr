@@ -3,7 +3,12 @@ import { DEFAULT_WEAPON } from './weaponSettings';
 import { DEFAULT_DRONE } from './droneSettings';
 import { DEFAULT_SUPERMAN } from './supermanSettings';
 import { GEAR_VERSION, readGear, SECTION, writeGear, type GearData } from './gearCodec';
-import { HOLD_HAND_POSE, IDLE_HAND_POSE, handPoseToArray } from '../../../core/handPose';
+import {
+  HOLD_HAND_POSE,
+  IDLE_HAND_POSE,
+  defaultIdlePose,
+  handPoseToArray,
+} from '../../../core/handPose';
 
 /** A configuration of the size the game actually produces. */
 const CONFIG: GearData = {
@@ -289,8 +294,10 @@ describe('gear codec', () => {
     });
 
     it('makes the code for one measured hand short enough to type', () => {
+      // Von der Grundhaltung aus, mit der die Hand ausgeliefert wird — nur Lage
+      // und Drehung verstellt, die Finger nicht.
       const measured = handPoseToArray({
-        ...IDLE_HAND_POSE,
+        ...defaultIdlePose('right'),
         x: 1.2,
         y: -0.5,
         z: 2.4,

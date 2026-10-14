@@ -74,21 +74,26 @@ von 0.6 sagt auf dem Papier nichts.
 
 Die **ausgelieferte Grundhaltung** ist nicht die gebaute. Gebaut ist die Hand
 auf dem Griffpunkt und geradeaus schauend (`IDLE_HAND_POSE`) — so hat aber noch
-nie eine Hand einen Controller gehalten. Der liegt schräg in der Faust, und wie
-schräg, sagt nur eine Messung am Gerät. Gemessen wurde zweimal, einmal je
-Hand, und **die beiden Messungen sind nicht dasselbe**: rechts kam x 0,5 · y
--0,4 · z 1,2 cm bei Pitch -90°, Yaw 45°, Roll 0° heraus, links später x -0,3 ·
-y 2,7 · z 3,8 cm bei Pitch 75°, Yaw -45°, Roll 5°. Quer, Yaw und Roll passen
-zusammen; Höhe, Tiefe und vor allem die Neigung nicht — 75° gegen -90° sind
-165° auseinander, also keine Messtoleranz, sondern zwei verschiedene Haltungen.
+nie eine Hand einen Controller gehalten. Bis Oktober 2026 stand hier eine
+Messung aus dem Eingaberaum (links Pitch 75°, Yaw -45°; die rechte Messung lag
+165° daneben). Gemeldet: _„die vr hände werden übrigens falsch gehalten, bitte
+fixen."_ — nachgerechnet zeigten die Finger damit **zum Arm**, die leeren
+Handschuhe lagen flach wie über einem Tisch oder standen hoch wie zum Winken.
 
-Es gilt deshalb die **spätere** Messung, und sie gilt für **beide** Hände:
-`IDLE_HAND_POSE_LEFT` steht als Zahlenreihe im Code, `IDLE_HAND_POSE_RIGHT` ist
-deren Spiegelung, und `defaultIdlePose` gibt die passende heraus. Zwei getrennt
-gepflegte Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt —
-eine Hand, die anders sitzt als die andere, sieht man nicht, man wundert sich
-nur. Wer die andere Messung für die richtige hält, dreht eine Konstante um und
-misst nicht zwei. Dieselbe Haltung ist auch die Maske des Konfig-Codes und der
+Jetzt ist die Grundhaltung **die Faust um den Handgriff des Controllers**
+(`CONTROLLER_HAND_POSE`), aus dem Griffraum gerechnet: WebXR legt dort −Z den
+Griff entlang zum Daumen, +X aus dem Rücken der rechten Hand (−X links), +Y zum
+Arm und den Ursprung in die Mitte der gekrümmten Finger — und genau so liefert
+ihn die nachgestellte Quest. Rechts x 2,7 · y 3,7 · z 1,5 cm, Pitch -90°, Yaw
+-17°, Roll -90°, Zeigefinger gestreckt zum Trigger; `IDLE_HAND_POSE_LEFT`
+steht als deren Spiegelung im Code, `IDLE_HAND_POSE_RIGHT` ist wieder deren
+Spiegelung, und `defaultIdlePose` gibt die passende heraus. Der **☰-Knopf am
+Handgelenk** sitzt dazu auf dem wirklichen Handrücken (±X des Griffraums,
+`WristButton.update`); mit +Y saß er zwischen Kopf und Faust.
+
+Eine im Menü gespeicherte Grundhaltung (`handPoseStore`) geht weiter vor —
+wer früher selbst justiert hat, setzt sie unter _Lage in der Hand
+zurücksetzen_ zurück. Dieselbe Haltung ist auch die Maske des Konfig-Codes und der
 Rückfall für einen zu kurzen: was nicht im Code steht, _ist_ die gebaute
 Haltung dieser Hand, und zwar dieser und nicht der anderen.
 

@@ -131,38 +131,43 @@ export const IDLE_HAND_POSE: HandPose = {
 };
 
 /**
- * Die **eingemessene** Grundhaltung der linken Hand am Controller.
+ * Die **Grundhaltung der linken Hand am Controller** — aus dem Griffraum
+ * gerechnet, nicht gemessen.
  *
- * Die gebaute Haltung darüber sitzt genau auf dem Griffpunkt und schaut
- * geradeaus — das ist die Haltung, aus der die Hand *gebaut* ist, und keine, in
- * der je eine echte Hand einen Controller gehalten hat. Ein Quest-Controller
- * liegt schräg in der Faust, und wie schräg, sagt nur eine Messung im
- * Eingaberaum.
+ * Gemeldet: _„die vr hände werden übrigens falsch gehalten, bitte fixen."_ —
+ * gemeint die leeren Handschuhe. Hier standen zwei Messungen aus dem
+ * Eingaberaum, die 165° auseinanderlagen (rechts Pitch -90°, links 75°), und
+ * die linke galt. Nachgerechnet zeigten ihre Finger damit **zum Arm**: im
+ * Bild lagen die Hände flach wie über einem Tisch, oder standen hoch wie zum
+ * Winken, je nachdem, wie man den Controller hielt.
  *
- * Gemessen wurde **zweimal**, einmal je Hand, und die beiden Messungen sind
- * nicht dasselbe. Rechts kam heraus: x 0,5 · y -0,4 · z 1,2 cm, Pitch -90°,
- * Yaw 45°, Roll 0°. Links, später und in Ruhe nachgemessen, die Zahlen unten —
- * gespiegelt also x 0,3 · y 2,7 · z 3,8 cm, Pitch 75°, Yaw 45°, Roll -5°.
- * Quer, Yaw und Roll passen zusammen; **Höhe, Tiefe und vor allem die Neigung
- * nicht**: 75° gegen -90° sind 165° auseinander, und das ist keine
- * Messtoleranz, sondern zwei verschiedene Haltungen. Eine von beiden ist
- * danebengegangen.
+ * Der Griffraum ist festgelegt (WebXR, `XRInputSource.gripSpace`, und genau
+ * so liefert ihn die nachgestellte Quest): **-Z** läuft den Griff entlang zum
+ * Daumen, **+X** zeigt aus dem Handrücken der rechten Hand (−X bei der
+ * linken), **+Y** zum Arm, der Ursprung liegt in der Mitte der gekrümmten
+ * Finger. Die Hand ist gebaut mit den Fingern nach −Z, dem Handrücken nach +Y
+ * und dem Daumen nach außen (links +X). Also: Daumen → −Z, Handrücken → −X,
+ * Handgelenk → +Y — das ist Pitch -90°, Roll 90°, und die Mitte der
+ * gekrümmten Finger auf dem Ursprung: gut 2,5 cm zum Handrücken, 4 cm zum Arm.
  *
- * Es gilt deshalb die **spätere** Messung, und sie gilt für **beide** Hände:
- * links wie gemessen, rechts als deren Spiegelung. Zwei getrennt gepflegte
- * Zahlenreihen wären genau die Sorte Abweichung, die niemand merkt — eine
- * Hand, die anders sitzt als die andere, sieht man nicht, man wundert sich nur.
- * Wer die andere Messung für die richtige hält, dreht hier eine Konstante um
- * und misst nicht zwei.
+ * Genau das ist schon gerechnet, nämlich die Faust um den **Handgriff des
+ * Controllers** (`CONTROLLER_HAND_POSE`, `core/controllerGrip.ts`): x 2,7 ·
+ * y 3,7 · z 1,5 cm, Pitch -90°, Yaw -17°, Roll -90° für rechts — dazu der
+ * Schwenk, mit dem die Fingerlinie auf der Grifflinie liegt, und der
+ * Zeigefinger gestreckt zum Trigger. Eine leere Hand am Controller **ist**
+ * diese Hand; hier steht sie gespiegelt für links.
+ *
+ * Gilt für **beide** Hände: links wie hier, rechts als Spiegelung.
  */
 export const IDLE_HAND_POSE_LEFT: HandPose = {
   ...IDLE_HAND_POSE,
-  x: -0.3,
-  y: 2.7,
-  z: 3.8,
-  pitch: 75,
-  yaw: -45,
-  roll: 5,
+  x: -2.7,
+  y: 3.7,
+  z: 1.5,
+  pitch: -90,
+  yaw: 17,
+  roll: 90,
+  curls: [0.55, 0.1, 0.85, 0.9, 0.9],
 };
 
 /**
