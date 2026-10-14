@@ -108,6 +108,20 @@ Griffraums gekippt, Drehpunkt in der Griffmitte: x 1 · y 4,5 · z 3,6 cm, Pitch
 -60°, Yaw -17°, Roll -90° (rechts). Die Faust bleibt am Griff, der Finger liegt
 15° unter dem Strahl.
 
+**Dann 15° nach innen und 8 mm tiefer**: _„sitzt die hand nun nicht ein wenig
+zu hoch? aber nur minimal. Ein problem eher ist, dass die hand entlang der z
+ache (von oben nach unten, also durch die senkrechte achse) weiter gedreht
+werden muss"_ — Richtung _„Nach innen"_, die Fingerspitze zur Körpermitte.
+Gedreht um die Senkrechte des Zeigestrahls, Drehpunkt wieder die Griffmitte:
+rechts x 1,7 · y 3,9 · z 4,1 cm, Pitch -59,3°, Yaw -2,5°, Roll -86,2°.
+
+**Zum Vergleichen: _Grafik → Controller einblenden_** (`GraphicsSettings.
+showControllers`, `HandVisuals.updateShownController`). Gefragt: _„es gibt doch
+in den einstellung screen die option die controller einblenden zu lassen in
+vr?"_ — es gab sie nur im Dialog _Halten einstellen_ am Bildschirm. Jetzt hängt
+auf Wunsch das echte Modell der Quest (`liveControllerModel`) im Griffraum
+unter jedem Handschuh, mit beweglichem Trigger und Stick.
+
 **Der Zeigefinger folgt dem Abzug**, auch ohne Werkzeug: gewünscht _„dass wenn
 ich den trigger drücke, dass der zeigefinger sich mit bewegt"_. Stufenlos mit
 dem Wert des Triggers, bis zur Krümmung 0,7 (`HandVisuals.TRIGGER_CURL`); die

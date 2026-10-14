@@ -176,16 +176,24 @@ export const IDLE_HAND_POSE: HandPose = {
  * in der Griffmitte (1,1 · 0,1 · 4 cm), bleibt die Faust am Griff und der
  * Finger liegt 15° unter dem Strahl.
  *
+ * **Dann 15° nach innen um die Senkrechte, und 8 mm tiefer.** Gemeldet:
+ * _„sitzt die hand nun nicht ein wenig zu hoch? aber nur minimal. Ein problem
+ * eher ist, dass die hand entlang der z ache (von oben nach unten, also durch
+ * die senkrechte achse) weiter gedreht werden muss"_ — und die Richtung:
+ * _„Nach innen"_, die Fingerspitze zur Körpermitte. Die Senkrechte ist die des
+ * Zeigestrahls (bei 45° zwischen Griff und Strahl im Griffraum 0 · 0,71 ·
+ * −0,71), gedreht um die Griffmitte wie oben.
+ *
  * Gilt für **beide** Hände: links wie hier, rechts als Spiegelung.
  */
 export const IDLE_HAND_POSE_LEFT: HandPose = {
   ...IDLE_HAND_POSE,
-  x: -1,
-  y: 4.5,
-  z: 3.6,
-  pitch: -60,
-  yaw: 17,
-  roll: 90,
+  x: -1.7,
+  y: 3.9,
+  z: 4.1,
+  pitch: -59.3,
+  yaw: 2.5,
+  roll: 86.2,
   curls: [0.55, 0.1, 0.85, 0.9, 0.9],
 };
 

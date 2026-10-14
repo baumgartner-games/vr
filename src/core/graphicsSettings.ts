@@ -172,6 +172,14 @@ export interface GraphicsSettings extends WeatherSettings {
    */
   showFps: boolean;
   /**
+   * **Die echten Controller in der Brille** — das Modell der Quest unter den
+   * Handschuhen (`HandVisuals.showControllers`). Gewünscht: _„es gibt doch in
+   * den einstellung screen die option die controller einblenden zu lassen in
+   * vr?"_ — gab es nur im Dialog am Bildschirm (`HoldMenu`). Zum Vergleichen,
+   * ob die Hand dort sitzt, wo die echte den Controller hält.
+   */
+  showControllers: boolean;
+  /**
    * **Die Gitterlinien der Ebene, auf der man steht** — die Kanten der
    * Bodenkacheln, halbtransparent darübergelegt (`worlds/grid/GridWorld.ts`).
    *
@@ -719,6 +727,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   xrScale: 1,
   xrRate: 120,
   showFps: false,
+  showControllers: false,
   gridLines: false,
   cellFootprints: false,
   showPosition: false,
@@ -908,6 +917,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     ? (raw.xrRate as XrRate)
     : DEFAULT_GRAPHICS.xrRate;
   const showFps = raw.showFps === true;
+  const showControllers = raw.showControllers === true;
   const gridLines = raw.gridLines === true;
   const cellFootprints = raw.cellFootprints === true;
   const showPosition = raw.showPosition === true;
@@ -972,6 +982,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     xrScale,
     xrRate,
     showFps,
+    showControllers,
     gridLines,
     cellFootprints,
     showPosition,

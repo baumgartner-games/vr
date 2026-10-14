@@ -675,6 +675,19 @@ export class HandVisuals extends THREE.Group {
   private readonly jointMeshes = new Map<THREE.Object3D, THREE.Mesh>();
   private readonly hands = new Map<ControllerState, ProceduralHand>();
   /**
+   * **Die echten Controller unter den Händen** (_Grafik → Controller
+   * einblenden_, `GraphicsSettings.showControllers`): das Modell der Quest im
+   * Griffraum, an dem man sieht, ob der Handschuh dort sitzt, wo die echte
+   * Hand das Gerät hält. Geladen wird erst beim ersten Einschalten.
+   */
+  showControllers = false;
+  private readonly shownControllers = new Map<
+    ControllerState,
+    { source: XRInputSource; model: THREE.Object3D }
+  >();
+  private controllerModels: typeof import('./ControllerModels') | null = null;
+  private loadingControllerModels: Promise<unknown> | null = null;
+  /**
    * Der **Handschuh an einer getrackten Hand** — je Eingabequelle einer.
    *
    * Er hängt im Raum der Hand und wird Bild für Bild auf ihre Gelenke gelegt
@@ -990,7 +1003,37 @@ export class HandVisuals extends THREE.Group {
     return measured ? handJointsToArray(measured.fingers) : null;
   }
 
+  /** Das Modell des Controllers zeigen oder wegnehmen (`showControllers`). */
+  private updateShownController(controller: ControllerState): void {
+    const source = controller.inputSource;
+    const wanted =
+      this.showControllers &&
+      controller.tracked &&
+      !controller.isHand &&
+      controller.grip.visible &&
+      source !== null;
+    const shown = this.shownControllers.get(controller);
+    if (shown && (!wanted || shown.source !== source)) {
+      shown.model.removeFromParent();
+      this.shownControllers.delete(controller);
+    } else if (shown) return;
+    if (!wanted || !source) return;
+    if (!this.controllerModels) {
+      this.loadingControllerModels ??= import('./ControllerModels').then((module) => {
+        this.controllerModels = module;
+      });
+      return;
+    }
+    const model = this.controllerModels.liveControllerModel(source);
+    if (!model) return;
+    model.name = `shown-controller-${controller.handedness ?? ''}`;
+    controller.grip.add(model);
+    this.shownControllers.set(controller, { source, model });
+  }
+
   dispose(): void {
+    for (const shown of this.shownControllers.values()) shown.model.removeFromParent();
+    this.shownControllers.clear();
     this.unsubscribe();
     for (const [joint, mesh] of this.jointMeshes) joint.remove(mesh);
     this.jointMeshes.clear();
@@ -1179,6 +1222,7 @@ export class HandVisuals extends THREE.Group {
     }
     const anchor = controller.grip.visible ? controller.grip : controller.targetRay;
     if (hand.parent !== anchor) anchor.add(hand);
+    this.updateShownController(controller);
     hand.visible = controller.tracked && !this.hidden;
     controller.fingertip = hand.visible ? hand.indexTip : null;
 
