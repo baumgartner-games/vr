@@ -56,6 +56,7 @@ import {
   leafDoors,
   doorMiddle,
   doorWidth,
+  STATION_SEED,
 } from './house';
 import { housePlan } from './plan';
 import { flickerLevel, freshSpook } from './haunt';
@@ -504,14 +505,7 @@ const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
 const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
 
-/**
- * **Der Same der Station — fest.** Der Grundriss ist die Skeld-Karte, aber
- * Fenster, Sicherungskasten, Aufgaben und Schalttafel würfelt der Same
- * (`house.generateHouse`). Seit die Station im Baukasten umgebaut wird, steht
- * sie jedes Mal gleich da: Was umgebaut wird, soll beim nächsten Laden an
- * derselben Stelle passen.
- */
-export const STATION_SEED = 1;
+export { STATION_SEED };
 
 export class HauntingWorld extends FurnishedWorld {
   /**

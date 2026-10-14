@@ -911,6 +911,13 @@ export interface HouseSpec {
   switches: PanelSwitch[];
 }
 
+/**
+ * **Der Same der Station — fest.** Der Grundriss ist die Skeld-Karte, und auch
+ * alles, was früher daraus gewürfelt wurde (Fenster, Kisten, Schränke,
+ * Sicherungskasten, Aufgaben, Schalttafel), steht in jeder Runde gleich da.
+ */
+export const STATION_SEED = 1;
+
 /** Woraus die drei Sachen ausgesucht werden, die zu holen sind. */
 const LOOT = ['Wartungsschlüssel', 'Filterpatrone', 'Signalmodul'] as const;
 
@@ -926,8 +933,14 @@ export const TASK_COUNT = 3;
  * gibt. Deshalb liegt jeder Wurf an genau einer Stelle.
  */
 export function generateHouse(seed: number, roomCount?: number): HouseSpec {
-  const rng = new Rng(seed);
   const station = roomCount === undefined ? null : stationRooms();
+  // **Die Station ist immer dieselbe** — welche Zahl auch hereinkommt.
+  // Gewünscht: _„Ich will keinen zufall Station haben. Bitte das komplett
+  // raus. Die Position der Gegenstände ist in jeder Runde gleich."_ Fenster,
+  // Kisten, Schränke, Aufgaben und Schalttafel hängen alle an `spec.seed`;
+  // der ist für eine Station fest (`STATION_SEED`).
+  if (station) seed = STATION_SEED;
+  const rng = new Rng(seed);
   const rects = station?.rooms.map((room) => room.rect) ?? splitRooms(rng, HOUSE);
   const rooms = station?.rooms ?? nameRooms(rng, rects);
   const passages = station?.passages;

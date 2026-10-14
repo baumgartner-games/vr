@@ -25,14 +25,20 @@ sind es)"_.
   ein Feld-Möbel auf eine Feldmitte frei im Raum (`tileIslandCandidates`) und
   ein großes Möbel ohne Wandplatz (die Werkbank einer engen Werkstatt) frei in
   den Raum (`islandCandidates`); erst danach rückt ein Schrank zwischen die
-  Felder. Über 300 Stationen: 35 von 13 842 Schränken, in der Standardstation
-  keiner.
+  Felder. In der Station keiner.
 - **Vor jeder Tür bleibt die ganze Öffnung frei** (`doorClearances`): Die Türen
   der Station sind zwei Felder breit (`STATION_DOOR_SPAN`), gerechnet wurde aber
   um die Mitte der ersten Kachel — vor der zweiten blieb nur eine halbe frei.
   Jetzt von der Türmitte (`doorMiddle`) über die ganze Breite
   (`doorWidth`). Vorher waren in der Standardstation 7 von 27 Türen
-  zugestellt (über 300 Stationen 1 953 Türfelder), jetzt keine.
+  zugestellt, jetzt keine.
+- **Keine Zufallsstation mehr** (`house.STATION_SEED`, `generateHouse`):
+  gewünscht _„Ich will keinen zufall Station haben. Bitte das komplett raus.
+  Die Position der Gegenstände ist in jeder Runde gleich."_ Das Spiel baute die
+  Station schon immer mit demselben Samen; jetzt ignoriert `generateHouse` für
+  eine Station jede andere Zahl — auch Tests, Bot-Training und die Rechnung
+  hinter der Karte bekommen dieselbe Station, mit denselben Fenstern, Kisten,
+  Schränken, Aufgaben und derselben Schalttafel.
 
 ## Schutzschrank auf einem Feld (Oktober 2026)
 
