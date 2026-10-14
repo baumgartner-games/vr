@@ -7,6 +7,26 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Warum Haunting mehr Zeichenaufrufe hat als die Stadt (Oktober 2026)
+
+Gefragt: _„Bei haubting habe ich viel mehr draw calls als in der Stadt die
+gröser ist und mehr Gegenstände hat?"_ — Die Stadt ist fast nur **stille
+Deko mit demselben Texturatlas**, und die liegt seit #416 in einem Aufruf je
+Feld. Haunting ist voller Dinge, die **einzeln** gezeichnet werden müssen:
+Figuren, die sich bewegen, Werkzeuge, die man greift, Türen mit Hebeln,
+Schilder mit eigenem Text (jedes eine eigene Textur), Möbel der Zentrale, die
+beim Anfassen ihren Saum zeigen, Licht und Glas der Wände — und die Hände und
+der Helm des Spielers. Gezählt in der Übungsrunde vor dem ersten Schrank, je
+Auge: Zentrale-Möbel 20, Werkzeuge 18, Spieler 17, Türen und Kisten 13,
+Schilder 10, Wände 9, Bündel 9, Rumpf 7.
+
+- **Figuren in einem Netz** (`core/figureMerge.ts`): Ein Mannequin oder
+  Roboter aus dem Regal waren sechs Netze am selben Skelett, sechs Aufrufe je
+  Auge. Jetzt eines (`loadKaykitFigure(…, { merge: true })`, für NPCs und die
+  Figuren der Runde; der Avatar nicht, er blendet Kopf und Hut einzeln aus).
+  Der Anzug am Ständer der Zentrale ebenso (`mergeByLook` in das erste seiner
+  Teile). Messstrecke: 300 → 232 Aufrufe für beide Augen.
+
 ## Schränke auf Feldmitten, Türen zwei Felder frei (Oktober 2026)
 
 Gemeldet: _„bei haunting sollen die gegenstände wie der schutz schrank oder

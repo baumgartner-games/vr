@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { disposeTree } from '../worlds/shared/environment';
+import { mergeFigureParts } from './figureMerge';
 import { kaykitScale } from './kaykitFit';
 import { kaykitClips, kaykitModel } from './kaykitModel';
 import {
@@ -93,7 +94,14 @@ export interface KaykitFigure {
  * abreißt. Geworfen wird nach außen nie — wer eine Figur bestellt, bekommt
  * eine oder keine, und die Zone läuft in beiden Fällen weiter.
  */
-export async function loadKaykitFigure(path: string, height: number): Promise<KaykitFigure | null> {
+export async function loadKaykitFigure(
+  path: string,
+  height: number,
+  options: {
+    /** Die Teile zu einem Netz je Aussehen (`figureMerge.ts`) — nicht für Figuren, die Teile einzeln zeigen. */
+    merge?: boolean;
+  } = {},
+): Promise<KaykitFigure | null> {
   try {
     const model = await kaykitModel(path);
     if (!model) return null;
@@ -110,7 +118,8 @@ export async function loadKaykitFigure(path: string, height: number): Promise<Ka
     // bei dem, was in der Datei selbst steht (meistens nichts) — ein Fass, das
     // dafür 936 kB lädt, ist ein Fass mit 936 kB zu viel.
     const clips = await kaykitClips(path, isSkinned(model) && source > 0 ? source : null);
-    return new Figure(path, height, model, box, pack, clips);
+    const merged = options.merge ? mergeFigureParts(model) : [];
+    return new Figure(path, height, model, box, pack, clips, merged);
   } catch (error: unknown) {
     console.warn(`Figur aus dem Regal nicht geladen (${path}).`, error);
     return null;
@@ -147,6 +156,8 @@ class Figure implements KaykitFigure {
     box: THREE.Box3,
     pack: number,
     clips: readonly THREE.AnimationClip[],
+    /** Geometrien, die erst beim Laden entstanden (`mergeFigureParts`) — sie gehören dieser Figur. */
+    private readonly own: readonly THREE.BufferGeometry[] = [],
   ) {
     this.root.name = `kaykit-figure:${path}`;
 
@@ -260,6 +271,7 @@ class Figure implements KaykitFigure {
     // `userData.sharedAssets` an): Geometrie und Textur gehören der Vorlage im
     // Speicher und allen anderen Kopien, nicht dieser Figur.
     disposeTree(this.root);
+    for (const geometry of this.own) geometry.dispose();
   }
 
   /**

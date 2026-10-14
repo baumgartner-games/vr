@@ -67,6 +67,7 @@ Vorgehen für das nächste Mal. Die Einzelheiten je Runde stehen in
 | Möbel in sich verschmolzen | `shared/mergeByLook.ts` (Rechner der Zentrale) | Rechner 8 → 2 |
 | Unsichtbare Treffer nicht zeichnen | `MeshBasicMaterial({ visible: false })` statt Deckkraft 0 (Türhebel) | 2 Aufrufe je Tür und Auge |
 | Teile eines Geräts zusammengebacken | `tools/scannerModel.ts` | 10 → 3 je Gerät |
+| Figuren in einem Netz | `core/figureMerge.mergeFigureParts` (`loadKaykitFigure(…, { merge: true })` für NPCs und Haunting-Figuren, nicht für den Avatar) | 6 → 1 je Figur; Haunting 300 → 232 |
 | Räume hinter Wänden ausblenden | `HauntingWorld.cullRoomArt`, `showRoom` | |
 
 **Rechnung je Bild (CPU)**
@@ -127,5 +128,11 @@ _Brille: Auflösung_.
   (`allowMultiDraw`), und das Schild zeigt „MD", wenn es an ist. Alle
   Geometrien eines `BatchedMesh` müssen dieselben Spalten haben;
   `modelBatch.plainOf` macht sie gleich (Fließkomma, mit Index).
+- **Jedes Teil einer Figur hat sein eigenes Knochenverzeichnis** — dieselben
+  Knochen, andere Reihenfolge, und eine Bindepose, die je Teil um einen festen
+  Versatz verschoben ist. Zusammenlegen heißt: ein gemeinsames Verzeichnis
+  (`unionSkeleton`), die Knochennummern umrechnen und die Ecken jedes Teils um
+  seinen Versatz in den gemeinsamen Raum bringen. Ohne den Versatz fallen die
+  Arme ab.
 - **Prettier auf Markdown** formatiert ganze Kapitel um (`spielelemente.md`,
   README) — nur `src/` formatieren, Doku von Hand.

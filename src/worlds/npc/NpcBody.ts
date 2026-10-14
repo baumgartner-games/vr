@@ -367,7 +367,7 @@ export class NpcBody extends THREE.Group {
     const path = this.skin.figure;
     if (!path || !canLoadModels()) return;
     void import('../../core/kaykitFigure').then(async (module) => {
-      const figure = await module.loadKaykitFigure(path, this.skin.height);
+      const figure = await module.loadKaykitFigure(path, this.skin.height, { merge: true });
       if (!figure) return;
       // **Wer zu spät kommt, wird sofort wieder weggeworfen.** Sonst hinge
       // eine Figur samt Mischer an einem Körper, den es nicht mehr gibt.

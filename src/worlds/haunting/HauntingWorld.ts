@@ -5261,6 +5261,13 @@ export class HauntingWorld extends FurnishedWorld {
               anchor,
               still.filter((part): part is THREE.Object3D => !!part),
             );
+          // **Der Anzug am Ständer ebenso** — Kopf, Rumpf, Arme, Beine waren
+          // je ein Netz. Gebacken wird in das erste seiner Teile: Beim Anziehen
+          // gehen alle Teile zusammen weg (`hung`), und das gebackene Netz mit
+          // dem ersten.
+          const hung = placed.parts.slice(3).filter((part): part is THREE.Object3D => !!part);
+          if (placed.element.id !== 'space-terminal' && hung.length > 1)
+            mergeByLook(hung[0]!, hung);
         })
         .catch((error: unknown) => console.warn(`Zentrale: ${spot.element} fehlt`, error));
 
