@@ -90,7 +90,7 @@ function visibleUpTo(mesh: THREE.Object3D, root: THREE.Object3D): boolean {
  * der Nummer (`lookOf`) sähen sie verschieden aus. Gleich ist hier, was
  * dieselben Werte und ein Bild mit demselben Inhalt hat (`imageKey`).
  */
-function sameLook(material: THREE.Material): string {
+export function sameLook(material: THREE.Material): string {
   const standard = material as THREE.MeshStandardMaterial;
   return [
     material.type,
@@ -144,7 +144,7 @@ function textureKey(texture: THREE.Texture | null | undefined): string {
 }
 
 /** Eine Spalte als gewöhnliches Fließkomma, entpackt (`normalized`) und ohne Verschränkung. */
-function asFloat(
+export function asFloat(
   attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
 ): THREE.BufferAttribute {
   const size = attribute.itemSize;

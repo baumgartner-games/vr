@@ -341,7 +341,10 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
   es in three r185 nur im `WebGPURenderer`, nicht im `WebGLRenderer` dieses
   Projekts. Deshalb wird gebündelt: Wände (`modelBatch`), Element-Bilder
   (`FurnishedWorld.decorBatch`, die Stadt 858 → 270), Möbel in sich
-  (`mergeByLook`).
+  (`mergeByLook`). Seit #416 nimmt ein Bündel **verschiedene Modelle desselben
+  Aussehens** auf (`THREE.BatchedMesh`, wenn die Brille `WEBGL_multi_draw`
+  kann — das Schild zeigt dann „MD"): die Stadt 270 → 58 Aufrufe für beide
+  Augen (simuliert), Haunting 312 → 300.
 - **Absolute Millisekunden gelten nur für diesen Rechner.** Wer eine neue
   Zeile einträgt, misst den Stand davor auf derselben Maschine neu.
 

@@ -544,6 +544,12 @@ richtig, und gezielt wurde unsauber.
   (`PointerTarget.exclusive`): Es gehört der Hand, die zuerst darauf zeigt;
   der Strahl der anderen geht hindurch; ein Druck (Trigger, `A`, Greifen)
   der anderen übernimmt es; wer weggeht, gibt es frei.
+- **Beide Hände zeigen ihren Kreis.** Gewünscht: _„Bitte auch anpassen, dass
+  bei den Menüs die Kreise auf den Menüs (also wohin ich ziele) für beide
+  Controller sichtbar sind."_ Die Hand, der das Menü nicht gehört, endet mit
+  ihrem Strahl jetzt am Panel und zeigt dort ihren Ring, blasser
+  (`Pointer.castForeign`, Deckkraft 0,6) — sie hovert nichts, aber man sieht,
+  wohin ein Druck mit ihr träfe.
 - **Ein Kreis, wo der Strahl aufsetzt** (`UIPanel.marker`): ein Ring als
   Kind des Panels, ohne die Leinwand neu zu zeichnen. Der Strahl selbst
   endet am Panel.

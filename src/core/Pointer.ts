@@ -369,13 +369,19 @@ export class Pointer {
       }
     }
 
+    // **Auf dem Menü der anderen Hand** zeigt auch dieser Strahl seinen Kreis,
+    // nur ohne zu zielen: _„dass bei den Menüs die Kreise auf den Menüs (also
+    // wohin ich ziele) für beide Controller sichtbar sind"_. Bis hierher ging
+    // er unsichtbar hindurch, und man sah nicht, wohin ein Druck träfe.
+    const passive = this.castForeign(handedness, hit?.hit.distance ?? Infinity);
     // **Auf einem Schild endet der Strahl** und zeigt den Ring — nur, wo kein
     // Ziel getroffen ist: Das Menü steht vor allem, auch vor einem Schild.
-    const sign = hit ? null : this.castSigns(_ray.direction);
+    const sign = hit || passive !== null ? null : this.castSigns(_ray.direction);
+    const end = passive ?? sign;
     beam.line.visible = true;
-    beam.line.scale.z = hit ? hit.hit.distance / reach : sign ? sign / reach : 1.6;
+    beam.line.scale.z = end !== null ? end / reach : hit ? hit.hit.distance / reach : 1.6;
     this.setHover(beam, hit?.target ?? null, hit?.hit ?? null);
-    this.showRing(beam, sign !== null);
+    this.showRing(beam, end !== null, passive !== null);
 
     // **Erst das Loslassen, dann das Drücken.** Eine Hand, die im selben Bild
     // losläßt und wieder drückt, fängt sonst einen Strich an, den das
@@ -506,9 +512,39 @@ export class Pointer {
     return best.distance;
   }
 
-  private showRing(beam: Beam, on: boolean): void {
+  /**
+   * **Das Menü, das gerade der anderen Hand gehört**, vor allem, was dieser
+   * Strahl sonst trifft — die Entfernung, oder `null`. Der Ring dafür steht
+   * danach in `_ringAt`/`_normal` bereit, wie bei `castSigns`.
+   */
+  private castForeign(hand: Handedness, before: number): number | null {
+    let best: THREE.Intersection | null = null;
+    for (const target of this.targets) {
+      if (!target.exclusive) continue;
+      const owner = this.ownerOf(target);
+      if (owner === null || owner === hand) continue;
+      if (!visibleInHierarchy(target.object) || target.ignore?.(hand)) continue;
+      if (target.rayPasses?.(hand)) continue;
+      const first = this.raycaster.intersectObject(target.object, target.shallow !== true)[0];
+      if (!first || first.distance >= before || (best && first.distance >= best.distance)) continue;
+      best = first;
+    }
+    if (!best) return null;
+    _ringAt.copy(best.point);
+    if (best.face) _normal.copy(best.face.normal).transformDirection(best.object.matrixWorld);
+    else _normal.copy(this.raycaster.ray.direction).negate();
+    if (_normal.dot(this.raycaster.ray.direction) > 0) _normal.negate();
+    // Eine Spur davor, damit der Kreis nicht im Panel steckt.
+    _ringAt.addScaledVector(_normal, 0.003 * (this.rig.scale.x || 1));
+    _ringSize = best.distance * SIGN_RING;
+    return best.distance;
+  }
+
+  /** @param faint der Kreis einer Hand, die nur zeigt und nicht bedient */
+  private showRing(beam: Beam, on: boolean, faint = false): void {
     beam.ring.visible = on;
     if (!on) return;
+    (beam.ring.material as THREE.MeshBasicMaterial).opacity = faint ? 0.6 : 0.95;
     if (!beam.ring.parent) this.rig.parent?.add(beam.ring);
     beam.ring.position.copy(_ringAt);
     beam.ring.quaternion.setFromUnitVectors(_facing, _normal);

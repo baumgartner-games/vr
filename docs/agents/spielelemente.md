@@ -934,7 +934,13 @@ je Auge. Die Stadt in der Brille: 858 → 270 Zeichenaufrufe, gleiches Bild.
   solange eine den Saum trägt (`PortalWorld.isHighlighted`), steht sie für sich.
 - **Von oben** steht alles einzeln, wie bei den Wänden.
 - Wird ein Element umgestellt oder entfernt, baut das Bündel nach einer halben
-  Sekunde Ruhe neu (`ModelBatch.step`).
+  Sekunde Ruhe neu (`ModelBatch.step`) — **nur die Felder, die es betrifft**
+  (`ModelBatch.rebuild`); bis dahin steht nur das veränderte Stück einzeln.
+  Gewünscht: _„Ich will weiterhin einen Level Editor nutzen können. Wir können
+  das mit Kopien und einfrieren gerne machen."_
+- **Verschiedene Modelle mit demselben Aussehen** (derselbe Texturatlas) teilen
+  sich seit #416 einen Aufruf je Feld (`THREE.BatchedMesh`, wenn die Brille
+  `WEBGL_multi_draw` kann): die Stadt 270 → 58 Aufrufe, gleiches Bild.
 
 ## Der Möbelkatalog im Menü
 
