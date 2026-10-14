@@ -2,7 +2,7 @@ import type { Handedness } from './XRInput';
 import type { MenuDetail, MenuEntry, MenuFact, MenuIcon } from '../ui/menu';
 import { FIGURE_CHEF, asFigure } from './avatarFigures';
 import { saveAppearance } from './appearance';
-import { kaykitEnglish, kaykitGerman } from './kaykitTerms';
+import { humanLabel, kaykitEnglish, kaykitGerman } from './kaykitTerms';
 
 /**
  * **Das Regal als Baum** — was in `public/models/kaykit/` liegt, und was im
@@ -89,26 +89,11 @@ export function kaykitPath(dirs: readonly string[], file: string): string {
   return [...dirs, file].join('/');
 }
 
-/**
- * **Aus einem Dateinamen eine Beschriftung.**
- *
- * `barrel_large.glb` heißt im Raster `Barrel Large`: Endung weg, Unterstriche
- * und Bindestriche zu Leerzeichen, und jedes Wort, das durchweg klein
- * geschrieben ist, bekommt einen großen Anfangsbuchstaben. **Durchweg klein**
- * ist die Bedingung, damit Namen, die der Zeichner selbst geschrieben hat
- * (`KayKit`, `hexNW`), so bleiben, wie er sie meinte — ein `Hexnw` wäre eine
- * Korrektur, um die niemand gebeten hat.
- */
-export function humanLabel(fileName: string): string {
-  const bare = fileName.replace(/\.(glb|gltf)$/i, '');
-  return bare
-    .split(/[_\-\s]+/)
-    .filter((word) => word.length > 0)
-    .map((word) =>
-      word === word.toLowerCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word,
-    )
-    .join(' ');
-}
+// `humanLabel` wohnt in `kaykitTerms.ts`: `avatarFigures` braucht es beim
+// Laden, und ein Import von hier schloss den Kreis avatarFigures → kaykitIndex
+// → appearance → avatarFigures — `FIGURE_DEFAULT` war dann noch nicht da, und
+// die Werkzeugseite blieb leer.
+export { humanLabel } from './kaykitTerms';
 
 /**
  * **Wie groß eine Datei ist**, in einer Zeile unter dem Namen.
