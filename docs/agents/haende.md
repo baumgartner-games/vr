@@ -100,6 +100,14 @@ als die Knochenhand, um die die Faust gerechnet ist. Jetzt **x 1 cm**, und die
 Faust umschließt den Griff. Nachgemessen liegt der Griff des Modells bei
 x ≈ 1,1 cm mit 1,5 × 2 cm Halbmesser, wie `CONTROLLER_HANDLE` sagt.
 
+**Und 30° nach vorn gekippt**: _„der zeigefinger zeigt eigentlich in die
+richtung in der der controller auch zielt. Also müssten die hände vermutlich
+gf. 30 grad weiter kippen?"_ — der gestreckte Zeigefinger stand quer zum Griff,
+45° unter dem Zeigestrahl der nachgestellten Quest. Um die Querachse des
+Griffraums gekippt, Drehpunkt in der Griffmitte: x 1 · y 4,5 · z 3,6 cm, Pitch
+-60°, Yaw -17°, Roll -90° (rechts). Die Faust bleibt am Griff, der Finger liegt
+15° unter dem Strahl.
+
 **Der Zeigefinger folgt dem Abzug**, auch ohne Werkzeug: gewünscht _„dass wenn
 ich den trigger drücke, dass der zeigefinger sich mit bewegt"_. Stufenlos mit
 dem Wert des Triggers, bis zur Krümmung 0,7 (`HandVisuals.TRIGGER_CURL`); die
