@@ -2,9 +2,10 @@ import { PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   boxInShape,
+  doorMiddle,
+  doorWidth,
   roomOf,
   spacesOf,
-  STATION_DOOR_W,
   type HouseRoom,
   type HouseSpec,
   type MarkId,
@@ -145,12 +146,16 @@ export function doorClearances(
   depth = 1.15,
   side = 0,
 ): readonly FloorBounds[] {
-  const width = STATION_DOOR_W / 2 + STATION_PLAYER_RADIUS + side;
   return spec.doors
     .filter((d) => d.a === roomId || d.b === roomId)
     .map((d) => {
-      const x = (d.x + 0.5 + dirX(d.dir) * 0.5) * TILE;
-      const z = (d.z + 0.5 + dirZ(d.dir) * 0.5) * TILE;
+      // **Die ganze Öffnung**, nicht nur ihre erste Kachel: Eine Tür der
+      // Station ist zwei Felder breit (`STATION_DOOR_SPAN`), und gerechnet
+      // wurde um die Mitte der ersten — vor dem zweiten Feld blieb so nur ein
+      // halbes frei. Gemeldet: _„prüfe jede tür, ob die 1x2 felder davor nicht
+      // zugestellt sind (einige sind es)"_ — sieben von 27 waren es.
+      const { x, z } = doorMiddle(d);
+      const width = doorWidth(d) / 2 + STATION_PLAYER_RADIUS + side;
       const sign = d.a === roomId ? -1 : 1;
       const nx = dirX(d.dir) * sign,
         nz = dirZ(d.dir) * sign;
@@ -197,12 +202,7 @@ function windowClearances(spec: HouseSpec, roomId: string): FloorBounds[] {
 
 /** Closed modules never occupy the walking capsule from a doorway to the room centre. */
 export function roomDoorRoutes(spec: HouseSpec, room: HouseRoom): readonly FloorPoint[] {
-  return spec.doors
-    .filter((d) => d.a === room.id || d.b === room.id)
-    .map((d) => ({
-      x: (d.x + 0.5 + dirX(d.dir) * 0.5) * TILE,
-      z: (d.z + 0.5 + dirZ(d.dir) * 0.5) * TILE,
-    }));
+  return spec.doors.filter((d) => d.a === room.id || d.b === room.id).map((d) => doorMiddle(d));
 }
 
 /**
@@ -361,7 +361,42 @@ export function routeBlocked(
 type Request = Pick<StationPlacement, 'id' | 'roomId' | 'kind' | 'markId' | 'repairId'> &
   FixtureSize;
 
-function wallCandidates(room: HouseRoom, request: Request): StationPlacement[] {
+/**
+ * **Schutzschrank und Kiste stehen auf genau einem Feld** — mittig auf einer
+ * Kachel an der Wand, nicht irgendwo zwischen zweien. Gewünscht: _„bei
+ * haunting sollen die gegenstände wie der schutz schrank oder die schränke mit
+ * den gegenständen drin wirklich nur 1x1 feld belegen, aber es scheint auch
+ * welche zu geben, welche mittig stehen zwischen zwei felder"_ — bis hierher
+ * rückten alle Möbel in 18-cm-Schritten an der Wand entlang, und keiner der 45
+ * Schränke stand auf einer Feldmitte.
+ */
+function onOneTile(request: Request): boolean {
+  return (
+    (request.kind === 'locker' || request.kind === 'cargo') &&
+    request.width <= TILE &&
+    request.depth <= TILE
+  );
+}
+
+/** Ob ein Möbel genau auf einer Feldmitte steht. */
+function tileCentred(p: StationPlacement): boolean {
+  const mid = (v: number): boolean => Math.abs(v / TILE - Math.floor(v / TILE) - 0.5) < 1e-6;
+  return onOneTile(p) && mid(p.x) && mid(p.z);
+}
+
+/**
+ * Der Abstand zwischen zwei Möbeln — zwischen zwei Feld-Möbeln keiner: Sie
+ * stehen auf Nachbarfeldern, und die Ränder der Felder trennen sie schon.
+ */
+function gapBetween(a: StationPlacement, b: StationPlacement): number {
+  return tileCentred(a) && tileCentred(b) ? 0 : MODULE_GAP;
+}
+
+function wallCandidates(
+  room: HouseRoom,
+  request: Request,
+  onTile = onOneTile(request),
+): StationPlacement[] {
   const b = roomBounds(room),
     centre = roomMiddle(room),
     candidates: StationPlacement[] = [];
@@ -370,17 +405,23 @@ function wallCandidates(room: HouseRoom, request: Request): StationPlacement[] {
     const horizontal = side % 2 === 0;
     const min = (horizontal ? b.minX : b.minZ) + WALL_INSET + request.width / 2;
     const max = (horizontal ? b.maxX : b.maxZ) - WALL_INSET - request.width / 2;
-    const positions = [min, max, (min + max) / 2];
-    for (let offset = min + 0.18; offset < max; offset += 0.18) positions.push(offset);
+    const positions: number[] = [];
+    if (onTile) {
+      // Nur Feldmitten, in der Reihe an der Wand.
+      const from = horizontal ? b.minX : b.minZ;
+      const to = horizontal ? b.maxX : b.maxZ;
+      for (let tile = from; tile + TILE <= to + 1e-9; tile += TILE) positions.push(tile + TILE / 2);
+    } else {
+      positions.push(min, max, (min + max) / 2);
+      for (let offset = min + 0.18; offset < max; offset += 0.18) positions.push(offset);
+    }
+    // Vom Wandstrich bis zur Mitte des Möbels: auf einem Feld genau die halbe Kachel.
+    const fromWall = onTile ? TILE / 2 : WALL_INSET + request.depth / 2;
     for (const along of positions) {
       const nx = side === 1 ? -1 : side === 3 ? 1 : 0;
       const nz = side === 0 ? 1 : side === 2 ? -1 : 0;
-      const x = horizontal
-        ? along
-        : (side === 1 ? b.maxX : b.minX) + nx * (WALL_INSET + request.depth / 2);
-      const z = horizontal
-        ? (side === 0 ? b.minZ : b.maxZ) + nz * (WALL_INSET + request.depth / 2)
-        : along;
+      const x = horizontal ? along : (side === 1 ? b.maxX : b.minX) + nx * fromWall;
+      const z = horizontal ? (side === 0 ? b.minZ : b.maxZ) + nz * fromWall : along;
       const halfX = (horizontal ? request.width : request.depth) / 2;
       const halfZ = (horizontal ? request.depth : request.width) / 2;
       const approach = {
@@ -405,6 +446,53 @@ function wallCandidates(room: HouseRoom, request: Request): StationPlacement[] {
     }
   }
   // Prefer corners: doors and circulation usually use the middle of walls.
+  return candidates.sort(
+    (a, b) =>
+      (b.x - centre.x) ** 2 +
+      (b.z - centre.z) ** 2 -
+      ((a.x - centre.x) ** 2 + (a.z - centre.z) ** 2),
+  );
+}
+
+/**
+ * **Ein Feld-Möbel frei im Raum**, auf einer Feldmitte und mit der Front zur
+ * Raummitte — die zweite Wahl, wenn die Wand eines engen Raums keinen Platz
+ * auf einem Feld mehr hat (`packRoom`).
+ */
+function tileIslandCandidates(room: HouseRoom, request: Request): StationPlacement[] {
+  const b = roomBounds(room),
+    centre = roomMiddle(room),
+    candidates: StationPlacement[] = [];
+  for (let x = b.minX + TILE / 2; x < b.maxX; x += TILE)
+    for (let z = b.minZ + TILE / 2; z < b.maxZ; z += TILE) {
+      const dx = centre.x - x,
+        dz = centre.z - z;
+      const yaw =
+        Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? Math.PI / 2 : -Math.PI / 2) : dz > 0 ? 0 : Math.PI;
+      const rotated = Math.abs(Math.sin(yaw)) > 0.5;
+      const halfX = (rotated ? request.depth : request.width) / 2;
+      const halfZ = (rotated ? request.width : request.depth) / 2;
+      const bounds = { minX: x - halfX, maxX: x + halfX, minZ: z - halfZ, maxZ: z + halfZ };
+      if (
+        bounds.minX < b.minX + WALL_INSET ||
+        bounds.maxX > b.maxX - WALL_INSET ||
+        bounds.minZ < b.minZ + WALL_INSET ||
+        bounds.maxZ > b.maxZ - WALL_INSET
+      )
+        continue;
+      candidates.push({
+        ...request,
+        x,
+        z,
+        yaw,
+        bounds,
+        approach: {
+          x: x + Math.sin(yaw) * (request.depth / 2 + APPROACH_GAP),
+          z: z + Math.cos(yaw) * (request.depth / 2 + APPROACH_GAP),
+        },
+      });
+    }
+  // Lieber nah an der Wand als mitten im Weg.
   return candidates.sort(
     (a, b) =>
       (b.x - centre.x) ** 2 +
@@ -530,8 +618,14 @@ function packRoom(
   const lockerClearances = doorClearances(spec, room.id, LOCKER_DOOR_DEPTH, LOCKER_DOOR_SIDE);
   const farFromDoors = (p: StationPlacement): boolean =>
     !lockerClearances.some((one) => footprintsOverlap(p.bounds, one));
-  const candidates = requests.map((request) => {
-    const positions = wallCandidates(room, request).filter(
+  const usable = (request: Request, onTile: boolean, island = false): StationPlacement[] => {
+    const positions = (
+      island
+        ? onTile
+          ? tileIslandCandidates(room, request)
+          : islandCandidates(room, request)
+        : wallCandidates(room, request, onTile)
+    ).filter(
       (p) =>
         clear(request, p.bounds) &&
         !routes.some((door) => routeBlocked(door, centre, p.bounds)) &&
@@ -541,9 +635,28 @@ function packRoom(
     // (`LOCKER_DOOR_SIDE`) — die anderen bleiben als Rückfall dahinter.
     if (request.kind === 'locker')
       positions.sort((a, b) => Number(farFromDoors(b)) - Number(farFromDoors(a)));
-    return { request, positions };
-  });
-  candidates.sort((a, b) => a.positions.length - b.positions.length);
+    return positions;
+  };
+  // Erst nur Feldmitten an der Wand (`onOneTile`); geht der Raum so nicht
+  // auf, auch Feldmitten frei im Raum; erst danach dürfen die Feld-Möbel
+  // zwischen die Felder rücken — als letzter Rückfall dahinter.
+  const ordered = (tier: number) =>
+    requests
+      .map((request) => ({
+        request,
+        positions: onOneTile(request)
+          ? [
+              ...usable(request, true),
+              ...(tier >= 1 ? usable(request, true, true) : []),
+              ...(tier >= 2 ? usable(request, false) : []),
+            ]
+          : // Ein großes Möbel, das an keiner Wand mehr Platz hat (die
+            // Werkbank einer engen Werkstatt, seit die Türen ganz frei
+            // bleiben), steht frei im Raum.
+            [...usable(request, false), ...(tier >= 1 ? usable(request, false, true) : [])],
+      }))
+      .sort((a, b) => a.positions.length - b.positions.length);
+  let candidates = ordered(0);
   const placed: StationPlacement[] = [];
   function place(index: number): boolean {
     if (index === candidates.length) return true;
@@ -551,7 +664,7 @@ function packRoom(
       if (
         placed.some(
           (other) =>
-            footprintsOverlap(p.bounds, other.bounds, MODULE_GAP) ||
+            footprintsOverlap(p.bounds, other.bounds, gapBetween(p, other)) ||
             routeBlocked(centre, p.approach, other.bounds, LANE) ||
             routeBlocked(centre, other.approach, p.bounds, LANE),
         )
@@ -563,7 +676,13 @@ function packRoom(
     }
     return false;
   }
-  if (!place(0))
+  let solved = place(0);
+  for (let tier = 1; !solved && tier <= 2; tier++) {
+    placed.length = 0;
+    candidates = ordered(tier);
+    solved = place(0);
+  }
+  if (!solved)
     throw new Error(`No safe station furniture layout: seed ${spec.seed}, room ${room.id}`);
   // Secondary room dressing is optional. It may never displace a required control,
   // reduce the player's access, or make a previously safe navigation route narrower.
@@ -594,7 +713,7 @@ function packRoom(
         !routeBlocked(centre, centre, p.bounds, 0.7) &&
         !placed.some(
           (other) =>
-            footprintsOverlap(p.bounds, other.bounds, MODULE_GAP) ||
+            footprintsOverlap(p.bounds, other.bounds, gapBetween(p, other)) ||
             routeBlocked(centre, p.approach, other.bounds, LANE) ||
             routeBlocked(centre, other.approach, p.bounds, LANE),
         ),

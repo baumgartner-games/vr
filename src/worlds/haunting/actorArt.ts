@@ -181,7 +181,7 @@ class Actor implements ShipActor {
     const wanted = actorFigure(this.kind);
     if (!wanted || !canLoadModels()) return;
     void import('../../core/kaykitFigure')
-      .then(async (module) => module.loadKaykitFigure(wanted.path, wanted.height))
+      .then(async (module) => module.loadKaykitFigure(wanted.path, wanted.height, { merge: true }))
       .then((figure) => {
         if (!figure) return;
         // **Der Wettlauf**: Wer während des Ladens weggeräumt wurde, bekommt

@@ -7,6 +7,59 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+## Warum Haunting mehr Zeichenaufrufe hat als die Stadt (Oktober 2026)
+
+Gefragt: _„Bei haubting habe ich viel mehr draw calls als in der Stadt die
+gröser ist und mehr Gegenstände hat?"_ — Die Stadt ist fast nur **stille
+Deko mit demselben Texturatlas**, und die liegt seit #416 in einem Aufruf je
+Feld. Haunting ist voller Dinge, die **einzeln** gezeichnet werden müssen:
+Figuren, die sich bewegen, Werkzeuge, die man greift, Türen mit Hebeln,
+Schilder mit eigenem Text (jedes eine eigene Textur), Möbel der Zentrale, die
+beim Anfassen ihren Saum zeigen, Licht und Glas der Wände — und die Hände und
+der Helm des Spielers. Gezählt in der Übungsrunde vor dem ersten Schrank, je
+Auge: Zentrale-Möbel 20, Werkzeuge 18, Spieler 17, Türen und Kisten 13,
+Schilder 10, Wände 9, Bündel 9, Rumpf 7.
+
+- **Figuren in einem Netz** (`core/figureMerge.ts`): Ein Mannequin oder
+  Roboter aus dem Regal waren sechs Netze am selben Skelett, sechs Aufrufe je
+  Auge. Jetzt eines (`loadKaykitFigure(…, { merge: true })`, für NPCs und die
+  Figuren der Runde; der Avatar nicht, er blendet Kopf und Hut einzeln aus).
+  Der Anzug am Ständer der Zentrale ebenso (`mergeByLook` in das erste seiner
+  Teile). Messstrecke: 300 → 232 Aufrufe für beide Augen.
+
+## Schränke auf Feldmitten, Türen zwei Felder frei (Oktober 2026)
+
+Gemeldet: _„bei haunting sollen die gegenstände wie der schutz schrank oder
+die schränke mit den gegenständen drin wirklich nur 1x1 feld belegen, aber es
+scheint auch welche zu geben, welche mittig stehen zwischen zwei felder? achte
+bitte und prüfe jede tür, ob die 1x2 felder davor nicht zugestellt sind (einige
+sind es)"_.
+
+- **Schutzschrank und Kiste stehen auf genau einem Feld**
+  (`stationLayout.onOneTile`, `wallCandidates` mit `onTile`): mittig auf einer
+  Kachel in der Reihe an der Wand. Vorher rückten alle Möbel in 18-cm-Schritten
+  an der Wand entlang, und keiner der 45 Schränke der Station stand auf einer
+  Feldmitte. Zwei Feld-Möbel nebeneinander brauchen keinen Abstand
+  (`gapBetween`).
+- **Rückfall in Stufen** (`packRoom`): Geht ein enger Raum so nicht auf, darf
+  ein Feld-Möbel auf eine Feldmitte frei im Raum (`tileIslandCandidates`) und
+  ein großes Möbel ohne Wandplatz (die Werkbank einer engen Werkstatt) frei in
+  den Raum (`islandCandidates`); erst danach rückt ein Schrank zwischen die
+  Felder. In der Station keiner.
+- **Vor jeder Tür bleibt die ganze Öffnung frei** (`doorClearances`): Die Türen
+  der Station sind zwei Felder breit (`STATION_DOOR_SPAN`), gerechnet wurde aber
+  um die Mitte der ersten Kachel — vor der zweiten blieb nur eine halbe frei.
+  Jetzt von der Türmitte (`doorMiddle`) über die ganze Breite
+  (`doorWidth`). Vorher waren in der Standardstation 7 von 27 Türen
+  zugestellt, jetzt keine.
+- **Keine Zufallsstation mehr** (`house.STATION_SEED`, `generateHouse`):
+  gewünscht _„Ich will keinen zufall Station haben. Bitte das komplett raus.
+  Die Position der Gegenstände ist in jeder Runde gleich."_ Das Spiel baute die
+  Station schon immer mit demselben Samen; jetzt ignoriert `generateHouse` für
+  eine Station jede andere Zahl — auch Tests, Bot-Training und die Rechnung
+  hinter der Karte bekommen dieselbe Station, mit denselben Fenstern, Kisten,
+  Schränken, Aufgaben und derselben Schalttafel.
+
 ## Schutzschrank auf einem Feld (Oktober 2026)
 
 Gewünscht: _„kann der schutzschrank als gegenstand im katalog und bzw. auch in
