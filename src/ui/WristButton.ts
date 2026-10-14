@@ -88,11 +88,22 @@ export class WristButton extends THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasi
     _local.copy(this.parent.matrixWorld).invert().multiply(headWorld);
     _head.setFromMatrixPosition(_local);
     _wrist.copy(anchor.position);
-    // The hand's own up axis carries the button on the back of the hand.
-    _handUp.set(0, 1, 0).applyQuaternion(anchor.quaternion);
+    // **Auf den Handrücken.** Am Controller ist das ±X des Griffraums (WebXR:
+    // +X aus dem Rücken der rechten Hand, −X aus dem der linken) — nicht +Y,
+    // das zum Arm zeigt. Mit +Y saß der Knopf zwischen Kopf und Faust und
+    // verdeckte sie, seit die leere Hand den Griff wirklich umfasst
+    // (`handPose.IDLE_HAND_POSE_LEFT`). Am Handgelenk einer getrackten Hand
+    // bleibt es +Y.
+    const fromGrip = !controller!.isHand;
+    if (fromGrip) _handUp.set(this.hand === 'right' ? 1 : -1, 0, 0);
+    else _handUp.set(0, 1, 0);
+    _handUp.applyQuaternion(anchor.quaternion);
     _dir.copy(_head).sub(_wrist).normalize();
     if (Math.abs(_handUp.dot(_dir)) > 0.97) _handUp.copy(_up);
-    this.position.copy(_wrist).addScaledVector(_dir, 0.05).addScaledVector(_handUp, 0.03);
+    this.position
+      .copy(_wrist)
+      .addScaledVector(_dir, fromGrip ? 0.02 : 0.05)
+      .addScaledVector(_handUp, fromGrip ? 0.055 : 0.03);
     _mat.lookAt(_head, this.position, _handUp);
     this.quaternion.setFromRotationMatrix(_mat);
   }
