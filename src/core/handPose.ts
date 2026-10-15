@@ -184,13 +184,20 @@ export const IDLE_HAND_POSE: HandPose = {
  * Zeigestrahls (bei 45° zwischen Griff und Strahl im Griffraum 0 · 0,71 ·
  * −0,71), gedreht um die Griffmitte wie oben.
  *
+ * **Und 3 cm nach vorn, 5 mm tiefer**, entlang des Zeigestrahls. Gemeldet:
+ * _„die hand muss etwas weiter nach vorne. Der eingeblendete controller ist
+ * schon zu 99% perfekt wo er sein sollte, nur die hände sind im controller."_
+ * Gemessen an jeder Ecke des Handschuhs gegen das Controllermodell: vorher 192
+ * von 937 im Controller (Knöchel und Handrücken im runden Kopf), jetzt 84 —
+ * Daumen auf der Tastenfläche und Finger um den Griff, also Anlage.
+ *
  * Gilt für **beide** Hände: links wie hier, rechts als Spiegelung.
  */
 export const IDLE_HAND_POSE_LEFT: HandPose = {
   ...IDLE_HAND_POSE,
   x: -1.7,
-  y: 3.9,
-  z: 4.1,
+  y: 1.4,
+  z: 2.3,
   pitch: -59.3,
   yaw: 2.5,
   roll: 86.2,
