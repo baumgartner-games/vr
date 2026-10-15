@@ -115,6 +115,17 @@ werden muss"_ — Richtung _„Nach innen"_, die Fingerspitze zur Körpermitte.
 Gedreht um die Senkrechte des Zeigestrahls, Drehpunkt wieder die Griffmitte:
 rechts x 1,7 · y 3,9 · z 4,1 cm, Pitch -59,3°, Yaw -2,5°, Roll -86,2°.
 
+**Und 3 cm nach vorn, 5 mm tiefer** — entlang des Zeigestrahls: _„die hand
+muss etwas weiter nach vorne. Der eingeblendete controller ist schon zu 99%
+perfekt wo er sein sollte, nur die hände sind im controller."_ Nachgemessen
+statt geschätzt: Jede Ecke des Handschuhs wird gegen das Controllermodell
+geprüft (Strahl-Parität in drei Richtungen). Vorher steckten 192 von 937 Ecken
+im Controller, Knöchel und Handrücken quer durch den runden Kopf; jetzt sind es
+84, und die übrigen sind Daumen auf der Tastenfläche und Finger um den Griff —
+Anlage, kein Durchstoßen. Weiter vorn (4 cm) wird es kaum besser (57), der
+Zeigefinger ragt dann aber weit über den Controller hinaus. Rechts jetzt
+x 1,7 · y 1,4 · z 2,3 cm, Winkel unverändert.
+
 **Zum Vergleichen: _Grafik → Controller einblenden_** (`GraphicsSettings.
 showControllers`, `HandVisuals.updateShownController`). Gefragt: _„es gibt doch
 in den einstellung screen die option die controller einblenden zu lassen in
