@@ -681,6 +681,13 @@ export class HandVisuals extends THREE.Group {
    * Hand das Gerät hält. Geladen wird erst beim ersten Einschalten.
    */
   showControllers = false;
+  /**
+   * **Der Justierstand ist offen** (`worlds/portal/tuneStand.ts`) — dann hängt
+   * der Controller an beiden Händen, egal was die Einstellung sagt. Gewünscht:
+   * _„ich will im justierstand modus immer den controller sehen, das ist meine
+   * referenz"_.
+   */
+  standControllers = false;
   private readonly shownControllers = new Map<
     ControllerState,
     { source: XRInputSource; model: THREE.Object3D }
@@ -1007,7 +1014,7 @@ export class HandVisuals extends THREE.Group {
   private updateShownController(controller: ControllerState): void {
     const source = controller.inputSource;
     const wanted =
-      this.showControllers &&
+      (this.showControllers || this.standControllers) &&
       controller.tracked &&
       !controller.isHand &&
       controller.grip.visible &&

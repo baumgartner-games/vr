@@ -1,4 +1,5 @@
 import { KEEP_SOLID } from '../../core/occluderGhost';
+import { STAND_STEPS, TuneStand, type StandMove } from './tuneStand';
 import * as THREE from 'three';
 import type { World, WorldContext, WorldPreview } from '../../core/types';
 import type { HintZone } from '../../core/controlHints';
@@ -2446,6 +2447,12 @@ export class PortalWorld implements World {
     this.portalRed.setTime(this.time);
     this.restoreNotes(ctx);
 
+    // **Der Justierstand zuerst**: Greifen an ihm gehört nicht der Welt.
+    const tuned = this.stand?.update(dt);
+    if (tuned) {
+      ctx.notify(tuned);
+      this.refreshMenuLabels();
+    }
     this.updateTools(dt, ctx);
     this.updateUsables(ctx);
     this.updateGrabs(dt, ctx);
@@ -2589,6 +2596,8 @@ export class PortalWorld implements World {
 
   /** Was zuletzt angewählt wurde — die Seite `READ_PAGE` (`readSign`). */
   private reading: MenuEntry | null = null;
+  /** Der Justierstand, solange er steht (`tuneStand.ts`, _Hände → Justierstand_). */
+  private stand: TuneStand | null = null;
   /** In wie vielen Bildern sie aufzuschlagen ist — 0: nicht (`readSign`). */
   private openReading = 0;
 
@@ -6233,6 +6242,7 @@ export class PortalWorld implements World {
       icon: 'glove',
       accent: 0x9fe3ff,
       children: [
+        this.standMenu(),
         this.handLookMenu(),
         this.trackedGloveMenu(),
         this.boneColorsMenu(),
@@ -6331,6 +6341,207 @@ export class PortalWorld implements World {
       entry.checked = trackedGlove();
     });
     return entry;
+  }
+
+  /**
+   * **Justierstand** — ein stillstehender Controller vor einem, daran
+   * Handschuh und Werkzeug, jedes für sich verschiebbar (`tuneStand.ts`).
+   *
+   * Gewünscht: _„Bitte füge ein werkzeug an, mit dem ich das selbst justieren
+   * kann. […] per achse bewegen zur fein justierung · das objekt, zb
+   * handschuhe so bewegen, dass diese passen · ich will im justierstand modus
+   * immer den controller sehen, das ist meine referenz · und wenn ich z. B. ein
+   * gewehr oder eine pistole habe, dann will ich die pistole und die
+   * handschuhe einzeln positionieren können um den controller herum. Ggf. wäre
+   * dafür ein menü gut."_
+   *
+   * Die Seite stellt den Stand auf, sobald sie aufgeschlagen wird, und lässt
+   * ihn stehen, bis _Stand wegräumen_ gedrückt wird — auch bei zugeklapptem
+   * Menü, damit man ihn von allen Seiten ansehen und daran greifen kann.
+   */
+  private standMenu(): MenuEntry {
+    const accent = 0x9fe3ff;
+    const open = (): TuneStand | null => {
+      const ctx = this.context;
+      if (!ctx) return null;
+      if (!this.stand) {
+        // Die Hand, die etwas hält, kommt an den Stand — sonst die rechte.
+        const side: Handedness =
+          !this.held.get('right') && this.held.get('left') ? 'left' : 'right';
+        this.stand = new TuneStand(
+          {
+            scene: ctx.scene,
+            input: ctx.input,
+            camera: ctx.camera,
+            hands: ctx.hands,
+            heldTool: (hand) => this.held.get(hand) ?? null,
+            liveTools: () => this.liveTools,
+          },
+          side,
+        );
+      }
+      return this.stand;
+    };
+    const act = (run: (stand: TuneStand) => string | void): (() => void) => {
+      return () => {
+        const stand = open();
+        if (!stand) return;
+        const message = run(stand);
+        this.context?.hands.refreshPoses();
+        this.refreshMenuLabels();
+        if (message) this.context?.notify(message);
+      };
+    };
+    const row = (
+      id: string,
+      label: () => string,
+      sub: () => string,
+      run: (stand: TuneStand) => string | void,
+      icon: MenuEntry['icon'] = 'gizmo',
+    ): MenuEntry => {
+      const entry: MenuEntry = { id, label: label(), sub: sub(), icon, accent, run: act(run) };
+      this.menuLabels.push(() => {
+        entry.label = label();
+        entry.sub = sub();
+      });
+      return entry;
+    };
+    const stepLabel = (): string => STAND_STEPS[this.stand?.step ?? 1]!.label;
+    const move = (direction: StandMove, label: string, sub: string): MenuEntry =>
+      row(
+        `stand:${direction}`,
+        () => label,
+        () => `${stepLabel()} · ${sub}`,
+        (stand) => stand.move(direction),
+      );
+
+    return {
+      id: 'setting:tune-stand',
+      label: 'Justierstand',
+      sub: 'Handschuh und Werkzeug am stillen Controller einstellen',
+      icon: 'controller',
+      accent,
+      onOpen: () => {
+        open();
+        this.refreshMenuLabels();
+      },
+      children: [
+        row(
+          'stand:target',
+          () => {
+            const tool = this.stand?.tool();
+            return this.stand?.target === 'tool' && tool
+              ? `Verschieben: ${tool.label}`
+              : 'Verschieben: Handschuh';
+          },
+          () => {
+            const stand = this.stand;
+            if (!stand) return 'Stand wird aufgestellt';
+            const own = stand.target === 'glove' && stand.poseIsOwn() ? ' · eigene Haltung' : '';
+            return `${stand.readout()}${own}`;
+          },
+          (stand) => {
+            if (stand.target === 'tool') {
+              stand.target = 'glove';
+              return 'Handschuh verschieben';
+            }
+            const tool = stand.tool();
+            if (!tool) return 'Erst ein Werkzeug in diese Hand nehmen';
+            stand.target = 'tool';
+            return `${tool.label} verschieben`;
+          },
+          'glove',
+        ),
+        row(
+          'stand:side',
+          () => `Hand: ${this.stand?.side === 'left' ? 'Links' : 'Rechts'}`,
+          () => 'Welcher Controller am Stand steht',
+          (stand) => {
+            stand.setSide(stand.side === 'left' ? 'right' : 'left');
+            if (stand.target === 'tool' && !stand.tool()) stand.target = 'glove';
+          },
+          'controller',
+        ),
+        row(
+          'stand:grab',
+          () => `Greifen: ${this.stand?.fine ? 'fein 1:10' : '1:1'}`,
+          () => 'Greiftaste am Stand nimmt das Gewählte mit',
+          (stand) => {
+            stand.fine = !stand.fine;
+          },
+          'hand',
+        ),
+        row(
+          'stand:step',
+          () => `Schritt: ${stepLabel()}`,
+          () => 'Wie weit ein Druck auf eine Achse schiebt',
+          (stand) => {
+            stand.step = (stand.step + 1) % STAND_STEPS.length;
+          },
+          'settings',
+        ),
+        move('forward', 'Vor', 'dorthin, wohin der Controller zielt'),
+        move('back', 'Zurück', 'zum Arm hin'),
+        move('up', 'Hoch', 'zum Daumen hin'),
+        move('down', 'Runter', 'zum Trigger hin'),
+        move('left', 'Links', 'quer zum Strahl'),
+        move('right', 'Rechts', 'quer zum Strahl'),
+        move('pitch-up', 'Nicken hoch', 'Spitze nach oben'),
+        move('pitch-down', 'Nicken runter', 'Spitze nach unten'),
+        move('yaw-left', 'Gieren links', 'um die Senkrechte'),
+        move('yaw-right', 'Gieren rechts', 'um die Senkrechte'),
+        move('roll-left', 'Rollen links', 'um den Zeigestrahl'),
+        move('roll-right', 'Rollen rechts', 'um den Zeigestrahl'),
+        row(
+          'stand:ghost',
+          () => `Controller durchsichtig: ${this.stand?.ghost === false ? 'aus' : 'an'}`,
+          () => 'Durchsichtig sieht man, was im Controller steckt',
+          (stand) => stand.setGhost(!stand.ghost),
+          'controller',
+        ),
+        row(
+          'stand:turn',
+          () => 'Stand drehen',
+          () => 'Eine Vierteldrehung — von der anderen Seite ansehen',
+          (stand) => stand.turn(),
+          'reset',
+        ),
+        row(
+          'stand:here',
+          () => 'Stand vor mich holen',
+          () => 'Vor den Kopf, auf Brusthöhe',
+          (stand) => stand.placeInFront(),
+          'teleport',
+        ),
+        row(
+          'stand:mirror',
+          () => 'Handschuh auf die andere Hand spiegeln',
+          () => 'Ein Werkzeug spiegelt sich von selbst',
+          (stand) => stand.mirror(),
+          'glove',
+        ),
+        row(
+          'stand:reset',
+          () => 'Zurücksetzen',
+          () => 'Das Gewählte zurück auf die gebaute Lage',
+          (stand) => stand.reset(),
+          'reset',
+        ),
+        {
+          id: 'stand:close',
+          label: 'Stand wegräumen',
+          sub: 'Was eingestellt ist, bleibt gespeichert',
+          icon: 'close',
+          accent: 0xffc857,
+          run: () => {
+            this.stand?.dispose();
+            this.stand = null;
+            this.refreshMenuLabels();
+            this.context?.notify('Justierstand weggeräumt');
+          },
+        },
+      ],
+    };
   }
 
   /**
@@ -6996,6 +7207,8 @@ export class PortalWorld implements World {
 
   dispose(ctx: WorldContext): void {
     this.fallReport.dispose();
+    this.stand?.dispose();
+    this.stand = null;
     this.dust?.dispose();
     this.dust = null;
     for (const foam of this.foams) foam.dispose();
