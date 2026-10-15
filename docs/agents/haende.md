@@ -133,6 +133,57 @@ vr?"_ — es gab sie nur im Dialog _Halten einstellen_ am Bildschirm. Jetzt hän
 auf Wunsch das echte Modell der Quest (`liveControllerModel`) im Griffraum
 unter jedem Handschuh, mit beweglichem Trigger und Stick.
 
+**Und jetzt selbst einstellen: der Justierstand** (`worlds/portal/tuneStand.ts`,
+Menü → _Einstellungen → Hände → Justierstand_). Nach der Runde mit den 3 cm
+kam: _„nein, die hand steckt immer noch darin. Bitte füge ein werkzeug an, mit
+dem ich das selbst justieren kann. […] per achse bewegen zur fein justierung ·
+das objekt, zb handschuhe so bewegen, dass diese passen · ich will im
+justierstand modus immer den controller sehen, das ist meine referenz · und
+wenn ich z. B. ein gewehr oder eine pistole habe, dann will ich die pistole und
+die handschuhe einzeln positionieren können um den controller herum. Ggf. wäre
+dafür ein menü gut."_
+
+- **Ein stiller Controller vor der Brust**, 42 cm vor dem Kopf und gut 20 cm
+  darunter, der Zeigestrahl waagerecht und quer zum Blick (rechte Hand nach
+  links), damit man die Hand im Profil sieht. Er ist eine Kopie und steht
+  still — das alte Justier-Werkzeug in der Luft zitterte mit dem Arm
+  (`waffe-und-kart.md`). Ab Werk halb durchsichtig, damit man sieht, was darin
+  steckt; _Controller durchsichtig_ schaltet ihn fest. _Stand drehen_ dreht ihn
+  um je 90°, _Stand vor mich holen_ stellt ihn wieder vor den Kopf.
+- **Daran Handschuh und Werkzeug** in genau der Kette des Spiels: Stand =
+  Zeigestrahl, darin der Griffraum (`grip⁻¹ · ray`, am echten Controller
+  abgelesen, sonst `GRIP_TO_RAY`), darin der Controller, der Handschuh bei der
+  Haltung, die die Hand gerade trägt (leer: Grundhaltung; mit Werkzeug: dessen
+  Faust, bei Werkzeugen am Standardgriff die gemeinsame `grip`), und das
+  Werkzeug als **Abbild** des gehaltenen (geklonte Kinder, geteilte Netze),
+  so wie es gerade im Halteknoten hängt.
+- **Was verschoben wird, wählt die erste Zeile**: _Handschuh_ oder das
+  Werkzeug in dieser Hand; _Hand: Rechts/Links_ stellt den anderen Controller
+  hin. Ein kleines Achsenkreuz am Gewählten zeigt die Richtungen der Knöpfe:
+  rot rechts, grün hoch, blau vor.
+- **Je Achse**: Vor/Zurück, Hoch/Runter, Links/Rechts, Nicken, Gieren, Rollen —
+  im Raum des **Zeigestrahls**, „vor" ist also dorthin, wohin der Controller
+  zielt, nicht den schrägen Griff entlang. Schritt 1 mm·1°, 5 mm·5° oder
+  1 cm·15°; gedreht wird um den eigenen Nullpunkt des Dings.
+- **Greifen**: die Greiftaste einer Hand bis 35 cm am Stand nimmt das Gewählte
+  mit — 1:1 starr oder _fein 1:10_ (`fineTune.nudgeGrip`). Die Welt sieht
+  diesen Griff nicht (der Stand läuft vor `updateTools` und nimmt ihn weg).
+- **Gespeichert wird sofort**: der Handschuh in `handPoseStore` (also auch an
+  der echten Hand im selben Bild), das Werkzeug als Lage im Griff in
+  `poseStore` samt der Hand, an der es eingestellt wurde — für alle Kopien
+  dieses Werkzeugs. _Zurücksetzen_ nimmt das Gewählte auf die gebaute Lage
+  zurück, _Handschuh auf die andere Hand spiegeln_ spiegelt die Haltung; ein
+  Werkzeug braucht das nicht, es spiegelt sich in der anderen Hand von selbst.
+- **Solange der Stand steht, hängen die echten Controller unter beiden Händen**
+  (`HandVisuals.standControllers`), egal was _Grafik → Controller einblenden_
+  sagt. _Stand wegräumen_ nimmt ihn weg; ein Weltwechsel auch.
+
+Die erste Zeile zeigt die sechs Zahlen des Gewählten (cm, dann Pitch/Yaw/Roll)
+und, beim Handschuh, ob eine **eigene** Haltung gilt. Das ist auch die Antwort
+auf „steckt immer noch darin": Eine früher im Menü gespeicherte Grundhaltung
+geht der gebauten vor, und dann ändert eine neue Zahl im Quelltext an der Hand
+nichts.
+
 **Der Zeigefinger folgt dem Abzug**, auch ohne Werkzeug: gewünscht _„dass wenn
 ich den trigger drücke, dass der zeigefinger sich mit bewegt"_. Stufenlos mit
 dem Wert des Triggers, bis zur Krümmung 0,7 (`HandVisuals.TRIGGER_CURL`); die
