@@ -87,11 +87,13 @@ Welt aufbauen kann"_.
   gerendert, an jeder Kantenmitte die Farbe; `BASE_TILES`). Land ist
   `hex_grass`, Flüsse `hex_river_A…F`, Wege `hex_road_A…F` und `M` (Sackgasse),
   Kreuzungen `hex_river_crossing_A/B`, Seen `hex_water` und die Ufer
-  `hex_coast_B…D`. **Alle Kacheln haben ihre Oberkante bei 0**, eine gerade Fläche —
-  nur `hex_water` liegt im Regal 0,2 tiefer und wird deshalb angehoben
-  (`BaseTile.lift`). Vorher stand jeder See als Stufe im Brett; gewünscht:
-  _„Die hex tiles sollen nicht unterschiedlich hoch sein sondern eine grade
-  Fläche ergeben"_. Die Flussgabeln mit vier und mehr Armen (`G…L`) sind nicht
+  `hex_coast_B…D`. **Alles ebenerdig**: Die Kacheln des Regals sind modelliert
+  (Flussbett −0,1, Seen und Ufer −0,2, eine Fase an jeder Kante −0,05). Für
+  Hexland wird ihre Oberseite plattgedrückt (`hexView.flatTop`, alles über
+  −0,25 auf 0, Normalen nach oben) — Wasser ist dann nur noch blau gemalt,
+  und das Brett ist eine Fläche ohne Stufen und Fugen. Gewünscht: _„Die hex
+  tiles sollen nicht unterschiedlich hoch sein sondern eine grade Fläche
+  ergeben"_, dann _„Ne keine Stufen, alles eben erdig bitte"_. Die Flussgabeln mit vier und mehr Armen (`G…L`) sind nicht
   im Stapel — sie wären kaum je anzulegen.
 - **Die Ausstattung** (`hexland/hexDressing.ts`, ohne three.js): Jede Kante hat
   ihr Dreieck der Kachel, und dort steht, was zu ihrem Gelände gehört — eine
@@ -108,9 +110,10 @@ Welt aufbauen kann"_.
   sperrt eine Zelle, man läuft über das Dorf wie über eine Modellbahn.
 - **Der Boden trägt, aber man sieht ihn nicht**: Die Welt ist eine
   `FurnishedWorld` mit einem Boden von 240 × 240 m (`FIELD`), dessen Material
-  unsichtbar ist. Die Kacheln liegen mit der Oberkante genau darauf; eine
-  halbe Kachelhöhe tiefer liegt die rosa Fläche. So schwebt das Brett wie in
-  _Dorfromantik_.
+  unsichtbar ist. Die Kacheln liegen mit der Oberseite genau darauf, die rosa
+  Fläche ringsum 3 cm darunter — das Brett liegt ebenerdig und schwebt nicht
+  mehr (bis Oktober 2026 eine halbe Kachelhöhe darüber, wie in
+  _Dorfromantik_).
 
 ## Offen
 

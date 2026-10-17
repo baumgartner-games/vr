@@ -96,6 +96,7 @@ class Batch {
 export class HexModels {
   private readonly parts = new Map<string, Part[]>();
   private readonly pending = new Map<string, Promise<Part[]>>();
+  private readonly owned: THREE.BufferGeometry[] = [];
 
   load(model: string): Promise<Part[]> {
     const known = this.pending.get(model);
@@ -109,12 +110,20 @@ export class HexModels {
         holder.traverse((object) => {
           const mesh = object as THREE.Mesh;
           if (!mesh.isMesh) return;
-          out.push({
-            geometry: mesh.geometry,
-            material: Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material,
-            matrix: mesh.matrixWorld.clone(),
-            castShadow: true,
-          });
+          const material = Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material;
+          // Die Kacheln selbst werden plattgedrückt (`flatTop`) — die Deko bleibt, wie sie ist.
+          if (model.startsWith('tiles/')) {
+            const geometry = flatTop(mesh.geometry, mesh.matrixWorld);
+            this.owned.push(geometry);
+            out.push({ geometry, material, matrix: new THREE.Matrix4(), castShadow: false });
+          } else {
+            out.push({
+              geometry: mesh.geometry,
+              material,
+              matrix: mesh.matrixWorld.clone(),
+              castShadow: true,
+            });
+          }
         });
       }
       this.parts.set(model, out);
@@ -124,10 +133,70 @@ export class HexModels {
     return job;
   }
 
+  /** Die plattgedrückten Kacheln gehören hier und nicht der Vorlage. */
+  dispose(): void {
+    for (const geometry of this.owned) geometry.dispose();
+    this.owned.length = 0;
+  }
+
   /** Was schon da ist — `undefined`: noch nicht geladen. */
   now(model: string): Part[] | undefined {
     return this.parts.get(model);
   }
+}
+
+/**
+ * **Wie tief die Oberseite einer Kachel im Regal reicht**, in seinen Einheiten.
+ * Darüber liegt alles, was man von oben sieht: Wiese und Weg auf 0, die Fase
+ * am Rand auf −0,05, Flusswasser auf −0,1, Seen und Ufer auf −0,2. Darunter
+ * beginnt die Seitenwand (bis −1).
+ */
+const TOP_DEPTH = 0.25;
+
+/**
+ * **Eine Kachel ohne Stufen** — jede Ecke ihrer Oberseite auf genau 0.
+ *
+ * Gewünscht: _„Die hex tiles sollen nicht unterschiedlich hoch sein sondern
+ * eine grade Fläche ergeben"_ und dann, als der Fluss noch eine Handbreit tiefer
+ * lag als der See: _„Ne keine Stufen, alles eben erdig bitte"_. Die Kacheln
+ * des Regals sind modelliert — Flussbett, Seeufer, die Fase an jeder Kante —,
+ * und all das sind Höhen. Plattgedrückt bleibt die Zeichnung (Wasser ist blau,
+ * weil die Textur blau ist), und das Brett ist eine Fläche ohne Fugen.
+ *
+ * Gebacken in eine eigene Geometrie in Metern der Kachel: Die Vorlage teilen
+ * sich alle Kopien im Regal, und die Datei ist gepackt (`KHR_mesh_quantization`),
+ * also erst in Kommazahlen, dann flach. Die Normalen der flachen Ecken zeigen
+ * danach gerade nach oben, sonst läge noch das Licht der alten Böschung darauf.
+ */
+function flatTop(source: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  const pos = source.getAttribute('position');
+  const nor = source.getAttribute('normal');
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrix);
+  const positions = new Float32Array(pos.count * 3);
+  const normals = new Float32Array(pos.count * 3);
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(matrix);
+    if (nor) n.fromBufferAttribute(nor, i).applyMatrix3(normalMatrix).normalize();
+    else n.set(0, 1, 0);
+    if (v.y > -TOP_DEPTH) {
+      v.y = 0;
+      n.set(0, 1, 0);
+    }
+    v.toArray(positions, i * 3);
+    n.toArray(normals, i * 3);
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  const uv = source.getAttribute('uv');
+  if (uv) geometry.setAttribute('uv', uv);
+  if (source.index) geometry.setIndex(source.index);
+  for (const group of source.groups)
+    geometry.addGroup(group.start, group.count, group.materialIndex);
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 const _m = new THREE.Matrix4();
@@ -151,9 +220,7 @@ export function tileMatrix(
 /** Die Stücke einer Kachel in ihren eigenen Maßen: Grundkachel und Ausstattung. */
 function pieces(spec: TileSpec): Array<{ model: string; local: THREE.Matrix4 }> {
   const base = baseTile(spec.base);
-  const out = [
-    { model: base.model, local: new THREE.Matrix4().makeTranslation(0, base.lift ?? 0, 0) },
-  ];
+  const out = [{ model: base.model, local: new THREE.Matrix4() }];
   for (const d of dressTile(spec)) {
     _q.setFromAxisAngle(_up, d.yaw);
     out.push({

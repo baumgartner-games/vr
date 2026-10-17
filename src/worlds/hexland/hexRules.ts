@@ -113,13 +113,6 @@ export interface BaseTile {
   readonly road: readonly number[];
   /** Wie oft sie aus dem Stapel kommt, im Verhältnis zu den anderen. */
   readonly weight: number;
-  /**
-   * **Um wie viel sie angehoben wird**, in Einheiten des Regals. Alle Kacheln
-   * haben ihre Oberkante bei 0 — nur der See (`hex_water`) liegt 0,2 tiefer
-   * und stand als Stufe im Brett. Gewünscht: _„Die hex tiles sollen nicht
-   * unterschiedlich hoch sein sondern eine grade Fläche ergeben"_.
-   */
-  readonly lift?: number;
 }
 
 const river = (letter: string, water: number[], weight: number): BaseTile => ({
@@ -189,7 +182,6 @@ export const BASE_TILES: readonly BaseTile[] = [
     water: [0, 1, 2, 3, 4, 5],
     road: [],
     weight: 0.5,
-    lift: 0.2,
   },
 ];
 

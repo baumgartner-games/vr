@@ -20,7 +20,7 @@ import {
   type Hex,
   type PlaceResult,
 } from './hexRules';
-import { HEX_SCALE, HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
+import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { dressingModels } from './hexDressing';
 
 /**
@@ -101,9 +101,11 @@ export class HexlandWorld extends FurnishedWorld {
 
   /**
    * **Der Boden trägt, aber man sieht ihn nicht.** Die Kacheln liegen mit
-   * ihrer Oberkante genau auf ihm und reichen anderthalb Meter darunter; eine
-   * halbe Kachelhöhe tiefer liegt die farbige Fläche (`buildEnvironment`).
-   * So schwebt das Brett wie in _Dorfromantik_, und man läuft trotzdem darauf.
+   * ihrer (plattgedrückten, `hexView.flatTop`) Oberseite genau auf ihm, und
+   * die farbige Fläche ringsum liegt eine Fingerbreite darunter
+   * (`buildEnvironment`): alles ebenerdig, keine Stufe am Rand des Bretts.
+   * Gewünscht: _„Ne keine Stufen, alles eben erdig bitte"_ — bis dahin
+   * schwebte das Brett eine halbe Kachelhöhe darüber wie in _Dorfromantik_.
    */
   protected override solidMaterial(solid: PlanSolid): THREE.Material {
     if (solid.kind !== 'floor') return super.solidMaterial(solid);
@@ -152,7 +154,7 @@ export class HexlandWorld extends FurnishedWorld {
       new THREE.MeshStandardMaterial({ color: BACKDROP, roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.35 * HEX_SCALE;
+    ground.position.y = -0.03;
     ground.receiveShadow = true;
     ground.name = 'hexland-backdrop';
     this.root.add(ground);
@@ -873,6 +875,7 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.pickPlane) ctx.pointer.remove(this.pickPlane);
     if (this.confirm) ctx.pointer.remove(this.confirm);
     this.view?.dispose();
+    this.models.dispose();
     this.slots?.dispose();
     this.slots?.geometry.dispose();
     for (const material of this.hexMaterials) material.dispose();
