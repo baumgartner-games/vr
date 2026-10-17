@@ -150,7 +150,10 @@ export function tileMatrix(
 
 /** Die Stücke einer Kachel in ihren eigenen Maßen: Grundkachel und Ausstattung. */
 function pieces(spec: TileSpec): Array<{ model: string; local: THREE.Matrix4 }> {
-  const out = [{ model: baseTile(spec.base).model, local: new THREE.Matrix4() }];
+  const base = baseTile(spec.base);
+  const out = [
+    { model: base.model, local: new THREE.Matrix4().makeTranslation(0, base.lift ?? 0, 0) },
+  ];
   for (const d of dressTile(spec)) {
     _q.setFromAxisAngle(_up, d.yaw);
     out.push({

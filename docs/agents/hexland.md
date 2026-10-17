@@ -87,7 +87,11 @@ Welt aufbauen kann"_.
   gerendert, an jeder Kantenmitte die Farbe; `BASE_TILES`). Land ist
   `hex_grass`, Flüsse `hex_river_A…F`, Wege `hex_road_A…F` und `M` (Sackgasse),
   Kreuzungen `hex_river_crossing_A/B`, Seen `hex_water` und die Ufer
-  `hex_coast_B…D`. Die Flussgabeln mit vier und mehr Armen (`G…L`) sind nicht
+  `hex_coast_B…D`. **Alle Kacheln haben ihre Oberkante bei 0**, eine gerade Fläche —
+  nur `hex_water` liegt im Regal 0,2 tiefer und wird deshalb angehoben
+  (`BaseTile.lift`). Vorher stand jeder See als Stufe im Brett; gewünscht:
+  _„Die hex tiles sollen nicht unterschiedlich hoch sein sondern eine grade
+  Fläche ergeben"_. Die Flussgabeln mit vier und mehr Armen (`G…L`) sind nicht
   im Stapel — sie wären kaum je anzulegen.
 - **Die Ausstattung** (`hexland/hexDressing.ts`, ohne three.js): Jede Kante hat
   ihr Dreieck der Kachel, und dort steht, was zu ihrem Gelände gehört — eine
