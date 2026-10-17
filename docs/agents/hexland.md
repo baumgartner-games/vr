@@ -42,20 +42,39 @@ Welt aufbauen kann"_.
 - **Auf die schwebende Kachel zeigen**: weiterdrehen — nur durch die
   Drehungen, die dort gehen (Fluss und Weg).
 - **Auf das grüne ✓ darüber zeigen**: legen. Darüber steht die Zeile mit
-  Punkten, Stapel und der Aufgabe der Kachel.
+  Punkten, Stapel und der Aufgabe der Kachel (in der Brille und aus den
+  Augen; von oben steht beides in der Leiste unten).
 - **In der Brille** ist „zeigen" der Strahl mit Trigger oder `A`
-  (`core/Pointer.ts`). Man steht auf dem Brett — die Kacheln sind 3 m breit,
-  ein Haus geht einem bis zum Knie — und läuft mit dem Stick. Für den Blick
-  aufs Ganze: _Bauen → Weltbau_ (das Gestell wächst um zehn, der Strahl reicht
-  mit).
-- **Am Schirm von oben** (Maus und Handy) zeigt kein Strahl
-  (`Pointer.topDown`). Die Welt hört deshalb selbst auf die Leinwand
-  (`HexlandWorld.listenToScreen`): ein kurzer, ruhiger Klick oder Tipp ist
-  „zeigen"; wer zieht, mit zwei Fingern zoomt oder auf einem der Bedienfelder
-  (Stock, `A`, Drehen) liegt, legt nichts. Die Maus zeigt das Feld darunter
-  hell an. `R` dreht. Bewegt wird das Bild wie überall: Figur laufen lassen
-  (WASD, Stock), Rad und zwei Finger zoomen.
-- **Aus den Augen** zielt die Bildmitte, wie bei jedem Strahl am Schirm.
+  (`core/Pointer.ts`). Beim Aufsetzen geht sofort der **Weltbau** an
+  (`core/buildFlight.ts`), und zwar die Art, die **skaliert**
+  (`PlayerRig.flightScales`, `buildFlight.flightScaleStep`): Man sieht die
+  Welt von oben wie ein Modell, der linke Stick fliegt, der rechte Stick
+  **vor macht das Gestell größer** (die Welt kleiner), **zurück kleiner** (die
+  Welt größer, bis die Häuser doppelt so groß sind wie am Boden, Maß 0,5 …
+  60), quer dreht er. Gewünscht: _„In vr will ich die Welt lieber von oben
+  weiter sehen bzw. wie bei der Stadt durch hoch und runter fliegen die Welt
+  größer bzw. kleiner skalieren."_ Der Strahl reicht mit dem Maß mit. Wer den
+  Weltbau im Menü ausschaltet, steht am Boden und läuft; bis zum nächsten
+  Aufsetzen bleibt das so. Andere Welten fliegen im Weltbau wie bisher (Maß
+  10, rechter Stick hebt).
+- **Am Schirm von oben gibt es keine Figur.** Gewünscht: _„bei von oben
+  brauche ich keinen Spieler Charakter sondern kann direkt tiles auf die Welt
+  legen und drehen lassen über Buttons. Auf pc mit wasd und Mausrad"_. Die
+  Figur ist unsichtbar und nur noch der Punkt, dem die Kamera folgt
+  (`HexlandWorld.fitView`):
+  - **Bild schieben**: WASD (so schnell, wie die Kamera weit weg ist —
+    `PlayerRig.pace`), oder mit Maus/Finger ziehen (`panBy`). **Zoomen**:
+    Mausrad, zwei Finger.
+  - **Legen**: Feld antippen oder anklicken (Vorschau dorthin), Kachel
+    antippen (drehen). Unten steht eine **Leiste** mit Punkten, Stapel,
+    ⟲, ✓ Legen und ⟳. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
+    legt — `Q` dreht hier also nicht das Bild, die Leertaste springt nicht.
+  - Am Handy sind die Stöcke weg (`touchStick(false)`); ein kurzer, ruhiger
+    Tipp ist „zeigen", alles andere schiebt oder zoomt.
+  - Die Welt hört dafür selbst auf die Leinwand (`listenToScreen`) — von oben
+    zeigt kein Strahl (`Pointer.topDown`).
+- **Aus den Augen** zielt die Bildmitte, wie bei jedem Strahl am Schirm; die
+  Figur ist dort wieder da.
 
 ## Wie es gebaut ist
 

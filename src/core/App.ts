@@ -2238,15 +2238,19 @@ export class App {
    */
   private syncFlight(presenting: boolean): void {
     const wanted = buildFlight() && presenting && !this.spectating;
-    if (wanted === this.rig.flying) return;
-    if (wanted) this.rig.startFlight(BUILD_SCALE);
-    else this.rig.endFlight();
+    if (wanted !== this.rig.flying) {
+      if (wanted) this.rig.startFlight(BUILD_SCALE);
+      else this.rig.endFlight();
+    }
     // **Die Nahebene schrumpft mit** — die Brille rechnet sie in Metern des
     // Gestells, und das ist im Weltbau zehnmal so groß: Aus 5 cm wurden
     // 50 cm Welt, und wer sich über ein Möbel beugte, sah es verschwinden.
     // Die Fernebene geht im selben Maß zurück, damit die Tiefe so fein
     // aufgelöst bleibt wie am Boden (und reicht dann immer noch 700 m weit).
-    const scale = wanted ? BUILD_SCALE : 1;
+    // Je Bild nachgesehen, weil das Gestell im Skalier-Flug sein Maß ändert
+    // (`PlayerRig.flightScales`).
+    const scale = this.rig.flying ? this.rig.scale.x : 1;
+    if (this.camera.near === CAMERA_NEAR / scale) return;
     this.camera.near = CAMERA_NEAR / scale;
     this.camera.far = CAMERA_FAR / scale;
     this.camera.updateProjectionMatrix();

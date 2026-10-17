@@ -4,6 +4,7 @@ import { GridPlan } from '../grid/gridPlan';
 import type { PlanSolid } from '../grid/solids';
 import type { PlateTile } from '../shared/plateField';
 import { createSky } from '../shared/environment';
+import { setBuildFlight } from '../../core/buildFlight';
 import { TextPlane } from '../../ui/TextPlane';
 import type { MenuEntry } from '../../ui/menu';
 import type { PointerHit } from '../../core/Pointer';
@@ -124,7 +125,7 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   protected override welcome(): string {
-    return 'Hexland · auf ein freies Feld zeigen legt die Kachel darüber · nochmal dreht · ✓ legt sie hin';
+    return 'Hexland · Feld antippen legt die Kachel darüber · Kachel antippen dreht · ✓ legt sie hin';
   }
 
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
@@ -267,6 +268,7 @@ export class HexlandWorld extends FurnishedWorld {
     ctx.pointer.add({ object: this.confirm, onSelect: () => this.placeHere() });
     // **Und von oben am Schirm** — dort ruht der Strahl, also eigene Finger.
     this.listenToScreen(ctx);
+    this.buildTileBar();
     this.refresh(true);
   }
 
@@ -299,17 +301,23 @@ export class HexlandWorld extends FurnishedWorld {
     this.refresh(false);
   }
 
-  /** **Weiterdrehen** — nur durch die Drehungen, die hier gehen. */
-  private rotate(): void {
+  /**
+   * **Weiterdrehen** — nur durch die Drehungen, die hier gehen. `1` im
+   * Uhrzeigersinn (wie das Antippen der Kachel), `-1` zurück.
+   */
+  private rotate(dir: 1 | -1 = 1): void {
     const spec = this.board.current;
     if (!spec || !this.at) return;
     const rotations = this.board.rotations(spec, this.at.q, this.at.r);
     if (rotations.length === 0) {
-      this.rot = (this.rot + 1) % 6;
+      this.rot = (this.rot + dir + 6) % 6;
     } else {
-      // Im Uhrzeigersinn zur nächsten erlaubten — nicht nach Güte, sonst springt sie.
+      // Der Reihe nach zur nächsten erlaubten — nicht nach Güte, sonst springt sie.
       const sorted = [...rotations].sort((a, b) => a - b);
-      this.rot = sorted.find((r) => r > this.rot) ?? sorted[0]!;
+      this.rot =
+        dir === 1
+          ? (sorted.find((r) => r > this.rot) ?? sorted[0]!)
+          : ([...sorted].reverse().find((r) => r < this.rot) ?? sorted[sorted.length - 1]!);
     }
     this.refresh(false);
   }
@@ -434,6 +442,9 @@ export class HexlandWorld extends FurnishedWorld {
     const quest = spec.quest ? ` · Aufgabe: ${TERRAIN_LABEL[spec.quest.terrain]}` : '';
     const left = this.board.endless ? '∞' : `${this.board.stack.length}`;
     this.info?.setText(`${this.board.score} Punkte`, `Stapel ${left}${quest}`);
+    if (this.tileBarText) {
+      this.tileBarText.innerHTML = `<b style="color:var(--hud-ink);font-size:15px">${this.board.score}</b> Punkte<br>Stapel ${left}`;
+    }
   }
 
   private drawSlots(): void {
@@ -512,8 +523,147 @@ export class HexlandWorld extends FurnishedWorld {
     this.lastCtx = ctx;
     this.clock += dt;
     this.view?.flush();
+    this.fitView(ctx);
     // Die Vorschau schwebt eine Handbreit über dem Feld und wiegt sich ein wenig.
     if (this.previewTile) this.previewTile.position.y = 0.55 + Math.sin(this.clock * 2.2) * 0.08;
+  }
+
+  // --- die Ansichten ---------------------------------------------------------------
+
+  /** Ob gerade am Schirm von oben gelegt wird — ohne Figur, mit Knöpfen. */
+  private board2d = false;
+  /** Ob in dieser Brillen-Sitzung der Weltbau schon angeschaltet wurde. */
+  private flewIn = false;
+  /** Die Knopfleiste am Schirm (`buildTileBar`). */
+  private tileBar: HTMLElement | null = null;
+  private tileBarText: HTMLElement | null = null;
+
+  /**
+   * **Jede Ansicht bekommt ihre Bedienung** — einmal je Bild nachgesehen.
+   *
+   * - **In der Brille** von oben: Beim Aufsetzen geht der Weltbau an
+   *   (`core/buildFlight.ts`), und zwar der, der skaliert
+   *   (`PlayerRig.flightScales`): rechter Stick vor macht die Welt kleiner,
+   *   zurück größer, linker Stick fliegt. Gewünscht: _„In vr will ich die
+   *   Welt lieber von oben weiter sehen bzw. wie bei der Stadt durch hoch und
+   *   runter fliegen die Welt größer bzw. kleiner skalieren."_ Einmal je
+   *   Sitzung — wer ihn im Menü ausschaltet, läuft danach am Boden.
+   * - **Am Schirm von oben ohne Figur**: _„bei von oben brauche ich keinen
+   *   Spieler Charakter sondern kann direkt tiles auf die Welt legen und
+   *   drehen lassen über Buttons. Auf pc mit wasd und Mausrad"_. Die Figur
+   *   ist unsichtbar und nur noch der Punkt, dem die Kamera folgt; WASD
+   *   schiebt das Bild (so schnell, wie weit man weg ist), Ziehen mit Maus
+   *   oder Finger auch, Rad und zwei Finger zoomen. Die Stöcke am Handy gehen
+   *   weg, unten steht eine Leiste mit ⟲, ✓ und ⟳.
+   */
+  private fitView(ctx: WorldContext): void {
+    const presenting = ctx.renderer.xr.isPresenting;
+    if (presenting && !this.flewIn) {
+      this.flewIn = true;
+      setBuildFlight(true);
+      this.say('Von oben · linker Stick fliegt · rechter Stick vor: Welt kleiner, zurück: größer');
+    } else if (!presenting) {
+      this.flewIn = false;
+    }
+    ctx.rig.flightScales = true;
+
+    const flat = ctx.topDown && !presenting;
+    if (flat !== this.board2d) {
+      this.board2d = flat;
+      ctx.avatar.visible = !flat;
+      ctx.touchStick(!flat);
+      ctx.rig.pace = flat ? (sprint) => this.panSpeed(ctx) * (sprint ? 2 : 1) : null;
+      // Am Schirm stehen Punkte und ✓ unten in der Leiste — über der Kachel nur die Kachel.
+      if (this.confirm) this.confirm.visible = !flat;
+      if (this.info) this.info.visible = !flat;
+    }
+    if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
+  }
+
+  /** **Wie schnell WASD das Bild schiebt**: ein Drittel des Kameraabstands je Sekunde. */
+  private panSpeed(ctx: WorldContext): number {
+    const zoom = ctx.topDownView?.get().zoom ?? 20;
+    return Math.max(4, zoom * 0.6);
+  }
+
+  /** **Das Bild schieben** — die unsichtbare Figur dorthin, wo die Kamera hinsoll. */
+  private panBy(ctx: WorldContext, dx: number, dz: number): void {
+    const at = ctx.rig.position;
+    const x = THREE.MathUtils.clamp(at.x + dx, FIELD.x + 2, FIELD.x + FIELD.w - 2);
+    const z = THREE.MathUtils.clamp(at.z + dz, FIELD.z + 2, FIELD.z + FIELD.d - 2);
+    this.movePlayerTo(ctx, new THREE.Vector3(x, ctx.rig.getFloorY(), z));
+  }
+
+  /**
+   * **Die Leiste am Schirm**: Punkte und Stapel, ⟲ ✓ ⟳. Dieselben drei Dinge
+   * wie die Kachel selbst (antippen dreht) und das ✓ über ihr in der Brille —
+   * nur dort, wo ein Daumen sie trifft.
+   */
+  private buildTileBar(): void {
+    const bar = document.createElement('div');
+    bar.className = 'hexland-bar';
+    bar.hidden = true;
+    bar.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'transform:translateX(-50%)',
+      'bottom:calc(env(safe-area-inset-bottom, 0px) + 58px)',
+      'z-index:4',
+      'display:flex',
+      'align-items:center',
+      'gap:10px',
+      'padding:8px 10px',
+      'background:var(--hud-bg)',
+      'border:1px solid var(--hud-line)',
+      'border-radius:var(--hud-radius-pill)',
+      'box-shadow:var(--hud-shadow)',
+      'backdrop-filter:var(--hud-blur)',
+      'font-family:var(--hud-font)',
+      'color:var(--hud-ink)',
+      'user-select:none',
+      'touch-action:none',
+    ].join(';');
+    const button = (
+      label: string,
+      title: string,
+      run: () => void,
+      wide = false,
+    ): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.title = title;
+      b.setAttribute('aria-label', title);
+      b.style.cssText = [
+        `min-width:${wide ? 104 : 52}px`,
+        'height:52px',
+        'border-radius:var(--hud-radius-pill)',
+        `border:1px solid ${wide ? 'rgba(95,224,122,0.6)' : 'var(--hud-line)'}`,
+        `background:${wide ? 'rgba(36,120,64,0.95)' : 'var(--hud-raise)'}`,
+        'color:var(--hud-ink)',
+        `font:600 ${wide ? 18 : 24}px var(--hud-font)`,
+        'cursor:pointer',
+        'padding:0 14px',
+        'white-space:nowrap',
+      ].join(';');
+      b.addEventListener('click', (event) => {
+        event.stopPropagation();
+        run();
+      });
+      return b;
+    };
+    const text = document.createElement('div');
+    text.style.cssText =
+      'font:600 13px var(--hud-font);line-height:1.25;text-align:center;min-width:76px;color:var(--hud-dim)';
+    bar.append(
+      text,
+      button('⟲', 'Kachel links drehen (Q)', () => this.rotate(-1)),
+      button('✓ Legen', 'Kachel legen (Leertaste)', () => this.placeHere(), true),
+      button('⟳', 'Kachel rechts drehen (R / E)', () => this.rotate(1)),
+    );
+    document.body.append(bar);
+    this.tileBar = bar;
+    this.tileBarText = text;
   }
 
   // --- am Schirm von oben -------------------------------------------------------
@@ -527,8 +677,18 @@ export class HexlandWorld extends FurnishedWorld {
     const canvas = ctx.renderer.domElement;
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    const downs = new Map<number, { x: number; y: number; t: number }>();
+    const downs = new Map<number, { x: number; y: number; t: number; lx: number; ly: number }>();
     let multi = false;
+    let panning: number | null = null;
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const from = new THREE.Vector3();
+    const to = new THREE.Vector3();
+    const ground = (c: WorldContext, x: number, y: number, out: THREE.Vector3): boolean => {
+      const rect = canvas.getBoundingClientRect();
+      ndc.set(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, c.viewCamera ?? c.camera);
+      return raycaster.ray.intersectPlane(plane, out) !== null;
+    };
     const active = (): WorldContext | null => {
       const c = this.lastCtx;
       return c && c.topDown && !c.renderer.xr.isPresenting && !c.menu.isOpen ? c : null;
@@ -551,12 +711,37 @@ export class HexlandWorld extends FurnishedWorld {
     on<PointerEvent>('pointerdown', (event) => {
       if (!active() || (event.pointerType === 'mouse' && event.button !== 0)) return;
       if (onTouchPad(event)) return;
-      downs.set(event.pointerId, { x: event.clientX, y: event.clientY, t: performance.now() });
-      if (downs.size > 1) multi = true;
+      downs.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+        t: performance.now(),
+        lx: event.clientX,
+        ly: event.clientY,
+      });
+      if (downs.size > 1) {
+        multi = true;
+        panning = null;
+      }
     });
     on<PointerEvent>('pointermove', (event) => {
       const c = active();
-      if (!c || event.pointerType !== 'mouse') return;
+      if (!c) return;
+      // **Ziehen schiebt das Bild** — ein Finger oder die linke Maustaste.
+      const down = downs.get(event.pointerId);
+      if (down && !multi) {
+        const far = Math.hypot(event.clientX - down.x, event.clientY - down.y);
+        if (panning === event.pointerId || far > 12) {
+          panning = event.pointerId;
+          if (ground(c, down.lx, down.ly, from) && ground(c, event.clientX, event.clientY, to)) {
+            this.panBy(c, from.x - to.x, from.z - to.z);
+          }
+          down.lx = event.clientX;
+          down.ly = event.clientY;
+          this.showHover(null);
+          return;
+        }
+      }
+      if (event.pointerType !== 'mouse') return;
       const hit = cast(c, event.clientX, event.clientY);
       this.showHover(hit && hit.object === this.pickPlane ? hit.point : null);
     });
@@ -565,6 +750,10 @@ export class HexlandWorld extends FurnishedWorld {
       downs.delete(event.pointerId);
       const wasMulti = multi;
       if (downs.size === 0) multi = false;
+      if (panning === event.pointerId) {
+        panning = null;
+        return;
+      }
       const c = active();
       if (!down || !c || wasMulti || event.type === 'pointercancel') return;
       const moved = Math.hypot(event.clientX - down.x, event.clientY - down.y);
@@ -577,14 +766,29 @@ export class HexlandWorld extends FurnishedWorld {
     };
     on<PointerEvent>('pointerup', end);
     on<PointerEvent>('pointercancel', end);
+    // **Tasten von oben**: R und E drehen rechts, Q links, die Leertaste legt.
+    // Q dreht sonst das Bild und die Leertaste springt — beides braucht hier
+    // niemand, und sie gehen nur, solange von oben ohne Figur gelegt wird.
     const key = (event: KeyboardEvent): void => {
-      if (event.code !== 'KeyR' || event.repeat || !this.lastCtx || this.lastCtx.crane) return;
+      if (event.repeat || !this.board2d || this.lastCtx?.menu.isOpen) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(target.tagName))) return;
-      this.rotate();
+      const act =
+        event.code === 'KeyR' || event.code === 'KeyE'
+          ? () => this.rotate(1)
+          : event.code === 'KeyQ'
+            ? () => this.rotate(-1)
+            : event.code === 'Space'
+              ? () => this.placeHere()
+              : null;
+      if (!act) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      act();
     };
-    window.addEventListener('keydown', key);
-    this.offDom.push(() => window.removeEventListener('keydown', key));
+    // Vor den Tasten der Seite (`FlatControls`), damit Q nicht auch das Bild dreht.
+    window.addEventListener('keydown', key, { capture: true });
+    this.offDom.push(() => window.removeEventListener('keydown', key, { capture: true }));
   }
 
   // --- Menü -----------------------------------------------------------------------
@@ -660,6 +864,12 @@ export class HexlandWorld extends FurnishedWorld {
   override dispose(ctx: WorldContext): void {
     for (const off of this.offDom) off();
     this.offDom = [];
+    this.tileBar?.remove();
+    this.tileBar = null;
+    ctx.avatar.visible = true;
+    ctx.touchStick(true);
+    ctx.rig.pace = null;
+    ctx.rig.flightScales = false;
     if (this.pickPlane) ctx.pointer.remove(this.pickPlane);
     if (this.confirm) ctx.pointer.remove(this.confirm);
     this.view?.dispose();

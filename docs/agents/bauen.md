@@ -55,6 +55,14 @@ gespeichert; ein Weltwechsel landet.
   auch, und so sieht man die Welt wie ein Modell auf dem Tisch — jede Wand,
   Zelle und Physik bleibt in ihren echten Metern. Wer mit 1,60 m dasteht,
   schaut aus 16 m herunter; der Kopf bleibt über der Stelle, an der er war.
+- **Oder skalieren statt steigen** (`PlayerRig.flightScales`,
+  `buildFlight.flightScaleStep`, seit Oktober 2026): Eine Welt kann sagen,
+  dass der rechte Stick vor/zurück das **Gestell** größer und kleiner machen
+  soll statt es zu heben — malgenommen, Maß 0,5 bis 60, die Füße am Boden.
+  Weil der Augenabstand mitwächst, wird die Welt darunter wirklich kleiner und
+  nicht nur ferner. Nah- und Fernebene ziehen je Bild mit (`App.syncFlight`).
+  Bisher will das nur [Hexland](hexland.md), und Hexland schaltet den Weltbau
+  beim Aufsetzen der Brille selbst an.
 - **Gesteuert** wird nur mit den Sticks (`PlayerRig.updateFlight`,
   `buildFlight.flightStep`): **links** fliegt waagerecht, vorn ist, wohin der
   Kopf schaut; **rechts vor/zurück** steigt und sinkt, zwischen 2 und 150 m

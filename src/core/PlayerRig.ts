@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Handedness, XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
-import { flightStep } from './buildFlight';
+import { flightScaleStep, flightStep } from './buildFlight';
 import {
   EYE_SCALE_RANGE,
   STANDING_EYE,
@@ -59,6 +59,13 @@ export class PlayerRig extends THREE.Group {
    * schneller als ein gehender Spieler" galt nur in der Brille.
    */
   pace: ((sprint: boolean) => number) | null = null;
+  /**
+   * **Weltbau skaliert statt zu steigen** (`buildFlight.flightScaleStep`) —
+   * der rechte Stick macht das Gestell größer und kleiner, statt es zu heben.
+   * Gesetzt von einer Welt, die so geflogen werden will (Hexland), und von ihr
+   * beim Gehen wieder zurück.
+   */
+  flightScales = false;
   /** Ob Tastatur oder Bildschirmstock in diesem Bild sprinten wollten (`setIntent`). */
   private intentSprint = false;
   /** Was `sprinting` und `wishing` für dieses Bild sagen — festgehalten in `update`. */
@@ -883,9 +890,10 @@ export class PlayerRig extends THREE.Group {
     this.getHeadPosition(_head);
     // Linker Stick eingedrückt: Sprint, wie beim Laufen (`BUILD_SPRINT`).
     const sprint = left !== null && input.get('left')?.stick.pressed === true;
+    const scaling = this.flightScales;
     const step = flightStep(
       left ?? { x: 0, y: 0 },
-      right?.y ?? 0,
+      scaling ? 0 : (right?.y ?? 0),
       yawOfForward(_forward.x, _forward.z),
       _head.y - floor,
       dt,
@@ -897,7 +905,24 @@ export class PlayerRig extends THREE.Group {
       this.position.z += step.z;
       this.updateMatrixWorld(true);
     }
+    if (scaling && right) this.rescaleFlight(flightScaleStep(right.y, this.scale.x, dt), floor);
     if (right) this.updateTurn(dt, input);
+  }
+
+  /**
+   * **Das Gestell auf ein neues Maß** — die Füße auf dem Boden, der Kopf
+   * waagerecht über derselben Stelle, wie beim Abheben (`startFlight`).
+   */
+  private rescaleFlight(scale: number, floor: number): void {
+    if (scale === this.scale.x) return;
+    this.getHeadPosition(_head);
+    this.position.y = floor;
+    this.scale.setScalar(scale);
+    this.updateMatrixWorld(true);
+    this.getHeadPosition(_delta);
+    this.position.x += _head.x - _delta.x;
+    this.position.z += _head.z - _delta.z;
+    this.updateMatrixWorld(true);
   }
 
   /** Walking speed right now — sprinting is a factor on top of it. */

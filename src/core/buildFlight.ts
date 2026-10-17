@@ -133,6 +133,37 @@ export function flightStep(
   return { x, y, z };
 }
 
+/**
+ * **Wie klein und wie groß das Gestell beim Skalier-Flug wird**
+ * (`flightScaleStep`). Bei 0,5 ist die Welt doppelt so groß wie am Boden, bei
+ * 60 liegt ein Brett von hundert Metern vor einem wie ein Tisch.
+ */
+export const FLIGHT_SCALE_MIN = 0.5;
+export const FLIGHT_SCALE_MAX = 60;
+/** Wie schnell der Stick skaliert: voller Ausschlag, e^1 je Sekunde. */
+export const FLIGHT_SCALE_RATE = 1;
+
+/**
+ * **Hoch und runter heißt größer und kleiner** — die zweite Art des Weltbaus,
+ * für Welten, die man wie ein Modell vor sich haben will (Hexland).
+ *
+ * Gewünscht: _„In vr will ich die Welt lieber von oben weiter sehen bzw. wie
+ * bei der Stadt durch hoch und runter fliegen die Welt größer bzw. kleiner
+ * skalieren."_ Der rechte Stick nach vorn **wächst** das Gestell, statt es zu
+ * heben: Die Füße bleiben am Boden, der Kopf steigt mit, und weil der
+ * Augenabstand mitwächst, wird die Welt darunter wirklich kleiner und nicht
+ * nur ferner. Nach hinten schrumpft es, bis die Häuser wieder groß sind.
+ * Malgenommen statt addiert: Jeder gleich lange Druck ist dieselbe Stufe, ob
+ * man bei 1 oder bei 40 steht.
+ *
+ * @returns das neue Maß des Gestells
+ */
+export function flightScaleStep(rightY: number, scale: number, dt: number): number {
+  if (!(dt > 0) || !(scale > 0)) return scale;
+  const next = scale * Math.exp(-dead(rightY) * FLIGHT_SCALE_RATE * dt);
+  return Math.min(FLIGHT_SCALE_MAX, Math.max(FLIGHT_SCALE_MIN, next));
+}
+
 let current = false;
 const listeners = new Set<(on: boolean) => void>();
 
