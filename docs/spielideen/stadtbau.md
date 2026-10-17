@@ -35,3 +35,10 @@ Als **kleine Schicht** in der [Taverne](taverne.md) gut: Läden ansiedeln, die
 Stadt wächst sichtbar mit dem Erfolg — ohne Verkehr und Bedarfskurven.
 Alternative ohne Simulation: _Townscaper_-artig, einfach schön bauen, kein
 Ziel — als entspannter Modus.
+
+## Seit Oktober 2026: Hexland
+
+Die Hexagon-Kacheln sind inzwischen ein eigenes Spiel geworden — nicht als
+Stadtbau mit Simulation, sondern als Legespiel wie _Dorfromantik_:
+[Hexland](../agents/hexland.md) (`#hexland`). Das ist die „entspannte"
+Spielart von oben, mit einem Ziel (Punkte, Aufgaben) und ohne Verkehr.

@@ -189,6 +189,9 @@ Stichpunkten).
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Küche und Gastraum, im September 2026 neu aus dem Möbelkatalog: Fliesen, Dielen, die Regalwände der Test Navigation auf den Fugen (auch im Katalog unter _Wände_, _Türen_, _Fenster_), die Küche als Spielelemente, noch ohne Tische und Gäste (`plateup/plateUpRoom.ts`). Darunter das Spiel nach _PlateUp!_, wie es bis dahin war (Commit `56462b6`).
   Darin: Neu aus dem Möbelkatalog · Das Spiel bis September 2026 · Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
+- **[Hexland](docs/agents/hexland.md)** (`#hexland`) — Eine Landschaft aus Sechseck-Kacheln legen wie in _Dorfromantik_, mit den Kacheln aus `medieval-hexagon`: Stapel, Drehen, passende Kanten, Fluss und Weg hart, Aufgaben, Endlos-Modus, gespeichert im Browser. Eine Bedienung für Brille (Strahl), von oben (Klick) und Handy (Tippen).
+  Darin: Das Spiel · Bedienung — eine für alle drei Ansichten · Wie es gebaut ist · Offen.
+
 ### Spielideen
 
 - **[Spielideen](docs/spielideen/README.md)** — Die Konzepte der Spiele in einfachem Markdown, eine Datei je Spiel: worum es geht, wie eine Runde läuft, was noch fehlt. Nicht wie es gebaut ist, sondern was es sein soll.

@@ -1,6 +1,6 @@
 /**
  * Jest prüft nur, was kritisch ist und im Browser nicht auffällt: Navigation,
- * Greifen, Boden und Portale, Speicherstände, Netz und die App-Hülle — 26
+ * Greifen, Boden und Portale, Speicherstände, Netz und die App-Hülle — 27
  * Suiten, unter zehn Sekunden (`docs/agents/tests.md`, dort auch die Liste und
  * wo die gelöschten Suiten in der Geschichte liegen). Die Module darunter
  * kommen ohne Renderer und WebGL aus: plain TypeScript, nach CommonJS

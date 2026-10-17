@@ -156,6 +156,19 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./plateup/PlateUpWorld')).PlateUpWorld(),
   },
   {
+    id: 'hexland',
+    title: 'Hexland',
+    tagline: 'Eine Landschaft aus Sechseck-Kacheln legen',
+    description:
+      'Wie Dorfromantik: Kacheln mit Wald, Dorf, Feld, Fluss und Weg vom Stapel nehmen, drehen und an die Landschaft legen. Passende Kanten bringen Punkte, rundum passende Kacheln eine Kachel zurück, Aufgaben fünf. Auf ein freies Feld zeigen, nochmal zum Drehen, ✓ zum Legen — in der Brille mit dem Strahl, am Schirm und am Handy von oben mit Klick und Finger. Das Brett bleibt im Browser gespeichert.',
+    accent: 0x8fd16a,
+    preview: 'worlds/hexland.webp',
+    // Die ersten Ringe um die Mitte von oben, Rand bis Rand.
+    topDownSpan: 20,
+    roles: ['vr', 'desktop', 'handheld'],
+    load: async () => new (await import('./hexland/HexlandWorld')).HexlandWorld(),
+  },
+  {
     id: 'haunting',
     title: 'Haunting / Orbital',
     tagline: 'Eine Quest, zwei in der Einsatzzentrale',
