@@ -22,6 +22,7 @@ import {
   topDownPosition,
   stepFromDistance,
   turnToward,
+  wrapAngle,
   zoomScaled,
   type Vec2,
 } from './topDownPose';
@@ -291,6 +292,17 @@ export class TopDownCamera {
    */
   turn(direction: number): void {
     this.headingGoal = stepTurn(this.headingGoal, direction);
+  }
+
+  /**
+   * **Stufenlos drehen**, im Bogenmaß, links herum positiv — zwei Finger, die
+   * gegeneinander kreisen (Hexland, `WorldContext.topDownView.twist`). Ein
+   * späterer Schritt mit `Q` rastet wieder auf ganze 45° (`turn`).
+   */
+  twist(radians: number): void {
+    if (!Number.isFinite(radians)) return;
+    this.headingGoal = wrapAngle(this.headingGoal + radians);
+    this.headingNow = wrapAngle(this.headingNow + radians);
   }
 
   /** Wohin „oben" im Bild gerade zeigt — die weich nachgezogene Drehung. */

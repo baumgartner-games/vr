@@ -84,6 +84,10 @@ export interface WorldContext {
   readonly topDownView?: {
     get(): TopDownViewState;
     set(state: TopDownViewState): void;
+    /** Stufenlos drehen, im Bogenmaß (`TopDownCamera.twist`) — für Gesten einer Welt. */
+    twist?(radians: number): void;
+    /** Die Neigung in Grad, gelesen und gesetzt (`TopDownCamera.setTilt`), 20–90°. */
+    tilt?(degrees?: number): number;
   };
   /**
    * **Das Gamepad am Schirm, in diesem Bild** (`FlatControls.padFrame`) —
@@ -337,6 +341,13 @@ export interface World {
   viewLevel?(): ViewLevel | null;
   /** Entries this world adds to the wrist menu. Read once after `init`. */
   menu?(): MenuEntry[];
+  /**
+   * **Ein eigener Reiter im Menü** — ganz vorn, und aufgeschlagen, wenn man
+   * die Welt betritt (`App.refreshMenu`). Für eine Welt, die ein ganzes Spiel
+   * mitbringt und deren Menü man öfter braucht als das Inventar (Hexland).
+   * Gelesen wie `menu`: nach `init` und bei `refreshWorldMenu`.
+   */
+  menuTab?(): MenuEntry | null;
   /**
    * **Die Werkzeugwahl am Bildschirm** (`#hud-tool`) — oder gar keine.
    *

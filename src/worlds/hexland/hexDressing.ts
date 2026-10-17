@@ -53,11 +53,33 @@ export function dressingModels(): string[] {
   out.add('buildings/neutral/building_grain.glb');
   out.add('decoration/props/haybale.glb');
   out.add('decoration/props/boat.glb');
+  for (const colour of Object.values(FLAG_COLOUR)) out.add(`decoration/props/flag_${colour}.glb`);
   return [...out];
 }
 
+/** Die Farbe der Flagge je Gelände: Wald grün, Dorf rot, Feld gelb. */
+const FLAG_COLOUR = { forest: 'green', house: 'red', field: 'yellow' } as const;
+
 /** **Die Ausstattung einer Kachel** — immer dieselbe für dieselbe Kachel (`spec.seed`). */
 export function dressTile(spec: TileSpec): Dress[] {
+  const out = dressLand(spec);
+  // **Die Flagge** (`TileSpec.flag`) steht im Stück ihres Geländes, ein Stück
+  // zur Mitte hin — damit man sieht, welches Gebiet sie meint.
+  if (spec.flag) {
+    const edge = Math.max(0, spec.edges.indexOf(spec.flag));
+    const a = edge * (Math.PI / 3);
+    out.push({
+      model: `decoration/props/flag_${FLAG_COLOUR[spec.flag]}.glb`,
+      x: Math.cos(a) * 0.32,
+      z: Math.sin(a) * 0.32,
+      yaw: -a,
+      scale: 1.6,
+    });
+  }
+  return out;
+}
+
+function dressLand(spec: TileSpec): Dress[] {
   const random = rng(spec.seed);
   const base = baseTile(spec.base);
   const out: Dress[] = [];

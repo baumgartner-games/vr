@@ -12,27 +12,56 @@ Welt aufbauen kann"_.
 
 ## Das Spiel
 
-- **Ein Stapel, eine Kachel nach der anderen.** Am Anfang liegt eine
-  Landkachel in der Mitte und 40 im Stapel. Gelegt wird nur an die Landschaft.
-- **Sechs Kanten, jede mit einem Gelände**: Wiese, Wald, Dorf, Feld, Fluss,
-  Weg. Wiese bis Feld sind **weich** — sie passen oder nicht, gelegt werden
-  darf trotzdem. Fluss und Weg sind **hart**: Wasser an Wasser, Weg an Weg,
-  sonst nicht. So laufen Flüsse und Wege zusammenhängend weiter.
-- **Punkte**: 10 je passender Kante; eine rundum passende Kachel (sechs
-  Nachbarn, alle passend) ist _perfekt_: +60 und eine Kachel zurück auf den
-  Stapel.
-- **Aufgaben**: Etwa jede sechste Kachel trägt eine (Wald, Dorf oder Feld).
-  Beim Legen bekommt sie ein Ziel ein Stück über der Größe des Gebiets, zu dem
-  sie gehört (gezählt in Kanten), und ein Schild darüber zeigt, wie viel noch
-  fehlt. Erfüllt: +50 und fünf Kacheln. Ist das Gebiet ringsum zu, bevor es
-  groß genug ist, ist sie verpasst.
-- **Passt die oberste Kachel nirgends** (ein Fluss, für den es keine Mündung
-  gibt), darf sie ausnahmsweise überall hin — das Spiel bleibt an keiner
-  Kachel hängen. Wer sie nicht mag: _Menü → Hexland → Kachel unter den Stapel_.
-- **Endlos legen** (Menü → Hexland): Der Stapel wird nie leer — einfach
-  bauen. **Neues Spiel** leert das Brett.
-- **Gespeichert wird nach jeder Kachel**, im Browser (`localStorage`,
-  `hexland:board`). Wer wiederkommt, findet sein Brett.
+Zwei Modi, jeder mit seinem eigenen Brett (`localStorage`: `hexland:game`,
+`hexland:creative`, welcher gerade gilt: `hexland:mode`). Umgeschaltet wird im
+Reiter _Hexland_ (unten).
+
+### Partie — wie _Dorfromantik — Das Brettspiel_
+
+Gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
+aktiven Missionen und einer festen Anzahl an normalen Karten. Die hex tiles
+sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
+
+- **40 normale Kacheln** (`NORMAL_TILES`), eine Landkachel liegt in der Mitte.
+  Ist der Stapel leer, ist die Partie vorbei.
+- **Immer drei Aufträge offen** (`OPEN_TASKS`): Liegen weniger als drei offene
+  auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
+  nicht vom Stapel ab. Ihr Auftrag gilt einem ihrer Gelände (Wald, Dorf, Feld,
+  Fluss oder Weg) und bekommt beim Legen eine Zahl (3 bis 6, bei Fluss und Weg
+  bis 7, immer größer als das Gebiet schon ist). Das Gebiet soll **genau** so
+  viele Kacheln groß werden: dann ist die Zahl verdient; wächst es darüber,
+  ist der Auftrag verpasst. Über der Kachel steht ein Schild „4 / 6".
+- **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell
+  `flag_*` aus dem Regal, grün Wald, rot Dorf, gelb Feld). Ein Gebiet mit
+  Flagge, das ringsum **geschlossen** ist, zählt seine Kacheln.
+- **Längster Fluss, längster Weg**: je Kachel ein Punkt.
+- **Wertung** (`HexBoard.scoring`) = Aufträge + Flaggen + Fluss + Weg, jederzeit
+  im Reiter zu sehen. Passende Kanten bringen keine Punkte (wie im Brettspiel),
+  helfen aber, Gebiete wachsen zu lassen; die Vorschau zeigt sie grün und rot.
+- **Die Kacheln** sind wie im Brettspiel: meist zwei Gelände, oft eines,
+  selten drei, wenig bloße Wiese (`drawTile`).
+- **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt
+  eine Kachel nirgends, darf sie ausnahmsweise überall hin.
+- Gezählt wird in **Kacheln**: Alle Kanten desselben Geländes auf einer Kachel
+  gehören zu einem Gebiet (eine Vereinfachung gegenüber dem Brettspiel, die
+  man an keiner Kachel sieht).
+
+### Kreativ-Modus
+
+Kein Stapel, keine Wertung. Im Reiter _Hexland → Kachel-Katalog_ (21 Kacheln,
+`catalogue`: jedes Gelände ganz, halb und halb, drittel, Flüsse und Wege in
+jeder Form, See, Ufer, Brücke, Sackgasse) sucht man die nächste Kachel aus; sie
+bleibt in der Hand, bis man eine andere wählt (jede mit neuer Deko).
+Gewünscht: _„zwischen Creative Modus wechseln, wo ich dann einen Hex-Katalog
+habe und mir das nächste Tile aussuchen kann"_.
+
+### Der Reiter _Hexland_
+
+Die Welt bringt einen **eigenen Reiter** mit (`World.menuTab`, neu im Kern):
+ganz vorn, und aufgeschlagen, wenn man die Welt betritt (`App.refreshMenu`,
+`worldTabFresh`). Darin: Punkte mit allen Posten, Stapel und offene Aufträge,
+_Neue Partie_, der Schalter _Kreativ-Modus_, im Kreativ-Modus der Katalog und
+_Kreatives Brett leeren_, sonst _So wird gewertet_.
 
 ## Bedienung — eine für alle drei Ansichten
 
@@ -42,7 +71,7 @@ Welt aufbauen kann"_.
 - **Auf die schwebende Kachel zeigen**: weiterdrehen — nur durch die
   Drehungen, die dort gehen (Fluss und Weg).
 - **Auf das grüne ✓ darüber zeigen**: legen. Darüber steht die Zeile mit
-  Punkten, Stapel und der Aufgabe der Kachel (in der Brille und aus den
+  Punkten, Stapel und dem Auftrag der Kachel (in der Brille und aus den
   Augen; von oben steht beides in der Leiste unten).
 - **In der Brille** ist „zeigen" der Strahl mit Trigger oder `A`
   (`core/Pointer.ts`). Beim Aufsetzen geht sofort der **Weltbau** an
@@ -57,6 +86,11 @@ Welt aufbauen kann"_.
   Weltbau im Menü ausschaltet, steht am Boden und läuft; bis zum nächsten
   Aufsetzen bleibt das so. Andere Welten fliegen im Weltbau wie bisher (Maß
   10, rechter Stick hebt).
+- **Was die neue Kachel ist**, sieht man dreifach: Sie schwebt über ihrem Feld,
+  ein gelber Ring pulsiert darum, und unten in der Leiste steht sie als
+  Bildchen (`hexIcon.ts`) — jede Kante in ihrer Farbe, Fluss und Weg als Band,
+  der Auftrag als Kreis mit Zahl, gedreht wie sie liegen wird und wie das Bild
+  gedreht ist. Gewünscht: _„Dann soll erkennbar sein was das neue Tile ist."_
 - **Am Schirm von oben gibt es keine Figur.** Gewünscht: _„bei von oben
   brauche ich keinen Spieler Charakter sondern kann direkt tiles auf die Welt
   legen und drehen lassen über Buttons. Auf pc mit wasd und Mausrad"_. Die
@@ -64,10 +98,20 @@ Welt aufbauen kann"_.
   (`HexlandWorld.fitView`):
   - **Bild schieben**: WASD (so schnell, wie die Kamera weit weg ist —
     `PlayerRig.pace`), oder mit Maus/Finger ziehen (`panBy`). **Zoomen**:
-    Mausrad, zwei Finger.
+    Mausrad, zwei Finger auseinander und zusammen.
+  - **Zwei Finger** (`twoFingers`): gemeinsam hoch oder runter **neigt** das
+    Bild (hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
+    stufenlos (`TopDownCamera.twist`, `WorldContext.topDownView.twist/tilt`).
+    Gewünscht: _„mit zwei Fingern gedrückt hoch und runter ändert die
+    Neigung. Zwei Finger entgegengesetzt, einer hoch der andere runter,
+    rotiert die Kamera-Ansicht."_
+  - **Aufgeräumt**: Werkzeugknopf (Hand), _Verbindung_, Vollbild und _VR / Von
+    oben_ sind in dieser Welt weg (`CLEAN_CLASS`) — gewünscht: _„Der Hand
+    Button kann weg und oben die Verbindung und VR-Button/Von oben"_. Alles
+    davon bleibt im Menü erreichbar.
   - **Legen**: Feld antippen oder anklicken (Vorschau dorthin), Kachel
-    antippen (drehen). Unten steht eine **Leiste** mit Punkten, Stapel,
-    ⟲, ✓ Legen und ⟳. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
+    antippen (drehen). Unten steht eine **Leiste** mit dem Bildchen
+    der Kachel, Punkten, Stapel und offenen Aufträgen, ⟲, ✓ Legen und ⟳. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
     legt — `Q` dreht hier also nicht das Bild, die Leertaste springt nicht.
   - Am Handy sind die Stöcke weg (`touchStick(false)`); ein kurzer, ruhiger
     Tipp ist „zeigen", alles andere schiebt oder zoomt.
@@ -81,7 +125,7 @@ Welt aufbauen kann"_.
 - **Die Regeln** (`hexland/hexRules.ts`, ohne three.js): Koordinaten
   (axial, Pointy-Top — Kante `i` zeigt nach `i · 60°` von +x Richtung +z),
   die Grundkacheln, der Stapel (`drawTile`, mit eigenem Würfel), Passen,
-  Punkte, Gebiete (Union-Find je Gelände) und Aufgaben, Speichern.
+  Wertung, Gebiete (Union-Find je Gelände, in Kacheln), Aufträge, Katalog, Speichern (Format 2).
 - **Die Grundkacheln** kommen aus dem Regal (`medieval-hexagon/tiles`), und
   welche ihrer Kanten Wasser und Weg sind, ist **ausgemessen** (von oben
   gerendert, an jeder Kantenmitte die Farbe; `BASE_TILES`). Land ist

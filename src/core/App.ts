@@ -828,6 +828,11 @@ export class App {
       topDownView: {
         get: () => this.topDownCamera.viewState,
         set: (state) => this.topDownCamera.setViewState(state),
+        twist: (radians) => this.topDownCamera.twist(radians),
+        tilt: (degrees) => {
+          if (degrees !== undefined) this.topDownCamera.setTilt(degrees);
+          return this.topDownCamera.tilt;
+        },
       },
       pad: this.flat.padFrame,
       elapsed: this.elapsed,
@@ -950,6 +955,7 @@ export class App {
       this.world = next;
       await next.init(this.context);
       this.worldMenu = next.menu?.() ?? [];
+      this.worldTabFresh = true;
 
       this.net.setWorld(definition.id);
       // Neue Lichter, neuer Himmel: Die Grafikstufe legt sich noch einmal
@@ -1663,12 +1669,21 @@ export class App {
       inventory: this.inventoryEntry(),
       hideInBuild: this.renderer.xr.isPresenting ? ['tools'] : [],
     });
+    // **Der Reiter der Welt** (`World.menuTab`) steht ganz vorn — und ist der,
+    // auf dem das Menü nach dem Betreten aufgeht.
+    const own = this.world?.menuTab?.() ?? null;
+    if (own) root.unshift(own);
 
     // Rebuilding while the menu is open is normal here: the peer list and the
     // spectator switches change under the player's nose. The menu keeps the
     // page and the scroll position through it, open or closed.
     this.gameMenu.setRoot(root);
+    if (own && this.worldTabFresh) this.gameMenu.nav.showTab(own.id, false);
+    this.worldTabFresh = false;
   }
+
+  /** Ob die Welt gerade erst betreten ist — dann schlägt das Menü ihren Reiter auf. */
+  private worldTabFresh = false;
 
   /**
    * **Die Seiten neben dem Spiel**, unter _Steuerung & Hilfe_ — die

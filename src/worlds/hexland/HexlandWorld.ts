@@ -13,15 +13,20 @@ import type { Handedness } from '../../core/XRInput';
 import {
   BASE_TILES,
   HexBoard,
+  NORMAL_TILES,
+  OPEN_TASKS,
   TERRAIN_LABEL,
+  catalogue,
   hexAt,
   hexCentre,
   hexKey,
   type Hex,
+  type HexMode,
   type PlaceResult,
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { dressingModels } from './hexDressing';
+import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
 
 /**
  * **Hexland** — eine Landschaft aus Sechseck-Kacheln legen, nach dem Vorbild
@@ -49,7 +54,7 @@ import { dressingModels } from './hexDressing';
  * nichts davon sperrt eine Zelle.
  */
 export class HexlandWorld extends FurnishedWorld {
-  private readonly board = new HexBoard();
+  private board = new HexBoard();
   private readonly models = new HexModels();
   private view: HexBoardView | null = null;
   /** Das unsichtbare Brett, auf das gezeigt wird — groß wie die Welt. */
@@ -75,6 +80,8 @@ export class HexlandWorld extends FurnishedWorld {
   private lastCtx: WorldContext | null = null;
   private offDom: Array<() => void> = [];
   private hexMaterials: THREE.Material[] = [];
+  /** Der Ring um das Feld der neuen Kachel — er pulsiert (`update`). */
+  private ring: THREE.Mesh | null = null;
 
   protected override worldId(): string {
     return 'hexland';
@@ -127,7 +134,7 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   protected override welcome(): string {
-    return 'Hexland · Feld antippen legt die Kachel darüber · Kachel antippen dreht · ✓ legt sie hin';
+    return 'Hexland · Feld antippen: Kachel dorthin · Kachel antippen: drehen · ✓ legt sie hin';
   }
 
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
@@ -163,7 +170,7 @@ export class HexlandWorld extends FurnishedWorld {
   protected override buildProps(): void {
     const ctx = this.context;
     if (!ctx) return;
-    if (!this.board.load(readSave())) this.board.reset();
+    this.board = loadBoard(readMode());
     this.buildBoard(ctx);
     // Alles vorladen, was eine Kachel tragen kann — sonst stockt die erste Vorschau.
     for (const model of dressingModels()) void this.models.load(model);
@@ -222,6 +229,26 @@ export class HexlandWorld extends FurnishedWorld {
     const target = new THREE.Mesh(slotGeometry, targetMaterial);
     target.position.y = 0.035;
     this.hand.add(target);
+
+    // **Ein leuchtender Ring um das Feld** — gewünscht: _„Dann soll erkennbar
+    // sein was das neue Tile ist."_ Er pulsiert, die Kachel darüber schwebt.
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffd84a,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.hexMaterials.push(ringMaterial);
+    const outer = HEX_WIDTH / Math.sqrt(3);
+    this.ring = new THREE.Mesh(
+      new THREE.RingGeometry(outer * 0.86, outer * 1.02, 6, 1, Math.PI / 6),
+      ringMaterial,
+    );
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.position.y = 0.06;
+    this.ring.renderOrder = 3;
+    this.hand.add(this.ring);
 
     // Die Striche an den Kanten der Vorschau: grün passt, rot nicht.
     const edgeGeometry = new THREE.BoxGeometry(HEX_WIDTH * 0.42, 0.08, 0.14);
@@ -336,7 +363,7 @@ export class HexlandWorld extends FurnishedWorld {
     const tile = this.board.at(at.q, at.r)!;
     void this.view?.add(tile);
     this.at = null;
-    writeSave(this.board.save());
+    writeSave(this.board.save(), this.board.mode);
     this.announceResult(result);
     this.refresh(true);
   }
@@ -347,14 +374,19 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   private announceResult(result: PlaceResult): void {
+    if (this.board.mode === 'creative') return;
     const parts: string[] = [];
-    if (result.perfect) parts.push('Perfekt!');
-    parts.push(result.points > 0 ? `+${result.points}` : '±0');
-    for (const t of result.questsDone) parts.push(`${TERRAIN_LABEL[t]}-Aufgabe erfüllt`);
-    for (const t of result.questsFailed) parts.push(`${TERRAIN_LABEL[t]}-Aufgabe verpasst`);
-    if (result.bonusTiles > 0) parts.push(`+${result.bonusTiles} Kacheln`);
-    if (this.board.over) parts.push(`Stapel leer · ${this.board.score} Punkte`);
-    this.say(parts.join(' · '));
+    for (const t of result.questsDone) parts.push(`${TERRAIN_LABEL[t]}-Auftrag erfüllt`);
+    for (const t of result.questsFailed) parts.push(`${TERRAIN_LABEL[t]}-Auftrag verpasst`);
+    if (result.points > 0) parts.push(`+${result.points}`);
+    if (this.board.over) {
+      const s = this.board.scoring();
+      parts.push(`Partie vorbei · ${s.total} Punkte`);
+      this.context?.refreshWorldMenu();
+    } else if (this.board.current?.quest) {
+      parts.push(`Neuer ${TERRAIN_LABEL[this.board.current.quest.terrain]}-Auftrag`);
+    }
+    if (parts.length > 0) this.say(parts.join(' · '));
   }
 
   private say(message: string): void {
@@ -430,24 +462,49 @@ export class HexlandWorld extends FurnishedWorld {
     this.hand.position.set(c.x, 0, c.z);
     this.hand.visible = true;
     if (this.previewTile) this.previewTile.rotation.y = -this.rot * (Math.PI / 3);
-    const fit = this.board.fit(spec, at.q, at.r, this.rot);
     const matches = this.board.edgeMatches(spec, at.q, at.r, this.rot);
     matches.forEach((match, e) => {
       const bar = this.previewEdges[e]!;
       bar.visible = match !== null;
       (bar.material as THREE.MeshBasicMaterial).color.setHex(match ? 0x5fe07a : 0xe0605f);
     });
-    const gain = fit
-      ? `+${fit.matched * 10}${fit.matched === 6 ? ' · perfekt' : ''}`
-      : 'passt nirgends';
-    this.confirm?.setText(`✓ Legen ${gain}`);
-    const quest = spec.quest ? ` · Aufgabe: ${TERRAIN_LABEL[spec.quest.terrain]}` : '';
-    const left = this.board.endless ? '∞' : `${this.board.stack.length}`;
-    this.info?.setText(`${this.board.score} Punkte`, `Stapel ${left}${quest}`);
-    if (this.tileBarText) {
-      this.tileBarText.innerHTML = `<b style="color:var(--hud-ink);font-size:15px">${this.board.score}</b> Punkte<br>Stapel ${left}`;
-    }
+    const quest = spec.quest ? ` · ${TERRAIN_LABEL[spec.quest.terrain]}-Auftrag` : '';
+    const flag = spec.flag ? ` · Flagge ${TERRAIN_LABEL[spec.flag]}` : '';
+    this.info?.setText(this.statusTitle(), `${this.statusLine()}${quest}${flag}`);
+    this.drawBarIcon();
   }
+
+  /** Die große Zeile: Punkte, oder dass gebaut wird. */
+  private statusTitle(): string {
+    return this.board.mode === 'creative' ? 'Kreativ' : `${this.board.scoring().total} Punkte`;
+  }
+
+  /** Die kleine Zeile: was im Stapel liegt und wie viele Aufträge offen sind. */
+  private statusLine(): string {
+    if (this.board.mode === 'creative') return 'Katalog · im Menü';
+    return `Stapel ${this.board.stack.length} · Aufträge ${this.board.openTasks()}/${OPEN_TASKS}`;
+  }
+
+  /** **Das Bildchen der Kachel in der Hand** in der Leiste — gedreht wie sie liegen wird. */
+  private drawBarIcon(): void {
+    const spec = this.board.current;
+    if (this.tileBarText) {
+      this.tileBarText.innerHTML = `<b style="color:var(--hud-ink);font-size:15px">${this.statusTitle()}</b><br>${this.statusLine().replace(' · ', '<br>')}`;
+    }
+    if (!this.tileBarIcon) return;
+    const heading = this.lastCtx?.topDownView ? this.headingNow(this.lastCtx) : 0;
+    if (spec) drawHexIcon(this.tileBarIcon, spec, this.rot, heading);
+    else this.tileBarIcon.getContext('2d')?.clearRect(0, 0, 999, 999);
+    this.iconHeading = heading;
+  }
+
+  /** Die Drehung des Bildes von oben, im Bogenmaß — 0, wo es keins gibt. */
+  private headingNow(ctx: WorldContext): number {
+    return ctx.topDownView?.get().heading ?? 0;
+  }
+
+  /** Mit welcher Drehung das Bildchen zuletzt gemalt wurde. */
+  private iconHeading = 0;
 
   private drawSlots(): void {
     let slots = this.slots;
@@ -471,12 +528,12 @@ export class HexlandWorld extends FurnishedWorld {
     slots.instanceMatrix.needsUpdate = true;
   }
 
-  /** **Die Schilder der offenen Aufgaben** — wie viel dem Gebiet noch fehlt. */
+  /** **Die Schilder der offenen Aufträge** — wie groß das Gebiet ist und werden soll. */
   private drawBadges(): void {
     const seen = new Set<string>();
     for (const tile of this.board.tiles.values()) {
-      const left = this.board.questLeft(tile);
-      if (left === null) continue;
+      const progress = this.board.questProgress(tile);
+      if (progress === null) continue;
       const key = hexKey(tile.q, tile.r);
       seen.add(key);
       let badge = this.badges.get(key);
@@ -494,7 +551,10 @@ export class HexlandWorld extends FurnishedWorld {
         this.badges.set(key, badge);
         this.root.add(badge);
       }
-      badge.setText(`${left}`, `${TERRAIN_LABEL[tile.spec.quest!.terrain]} fehlt noch`);
+      badge.setText(
+        `${progress.size} / ${progress.target}`,
+        `${TERRAIN_LABEL[tile.spec.quest!.terrain]} · genau ${progress.target} Kacheln`,
+      );
     }
     for (const [key, badge] of this.badges) {
       if (seen.has(key)) continue;
@@ -528,6 +588,14 @@ export class HexlandWorld extends FurnishedWorld {
     this.fitView(ctx);
     // Die Vorschau schwebt eine Handbreit über dem Feld und wiegt sich ein wenig.
     if (this.previewTile) this.previewTile.position.y = 0.55 + Math.sin(this.clock * 2.2) * 0.08;
+    if (this.ring) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.clock * 4);
+      this.ring.scale.setScalar(1 + pulse * 0.06);
+      (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 + pulse * 0.45;
+    }
+    // Dreht sich das Bild, dreht das Bildchen in der Leiste mit.
+    if (this.board2d && Math.abs(this.headingNow(ctx) - this.iconHeading) > 0.01)
+      this.drawBarIcon();
   }
 
   // --- die Ansichten ---------------------------------------------------------------
@@ -539,6 +607,7 @@ export class HexlandWorld extends FurnishedWorld {
   /** Die Knopfleiste am Schirm (`buildTileBar`). */
   private tileBar: HTMLElement | null = null;
   private tileBarText: HTMLElement | null = null;
+  private tileBarIcon: HTMLCanvasElement | null = null;
 
   /**
    * **Jede Ansicht bekommt ihre Bedienung** — einmal je Bild nachgesehen.
@@ -569,16 +638,17 @@ export class HexlandWorld extends FurnishedWorld {
     }
     ctx.rig.flightScales = true;
 
+    document.body.classList.add(CLEAN_CLASS);
     const flat = ctx.topDown && !presenting;
     if (flat !== this.board2d) {
       this.board2d = flat;
       ctx.avatar.visible = !flat;
       ctx.touchStick(!flat);
       ctx.rig.pace = flat ? (sprint) => this.panSpeed(ctx) * (sprint ? 2 : 1) : null;
-      // Am Schirm stehen Punkte und ✓ unten in der Leiste — über der Kachel nur die Kachel.
-      if (this.confirm) this.confirm.visible = !flat;
-      if (this.info) this.info.visible = !flat;
     }
+    // Am Schirm stehen Punkte und ✓ unten in der Leiste — über der Kachel nur die Kachel.
+    if (this.confirm) this.confirm.visible = !flat;
+    if (this.info) this.info.visible = !flat;
     if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
   }
 
@@ -613,8 +683,10 @@ export class HexlandWorld extends FurnishedWorld {
       'z-index:4',
       'display:flex',
       'align-items:center',
-      'gap:10px',
-      'padding:8px 10px',
+      'gap:8px',
+      'padding:6px 8px',
+      'max-width:calc(100vw - 16px)',
+      'box-sizing:border-box',
       'background:var(--hud-bg)',
       'border:1px solid var(--hud-line)',
       'border-radius:var(--hud-radius-pill)',
@@ -637,15 +709,15 @@ export class HexlandWorld extends FurnishedWorld {
       b.title = title;
       b.setAttribute('aria-label', title);
       b.style.cssText = [
-        `min-width:${wide ? 104 : 52}px`,
-        'height:52px',
+        `min-width:${wide ? 92 : 46}px`,
+        'height:46px',
         'border-radius:var(--hud-radius-pill)',
         `border:1px solid ${wide ? 'rgba(95,224,122,0.6)' : 'var(--hud-line)'}`,
         `background:${wide ? 'rgba(36,120,64,0.95)' : 'var(--hud-raise)'}`,
         'color:var(--hud-ink)',
-        `font:600 ${wide ? 18 : 24}px var(--hud-font)`,
+        `font:600 ${wide ? 17 : 22}px var(--hud-font)`,
         'cursor:pointer',
-        'padding:0 14px',
+        'padding:0 10px',
         'white-space:nowrap',
       ].join(';');
       b.addEventListener('click', (event) => {
@@ -656,8 +728,14 @@ export class HexlandWorld extends FurnishedWorld {
     };
     const text = document.createElement('div');
     text.style.cssText =
-      'font:600 13px var(--hud-font);line-height:1.25;text-align:center;min-width:76px;color:var(--hud-dim)';
+      'font:600 11px var(--hud-font);line-height:1.25;text-align:left;white-space:nowrap;color:var(--hud-dim)';
+    const icon = document.createElement('canvas');
+    icon.width = 112;
+    icon.height = 112;
+    icon.title = 'Die Kachel in der Hand';
+    icon.style.cssText = 'width:50px;height:50px;flex:none';
     bar.append(
+      icon,
       text,
       button('⟲', 'Kachel links drehen (Q)', () => this.rotate(-1)),
       button('✓ Legen', 'Kachel legen (Leertaste)', () => this.placeHere(), true),
@@ -666,6 +744,8 @@ export class HexlandWorld extends FurnishedWorld {
     document.body.append(bar);
     this.tileBar = bar;
     this.tileBarText = text;
+    this.tileBarIcon = icon;
+    ensureCleanStyle();
   }
 
   // --- am Schirm von oben -------------------------------------------------------
@@ -679,7 +759,7 @@ export class HexlandWorld extends FurnishedWorld {
     const canvas = ctx.renderer.domElement;
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    const downs = new Map<number, { x: number; y: number; t: number; lx: number; ly: number }>();
+    const downs = new Map<number, TouchPoint>();
     let multi = false;
     let panning: number | null = null;
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -728,6 +808,17 @@ export class HexlandWorld extends FurnishedWorld {
     on<PointerEvent>('pointermove', (event) => {
       const c = active();
       if (!c) return;
+      // **Zwei Finger**: gemeinsam hoch und runter neigt, gegeneinander kreisen
+      // dreht. Zoomen tut der Pinch der Seite (`FlatControls`), wie überall.
+      if (multi && downs.size === 2 && downs.has(event.pointerId)) {
+        const [a, b] = [...downs.values()] as [TouchPoint, TouchPoint];
+        const before = { ax: a.lx, ay: a.ly, bx: b.lx, by: b.ly };
+        const mine = downs.get(event.pointerId)!;
+        mine.lx = event.clientX;
+        mine.ly = event.clientY;
+        this.twoFingers(c, before, { ax: a.lx, ay: a.ly, bx: b.lx, by: b.ly });
+        return;
+      }
       // **Ziehen schiebt das Bild** — ein Finger oder die linke Maustaste.
       const down = downs.get(event.pointerId);
       if (down && !multi) {
@@ -795,72 +886,177 @@ export class HexlandWorld extends FurnishedWorld {
 
   // --- Menü -----------------------------------------------------------------------
 
-  override menu(): MenuEntry[] {
-    return [this.hexMenu(), ...super.menu()];
+  /**
+   * **Zwei Finger von oben** — Neigung und Drehung des Bildes. Gewünscht:
+   * _„mit zwei Fingern gedrückt hoch und runter ändert die Neigung. Zwei
+   * Finger entgegengesetzt, einer hoch der andere runter, rotiert die
+   * Kamera-Ansicht."_ Beides aus derselben Bewegung: Die Mitte zwischen den
+   * Fingern wandert hoch oder runter (neigen, hoch ist flacher wie in einer
+   * Karten-App), die Linie zwischen ihnen dreht sich (drehen, das Bild folgt
+   * den Fingern). Ein reiner Pinch ändert keins von beiden.
+   */
+  private twoFingers(ctx: WorldContext, before: TwoTouches, after: TwoTouches): void {
+    const view = ctx.topDownView;
+    if (!view) return;
+    const dy = (after.ay + after.by - before.ay - before.by) / 2;
+    const turn =
+      Math.atan2(after.by - after.ay, after.bx - after.ax) -
+      Math.atan2(before.by - before.ay, before.bx - before.ax);
+    const spin = Math.atan2(Math.sin(turn), Math.cos(turn));
+    if (Math.abs(spin) > 0.002) view.twist?.(spin);
+    if (Math.abs(dy) > 0.5 && view.tilt) view.tilt(view.tilt() + dy * TILT_PER_PIXEL);
   }
 
-  private hexMenu(): MenuEntry {
+  /**
+   * **Der Reiter _Hexland_** — ganz vorn im Menü, und aufgeschlagen, wenn man
+   * die Welt betritt (`World.menuTab`). Gewünscht: _„ein hex Welt Menü Reiter,
+   * der default in dieser Welt als Tab offen ist. Da kann ich zwischen Creative
+   * Modus wechseln, wo ich dann einen Hex-Katalog habe und mir das nächste
+   * Tile aussuchen kann. Oder mal eine Spielrunde starten."_
+   */
+  menuTab(): MenuEntry {
     const b = this.board;
+    const creative = b.mode === 'creative';
+    const s = b.scoring();
+    const close = (): void => this.context?.menu.toggle(false);
+    const rows: MenuEntry[] = [];
+    if (creative) {
+      rows.push(this.catalogueMenu());
+    } else {
+      rows.push({
+        id: 'hexland:score',
+        label: b.over ? `Partie vorbei · ${s.total} Punkte` : `${s.total} Punkte`,
+        sub: `Aufträge ${s.tasks} · Flaggen ${s.flags} · längster Fluss ${s.river} · längster Weg ${s.road}`,
+        icon: 'stopwatch',
+        accent: ACCENT,
+        run: close,
+      });
+      rows.push({
+        id: 'hexland:stack',
+        label: `Stapel: ${b.stack.length} von ${NORMAL_TILES}`,
+        sub: `${b.openTasks()} von ${OPEN_TASKS} Aufträgen offen · fehlt einer, kommt eine Auftragskachel dazu`,
+        icon: 'cube',
+        accent: ACCENT,
+        run: close,
+      });
+    }
+    rows.push(
+      {
+        id: 'hexland:new',
+        label: 'Neue Partie',
+        sub: `${NORMAL_TILES} Kacheln, immer ${OPEN_TASKS} Aufträge offen, Wertung wie im Brettspiel`,
+        icon: 'reset',
+        accent: 0x5fe07a,
+        run: () => {
+          this.startGame('game');
+          close();
+        },
+      },
+      {
+        id: 'hexland:creative',
+        label: 'Kreativ-Modus',
+        sub: creative
+          ? 'An · die nächste Kachel suchst du im Katalog aus, ohne Wertung'
+          : 'Frei bauen: jede Kachel aus dem Katalog, so oft du willst',
+        icon: 'brush',
+        accent: 0xb58cff,
+        checked: creative,
+        run: () => this.switchMode(creative ? 'game' : 'creative'),
+      },
+    );
+    if (creative) {
+      rows.push({
+        id: 'hexland:clear',
+        label: 'Kreatives Brett leeren',
+        sub: 'Alles weg, eine Kachel in die Mitte',
+        icon: 'reset',
+        accent: 0xe0605f,
+        run: () => {
+          this.startGame('creative');
+          close();
+        },
+      });
+    } else {
+      rows.push({
+        id: 'hexland:rules',
+        label: 'So wird gewertet',
+        sub: 'Auftrag: Gebiet genau so groß wie die Zahl → die Zahl. Geschlossenes Gebiet mit Flagge → seine Kacheln. Längster Fluss und Weg → je Kachel 1.',
+        icon: 'sign',
+        accent: ACCENT,
+        run: close,
+      });
+    }
     return {
       id: 'hexland',
       label: 'Hexland',
-      sub: `${b.score} Punkte · ${b.placed} gelegt · Stapel ${b.endless ? '∞' : b.stack.length}`,
+      sub: creative ? 'Kreativ' : `${s.total} Punkte · Stapel ${b.stack.length}`,
       icon: 'cube',
       accent: ACCENT,
-      children: [
-        {
-          id: 'hexland:skip',
-          label: 'Kachel unter den Stapel',
-          sub: 'Die oberste passt dir nicht? Sie kommt nach unten',
-          icon: 'reset',
-          accent: ACCENT,
-          run: () => {
-            if (b.over) return;
-            b.skip();
-            this.at = null;
-            writeSave(b.save());
-            this.refresh(true);
-            this.say('Kachel unter den Stapel gelegt');
-          },
-        },
-        {
-          id: 'hexland:endless',
-          label: 'Endlos legen',
-          sub: 'Der Stapel wird nie leer — einfach bauen, ohne Ende',
-          icon: 'cube',
-          accent: ACCENT,
-          checked: b.endless,
-          run: () => {
-            b.setEndless(!b.endless);
-            writeSave(b.save());
-            this.refresh(true);
-            this.context?.refreshWorldMenu();
-            this.say(b.endless ? 'Endlos legen · an' : 'Endlos legen · aus');
-          },
-        },
-        {
-          id: 'hexland:new',
-          label: 'Neues Spiel',
-          sub: 'Brett leeren, eine Kachel in die Mitte, 40 auf den Stapel',
-          icon: 'reset',
-          accent: 0xe0605f,
-          run: () => this.newGame(),
-        },
-      ],
+      children: rows,
     };
   }
 
-  private newGame(): void {
-    const endless = this.board.endless;
-    this.board.reset();
-    this.board.setEndless(endless);
+  /** **Der Katalog des Kreativ-Modus** — ein Tipp nimmt die Kachel in die Hand. */
+  private catalogueMenu(): MenuEntry {
+    this.catalogueEntries ??= catalogue().map((tile) => ({
+      id: `hexland:tile:${tile.id}`,
+      label: tile.label,
+      icon: 'cube',
+      accent: ACCENT,
+      image: hexIconUrl(tile.spec),
+      run: () => {
+        this.board.choose(tile.spec);
+        writeSave(this.board.save(), this.board.mode);
+        this.refresh(false);
+        this.context?.menu.toggle(false);
+        this.say(`${tile.label} in der Hand`);
+      },
+    }));
+    return {
+      id: 'hexland:catalogue',
+      label: 'Kachel-Katalog',
+      sub: 'Die nächste Kachel aussuchen',
+      icon: 'cube',
+      accent: ACCENT,
+      grid: true,
+      take: false,
+      children: this.catalogueEntries,
+    };
+  }
+
+  private catalogueEntries: MenuEntry[] | null = null;
+
+  /** **Zwischen Partie und Kreativ wechseln** — jedes hat sein eigenes Brett. */
+  private switchMode(mode: HexMode): void {
+    writeSave(this.board.save(), this.board.mode);
+    writeMode(mode);
+    this.board = loadBoard(mode);
+    this.redraw();
+    this.say(mode === 'creative' ? 'Kreativ-Modus · Kachel im Menü wählen' : 'Partie');
+  }
+
+  /** **Ein neues Brett** in diesem Modus. */
+  private startGame(mode: HexMode): void {
+    writeMode(mode);
+    this.board = new HexBoard();
+    if (mode === 'creative') this.board.resetCreative();
+    else this.board.reset();
+    writeSave(this.board.save(), mode);
+    this.redraw();
+    this.say(
+      mode === 'creative'
+        ? 'Kreatives Brett geleert'
+        : `Neue Partie · ${NORMAL_TILES} Kacheln, ${OPEN_TASKS} Aufträge`,
+    );
+  }
+
+  /** Alles vom Brett neu zeichnen. */
+  private redraw(): void {
     this.at = null;
     this.view?.clear();
     for (const tile of this.board.tiles.values()) void this.view?.add(tile);
-    writeSave(this.board.save());
     this.refresh(true);
     this.context?.refreshWorldMenu();
-    this.say('Neues Spiel · 40 Kacheln auf dem Stapel');
   }
 
   override dispose(ctx: WorldContext): void {
@@ -868,6 +1064,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.offDom = [];
     this.tileBar?.remove();
     this.tileBar = null;
+    document.body.classList.remove(CLEAN_CLASS);
     ctx.avatar.visible = true;
     ctx.touchStick(true);
     ctx.rig.pace = null;
@@ -893,25 +1090,88 @@ const FIELD = { x: -120, z: -120, w: 240, d: 240 };
 /** Das Rosa hinter dem Brett, wie in _Dorfromantik_. */
 const BACKDROP = 0xe9c9d6;
 const ACCENT = 0x8fd16a;
-const QUEST_ACCENT: Readonly<Record<string, number>> = {
-  forest: 0x3f8f4a,
-  house: 0xd2553f,
-  field: 0xe0b04a,
+const QUEST_ACCENT: Readonly<Record<string, number>> = Object.fromEntries(
+  Object.entries(TERRAIN_COLOUR).map(([t, css]) => [t, parseInt(css.slice(1), 16)]),
+);
+/** Wie viel Grad Neigung ein Pixel Fingerweg ist. */
+const TILT_PER_PIXEL = 0.25;
+
+interface TouchPoint {
+  x: number;
+  y: number;
+  t: number;
+  lx: number;
+  ly: number;
+}
+
+interface TwoTouches {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+/**
+ * **Was in dieser Welt vom Schirm verschwindet**: der Werkzeugknopf (die
+ * Hand), _Verbindung_, Vollbild und _VR / Von oben_ oben rechts. Gewünscht:
+ * _„Der Hand Button kann weg und oben die Verbindung und VR-Button/Von oben."_
+ * Erreichbar bleibt alles im Menü (Zusammen, Welten → Spiel-Sicht).
+ */
+const CLEAN_CLASS = 'hexland-clean';
+
+function ensureCleanStyle(): void {
+  if (document.getElementById('hexland-clean-style')) return;
+  const style = document.createElement('style');
+  style.id = 'hexland-clean-style';
+  style.textContent = `.${CLEAN_CLASS} .hud__row, .${CLEAN_CLASS} #hud-tool { display: none !important; }`;
+  document.head.append(style);
+}
+
+/**
+ * **Zwei Bretter**, eines je Modus — wer kreativ baut, verliert seine Partie
+ * nicht, und umgekehrt. Der Stand von vor der Brettspiel-Wertung
+ * (`hexland:board`, Format 1) liest sich nicht mehr und wird eine neue Partie.
+ */
+const SAVE_KEY: Readonly<Record<HexMode, string>> = {
+  game: 'hexland:game',
+  creative: 'hexland:creative',
 };
+const MODE_KEY = 'hexland:mode';
 
-const SAVE_KEY = 'hexland:board';
-
-function readSave(): string | null {
+function readMode(): HexMode {
   try {
-    return localStorage.getItem(SAVE_KEY);
+    return localStorage.getItem(MODE_KEY) === 'creative' ? 'creative' : 'game';
   } catch {
-    return null;
+    return 'game';
   }
 }
 
-function writeSave(text: string): void {
+function writeMode(mode: HexMode): void {
   try {
-    localStorage.setItem(SAVE_KEY, text);
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // Kein Speicher: Dann eben bis zum Neuladen.
+  }
+}
+
+/** Das gespeicherte Brett dieses Modus — oder ein frisches. */
+function loadBoard(mode: HexMode): HexBoard {
+  const board = new HexBoard();
+  let text: string | null = null;
+  try {
+    text = localStorage.getItem(SAVE_KEY[mode]);
+  } catch {
+    text = null;
+  }
+  if (board.load(text) && board.mode === mode) return board;
+  if (mode === 'creative') board.resetCreative();
+  else board.reset();
+  return board;
+}
+
+function writeSave(text: string, mode: HexMode): void {
+  try {
+    localStorage.setItem(SAVE_KEY[mode], text);
   } catch {
     // Kein Speicher (privates Fenster): Dann gilt das Spiel eben nur bis zum Neuladen.
   }

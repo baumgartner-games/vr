@@ -248,7 +248,7 @@ export function turnToward(from: number, to: number, share: number): number {
 }
 
 /** Ein Winkel zwischen −π und π. */
-function wrapAngle(angle: number): number {
+export function wrapAngle(angle: number): number {
   const turn = Math.PI * 2;
   let out = ((angle % turn) + turn) % turn;
   if (out > Math.PI) out -= turn;

@@ -7,9 +7,24 @@
  * Baue sowas nach, dass ich in vr als auch von oben oder Handy eine Welt
  * aufbauen kann"_ — mit Bildern aus _Dorfromantik_ dazu. Das Spiel dahinter
  * ist genau das: Kacheln von einem Stapel nehmen, drehen, an die Landschaft
- * legen. Passende Kanten bringen Punkte, rundum passende Kacheln eine Kachel
- * zurück auf den Stapel, und manche Kacheln tragen eine Aufgabe („dieser Wald
- * soll 30 groß werden").
+ * legen.
+ *
+ * **Gewertet wird wie im Brettspiel** (_Dorfromantik — Das Brettspiel_),
+ * gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
+ * aktiven Missionen und einer festen Anzahl an normalen Karten … Und Punkte
+ * berechnen wie im Brett Spiel"_. Eine Partie hat 40 normale Kacheln
+ * (`NORMAL_TILES`); liegen weniger als drei offene Aufträge
+ * (`OPEN_TASKS`), kommt statt einer normalen eine **Auftragskachel** — sie
+ * zählt nicht vom Stapel ab. Ein Auftrag nennt eine Zahl: Das Gebiet, zu dem
+ * seine Kachel gehört, soll **genau** so viele Kacheln groß werden. Wird es
+ * genau so groß, ist die Zahl verdient; wächst es darüber hinaus, ist er
+ * verpasst. Dazu wie im Brettspiel: geschlossene Gebiete mit **Flagge**
+ * zählen ihre Kacheln, und der **längste Fluss** und der **längste Weg**
+ * je eine Kachel einen Punkt (`scoring`). Passende Kanten bringen keine
+ * Punkte — sie helfen nur, Gebiete wachsen zu lassen.
+ *
+ * Daneben der **Kreativ-Modus**: kein Stapel, keine Wertung, die nächste
+ * Kachel sucht man sich aus dem Katalog aus (`catalogue`).
  *
  * **Sechs Kanten, und jede hat ein Gelände** (`Terrain`). Wiese, Wald, Dorf
  * und Feld sind weich: Sie passen oder passen nicht, gelegt werden darf
@@ -25,10 +40,21 @@
 /** Was an einer Kante liegt. */
 export type Terrain = 'grass' | 'forest' | 'house' | 'field' | 'water' | 'road';
 
-/** Gelände, die sich in Gebieten zählen lassen — und Aufgaben bekommen. */
+/** Gelände mit Flaggen: Wald, Dorf, Feld — ein geschlossenes Gebiet zählt. */
 export type AreaTerrain = 'forest' | 'house' | 'field';
 
 export const AREA_TERRAINS: readonly AreaTerrain[] = ['forest', 'house', 'field'];
+
+/** Gelände, für die es Aufträge gibt — wie im Brettspiel auch Fluss und Weg. */
+export type QuestTerrain = AreaTerrain | 'water' | 'road';
+
+export const QUEST_TERRAINS: readonly QuestTerrain[] = [
+  'forest',
+  'house',
+  'field',
+  'water',
+  'road',
+];
 
 /** Wie das Gelände im Spiel heißt. */
 export const TERRAIN_LABEL: Readonly<Record<Terrain, string>> = {
@@ -193,10 +219,13 @@ export function baseTile(id: string): BaseTile {
 
 // --- eine Kachel ------------------------------------------------------------
 
-/** Eine Aufgabe auf einer Kachel: Das Gebiet soll mindestens so groß werden. */
+/**
+ * **Ein Auftrag auf einer Kachel**: Das Gebiet soll genau `target` Kacheln
+ * groß werden. Das Ziel wird beim Legen gezogen — vorher weiß niemand, wie
+ * groß das Gebiet schon ist.
+ */
 export interface Quest {
-  readonly terrain: AreaTerrain;
-  /** Ab wie vielen Kanten im Gebiet sie erfüllt ist — gesetzt beim Legen. */
+  readonly terrain: QuestTerrain;
   target: number | null;
   state: 'open' | 'done' | 'failed';
 }
@@ -211,6 +240,8 @@ export interface TileSpec {
   /** Ein Zufall für die Deko, damit dieselbe Kachel immer gleich aussieht. */
   readonly seed: number;
   quest?: Quest;
+  /** Eine Flagge auf diesem Gelände der Kachel (`scoring`). */
+  readonly flag?: AreaTerrain;
 }
 
 export interface PlacedTile extends Hex {
@@ -255,18 +286,25 @@ function pick<T>(items: readonly T[], weight: (item: T) => number, roll: number)
 
 /** Das Land neben Wasser oder Weg: am Weg eher Dorf, am Fluss eher Wiese und Feld. */
 function landWeights(base: BaseTile): Record<Exclude<Terrain, 'water' | 'road'>, number> {
-  if (base.road.length > 0) return { forest: 22, house: 40, field: 22, grass: 16 };
-  if (base.water.length > 0) return { forest: 26, house: 20, field: 26, grass: 28 };
-  return { forest: 34, house: 26, field: 22, grass: 18 };
+  if (base.road.length > 0) return { forest: 24, house: 40, field: 24, grass: 12 };
+  if (base.water.length > 0) return { forest: 28, house: 22, field: 28, grass: 22 };
+  return { forest: 36, house: 28, field: 26, grass: 10 };
 }
 
 /**
  * **Eine neue Kachel** — Grundkachel nach Gewicht, das freie Land in ein bis
- * drei zusammenhängende Stücke geteilt. Zusammenhängend, weil eine Kachel mit
- * Wald-Feld-Wald-Feld im Kreis aussieht wie Zufall und sich nirgends anlegen
- * lässt.
+ * drei zusammenhängende Stücke geteilt, wie die Kacheln des Brettspiels: meist
+ * zwei Gelände, oft eines, selten drei, und wenig bloße Wiese.
+ * Zusammenhängend, weil eine Kachel mit Wald-Feld-Wald-Feld im Kreis aussieht
+ * wie Zufall und sich nirgends anlegen lässt.
+ *
+ * `task`: eine **Auftragskachel** — sie trägt einen Auftrag auf einem ihrer
+ * Gelände.
  */
-export function drawTile(random: () => number, options: { landOnly?: boolean } = {}): TileSpec {
+export function drawTile(
+  random: () => number,
+  options: { landOnly?: boolean; task?: boolean } = {},
+): TileSpec {
   const pool = options.landOnly ? [BASE_TILES[0]!] : BASE_TILES;
   const base = pick(pool, (b) => b.weight, random());
   const edges: Terrain[] = Array.from({ length: 6 }, () => 'grass');
@@ -278,7 +316,7 @@ export function drawTile(random: () => number, options: { landOnly?: boolean } =
     const kinds = Object.keys(weights) as Array<keyof typeof weights>;
     const parts = Math.min(
       free.length,
-      pick([1, 2, 3], (n) => [3, 4.5, 2.5][n - 1]!, random()),
+      pick([1, 2, 3], (n) => [3.5, 4.5, 2][n - 1]!, random()),
     );
     // Schnitte an zufälligen Stellen im Kreis der freien Kanten.
     const start = Math.floor(random() * free.length);
@@ -295,53 +333,135 @@ export function drawTile(random: () => number, options: { landOnly?: boolean } =
       edges[free[(start + k) % free.length]!] = terrain;
     }
   }
-  const spec: TileSpec = { base: base.id, edges, seed: Math.floor(random() * 1e9) };
+  const seed = Math.floor(random() * 1e9);
   const areas = AREA_TERRAINS.filter((t) => edges.includes(t));
-  if (areas.length > 0 && random() < QUEST_CHANCE) {
-    spec.quest = {
-      terrain: areas[Math.floor(random() * areas.length)]!,
-      target: null,
-      state: 'open',
-    };
+  if (options.task) {
+    const kinds = QUEST_TERRAINS.filter((t) => edges.includes(t));
+    if (kinds.length > 0) {
+      const terrain = kinds[Math.floor(random() * kinds.length)]!;
+      return { base: base.id, edges, seed, quest: { terrain, target: null, state: 'open' } };
+    }
   }
-  return spec;
+  if (areas.length > 0 && random() < FLAG_CHANCE) {
+    return { base: base.id, edges, seed, flag: areas[Math.floor(random() * areas.length)]! };
+  }
+  return { base: base.id, edges, seed };
 }
 
-/** Wie oft eine Kachel mit einer Aufgabe kommt. */
-export const QUEST_CHANCE = 0.16;
-/** So viele Kacheln liegen am Anfang im Stapel. */
-export const START_STACK = 40;
-/** So viele bringt eine erfüllte Aufgabe zurück. */
-export const QUEST_REWARD = 5;
-/** Punkte je passender Kante, und obendrauf für eine rundum passende Kachel. */
-export const EDGE_POINTS = 10;
-export const PERFECT_POINTS = 60;
+/** Wie viele normale Kacheln eine Partie hat. */
+export const NORMAL_TILES = 40;
+/** Wie viele Aufträge offen liegen sollen — fehlt einer, kommt eine Auftragskachel. */
+export const OPEN_TASKS = 3;
+/** Wie oft eine normale Kachel eine Flagge trägt. */
+export const FLAG_CHANCE = 0.12;
 
-// --- das Brett ------------------------------------------------------------------
+// --- der Katalog des Kreativ-Modus -------------------------------------------------
 
-/** Was ein Legen gebracht hat — für die Meldung und die Anzeige. */
-export interface PlaceResult {
-  points: number;
-  matched: number;
-  neighbours: number;
-  perfect: boolean;
-  /** Kacheln, die zurück auf den Stapel kamen. */
-  bonusTiles: number;
-  questsDone: AreaTerrain[];
-  questsFailed: AreaTerrain[];
+/** Eine Kachel im Katalog: Name und Bauplan. */
+export interface CatalogueTile {
+  readonly id: string;
+  readonly label: string;
+  readonly spec: TileSpec;
 }
 
 /**
- * **Das Brett**: was liegt, was im Stapel ist, die Punkte. Alles, was gespeichert
- * wird, steht hier (`save`/`load`), und nichts davon kennt eine Szene.
+ * **Was der Kreativ-Modus anbietet** — die Kacheln, die man zum Bauen braucht:
+ * jedes Gelände ganz, halb und halb, Flüsse und Wege in allen Formen mit Land
+ * daneben, See, Ufer, Brücke.
+ */
+export function catalogue(): CatalogueTile[] {
+  const out: CatalogueTile[] = [];
+  const add = (id: string, label: string, base: string, land: Terrain[]): void => {
+    const b = baseTile(base);
+    const edges: Terrain[] = [];
+    let k = 0;
+    for (let e = 0; e < 6; e++) {
+      if (b.water.includes(e)) edges.push('water');
+      else if (b.road.includes(e)) edges.push('road');
+      else edges.push(land[k++ % land.length]!);
+    }
+    out.push({ id, label, spec: { base, edges, seed: out.length * 7919 + 13 } });
+  };
+  const L = TERRAIN_LABEL;
+  for (const t of ['forest', 'house', 'field', 'grass'] as const)
+    add(`all-${t}`, L[t], 'land', [t]);
+  const pairs = [
+    ['forest', 'field'],
+    ['forest', 'house'],
+    ['field', 'house'],
+    ['forest', 'grass'],
+    ['field', 'grass'],
+    ['house', 'grass'],
+  ] as const;
+  for (const [a, b] of pairs)
+    add(`half-${a}-${b}`, `${L[a]} | ${L[b]}`, 'land', [a, a, a, b, b, b]);
+  add('third', 'Wald | Feld | Dorf', 'land', [
+    'forest',
+    'forest',
+    'field',
+    'field',
+    'house',
+    'house',
+  ]);
+  add('river-A', 'Fluss gerade', 'river-A_curvy', ['forest', 'forest', 'field', 'field']);
+  add('river-B', 'Fluss Bogen', 'river-B', ['grass', 'field', 'field', 'forest']);
+  add('river-C', 'Fluss Knick', 'river-C', ['forest', 'forest', 'grass', 'grass']);
+  add('river-E', 'Fluss Gabel', 'river-E', ['field', 'grass', 'forest']);
+  add('lake', 'See', 'lake', []);
+  add('coast-C', 'Seeufer', 'coast-C', ['grass', 'forest', 'forest']);
+  add('crossing', 'Brücke', 'crossing-A', ['house', 'field']);
+  add('road-A', 'Weg gerade', 'road-A', ['house', 'house', 'field', 'field']);
+  add('road-B', 'Weg Bogen', 'road-B', ['house', 'house', 'forest', 'forest']);
+  add('road-C', 'Weg Knick', 'road-C', ['house', 'house', 'field', 'field']);
+  add('road-E', 'Weg Gabel', 'road-E', ['house', 'house', 'field']);
+  add('road-M', 'Weg Ende', 'road-M', ['house', 'house', 'house', 'house', 'house']);
+  return out;
+}
+
+// --- das Brett ------------------------------------------------------------------
+
+export type HexMode = 'game' | 'creative';
+
+/** Was ein Legen gebracht hat — für die Meldung. */
+export interface PlaceResult {
+  /** Wie viele Punkte die Wertung dadurch gewonnen hat. */
+  points: number;
+  questsDone: QuestTerrain[];
+  questsFailed: QuestTerrain[];
+}
+
+/** **Die Wertung wie im Brettspiel**, Posten für Posten (`HexBoard.scoring`). */
+export interface Scoring {
+  /** Erfüllte Aufträge: ihre Zahlen zusammen. */
+  tasks: number;
+  /** Geschlossene Gebiete mit Flagge: ihre Kacheln. */
+  flags: number;
+  /** Der längste Fluss und der längste Weg, in Kacheln. */
+  river: number;
+  road: number;
+  total: number;
+}
+
+/** Ein Gebiet: welche Kacheln, und ob es noch eine offene Kante hat. */
+interface Areas {
+  find: (key: string) => string;
+  size: Map<string, number>;
+  open: Map<string, boolean>;
+}
+
+/**
+ * **Das Brett**: was liegt, was im Stapel ist, was in der Hand liegt. Alles,
+ * was gespeichert wird, steht hier (`save`/`load`), und nichts davon kennt
+ * eine Szene.
  */
 export class HexBoard {
   readonly tiles = new Map<string, PlacedTile>();
+  /** Die normalen Kacheln, die noch kommen. */
   stack: TileSpec[] = [];
-  score = 0;
+  /** Die Kachel in der Hand — `null`: Die Partie ist vorbei. */
+  hand: TileSpec | null = null;
+  mode: HexMode = 'game';
   placed = 0;
-  /** Endlos legen: Der Stapel wird nie leer (für entspanntes Bauen). */
-  endless = false;
   private random: () => number;
   private seed: number;
 
@@ -350,31 +470,79 @@ export class HexBoard {
     this.random = rng(seed);
   }
 
-  /** **Ein neues Spiel** — eine Landkachel in der Mitte und ein voller Stapel. */
+  /** **Eine neue Partie** — eine Landkachel in der Mitte, 40 im Stapel, dann die Aufträge. */
   reset(seed = Date.now() % 1e9): void {
-    this.seed = seed;
-    this.random = rng(seed);
-    this.tiles.clear();
-    this.score = 0;
-    this.placed = 0;
-    const first = drawTile(this.random, { landOnly: true });
-    delete first.quest;
-    this.tiles.set(hexKey(0, 0), { q: 0, r: 0, spec: first, rot: 0 });
-    // Die ersten paar ohne Fluss und Weg — sonst verlangt die zweite Kachel
-    // schon einen Fluss, bevor es überhaupt Land gibt.
-    this.stack = [];
-    for (let i = 0; i < START_STACK; i++) {
-      this.stack.push(drawTile(this.random, { landOnly: i >= START_STACK - 3 }));
+    this.start(seed, 'game');
+    // Die letzten (obersten) ohne Fluss und Weg — sonst verlangt die zweite
+    // Kachel schon einen Fluss, bevor es überhaupt Land gibt.
+    for (let i = 0; i < NORMAL_TILES; i++) {
+      this.stack.push(drawTile(this.random, { landOnly: i >= NORMAL_TILES - 3 }));
     }
+    this.hand = this.nextHand();
   }
 
-  /** Die Kachel, die als nächste gelegt wird — oben auf dem Stapel. */
+  /** **Kreativ bauen** — dieselbe Mitte, kein Stapel; in die Hand kommt, was man wählt. */
+  resetCreative(seed = Date.now() % 1e9): void {
+    this.start(seed, 'creative');
+    this.hand = { ...catalogue()[0]!.spec, seed: this.newSeed() };
+  }
+
+  private start(seed: number, mode: HexMode): void {
+    this.seed = seed;
+    this.random = rng(seed);
+    this.mode = mode;
+    this.tiles.clear();
+    this.placed = 0;
+    this.stack = [];
+    const first = drawTile(this.random, { landOnly: true });
+    this.tiles.set(hexKey(0, 0), {
+      q: 0,
+      r: 0,
+      spec: { base: first.base, edges: first.edges, seed: first.seed },
+      rot: 0,
+    });
+  }
+
+  /** **Im Kreativ-Modus die nächste Kachel aussuchen** — mit eigenem Würfel für die Deko. */
+  choose(spec: TileSpec): void {
+    if (this.mode !== 'creative') return;
+    this.hand = { base: spec.base, edges: spec.edges, seed: this.newSeed() };
+  }
+
+  private newSeed(): number {
+    return Math.floor(this.random() * 1e9);
+  }
+
+  /** Die Kachel, die als nächste gelegt wird. */
   get current(): TileSpec | null {
-    return this.stack.length > 0 ? this.stack[this.stack.length - 1]! : null;
+    return this.hand;
   }
 
   get over(): boolean {
-    return this.current === null;
+    return this.hand === null;
+  }
+
+  /** Wie viele Aufträge gerade offen auf dem Brett liegen. */
+  openTasks(): number {
+    let n = 0;
+    for (const tile of this.tiles.values()) if (tile.spec.quest?.state === 'open') n++;
+    return n;
+  }
+
+  /**
+   * **Was als nächstes in die Hand kommt**: im Kreativ-Modus dieselbe Kachel
+   * noch einmal (mit neuer Deko), sonst eine Auftragskachel, solange weniger
+   * als drei Aufträge offen sind, und sonst die oberste normale. Ist der Stapel
+   * leer, ist die Partie vorbei — auch wenn noch Aufträge fehlen.
+   */
+  private nextHand(): TileSpec | null {
+    if (this.mode === 'creative') {
+      const last = this.hand;
+      return last ? { base: last.base, edges: last.edges, seed: this.newSeed() } : null;
+    }
+    if (this.stack.length === 0) return null;
+    if (this.openTasks() < OPEN_TASKS) return drawTile(this.random, { task: true });
+    return this.stack.pop()!;
   }
 
   at(q: number, r: number): PlacedTile | undefined {
@@ -451,67 +619,28 @@ export class HexBoard {
   }
 
   /**
-   * **Die oberste Kachel legen.** `force` lässt sie auch gegen Fluss und Weg
-   * liegen — nur, wenn sie nirgends passt (`placeableAnywhere`), damit das
-   * Spiel nicht an einer einzigen Kachel hängen bleibt.
+   * **Die Kachel aus der Hand legen.** `force` lässt sie auch gegen Fluss und
+   * Weg liegen — nur, wenn sie nirgends passt (`placeableAnywhere`), damit die
+   * Partie nicht an einer einzigen Kachel hängen bleibt.
    */
   place(q: number, r: number, rot: number, force = false): PlaceResult | null {
-    const spec = this.current;
+    const spec = this.hand;
     if (!spec || !this.isOpen(q, r)) return null;
-    const fit = this.fit(spec, q, r, rot);
-    if (!fit && !force) return null;
-    const matched = fit?.matched ?? 0;
-    const neighbours = fit?.neighbours ?? 0;
-    this.stack.pop();
+    if (!this.fit(spec, q, r, rot) && !force) return null;
+    const before = this.scoring().total;
     this.tiles.set(hexKey(q, r), { q, r, spec, rot });
     this.placed++;
 
-    const perfect = neighbours === 6 && matched === 6;
-    let points = matched * EDGE_POINTS + (perfect ? PERFECT_POINTS : 0);
-    let bonusTiles = perfect ? 1 : 0;
-
-    // Die Aufgabe dieser Kachel bekommt ihr Ziel: ein Stück über das, was schon da ist.
-    if (spec.quest && spec.quest.target === null) {
-      const now = this.areaSize(q, r, spec.quest.terrain);
-      spec.quest.target = Math.max(6, Math.ceil((now + 6 + this.random() * 12) / 5) * 5);
+    // Der Auftrag dieser Kachel bekommt seine Zahl: ein Stück über dem, was schon da ist.
+    const quest = spec.quest;
+    if (quest && quest.target === null) {
+      const now = this.areaSize(q, r, quest.terrain);
+      const span = quest.terrain === 'water' || quest.terrain === 'road' ? 5 : 4;
+      quest.target = Math.max(now + 1, 3 + Math.floor(this.random() * span));
     }
     const { done, failed } = this.checkQuests();
-    for (const _ of done) {
-      bonusTiles += QUEST_REWARD;
-      points += 50;
-    }
-    this.score += points;
-    for (let i = 0; i < bonusTiles; i++) this.pushTile();
-    if (this.endless && this.stack.length < 3) {
-      while (this.stack.length < 3) this.pushTile();
-    }
-    return {
-      points,
-      matched,
-      neighbours,
-      perfect,
-      bonusTiles,
-      questsDone: done,
-      questsFailed: failed,
-    };
-  }
-
-  /** Eine frische Kachel **unter** die oberste, damit die Vorschau nicht springt. */
-  private pushTile(): void {
-    const tile = drawTile(this.random);
-    this.stack.splice(Math.max(0, this.stack.length - 1), 0, tile);
-  }
-
-  /** **Endlos legen an oder aus** — an heißt: Es liegen immer ein paar im Stapel. */
-  setEndless(on: boolean): void {
-    this.endless = on;
-    if (on) while (this.stack.length < 3) this.pushTile();
-  }
-
-  /** **Die oberste Kachel nach unten** — wer sie gerade nirgends hinlegen mag. */
-  skip(): void {
-    const top = this.stack.pop();
-    if (top) this.stack.unshift(top);
+    this.hand = this.nextHand();
+    return { points: this.scoring().total - before, questsDone: done, questsFailed: failed };
   }
 
   // --- Gebiete ------------------------------------------------------------------
@@ -520,14 +649,10 @@ export class HexBoard {
    * **Die Gebiete** eines Geländes: Jede Kachel ist ein Knoten je Gelände, das
    * auf ihr liegt (alle Kanten desselben Geländes auf einer Kachel hängen
    * zusammen — eine Vereinfachung, die man an keiner Kachel sieht). Zwei
-   * Knoten hängen zusammen, wenn ihre Kachel sich an einer Kante dieses
-   * Geländes berühren. Die Größe eines Gebiets ist die Zahl seiner Kanten.
+   * Knoten hängen zusammen, wenn sich ihre Kacheln an einer Kante dieses
+   * Geländes berühren. Gezählt wird wie im Brettspiel in **Kacheln**.
    */
-  private areas(terrain: Terrain): {
-    find: (key: string) => string;
-    size: Map<string, number>;
-    open: Map<string, boolean>;
-  } {
+  private areas(terrain: Terrain): Areas {
     const parent = new Map<string, string>();
     const find = (key: string): string => {
       let root = key;
@@ -541,12 +666,7 @@ export class HexBoard {
       return root;
     };
     for (const [key, tile] of this.tiles) {
-      for (let e = 0; e < 6; e++) {
-        if (edgeAt(tile.spec, tile.rot, e) === terrain) {
-          parent.set(key, key);
-          break;
-        }
-      }
+      if (tile.spec.edges.includes(terrain)) parent.set(key, key);
     }
     for (const [key, tile] of this.tiles) {
       if (!parent.has(key)) continue;
@@ -565,9 +685,9 @@ export class HexBoard {
     for (const [key, tile] of this.tiles) {
       if (!parent.has(key)) continue;
       const root = find(key);
+      size.set(root, (size.get(root) ?? 0) + 1);
       for (let e = 0; e < 6; e++) {
         if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
-        size.set(root, (size.get(root) ?? 0) + 1);
         const n = neighbour(tile, e);
         if (!this.at(n.q, n.r)) open.set(root, true);
       }
@@ -575,7 +695,7 @@ export class HexBoard {
     return { find, size, open };
   }
 
-  /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört. */
+  /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört, in Kacheln. */
   areaSize(q: number, r: number, terrain: Terrain): number {
     const key = hexKey(q, r);
     const tile = this.tiles.get(key);
@@ -585,24 +705,23 @@ export class HexBoard {
   }
 
   /**
-   * **Die offenen Aufgaben nachsehen**: erfüllt, wenn ihr Gebiet groß genug ist;
-   * gescheitert, wenn es ringsum zu ist und nicht mehr wachsen kann.
+   * **Die offenen Aufträge nachsehen**: erfüllt, wenn ihr Gebiet genau so groß
+   * ist wie ihre Zahl; verpasst, wenn es größer geworden ist.
    */
-  private checkQuests(): { done: AreaTerrain[]; failed: AreaTerrain[] } {
-    const done: AreaTerrain[] = [];
-    const failed: AreaTerrain[] = [];
-    const cache = new Map<Terrain, ReturnType<HexBoard['areas']>>();
+  private checkQuests(): { done: QuestTerrain[]; failed: QuestTerrain[] } {
+    const done: QuestTerrain[] = [];
+    const failed: QuestTerrain[] = [];
+    const cache = new Map<Terrain, Areas>();
     for (const [key, tile] of this.tiles) {
       const quest = tile.spec.quest;
       if (!quest || quest.state !== 'open' || quest.target === null) continue;
       let areas = cache.get(quest.terrain);
       if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain)));
-      const root = areas.find(key);
-      const size = areas.size.get(root) ?? 0;
-      if (size >= quest.target) {
+      const size = areas.size.get(areas.find(key)) ?? 0;
+      if (size === quest.target) {
         quest.state = 'done';
         done.push(quest.terrain);
-      } else if (!areas.open.get(root)) {
+      } else if (size > quest.target) {
         quest.state = 'failed';
         failed.push(quest.terrain);
       }
@@ -610,11 +729,40 @@ export class HexBoard {
     return { done, failed };
   }
 
-  /** Wie viel einer Aufgabe noch fehlt — für das Schild über der Kachel. */
-  questLeft(tile: PlacedTile): number | null {
+  /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
+  questProgress(tile: PlacedTile): { size: number; target: number } | null {
     const quest = tile.spec.quest;
     if (!quest || quest.target === null || quest.state !== 'open') return null;
-    return Math.max(0, quest.target - this.areaSize(tile.q, tile.r, quest.terrain));
+    return { size: this.areaSize(tile.q, tile.r, quest.terrain), target: quest.target };
+  }
+
+  /**
+   * **Die Wertung wie im Brettspiel**: erfüllte Aufträge (ihre Zahl),
+   * geschlossene Gebiete mit Flagge (ihre Kacheln, jedes einmal), der längste
+   * Fluss und der längste Weg (je Kachel einen Punkt).
+   */
+  scoring(): Scoring {
+    let tasks = 0;
+    for (const tile of this.tiles.values()) {
+      const quest = tile.spec.quest;
+      if (quest?.state === 'done') tasks += quest.target ?? 0;
+    }
+    let flags = 0;
+    for (const terrain of AREA_TERRAINS) {
+      const areas = this.areas(terrain);
+      const counted = new Set<string>();
+      for (const [key, tile] of this.tiles) {
+        if (tile.spec.flag !== terrain) continue;
+        const root = areas.find(key);
+        if (counted.has(root) || areas.open.get(root)) continue;
+        counted.add(root);
+        flags += areas.size.get(root) ?? 0;
+      }
+    }
+    const longest = (terrain: Terrain): number => Math.max(0, ...this.areas(terrain).size.values());
+    const river = longest('water');
+    const road = longest('road');
+    return { tasks, flags, river, road, total: tasks + flags + river + road };
   }
 
   // --- Speichern ------------------------------------------------------------------
@@ -622,12 +770,12 @@ export class HexBoard {
   save(): string {
     return JSON.stringify({
       v: SAVE_VERSION,
+      mode: this.mode,
       seed: this.seed,
-      score: this.score,
       placed: this.placed,
-      endless: this.endless,
       tiles: [...this.tiles.values()].map((t) => [t.q, t.r, t.rot, packSpec(t.spec)]),
       stack: this.stack.map(packSpec),
+      hand: this.hand ? packSpec(this.hand) : null,
     });
   }
 
@@ -657,9 +805,9 @@ export class HexBoard {
       this.tiles.clear();
       for (const [key, tile] of tiles) this.tiles.set(key, tile);
       this.stack = stack;
-      this.score = Number(data.score) || 0;
+      this.hand = data.hand ? unpackSpec(data.hand) : null;
+      this.mode = data.mode === 'creative' ? 'creative' : 'game';
       this.placed = Number(data.placed) || 0;
-      this.endless = data.endless === true;
       this.seed = Number(data.seed) || 1;
       // Der Würfel geht weiter, wo der Stand war — nicht wieder von vorn.
       this.random = rng(this.seed + this.placed * 7919);
@@ -670,18 +818,25 @@ export class HexBoard {
   }
 }
 
-const SAVE_VERSION = 1;
+/** 2: Wertung wie im Brettspiel, Hand, Flaggen, Kreativ-Modus (Oktober 2026). */
+const SAVE_VERSION = 2;
 
-type PackedSpec = [string, string, number, [AreaTerrain, number | null, Quest['state']]?];
+type PackedSpec = [
+  string,
+  string,
+  number,
+  ([QuestTerrain, number | null, Quest['state']] | 0)?,
+  (AreaTerrain | 0)?,
+];
 
 interface SaveData {
   v: number;
+  mode: HexMode;
   seed: number;
-  score: number;
   placed: number;
-  endless: boolean;
   tiles: Array<[number, number, number, PackedSpec]>;
   stack: PackedSpec[];
+  hand: PackedSpec | null;
 }
 
 const TERRAIN_CODE: Readonly<Record<Terrain, string>> = {
@@ -699,24 +854,24 @@ const CODE_TERRAIN = new Map(
 function packSpec(spec: TileSpec): PackedSpec {
   const edges = spec.edges.map((t) => TERRAIN_CODE[t]).join('');
   const q = spec.quest;
-  return q
-    ? [spec.base, edges, spec.seed, [q.terrain, q.target, q.state]]
-    : [spec.base, edges, spec.seed];
+  return [spec.base, edges, spec.seed, q ? [q.terrain, q.target, q.state] : 0, spec.flag ?? 0];
 }
 
 function unpackSpec(packed: PackedSpec): TileSpec | null {
-  if (!Array.isArray(packed) || typeof packed[1] !== 'string' || packed[1].length !== 6)
+  if (!Array.isArray(packed) || typeof packed[1] !== 'string' || packed[1].length !== 6) {
     return null;
+  }
   const edges = [...packed[1]].map((c) => CODE_TERRAIN.get(c));
   if (edges.some((t) => t === undefined) || !BASE_BY_ID.has(packed[0])) return null;
-  const spec: TileSpec = {
+  const q = packed[3];
+  const flag = packed[4];
+  return {
     base: packed[0],
     edges: edges as Terrain[],
     seed: Number(packed[2]) || 0,
+    ...(q && QUEST_TERRAINS.includes(q[0])
+      ? { quest: { terrain: q[0], target: q[1] ?? null, state: q[2] ?? 'open' } }
+      : {}),
+    ...(flag && AREA_TERRAINS.includes(flag) ? { flag } : {}),
   };
-  const q = packed[3];
-  if (q && AREA_TERRAINS.includes(q[0])) {
-    spec.quest = { terrain: q[0], target: q[1] ?? null, state: q[2] ?? 'open' };
-  }
-  return spec;
 }
