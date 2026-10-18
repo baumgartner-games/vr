@@ -34,6 +34,7 @@ import {
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { WindGusts } from './hexAnimate';
+import { packSave, unpackSave } from './hexShare';
 import { dressingModels } from './hexDressing';
 import { QuestBadge } from './hexBadge';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
@@ -1624,6 +1625,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.animationRow(),
       this.arrowRow(),
       this.fpsRow(),
+      this.shareMenu(),
     );
     if (!creative) {
       rows.push({
@@ -1732,6 +1734,83 @@ export class HexlandWorld extends FurnishedWorld {
         this.context?.refreshWorldMenu();
       },
     };
+  }
+
+  /**
+   * **Spielstand kopieren und einfügen** (`hexShare.ts`) — als kurzer Text,
+   * gepackt. Gewünscht: _„den aktuellen Map-Stand kopieren können
+   * (komprimiert) und einen Import haben wollen, damit du den Spielstand
+   * nutzen kannst, um zu schauen, was ich meine."_ Einfügen ersetzt das Brett
+   * des Modus, aus dem der Stand kommt.
+   */
+  private shareMenu(): MenuEntry {
+    const close = (): void => this.context?.menu.toggle(false);
+    return {
+      id: 'hexland:share',
+      label: 'Spielstand teilen',
+      sub: 'Als Text kopieren oder einen kopierten einfügen',
+      icon: 'folder',
+      accent: 0x6f7d99,
+      children: [
+        {
+          id: 'hexland:share:copy',
+          label: 'Spielstand kopieren',
+          sub: 'Brett, Stapel und Aufträge als kurzer Text in die Zwischenablage',
+          icon: 'folder',
+          accent: 0x5fe07a,
+          run: () => {
+            close();
+            void this.copySave();
+          },
+        },
+        {
+          id: 'hexland:share:paste',
+          label: 'Spielstand einfügen',
+          sub: 'Einen kopierten Text laden — ersetzt das Brett dieses Modus',
+          icon: 'reset',
+          accent: 0xe0a05f,
+          run: () => {
+            close();
+            void this.pasteSave();
+          },
+        },
+      ],
+    };
+  }
+
+  private async copySave(): Promise<void> {
+    const code = await packSave(this.board.save());
+    try {
+      await navigator.clipboard.writeText(code);
+      this.say(`Spielstand kopiert · ${code.length} Zeichen`);
+    } catch {
+      // Ohne Zwischenablage (kein HTTPS, keine Erlaubnis): zum Abschreiben zeigen.
+      window.prompt('Spielstand — kopieren:', code);
+    }
+  }
+
+  private async pasteSave(): Promise<void> {
+    let text: string | null = null;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      text = null;
+    }
+    if (!text || !text.trim().startsWith('HEX')) text = window.prompt('Spielstand einfügen:');
+    if (!text) return;
+    const json = await unpackSave(text);
+    const board = new HexBoard();
+    if (!json || !board.load(json)) {
+      this.say('Das ist kein Hexland-Spielstand');
+      return;
+    }
+    writeSave(this.board.save(), this.board.mode);
+    this.board = board;
+    writeMode(board.mode);
+    writeSave(board.save(), board.mode);
+    this.lastPlaced = null;
+    this.redraw();
+    this.say(`Spielstand geladen · ${MODE_LABEL[board.mode]} · ${board.tiles.size} Kacheln`);
   }
 
   /** **Bildrate im Bild** — derselbe Schalter wie unter _Grafik_ (`graphicsSettings.showFps`). */

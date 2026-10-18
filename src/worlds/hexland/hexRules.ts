@@ -186,6 +186,9 @@ export const BASE_TILES: readonly BaseTile[] = [
   river('I', [1, 2, 4, 5], 0),
   river('J', [0, 1, 2, 3], 0),
   river('K', [1, 2, 3, 4, 5], 0),
+  // Alle sechs Kanten Fluss — lag im Regal, fehlte hier (gefragt: _„Schau mal
+  // nach, ob wir alle Tile-Kombinationen haben?"_).
+  river('L', [0, 1, 2, 3, 4, 5], 0),
   road('G', [2, 3, 4], 0),
   road('H', [0, 2, 3, 4], 0),
   road('I', [1, 2, 4, 5], 0),
@@ -206,6 +209,10 @@ export const BASE_TILES: readonly BaseTile[] = [
     road: [2, 5],
     weight: 0.8,
   },
+  // **Eine Bucht an einer Kante** — das einzige Modell mit genau einer
+  // Wasserkante: Dort darf ein Fluss enden, und ein Wasser-Auftrag kann
+  // geschlossen werden. Lag im Regal und fehlte bisher.
+  { id: 'coast-A', model: 'tiles/coast/hex_coast_A.glb', water: [1], road: [], weight: 0.8 },
   { id: 'coast-B', model: 'tiles/coast/hex_coast_B.glb', water: [1, 2], road: [], weight: 1.2 },
   { id: 'coast-C', model: 'tiles/coast/hex_coast_C.glb', water: [0, 1, 2], road: [], weight: 1 },
   {

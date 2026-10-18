@@ -218,6 +218,23 @@ aus bzw. _In der Nähe_.
   oben rechts bleibt. Gewünscht: _„Ich will gerne noch weiter raus zoomen
   können."_
 
+- **Spielstand teilen** (Reiter → _Spielstand teilen_, `hexShare.ts`):
+  _Kopieren_ legt `HEX1.` + den Stand (`HexBoard.save`, `deflate-raw`,
+  Base64url) in die Zwischenablage, rund 1 000 Zeichen nach 20 Kacheln;
+  _Einfügen_ liest die Zwischenablage (sonst ein Eingabefeld), lädt den
+  Stand in seinen Modus und ersetzt dessen Brett. Gewünscht: _„den aktuellen
+  Map-Stand kopieren können (komprimiert) und einen Import haben wollen,
+  damit du den Spielstand nutzen kannst, um zu schauen, was ich meine."_
+  **Einen geschickten Stand lesen** (am Rechner, ohne Browser):
+
+  ```sh
+  node -e "const z=require('zlib');const t=process.argv[1];console.log(z.inflateRawSync(Buffer.from(t.slice(5).replace(/-/g,'+').replace(/_/g,'/'),'base64')).toString())" 'HEX1.…'
+  ```
+
+  Das JSON lädt `new HexBoard().load(json)` in einem Jest-Test oder im
+  Browser (`bgvr.world.board`), um z. B. `assess` und die Spielhilfen an
+  genau dem Brett nachzurechnen.
+
 ### Der Reiter _Hexland_
 
 Die Welt bringt einen **eigenen Reiter** mit (`World.menuTab`, neu im Kern):
@@ -438,6 +455,13 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
 
 - **Zusammen spielen**: Das Brett ist lokal; zwei Spieler sehen jeder ihr
   eigenes.
+- **Kachelformen** (geprüft gegen alle 129 Muster aus Wasser/Weg/Land je
+  Kante, bis auf Drehung): Jede reine Fluss- und jede reine Wegform mit 1–6
+  Armen hat ein Modell (seit `coast-A`, die Bucht mit einer Wasserkante, und
+  `river-L`, sechs Arme, dazukamen). Gemischt Fluss + Weg gibt es nur die
+  zwei Brücken (`crossing-A/B`); für die übrigen 101 gemischten Muster hat das
+  Regal keine Modelle. `hex_coast_E` hat keine Wasserkante (nur ein Strand an
+  einer Ecke) und ist deshalb nicht dabei.
 - **Mehr Gelände**: Schienen (gibt es im Regal nicht), Gebirge
   (`mountain_*`, `hills_*` liegen bereit).
 - **Die nächste Kachel** sieht man noch nicht — nur die oberste.
