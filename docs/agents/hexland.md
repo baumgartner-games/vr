@@ -339,7 +339,9 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     die Bündel der Grundkacheln (`Part.flows`); `HexBoardView.updateFlow`
     rechnet nach jeder Kachel alles neu. Im Shader (`WATER_FRAGMENT`): der
     nächste Arm und sein Gegenstück (der nächste Arm der anderen Richtung)
-    bilden einen Weg. Gegenüber: gerade durch. Sonst **ein Bogen um O**, den
+    bilden einen Weg — an Gabelungen gibt es mehrere, und jeder Punkt mischt
+    die Wellen aller Wege nach seiner Nähe zu ihnen (vorher galt hart der
+    nächste, und es blieb eine keilförmige Naht). Gegenüber: gerade durch. Sonst **ein Bogen um O**, den
     Punkt, in dem sich die beiden Kanten treffen — der Winkel um O ist die
     Strecke (Kante herein −1, Kante hinaus +1 um `centre`). Gemeldet war:
     _„Das Wasser an geraden Stücken klappt, aber nicht an den Ecken bzw.
@@ -358,7 +360,11 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     Windstoß hat eine Hauptrichtung (eine Ecke der Kachel, zwischen zwei
     Kanten), tritt hinten ins Brett, läuft auf jeder Kachel im Bogen von der
     Kante, an der er kam, durch die Mitte zu einer der beiden vorderen Kanten
-    (je zur Hälfte) und vorn hinaus; 4–9 s später der nächste. Hinter ihm
+    (je zur Hälfte) und vorn hinaus. **Immer einer im Bild** — gewünscht:
+    _„Es sollte im sichtbaren Screen immer ein Wind aktiv sein."_ Er beginnt
+    hinter der hintersten Kachel, die man gerade sieht (`blowWind` reicht
+    Blickpunkt und halbe Bildweite), endet, wenn er aus dem Bild oder vom
+    Brett läuft, und 0,4–1,5 s später kommt der nächste. Hinter ihm
     eine weiße Spur (3 m), die herausgezoomt breiter und schneller wird
     (`HexlandWorld.blowWind`). Ein Zeichenaufruf. **Gegen Ruckeln** (gemeldet
     bei 60 fps): Er läuft gleichmäßig in Metern auf dem Bogen (`bend`, die
@@ -367,6 +373,11 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     Länge geschnitten, und ihre Durchsichtigkeit folgt den Metern, nicht der
     Zahl der Punkte.
   - Aus heißt: Zeit steht (Flügel stehen), Wiegen, Glitzern und Böen weg.
+- **Böden in eigener Höhe** (gegen Z-Fighting, gemeldet): Stadt 0,012,
+  Wald 0,018, Feld 0,024 (Maße der Kachel), mit wachsendem `polygonOffset`.
+  Und `HexBoardView.add` zeichnet nichts, was schon liegt oder zu einem
+  inzwischen geleerten Brett gehört (`generation`) — zwei Kopien derselben
+  Stelle flimmerten ineinander.
 - **Die Kante jeder Kachel** (`hexView.bevelEdges`, ein Zusatz im Shader der
   Kacheln und Böden): nah am Rand eine dunkle Fuge, knapp davor eine helle
   Rundung — die Kacheln liegen sichtbar als Plättchen nebeneinander, ohne

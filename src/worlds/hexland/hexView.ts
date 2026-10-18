@@ -276,12 +276,16 @@ export class HexModels {
       return { geometry, material, matrix: new THREE.Matrix4(), castShadow: false };
     };
     switch (kind) {
+      // **Jedes Gelände auf seiner eigenen Höhe** — gemeldet: _„bei einigen
+      // Tiles gibt es ein Z-Fighting"_. Wo zwei Böden sich am Rand berühren
+      // oder ein wenig überlappen, flimmerten sie auf derselben Höhe ineinander;
+      // jetzt liegt immer derselbe oben.
       case 'house':
         return [part(geometry(0.012), flat(0x8a6644, null, -4))];
       case 'forest':
-        return [part(geometry(0.012), flat(0x6b8f30, null, -4))];
+        return [part(geometry(0.018), flat(0x6b8f30, null, -6))];
       case 'field':
-        return [part(geometry(0.012), flat(0xffffff, fieldTexture(), -4))];
+        return [part(geometry(0.024), flat(0xffffff, fieldTexture(), -8))];
     }
   }
 
@@ -570,6 +574,8 @@ export class HexBoardView {
   private disposed = false;
   /** Wo die Grundkachel jeder Kachel in den Bündeln steht — für den Fluss. */
   private readonly bases = new Map<string, Array<{ batch: Batch; index: number }>>();
+  /** Zählt jedes `clear` — eine Kachel, die noch lud, als geleert wurde, kommt nicht mehr dazu. */
+  private generation = 0;
   /** Die Pfeile der Flussrichtung (`showArrows`), einer je Arm. */
   private readonly arrows: THREE.InstancedMesh;
 
@@ -611,10 +617,14 @@ export class HexBoardView {
 
   async add(tile: PlacedTile): Promise<void> {
     const list = pieces(tile.spec);
+    const generation = this.generation;
     const loaded = await Promise.all(list.map((p) => this.models.load(p.model)));
-    if (this.disposed) return;
-    const at = tileMatrix(tile.q, tile.r, tile.rot);
+    // Inzwischen geleert (neue Partie, anderer Modus) — die Kachel gehört zum
+    // alten Brett. Oder sie liegt schon: Zweimal gezeichnet flimmerten beide
+    // Kopien ineinander.
     const key = hexKey(tile.q, tile.r);
+    if (this.disposed || generation !== this.generation || this.bases.has(key)) return;
+    const at = tileMatrix(tile.q, tile.r, tile.rot);
     const bases: Array<{ batch: Batch; index: number }> = [];
     list.forEach((piece, i) => {
       _m.multiplyMatrices(at, piece.local);
@@ -629,6 +639,7 @@ export class HexBoardView {
   }
 
   clear(): void {
+    this.generation++;
     for (const batch of this.batches.values()) batch.clear();
     this.bases.clear();
     this.arrows.count = 0;

@@ -132,10 +132,12 @@ export const FLOW_SPEED = 0.8;
 
 /**
  * Im Fluss laufen die Wellen **den Fluss hinab** (`aFlow`, gerechnet von
- * `hexDressing.riverFlow`): Der nächste Arm der Kachel sagt, wo man ist, und
- * `S` zählt von der Quelle an in Halbmessern der Kachel — an der Kante
- * zweier Kacheln ist es auf beiden Seiten dasselbe, die Wellen laufen ohne
- * Sprung hinüber. Seen und Ufer glitzern still vor sich hin, langsam.
+ * `hexDressing.riverFlow`): je Weg der Kachel (ein Arm herein, einer hinaus)
+ * zählt `S` den Fluss hinab, in Halbmessern der Kachel — an der Kante zweier
+ * Kacheln auf beiden Seiten dasselbe, die Wellen laufen ohne Sprung hinüber.
+ * An Gabelungen gibt es mehrere Wege; jeder Punkt mischt sie nach seiner
+ * Nähe zu ihnen. Gemeldet war eine keilförmige Naht, wo vorher hart der
+ * nächste Weg galt. Seen und Ufer glitzern still vor sich hin, langsam.
  */
 export const WATER_FRAGMENT = `
   {
@@ -145,72 +147,65 @@ export const WATER_FRAGMENT = `
     float glint;
     if (vFlow.w > 1.5) {
       vec2 p = vHexLocal.xz;
-      // Der Arm, an dem man ist, und sein Gegenstück: der nächste Arm der
-      // anderen Richtung (herein ↔ hinaus).
-      int near = -1;
-      float nearD = -10.0;
-      for (int e = 0; e < 6; e++) {
-        float fe = float(e);
-        float arm = mod(floor(vFlow.x / exp2(fe) + 0.01), 2.0) + mod(floor(vFlow.y / exp2(fe) + 0.01), 2.0);
-        if (arm < 0.5) continue;
-        float a = fe * 1.0471976;
-        float d = dot(p, vec2(cos(a), sin(a)));
-        if (d > nearD) { nearD = d; near = e; }
-      }
-      float nearOut = mod(floor(vFlow.y / exp2(float(near)) + 0.01), 2.0);
-      int other = -1;
-      float otherD = -10.0;
-      for (int pass = 0; pass < 2; pass++) {
-        for (int e = 0; e < 6; e++) {
-          if (e == near || (other >= 0 && pass == 1)) continue;
-          float fe = float(e);
-          float isIn = mod(floor(vFlow.x / exp2(fe) + 0.01), 2.0);
-          float isOut = mod(floor(vFlow.y / exp2(fe) + 0.01), 2.0);
-          // Erst ein Arm der anderen Richtung; gibt es keinen, irgendeiner.
-          float wanted = pass == 0 ? (nearOut > 0.5 ? isIn : isOut) : isIn + isOut;
-          if (wanted < 0.5) continue;
-          float a = fe * 1.0471976;
-          float d = dot(p, vec2(cos(a), sin(a)));
-          if (d > otherD) { otherD = d; other = e; }
-        }
-      }
-      float S = vFlow.z;
-      if (other >= 0) {
-        bool nearIsIn = nearOut < 0.5;
-        int ein = nearIsIn ? near : other;
-        int eout = nearIsIn ? other : near;
-        float ai = float(ein) * 1.0471976;
-        float ao = float(eout) * 1.0471976;
-        vec2 ni = vec2(cos(ai), sin(ai));
-        vec2 no = vec2(cos(ao), sin(ao));
-        float f;
-        float c = dot(ni, no);
-        if (c < -0.99) {
-          // Gerade durch: von der Kante herein (−1) zur Kante hinaus (+1).
-          f = 0.5 + 0.5 * dot(p, no);
-        } else {
-          // **Im Bogen um die Ecke**: Die beiden Kanten treffen sich in O; um O
-          // läuft der Fluss von der Mitte der einen Kante zur Mitte der
-          // anderen. Der Winkel um O ist die Strecke — stetig in der ganzen
-          // Kurve, ohne Naht auf der Winkelhalbierenden.
-          vec2 b = normalize(ni + no);
-          vec2 o = b / sqrt(0.5 + 0.5 * c);
-          vec2 u = ni - o;
-          vec2 v = no - o;
-          vec2 q = p - o;
-          float total = atan(u.x * v.y - u.y * v.x, dot(u, v));
-          float here = atan(u.x * q.y - u.y * q.x, dot(u, q));
-          f = clamp(here / total, -0.3, 1.3);
-        }
-        S = vFlow.z - 1.0 + 2.0 * f;
-      } else {
-        float aa = float(near) * 1.0471976;
-        S = vFlow.z + (nearOut > 0.5 ? 1.0 : -1.0) * dot(p, vec2(cos(aa), sin(aa)));
-      }
       // Etwas quer verwirbelt, damit es keine Streifen wie gezogen sind.
       float n = sin(w.x * 2.3 + w.y * 1.9) * 0.8 + sin(w.y * 3.1 - w.x * 1.3) * 0.6;
       float k = 3.5;
-      glint = sin(S * k - t * k * ${(FLOW_SPEED / 1.5).toFixed(4)} + n);
+      float drift = t * k * ${(FLOW_SPEED / 1.5).toFixed(4)};
+      // Gibt es Arme beider Richtungen? Sonst gilt jeder als Anfang eines Weges.
+      float anyIn = 0.0;
+      float anyOut = 0.0;
+      for (int e = 0; e < 6; e++) {
+        anyIn += mod(floor(vFlow.x / exp2(float(e)) + 0.01), 2.0);
+        anyOut += mod(floor(vFlow.y / exp2(float(e)) + 0.01), 2.0);
+      }
+      bool mixed = anyIn > 0.5 && anyOut > 0.5;
+      // **Jeder Weg herein → hinaus** einer Kachel bekommt seine Wellen; wo
+      // mehrere Wege nah sind (Gabelungen), wird weich zwischen ihnen
+      // überblendet — sonst stieße eine Naht mitten durchs Wasser.
+      float sum = 0.0;
+      float weight = 0.0;
+      for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        float iin = mod(floor(vFlow.x / exp2(fi) + 0.01), 2.0);
+        float iout = mod(floor(vFlow.y / exp2(fi) + 0.01), 2.0);
+        if ((mixed ? iin : iin + iout) < 0.5) continue;
+        for (int o = 0; o < 6; o++) {
+          if (o == i) continue;
+          float fo = float(o);
+          float oout = mod(floor(vFlow.y / exp2(fo) + 0.01), 2.0);
+          float oin = mod(floor(vFlow.x / exp2(fo) + 0.01), 2.0);
+          if ((mixed ? oout : (o > i ? oin + oout : 0.0)) < 0.5) continue;
+          vec2 ni = vec2(cos(fi * 1.0471976), sin(fi * 1.0471976));
+          vec2 no = vec2(cos(fo * 1.0471976), sin(fo * 1.0471976));
+          float c = dot(ni, no);
+          float f;
+          float d;
+          if (c < -0.99) {
+            // Gerade durch: von der Kante herein zur Kante hinaus.
+            f = 0.5 + 0.5 * dot(p, no);
+            d = abs(p.x * no.y - p.y * no.x);
+          } else {
+            // **Im Bogen um die Ecke**: Die beiden Kanten treffen sich in O; um
+            // O läuft der Fluss von der Mitte der einen Kante zur Mitte der
+            // anderen, der Winkel um O ist die Strecke.
+            vec2 b = normalize(ni + no);
+            vec2 org = b / sqrt(0.5 + 0.5 * c);
+            vec2 u = ni - org;
+            vec2 v = no - org;
+            vec2 q = p - org;
+            float total = atan(u.x * v.y - u.y * v.x, dot(u, v));
+            float here = atan(u.x * q.y - u.y * q.x, dot(u, q));
+            f = here / total;
+            d = abs(length(q) - length(u));
+          }
+          d += max(0.0, max(-f, f - 1.0)) * 2.0;
+          float wgt = exp(-d * d / 0.06) + 1e-4;
+          float S = vFlow.z - 1.0 + 2.0 * clamp(f, -0.3, 1.3);
+          sum += wgt * sin(S * k - drift + n);
+          weight += wgt;
+        }
+      }
+      glint = weight > 0.0 ? sum / weight : 0.0;
     } else {
       glint = sin(w.x * 2.1 + t * 0.45 + sin(w.y * 1.7 + t * 0.25) * 1.5)
         * sin(w.y * 2.6 - t * 0.4 + sin(w.x * 1.3 - t * 0.15) * 1.2);
@@ -223,8 +218,8 @@ export function waterUniforms(uniforms: Record<string, THREE.IUniform>): void {
   uniforms.uHexAnim = ANIM.on;
 }
 
-/** Wie lange es zwischen zwei Windstößen ruhig bleibt, in Sekunden. */
-const CALM = [4, 9] as const;
+/** Wie lange es zwischen zwei Windstößen ruhig bleibt, in Sekunden — kaum: Es soll immer einer wehen. */
+const CALM = [0.4, 1.5] as const;
 /** Wie lang die weiße Spur hinter dem Wind ist, in Metern (vor dem Zoom). */
 const TRAIL = 3;
 const TRAIL_POINTS = 96;
@@ -250,7 +245,7 @@ export class WindGusts {
   private readonly alphas = new Float32Array(TRAIL_POINTS * 2);
   /** Die Spur, neuester Punkt vorn. */
   private readonly trail: THREE.Vector2[] = [];
-  private calm = 2;
+  private calm = 0.5;
   private running = false;
   /** Die Hauptrichtung: zwischen Kante `forward` und `forward + 1`. */
   private forward = 0;
@@ -301,7 +296,13 @@ export class WindGusts {
    * Einmal je Bild. `tiles` ist das Brett; `size` wächst, je weiter man
    * herausgezoomt ist — die Spur wird breiter, damit man sie noch sieht.
    */
-  update(dt: number, on: boolean, tiles: ReadonlyMap<string, PlacedTile>, size: number): void {
+  update(
+    dt: number,
+    on: boolean,
+    tiles: ReadonlyMap<string, PlacedTile>,
+    size: number,
+    view: { x: number; z: number; r: number },
+  ): void {
     ANIM.on.value = on ? 1 : 0;
     const push = ANIM.gustPush.value;
     if (!on) {
@@ -315,32 +316,51 @@ export class WindGusts {
     this.size = size;
     // Die Kachel davor klingt aus, die jetzige schwillt an.
     push.y = Math.max(0, push.y - dt / 0.8);
-    if (this.running) this.advance(dt);
-    else {
+    if (this.running) {
+      this.advance(dt);
+      // Aus dem Bild gelaufen: gleich der nächste, im Bild.
+      if (Math.hypot(this.head.x - view.x, this.head.y - view.z) > view.r * 1.15) this.stop();
+    } else {
       push.x = Math.max(0, push.x - dt / 0.8);
       this.calm -= dt;
-      if (this.calm <= 0 && tiles.size > 0) this.start(tiles);
+      if (this.calm <= 0 && tiles.size > 0) this.start(tiles, view);
       // Ohne Kopf holt der Schwanz der Spur auf, bis nichts mehr übrig ist.
       this.keep = Math.max(0, this.keep - FLOW_SPEED * this.size * dt);
     }
     this.drawTrail();
   }
 
-  private start(tiles: ReadonlyMap<string, PlacedTile>): void {
+  /**
+   * **Ein neuer Windstoß, im Bild** — gewünscht: _„Wind kommt zu wenig/selten,
+   * bitte häufiger. Es sollte im sichtbaren Screen immer ein Wind aktiv
+   * sein."_ Er beginnt hinter der hintersten Kachel, die man gerade sieht
+   * (`view`: wohin die Kamera schaut und wie weit das Bild reicht), und endet,
+   * wenn er vorn aus dem Bild oder vom Brett läuft — dann kommt nach einer
+   * Atempause der nächste.
+   */
+  private start(
+    tiles: ReadonlyMap<string, PlacedTile>,
+    view: { x: number; z: number; r: number },
+  ): void {
     this.forward = Math.floor(Math.random() * 6);
     const dir = this.direction();
-    // Die hinterste Kachel des Bretts, eine davon, wenn mehrere gleich weit hinten liegen.
+    const seen = [...tiles.values()].filter((t) => {
+      const c = hexCentre(t.q, t.r, this.width);
+      return Math.hypot(c.x - view.x, c.z - view.z) < view.r;
+    });
+    const pool = seen.length > 0 ? seen : [...tiles.values()];
     let least = Infinity;
     let most = -Infinity;
     const along = (q: number, r: number): number => {
       const c = hexCentre(q, r, this.width);
       return c.x * dir.x + c.z * dir.y;
     };
-    for (const t of tiles.values()) {
+    for (const t of pool) {
       least = Math.min(least, along(t.q, t.r));
       most = Math.max(most, along(t.q, t.r));
     }
-    const back = [...tiles.values()].filter((t) => along(t.q, t.r) <= least + this.width * 0.6);
+    // Eine der hintersten — quer zur Richtung verteilt, damit er nicht immer am selben Rand läuft.
+    const back = pool.filter((t) => along(t.q, t.r) <= least + this.width * 1.6);
     const first = back[Math.floor(Math.random() * back.length)]!;
     const behind = opposite(this.forward + (Math.random() < 0.5 ? 0 : 1)) % 6;
     this.cell = neighbour(first, behind);
@@ -351,6 +371,12 @@ export class WindGusts {
     this.running = true;
     this.trail.length = 0;
     this.head.copy(this.from);
+  }
+
+  /** Der Windstoß ist durch — die Spur läuft aus, der nächste kommt bald. */
+  private stop(): void {
+    this.running = false;
+    this.calm = CALM[0] + Math.random() * (CALM[1] - CALM[0]);
   }
 
   /** Links oder rechts der Hauptrichtung, je zur Hälfte. */
@@ -391,8 +417,7 @@ export class WindGusts {
         const n = hexCentre(this.cell.q, this.cell.r, this.width);
         const dir = this.direction();
         if (n.x * dir.x + n.z * dir.y > this.beyond) {
-          this.running = false;
-          this.calm = CALM[0] + Math.random() * (CALM[1] - CALM[0]);
+          this.stop();
           return;
         }
         this.pickExit();

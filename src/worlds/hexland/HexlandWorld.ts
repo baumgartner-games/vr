@@ -972,9 +972,18 @@ export class HexlandWorld extends FurnishedWorld {
     const camera = ctx.viewCamera ?? ctx.camera;
     camera.getWorldPosition(_eye);
     camera.getWorldDirection(_look);
-    // Wie weit es bis dahin ist, wo der Blick das Brett trifft.
-    const far = _look.y < -0.05 ? Math.min(-_eye.y / _look.y, 120) : 10;
-    this.wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / 25));
+    // Wo der Blick das Brett trifft, und wie weit es bis dahin ist.
+    const far = _look.y < -0.05 ? Math.min(-_eye.y / _look.y, 400) : 10;
+    _aim.copy(_eye).addScaledVector(_look, far);
+    this.root.worldToLocal(_aim);
+    // Wie weit das Bild von dort reicht — die längere Seite, halb.
+    const half = far * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const reach = half * Math.max(1, camera.aspect);
+    this.wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / 25), {
+      x: _aim.x,
+      z: _aim.z,
+      r: reach,
+    });
   }
 
   // --- die Ansichten ---------------------------------------------------------------
@@ -1934,6 +1943,7 @@ function writeFlag(key: string, on: boolean): void {
 }
 
 const _eye = new THREE.Vector3();
+const _aim = new THREE.Vector3();
 const _badge = new THREE.Vector3();
 /** Bis zu diesem Abstand der Kamera haben die Schilder ihre eigene Größe, danach wachsen sie mit. */
 const BADGE_DISTANCE = 22;
