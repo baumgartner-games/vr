@@ -95,8 +95,17 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
 - **Auf ein freies Feld zeigen**: Die oberste Kachel schwebt darüber, schon
   in der besten Drehung. Ein helles Sechseck darunter zeigt, wo sie landet;
   grüne und rote Striche an ihren Kanten, was zu den Nachbarn passt.
-- **Auf die schwebende Kachel zeigen**: weiterdrehen — nur durch die
-  Drehungen, die dort gehen (Fluss und Weg).
+- **Auf die schwebende Kachel zeigen** (oder ⟲ ⟳, `Q`/`R`): weiterdrehen —
+  immer durch **alle sechs** Lagen. Geht eine Lage nicht (Fluss oder Weg
+  stieße auf anderes), wird der Ring rot und aus _✓ Legen_ wird _Passt so
+  nicht_. Bis Oktober 2026 sprang sie nur durch die erlaubten Lagen, an einem
+  Fluss oft nur zwei: _„Ich kann immer nur zwischen zwei Ausrichtungen
+  wechseln, aber nicht drehen."_
+- **Die Drehung bleibt**, wenn die Kachel auf ein anderes Feld wandert, eine
+  andere gewählt wird oder nach dem Legen die nächste kommt — gewünscht:
+  _„Meine gespeicherte Drehung sollte auch beibehalten werden, wenn ich das
+  Tile wechsle bzw. die Position."_ Die nächste Kachel sucht sich zuerst ein
+  Feld, auf dem sie in dieser Drehung passt.
 - **Auf das grüne ✓ darüber zeigen**: legen. Darüber steht die Zeile mit
   Punkten, Stapel und dem Auftrag der Kachel (in der Brille und aus den
   Augen; von oben steht beides in der Leiste unten).

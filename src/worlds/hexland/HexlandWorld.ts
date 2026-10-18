@@ -330,13 +330,10 @@ export class HexlandWorld extends FurnishedWorld {
       if (speak && !this.board.at(hex.q, hex.r)) this.say('Nur an die Landschaft anlegen');
       return;
     }
-    const rotations = this.board.rotations(spec, hex.q, hex.r);
-    if (rotations.length === 0 && this.canPlaceSomewhere()) {
-      if (speak) this.say('Passt hier nicht · Fluss und Weg müssen weiterlaufen');
-      return;
-    }
+    // **Die Drehung bleibt**, wo die Kachel auch hinwandert — gewünscht: _„Meine
+    // gespeicherte Drehung sollte auch beibehalten werden, wenn ich das Tile
+    // wechsle bzw. die Position."_ Passt sie dort nicht, wird der Ring rot.
     this.at = hex;
-    this.rot = rotations[0] ?? 0;
     this.refresh(false);
   }
 
@@ -345,20 +342,21 @@ export class HexlandWorld extends FurnishedWorld {
    * Uhrzeigersinn (wie das Antippen der Kachel), `-1` zurück.
    */
   private rotate(dir: 1 | -1 = 1): void {
-    const spec = this.board.current;
-    if (!spec || !this.at) return;
-    const rotations = this.board.rotations(spec, this.at.q, this.at.r);
-    if (rotations.length === 0) {
-      this.rot = (this.rot + dir + 6) % 6;
-    } else {
-      // Der Reihe nach zur nächsten erlaubten — nicht nach Güte, sonst springt sie.
-      const sorted = [...rotations].sort((a, b) => a - b);
-      this.rot =
-        dir === 1
-          ? (sorted.find((r) => r > this.rot) ?? sorted[0]!)
-          : ([...sorted].reverse().find((r) => r < this.rot) ?? sorted[sorted.length - 1]!);
-    }
+    if (!this.board.current || !this.at) return;
+    // **Immer alle sechs Lagen** — bis Oktober 2026 sprang sie nur durch die,
+    // in denen Fluss und Weg weiterlaufen, und an einem Fluss waren das oft
+    // zwei: _„Ich kann immer nur zwischen zwei Ausrichtungen wechseln, aber
+    // nicht drehen."_ Eine Lage, die nicht geht, zeigt der rote Ring.
+    this.rot = (this.rot + dir + 6) % 6;
     this.refresh(false);
+  }
+
+  /** Ob die Kachel in der Hand so, wie sie liegt, gelegt werden darf. */
+  private fitsHere(): boolean {
+    const spec = this.board.current;
+    const at = this.at;
+    if (!spec || !at) return false;
+    return this.board.fit(spec, at.q, at.r, this.rot) !== null || !this.canPlaceSomewhere();
   }
 
   private placeHere(): void {
@@ -367,7 +365,7 @@ export class HexlandWorld extends FurnishedWorld {
     const force = !this.canPlaceSomewhere();
     const result = this.board.place(at.q, at.r, this.rot, force);
     if (!result) {
-      this.say('Passt so nicht');
+      this.say('Passt so nicht · Fluss und Weg müssen weiterlaufen — drehen oder anderes Feld');
       return;
     }
     const tile = this.board.at(at.q, at.r)!;
@@ -440,15 +438,22 @@ export class HexlandWorld extends FurnishedWorld {
     const spec = this.board.current;
     if (!spec) return;
     const me = this.context?.rig.position ?? new THREE.Vector3();
+    // Erst ein Feld, auf dem die Kachel **in ihrer jetzigen Drehung** passt —
+    // die Drehung gehört dem Spieler. Nur wenn es keines gibt, dreht sie mit.
     let best: { hex: Hex; rot: number; score: number } | null = null;
-    for (const slot of this.board.openSlots()) {
-      const rotations = this.board.rotations(spec, slot.q, slot.r);
-      if (rotations.length === 0) continue;
-      const fit = this.board.fit(spec, slot.q, slot.r, rotations[0]!)!;
-      const c = hexCentre(slot.q, slot.r, HEX_WIDTH);
-      const far = Math.hypot(c.x - me.x, c.z - me.z) / HEX_WIDTH;
-      const score = fit.matched * 2 - far;
-      if (!best || score > best.score) best = { hex: slot, rot: rotations[0]!, score };
+    for (const keep of [true, false]) {
+      for (const slot of this.board.openSlots()) {
+        const rotations = keep ? [this.rot] : this.board.rotations(spec, slot.q, slot.r);
+        const rot = rotations[0];
+        if (rot === undefined) continue;
+        const fit = this.board.fit(spec, slot.q, slot.r, rot);
+        if (!fit) continue;
+        const c = hexCentre(slot.q, slot.r, HEX_WIDTH);
+        const far = Math.hypot(c.x - me.x, c.z - me.z) / HEX_WIDTH;
+        const score = fit.matched * 2 - far;
+        if (!best || score > best.score) best = { hex: slot, rot, score };
+      }
+      if (best) break;
     }
     if (best) {
       this.at = best.hex;
@@ -457,7 +462,6 @@ export class HexlandWorld extends FurnishedWorld {
       // Nirgends passend: Dann eben das nächste freie Feld, und sie darf überall hin.
       const slot = this.board.openSlots()[0] ?? null;
       this.at = slot;
-      this.rot = 0;
     }
   }
 
@@ -472,6 +476,20 @@ export class HexlandWorld extends FurnishedWorld {
     this.hand.position.set(c.x, 0, c.z);
     this.hand.visible = true;
     if (this.previewTile) this.previewTile.rotation.y = -this.rot * (Math.PI / 3);
+    // Rot, wenn diese Lage nicht geht — sonst das warme Gelb.
+    const fits = this.fitsHere();
+    if (this.ring)
+      (this.ring.material as THREE.MeshBasicMaterial).color.setHex(fits ? 0xffd84a : 0xe0605f);
+    if (this.legenButton) {
+      this.legenButton.textContent = fits ? '✓ Legen' : 'Passt so nicht';
+      this.legenButton.style.background = fits ? 'rgba(36,120,64,0.95)' : 'rgba(110,40,40,0.95)';
+      this.legenButton.style.borderColor = fits ? 'rgba(95,224,122,0.6)' : 'rgba(224,96,95,0.6)';
+    }
+    this.confirm?.setText(
+      fits ? '✓ Legen' : 'Passt so nicht',
+      undefined,
+      fits ? 0x5fe07a : 0xe0605f,
+    );
     const matches = this.board.edgeMatches(spec, at.q, at.r, this.rot);
     matches.forEach((match, e) => {
       const bar = this.previewEdges[e]!;
@@ -639,6 +657,7 @@ export class HexlandWorld extends FurnishedWorld {
   private tileBarText: HTMLElement | null = null;
   private tileBarIcon: HTMLCanvasElement | null = null;
   private tileQuick: HTMLElement | null = null;
+  private legenButton: HTMLButtonElement | null = null;
   /** Was zuletzt im Baukasten gebaut wurde — vorn in der Schnellliste. */
   private lastBuilt: TileSpec | null = null;
   /** Die Kanten im Baukasten, von Kante 0 (rechts) im Uhrzeigersinn. */
@@ -793,7 +812,12 @@ export class HexlandWorld extends FurnishedWorld {
     row.style.cssText = 'display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px';
     row.append(
       button('⟲', 'Kachel links drehen (Q)', () => this.rotate(-1)),
-      button('✓ Legen', 'Kachel legen (Leertaste)', () => this.placeHere(), true),
+      (this.legenButton = button(
+        '✓ Legen',
+        'Kachel legen (Leertaste)',
+        () => this.placeHere(),
+        true,
+      )),
       button('⟳', 'Kachel rechts drehen (R / E)', () => this.rotate(1)),
     );
     bar.append(quick, info, row);
