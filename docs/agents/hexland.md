@@ -559,3 +559,38 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   4. **Eine Übersichtskarte** als 2D-Bild (eine Farbe je Kachel) in einer
      Ecke, mit Tippen zum Hinfliegen — wie die Auftragsliste.
   5. Schatten und Wind nur nahe der Kamera.
+
+## Optimierung von _Intelligent_
+
+Gewünscht: _„Lass den intelligenten Modus ein paar hundert Runden spielen und
+notiere in der Hex-Welt-Datei den Schnitt der Punkte. Spiele selbst ein paar
+Runden und notiere, ob du über den Schnitt gekommen bist und wenn ja, welche
+Verbesserungen bzw. Taktiken du genutzt hast. … Am Ende soll dann ein neuer
+Vorschlag-Modus ‚intelligent optimiert' kommen, damit man mit jetzt
+vergleichen kann."_
+
+**Werkzeuge**
+
+- `src/worlds/hexland/hexPlanner.ts`: `scorePlacement(…, 'smart' | 'optimized')`
+  und `bestPlacement`. `smart` ist _Intelligent_ (eingefroren als
+  Vergleich), `optimized` ist _Intelligent (optimiert)_ — die Spielhilfe
+  gleichen Namens im Spiel rechnet genau damit (`autoPlace`).
+- `npm run hexbench -- [Runden] [erster Samen] [Strategien] [Prozesse]` —
+  normale Runden, immer die beste Lage; Schnitt ± Standardfehler, Posten,
+  und bei zwei Strategien der Unterschied **je Samen** (genauer).
+  Tuning auf Samen 1–300, Gegenprobe auf 5001–5300 (nicht zum Tunen).
+- `npm run hexplay -- new|show|place|auto <Datei> …` — von Hand spielen,
+  ohne Browser: Brett, Auftragsstapel, Hand und die besten Lagen mit allen
+  Posten von `assess`.
+
+**Ausgangswert** (Oktober 2026, vor der Optimierung): _Intelligent_
+**59,30 ± 1,82** Punkte je Runde (300 Runden, Samen 1–300; Aufträge 47,6,
+Flaggen 1,5, Fluss 5,4, Weg 4,7; 9,6 Aufträge erfüllt, 0,03 verpasst,
+2,9 am Ende noch offen).
+
+### Selbst gespielt
+
+### Runden des Optimierers
+
+| Runde | Idee | optimiert − smart (Samen 1–300) | behalten |
+|---|---|---|---|

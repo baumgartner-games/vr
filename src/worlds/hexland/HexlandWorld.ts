@@ -35,6 +35,7 @@ import {
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { WindGusts } from './hexAnimate';
 import { packSave, unpackSave } from './hexShare';
+import { scorePlacement } from './hexPlanner';
 import { dressingModels } from './hexDressing';
 import { QuestBadge } from './hexBadge';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
@@ -533,6 +534,17 @@ export class HexlandWorld extends FurnishedWorld {
     for (const slot of slots) {
       // In der Nähe behält die Kachel die Drehung des Spielers (oder die
       // vorgedrehte); an Auftrag und Grenze dreht die Hilfe sie selbst.
+      // **Intelligent (optimiert)** rechnet über `hexPlanner` — dieselbe
+      // Rechnung wie im Benchmark (`npm run hexbench`), bei Gleichstand näher.
+      if (place === 'optimized') {
+        for (let rot = 0; rot < 6; rot++) {
+          const value = scorePlacement(this.board, spec, slot.q, slot.r, rot, 'optimized');
+          if (value === null) continue;
+          const score = value - far(slot) * 0.01;
+          if (!best || score > best.score) best = { hex: slot, rot, score };
+        }
+        continue;
+      }
       const keep =
         place === 'near' &&
         !this.help.smartRotate &&
@@ -2022,6 +2034,10 @@ export class HexlandWorld extends FurnishedWorld {
           'smart',
           'Erst wo ein Auftrag fertig wird oder seiner Zahl am nächsten kommt (nie so, dass einer unmöglich wird), sonst nach passenden Kanten — schon passend gedreht',
         ),
+        placeRow(
+          'optimized',
+          'Wie Intelligent, mit der in Benchmark-Runden gefundenen Rechnung — zum Vergleichen',
+        ),
       ],
     };
   }
@@ -2297,13 +2313,14 @@ interface HexHelp {
   /** Auf jedem Feld die Zahl der passenden Kanten. */
   numbers: boolean;
   /** Wo die neue Kachel liegt — `smart`: erst nach Aufträgen, sonst nach Kanten. */
-  place: 'near' | 'border' | 'smart';
+  place: 'near' | 'border' | 'smart' | 'optimized';
 }
 
 const PLACE_LABEL: Readonly<Record<HexHelp['place'], string>> = {
   near: 'In der Nähe',
   border: 'An passender Grenze',
   smart: 'Intelligent',
+  optimized: 'Intelligent (optimiert)',
 };
 
 // **Welt generieren statt unendlich** — gewünscht: _„Ich würde gerne einen
@@ -2396,9 +2413,11 @@ function readHelp(): HexHelp {
       place:
         old?.place === 'border'
           ? 'border'
-          : old?.place === 'smart' || old?.place === 'quest'
-            ? 'smart'
-            : 'near',
+          : old?.place === 'optimized'
+            ? 'optimized'
+            : old?.place === 'smart' || old?.place === 'quest'
+              ? 'smart'
+              : 'near',
     };
   } catch {
     return { smartRotate: false, colours: false, numbers: false, place: 'near' };
