@@ -20,6 +20,7 @@ import {
   topDownDistance,
   topDownPitch,
   topDownPosition,
+  TOP_DOWN_MAX,
   stepFromDistance,
   turnToward,
   wrapAngle,
@@ -97,6 +98,12 @@ export class TopDownCamera {
    * dem Pinch war.
    */
   private target = topDownDistance(TOP_DOWN_ZOOM);
+  /**
+   * **Wie weit hinaus gezoomt werden darf**, in Metern — sonst die letzte
+   * gewohnte Stufe (`TOP_DOWN_MAX`), eine Welt darf mehr erlauben
+   * (`WorldContext.topDownView.maxZoom`).
+   */
+  private maxDistance = TOP_DOWN_MAX;
   /** Der Zoom vor dem Start-Zoom einer Welt (`startZoom`) — `null`: keiner gesetzt. */
   private zoomBefore: number | null = null;
   /** Der Abstand, der gerade wirklich gilt — er zieht zum Ziel hin. */
@@ -333,7 +340,7 @@ export class TopDownCamera {
    */
   setViewState(state: TopDownViewState): void {
     this.headingGoal = stepTurn(state.heading, 0);
-    this.target = zoomScaled(state.zoom, 1);
+    this.target = zoomScaled(state.zoom, 1, this.maxDistance);
     this.zoomBefore = null;
     this.reset();
   }
@@ -419,8 +426,14 @@ export class TopDownCamera {
    * gemerkten Nummer: Nach einem Pinch auf 18 m ist „eine Stufe zurück" die
    * 22er-Stufe und nicht die, die vor dem Pinch dran war.
    */
+  /** Die Grenze des Zooms nach außen; ohne Wert wieder die gewohnte. */
+  setMaxZoom(meters?: number): void {
+    this.maxDistance = Math.max(TOP_DOWN_MAX, meters ?? TOP_DOWN_MAX);
+    this.target = Math.min(this.target, this.maxDistance);
+  }
+
   zoomBy(direction: number): void {
-    this.target = stepFromDistance(this.target, direction);
+    this.target = stepFromDistance(this.target, direction, this.maxDistance);
   }
 
   /**
@@ -432,7 +445,7 @@ export class TopDownCamera {
    * eine Fünftelsekunde hinterherhinkt, fühlt sich kaputt an.
    */
   zoomScale(factor: number): void {
-    this.target = zoomScaled(this.target, factor);
+    this.target = zoomScaled(this.target, factor, this.maxDistance);
     this.distance = this.target;
   }
 

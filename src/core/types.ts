@@ -88,6 +88,12 @@ export interface WorldContext {
     twist?(radians: number): void;
     /** Die Neigung in Grad, gelesen und gesetzt (`TopDownCamera.setTilt`), 20–90°. */
     tilt?(degrees?: number): number;
+    /**
+     * Wie weit hinaus gezoomt werden darf, in Metern (`TopDownCamera.setMaxZoom`)
+     * — ohne Wert wieder die gewohnte Grenze. Eine Welt, die mehr erlaubt,
+     * setzt es beim Betreten und räumt es beim Verlassen weg.
+     */
+    maxZoom?(meters?: number): void;
   };
   /**
    * **Das Gamepad am Schirm, in diesem Bild** (`FlatControls.padFrame`) —

@@ -835,6 +835,7 @@ export class App {
           if (degrees !== undefined) this.topDownCamera.setTilt(degrees);
           return this.topDownCamera.tilt;
         },
+        maxZoom: (meters) => this.topDownCamera.setMaxZoom(meters),
       },
       pad: this.flat.padFrame,
       elapsed: this.elapsed,

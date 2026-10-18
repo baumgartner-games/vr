@@ -204,6 +204,9 @@ export class HexlandWorld extends FurnishedWorld {
   // --- aufbauen -------------------------------------------------------------------
 
   private buildBoard(ctx: WorldContext): void {
+    // **Weiter hinaus als in anderen Welten** — gewünscht: _„Ich will gerne noch
+    // weiter raus zoomen können."_ 240 m fassen ein Brett von gut 60 Kacheln Breite.
+    ctx.topDownView?.maxZoom?.(HEX_MAX_ZOOM);
     this.view = new HexBoardView(this.models, () => this.board.tiles);
     this.view.showArrows(this.arrows);
     this.view.root.userData.sharedAssets = true;
@@ -800,8 +803,11 @@ export class HexlandWorld extends FurnishedWorld {
     (ctx.viewCamera ?? ctx.camera).getWorldPosition(_eye);
     for (const badge of this.badges.values()) {
       badge.getWorldPosition(_badge);
-      const scale = Math.max(1, _eye.distanceTo(_badge) / BADGE_DISTANCE);
+      const far = _eye.distanceTo(_badge);
+      const scale = Math.max(1, far / BADGE_DISTANCE);
       badge.scale.setScalar(scale);
+      // Ganz weit draußen lägen die Schilder übereinander — dort reicht die Liste oben rechts.
+      badge.visible = far < BADGE_HIDE;
       badge.position.y = 1.4 + 0.8 * scale;
     }
   }
@@ -1812,6 +1818,7 @@ export class HexlandWorld extends FurnishedWorld {
     ctx.touchStick(true);
     ctx.rig.pace = null;
     ctx.rig.flightScales = false;
+    ctx.topDownView?.maxZoom?.();
     if (this.pickPlane) ctx.pointer.remove(this.pickPlane);
     if (this.confirm) ctx.pointer.remove(this.confirm);
     this.view?.dispose();
@@ -1930,6 +1937,10 @@ const _eye = new THREE.Vector3();
 const _badge = new THREE.Vector3();
 /** Bis zu diesem Abstand der Kamera haben die Schilder ihre eigene Größe, danach wachsen sie mit. */
 const BADGE_DISTANCE = 22;
+/** Ab hier keine Schilder mehr über dem Brett (`sizeBadges`). */
+const BADGE_HIDE = 100;
+/** Wie weit hinaus gezoomt werden darf (`TopDownCamera.setMaxZoom`). */
+const HEX_MAX_ZOOM = 240;
 const _look = new THREE.Vector3();
 
 const HELP_KEY = 'hexland:help';

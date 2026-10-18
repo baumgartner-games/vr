@@ -176,6 +176,14 @@ aus bzw. _In der Nähe_.
   ist doppelt so fein (1024 × 384) mit Anisotropie. Gemeldet: _„Der Text
   scheint schmierig bzw. unscharf zu sein, wenn ich weit raus zoome."_
 
+- **Weiter hinaus zoomen** (`TopDownCamera.setMaxZoom`, neu im Kern über
+  `WorldContext.topDownView.maxZoom`): Hexland erlaubt 240 m statt 60 m, mit
+  den Stufen 85, 120, 170, 240 (`topDownPose.TOP_DOWN_FAR_DISTANCES`); beim
+  Verlassen gilt wieder die gewohnte Grenze. Ab 100 m blendet `sizeBadges`
+  die Schilder über dem Brett aus — dort lägen sie übereinander, die Liste
+  oben rechts bleibt. Gewünscht: _„Ich will gerne noch weiter raus zoomen
+  können."_
+
 ### Der Reiter _Hexland_
 
 Die Welt bringt einen **eigenen Reiter** mit (`World.menuTab`, neu im Kern):
@@ -388,3 +396,17 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
 - **Mehr Gelände**: Schienen (gibt es im Regal nicht), Gebirge
   (`mountain_*`, `hills_*` liegen bereit).
 - **Die nächste Kachel** sieht man noch nicht — nur die oberste.
+- **Große Bretter** (gefragt: _„Wir sollten uns was überlegen, wenn wir noch
+  größere Karten später bauen, was dann?"_). Heute: ein Zeichenaufruf je
+  Modell (`Batch`), egal wie viele Kacheln — das trägt Hunderte. Der Plan,
+  in dieser Reihenfolge, je nachdem was zuerst klemmt:
+  1. **Messen** (Dreiecke, Draws, ms) mit einem Brett von 300–500 Kacheln.
+  2. **Weit draußen ohne Deko**: ab einem Abstand nur Kacheln und Böden,
+     Bäume und Häuser weg (oder je Kachel ein flaches Bild). Spart die
+     meisten Dreiecke — von oben sieht man sie ohnehin nicht mehr.
+  3. **Bündel je Abschnitt** (z. B. 8 × 8 Kacheln) statt eines fürs ganze
+     Brett: Dann kann three.js Abschnitte außerhalb des Bildes weglassen
+     (`frustumCulled` steht heute aus).
+  4. **Eine Übersichtskarte** als 2D-Bild (eine Farbe je Kachel) in einer
+     Ecke, mit Tippen zum Hinfliegen — wie die Auftragsliste.
+  5. Schatten und Wind nur nahe der Kamera.

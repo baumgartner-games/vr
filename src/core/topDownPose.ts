@@ -281,9 +281,22 @@ export const TOP_DOWN_MAX = TOP_DOWN_DISTANCES[TOP_DOWN_DISTANCES.length - 1]!;
  * ist kein Blickwinkel mehr, und einer, der die Welt zum Punkt macht, auch
  * nicht.
  */
-export function zoomScaled(distance: number, factor: number): number {
+export function zoomScaled(distance: number, factor: number, max = TOP_DOWN_MAX): number {
   const scaled = Number.isFinite(factor) && factor > 0 ? distance * factor : distance;
-  return Math.max(TOP_DOWN_MIN, Math.min(TOP_DOWN_MAX, scaled));
+  return Math.max(TOP_DOWN_MIN, Math.min(max, scaled));
+}
+
+/**
+ * **Stufen über 60 m** — nur für Welten, die es verlangen
+ * (`WorldContext.topDownView.maxZoom`). Hexland ist ein Brett aus Kacheln,
+ * keine Figur: Gewünscht war dort _„Ich will gerne noch weiter raus zoomen
+ * können"_, und ein großes Brett will man als Ganzes sehen.
+ */
+export const TOP_DOWN_FAR_DISTANCES: readonly number[] = [85, 120, 170, 240];
+
+/** Die Stufen bis `max` — die gewohnten und, wenn erlaubt, die fernen. */
+function stepsUpTo(max: number): number[] {
+  return [...TOP_DOWN_DISTANCES, ...TOP_DOWN_FAR_DISTANCES].filter((d) => d <= max + NOTCH_EPS);
 }
 
 /**
@@ -311,21 +324,23 @@ export function pinchFactor(previousGap: number, currentGap: number): number {
  *
  * @param direction `-1` heran (näher), `+1` zurück (weiter weg)
  */
-export function stepFromDistance(distance: number, direction: number): number {
+export function stepFromDistance(distance: number, direction: number, max = TOP_DOWN_MAX): number {
+  const steps = stepsUpTo(max);
+  const top = steps[steps.length - 1]!;
   const sign = Math.sign(direction);
   if (sign < 0) {
-    for (let i = TOP_DOWN_DISTANCES.length - 1; i >= 0; i--) {
-      if (TOP_DOWN_DISTANCES[i]! < distance - NOTCH_EPS) return TOP_DOWN_DISTANCES[i]!;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (steps[i]! < distance - NOTCH_EPS) return steps[i]!;
     }
     return TOP_DOWN_MIN;
   }
   if (sign > 0) {
-    for (let i = 0; i < TOP_DOWN_DISTANCES.length; i++) {
-      if (TOP_DOWN_DISTANCES[i]! > distance + NOTCH_EPS) return TOP_DOWN_DISTANCES[i]!;
+    for (let i = 0; i < steps.length; i++) {
+      if (steps[i]! > distance + NOTCH_EPS) return steps[i]!;
     }
-    return TOP_DOWN_MAX;
+    return top;
   }
-  return Math.max(TOP_DOWN_MIN, Math.min(TOP_DOWN_MAX, distance));
+  return Math.max(TOP_DOWN_MIN, Math.min(top, distance));
 }
 
 /**
