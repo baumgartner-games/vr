@@ -122,7 +122,9 @@ export class HexModels {
           if (model.startsWith('tiles/')) {
             const geometry = flatTop(mesh.geometry, mesh.matrixWorld);
             this.owned.push(geometry);
-            out.push({ geometry, material, matrix: new THREE.Matrix4(), castShadow: false });
+            const own = bevelEdges(material.clone());
+            this.ownMaterials.push(own);
+            out.push({ geometry, material: own, matrix: new THREE.Matrix4(), castShadow: false });
           } else {
             out.push({
               geometry: mesh.geometry,
@@ -179,6 +181,7 @@ export class HexModels {
         polygonOffsetFactor: -1,
         polygonOffsetUnits: offset,
       });
+      bevelEdges(material);
       this.ownMaterials.push(material);
       return material;
     };
@@ -255,6 +258,51 @@ function flatTop(source: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.Buf
   geometry.computeBoundingSphere();
   return geometry;
 }
+
+/**
+ * **Jede Kachel bekommt eine sichtbare, weiche Kante** — im Shader, die
+ * Modelle bleiben, wie sie sind. Gewünscht: _„Die Hex-Tiles an sich sollen
+ * nicht nahtlos aneinander liegen, sondern sie sind am Rand etwas eingedrückt
+ * bzw. abgerundet. Das könnten wir über einen Shader lösen statt das Model
+ * anzufassen."_
+ *
+ * Die Stelle in der Kachel ist die Lage im eigenen Netz (`position`): Die
+ * Kacheln und Böden sind in den Maßen des Regals gebacken (Kante zu Kante 2,
+ * Mittelpunkt 0), gedreht und verschoben wird erst mit der Instanzmatrix.
+ * Der Abstand zur Kante eines Sechsecks ist das Größte der drei
+ * Skalarprodukte mit den Kantennormalen (0°, 60°, 120°). Nah an der Kante
+ * wird es dunkler (die Fuge), knapp davor heller (die Rundung, die das Licht
+ * fängt) — auf der Oberseite, nicht an den Seitenwänden.
+ */
+function bevelEdges<M extends THREE.Material>(material: M): M {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vHexLocal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHexLocal = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vHexLocal;')
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        if (vHexLocal.y > -0.05) {
+          vec2 p = vHexLocal.xz;
+          float d = max(abs(p.x), max(abs(dot(p, vec2(0.5, 0.8660254))), abs(dot(p, vec2(-0.5, 0.8660254)))));
+          float edge = 1.0 - d;
+          float groove = 1.0 - smoothstep(0.0, ${BEVEL.toFixed(3)}, edge);
+          float lip = smoothstep(${(BEVEL * 0.4).toFixed(3)}, ${BEVEL.toFixed(3)}, edge)
+            * (1.0 - smoothstep(${BEVEL.toFixed(3)}, ${(BEVEL * 1.8).toFixed(3)}, edge));
+          diffuseColor.rgb *= mix(1.0, 0.52, groove * groove);
+          diffuseColor.rgb += lip * 0.07;
+        }`,
+      );
+  };
+  material.customProgramCacheKey = () => 'hexland-bevel';
+  material.needsUpdate = true;
+  return material;
+}
+
+/** Wie breit die Rundung an der Kante ist, als Anteil des halben Durchmessers. */
+const BEVEL = 0.075;
 
 /** Die Adressen der Böden beginnen so (`HexModels.ground`). */
 const GROUND = 'ground:';

@@ -39,7 +39,11 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   sein, welcher Auftrag es ist (Stadt 4 z.B.)… immer 3 Aufträge mit entweder
   4, 5, 6 benötigten Feldern"_. Das Gebiet soll **genau** so viele Kacheln groß
   werden: dann ist die Zahl verdient; wächst es darüber, ist der Auftrag
-  verpasst. Über der gelegten Kachel steht ein Schild „4 / 6".
+  verpasst — **auch wenn er schon erfüllt war** (_„nur erfüllt, wenn es exakt
+  die Anzahl sind und nicht mehr oder weniger"_). Ein erfüllter Auftrag bleibt
+  deshalb mit „5 / 5 ✓ · nicht weiter wachsen lassen" über seiner Kachel
+  stehen, und wer das Gebiet trotzdem vergrößert, verliert ihn wieder
+  („…-Auftrag verloren · zu groß", `PlaceResult.questsLost`). Über der gelegten Kachel steht ein Schild „4 / 6".
 - **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell
   `flag_*` aus dem Regal, grün Wald, rot Dorf, gelb Feld). Ein Gebiet mit
   Flagge, das ringsum **geschlossen** ist, zählt seine Kacheln.
@@ -199,6 +203,14 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   manchmal ein Baum oder Stein. Eine Landkachel aus einem einzigen Gelände
   bekommt das große Stück: ganzer Wald, ganzes Feld mit Mühle, Dorfring mit
   Kirche oder Markt. Gewürfelt mit dem Samen der Kachel, also immer gleich.
+- **Die Kante jeder Kachel** (`hexView.bevelEdges`, ein Zusatz im Shader der
+  Kacheln und Böden): nah am Rand eine dunkle Fuge, knapp davor eine helle
+  Rundung — die Kacheln liegen sichtbar als Plättchen nebeneinander, ohne
+  dass ein Modell angefasst wird. Gewünscht: _„sollen nicht nahtlos
+  aneinander liegen, sondern am Rand etwas eingedrückt bzw. abgerundet … über
+  einen Shader statt das Model anzufassen"_. Gerechnet wird mit der Lage im
+  eigenen Netz (`position`, Kante zu Kante 2) — sie ist für jede Drehung
+  dieselbe.
 - **Gezeichnet in Bündeln** (`hexland/hexView.ts`): ein `InstancedMesh` je Netz
   des Regals, egal wie oft es steht — ein Brett mit hundert Kacheln wären
   sonst tausend Zeichenaufrufe (`performance.md`). Die schwebende Kachel ist
