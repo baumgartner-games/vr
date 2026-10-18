@@ -340,8 +340,8 @@ export class HexlandWorld extends FurnishedWorld {
     this.hand.add(this.info);
     // **Der Auftrag der Kachel in der Hand** — sichtbar, bevor sie liegt, in
     // jeder Ansicht (auch von oben, wo ✓ und Zeile in der Leiste stehen).
-    this.handQuest = new QuestBadge(2.4);
-    this.handQuest.position.y = 1.5;
+    this.handQuest = new QuestBadge(1.6);
+    this.handQuest.position.y = 1.3;
     this.hand.add(this.handQuest);
     this.hand.name = 'hexland-ghost';
     // Von oben steht die Figur unsichtbar unter der Kamera — die Kachel in der
@@ -653,11 +653,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.handQuest.visible = label !== null;
       if (label) {
         const quest = spec.quest!;
-        this.handQuest.show(
-          quest.terrain,
-          `${quest.target ?? '?'}`,
-          'Auftrag · genau so viele Kacheln',
-        );
+        this.handQuest.show(quest.terrain, `${quest.target ?? '?'}`);
       }
     }
     this.drawBarIcon();
@@ -940,7 +936,7 @@ export class HexlandWorld extends FurnishedWorld {
       badge.scale.setScalar(scale);
       // Ganz weit draußen lägen die Schilder übereinander — dort reicht die Liste oben rechts.
       badge.visible = far < BADGE_HIDE;
-      badge.position.y = 1.4 + 0.8 * scale;
+      badge.position.y = 1.0 + 0.45 * scale;
     }
   }
 
@@ -958,17 +954,14 @@ export class HexlandWorld extends FurnishedWorld {
       if (!badge) {
         badge = new QuestBadge();
         const c = hexCentre(tile.q, tile.r, HEX_WIDTH);
-        badge.position.set(c.x, 2.2, c.z);
+        badge.position.set(c.x, 1.45, c.z);
         this.badges.set(key, badge);
         this.root.add(badge);
       }
-      badge.show(
-        tile.spec.quest!.terrain,
-        `${progress.size} / ${progress.target}`,
-        `noch ${progress.target - progress.size} · genau ${progress.target} Kacheln`,
-      );
+      badge.show(tile.spec.quest!.terrain, `${progress.size}/${progress.target}`);
     }
     this.drawQuestList(open);
+    this.drawQuestRims(open);
     for (const [key, badge] of this.badges) {
       if (seen.has(key)) continue;
       this.root.remove(badge);
@@ -976,6 +969,63 @@ export class HexlandWorld extends FurnishedWorld {
       this.badges.delete(key);
     }
   }
+
+  /**
+   * **Was zu einem Auftrag zählt, ist am Boden umrandet** — jede Kachel seines
+   * Gebiets bekommt einen Rand in der Farbe des Geländes. Gewünscht: _„Ich
+   * dachte zum einen, die Elemente zu highlighten"_. Ein Bündel für alle,
+   * knapp über den Böden; liegt eine Kachel in zwei Gebieten, rückt der
+   * zweite Rand ein Stück nach innen.
+   */
+  private drawQuestRims(open: Array<{ tile: PlacedTile }>): void {
+    let rims = this.questRims;
+    if (!rims) {
+      const r = HEX_WIDTH / Math.sqrt(3);
+      const geometry = new THREE.RingGeometry(r * 0.84, r * 0.95, 6, 1, Math.PI / 6);
+      geometry.rotateX(-Math.PI / 2);
+      rims = new THREE.InstancedMesh(
+        geometry,
+        new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+        128,
+      );
+      rims.frustumCulled = false;
+      rims.renderOrder = 2;
+      rims.name = 'hexland-quest-rims';
+      this.root.add(rims);
+      this.questRims = rims;
+    }
+    const used = new Map<string, number>();
+    let n = 0;
+    for (const { tile } of open) {
+      const terrain = tile.spec.quest!.terrain;
+      _rimColour.set(TERRAIN_COLOUR[terrain]);
+      for (const t of this.board.areaTiles(tile.q, tile.r, terrain)) {
+        if (n >= rims.instanceMatrix.count) break;
+        const key = hexKey(t.q, t.r);
+        const layer = used.get(key) ?? 0;
+        used.set(key, layer + 1);
+        const c = hexCentre(t.q, t.r, HEX_WIDTH);
+        _rimMatrix.compose(
+          _rimPos.set(c.x, 0.06 + layer * 0.002, c.z),
+          _rimQuat,
+          _rimScale.setScalar(1 - layer * 0.13),
+        );
+        rims.setMatrixAt(n, _rimMatrix);
+        rims.setColorAt(n, _rimColour);
+        n++;
+      }
+    }
+    rims.count = n;
+    rims.instanceMatrix.needsUpdate = true;
+    if (rims.instanceColor) rims.instanceColor.needsUpdate = true;
+  }
+
+  private questRims: THREE.InstancedMesh | null = null;
 
   /**
    * **Die offenen Aufträge oben rechts** — gewünscht: _„Ich würde gerne
@@ -2115,6 +2165,9 @@ export class HexlandWorld extends FurnishedWorld {
     this.confirm?.dispose();
     this.info?.dispose();
     this.handQuest?.dispose();
+    this.questRims?.geometry.dispose();
+    (this.questRims?.material as THREE.Material | undefined)?.dispose();
+    this.questRims?.dispose();
     for (const badge of this.badges.values()) badge.dispose();
     this.badges.clear();
     this.lastCtx = null;
@@ -2215,6 +2268,11 @@ function writeFlag(key: string, on: boolean): void {
 }
 
 const _eye = new THREE.Vector3();
+const _rimColour = new THREE.Color();
+const _rimMatrix = new THREE.Matrix4();
+const _rimPos = new THREE.Vector3();
+const _rimQuat = new THREE.Quaternion();
+const _rimScale = new THREE.Vector3();
 const _aim = new THREE.Vector3();
 const _badge = new THREE.Vector3();
 /** Bis zu diesem Abstand der Kamera haben die Schilder ihre eigene Größe, danach wachsen sie mit. */

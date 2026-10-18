@@ -919,6 +919,20 @@ export class HexBoard {
   }
 
   /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört, in Kacheln. */
+  /** **Die Kacheln eines Gebiets** — für die Ränder am Boden (`HexlandWorld.drawQuestRims`). */
+  areaTiles(q: number, r: number, terrain: Terrain): PlacedTile[] {
+    const key = hexKey(q, r);
+    const tile = this.tiles.get(key);
+    if (!tile || !tile.spec.edges.includes(terrain)) return [];
+    const { find } = this.areas(terrain);
+    const root = find(key);
+    const out: PlacedTile[] = [];
+    for (const [k, t] of this.tiles) {
+      if (t.spec.edges.includes(terrain) && find(k) === root) out.push(t);
+    }
+    return out;
+  }
+
   areaSize(q: number, r: number, terrain: Terrain): number {
     const key = hexKey(q, r);
     const tile = this.tiles.get(key);

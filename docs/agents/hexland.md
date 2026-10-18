@@ -79,6 +79,18 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   gehören zu einem Gebiet (eine Vereinfachung gegenüber dem Brettspiel, die
   man an keiner Kachel sieht).
 
+### Wie Aufträge auf dem Brett aussehen
+
+- **Kleines Abzeichen** (`hexBadge.QuestBadge`): Gelände-Sechseck und „3/5",
+  sonst nichts — die Erklärung („noch 2") steht in der Liste oben rechts.
+  An der Kachel in der Hand nur die Zahl. Gewünscht: _„Können wir die
+  Mission-Tiles anders darstellen? Aktuell verdecken diese viel … nur das
+  Icon, aber mit X/Y rendern."_
+- **Ränder am Boden** (`drawQuestRims`, ein `InstancedMesh`): jede Kachel im
+  Gebiet eines offenen Auftrags bekommt einen Rand in der Farbe des Geländes
+  (`HexBoard.areaTiles`); liegt eine Kachel in zwei Gebieten, rückt der
+  zweite Rand nach innen. Gewünscht: _„die Elemente zu highlighten"_.
+
 ### Spielende (normale Runde)
 
 - **Vorbei ist es, wenn keine normale Kachel mehr da ist** (`HexBoard.over`,
