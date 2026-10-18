@@ -293,37 +293,47 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   fliegt."_ Alles im Shader der Bündel, kein JavaScript je Baum:
   - Bäume und Weizen bekommen eine eigene Kopie des Materials der Vorlage
     (`HexModels.animated`, die Vorlage teilen sich alle KayKit-Welten) mit
-    `swayMaterial`: Die Spitze weicht um Höhe² aus, leise aus fester Richtung
-    und stark, wo die Front der Böe gerade ist (`ANIM.gust`). Nur in
-    Bündeln — die Kachel in der Hand bleibt still. Schatten wiegen nicht mit.
+    `swayMaterial`: Die Spitze weicht um Höhe² aus — **nur auf der Kachel,
+    auf der der Wind gerade ist** (`ANIM.gustTiles`, ausklingend auf der
+    davor), sonst steht alles still. Gewünscht: _„Der Wind soll nur Felder
+    beeinflussen, wenn er auf dessen Feld gerade ist. Das Weizen bewegt sich
+    viel zu stark."_ (Weizen `bend` 0,6, Bäume 0,3.) Der Shader prüft, ob der
+    Fuß (`instanceMatrix[3]`) im Sechseck der Kachel liegt. Nur in Bündeln —
+    die Kachel in der Hand bleibt still. Schatten wiegen nicht mit.
   - Der Mühlenflügel (`building_windmill_top_fan_*`, ein eigenes Netz, mittig
     auf seiner Achse z) dreht im Shader (`fanMaterial`).
-  - **Wasser fließt den Fluss hinab** — gemeldet: _„Das Wasser fließt leider
-    aktuell einfach irgendwie random umher, statt entlang des
-    Wasserverlaufs."_ `hexDressing.riverFlow` gibt jedem Flusssystem eine
-    Richtung: Quelle ist ein offenes Ende möglichst weit (über den Fluss
-    gezählt) von einem See, von dort fließt es in jede verbundene Kachel, in
-    Seen und Ufer hinein, an offenen Enden vom Brett. Je Kachel: Arme hinein
-    und hinaus (Bitmasken in den Kanten des **Modells**, also zurückgedreht)
-    und `centre`, wie weit die Mitte den Fluss hinab liegt (Kante → Mitte
-    = 1). Das kommt als Spalte je Kopie (`aFlow`, `InstancedBufferAttribute`)
-    an die Bündel der Grundkacheln (`Part.flows`; die Hülle um dieselben Ecken
-    gehört dem Bündel, die Kachel in der Hand hat keine Spalte und steht
-    still). `HexBoardView.updateFlow` rechnet nach jeder Kachel alles neu —
-    eine neue kann zwei Flüsse verbinden. Im Shader (`WATER_FRAGMENT`) sagt
-    der nächste Arm, wo man ist, und `S` zählt den Fluss hinab; an der Kante
-    zweier Kacheln ist `S` auf beiden Seiten gleich, die Wellen laufen ohne
-    Sprung hinüber. Seen und Ufer glitzern langsam ungerichtet.
-  - **Ein Tempo für Wasser und Wind** (`FLOW_SPEED`, 0,8 m/s) — gewünscht:
-    _„Der Wind ist mir zu schnell und sollte so schnell sein, wie das Wasser
-    fließt. Auch sollte es wie Wasser auf den Tiles entlang fließen, von Tile
-    zu Tile."_
-  - Die Böe (`WindGusts`): sechs weiße Bänder mit Kringel, **tief über den
-    Kacheln** (0,2–0,5 m), vom Rand des Bildes quer übers Bild mit
-    `FLOW_SPEED`; einige Sekunden nach dem Ende die nächste. Weit
-    herausgezoomt sind die Bänder größer und um denselben Faktor schneller,
-    damit sie im Bild gleich schnell wirken (`HexlandWorld.blowWind` rechnet
-    Blickpunkt und Sichtfeld). Sechs Zeichenaufrufe, nur während einer Böe.
+  - **Wasser fließt den Fluss hinab.** `hexDressing.riverFlow` spielt das
+    Brett in der Reihenfolge des Legens nach (die steht im Spielstand, also
+    kein neues Feld): Eine Flusskachel allein fließt von ihrem südlichsten
+    Arm (+z) in alle anderen — gabelt sie, trennt sich das Wasser. Ein Arm an
+    einem Nachbarfluss übernimmt dessen Richtung, freie Arme laufen hinaus,
+    wenn Wasser hereinkommt, sonst herein. Kommt nur Wasser herein und kann
+    nirgends hinaus (oder umgekehrt), **kehrt der kürzere verbundene Fluss
+    um**. Gewünscht: _„dass ein Fluss eine Wasserrichtung hat, und wenn es
+    mit dem nächsten Teil verbunden ist, fließt das Wasser dort weiter und
+    trennt sich … zwei Flüsse, die aufeinander fließen und dann verbunden
+    werden, fließen danach in eine gemeinsame Richtung, einer muss sich
+    umkehren (der kürzere)."_ Ergebnis je Kachel: Arme hinein und hinaus
+    (Bitmasken in den Kanten des **Modells**) und `centre`, wie weit die
+    Mitte den Fluss hinab liegt. Das kommt als Spalte je Kopie (`aFlow`) an
+    die Bündel der Grundkacheln (`Part.flows`); `HexBoardView.updateFlow`
+    rechnet nach jeder Kachel alles neu. Im Shader (`WATER_FRAGMENT`) sagt
+    der nächste Arm, wo man ist, und die Wellen laufen den Fluss hinab, ohne
+    Sprung an der Kachelkante. Seen und Ufer glitzern langsam ungerichtet.
+  - **Flussrichtung zeigen** (Schalter im Reiter, `hexland:arrows`, ohne
+    Eintrag aus): je Arm ein weißer Pfeil, halb zwischen Mitte und Kante
+    (`HexBoardView.showArrows`, ein `InstancedMesh`).
+  - **Der Wind** (`WindGusts`, mit `FLOW_SPEED` so schnell wie das Wasser) —
+    eine einzige Front, die von Kachel zu Kachel läuft. Gewünscht: _„Lass nur
+    eine Windfront bewegen entlang der Hex-Tiles, der Wind bewegt sich von
+    Feld zu Feld mit einer allgemeinen Richtung (z.B. Süd nach Nord) und hat
+    auf den Feldern eine 50%-Chance, links oder rechts abzuweichen."_ Jeder
+    Windstoß hat eine Hauptrichtung (eine Ecke der Kachel, zwischen zwei
+    Kanten), tritt hinten ins Brett, läuft auf jeder Kachel im Bogen von der
+    Kante, an der er kam, durch die Mitte zu einer der beiden vorderen Kanten
+    (je zur Hälfte) und vorn hinaus; 4–9 s später der nächste. Hinter ihm
+    eine weiße Spur (3 m), die herausgezoomt breiter und schneller wird
+    (`HexlandWorld.blowWind`). Ein Zeichenaufruf.
   - Aus heißt: Zeit steht (Flügel stehen), Wiegen, Glitzern und Böen weg.
 - **Die Kante jeder Kachel** (`hexView.bevelEdges`, ein Zusatz im Shader der
   Kacheln und Böden): nah am Rand eine dunkle Fuge, knapp davor eine helle

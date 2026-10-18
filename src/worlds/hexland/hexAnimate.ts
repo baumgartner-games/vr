@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { hexCentre, neighbour, opposite, type PlacedTile } from './hexRules';
 
 /**
  * **Bewegung auf dem Brett** — Mühlenflügel drehen sich, Wasser fließt leicht,
@@ -18,24 +19,30 @@ export const ANIM = {
   time: { value: 0 },
   /** 1 an, 0 aus — Wiegen und Glitzern gehen damit weg, die Flügel bleiben stehen. */
   on: { value: 1 },
-  /** Die Böe: Richtung (x, z), wo ihre Front gerade ist (längs der Richtung), Stärke. */
-  gust: { value: new THREE.Vector4(1, 0, -1e4, 0) },
+  /** Die Mitten der Kachel, auf der der Wind gerade ist (x, z), und der davor (z, w). */
+  gustTiles: { value: new THREE.Vector4(1e4, 1e4, 1e4, 1e4) },
+  /** Wie stark dort (x) und davor (y), und wohin er drückt (z, w). */
+  gustPush: { value: new THREE.Vector4(0, 0, 1, 0) },
 };
 
-/** Der leise Wind ohne Böe — immer aus derselben Richtung, damit nichts springt. */
-const BREEZE = 'vec2(0.8, 0.6)';
+/** Von der Mitte einer Kachel bis zu ihrer Kante, in Metern (`hexView.HEX_WIDTH` / 2). */
+const APOTHEM = 1.5;
 
 /**
  * **Wiegen im Wind** — die Spitze weicht aus, der Fuß bleibt stehen: Der Weg
- * wächst mit dem Quadrat der Höhe über dem Brett. `bend` macht kleine Dinge
- * (Weizen) so beweglich wie große (Bäume). Nur in Bündeln: Die Kachel in der
- * Hand schwebt und muss nicht wackeln.
+ * wächst mit dem Quadrat der Höhe über dem Brett. **Nur auf der Kachel, auf
+ * der der Wind gerade ist** (und ausklingend auf der davor) — gewünscht:
+ * _„Der Wind soll nur Felder beeinflussen, wenn er auf dessen Feld gerade
+ * ist."_ Wo ein Baum steht, sagt sein Fuß (`instanceMatrix[3]`); in der
+ * Kachel ist er, wenn er näher an ihrer Mitte als an jeder ihrer drei
+ * Kantenachsen ist. Nur in Bündeln: Die Kachel in der Hand bleibt still.
  */
 export function swayMaterial<M extends THREE.Material>(material: M, bend: number): M {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uHexTime = ANIM.time;
     shader.uniforms.uHexAnim = ANIM.on;
-    shader.uniforms.uHexGust = ANIM.gust;
+    shader.uniforms.uHexGustTiles = ANIM.gustTiles;
+    shader.uniforms.uHexGustPush = ANIM.gustPush;
     shader.uniforms.uHexBend = { value: bend };
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -43,8 +50,13 @@ export function swayMaterial<M extends THREE.Material>(material: M, bend: number
         `#include <common>
         uniform float uHexTime;
         uniform float uHexAnim;
-        uniform vec4 uHexGust;
-        uniform float uHexBend;`,
+        uniform vec4 uHexGustTiles;
+        uniform vec4 uHexGustPush;
+        uniform float uHexBend;
+        float hexInside(vec2 d) {
+          float m = max(abs(d.x), max(abs(dot(d, vec2(0.5, 0.8660254))), abs(dot(d, vec2(-0.5, 0.8660254)))));
+          return step(m, ${APOTHEM.toFixed(2)});
+        }`,
       )
       .replace(
         '#include <project_vertex>',
@@ -55,11 +67,10 @@ export function swayMaterial<M extends THREE.Material>(material: M, bend: number
             vec2 foot = instanceMatrix[3].xz;
             float phase = foot.x * 0.71 + foot.y * 1.37;
             float h = max(mvPosition.y, 0.0);
-            float along = dot(mvPosition.xz, uHexGust.xy) - uHexGust.z;
-            float gust = uHexGust.w * exp(-along * along / 6.0) * (0.75 + 0.25 * sin(uHexTime * 9.0 + phase));
-            float idle = 0.12 + 0.1 * sin(uHexTime * 1.7 + phase) + 0.04 * sin(uHexTime * 3.1 + phase * 1.9);
-            vec2 push = ${BREEZE} * idle + uHexGust.xy * gust;
-            mvPosition.xz += push * uHexBend * h * h * uHexAnim;
+            float wind = uHexGustPush.x * hexInside(foot - uHexGustTiles.xy)
+              + uHexGustPush.y * hexInside(foot - uHexGustTiles.zw);
+            float flutter = 0.7 + 0.3 * sin(uHexTime * 6.0 + phase);
+            mvPosition.xz += uHexGustPush.zw * wind * flutter * uHexBend * h * h * uHexAnim;
           }
         #endif
         mvPosition = modelViewMatrix * mvPosition;
@@ -164,185 +175,262 @@ export function waterUniforms(uniforms: Record<string, THREE.IUniform>): void {
   uniforms.uHexAnim = ANIM.on;
 }
 
-const CALM = [5, 11] as const;
-const STREAKS = 6;
+/** Wie lange es zwischen zwei Windstößen ruhig bleibt, in Sekunden. */
+const CALM = [4, 9] as const;
+/** Wie lang die weiße Spur hinter dem Wind ist, in Metern (vor dem Zoom). */
+const TRAIL = 3;
+const TRAIL_POINTS = 96;
 
 /**
- * **Die weiße Böe** — ein paar Schlieren, die vom Rand des Bildes übers Brett
- * ziehen und sich dabei kringeln; wo ihre Front gerade ist, steht in
- * `ANIM.gust`, und dort biegen sich Bäume und Weizen stärker.
+ * **Der Wind — eine Front, von Kachel zu Kachel.** Gewünscht: _„Lass nur eine
+ * Windfront bewegen entlang der Hex-Tiles, der Wind bewegt sich von Feld zu
+ * Feld mit einer allgemeinen Richtung (z.B. Süd nach Nord) und hat auf den
+ * Feldern eine 50%-Chance, links oder rechts abzuweichen."_
+ *
+ * Jeder Windstoß bekommt eine Hauptrichtung zwischen zwei Nachbarkanten
+ * (sechs Möglichkeiten, eine Ecke der Kachel). Er tritt an der Rückseite des
+ * Bretts herein, läuft auf jeder Kachel von der Kante, an der er kam, in
+ * einem Bogen durch die Mitte zu einer der beiden Kanten nach vorn — je zur
+ * Hälfte links oder rechts — und hinter der Vorderseite des Bretts hinaus.
+ * Hinter ihm zieht eine weiße Spur. Er läuft mit `FLOW_SPEED`, so schnell
+ * wie das Wasser.
  */
 export class WindGusts {
   readonly root = new THREE.Group();
-  private readonly streaks: Array<{
-    mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
-    side: number;
-    lag: number;
-    height: number;
-  }> = [];
-  private calm = 3;
-  private front = 0;
-  private reach = 0;
-  private speed = 0;
-  private readonly dir = new THREE.Vector2(1, 0);
-  private readonly centre = new THREE.Vector2();
-  private readonly geometry = ribbon();
+  private readonly mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  private readonly positions = new Float32Array(TRAIL_POINTS * 2 * 3);
+  private readonly alphas = new Float32Array(TRAIL_POINTS * 2);
+  /** Die Spur, neuester Punkt vorn. */
+  private readonly trail: THREE.Vector2[] = [];
+  private calm = 2;
+  private running = false;
+  /** Die Hauptrichtung: zwischen Kante `forward` und `forward + 1`. */
+  private forward = 0;
+  private cell = { q: 0, r: 0 };
+  private from = new THREE.Vector2();
+  private exit = 0;
+  private t = 0;
+  private length = 1;
+  private beyond = 0;
+  private size = 1;
+  /** Wie lang die Spur sein darf, in Metern — schrumpft, wenn der Wind vom Brett ist. */
+  private keep = 0;
+  private readonly head = new THREE.Vector2();
 
-  constructor() {
+  constructor(private readonly width: number) {
     this.root.name = 'hexland-wind';
-    for (let i = 0; i < STREAKS; i++) {
-      const material = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: ANIM.time,
-          uLen: { value: 4 },
-          uSeed: { value: i * 1.7 },
-          uFade: { value: 0 },
-        },
-        vertexShader: RIBBON_VERTEX,
-        fragmentShader: RIBBON_FRAGMENT,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-      const mesh = new THREE.Mesh(this.geometry, material);
-      mesh.frustumCulled = false;
-      mesh.renderOrder = 6;
-      mesh.visible = false;
-      this.root.add(mesh);
-      this.streaks.push({ mesh, side: 0, lag: 0, height: 1 });
-    }
-  }
-
-  /**
-   * Einmal je Bild. `centre` ist die Stelle, auf die man schaut, `reach` wie
-   * weit das Bild von dort bis zum Rand reicht — dort fängt die Böe an —,
-   * `spread` wie breit sie quer dazu ist.
-   */
-  update(dt: number, on: boolean, centre: THREE.Vector2, reach: number, spread: number): void {
-    ANIM.on.value = on ? 1 : 0;
-    if (on) ANIM.time.value += dt;
-    const g = ANIM.gust.value;
-    if (!on) {
-      g.w = 0;
-      this.reach = 0;
-      for (const s of this.streaks) s.mesh.visible = false;
-      return;
-    }
-    if (this.reach === 0) {
-      this.calm -= dt;
-      if (this.calm > 0) return;
-      this.start(centre, reach, spread);
-    }
-    this.front += this.speed * dt;
-    const end = this.reach + 4;
-    if (this.front > end) {
-      this.reach = 0;
-      g.w = 0;
-      this.calm = CALM[0] + Math.random() * (CALM[1] - CALM[0]);
-      for (const s of this.streaks) s.mesh.visible = false;
-      return;
-    }
-    // Sanft an und aus — eine Böe, kein Schlag.
-    const k = (this.front + this.reach) / (2 * this.reach + 4);
-    const strength = Math.sin(Math.PI * Math.min(1, Math.max(0, k)));
-    g.set(this.dir.x, this.dir.y, this.centre.dot(this.dir) + this.front - 1, 0.6 + 0.6 * strength);
-    const perp = new THREE.Vector2(-this.dir.y, this.dir.x);
-    for (const s of this.streaks) {
-      const along = this.front - s.lag;
-      s.mesh.position.set(
-        this.centre.x + this.dir.x * along + perp.x * s.side,
-        s.height,
-        this.centre.y + this.dir.y * along + perp.y * s.side,
-      );
-      // Am Rand des Bildes blendet sie ein und aus.
-      const edge = Math.min(along + this.reach, this.reach - along) / (this.reach * 0.2);
-      s.mesh.material.uniforms.uFade!.value = Math.max(0, Math.min(1, edge)) * 0.85;
-    }
-  }
-
-  private start(centre: THREE.Vector2, reach: number, wide: number): void {
-    const a = Math.random() * Math.PI * 2;
-    this.dir.set(Math.cos(a), Math.sin(a));
-    this.centre.copy(centre);
-    this.reach = Math.max(8, reach);
-    this.front = -this.reach;
-    // Von weit oben wären Schlieren in Metern unsichtbar dünn — sie wachsen mit.
-    const size = Math.max(1, this.reach / 12);
-    // So schnell wie das Wasser — weit herausgezoomt so viel schneller, wie die
-    // Schlieren größer sind, damit es im Bild gleich schnell aussieht.
-    this.speed = FLOW_SPEED * size;
-    const spread = Math.max(3, wide);
-    this.streaks.forEach((s, i) => {
-      s.side = (i / (STREAKS - 1) - 0.5) * 2 * spread + (Math.random() - 0.5) * spread * 0.3;
-      s.lag = Math.random() * 3;
-      // Tief über den Kacheln, wie Wasser über das Brett — gewünscht: _„Auch
-      // sollte es wie Wasser auf den Tiles entlang fließen, von Tile zu Tile."_
-      s.height = (0.2 + Math.random() * 0.3) * size;
-      s.lag *= size;
-      s.mesh.scale.setScalar(size);
-      s.mesh.material.uniforms.uLen!.value = 3 + Math.random() * 2.5;
-      s.mesh.rotation.y = -Math.atan2(this.dir.y, this.dir.x);
-      s.mesh.visible = true;
-    });
-  }
-
-  dispose(): void {
-    this.geometry.dispose();
-    for (const s of this.streaks) s.mesh.material.dispose();
-    ANIM.gust.value.w = 0;
-  }
-}
-
-/** Ein Band, waagerecht: `aT` von der Spitze (0) zum Schwanz (1), `aSide` die Seite. */
-function ribbon(): THREE.BufferGeometry {
-  const n = 40;
-  const t = new Float32Array((n + 1) * 2);
-  const side = new Float32Array((n + 1) * 2);
-  const index: number[] = [];
-  for (let i = 0; i <= n; i++) {
-    t[i * 2] = t[i * 2 + 1] = i / n;
-    side[i * 2] = -1;
-    side[i * 2 + 1] = 1;
-    if (i < n) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    geometry.setAttribute('aAlpha', new THREE.BufferAttribute(this.alphas, 1));
+    const index: number[] = [];
+    for (let i = 0; i < TRAIL_POINTS - 1; i++) {
       const a = i * 2;
       index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
     }
+    geometry.setIndex(index);
+    this.mesh = new THREE.Mesh(
+      geometry,
+      new THREE.ShaderMaterial({
+        vertexShader: `attribute float aAlpha;
+          varying float vAlpha;
+          void main() {
+            vAlpha = aAlpha;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `varying float vAlpha;
+          void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha); }`,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 6;
+    this.mesh.visible = false;
+    this.root.add(this.mesh);
   }
-  const geometry = new THREE.BufferGeometry();
-  // `position` braucht three.js für die Zahl der Ecken; die Lage rechnet der Shader.
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array((n + 1) * 6), 3));
-  geometry.setAttribute('aT', new THREE.BufferAttribute(t, 1));
-  geometry.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
-  geometry.setIndex(index);
-  return geometry;
+
+  /**
+   * Einmal je Bild. `tiles` ist das Brett; `size` wächst, je weiter man
+   * herausgezoomt ist — die Spur wird breiter, damit man sie noch sieht.
+   */
+  update(dt: number, on: boolean, tiles: ReadonlyMap<string, PlacedTile>, size: number): void {
+    ANIM.on.value = on ? 1 : 0;
+    const push = ANIM.gustPush.value;
+    if (!on) {
+      this.running = false;
+      this.trail.length = 0;
+      this.mesh.visible = false;
+      push.x = push.y = 0;
+      return;
+    }
+    ANIM.time.value += dt;
+    this.size = size;
+    // Die Kachel davor klingt aus, die jetzige schwillt an.
+    push.y = Math.max(0, push.y - dt / 0.8);
+    if (this.running) this.advance(dt);
+    else {
+      push.x = Math.max(0, push.x - dt / 0.8);
+      this.calm -= dt;
+      if (this.calm <= 0 && tiles.size > 0) this.start(tiles);
+      // Ohne Kopf holt der Schwanz der Spur auf, bis nichts mehr übrig ist.
+      this.keep -= FLOW_SPEED * this.size * dt;
+      this.trim();
+    }
+    this.drawTrail();
+  }
+
+  private start(tiles: ReadonlyMap<string, PlacedTile>): void {
+    this.forward = Math.floor(Math.random() * 6);
+    const dir = this.direction();
+    // Die hinterste Kachel des Bretts, eine davon, wenn mehrere gleich weit hinten liegen.
+    let least = Infinity;
+    let most = -Infinity;
+    const along = (q: number, r: number): number => {
+      const c = hexCentre(q, r, this.width);
+      return c.x * dir.x + c.z * dir.y;
+    };
+    for (const t of tiles.values()) {
+      least = Math.min(least, along(t.q, t.r));
+      most = Math.max(most, along(t.q, t.r));
+    }
+    const back = [...tiles.values()].filter((t) => along(t.q, t.r) <= least + this.width * 0.6);
+    const first = back[Math.floor(Math.random() * back.length)]!;
+    const behind = opposite(this.forward + (Math.random() < 0.5 ? 0 : 1)) % 6;
+    this.cell = neighbour(first, behind);
+    this.beyond = most + this.width;
+    const c = hexCentre(this.cell.q, this.cell.r, this.width);
+    this.from.set(c.x - dir.x * this.width * 0.5, c.z - dir.y * this.width * 0.5);
+    this.pickExit();
+    this.running = true;
+    this.trail.length = 0;
+    this.head.copy(this.from);
+  }
+
+  /** Links oder rechts der Hauptrichtung, je zur Hälfte. */
+  private pickExit(): void {
+    this.exit = (this.forward + (Math.random() < 0.5 ? 0 : 1)) % 6;
+    const c = hexCentre(this.cell.q, this.cell.r, this.width);
+    const x = this.edgePoint(c, this.exit);
+    // Länge des Bogens, grob: Eingang → Mitte → Ausgang.
+    this.length =
+      Math.hypot(c.x - this.from.x, c.z - this.from.y) + Math.hypot(x.x - c.x, x.y - c.z);
+    this.t = 0;
+    const tiles = ANIM.gustTiles.value;
+    tiles.x = c.x;
+    tiles.y = c.z;
+  }
+
+  private advance(dt: number): void {
+    this.t += (FLOW_SPEED * this.size * dt) / this.length;
+    const push = ANIM.gustPush.value;
+    if (this.t >= 1) {
+      // Auf die nächste Kachel: Die jetzige wird die davor.
+      const c = hexCentre(this.cell.q, this.cell.r, this.width);
+      this.from.copy(this.edgePoint(c, this.exit));
+      const g = ANIM.gustTiles.value;
+      g.z = g.x;
+      g.w = g.y;
+      push.y = push.x;
+      push.x = 0;
+      this.cell = neighbour(this.cell, this.exit);
+      const n = hexCentre(this.cell.q, this.cell.r, this.width);
+      const dir = this.direction();
+      if (n.x * dir.x + n.z * dir.y > this.beyond) {
+        this.running = false;
+        this.calm = CALM[0] + Math.random() * (CALM[1] - CALM[0]);
+        return;
+      }
+      this.pickExit();
+    }
+    const c = hexCentre(this.cell.q, this.cell.r, this.width);
+    const x = this.edgePoint(c, this.exit);
+    const t = Math.min(1, this.t);
+    const a = (1 - t) * (1 - t);
+    const b = 2 * t * (1 - t);
+    const d = t * t;
+    const prevX = this.head.x;
+    const prevZ = this.head.y;
+    this.head.set(a * this.from.x + b * c.x + d * x.x, a * this.from.y + b * c.z + d * x.y);
+    // Auf der Kachel kommt er an, schwillt an und drückt in seine Laufrichtung.
+    push.x = Math.min(1, push.x + dt / 0.6);
+    const mx = this.head.x - prevX;
+    const mz = this.head.y - prevZ;
+    const m = Math.hypot(mx, mz);
+    if (m > 1e-4 && m < 1) {
+      push.z = mx / m;
+      push.w = mz / m;
+    }
+    const last = this.trail[0];
+    if (!last || last.distanceTo(this.head) > 0.04 * this.size) {
+      this.trail.unshift(this.head.clone());
+      this.keep = TRAIL * this.size;
+      this.trim();
+    }
+  }
+
+  /** Die Spur auf `keep` Meter kürzen, vom Schwanz her. */
+  private trim(): void {
+    let budget = this.keep;
+    for (let i = 1; i < this.trail.length; i++) {
+      budget -= this.trail[i]!.distanceTo(this.trail[i - 1]!);
+      if (budget < 0 || i >= TRAIL_POINTS) {
+        this.trail.length = i;
+        break;
+      }
+    }
+    if (this.keep <= 0) this.trail.length = 0;
+  }
+
+  private drawTrail(): void {
+    const n = this.trail.length;
+    this.mesh.visible = n > 1;
+    if (n < 2) return;
+    const y = 0.35 * Math.min(this.size, 2);
+    for (let i = 0; i < TRAIL_POINTS; i++) {
+      const k = Math.min(i, n - 1);
+      const p = this.trail[k]!;
+      const q = this.trail[Math.min(k + 1, n - 1)]!;
+      const o = this.trail[Math.max(k - 1, 0)]!;
+      let dx = o.x - q.x;
+      let dz = o.y - q.y;
+      const l = Math.hypot(dx, dz) || 1;
+      dx /= l;
+      dz /= l;
+      const u = k / (n - 1);
+      const w = (0.07 * (1 - u) + 0.015) * this.size;
+      const alpha = i < n ? Math.pow(1 - u, 1.3) * Math.min(1, u * 20) * 0.85 : 0;
+      for (const side of [0, 1]) {
+        const s = side === 0 ? -w : w;
+        const j = (i * 2 + side) * 3;
+        this.positions[j] = p.x - dz * s;
+        this.positions[j + 1] = y;
+        this.positions[j + 2] = p.y + dx * s;
+        this.alphas[i * 2 + side] = alpha;
+      }
+    }
+    this.mesh.geometry.getAttribute('position').needsUpdate = true;
+    this.mesh.geometry.getAttribute('aAlpha').needsUpdate = true;
+  }
+
+  /** Die Hauptrichtung als Vektor (x, z): die Ecke zwischen den beiden Vorderkanten. */
+  private direction(): THREE.Vector2 {
+    const a = ((this.forward * 60 + 30) * Math.PI) / 180;
+    return new THREE.Vector2(Math.cos(a), Math.sin(a));
+  }
+
+  /** Die Mitte der Kante `edge` einer Kachel mit Mitte `c`. */
+  private edgePoint(c: { x: number; z: number }, edge: number): THREE.Vector2 {
+    const a = (edge * Math.PI) / 3;
+    return new THREE.Vector2(
+      c.x + Math.cos(a) * this.width * 0.5,
+      c.z + Math.sin(a) * this.width * 0.5,
+    );
+  }
+
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    this.mesh.material.dispose();
+    ANIM.gustPush.value.set(0, 0, 1, 0);
+  }
 }
-
-const RIBBON_VERTEX = /* glsl */ `
-  uniform float uTime;
-  uniform float uLen;
-  uniform float uSeed;
-  attribute float aT;
-  attribute float aSide;
-  varying float vT;
-  void main() {
-    // Der Schwanz schlängelt sich, und kurz hinter der Spitze schlägt er
-    // einen kleinen Kringel — wie eine Windlinie im Zeichentrick.
-    float x = -aT * uLen;
-    float z = sin(aT * 7.0 - uTime * 1.6 + uSeed) * 0.22 * aT;
-    float curl = smoothstep(0.12, 0.2, aT) * (1.0 - smoothstep(0.32, 0.4, aT));
-    float ang = (aT - 0.12) / 0.28 * 6.2831853;
-    x += curl * sin(ang) * 0.35;
-    z += curl * (1.0 - cos(ang)) * 0.35;
-    float w = 0.045 * (1.0 - aT) + 0.01;
-    vec3 p = vec3(x, 0.0, z + aSide * w);
-    vT = aT;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-  }`;
-
-const RIBBON_FRAGMENT = /* glsl */ `
-  uniform float uFade;
-  varying float vT;
-  void main() {
-    float a = smoothstep(0.0, 0.04, vT) * pow(1.0 - vT, 1.4) * uFade;
-    gl_FragColor = vec4(1.0, 1.0, 1.0, a);
-  }`;

@@ -90,8 +90,10 @@ export class HexlandWorld extends FurnishedWorld {
   private offDom: Array<() => void> = [];
   private hexMaterials: THREE.Material[] = [];
   /** Mühlen, Wasser, Wind (`hexAnimate.ts`) — an oder aus, gemerkt im Browser. */
-  private animations = readAnimations();
-  private readonly wind = new WindGusts();
+  private animations = readFlag(ANIM_KEY, true);
+  /** Pfeile der Flussrichtung (`HexBoardView.showArrows`), gemerkt im Browser. */
+  private arrows = readFlag(ARROW_KEY, false);
+  private readonly wind = new WindGusts(HEX_WIDTH);
   /** Die Spielhilfen (`helpMenu`), gemerkt im Browser. */
   private help: HexHelp = readHelp();
   /** Wo zuletzt gelegt wurde — dort in der Nähe liegt die nächste (`autoPlace`). */
@@ -201,7 +203,8 @@ export class HexlandWorld extends FurnishedWorld {
   // --- aufbauen -------------------------------------------------------------------
 
   private buildBoard(ctx: WorldContext): void {
-    this.view = new HexBoardView(this.models);
+    this.view = new HexBoardView(this.models, () => this.board.tiles);
+    this.view.showArrows(this.arrows);
     this.view.root.userData.sharedAssets = true;
     this.root.add(this.view.root);
     for (const tile of this.board.tiles.values()) void this.view.add(tile);
@@ -851,28 +854,16 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   /**
-   * **Der Wind** — die Böe beginnt am Rand des Bildes: gemessen von der Stelle,
-   * auf die die Kamera schaut, so weit, wie das Bild von dort reicht.
+   * **Der Wind** (`hexAnimate.WindGusts`) — läuft über das Brett; wie weit die
+   * Kamera weg ist, macht nur seine Spur breiter, damit man sie sieht.
    */
   private blowWind(dt: number, ctx: WorldContext): void {
     const camera = ctx.viewCamera ?? ctx.camera;
     camera.getWorldPosition(_eye);
     camera.getWorldDirection(_look);
-    // Wo der Blick das Brett trifft; schaut man flach oder nach oben, die Stelle unter einem.
-    const t = _look.y < -0.05 ? -_eye.y / _look.y : 0;
-    _aim.copy(_eye).addScaledVector(_look, Math.min(t, 80));
-    this.root.worldToLocal(_aim);
-    // Wie weit das Bild von dort reicht, quer und hoch.
-    const far = _eye.distanceTo(this.root.localToWorld(_aim.clone()));
-    const half = far * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const wide = half * camera.aspect;
-    this.wind.update(
-      dt,
-      this.animations,
-      _centre.set(_aim.x, _aim.z),
-      Math.max(half, wide) * 1.1,
-      Math.min(half, wide) * 0.8,
-    );
+    // Wie weit es bis dahin ist, wo der Blick das Brett trifft.
+    const far = _look.y < -0.05 ? Math.min(-_eye.y / _look.y, 120) : 10;
+    this.wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / 25));
   }
 
   // --- die Ansichten ---------------------------------------------------------------
@@ -1330,7 +1321,13 @@ export class HexlandWorld extends FurnishedWorld {
         run: close,
       });
     }
-    rows.push(...this.modeRows(), this.helpMenu(), this.animationRow(), this.fpsRow());
+    rows.push(
+      ...this.modeRows(),
+      this.helpMenu(),
+      this.animationRow(),
+      this.arrowRow(),
+      this.fpsRow(),
+    );
     if (!creative) {
       rows.push({
         id: 'hexland:rules',
@@ -1407,13 +1404,34 @@ export class HexlandWorld extends FurnishedWorld {
     return {
       id: 'hexland:animations',
       label: 'Animationen',
-      sub: 'Mühlen drehen sich, Wasser fließt, Wind wiegt Bäume und Weizen',
+      sub: 'Mühlen drehen sich, Wasser fließt den Fluss hinab, ab und zu zieht Wind von Kachel zu Kachel',
       icon: 'glider',
       accent: 0x6fb7e0,
       checked: this.animations,
       run: () => {
         this.animations = !this.animations;
-        writeAnimations(this.animations);
+        writeFlag(ANIM_KEY, this.animations);
+        this.context?.refreshWorldMenu();
+      },
+    };
+  }
+
+  /**
+   * **Flussrichtung als Pfeile** — gewünscht: _„Füge eine Grafik-Option ein,
+   * um Pfeil-Richtungen anzeigen zu können bei den Flüssen."_
+   */
+  private arrowRow(): MenuEntry {
+    return {
+      id: 'hexland:arrows',
+      label: 'Flussrichtung zeigen',
+      sub: 'Ein Pfeil auf jedem Arm eines Flusses: wohin das Wasser fließt',
+      icon: 'xray',
+      accent: 0x3a8fd6,
+      checked: this.arrows,
+      run: () => {
+        this.arrows = !this.arrows;
+        writeFlag(ARROW_KEY, this.arrows);
+        this.view?.showArrows(this.arrows);
         this.context?.refreshWorldMenu();
       },
     };
@@ -1770,19 +1788,21 @@ function savedSummary(mode: HexMode): string | null {
 }
 
 const ANIM_KEY = 'hexland:animations';
+const ARROW_KEY = 'hexland:arrows';
 
-/** Ohne Eintrag an — es ist eine Welt zum Anschauen. */
-function readAnimations(): boolean {
+/** Ein Schalter im Browser — ohne Eintrag gilt `fallback`. */
+function readFlag(key: string, fallback: boolean): boolean {
   try {
-    return localStorage.getItem(ANIM_KEY) !== 'off';
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value !== 'off';
   } catch {
-    return true;
+    return fallback;
   }
 }
 
-function writeAnimations(on: boolean): void {
+function writeFlag(key: string, on: boolean): void {
   try {
-    localStorage.setItem(ANIM_KEY, on ? 'on' : 'off');
+    localStorage.setItem(key, on ? 'on' : 'off');
   } catch {
     // Ohne Speicher gilt es nur bis zum Neuladen.
   }
@@ -1790,8 +1810,6 @@ function writeAnimations(on: boolean): void {
 
 const _eye = new THREE.Vector3();
 const _look = new THREE.Vector3();
-const _aim = new THREE.Vector3();
-const _centre = new THREE.Vector2();
 
 const HELP_KEY = 'hexland:help';
 

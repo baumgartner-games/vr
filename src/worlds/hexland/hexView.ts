@@ -234,7 +234,8 @@ export class HexModels {
     if (!own) {
       own = material.clone();
       if (kind === 'fan') fanMaterial(own);
-      else swayMaterial(own, kind === 'tree' ? 0.35 : 3);
+      // Weizen nur ein Hauch — gemeldet: _„Das Weizen bewegt sich viel zu stark."_
+      else swayMaterial(own, kind === 'tree' ? 0.3 : 0.6);
       this.moving.set(key, own);
     }
     return own;
@@ -567,12 +568,45 @@ export class HexBoardView {
   readonly root = new THREE.Group();
   private readonly batches = new Map<THREE.BufferGeometry, Batch>();
   private disposed = false;
-  /** Was liegt, und wo seine Grundkachel in den Bündeln steht — für den Fluss. */
-  private readonly placed = new Map<string, PlacedTile>();
+  /** Wo die Grundkachel jeder Kachel in den Bündeln steht — für den Fluss. */
   private readonly bases = new Map<string, Array<{ batch: Batch; index: number }>>();
+  /** Die Pfeile der Flussrichtung (`showArrows`), einer je Arm. */
+  private readonly arrows: THREE.InstancedMesh;
 
-  constructor(private readonly models: HexModels) {
+  /**
+   * `tiles` ist das Brett in der Reihenfolge des Legens — die Richtung der
+   * Flüsse hängt daran (`hexDressing.riverFlow`).
+   */
+  constructor(
+    private readonly models: HexModels,
+    private readonly tiles: () => ReadonlyMap<string, PlacedTile>,
+  ) {
     this.root.name = 'hexland-board';
+    this.arrows = new THREE.InstancedMesh(
+      arrowGeometry(),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+      64,
+    );
+    this.arrows.count = 0;
+    this.arrows.frustumCulled = false;
+    this.arrows.renderOrder = 3;
+    this.arrows.visible = false;
+    this.arrows.name = 'hexland-river-arrows';
+    this.root.add(this.arrows);
+  }
+
+  /**
+   * **Pfeile auf den Flüssen** — gewünscht: _„Füge eine Grafik-Option ein, um
+   * Pfeil-Richtungen anzeigen zu können bei den Flüssen."_
+   */
+  showArrows(on: boolean): void {
+    this.arrows.visible = on;
   }
 
   async add(tile: PlacedTile): Promise<void> {
@@ -590,15 +624,14 @@ export class HexBoardView {
         if (part.flows) bases.push({ batch, index });
       }
     });
-    this.placed.set(key, tile);
     this.bases.set(key, bases);
     this.updateFlow();
   }
 
   clear(): void {
     for (const batch of this.batches.values()) batch.clear();
-    this.placed.clear();
     this.bases.clear();
+    this.arrows.count = 0;
   }
 
   /**
@@ -606,12 +639,41 @@ export class HexBoardView {
    * eine neue kann zwei Flüsse verbinden und einen umdrehen.
    */
   private updateFlow(): void {
-    const flows = riverFlow(this.placed);
+    const tiles = this.tiles();
+    const flows = riverFlow(tiles);
     for (const [key, list] of this.bases) {
       const f = flows.get(key);
       const value = f ? [f.into, f.out, f.centre, 2] : STILL;
       for (const { batch, index } of list) batch.setFlow(index, value);
     }
+    // Je Arm ein Pfeil, halb zwischen Mitte und Kante: hinaus zeigt er zur
+    // Kante, herein zur Mitte.
+    const placed: THREE.Matrix4[] = [];
+    for (const [key, f] of flows) {
+      const tile = tiles.get(key);
+      if (!tile || !this.bases.has(key)) continue;
+      const at = tileMatrix(tile.q, tile.r, tile.rot);
+      for (let e = 0; e < 6; e++) {
+        const out = (f.out >> e) & 1;
+        if (!out && !((f.into >> e) & 1)) continue;
+        const a = (e * Math.PI) / 3;
+        _q.setFromAxisAngle(_up, -a + (out ? 0 : Math.PI));
+        const local = new THREE.Matrix4().compose(
+          _p.set(Math.cos(a) * 0.55, 0.03, Math.sin(a) * 0.55),
+          _q,
+          _s.setScalar(1),
+        );
+        placed.push(new THREE.Matrix4().multiplyMatrices(at, local));
+      }
+    }
+    const arrows = this.arrows;
+    if (placed.length > arrows.instanceMatrix.count) {
+      const size = 2 ** Math.ceil(Math.log2(placed.length));
+      arrows.instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(size * 16), 16);
+    }
+    placed.forEach((m, i) => arrows.setMatrixAt(i, m));
+    arrows.count = placed.length;
+    arrows.instanceMatrix.needsUpdate = true;
   }
 
   /** Einmal je Bild: was sich geändert hat, auf die Grafikkarte. */
@@ -623,6 +685,9 @@ export class HexBoardView {
     this.disposed = true;
     for (const batch of this.batches.values()) batch.dispose();
     this.batches.clear();
+    this.arrows.geometry.dispose();
+    (this.arrows.material as THREE.Material).dispose();
+    this.arrows.dispose();
   }
 
   private batch(part: Part): Batch {
@@ -633,6 +698,26 @@ export class HexBoardView {
     }
     return batch;
   }
+}
+
+/**
+ * **Ein Pfeil**, flach, mit der Spitze nach +x — in Maßen der Kachel
+ * (Kante zu Mitte 1): Schaft und Spitze zusammen 0,4 lang.
+ */
+function arrowGeometry(): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.2, -0.035);
+  shape.lineTo(0.04, -0.035);
+  shape.lineTo(0.04, -0.1);
+  shape.lineTo(0.2, 0);
+  shape.lineTo(0.04, 0.1);
+  shape.lineTo(0.04, 0.035);
+  shape.lineTo(-0.2, 0.035);
+  shape.closePath();
+  const geometry = new THREE.ShapeGeometry(shape);
+  // Die Form liegt in x/y; aufs Brett gelegt, Vorderseite nach oben (Spitze bleibt bei +x).
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
 }
 
 /**

@@ -364,10 +364,8 @@ export function groundPatches(spec: TileSpec): GroundPatch[] {
  * (`into`, Bitmaske), aus welchen es hinausläuft (`out`), und wie weit die
  * Mitte den Fluss hinab liegt (`centre`, in Halbmessern der Kachel: von Kante
  * zu Mitte 1). So laufen die Wellen im Shader (`hexAnimate.WATER_FRAGMENT`)
- * ohne Sprung von Kachel zu Kachel weiter.
- *
- * Gemeldet war: _„Das Wasser fließt leider aktuell einfach irgendwie random
- * umher, statt entlang des Wasserverlaufs."_
+ * ohne Sprung von Kachel zu Kachel weiter, und die Pfeile (`HexBoardView`)
+ * zeigen dieselbe Richtung.
  */
 export interface RiverFlow {
   readonly into: number;
@@ -390,120 +388,126 @@ function waterEdges(tile: PlacedTile): number[] {
   return out;
 }
 
+/** Richtung je Wasserkante auf dem Brett: `true` hinaus, `false` herein. */
+type Arms = Map<number, boolean>;
+
 /**
- * **Die Richtung jedes Flusses auf dem Brett.** Ein Fluss beginnt an einem
- * offenen Ende, möglichst weit weg von einem See, und fließt von dort durch
- * jede verbundene Kachel weiter — in Seen und Ufer hinein, an offenen Enden
- * vom Brett hinunter. Bei Gabelungen teilt er sich.
+ * **Die Richtung jedes Flusses**, Kachel für Kachel in der Reihenfolge, in der
+ * sie gelegt wurden — so, wie das Wasser beim Legen weiterliefe. Gewünscht:
+ * _„dass ein Fluss eine Wasserrichtung hat, und wenn es mit dem nächsten Teil
+ * verbunden ist, fließt das Wasser dort weiter und trennt sich. … Zwei
+ * Flüsse, die aufeinander fließen und dann verbunden werden, fließen danach
+ * in eine gemeinsame Richtung, einer muss sich umkehren (der kürzere)."_
+ *
+ * - Eine Kachel allein: herein aus dem Arm am weitesten im Süden (+z), alle
+ *   anderen hinaus — gabelt sie, trennt sich das Wasser.
+ * - Ein Arm an einem Nachbarfluss übernimmt dessen Richtung: Läuft es dort
+ *   heraus, kommt es hier herein, und umgekehrt.
+ * - Freie Arme (offen oder an See und Ufer): hinaus, wenn Wasser hereinkommt,
+ *   sonst herein.
+ * - Kommt so nur Wasser herein und kann nirgends hinaus (oder umgekehrt),
+ *   dreht sich der **kürzere** der verbundenen Flüsse um.
+ *
+ * Ohne eigenes Feld im Spielstand: Die Reihenfolge der Kacheln ist dort
+ * gespeichert, und dieselbe Reihenfolge gibt dieselben Richtungen.
  */
 export function riverFlow(tiles: ReadonlyMap<string, PlacedTile>): Map<string, RiverFlow> {
-  const river = new Map<string, PlacedTile>();
-  for (const [key, tile] of tiles) if (flowing(tile)) river.set(key, tile);
-  // Wohin eine Wasserkante führt: zu einer Flusskachel, in stehendes Wasser oder ins Offene.
-  const across = (tile: PlacedTile, edge: number): 'river' | 'lake' | 'open' => {
+  const arms = new Map<string, Arms>();
+  const at = (tile: PlacedTile, edge: number): string => {
     const n = neighbour(tile, edge);
-    const other = tiles.get(hexKey(n.q, n.r));
-    if (!other || !other.spec.edges.includes('water')) return 'open';
-    if (!waterEdges(other).includes(opposite(edge))) return 'open';
-    return flowing(other) ? 'river' : 'lake';
+    return hexKey(n.q, n.r);
   };
-  const linked = (tile: PlacedTile): PlacedTile[] =>
-    waterEdges(tile)
-      .filter((e) => across(tile, e) === 'river')
-      .map((e) => {
-        const n = neighbour(tile, e);
-        return river.get(hexKey(n.q, n.r))!;
-      });
-
-  // Wie weit jede Kachel (über den Fluss) von einem See ist — die Quelle liegt möglichst weit weg.
-  const toLake = new Map<string, number>();
-  const queue: PlacedTile[] = [];
-  for (const [key, tile] of river) {
-    if (waterEdges(tile).some((e) => across(tile, e) === 'lake')) {
-      toLake.set(key, 0);
-      queue.push(tile);
-    }
-  }
-  while (queue.length) {
-    const tile = queue.shift()!;
-    const d = toLake.get(hexKey(tile.q, tile.r))!;
-    for (const next of linked(tile)) {
-      const key = hexKey(next.q, next.r);
-      if (toLake.has(key)) continue;
-      toLake.set(key, d + 1);
-      queue.push(next);
-    }
-  }
-
-  const flow = new Map<string, { into: Set<number>; out: Set<number>; centre: number }>();
-  for (const [startKey] of river) {
-    if (flow.has(startKey)) continue;
-    // Das ganze Flusssystem dieser Kachel …
-    const system: PlacedTile[] = [];
-    const seen = new Set([startKey]);
-    const walk = [river.get(startKey)!];
+  // Der Fluss nebenan an dieser Kante — schon gerichtet und mit Wasser zurück.
+  const across = (tile: PlacedTile, edge: number): Arms | null => {
+    const theirs = arms.get(at(tile, edge));
+    return theirs?.has(opposite(edge)) ? theirs : null;
+  };
+  // Alle Kacheln eines verbundenen Flusses.
+  const system = (key: string): string[] => {
+    const seen = new Set([key]);
+    const walk = [key];
     while (walk.length) {
-      const tile = walk.pop()!;
-      system.push(tile);
-      for (const next of linked(tile)) {
-        const key = hexKey(next.q, next.r);
-        if (!seen.has(key)) {
-          seen.add(key);
-          walk.push(next);
+      const k = walk.pop()!;
+      const tile = tiles.get(k)!;
+      for (const e of arms.get(k)!.keys()) {
+        const other = at(tile, e);
+        if (!seen.has(other) && arms.get(other)?.has(opposite(e))) {
+          seen.add(other);
+          walk.push(other);
         }
       }
     }
-    // … und seine Quelle: ein offenes Ende, so weit vom See wie möglich.
-    const open = (t: PlacedTile): number[] => waterEdges(t).filter((e) => across(t, e) === 'open');
-    let source = system[0]!;
-    let best = -1;
-    for (const tile of system) {
-      if (open(tile).length === 0) continue;
-      const d = toLake.get(hexKey(tile.q, tile.r)) ?? 1e6;
-      if (d > best) {
-        best = d;
-        source = tile;
-      }
+    return [...seen];
+  };
+  const reverse = (keys: string[]): void => {
+    for (const k of keys) for (const [e, out] of arms.get(k)!) arms.get(k)!.set(e, !out);
+  };
+
+  for (const [key, tile] of tiles) {
+    if (!flowing(tile)) continue;
+    const edges = waterEdges(tile);
+    const mine: Arms = new Map();
+    const linked: number[] = [];
+    for (const e of edges) {
+      const theirs = across(tile, e);
+      if (!theirs) continue;
+      linked.push(e);
+      mine.set(e, !theirs.get(opposite(e)));
     }
-    const sourceIn = open(source)[0] ?? waterEdges(source)[0]!;
-    flow.set(hexKey(source.q, source.r), { into: new Set([sourceIn]), out: new Set(), centre: 0 });
-    const order = [source];
-    while (order.length) {
-      const tile = order.shift()!;
-      const mine = flow.get(hexKey(tile.q, tile.r))!;
-      for (const e of waterEdges(tile)) {
-        if (mine.into.has(e) || mine.out.has(e)) continue;
-        const kind = across(tile, e);
-        if (kind !== 'river') {
-          mine.out.add(e);
-          continue;
-        }
-        const n = neighbour(tile, e);
-        const key = hexKey(n.q, n.r);
-        const theirs = flow.get(key);
-        if (theirs) {
-          // Schon vergeben: Läuft es dort hinaus zu mir, kommt es hier herein.
-          if (theirs.out.has(opposite(e))) mine.into.add(e);
-          else {
-            mine.out.add(e);
-            theirs.into.add(opposite(e));
-          }
-          continue;
-        }
-        mine.out.add(e);
-        flow.set(key, { into: new Set([opposite(e)]), out: new Set(), centre: mine.centre + 2 });
-        order.push(river.get(key)!);
+    const free = edges.filter((e) => !mine.has(e));
+    const ins = [...mine.values()].filter((out) => !out).length;
+    const outs = mine.size - ins;
+    if (mine.size === 0) {
+      // Allein: herein von Süden.
+      const south = edges.reduce((a, b) => (edgeZ(b) > edgeZ(a) ? b : a));
+      for (const e of edges) mine.set(e, e !== south);
+    } else if (free.length > 0) {
+      for (const e of free) mine.set(e, ins > 0);
+    } else if (ins === 0 || outs === 0) {
+      // Alles herein oder alles hinaus: Der kürzeste Nachbarfluss kehrt um.
+      const systems = linked.map((e) => system(at(tile, e)));
+      const shortest = systems.reduce((a, b) => (b.length < a.length ? b : a));
+      reverse(shortest);
+      for (const e of linked) mine.set(e, !across(tile, e)!.get(opposite(e)));
+    }
+    arms.set(key, mine);
+  }
+
+  // Wie weit jede Mitte den Fluss hinab liegt — von irgendeiner Kachel je Fluss aus gezählt.
+  const centre = new Map<string, number>();
+  for (const key of arms.keys()) {
+    if (centre.has(key)) continue;
+    centre.set(key, 0);
+    const walk = [key];
+    while (walk.length) {
+      const k = walk.pop()!;
+      const tile = tiles.get(k)!;
+      for (const [e, out] of arms.get(k)!) {
+        const other = at(tile, e);
+        if (centre.has(other) || !arms.get(other)?.has(opposite(e))) continue;
+        centre.set(other, centre.get(k)! + (out ? 2 : -2));
+        walk.push(other);
       }
     }
   }
 
   const out = new Map<string, RiverFlow>();
-  for (const [key, f] of flow) {
-    const tile = river.get(key)!;
+  for (const [key, mine] of arms) {
+    const tile = tiles.get(key)!;
     // In die Kanten des Modells zurückdrehen.
-    const mask = (edges: Set<number>): number =>
-      [...edges].reduce((m, e) => m | (1 << ((e - tile.rot + 6) % 6)), 0);
-    out.set(key, { into: mask(f.into), out: mask(f.out), centre: f.centre });
+    let into = 0;
+    let away = 0;
+    for (const [e, isOut] of mine) {
+      const bit = 1 << ((e - tile.rot + 6) % 6);
+      if (isOut) away |= bit;
+      else into |= bit;
+    }
+    out.set(key, { into, out: away, centre: centre.get(key)! });
   }
   return out;
+}
+
+/** Wie weit eine Kante nach +z (Süden im Bild von oben) zeigt. */
+function edgeZ(edge: number): number {
+  return Math.sin((edge * Math.PI) / 3);
 }
