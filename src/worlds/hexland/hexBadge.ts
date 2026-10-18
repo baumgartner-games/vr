@@ -19,10 +19,12 @@ export class QuestBadge extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicM
 
   constructor(width = 2.2) {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 192;
+    // Doppelt so fein wie gezeichnet — am Handy mit hoher Pixeldichte sonst unscharf.
+    canvas.width = 1024;
+    canvas.height = 384;
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
     super(
       new THREE.PlaneGeometry(width, (width * 192) / 512),
       // **Immer vor allem anderen** — gemeldet: _„Der Text wird leider verdeckt
@@ -51,8 +53,10 @@ export class QuestBadge extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicM
     this.shown = key;
     const g = this.canvas.getContext('2d');
     if (!g) return;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    // In Punkten der alten Leinwand (512 × 192), doppelt so fein gemalt.
+    const w = this.canvas.width / 2;
+    const h = this.canvas.height / 2;
+    g.setTransform(2, 0, 0, 2, 0, 0);
     g.clearRect(0, 0, w, h);
     g.beginPath();
     g.roundRect(4, 4, w - 8, h - 8, 36);
@@ -63,10 +67,10 @@ export class QuestBadge extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicM
     g.stroke();
 
     const icon = document.createElement('canvas');
-    icon.width = icon.height = 150;
+    icon.width = icon.height = 300;
     const t = terrain;
     drawHexIcon(icon, { base: 'land', edges: [t, t, t, t, t, t], seed: 1 });
-    g.drawImage(icon, 20, (h - 150) / 2);
+    g.drawImage(icon, 20, (h - 150) / 2, 150, 150);
 
     g.textAlign = 'left';
     g.fillStyle = '#ffffff';

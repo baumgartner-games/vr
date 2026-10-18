@@ -164,6 +164,18 @@ aus bzw. _In der Nähe_.
 - **Pinch überall**: Zwei Finger zoomen jetzt auf dem ganzen Schirm außerhalb
   der Bedienfelder (`FlatControls.startPinch`, galt vorher nur oben).
 
+- **Die offenen Aufträge oben rechts** (`drawQuestList`, DOM, nur von oben am
+  Schirm): je Auftrag eine Zeile mit Gelände-Sechseck, „Stadt 2 / 5" und
+  „noch 3"; ein Tipp fliegt die Kamera zur Kachel (`flyTo`, derselbe Flug
+  wie nach dem Legen). Steht die Bildrate oben rechts, rückt die Liste
+  darunter. Gewünscht: _„Ich würde gerne seitlich in der UI oben rechts meine
+  aktiven Quests sehen, und wenn ich drauf tippe, springt die Kamera zu der
+  Kachel hin."_
+- **Die Schilder bleiben am Schirm gleich groß** (`sizeBadges`): ab 22 m
+  Kameraabstand wachsen sie mit dem Abstand und steigen höher; die Leinwand
+  ist doppelt so fein (1024 × 384) mit Anisotropie. Gemeldet: _„Der Text
+  scheint schmierig bzw. unscharf zu sein, wenn ich weit raus zoome."_
+
 ### Der Reiter _Hexland_
 
 Die Welt bringt einen **eigenen Reiter** mit (`World.menuTab`, neu im Kern):

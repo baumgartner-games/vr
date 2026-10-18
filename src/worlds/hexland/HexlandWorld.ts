@@ -27,6 +27,7 @@ import {
   type Hex,
   type HexMode,
   type PlaceResult,
+  type PlacedTile,
   type Terrain,
   type TileSpec,
 } from './hexRules';
@@ -430,15 +431,19 @@ export class HexlandWorld extends FurnishedWorld {
     // in einer festen Zeit."_
     // `refresh` hat ein neues Feld gewählt — TypeScript weiß das nicht.
     const next = this.at as Hex | null;
-    if (next && this.board2d && this.lastCtx) {
-      const c = hexCentre(next.q, next.r, HEX_WIDTH);
-      const rig = this.lastCtx.rig.position;
-      this.flight = {
-        from: new THREE.Vector3(rig.x, this.lastCtx.rig.getFloorY(), rig.z),
-        to: new THREE.Vector3(c.x, this.lastCtx.rig.getFloorY(), c.z),
-        t: 0,
-      };
-    }
+    if (next) this.flyTo(next);
+  }
+
+  /** **Die Kamera fliegt zu einer Kachel** (`stepFlight`) — nur von oben am Schirm. */
+  private flyTo(hex: Hex): void {
+    if (!this.board2d || !this.lastCtx) return;
+    const c = hexCentre(hex.q, hex.r, HEX_WIDTH);
+    const rig = this.lastCtx.rig.position;
+    this.flight = {
+      from: new THREE.Vector3(rig.x, this.lastCtx.rig.getFloorY(), rig.z),
+      to: new THREE.Vector3(c.x, this.lastCtx.rig.getFloorY(), c.z),
+      t: 0,
+    };
   }
 
   private canPlaceSomewhere(): boolean {
@@ -784,12 +789,31 @@ export class HexlandWorld extends FurnishedWorld {
     return out.setHex(0xffffff).lerp(_green, Math.min(1, 0.25 + ratio * 0.75));
   }
 
+  /**
+   * **Die Schilder bleiben am Schirm gleich groß** — gemeldet: _„Der Text
+   * scheint schmierig bzw. unscharf zu sein, wenn ich weit raus zoome."_ Klein
+   * gerechnet verschwimmt die Schrift in den Mipmaps; so wächst das Schild mit
+   * dem Abstand und behält seine Pixel. Es steht dann auch entsprechend höher.
+   */
+  private sizeBadges(ctx: WorldContext): void {
+    if (this.badges.size === 0) return;
+    (ctx.viewCamera ?? ctx.camera).getWorldPosition(_eye);
+    for (const badge of this.badges.values()) {
+      badge.getWorldPosition(_badge);
+      const scale = Math.max(1, _eye.distanceTo(_badge) / BADGE_DISTANCE);
+      badge.scale.setScalar(scale);
+      badge.position.y = 1.4 + 0.8 * scale;
+    }
+  }
+
   /** **Die Schilder der offenen Aufträge** — wie groß das Gebiet ist und werden soll. */
   private drawBadges(): void {
     const seen = new Set<string>();
+    const open: Array<{ tile: PlacedTile; size: number; target: number }> = [];
     for (const tile of this.board.tiles.values()) {
       const progress = this.board.questProgress(tile);
       if (progress === null) continue;
+      open.push({ tile, ...progress });
       const key = hexKey(tile.q, tile.r);
       seen.add(key);
       let badge = this.badges.get(key);
@@ -806,11 +830,91 @@ export class HexlandWorld extends FurnishedWorld {
         `noch ${progress.target - progress.size} · genau ${progress.target} Kacheln`,
       );
     }
+    this.drawQuestList(open);
     for (const [key, badge] of this.badges) {
       if (seen.has(key)) continue;
       this.root.remove(badge);
       badge.dispose();
       this.badges.delete(key);
+    }
+  }
+
+  /**
+   * **Die offenen Aufträge oben rechts** — gewünscht: _„Ich würde gerne
+   * seitlich in der UI oben rechts meine aktiven Quests sehen, und wenn ich
+   * drauf tippe, springt die Kamera zu der Kachel hin."_ Je Auftrag eine
+   * Zeile: das Gelände als Sechseck, „Stadt 2 / 5", darunter, wie viele noch
+   * fehlen. Nur am Schirm von oben, wie die Leiste unten (`fitView`).
+   */
+  private drawQuestList(open: Array<{ tile: PlacedTile; size: number; target: number }>): void {
+    let list = this.questList;
+    if (!list) {
+      list = document.createElement('div');
+      list.className = 'hexland-quests';
+      list.hidden = true;
+      list.style.cssText = [
+        'position:fixed',
+        'right:max(10px, env(safe-area-inset-right))',
+        'top:max(10px, env(safe-area-inset-top))',
+        'z-index:4',
+        'display:flex',
+        'flex-direction:column',
+        'gap:6px',
+        'max-width:46vw',
+        'font-family:var(--hud-font)',
+        'user-select:none',
+      ].join(';');
+      document.body.append(list);
+      this.questList = list;
+    }
+    list.replaceChildren();
+    for (const { tile, size, target } of open) {
+      const terrain = tile.spec.quest!.terrain;
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.title = 'Zur Kachel';
+      row.style.cssText = [
+        'display:flex',
+        'align-items:center',
+        'gap:8px',
+        'padding:6px 12px 6px 6px',
+        'background:var(--hud-bg)',
+        `border:1px solid ${TERRAIN_COLOUR[terrain]}`,
+        'border-radius:12px',
+        'box-shadow:var(--hud-shadow)',
+        'backdrop-filter:var(--hud-blur)',
+        'color:var(--hud-ink)',
+        'font:inherit',
+        'text-align:left',
+        'cursor:pointer',
+        'touch-action:manipulation',
+      ].join(';');
+      const icon = document.createElement('canvas');
+      icon.width = icon.height = 64;
+      icon.style.cssText = 'width:32px;height:32px;flex:none';
+      drawHexIcon(icon, {
+        base: 'land',
+        edges: [terrain, terrain, terrain, terrain, terrain, terrain],
+        seed: 1,
+      });
+      const text = document.createElement('span');
+      text.style.cssText = 'display:flex;flex-direction:column;line-height:1.15;min-width:0';
+      const title = document.createElement('strong');
+      title.style.cssText = 'font-size:15px;white-space:nowrap';
+      title.textContent = `${TERRAIN_LABEL[terrain]} ${size} / ${target}`;
+      const sub = document.createElement('span');
+      sub.style.cssText = 'font-size:12px;opacity:.75;white-space:nowrap';
+      sub.textContent = `noch ${target - size}`;
+      text.append(title, sub);
+      row.append(icon, text);
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.flyTo(tile);
+      });
+      // Der Finger auf der Liste ist kein Wischen übers Brett.
+      for (const type of ['pointerdown', 'touchstart'] as const)
+        row.addEventListener(type, (event) => event.stopPropagation());
+      list.append(row);
     }
   }
 
@@ -845,6 +949,7 @@ export class HexlandWorld extends FurnishedWorld {
       (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 + pulse * 0.45;
     }
     this.stepFlight(dt, ctx);
+    this.sizeBadges(ctx);
     // Dreht sich das Bild, liegen die Ziffern neu (`drawDigits`).
     if (this.help.numbers && Math.abs(this.headingNow(ctx) - this.digitHeading) > 0.05)
       this.drawSlots();
@@ -874,6 +979,8 @@ export class HexlandWorld extends FurnishedWorld {
   private flewIn = false;
   /** Die Knopfleiste am Schirm (`buildTileBar`). */
   private tileBar: HTMLElement | null = null;
+  /** Die offenen Aufträge oben rechts (`drawQuestList`). */
+  private questList: HTMLElement | null = null;
   private tileBarText: HTMLElement | null = null;
   private tileBarIcon: HTMLCanvasElement | null = null;
   private tileQuick: HTMLElement | null = null;
@@ -924,6 +1031,15 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.confirm) this.confirm.visible = !flat;
     if (this.info) this.info.visible = !flat;
     if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
+    if (this.questList) {
+      this.questList.hidden = !flat || ctx.menu.isOpen || this.questList.childElementCount === 0;
+      // Unter der Bildrate, wenn sie zu sehen ist.
+      const stats = document.querySelector<HTMLElement>('.frame-stats:not([hidden])');
+      const top = stats
+        ? `${stats.getBoundingClientRect().bottom + 8}px`
+        : 'max(10px, env(safe-area-inset-top))';
+      if (this.questList.style.top !== top) this.questList.style.top = top;
+    }
     // `style.display` und nicht `hidden`: Das `display:flex` der Liste schlüge das Attribut.
     if (this.tileQuick)
       this.tileQuick.style.display = this.board.mode === 'creative' ? 'flex' : 'none';
@@ -1688,6 +1804,8 @@ export class HexlandWorld extends FurnishedWorld {
     for (const off of this.offDom) off();
     this.offDom = [];
     this.tileBar?.remove();
+    this.questList?.remove();
+    this.questList = null;
     this.tileBar = null;
     document.body.classList.remove(CLEAN_CLASS);
     ctx.avatar.visible = true;
@@ -1809,6 +1927,9 @@ function writeFlag(key: string, on: boolean): void {
 }
 
 const _eye = new THREE.Vector3();
+const _badge = new THREE.Vector3();
+/** Bis zu diesem Abstand der Kamera haben die Schilder ihre eigene Größe, danach wachsen sie mit. */
+const BADGE_DISTANCE = 22;
 const _look = new THREE.Vector3();
 
 const HELP_KEY = 'hexland:help';
