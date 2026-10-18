@@ -317,9 +317,16 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     (Bitmasken in den Kanten des **Modells**) und `centre`, wie weit die
     Mitte den Fluss hinab liegt. Das kommt als Spalte je Kopie (`aFlow`) an
     die Bündel der Grundkacheln (`Part.flows`); `HexBoardView.updateFlow`
-    rechnet nach jeder Kachel alles neu. Im Shader (`WATER_FRAGMENT`) sagt
-    der nächste Arm, wo man ist, und die Wellen laufen den Fluss hinab, ohne
-    Sprung an der Kachelkante. Seen und Ufer glitzern langsam ungerichtet.
+    rechnet nach jeder Kachel alles neu. Im Shader (`WATER_FRAGMENT`): der
+    nächste Arm und sein Gegenstück (der nächste Arm der anderen Richtung)
+    bilden einen Weg. Gegenüber: gerade durch. Sonst **ein Bogen um O**, den
+    Punkt, in dem sich die beiden Kanten treffen — der Winkel um O ist die
+    Strecke (Kante herein −1, Kante hinaus +1 um `centre`). Gemeldet war:
+    _„Das Wasser an geraden Stücken klappt, aber nicht an den Ecken bzw.
+    Kreuzungen"_ — vorher zählte jeder Arm für sich, und auf der
+    Winkelhalbierenden einer Kurve sprang die Strecke. An Gabelungen bleibt
+    eine feine Naht zwischen den beiden Wegen. Seen und Ufer glitzern langsam
+    ungerichtet.
   - **Flussrichtung zeigen** (Schalter im Reiter, `hexland:arrows`, ohne
     Eintrag aus): je Arm ein weißer Pfeil, halb zwischen Mitte und Kante
     (`HexBoardView.showArrows`, ein `InstancedMesh`).
@@ -333,7 +340,12 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     Kante, an der er kam, durch die Mitte zu einer der beiden vorderen Kanten
     (je zur Hälfte) und vorn hinaus; 4–9 s später der nächste. Hinter ihm
     eine weiße Spur (3 m), die herausgezoomt breiter und schneller wird
-    (`HexlandWorld.blowWind`). Ein Zeichenaufruf.
+    (`HexlandWorld.blowWind`). Ein Zeichenaufruf. **Gegen Ruckeln** (gemeldet
+    bei 60 fps): Er läuft gleichmäßig in Metern auf dem Bogen (`bend`, die
+    Ableitung, in kleinen Schritten), die Spur hängt vorn immer am Kopf, wo
+    er gerade ist (feste Punkte nur alle 6 cm), wird hinten genau auf ihre
+    Länge geschnitten, und ihre Durchsichtigkeit folgt den Metern, nicht der
+    Zahl der Punkte.
   - Aus heißt: Zeit steht (Flügel stehen), Wiegen, Glitzern und Böen weg.
 - **Die Kante jeder Kachel** (`hexView.bevelEdges`, ein Zusatz im Shader der
   Kacheln und Böden): nah am Rand eine dunkle Fuge, knapp davor eine helle

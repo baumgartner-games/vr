@@ -145,19 +145,67 @@ export const WATER_FRAGMENT = `
     float glint;
     if (vFlow.w > 1.5) {
       vec2 p = vHexLocal.xz;
-      float best = -10.0;
-      float S = 0.0;
+      // Der Arm, an dem man ist, und sein Gegenstück: der nächste Arm der
+      // anderen Richtung (herein ↔ hinaus).
+      int near = -1;
+      float nearD = -10.0;
       for (int e = 0; e < 6; e++) {
         float fe = float(e);
-        float into = mod(floor(vFlow.x / exp2(fe) + 0.01), 2.0);
-        float out_ = mod(floor(vFlow.y / exp2(fe) + 0.01), 2.0);
-        if (into + out_ < 0.5) continue;
+        float arm = mod(floor(vFlow.x / exp2(fe) + 0.01), 2.0) + mod(floor(vFlow.y / exp2(fe) + 0.01), 2.0);
+        if (arm < 0.5) continue;
         float a = fe * 1.0471976;
         float d = dot(p, vec2(cos(a), sin(a)));
-        if (d > best) {
-          best = d;
-          S = vFlow.z + (out_ > 0.5 ? d : -d);
+        if (d > nearD) { nearD = d; near = e; }
+      }
+      float nearOut = mod(floor(vFlow.y / exp2(float(near)) + 0.01), 2.0);
+      int other = -1;
+      float otherD = -10.0;
+      for (int pass = 0; pass < 2; pass++) {
+        for (int e = 0; e < 6; e++) {
+          if (e == near || (other >= 0 && pass == 1)) continue;
+          float fe = float(e);
+          float isIn = mod(floor(vFlow.x / exp2(fe) + 0.01), 2.0);
+          float isOut = mod(floor(vFlow.y / exp2(fe) + 0.01), 2.0);
+          // Erst ein Arm der anderen Richtung; gibt es keinen, irgendeiner.
+          float wanted = pass == 0 ? (nearOut > 0.5 ? isIn : isOut) : isIn + isOut;
+          if (wanted < 0.5) continue;
+          float a = fe * 1.0471976;
+          float d = dot(p, vec2(cos(a), sin(a)));
+          if (d > otherD) { otherD = d; other = e; }
         }
+      }
+      float S = vFlow.z;
+      if (other >= 0) {
+        bool nearIsIn = nearOut < 0.5;
+        int ein = nearIsIn ? near : other;
+        int eout = nearIsIn ? other : near;
+        float ai = float(ein) * 1.0471976;
+        float ao = float(eout) * 1.0471976;
+        vec2 ni = vec2(cos(ai), sin(ai));
+        vec2 no = vec2(cos(ao), sin(ao));
+        float f;
+        float c = dot(ni, no);
+        if (c < -0.99) {
+          // Gerade durch: von der Kante herein (−1) zur Kante hinaus (+1).
+          f = 0.5 + 0.5 * dot(p, no);
+        } else {
+          // **Im Bogen um die Ecke**: Die beiden Kanten treffen sich in O; um O
+          // läuft der Fluss von der Mitte der einen Kante zur Mitte der
+          // anderen. Der Winkel um O ist die Strecke — stetig in der ganzen
+          // Kurve, ohne Naht auf der Winkelhalbierenden.
+          vec2 b = normalize(ni + no);
+          vec2 o = b / sqrt(0.5 + 0.5 * c);
+          vec2 u = ni - o;
+          vec2 v = no - o;
+          vec2 q = p - o;
+          float total = atan(u.x * v.y - u.y * v.x, dot(u, v));
+          float here = atan(u.x * q.y - u.y * q.x, dot(u, q));
+          f = clamp(here / total, -0.3, 1.3);
+        }
+        S = vFlow.z - 1.0 + 2.0 * f;
+      } else {
+        float aa = float(near) * 1.0471976;
+        S = vFlow.z + (nearOut > 0.5 ? 1.0 : -1.0) * dot(p, vec2(cos(aa), sin(aa)));
       }
       // Etwas quer verwirbelt, damit es keine Streifen wie gezogen sind.
       float n = sin(w.x * 2.3 + w.y * 1.9) * 0.8 + sin(w.y * 3.1 - w.x * 1.3) * 0.6;
@@ -210,7 +258,6 @@ export class WindGusts {
   private from = new THREE.Vector2();
   private exit = 0;
   private t = 0;
-  private length = 1;
   private beyond = 0;
   private size = 1;
   /** Wie lang die Spur sein darf, in Metern — schrumpft, wenn der Wind vom Brett ist. */
@@ -274,8 +321,7 @@ export class WindGusts {
       this.calm -= dt;
       if (this.calm <= 0 && tiles.size > 0) this.start(tiles);
       // Ohne Kopf holt der Schwanz der Spur auf, bis nichts mehr übrig ist.
-      this.keep -= FLOW_SPEED * this.size * dt;
-      this.trim();
+      this.keep = Math.max(0, this.keep - FLOW_SPEED * this.size * dt);
     }
     this.drawTrail();
   }
@@ -311,47 +357,50 @@ export class WindGusts {
   private pickExit(): void {
     this.exit = (this.forward + (Math.random() < 0.5 ? 0 : 1)) % 6;
     const c = hexCentre(this.cell.q, this.cell.r, this.width);
-    const x = this.edgePoint(c, this.exit);
-    // Länge des Bogens, grob: Eingang → Mitte → Ausgang.
-    this.length =
-      Math.hypot(c.x - this.from.x, c.z - this.from.y) + Math.hypot(x.x - c.x, x.y - c.z);
     this.t = 0;
     const tiles = ANIM.gustTiles.value;
     tiles.x = c.x;
     tiles.y = c.z;
   }
 
+  /**
+   * **Weiter auf dem Bogen** — gleichmäßig in Metern, nicht im Parameter des
+   * Bogens: Der läuft in der Mitte langsamer als an den Kanten. Gemeldet:
+   * _„Es wirkt, als wenn es ruckelt, zumindest der Wind. Es werden mir aber
+   * 60 fps angezeigt."_
+   */
   private advance(dt: number): void {
-    this.t += (FLOW_SPEED * this.size * dt) / this.length;
     const push = ANIM.gustPush.value;
-    if (this.t >= 1) {
-      // Auf die nächste Kachel: Die jetzige wird die davor.
-      const c = hexCentre(this.cell.q, this.cell.r, this.width);
-      this.from.copy(this.edgePoint(c, this.exit));
-      const g = ANIM.gustTiles.value;
-      g.z = g.x;
-      g.w = g.y;
-      push.y = push.x;
-      push.x = 0;
-      this.cell = neighbour(this.cell, this.exit);
-      const n = hexCentre(this.cell.q, this.cell.r, this.width);
-      const dir = this.direction();
-      if (n.x * dir.x + n.z * dir.y > this.beyond) {
-        this.running = false;
-        this.calm = CALM[0] + Math.random() * (CALM[1] - CALM[0]);
-        return;
+    let left = FLOW_SPEED * this.size * dt;
+    // In kleinen Schritten, damit die Geschwindigkeit auf dem Bogen stimmt.
+    for (let step = 0; step < 8 && left > 1e-6; step++) {
+      const speed = this.bend(this.t).length() || 1;
+      const dtParam = Math.min(left / speed, 0.05);
+      this.t += dtParam;
+      left -= dtParam * speed;
+      if (this.t >= 1) {
+        // Auf die nächste Kachel: Die jetzige wird die davor.
+        const c = hexCentre(this.cell.q, this.cell.r, this.width);
+        this.from.copy(this.edgePoint(c, this.exit));
+        const g = ANIM.gustTiles.value;
+        g.z = g.x;
+        g.w = g.y;
+        push.y = push.x;
+        push.x = 0;
+        this.cell = neighbour(this.cell, this.exit);
+        const n = hexCentre(this.cell.q, this.cell.r, this.width);
+        const dir = this.direction();
+        if (n.x * dir.x + n.z * dir.y > this.beyond) {
+          this.running = false;
+          this.calm = CALM[0] + Math.random() * (CALM[1] - CALM[0]);
+          return;
+        }
+        this.pickExit();
       }
-      this.pickExit();
     }
-    const c = hexCentre(this.cell.q, this.cell.r, this.width);
-    const x = this.edgePoint(c, this.exit);
-    const t = Math.min(1, this.t);
-    const a = (1 - t) * (1 - t);
-    const b = 2 * t * (1 - t);
-    const d = t * t;
     const prevX = this.head.x;
     const prevZ = this.head.y;
-    this.head.set(a * this.from.x + b * c.x + d * x.x, a * this.from.y + b * c.z + d * x.y);
+    this.head.copy(this.at(this.t));
     // Auf der Kachel kommt er an, schwillt an und drückt in seine Laufrichtung.
     push.x = Math.min(1, push.x + dt / 0.6);
     const mx = this.head.x - prevX;
@@ -361,45 +410,83 @@ export class WindGusts {
       push.z = mx / m;
       push.w = mz / m;
     }
+    // Feste Punkte nur in Abständen; vorn hängt immer der Kopf selbst (`drawTrail`).
     const last = this.trail[0];
-    if (!last || last.distanceTo(this.head) > 0.04 * this.size) {
+    if (!last || last.distanceTo(this.head) > 0.06 * this.size)
       this.trail.unshift(this.head.clone());
-      this.keep = TRAIL * this.size;
-      this.trim();
-    }
+    if (this.trail.length > TRAIL_POINTS - 2) this.trail.length = TRAIL_POINTS - 2;
+    this.keep = TRAIL * this.size;
   }
 
-  /** Die Spur auf `keep` Meter kürzen, vom Schwanz her. */
-  private trim(): void {
-    let budget = this.keep;
-    for (let i = 1; i < this.trail.length; i++) {
-      budget -= this.trail[i]!.distanceTo(this.trail[i - 1]!);
-      if (budget < 0 || i >= TRAIL_POINTS) {
-        this.trail.length = i;
-        break;
-      }
-    }
-    if (this.keep <= 0) this.trail.length = 0;
+  /** Wo der Wind auf dieser Kachel bei `t` ist: Bogen Eingang → Mitte → Ausgang. */
+  private at(t: number): THREE.Vector2 {
+    const c = hexCentre(this.cell.q, this.cell.r, this.width);
+    const x = this.edgePoint(c, this.exit);
+    const a = (1 - t) * (1 - t);
+    const b = 2 * t * (1 - t);
+    const d = t * t;
+    return new THREE.Vector2(
+      a * this.from.x + b * c.x + d * x.x,
+      a * this.from.y + b * c.z + d * x.y,
+    );
   }
 
+  /** Die Ableitung des Bogens nach `t` — wie viele Meter je Parameter. */
+  private bend(t: number): THREE.Vector2 {
+    const c = hexCentre(this.cell.q, this.cell.r, this.width);
+    const x = this.edgePoint(c, this.exit);
+    return new THREE.Vector2(
+      2 * (1 - t) * (c.x - this.from.x) + 2 * t * (x.x - c.x),
+      2 * (1 - t) * (c.z - this.from.y) + 2 * t * (x.y - c.z),
+    );
+  }
+
+  /**
+   * **Die Spur zeichnen** — vorn der Kopf, wo er gerade ist, dahinter die
+   * festen Punkte, genau auf `keep` Meter gekürzt (der letzte Punkt
+   * dazwischen gerechnet). Die Durchsichtigkeit folgt den Metern, nicht der
+   * Zahl der Punkte — sonst springt sie, sobald ein Punkt dazukommt.
+   */
   private drawTrail(): void {
-    const n = this.trail.length;
-    this.mesh.visible = n > 1;
-    if (n < 2) return;
+    const pts: THREE.Vector2[] = this.running ? [this.head, ...this.trail] : [...this.trail];
+    const cut: THREE.Vector2[] = [];
+    const along: number[] = [];
+    let run = 0;
+    for (let i = 0; i < pts.length; i++) {
+      if (i > 0) {
+        const step = pts[i]!.distanceTo(pts[i - 1]!);
+        if (run + step >= this.keep) {
+          const f = step > 0 ? (this.keep - run) / step : 0;
+          cut.push(pts[i - 1]!.clone().lerp(pts[i]!, f));
+          along.push(this.keep);
+          break;
+        }
+        run += step;
+      }
+      cut.push(pts[i]!);
+      along.push(run);
+    }
+    const n = Math.min(cut.length, TRAIL_POINTS);
+    this.mesh.visible = n > 1 && this.keep > 0;
+    if (!this.mesh.visible) return;
+    const full = TRAIL * this.size;
     const y = 0.35 * Math.min(this.size, 2);
     for (let i = 0; i < TRAIL_POINTS; i++) {
       const k = Math.min(i, n - 1);
-      const p = this.trail[k]!;
-      const q = this.trail[Math.min(k + 1, n - 1)]!;
-      const o = this.trail[Math.max(k - 1, 0)]!;
+      const p = cut[k]!;
+      const q = cut[Math.min(k + 1, n - 1)]!;
+      const o = cut[Math.max(k - 1, 0)]!;
       let dx = o.x - q.x;
       let dz = o.y - q.y;
       const l = Math.hypot(dx, dz) || 1;
       dx /= l;
       dz /= l;
-      const u = k / (n - 1);
-      const w = (0.07 * (1 - u) + 0.015) * this.size;
-      const alpha = i < n ? Math.pow(1 - u, 1.3) * Math.min(1, u * 20) * 0.85 : 0;
+      const back = along[k]!;
+      const w = (0.07 * (1 - back / full) + 0.015) * this.size;
+      // Zum Ende der Spur hin aus, am Kopf kurz ein.
+      const tail = Math.max(0, 1 - back / Math.max(this.keep, 1e-3));
+      const alpha =
+        i < n ? Math.pow(tail, 1.3) * Math.min(1, back / (0.15 * this.size) + 0.2) * 0.85 : 0;
       for (const side of [0, 1]) {
         const s = side === 0 ? -w : w;
         const j = (i * 2 + side) * 3;
