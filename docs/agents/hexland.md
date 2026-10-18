@@ -607,6 +607,16 @@ Aufträge fest**, 13 bzw. 18 Aufträge kamen nie). Der Unterschied ist der
 - **Flaggen schließen**: +3, +5, +7, +8 sofort — smart wertet solche Lagen mit 1–2. (Deckt sich mit Runde 1a.)
 - **Keine Arme ins Leere**: Fluss-/Wegarme nicht auf Felder richten, die schon eine andere harte Kante verlangen (tote Felder) oder das einzige Wachstumsfeld eines Auftrags sind.
 
+#### Runde 2
+
+Alle Züge von Hand gegen `auto 99` (optimized im Stand vom Lauf, Arbeitskopie mit Runde 1a): Samen 1003 **142** (24 erfüllt, 6 verpasst — alle absichtlich) gegen smart **11** (1) und optimized **18** (1); Samen 1004 **144** (23 erfüllt, 7 absichtlich verpasst) gegen smart **31** (5) und optimized **37** (5). Von Hand kam der **ganze Auftragsstapel** (30) auf den Tisch, bei 1003 waren danach noch 13 Landkacheln übrig. Bei beiden Strategien lagen in beiden Samen **ab dem 4.–8. Zug drei Aufträge fest**: Ihr einziges freies Feld verlangt eine harte Kante plus das Gelände (1003: H6 4/6 und r4 3/4 teilen sich ein Feld, das Weg *und* Stadt braucht; 1004: A6+A5 2/x hinter einem Feld, das Wasser verlangt). `slotFor` nennt so ein Feld `grow`, weil *irgendeine* Kachel passt — in 40 Zügen kam keine.
+
+- **Festfahren vermeiden ist der größte Hebel** (neu): Ich habe denselben Fehler einmal selbst gemacht (1004, A4 nur über ein Wasserfeld erreichbar) und ihn mit der einzigen passenden Kachel gerettet (smart wertete die Rettung 22, einen bloßen Weizen-Schritt 24). Merkmal: je offenem Auftrag die **Wahrscheinlichkeit**, dass eine Zufallskachel aus dem Stapel an einem seiner freien Felder passt und das Gebiet weiterführt (Gewichte aus `BASE_TILES`, alle Drehungen), statt nur ja/nein; Lage, die sie unter ~15 % drückt, −25; Lage, die sie von dort hebt, +15.
+- **Erfüllen und Opfern mit einer Kachel** (neu, 4×, je +5…+7 sofort): Auftragskachel ins Gebiet eines offenen Auftrags derselben Art, das dadurch genau dessen Zahl erreicht, die eigene Zahl aber überschreitet (w4 → w5 fertig, w5 → w6 fertig, r4 → r5 fertig). Zwei Plätze frei, Punkte sofort; smart −7 bis −29. Merkmal: `completes` darf das `breaks` des *eigenen* Auftrags der Kachel nicht aufwiegen lassen → +Punkte×4.
+- **Opfern** bestätigt (9×, je +1 Weg/Fluss): r4/r5/r6 ohne Weg in Reichweite sofort an den langen Weg; danach kam fast immer eine Auftragskachel, die sofort fertig wurde (r6-Opfer → A6 sofort +6). **Aber nicht in ein bereites Gebiet opfern**: 1004 r5 an den 5er-Weg, der für r6 bereit war — r6 kam als Nächstes (≈ −6). Merkmal: Überfüllen kostet `ready` des Zielgebiets.
+- **Stapeln** bestätigt (11×, je Gebiet doppelt): auch gleiche Zahlen (A4+A4 → +8 mit einer Kachel). **Bereit/Brücken** bestätigt (≈10 Sofort-Erfüllungen, je +4…+6); Brücken über zwei Gebiete (H 3+2+1 → H6, A 3+1+1 → A5).
+- **Flaggen vorbereiten** (neu): Flaggengebiete ohne Auftrag Feld für Feld zumachen (Gras/Wald an die offenen Kanten) brachte 1004 +6 und +5; ein 13er-Weizen mit Flagge blieb an einem Feld hängen, das nur eine Küstenkachel schließt. Merkmal: je geschlossenem freien Feld eines Flaggengebiets +Größe/(offene Felder), Felder mit harter Kante nicht mitzählen. optimized sieht nur den letzten Schritt (`imm`).
+
 ### Runden des Optimierers
 
 | Runde | Idee | optimiert − smart (Samen 1–300) | behalten |
@@ -619,3 +629,4 @@ Aufträge fest**, 13 bzw. 18 Aufträge kamen nie). Der Unterschied ist der
 | 1f | 1a, `progress` 5 → 10 | gegen 1a +0,44 ± 0,46 | nein |
 | 1g | 1a, `ready` 8 → 4 | gegen 1a +0,42 ± 1,41 | nein |
 | 1h | 1a + −2 je offener Kante, die Gebiete mit Flagge dazubekommen (Flaggen 4,8 → 5,8, Aufträge 48,1 → 47,9) | gegen 1a +0,76 ± 1,01 | nein |
+| 2-Gegenprobe | Stand 1a auf den Samen 5001–5300 (nicht getunt) | +4,58 ± 1,39 (smart 58,90, optimiert 63,49; Flaggen 1,4 → 4,4) | — |
