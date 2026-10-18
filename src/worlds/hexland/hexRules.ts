@@ -85,6 +85,30 @@ export const HEX_DIRS: readonly Hex[] = [
   { q: 1, r: -1 },
 ];
 
+/**
+ * **Das `n`-te Feld einer Spirale um die Mitte** — 0 ist die Mitte, dann Ring
+ * für Ring (Ring k hat 6·k Felder), jeweils im Kreis herum.
+ */
+export function spiralCell(n: number): Hex {
+  if (n <= 0) return { q: 0, r: 0 };
+  let ring = 1;
+  let first = 1;
+  while (n >= first + 6 * ring) {
+    first += 6 * ring;
+    ring++;
+  }
+  let index = n - first;
+  let at: Hex = { q: HEX_DIRS[4]!.q * ring, r: HEX_DIRS[4]!.r * ring };
+  for (let side = 0; side < 6; side++) {
+    for (let step = 0; step < ring; step++) {
+      if (index === 0) return at;
+      at = neighbour(at, side);
+      index--;
+    }
+  }
+  return at;
+}
+
 export function hexKey(q: number, r: number): string {
   return `${q},${r}`;
 }
@@ -556,7 +580,7 @@ export function matchBase(edges: readonly Terrain[]): TileSpec | null {
  * nach — gewünscht: _„normale Runde, unendliches Spiel, Creative Modus"_) und
  * der Kreativ-Modus.
  */
-export type HexMode = 'game' | 'endless' | 'creative';
+export type HexMode = 'game' | 'endless' | 'creative' | 'world';
 
 /** Was ein Legen gebracht hat — für die Meldung. */
 export interface PlaceResult {
@@ -639,7 +663,7 @@ export class HexBoard {
     this.tiles.clear();
     this.placed = 0;
     this.stack = [];
-    this.tasks = mode === 'creative' ? [] : taskDeck(this.random);
+    this.tasks = mode === 'creative' || mode === 'world' ? [] : taskDeck(this.random);
     const first = drawTile(this.random, { landOnly: true });
     this.tiles.set(hexKey(0, 0), {
       q: 0,
@@ -647,6 +671,110 @@ export class HexBoard {
       spec: { base: first.base, edges: first.edges, seed: first.seed },
       rot: 0,
     });
+  }
+
+  /** **Eine Welt generieren** — nur die Startkachel; den Rest legt `generateNext`. */
+  resetWorld(seed = Date.now() % 1e9): void {
+    this.start(seed, 'world');
+    this.hand = null;
+  }
+
+  /**
+   * **Die nächste Kachel der generierten Welt** — gewünscht: _„ein
+   * Welt-Generierungs-Modus … Dabei kann ich Feld für Feld generieren lassen.
+   * Es beginnt mit dem Startfeld und läuft dann immer im Kreis herum. Dabei
+   * wird zufällig ausgewählt aus allen Tiles, die daran perfekt matchen."_
+   *
+   * Das nächste freie Feld der Spirale um die Mitte (`spiralCell`, `placed`
+   * zählt mit), dann eine Kachel, die an **jeder** belegten Kante genau das
+   * Gelände des Nachbarn hat (`perfectTile`). Gibt die gelegte Kachel zurück,
+   * oder `null`, wenn auf dieses Feld nichts passt (es bleibt frei).
+   */
+  generateNext(): PlacedTile | null {
+    if (this.mode !== 'world') return null;
+    let cell = spiralCell(this.placed + 1);
+    while (this.tiles.has(hexKey(cell.q, cell.r))) {
+      this.placed++;
+      cell = spiralCell(this.placed + 1);
+    }
+    this.placed++;
+    const found = this.perfectTile(cell.q, cell.r);
+    if (!found) return null;
+    const tile: PlacedTile = { q: cell.q, r: cell.r, spec: found.spec, rot: found.rot };
+    this.tiles.set(hexKey(cell.q, cell.r), tile);
+    return tile;
+  }
+
+  /**
+   * **Eine Kachel, die hier an jeder Kante genau passt** — zufällig nach den
+   * Gewichten des Stapels unter allen Grundkacheln (auch denen nur für den
+   * Baukasten, seltener), deren Fluss und Weg genau auf die der Nachbarn
+   * treffen; Land an Land übernimmt das Gelände des Nachbarn, freie Kanten
+   * werden gewürfelt (meist wie die Kante daneben, damit Gebiete entstehen).
+   * Verworfen wird, was ein Nachbarfeld unfüllbar machte (`slotFor` →
+   * `dead`): Die Welt soll immer weitergehen können.
+   */
+  private perfectTile(q: number, r: number): { spec: TileSpec; rot: number } | null {
+    const need: Array<Terrain | null> = [];
+    for (let e = 0; e < 6; e++) {
+      const n = neighbour({ q, r }, e);
+      const other = this.at(n.q, n.r);
+      need.push(other ? edgeAt(other.spec, other.rot, opposite(e)) : null);
+    }
+    const options: Array<{ base: BaseTile; rot: number; weight: number }> = [];
+    for (const base of BASE_TILES) {
+      for (let k = 0; k < 6; k++) {
+        let ok = true;
+        for (let e = 0; e < 6 && ok; e++) {
+          const want = need[e];
+          if (!want) continue;
+          const i = (e - k + 6) % 6;
+          const has: Terrain = base.water.includes(i)
+            ? 'water'
+            : base.road.includes(i)
+              ? 'road'
+              : 'grass';
+          ok = hard(want) ? has === want : !hard(has);
+        }
+        if (ok) options.push({ base, rot: k, weight: base.weight > 0 ? base.weight : 0.15 });
+      }
+    }
+    const key = hexKey(q, r);
+    for (let tries = 0; tries < 24 && options.length > 0; tries++) {
+      const pickIndex = options.indexOf(pick(options, (o) => o.weight, this.random()));
+      const { base, rot } = options[pickIndex]!;
+      // Die Kanten in Brettrichtung: hart vom Modell, Land vom Nachbarn oder gewürfelt.
+      const board: Array<Terrain | null> = [];
+      for (let e = 0; e < 6; e++) {
+        const i = (e - rot + 6) % 6;
+        if (base.water.includes(i)) board.push('water');
+        else if (base.road.includes(i)) board.push('road');
+        else board.push(need[e] ?? null);
+      }
+      const weights = landWeights(base);
+      const kinds = Object.keys(weights) as Array<keyof typeof weights>;
+      for (let round = 0; round < 2; round++) {
+        for (let e = 0; e < 6; e++) {
+          if (board[e] !== null) continue;
+          const before = board[(e + 5) % 6];
+          if (before && !hard(before) && this.random() < 0.7) board[e] = before;
+          else if (round === 1) board[e] = pick(kinds, (t) => weights[t], this.random());
+        }
+      }
+      const edges = Array.from({ length: 6 }, (_, i) => board[(i + rot) % 6]!);
+      const spec: TileSpec = { base: base.id, edges, seed: this.newSeed() };
+      // Probeweise legen: Bleibt jedes freie Nachbarfeld füllbar?
+      this.tiles.set(key, { q, r, spec, rot });
+      let alive = true;
+      for (let e = 0; e < 6 && alive; e++) {
+        const n = neighbour({ q, r }, e);
+        if (!this.at(n.q, n.r) && this.slotFor('grass', n.q, n.r) === 'dead') alive = false;
+      }
+      this.tiles.delete(key);
+      if (alive) return { spec, rot };
+      options.splice(pickIndex, 1);
+    }
+    return null;
   }
 
   /** **Im Kreativ-Modus die nächste Kachel aussuchen** — mit eigenem Würfel für die Deko. */
@@ -1210,7 +1338,10 @@ export class HexBoard {
       for (const [key, tile] of tiles) this.tiles.set(key, tile);
       this.stack = stack;
       this.hand = data.hand ? unpackSpec(data.hand) : null;
-      this.mode = data.mode === 'creative' || data.mode === 'endless' ? data.mode : 'game';
+      this.mode =
+        data.mode === 'creative' || data.mode === 'endless' || data.mode === 'world'
+          ? data.mode
+          : 'game';
       this.placed = Number(data.placed) || 0;
       this.seed = Number(data.seed) || 1;
       this.tasks = readDeck(data, this.mode, rng(this.seed + 104729));

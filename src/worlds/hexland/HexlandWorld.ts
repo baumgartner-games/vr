@@ -489,6 +489,8 @@ export class HexlandWorld extends FurnishedWorld {
     const spec = this.board.current;
     if (!spec) {
       this.hand.visible = false;
+      // Ohne Kachel in der Hand (Spielende, Welt-Modus) zeigt die Leiste trotzdem, was gilt.
+      this.drawBarIcon();
       return;
     }
     if (fresh || !this.at) this.autoPlace();
@@ -661,12 +663,14 @@ export class HexlandWorld extends FurnishedWorld {
 
   /** Die große Zeile: Punkte, oder dass gebaut wird. */
   private statusTitle(): string {
+    if (this.board.mode === 'world') return 'Welt';
     return this.board.mode === 'creative' ? 'Kreativ' : `${this.board.scoring().total} Punkte`;
   }
 
   /** Die kleine Zeile: was im Stapel liegt und wie viele Aufträge offen sind. */
   private statusLine(): string {
     if (this.board.mode === 'creative') return 'Katalog · im Menü';
+    if (this.board.mode === 'world') return `${this.board.tiles.size} Kacheln`;
     const b = this.board;
     const stack = b.mode === 'endless' ? '∞' : `${b.stack.length}`;
     const left = Number.isFinite(b.tasksLeft) ? ` · noch ${b.tasksLeft}` : '';
@@ -676,8 +680,10 @@ export class HexlandWorld extends FurnishedWorld {
   /** **Das Bildchen der Kachel in der Hand** in der Leiste — gedreht wie sie liegen wird. */
   private drawBarIcon(): void {
     const spec = this.board.current;
-    const ended = this.board.over && this.board.mode !== 'creative';
-    if (this.playRow) this.playRow.style.display = ended ? 'none' : 'grid';
+    const ended = this.board.over && this.board.mode !== 'creative' && this.board.mode !== 'world';
+    const world = this.board.mode === 'world';
+    if (this.worldRow) this.worldRow.style.display = world ? 'grid' : 'none';
+    if (this.playRow) this.playRow.style.display = ended || world ? 'none' : 'grid';
     if (this.endRow) this.endRow.style.display = ended ? 'grid' : 'none';
     if (this.tileBarIcon) this.tileBarIcon.style.display = ended ? 'none' : '';
     if (!ended && this.detailBox) this.detailBox.style.display = 'none';
@@ -696,7 +702,9 @@ export class HexlandWorld extends FurnishedWorld {
           ? `<br><b style="color:${TERRAIN_COLOUR[spec!.quest!.terrain]}">Auftrag: ${quest}</b> · genau so viele Kacheln`
           : spec?.flag
             ? `<br>Flagge: ${TERRAIN_LABEL[spec.flag]} — schließe das Gebiet`
-            : '<br>Feld antippen · Kachel antippen dreht');
+            : this.board.mode === 'world'
+              ? `<br>${this.generating ? 'Generiert …' : 'Im Kreis um die Mitte, jede Kachel passt genau'}`
+              : '<br>Feld antippen · Kachel antippen dreht');
     }
     if (!this.tileBarIcon) return;
     const heading = this.lastCtx?.topDownView ? this.headingNow(this.lastCtx) : 0;
@@ -714,7 +722,7 @@ export class HexlandWorld extends FurnishedWorld {
    */
   private barCounts(): string {
     const b = this.board;
-    if (b.mode === 'creative') return this.statusLine();
+    if (b.mode === 'creative' || b.mode === 'world') return this.statusLine();
     const hex = (inner: string): string =>
       `<svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-2px;margin-right:3px">` +
       `<polygon points="10,1 18,5.5 18,14.5 10,19 2,14.5 2,5.5" fill="#9cc95a" stroke="#fff" stroke-width="1.4"/>${inner}</svg>`;
@@ -767,7 +775,11 @@ export class HexlandWorld extends FurnishedWorld {
    * dann dreht sie sich in jedem Bild ein Stück weiter. Wer zoomt, darf das.
    */
   private orbitEnd(dt: number, ctx: WorldContext): void {
-    const ended = this.board.over && this.board.mode !== 'creative' && this.board2d;
+    const ended =
+      this.board.over &&
+      this.board.mode !== 'creative' &&
+      this.board.mode !== 'world' &&
+      this.board2d;
     const view = ctx.topDownView;
     if (!ended || !view) {
       if (this.tiltBefore !== null && !this.board.over) {
@@ -1137,6 +1149,7 @@ export class HexlandWorld extends FurnishedWorld {
     }
     this.stepFlight(dt, ctx);
     this.orbitEnd(dt, ctx);
+    this.stepGenerate(dt);
     this.sizeBadges(ctx);
     // Dreht sich das Bild, liegen die Ziffern neu (`drawDigits`).
     if (this.help.numbers && Math.abs(this.headingNow(ctx) - this.digitHeading) > 0.05)
@@ -1185,6 +1198,12 @@ export class HexlandWorld extends FurnishedWorld {
   /** ⟲ ✓ ⟳ — während des Spiels; am Ende `endRow` (`showEnd`). */
   private playRow: HTMLElement | null = null;
   private endRow: HTMLElement | null = null;
+  /** +1 · ▶ · +10 — nur im Welt-Modus (`generate`). */
+  private worldRow: HTMLElement | null = null;
+  private runButton: HTMLButtonElement | null = null;
+  /** Ob die Welt gerade von selbst weiterwächst, und wie lange bis zur nächsten Kachel. */
+  private generating = false;
+  private generateClock = 0;
   /** Die Punkte im Detail, über der Leiste, am Spielende auf Wunsch. */
   private detailBox: HTMLElement | null = null;
   /** Die Neigung, die vor dem Rundflug am Spielende galt — für die nächste Runde. */
@@ -1389,6 +1408,20 @@ export class HexlandWorld extends FurnishedWorld {
       details,
     );
     this.endRow = end;
+    // **Im Welt-Modus**: eine Kachel, laufen lassen, zehn auf einmal.
+    const world = document.createElement('div');
+    world.style.cssText = 'display:none;grid-template-columns:1fr 1.4fr 1fr;gap:10px';
+    const one = button('+1', 'Eine Kachel generieren', () => this.generate(1));
+    const ten = button('+10', 'Zehn Kacheln generieren', () => this.generate(10));
+    one.style.fontSize = ten.style.fontSize = '20px';
+    this.runButton = button(
+      '▶ Generieren',
+      'Laufen lassen / anhalten',
+      () => this.toggleGenerate(),
+      true,
+    );
+    world.append(one, this.runButton, ten);
+    this.worldRow = world;
     const detail = document.createElement('div');
     detail.style.cssText =
       'display:none;flex-direction:column;gap:4px;padding:4px 6px;font:600 14px var(--hud-font);color:var(--hud-ink)';
@@ -1403,7 +1436,7 @@ export class HexlandWorld extends FurnishedWorld {
       )),
       button('⟳', 'Kachel rechts drehen (R / E)', () => this.rotate(1)),
     );
-    bar.append(quick, detail, info, row, end);
+    bar.append(quick, detail, info, row, end, world);
     document.body.append(bar);
     this.tileBar = bar;
     this.tileBarText = text;
@@ -1636,8 +1669,18 @@ export class HexlandWorld extends FurnishedWorld {
     const s = b.scoring();
     const close = (): void => this.context?.menu.toggle(false);
     const rows: MenuEntry[] = [];
+    const world = b.mode === 'world';
     if (creative) {
       rows.push(this.catalogueMenu());
+    } else if (world) {
+      rows.push({
+        id: 'hexland:world',
+        label: `Welt · ${b.tiles.size} Kacheln`,
+        sub: 'Unten: +1, ▶ laufen lassen, +10 — im Kreis um die Mitte, jede Kachel passt genau',
+        icon: 'worlds',
+        accent: ACCENT,
+        run: close,
+      });
     } else {
       rows.push({
         id: 'hexland:score',
@@ -1691,7 +1734,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.fpsRow(),
       this.shareMenu(),
     );
-    if (!creative) {
+    if (!creative && !world) {
       rows.push({
         id: 'hexland:rules',
         label: 'So wird gewertet',
@@ -1704,7 +1747,7 @@ export class HexlandWorld extends FurnishedWorld {
     return {
       id: 'hexland',
       label: 'Hexland',
-      sub: creative ? 'Kreativ' : `${s.total} Punkte · ${MODE_LABEL[b.mode]}`,
+      sub: creative || world ? MODE_LABEL[b.mode] : `${s.total} Punkte · ${MODE_LABEL[b.mode]}`,
       icon: 'cube',
       accent: ACCENT,
       children: rows,
@@ -1726,7 +1769,7 @@ export class HexlandWorld extends FurnishedWorld {
         id: `hexland:mode:${mode}`,
         label: MODE_LABEL[mode],
         sub: MODE_SUB[mode],
-        icon: mode === 'creative' ? 'brush' : 'cube',
+        icon: mode === 'creative' ? 'brush' : mode === 'world' ? 'worlds' : 'cube',
         accent: 0xb58cff,
         radio: 'hexland-mode',
         checked: this.board.mode === mode,
@@ -1745,7 +1788,10 @@ export class HexlandWorld extends FurnishedWorld {
           {
             id: `hexland:mode:${mode}:new`,
             label: 'Neu starten',
-            sub: mode === 'creative' ? 'Brett leeren, eine Kachel in die Mitte' : MODE_SUB[mode],
+            sub:
+              mode === 'creative' || mode === 'world'
+                ? 'Brett leeren, eine Kachel in die Mitte'
+                : MODE_SUB[mode],
             icon: 'reset',
             accent: 0xe0605f,
             run: () => {
@@ -2103,11 +2149,52 @@ export class HexlandWorld extends FurnishedWorld {
     this.say(`${MODE_LABEL[mode]} · weiter`);
   }
 
+  /**
+   * **Welt generieren**: `count` Kacheln, jede an ihrem Platz der Spirale
+   * (`HexBoard.generateNext`). Die Kamera fliegt zur letzten — so sieht man,
+   * wo die Welt gerade wächst.
+   */
+  private generate(count: number): void {
+    if (this.board.mode !== 'world') return;
+    let last: PlacedTile | null = null;
+    for (let i = 0; i < count; i++) {
+      const tile = this.board.generateNext();
+      if (!tile) continue;
+      void this.view?.add(tile);
+      last = tile;
+    }
+    writeSave(this.board.save(), this.board.mode);
+    this.drawBarIcon();
+    if (last && !this.generating) this.flyTo(last);
+  }
+
+  private toggleGenerate(): void {
+    this.generating = !this.generating;
+    this.generateClock = 0;
+    if (this.runButton)
+      this.runButton.textContent = this.generating ? '⏸ Anhalten' : '▶ Generieren';
+    this.drawBarIcon();
+  }
+
+  /** Läuft die Generierung, kommt alle `GENERATE_EVERY` Sekunden eine Kachel. */
+  private stepGenerate(dt: number): void {
+    if (!this.generating) return;
+    if (this.board.mode !== 'world') {
+      this.toggleGenerate();
+      return;
+    }
+    this.generateClock += dt;
+    if (this.generateClock < GENERATE_EVERY) return;
+    this.generateClock = 0;
+    this.generate(1);
+  }
+
   /** **Ein neues Brett** in diesem Modus. */
   private startGame(mode: HexMode): void {
     writeMode(mode);
     this.board = new HexBoard();
     if (mode === 'creative') this.board.resetCreative();
+    else if (mode === 'world') this.board.resetWorld();
     else this.board.reset(undefined, mode);
     writeSave(this.board.save(), mode);
     this.lastPlaced = null;
@@ -2219,15 +2306,20 @@ const PLACE_LABEL: Readonly<Record<HexHelp['place'], string>> = {
   smart: 'Intelligent',
 };
 
-const MODES: readonly HexMode[] = ['game', 'endless', 'creative'];
+// **Welt generieren statt unendlich** — gewünscht: _„Ich würde gerne einen
+// Welt-Generierungs-Modus haben statt unendlich."_ Das unendliche Spiel gibt es
+// im Code weiter (alte Stände), im Menü nicht mehr.
+const MODES: readonly HexMode[] = ['game', 'world', 'creative'];
 const MODE_LABEL: Readonly<Record<HexMode, string>> = {
   game: 'Normale Runde',
   endless: 'Unendliches Spiel',
+  world: 'Welt generieren',
   creative: 'Kreativ-Modus',
 };
 const MODE_SUB: Readonly<Record<HexMode, string>> = {
   game: `${NORMAL_TILES} Kacheln, immer ${OPEN_TASKS} Aufträge, Wertung wie im Brettspiel`,
   endless: 'Dieselben Regeln, aber der Stapel wird nie leer',
+  world: 'Feld für Feld im Kreis um die Mitte — jede Kachel passt genau',
   creative: 'Frei bauen, jede Kachel aus dem Katalog, ohne Wertung',
 };
 
@@ -2242,6 +2334,7 @@ function savedSummary(mode: HexMode): string | null {
   }
   if (!board.load(text) || board.mode !== mode) return null;
   if (mode === 'creative') return `${board.tiles.size} Kacheln gebaut`;
+  if (mode === 'world') return `${board.tiles.size} Kacheln generiert`;
   const points = board.scoring().total;
   return board.over ? `Vorbei · ${points} Punkte` : `${board.placed} gelegt · ${points} Punkte`;
 }
@@ -2283,6 +2376,8 @@ const BADGE_HIDE = 100;
 const ORBIT_SPEED = 0.12;
 /** Wie nah die Kamera zu Beginn einer Runde höchstens steht, in Metern. */
 const START_ZOOM = 30;
+/** Im Welt-Modus beim Laufenlassen: eine Kachel je so viele Sekunden. */
+const GENERATE_EVERY = 0.25;
 /** Wie weit hinaus gezoomt werden darf (`TopDownCamera.setMaxZoom`). */
 const HEX_MAX_ZOOM = 240;
 const _look = new THREE.Vector3();
@@ -2389,6 +2484,7 @@ function ensureCleanStyle(): void {
 const SAVE_KEY: Readonly<Record<HexMode, string>> = {
   game: 'hexland:game',
   endless: 'hexland:endless',
+  world: 'hexland:world',
   creative: 'hexland:creative',
 };
 const MODE_KEY = 'hexland:mode';
@@ -2396,7 +2492,7 @@ const MODE_KEY = 'hexland:mode';
 function readMode(): HexMode {
   try {
     const mode = localStorage.getItem(MODE_KEY);
-    return mode === 'creative' || mode === 'endless' ? mode : 'game';
+    return mode === 'creative' || mode === 'endless' || mode === 'world' ? mode : 'game';
   } catch {
     return 'game';
   }
@@ -2421,6 +2517,7 @@ function loadBoard(mode: HexMode): HexBoard {
   }
   if (board.load(text) && board.mode === mode) return board;
   if (mode === 'creative') board.resetCreative();
+  else if (mode === 'world') board.resetWorld();
   else board.reset(undefined, mode);
   return board;
 }

@@ -91,6 +91,29 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   (`HexBoard.areaTiles`); liegt eine Kachel in zwei Gebieten, rückt der
   zweite Rand nach innen. Gewünscht: _„die Elemente zu highlighten"_.
 
+### Welt generieren
+
+Statt _Unendliches Spiel_ steht im Menü **Welt generieren** (`world`, Speicher
+`hexland:world`; das unendliche Spiel gibt es im Code weiter, im Menü nicht).
+Gewünscht: _„Ich würde gerne einen Welt-Generierungs-Modus haben statt
+unendlich. Dabei kann ich Feld für Feld generieren lassen. Es beginnt mit dem
+Startfeld und läuft dann immer im Kreis herum. Dabei wird zufällig ausgewählt
+aus allen Tiles, die daran perfekt matchen."_
+
+- **Reihenfolge**: `spiralCell(n)` — Ring für Ring um die Mitte; `placed`
+  zählt mit (steht im Spielstand).
+- **Die Kachel** (`HexBoard.perfectTile`): alle Grundkacheln in allen
+  Drehungen, deren Fluss und Weg genau auf die der Nachbarn treffen und deren
+  Land auf Land trifft; gewürfelt nach den Gewichten des Stapels (Kacheln nur
+  für den Baukasten selten, 0,15). Land an einem Nachbarn übernimmt dessen
+  Gelände, freie Kanten meist das der Kante daneben (Gebiete), sonst
+  gewürfelt. Verworfen wird, was ein freies Nachbarfeld unfüllbar machte
+  (`slotFor` → `dead`). Nachgerechnet: 1 500 Kacheln, keine Kante falsch,
+  3 Felder blieben frei.
+- **Bedienung** (Leiste, `worldRow`): **+1**, **▶ Generieren** (alle 0,25 s eine,
+  `stepGenerate`; noch einmal tippen hält an) und **+10**. Bei +1/+10 fliegt
+  die Kamera zur letzten neuen Kachel. Keine Aufträge, keine Wertung.
+
 ### Spielende (normale Runde)
 
 - **Vorbei ist es, wenn keine normale Kachel mehr da ist** (`HexBoard.over`,
