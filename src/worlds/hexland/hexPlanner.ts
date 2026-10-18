@@ -1,4 +1,4 @@
-import { hexKey, type HexBoard, type TileSpec } from './hexRules';
+import { hexKey, type Hex, type HexBoard, type TileSpec } from './hexRules';
 
 /**
  * **Wohin mit der Kachel in der Hand** — die Rechnung hinter den Spielhilfen
@@ -54,7 +54,8 @@ export function scorePlacement(
  * (`docs/agents/hexland.md`, _Optimierung von Intelligent_): die Rechnung von
  * `smart`, dazu was die Lage sofort an Flaggen, Fluss und Weg bringt; Fluss-
  * und Weg-Aufträge wachsen doppelt so viel wert, und „vorbereitet" zählt nur,
- * wo eine Landkachel andocken kann.
+ * wo eine Landkachel andocken kann. Liegen die zwei besten Lagen nah
+ * beieinander, schaut `bestPlacement` eine Kachel voraus (`lookAhead`).
  */
 function optimizedScore(
   board: HexBoard,
@@ -65,8 +66,8 @@ function optimizedScore(
   fit: NonNullable<ReturnType<HexBoard['fit']>>,
 ): number {
   // Ein bereites Gebiet, an dessen freien Feldern schon Fluss oder Weg
-  // anliegt, nimmt die Auftragskachel selten auf (Runde 2, Idee aus dem
-  // Selbst-Spielen; +3,4 gegen 1a).
+  // anliegt, nimmt die Auftragskachel selten auf (Idee aus dem
+  // Selbst-Spielen; +3,4 gegen 1a, Runde 2f).
   const a = board.assess(spec, q, r, rot, true);
   const side = sideGain(board, spec, q, r, rot);
   return (
@@ -74,7 +75,7 @@ function optimizedScore(
     a.points * 4 +
     // Fluss- und Wegkacheln sind selten (etwa jede fünfte und achte): Ein
     // Fluss- oder Weg-Auftrag, der wächst, ist schwerer zu ersetzen als ein
-    // Wald. Doppelt gezählt brachte das +2,1 (Runde 2).
+    // Wald. Doppelt gezählt brachte das +2,1 (Runde 2d).
     (a.closer + a.rareCloser) * 20 +
     (a.progress + a.rareProgress) * 5 +
     a.ready * 8 -
@@ -118,17 +119,65 @@ function sideGain(board: HexBoard, spec: TileSpec, q: number, r: number, rot: nu
   return after - before.value;
 }
 
-/** **Die beste Lage** über alle freien Felder und Drehungen — `null`, wenn nichts passt. */
-export function bestPlacement(board: HexBoard, strategy: Strategy): Placement | null {
+/**
+ * **Die beste Lage** über alle freien Felder und Drehungen — `null`, wenn nichts passt.
+ * `nudge` verschiebt die Wertung je Feld ein wenig (im Spiel: bei Gleichstand
+ * näher an der zuletzt gelegten Kachel).
+ */
+export function bestPlacement(
+  board: HexBoard,
+  strategy: Strategy,
+  nudge?: (slot: Hex) => number,
+): Placement | null {
   const spec = board.current;
   if (!spec) return null;
   let best: Placement | null = null;
+  let second: Placement | null = null;
   for (const slot of board.openSlots()) {
     for (let rot = 0; rot < 6; rot++) {
-      const score = scorePlacement(board, spec, slot.q, slot.r, rot, strategy);
-      if (score === null) continue;
-      if (!best || score > best.score) best = { q: slot.q, r: slot.r, rot, score };
+      const value = scorePlacement(board, spec, slot.q, slot.r, rot, strategy);
+      if (value === null) continue;
+      const score = nudge ? value + nudge(slot) : value;
+      const here = { q: slot.q, r: slot.r, rot, score };
+      if (!best || score > best.score) {
+        second = best;
+        best = here;
+      } else if (!second || score > second.score) second = here;
     }
   }
+  if (strategy === 'optimized' && best && second && second.score >= best.score - LOOK_MARGIN) {
+    return lookAhead(board, spec, best) >= lookAhead(board, spec, second) ? best : second;
+  }
   return best;
+}
+
+/**
+ * **Vorausschau** (Runde 2): Liegen die beiden besten Lagen keine 5 auseinander,
+ * entscheidet die nächste Kachel mit — die oberste im Stapel, probehalber
+ * gelegt, mit ihrer besten Lage zur Hälfte gezählt. Käme als nächstes eine
+ * Auftragskachel (weil die Lage einen Auftrag erfüllt), zählt das pauschal 15:
+ * Ein frei gewordener Platz ist etwa so viel wert wie eine gute Lage. Brachte
+ * +3,2 gegen den Stand ohne (Runde 2o); kostet je Zug etwa das Vierfache von
+ * _Intelligent_ (die nächste Kachel wird zweimal ganz durchgerechnet) — darum
+ * nur zwei Lagen, jede weitere kostet noch einmal so viel.
+ */
+const LOOK_MARGIN = 5;
+
+function lookAhead(board: HexBoard, spec: TileSpec, at: Placement): number {
+  if (board.stack.length === 0) return at.score;
+  // Die gemerkte Wertung vor dem Zug gehört zum echten Brett, nicht zum probehalber belegten.
+  sideBefore.delete(board);
+  const value = board.tryPlace(spec, at.q, at.r, at.rot, (next) => {
+    if (!next) return at.score + 15;
+    let top = -Infinity;
+    for (const slot of board.openSlots()) {
+      for (let rot = 0; rot < 6; rot++) {
+        const score = scorePlacement(board, next, slot.q, slot.r, rot, 'optimized');
+        if (score !== null && score > top) top = score;
+      }
+    }
+    return top === -Infinity ? at.score : at.score + 0.5 * top;
+  });
+  sideBefore.delete(board);
+  return value;
 }

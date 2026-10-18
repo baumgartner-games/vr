@@ -574,7 +574,9 @@ vergleichen kann."_
 - `src/worlds/hexland/hexPlanner.ts`: `scorePlacement(…, 'smart' | 'optimized')`
   und `bestPlacement`. `smart` ist _Intelligent_ (eingefroren als
   Vergleich), `optimized` ist _Intelligent (optimiert)_ — die Spielhilfe
-  gleichen Namens im Spiel rechnet genau damit (`autoPlace`).
+  gleichen Namens im Spiel rechnet genau damit (`autoPlace` →
+  `bestPlacement`, samt Vorausschau auf die nächste Stapelkachel, Runde 2o;
+  dafür legt `HexBoard.tryPlace` probehalber und stellt alles wieder her).
 - `npm run hexbench -- [Runden] [erster Samen] [Strategien] [Prozesse]` —
   normale Runden, immer die beste Lage; Schnitt ± Standardfehler, Posten,
   und bei zwei Strategien der Unterschied **je Samen** (genauer).
@@ -630,3 +632,19 @@ Alle Züge von Hand gegen `auto 99` (optimized im Stand vom Lauf, Arbeitskopie m
 | 1g | 1a, `ready` 8 → 4 | gegen 1a +0,42 ± 1,41 | nein |
 | 1h | 1a + −2 je offener Kante, die Gebiete mit Flagge dazubekommen (Flaggen 4,8 → 5,8, Aufträge 48,1 → 47,9) | gegen 1a +0,76 ± 1,01 | nein |
 | 2-Gegenprobe | Stand 1a auf den Samen 5001–5300 (nicht getunt) | +4,58 ± 1,39 (smart 58,90, optimiert 63,49; Flaggen 1,4 → 4,4) | — |
+| 2a | 1a + Opfern: kein −100, sondern +20, wenn ein Weg-/Fluss-Auftrag, dem ≥ 3 fehlen, überfüllt wird (solange der Auftragsstapel nicht leer ist) | gegen 1a −0,19 ± 0,19 | nein |
+| 2b | wie 2a, schon ab 2 fehlenden | gegen 1a +0,45 ± 0,47 | nein |
+| 2c | wie 2a, alle Gelände, ab 3 fehlenden (+20 auch fürs Überfüllen eines schon unmöglichen Auftrags: trat nie auf — am Ende offene Aufträge sind fast nie formal unmöglich, sondern warten auf seltene Kacheln) | gegen 1a ±0,00 ± 0,29 | nein |
+| 2d | 1a, `progress` und `closer` für Fluss- und Weg-Aufträge × 2 | +7,23 ± 1,53 (gegen 1a +2,10 ± 0,63) | ja |
+| 2e | 1a, `ready` auch für Gebiete mit offenem Auftrag (Größe + 1 ≤ dessen Zahl) | gegen 1a −0,72 ± 1,14 | nein |
+| 2f | 1a, `ready` nur für Gebiete, an denen ein freies Feld keine harte Kante verlangt (`readiness(land)`) | +8,56 ± 1,59 (gegen 1a +3,42 ± 0,98) | ja |
+| 2g | 1a + 10 je Brückenfeld (Größen der angrenzenden Gebiete + 1 = Zahl eines offenen Auftrags) | gegen 1a −1,11 ± 1,28 | nein |
+| 2h | 1a − 5 je Fluss-/Wegarm auf ein freies Feld, an dem schon eine harte Kante liegt | gegen 1a +1,38 ± 1,35; auf 2d+2f +0,87 ± 1,36 | nein |
+| 2i | 1a + 15 fürs Stapeln (eigener Auftrag im Gebiet eines offenen mit gleicher oder größerer Zahl) | gegen 1a +0,20 ± 0,17 | nein |
+| 2j | 1a, `side` 8 → 6 / 8 → 10 | gegen 1a −0,92 ± 0,62 / −0,24 ± 0,58 | nein |
+| 2k | 1a + 1c + 1h zusammen (−10 je tot gemachtem Nachbarfeld, −2 je neuer offener Kante an Flaggengebieten), Samen 1–600 | gegen 1a −0,50 ± 0,79 | nein |
+| 2l | 1a + Belohnung für Gebiete Zahl−1 (≥ 2 freie Felder, 8) und Zahl−2 (4) je Auftrag im Stapel | gegen 1a −11,08 ± 1,91 (zieht alles auseinander) | nein |
+| 2m | 1a + Vorausschau: die 3 besten Lagen (höchstens 15 unter der besten) probehalber legen, nächste Stapelkachel bestens dazu × 0,5 (Auftragskachel als nächste: pauschal 15) | +10,32 ± 1,77 (gegen 1a +5,19 ± 1,49), aber 3,4 × Rechenzeit von 1a | — |
+| 2n | 2d + 2f zusammen | +9,50 ± 1,64 (gegen 1a +4,36 ± 1,08) | ja |
+| 2o | 2n + Vorausschau mit nur 2 Lagen, höchstens 10 bzw. 5 auseinander | +12,86 ± 1,84 / **+12,70 ± 1,85** (gegen 2n +3,36 ± 1,40 / +3,20 ± 1,37); Aufträge 47,6 → 55,3, erfüllt 9,6 → 11,1 | ja (5) |
+| 2-Ende | Stand 2o auf den Samen 5001–5300 (nicht getunt); Rechenzeit 3,2–3,9 × smart (`hexbench`: 332 s gegen 104 s, auf 1–300 348 s gegen 89 s) | +8,22 ± 1,59 (smart 58,90, optimiert 67,12; Aufträge 47,6 → 50,8, Flaggen 1,4 → 4,6) | — |

@@ -1070,6 +1070,33 @@ export class HexBoard {
   }
 
   /**
+   * **Probehalber legen** — für die Vorausschau von _Intelligent (optimiert)_:
+   * die Kachel liegt, die Aufträge sind nachgesehen, und in der Hand ist, was
+   * danach käme — `null`, wenn das eine Auftragskachel wäre (die ist noch
+   * nicht gezogen, also unbekannt) oder der Stapel leer ist. Danach ist alles
+   * wieder wie vorher; der Würfel wird nicht angefasst.
+   */
+  tryPlace<T>(spec: TileSpec, q: number, r: number, rot: number, look: (next: TileSpec | null) => T): T {
+    const key = hexKey(q, r);
+    const states: Array<[Quest, Quest['state']]> = [];
+    for (const tile of this.tiles.values())
+      if (tile.spec.quest) states.push([tile.spec.quest, tile.spec.quest.state]);
+    if (spec.quest) states.push([spec.quest, spec.quest.state]);
+    const hand = this.hand;
+    this.tiles.set(key, { q, r, spec, rot });
+    try {
+      this.checkQuests();
+      const quest = this.openTasks() < OPEN_TASKS && this.tasks.length > 0;
+      this.hand = quest ? null : (this.stack[this.stack.length - 1] ?? null);
+      return look(this.hand);
+    } finally {
+      this.tiles.delete(key);
+      this.hand = hand;
+      for (const [quest, state] of states) quest.state = state;
+    }
+  }
+
+  /**
    * **Die offenen Aufträge nachsehen**: erfüllt, wenn ihr Gebiet genau so groß
    * ist wie ihre Zahl; verpasst, wenn es größer geworden ist.
    */

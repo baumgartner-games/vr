@@ -35,7 +35,7 @@ import {
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { WindGusts } from './hexAnimate';
 import { packSave, unpackSave } from './hexShare';
-import { scorePlacement } from './hexPlanner';
+import { bestPlacement } from './hexPlanner';
 import { dressingModels } from './hexDressing';
 import { QuestBadge } from './hexBadge';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
@@ -531,20 +531,16 @@ export class HexlandWorld extends FurnishedWorld {
     };
     const place = this.help.place;
     let best: { hex: Hex; rot: number; score: number } | null = null;
-    for (const slot of slots) {
+    // **Intelligent (optimiert)** rechnet über `hexPlanner` — dieselbe
+    // Rechnung wie im Benchmark (`npm run hexbench`, mit Vorausschau), bei
+    // Gleichstand näher.
+    if (place === 'optimized') {
+      const pick = bestPlacement(this.board, 'optimized', (slot) => -far(slot) * 0.01);
+      if (pick) best = { hex: { q: pick.q, r: pick.r }, rot: pick.rot, score: pick.score };
+    }
+    for (const slot of place === 'optimized' ? [] : slots) {
       // In der Nähe behält die Kachel die Drehung des Spielers (oder die
       // vorgedrehte); an Auftrag und Grenze dreht die Hilfe sie selbst.
-      // **Intelligent (optimiert)** rechnet über `hexPlanner` — dieselbe
-      // Rechnung wie im Benchmark (`npm run hexbench`), bei Gleichstand näher.
-      if (place === 'optimized') {
-        for (let rot = 0; rot < 6; rot++) {
-          const value = scorePlacement(this.board, spec, slot.q, slot.r, rot, 'optimized');
-          if (value === null) continue;
-          const score = value - far(slot) * 0.01;
-          if (!best || score > best.score) best = { hex: slot, rot, score };
-        }
-        continue;
-      }
       const keep =
         place === 'near' &&
         !this.help.smartRotate &&
