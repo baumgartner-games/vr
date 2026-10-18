@@ -17,12 +17,15 @@ import {
   OPEN_TASKS,
   TERRAIN_LABEL,
   catalogue,
+  matchBase,
   hexAt,
   hexCentre,
   hexKey,
   type Hex,
   type HexMode,
   type PlaceResult,
+  type Terrain,
+  type TileSpec,
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { dressingModels } from './hexDressing';
@@ -69,6 +72,7 @@ export class HexlandWorld extends FurnishedWorld {
   private previewEdges: THREE.Mesh[] = [];
   private confirm: TextPlane | null = null;
   private info: TextPlane | null = null;
+  private handQuest: TextPlane | null = null;
   /** Wo die Vorschau gerade liegt, und wie gedreht. */
   private at: Hex | null = null;
   private rot = 0;
@@ -271,7 +275,7 @@ export class HexlandWorld extends FurnishedWorld {
       align: 'center',
       face: true,
     });
-    this.confirm.position.y = 2.1;
+    this.confirm.position.y = 2.5;
     this.hand.add(this.confirm);
     this.info = new TextPlane({
       width: 3,
@@ -281,8 +285,20 @@ export class HexlandWorld extends FurnishedWorld {
       align: 'center',
       face: true,
     });
-    this.info.position.y = 3.05;
+    this.info.position.y = 3.45;
     this.hand.add(this.info);
+    // **Der Auftrag der Kachel in der Hand** — sichtbar, bevor sie liegt, in
+    // jeder Ansicht (auch von oben, wo ✓ und Zeile in der Leiste stehen).
+    this.handQuest = new TextPlane({
+      width: 2,
+      height: 0.9,
+      title: '',
+      accent: ACCENT,
+      align: 'center',
+      face: true,
+    });
+    this.handQuest.position.y = 1.5;
+    this.hand.add(this.handQuest);
     this.hand.name = 'hexland-ghost';
     this.hand.visible = false;
     this.root.add(this.hand);
@@ -471,6 +487,17 @@ export class HexlandWorld extends FurnishedWorld {
     const quest = spec.quest ? ` · ${TERRAIN_LABEL[spec.quest.terrain]}-Auftrag` : '';
     const flag = spec.flag ? ` · Flagge ${TERRAIN_LABEL[spec.flag]}` : '';
     this.info?.setText(this.statusTitle(), `${this.statusLine()}${quest}${flag}`);
+    const label = this.questLabel(spec);
+    if (this.handQuest) {
+      this.handQuest.visible = label !== null;
+      if (label) {
+        this.handQuest.setText(
+          `Auftrag: ${label}`,
+          'genau so viele Kacheln',
+          QUEST_ACCENT[spec.quest!.terrain],
+        );
+      }
+    }
     this.drawBarIcon();
   }
 
@@ -489,13 +516,27 @@ export class HexlandWorld extends FurnishedWorld {
   private drawBarIcon(): void {
     const spec = this.board.current;
     if (this.tileBarText) {
-      this.tileBarText.innerHTML = `<b style="color:var(--hud-ink);font-size:15px">${this.statusTitle()}</b><br>${this.statusLine().replace(' · ', '<br>')}`;
+      const quest = this.questLabel(spec);
+      this.tileBarText.innerHTML =
+        `<b style="color:var(--hud-ink);font-size:15px">${this.statusTitle()}</b> · ${this.statusLine()}` +
+        (quest
+          ? `<br><b style="color:${TERRAIN_COLOUR[spec!.quest!.terrain]}">Auftrag: ${quest}</b> · genau so viele Kacheln`
+          : spec?.flag
+            ? `<br>Flagge: ${TERRAIN_LABEL[spec.flag]} — schließe das Gebiet`
+            : '<br>Feld antippen · Kachel antippen dreht');
     }
     if (!this.tileBarIcon) return;
     const heading = this.lastCtx?.topDownView ? this.headingNow(this.lastCtx) : 0;
     if (spec) drawHexIcon(this.tileBarIcon, spec, this.rot, heading);
     else this.tileBarIcon.getContext('2d')?.clearRect(0, 0, 999, 999);
     this.iconHeading = heading;
+  }
+
+  /** **„Dorf 4"** — was der Auftrag einer Kachel verlangt, oder `null`. */
+  private questLabel(spec: TileSpec | null): string | null {
+    const quest = spec?.quest;
+    if (!quest) return null;
+    return `${TERRAIN_LABEL[quest.terrain]} ${quest.target ?? '?'}`;
   }
 
   /** Die Drehung des Bildes von oben, im Bogenmaß — 0, wo es keins gibt. */
@@ -608,6 +649,11 @@ export class HexlandWorld extends FurnishedWorld {
   private tileBar: HTMLElement | null = null;
   private tileBarText: HTMLElement | null = null;
   private tileBarIcon: HTMLCanvasElement | null = null;
+  private tileQuick: HTMLElement | null = null;
+  /** Was zuletzt im Baukasten gebaut wurde — vorn in der Schnellliste. */
+  private lastBuilt: TileSpec | null = null;
+  /** Die Kanten im Baukasten, von Kante 0 (rechts) im Uhrzeigersinn. */
+  private built: Terrain[] = ['forest', 'forest', 'field', 'field', 'house', 'house'];
 
   /**
    * **Jede Ansicht bekommt ihre Bedienung** — einmal je Bild nachgesehen.
@@ -650,6 +696,9 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.confirm) this.confirm.visible = !flat;
     if (this.info) this.info.visible = !flat;
     if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
+    // `style.display` und nicht `hidden`: Das `display:flex` der Liste schlüge das Attribut.
+    if (this.tileQuick)
+      this.tileQuick.style.display = this.board.mode === 'creative' ? 'flex' : 'none';
   }
 
   /** **Wie schnell WASD das Bild schiebt**: ein Drittel des Kameraabstands je Sekunde. */
@@ -667,9 +716,15 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   /**
-   * **Die Leiste am Schirm**: Punkte und Stapel, ⟲ ✓ ⟳. Dieselben drei Dinge
-   * wie die Kachel selbst (antippen dreht) und das ✓ über ihr in der Brille —
-   * nur dort, wo ein Daumen sie trifft.
+   * **Die Leiste am Schirm** — unten über die ganze Breite. Gewünscht: _„das
+   * links rechts drehen sollte ganz links und ganz rechts sein. Die Buttons
+   * dürfen gerne etwas breiter sein, dann mittig davon das Legen-Button.
+   * Darüber kann gerne die Zeile sein, mit der Info über Stapelgröße und
+   * Punkte, Aufträge."_
+   *
+   * Von oben nach unten: im Kreativ-Modus die **Schnellliste** (`quickTiles`),
+   * dann die Zeile mit dem Bildchen der Kachel in der Hand, Punkten, Stapel,
+   * Aufträgen und dem Auftrag der Kachel, zuunterst ⟲ · ✓ Legen · ⟳.
    */
   private buildTileBar(): void {
     const bar = document.createElement('div');
@@ -677,19 +732,20 @@ export class HexlandWorld extends FurnishedWorld {
     bar.hidden = true;
     bar.style.cssText = [
       'position:fixed',
-      'left:50%',
-      'transform:translateX(-50%)',
-      'bottom:calc(env(safe-area-inset-bottom, 0px) + 58px)',
+      'left:calc(env(safe-area-inset-left, 0px) + 8px)',
+      'right:calc(env(safe-area-inset-right, 0px) + 8px)',
+      'bottom:calc(env(safe-area-inset-bottom, 0px) + 12px)',
+      'margin:0 auto',
+      'max-width:560px',
       'z-index:4',
       'display:flex',
-      'align-items:center',
+      'flex-direction:column',
       'gap:8px',
-      'padding:6px 8px',
-      'max-width:calc(100vw - 16px)',
+      'padding:8px',
       'box-sizing:border-box',
       'background:var(--hud-bg)',
       'border:1px solid var(--hud-line)',
-      'border-radius:var(--hud-radius-pill)',
+      'border-radius:var(--hud-radius)',
       'box-shadow:var(--hud-shadow)',
       'backdrop-filter:var(--hud-blur)',
       'font-family:var(--hud-font)',
@@ -701,7 +757,7 @@ export class HexlandWorld extends FurnishedWorld {
       label: string,
       title: string,
       run: () => void,
-      wide = false,
+      main = false,
     ): HTMLButtonElement => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -709,15 +765,14 @@ export class HexlandWorld extends FurnishedWorld {
       b.title = title;
       b.setAttribute('aria-label', title);
       b.style.cssText = [
-        `min-width:${wide ? 92 : 46}px`,
-        'height:46px',
+        'height:54px',
+        'min-width:0',
         'border-radius:var(--hud-radius-pill)',
-        `border:1px solid ${wide ? 'rgba(95,224,122,0.6)' : 'var(--hud-line)'}`,
-        `background:${wide ? 'rgba(36,120,64,0.95)' : 'var(--hud-raise)'}`,
+        `border:1px solid ${main ? 'rgba(95,224,122,0.6)' : 'var(--hud-line)'}`,
+        `background:${main ? 'rgba(36,120,64,0.95)' : 'var(--hud-raise)'}`,
         'color:var(--hud-ink)',
-        `font:600 ${wide ? 17 : 22}px var(--hud-font)`,
+        `font:600 ${main ? 19 : 26}px var(--hud-font)`,
         'cursor:pointer',
-        'padding:0 10px',
         'white-space:nowrap',
       ].join(';');
       b.addEventListener('click', (event) => {
@@ -726,26 +781,91 @@ export class HexlandWorld extends FurnishedWorld {
       });
       return b;
     };
+
+    // Die Schnellliste — nur im Kreativ-Modus zu sehen (`fitView`).
+    const quick = document.createElement('div');
+    quick.style.cssText =
+      'display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none';
+    this.tileQuick = quick;
+
+    const info = document.createElement('div');
+    info.style.cssText = 'display:flex;align-items:center;gap:10px;min-width:0';
+    const icon = document.createElement('canvas');
+    icon.width = 96;
+    icon.height = 96;
+    icon.title = 'Die Kachel in der Hand';
+    icon.style.cssText = 'width:44px;height:44px;flex:none';
     const text = document.createElement('div');
     text.style.cssText =
-      'font:600 11px var(--hud-font);line-height:1.25;text-align:left;white-space:nowrap;color:var(--hud-dim)';
-    const icon = document.createElement('canvas');
-    icon.width = 112;
-    icon.height = 112;
-    icon.title = 'Die Kachel in der Hand';
-    icon.style.cssText = 'width:50px;height:50px;flex:none';
-    bar.append(
-      icon,
-      text,
+      'font:600 13px var(--hud-font);line-height:1.3;color:var(--hud-dim);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    info.append(icon, text);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px';
+    row.append(
       button('⟲', 'Kachel links drehen (Q)', () => this.rotate(-1)),
       button('✓ Legen', 'Kachel legen (Leertaste)', () => this.placeHere(), true),
       button('⟳', 'Kachel rechts drehen (R / E)', () => this.rotate(1)),
     );
+    bar.append(quick, info, row);
     document.body.append(bar);
     this.tileBar = bar;
     this.tileBarText = text;
     this.tileBarIcon = icon;
+    this.fillQuick();
     ensureCleanStyle();
+  }
+
+  /**
+   * **Die Schnellliste des Kreativ-Modus** — gewünscht: _„im Creative Modus
+   * wäre es aber auch schön, in der Welt eine Schnellliste zu haben (mit
+   * Default-Tiles, die häufig gebraucht werden könnten, ganze Stadt und
+   * co)"_. Ein Tipp nimmt die Kachel in die Hand; vorn steht, was zuletzt im
+   * Baukasten gebaut wurde.
+   */
+  private fillQuick(): void {
+    const quick = this.tileQuick;
+    if (!quick) return;
+    quick.replaceChildren();
+    const tiles = catalogue();
+    const pick = QUICK_TILES.map((id) => tiles.find((t) => t.id === id)).filter(
+      (t): t is NonNullable<typeof t> => t !== undefined,
+    );
+    const entries = [
+      ...(this.lastBuilt ? [{ id: 'built', label: 'Gebaut', spec: this.lastBuilt }] : []),
+      ...pick,
+    ];
+    for (const tile of entries) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.title = tile.label;
+      b.setAttribute('aria-label', tile.label);
+      b.style.cssText =
+        'flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;width:58px;padding:4px 2px;border-radius:var(--hud-radius-sm);border:1px solid var(--hud-line);background:var(--hud-raise);color:var(--hud-dim);font:600 10px var(--hud-font);cursor:pointer';
+      const c = document.createElement('canvas');
+      c.width = 72;
+      c.height = 72;
+      c.style.cssText = 'width:36px;height:36px';
+      drawHexIcon(c, tile.spec);
+      const label = document.createElement('span');
+      label.textContent = tile.label;
+      label.style.cssText =
+        'max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      b.append(c, label);
+      b.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.takeTile(tile.spec, tile.label);
+      });
+      quick.append(b);
+    }
+  }
+
+  /** **Eine Kachel in die Hand** (Kreativ-Modus) — aus Katalog, Baukasten oder Schnellliste. */
+  private takeTile(spec: TileSpec, label: string): void {
+    this.board.choose(spec);
+    writeSave(this.board.save(), this.board.mode);
+    this.refresh(false);
+    this.say(`${label} in der Hand`);
   }
 
   // --- am Schirm von oben -------------------------------------------------------
@@ -996,7 +1116,12 @@ export class HexlandWorld extends FurnishedWorld {
     };
   }
 
-  /** **Der Katalog des Kreativ-Modus** — ein Tipp nimmt die Kachel in die Hand. */
+  /**
+   * **Der Katalog des Kreativ-Modus** — zwei Wege hinein. Gewünscht: _„Einmal
+   * eine Ansicht mit den Hex-Tiles wie im anderen Katalog und dann einen
+   * Tile-Bauer"_: _Kacheln_ (fertige, ein Tipp nimmt sie) und _Kachel bauen_
+   * (`builderMenu`).
+   */
   private catalogueMenu(): MenuEntry {
     this.catalogueEntries ??= catalogue().map((tile) => ({
       id: `hexland:tile:${tile.id}`,
@@ -1005,22 +1130,100 @@ export class HexlandWorld extends FurnishedWorld {
       accent: ACCENT,
       image: hexIconUrl(tile.spec),
       run: () => {
-        this.board.choose(tile.spec);
-        writeSave(this.board.save(), this.board.mode);
-        this.refresh(false);
+        this.takeTile(tile.spec, tile.label);
         this.context?.menu.toggle(false);
-        this.say(`${tile.label} in der Hand`);
       },
     }));
     return {
       id: 'hexland:catalogue',
       label: 'Kachel-Katalog',
-      sub: 'Die nächste Kachel aussuchen',
+      sub: 'Fertige Kacheln — oder eine selbst bauen',
       icon: 'cube',
       accent: ACCENT,
+      children: [
+        {
+          id: 'hexland:tiles',
+          label: 'Kacheln',
+          sub: `${this.catalogueEntries.length} fertige Kacheln · ein Tipp nimmt sie in die Hand`,
+          icon: 'cube',
+          accent: ACCENT,
+          grid: true,
+          take: false,
+          children: this.catalogueEntries,
+        },
+        this.builderMenu(),
+      ],
+    };
+  }
+
+  /**
+   * **Der Kachel-Bauer** — gewünscht: _„ein Hex-Tile in der Mitte sehen und
+   * auf die einzelnen Stücke klicken können und dann eine Übersicht, was da
+   * hin soll (z. B. Stadt oder Wasser). Dadurch kann ich mein eigenes Tile
+   * bauen, Schritt für Schritt, und dann die Wege und Flüsse setzen. Das Spiel
+   * schaut dann in seinem Katalog, welches Plättchen dafür passt."_
+   *
+   * Zuoberst die Kachel, wie sie gerade ist; darunter ihre sechs Stücke, jedes
+   * mit seinem Bild (das Stück hervorgehoben). Ein Tipp auf ein Stück fragt,
+   * was dort hin soll. _In die Hand nehmen_ sucht die passende Kachel im Regal
+   * (`hexRules.matchBase`) — Fluss und Weg müssen eine Form haben, die es dort
+   * gibt; sonst steht hier, woran es liegt.
+   */
+  private builderMenu(): MenuEntry {
+    const drawn: TileSpec = { base: 'land', edges: this.built, seed: 1 };
+    const match = matchBase(this.built);
+    const pieces: MenuEntry[] = this.built.map((terrain, edge) => ({
+      id: `hexland:build:${edge}`,
+      label: `${PIECE_NAMES[edge]}: ${TERRAIN_LABEL[terrain]}`,
+      icon: 'cube',
+      accent: ACCENT,
+      image: hexIconUrl(drawn, 96, edge),
       grid: true,
       take: false,
-      children: this.catalogueEntries,
+      children: BUILD_TERRAINS.map((t) => ({
+        id: `hexland:build:${edge}:${t}`,
+        label: TERRAIN_LABEL[t],
+        icon: 'cube',
+        accent: QUEST_ACCENT[t],
+        image: hexIconUrl({ base: 'land', edges: [t, t, t, t, t, t], seed: 1 }, 72),
+        run: () => {
+          this.built = this.built.map((old, e) => (e === edge ? t : old));
+          this.context?.refreshWorldMenu();
+          this.context?.menu.back();
+        },
+      })),
+    }));
+    return {
+      id: 'hexland:builder',
+      label: 'Kachel bauen',
+      sub: 'Stück für Stück: Wald, Dorf, Feld, Wiese, Fluss oder Weg',
+      icon: 'brush',
+      accent: 0xb58cff,
+      grid: true,
+      take: false,
+      children: [
+        {
+          id: 'hexland:build:take',
+          label: match ? 'In die Hand nehmen' : 'Gibt es so nicht',
+          sub: match
+            ? 'Diese Kachel legen'
+            : 'Fluss und Weg brauchen eine Form aus dem Regal: mindestens zwei Arme, nicht durcheinander',
+          icon: 'hand',
+          accent: match ? 0x5fe07a : 0xe0605f,
+          image: hexIconUrl(drawn, 128),
+          run: () => {
+            if (!match) {
+              this.say('Diese Kachel gibt es nicht · Fluss und Weg brauchen mindestens zwei Arme');
+              return;
+            }
+            this.lastBuilt = match;
+            this.fillQuick();
+            this.takeTile(match, 'Gebaute Kachel');
+            this.context?.menu.toggle(false);
+          },
+        },
+        ...pieces,
+      ],
     };
   }
 
@@ -1078,6 +1281,7 @@ export class HexlandWorld extends FurnishedWorld {
     for (const material of this.hexMaterials) material.dispose();
     this.confirm?.dispose();
     this.info?.dispose();
+    this.handQuest?.dispose();
     for (const badge of this.badges.values()) badge.dispose();
     this.badges.clear();
     this.lastCtx = null;
@@ -1093,6 +1297,25 @@ const ACCENT = 0x8fd16a;
 const QUEST_ACCENT: Readonly<Record<string, number>> = Object.fromEntries(
   Object.entries(TERRAIN_COLOUR).map(([t, css]) => [t, parseInt(css.slice(1), 16)]),
 );
+/** Die Stücke einer Kachel, wie man sie von oben sieht — Kante 0 liegt rechts. */
+const PIECE_NAMES = ['Rechts', 'Unten rechts', 'Unten links', 'Links', 'Oben links', 'Oben rechts'];
+/** Was ein Stück im Baukasten sein kann. */
+const BUILD_TERRAINS: readonly Terrain[] = ['house', 'forest', 'field', 'grass', 'water', 'road'];
+/** Die Schnellliste des Kreativ-Modus (`fillQuick`), Ids aus `catalogue`. */
+const QUICK_TILES = [
+  'all-house',
+  'all-forest',
+  'all-field',
+  'all-grass',
+  'river-A',
+  'river-B',
+  'road-A',
+  'road-B',
+  'lake',
+  'half-forest-field',
+  'half-field-house',
+];
+
 /** Wie viel Grad Neigung ein Pixel Fingerweg ist. */
 const TILT_PER_PIXEL = 0.25;
 
@@ -1123,7 +1346,9 @@ function ensureCleanStyle(): void {
   if (document.getElementById('hexland-clean-style')) return;
   const style = document.createElement('style');
   style.id = 'hexland-clean-style';
-  style.textContent = `.${CLEAN_CLASS} .hud__row, .${CLEAN_CLASS} #hud-tool { display: none !important; }`;
+  // Die Tastenhilfe (`.hints`) auch: Sie lag am Handy über ⟲ ✓ ⟳, und was sie
+  // sagt (Klick, Q, Rad), stimmt hier ohnehin nicht — das steht in der Leiste.
+  style.textContent = `.${CLEAN_CLASS} .hud__row, .${CLEAN_CLASS} #hud-tool, .${CLEAN_CLASS} .hints { display: none !important; }`;
   document.head.append(style);
 }
 

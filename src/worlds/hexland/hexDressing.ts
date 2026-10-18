@@ -50,7 +50,6 @@ export function dressingModels(): string[] {
   ]) {
     out.add(`decoration/nature/${name}.glb`);
   }
-  out.add('buildings/neutral/building_grain.glb');
   out.add('decoration/props/haybale.glb');
   out.add('decoration/props/boat.glb');
   for (const colour of Object.values(FLAG_COLOUR)) out.add(`decoration/props/flag_${colour}.glb`);
@@ -134,14 +133,8 @@ function dressLand(spec: TileSpec): Dress[] {
         }
         break;
       case 'field':
-        out.push({
-          model: 'buildings/neutral/building_grain.glb',
-          x: cx * 0.95,
-          z: cz * 0.95,
-          yaw: -a,
-          scale: 0.38 * shrink,
-        });
-        if (random() < 0.25) {
+        // Das Feld selbst ist der Boden (`groundPatches`) — hier nur ab und zu ein Heuballen.
+        if (random() < 0.3) {
           out.push({
             model: 'decoration/props/haybale.glb',
             x: cx * 1.25 + jitter(),
@@ -242,14 +235,7 @@ function whole(
       });
       return;
     case 'field':
-      out.push({
-        model: 'buildings/neutral/building_grain.glb',
-        x: 0,
-        z: 0,
-        yaw: turn(),
-        scale: 0.98,
-      });
-      if (random() < 0.5)
+      if (random() < 0.6)
         out.push({ model: building('windmill'), x: 0.2, z: 0.1, yaw: turn(), scale: 0.55 });
       return;
     case 'house':
@@ -284,4 +270,39 @@ function whole(
         });
       }
   }
+}
+
+/** Gelände, die einen eigenen Boden bekommen (`groundPatches`). */
+export type GroundKind = 'house' | 'forest' | 'field';
+
+/** Ein Stück Boden: welche Kante, welches Gelände, und ob nur der äußere Ring. */
+export interface GroundPatch {
+  readonly edge: number;
+  readonly kind: GroundKind;
+  /** Nur der äußere Teil des Stücks — auf Fluss- und Wegkacheln bleibt die Mitte frei. */
+  readonly ring: boolean;
+}
+
+/**
+ * **Der Boden unter den Stücken einer Kachel** — gewünscht: _„bei den hex
+ * tiles unter Dörfern gerne auch den braunen Boden haben (um besser zu
+ * erkennen, wo die Grenzen liegen). Auch bei Wald wäre ein leicht dunklerer
+ * Boden schön. Weizen kann gerne bis kurz vorm Rand des Hex-Feldes gehen und
+ * einfach einen braunen Rand haben"_. Je Kante, deren Gelände Dorf, Wald oder
+ * Feld ist, ein Dreieck von der Mitte bis an die Kante; gezeichnet wird es in
+ * `hexView.ts`. Auf Fluss-, Weg- und Brückenkacheln nur der äußere Ring, damit
+ * das Wasser in der Mitte sichtbar bleibt; Ufer und See bekommen keinen, ihr
+ * Uferbogen liefe sonst unter einen geraden Rand.
+ */
+export function groundPatches(spec: TileSpec): GroundPatch[] {
+  const base = baseTile(spec.base);
+  if (base.id === 'lake' || base.id.startsWith('coast')) return [];
+  const ring = base.id !== 'land';
+  const out: GroundPatch[] = [];
+  spec.edges.forEach((terrain, edge) => {
+    if (terrain === 'house' || terrain === 'forest' || terrain === 'field') {
+      out.push({ edge, kind: terrain, ring });
+    }
+  });
+  return out;
 }

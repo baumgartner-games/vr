@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { kaykitModel } from '../../core/kaykitModel';
 import { baseTile, hexCentre, type PlacedTile, type TileSpec } from './hexRules';
-import { dressTile } from './hexDressing';
+import { dressTile, groundPatches, type GroundKind } from './hexDressing';
 
 /**
  * **Wie groß eine Kachel des Regals hier wird.** Im Regal ist sie 2 breit
@@ -101,6 +101,13 @@ export class HexModels {
   load(model: string): Promise<Part[]> {
     const known = this.pending.get(model);
     if (known) return known;
+    if (model.startsWith(GROUND)) {
+      const parts = this.ground(model);
+      this.parts.set(model, parts);
+      const done = Promise.resolve(parts);
+      this.pending.set(model, done);
+      return done;
+    }
     const job = kaykitModel(PACK + model).then((holder) => {
       const out: Part[] = [];
       if (holder) {
@@ -133,10 +140,58 @@ export class HexModels {
     return job;
   }
 
-  /** Die plattgedrückten Kacheln gehören hier und nicht der Vorlage. */
+  /** Die plattgedrückten Kacheln und die Böden gehören hier und nicht der Vorlage. */
   dispose(): void {
     for (const geometry of this.owned) geometry.dispose();
     this.owned.length = 0;
+    for (const material of this.ownMaterials) {
+      (material as THREE.MeshStandardMaterial).map?.dispose();
+      material.dispose();
+    }
+    this.ownMaterials.length = 0;
+  }
+
+  private readonly ownMaterials: THREE.Material[] = [];
+
+  /**
+   * **Ein Stück Boden** (`hexDressing.groundPatches`) als „Modell" — so geht es
+   * denselben Weg in die Bündel wie Häuser und Bäume. Die Adresse sagt Gelände
+   * und Form: `ground:field:ring`. Ein Dreieck von der Mitte bis an Kante 0,
+   * gedreht wird es wie eine Deko.
+   *
+   * Dorf: braune Erde. Wald: ein dunkleres Grün. Feld: ein brauner Rand unter
+   * einem Weizenfeld mit Furchen, das kurz vor der Kante endet.
+   */
+  private ground(model: string): Part[] {
+    const [, kind, form] = model.split(':') as [string, GroundKind, 'ring' | 'full'];
+    const inner = form === 'ring' ? RING_INNER : 0;
+    const flat = (colour: number, map: THREE.Texture | null, offset: number): THREE.Material => {
+      const material = new THREE.MeshStandardMaterial({
+        color: colour,
+        map,
+        roughness: 1,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: offset,
+      });
+      this.ownMaterials.push(material);
+      return material;
+    };
+    const part = (geometry: THREE.BufferGeometry, material: THREE.Material): Part => {
+      this.owned.push(geometry);
+      return { geometry, material, matrix: new THREE.Matrix4(), castShadow: false };
+    };
+    switch (kind) {
+      case 'house':
+        return [part(sectorGeometry(inner, 1, 0.012), flat(0x8a6644, null, -4))];
+      case 'forest':
+        return [part(sectorGeometry(inner, 1, 0.012), flat(0x6b8f30, null, -4))];
+      case 'field':
+        return [
+          part(sectorGeometry(inner, 1, 0.01), flat(0x8f6a42, null, -4)),
+          part(sectorGeometry(inner, FIELD_EDGE, 0.02), flat(0xffffff, wheatTexture(), -8)),
+        ];
+    }
   }
 
   /** Was schon da ist — `undefined`: noch nicht geladen. */
@@ -199,6 +254,62 @@ function flatTop(source: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.Buf
   return geometry;
 }
 
+/** Die Adressen der Böden beginnen so (`HexModels.ground`). */
+const GROUND = 'ground:';
+/** Auf Fluss- und Wegkacheln beginnt der Boden erst so weit draußen (Anteil der Kante). */
+const RING_INNER = 0.55;
+/** Bis wohin das Weizenfeld reicht — dahinter der braune Rand. */
+const FIELD_EDGE = 0.9;
+
+/**
+ * **Das Dreieck von der Mitte bis an Kante 0** — oder sein äußerer Teil ab
+ * `inner`, bis `outer` (beides Anteile, 1 ist die Kante). In Einheiten des
+ * Regals, knapp über der Oberseite (`y`). Die Texturkoordinaten sind die
+ * Lage in der Ebene, damit die Furchen über die ganze Kachel gleich laufen.
+ */
+function sectorGeometry(inner: number, outer: number, y: number): THREE.BufferGeometry {
+  const r = 2 / Math.sqrt(3);
+  const a = { x: Math.cos(-Math.PI / 6) * r, z: Math.sin(-Math.PI / 6) * r };
+  const b = { x: Math.cos(Math.PI / 6) * r, z: Math.sin(Math.PI / 6) * r };
+  const points: Array<[number, number]> = [];
+  if (inner > 0) {
+    points.push([a.x * inner, a.z * inner], [b.x * outer, b.z * outer], [a.x * outer, a.z * outer]);
+    points.push([a.x * inner, a.z * inner], [b.x * inner, b.z * inner], [b.x * outer, b.z * outer]);
+  } else {
+    // Mitte, dann B vor A: so zeigt die Fläche nach oben.
+    points.push([0, 0], [b.x * outer, b.z * outer], [a.x * outer, a.z * outer]);
+  }
+  const position = new Float32Array(points.length * 3);
+  const uv = new Float32Array(points.length * 2);
+  points.forEach(([x, z], i) => {
+    position.set([x, y, z], i * 3);
+    uv.set([x * 1.5, z * 1.5], i * 2);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** **Weizen mit Furchen** — gelbe Reihen, dazwischen dunklere Rillen. */
+function wheatTexture(): THREE.Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#e4b43e';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#c38f2e';
+  for (let y = 0; y < 64; y += 16) g.fillRect(0, y, 64, 3);
+  g.fillStyle = '#efc95a';
+  for (let y = 8; y < 64; y += 16) g.fillRect(0, y, 64, 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
@@ -221,6 +332,13 @@ export function tileMatrix(
 function pieces(spec: TileSpec): Array<{ model: string; local: THREE.Matrix4 }> {
   const base = baseTile(spec.base);
   const out = [{ model: base.model, local: new THREE.Matrix4() }];
+  for (const patch of groundPatches(spec)) {
+    _q.setFromAxisAngle(_up, -patch.edge * (Math.PI / 3));
+    out.push({
+      model: `${GROUND}${patch.kind}:${patch.ring ? 'ring' : 'full'}`,
+      local: new THREE.Matrix4().makeRotationFromQuaternion(_q),
+    });
+  }
   for (const d of dressTile(spec)) {
     _q.setFromAxisAngle(_up, d.yaw);
     out.push({

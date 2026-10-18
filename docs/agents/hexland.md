@@ -27,10 +27,14 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 - **Immer drei Aufträge offen** (`OPEN_TASKS`): Liegen weniger als drei offene
   auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
   nicht vom Stapel ab. Ihr Auftrag gilt einem ihrer Gelände (Wald, Dorf, Feld,
-  Fluss oder Weg) und bekommt beim Legen eine Zahl (3 bis 6, bei Fluss und Weg
-  bis 7, immer größer als das Gebiet schon ist). Das Gebiet soll **genau** so
-  viele Kacheln groß werden: dann ist die Zahl verdient; wächst es darüber,
-  ist der Auftrag verpasst. Über der Kachel steht ein Schild „4 / 6".
+  Fluss oder Weg) und hat **schon beim Ziehen** seine Zahl: 4, 5 oder 6
+  (`QUEST_TARGETS`). Man sieht ihn vor dem Legen — als Schild „Auftrag: Dorf 4"
+  über der schwebenden Kachel, in der Leiste und als Zahl im Bildchen.
+  Gewünscht: _„Es muss bei einem Auftrags-Plättchen vor dem Legen erkennbar
+  sein, welcher Auftrag es ist (Stadt 4 z.B.)… immer 3 Aufträge mit entweder
+  4, 5, 6 benötigten Feldern"_. Das Gebiet soll **genau** so viele Kacheln groß
+  werden: dann ist die Zahl verdient; wächst es darüber, ist der Auftrag
+  verpasst. Über der gelegten Kachel steht ein Schild „4 / 6".
 - **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell
   `flag_*` aus dem Regal, grün Wald, rot Dorf, gelb Feld). Ein Gebiet mit
   Flagge, das ringsum **geschlossen** ist, zählt seine Kacheln.
@@ -48,10 +52,28 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 
 ### Kreativ-Modus
 
-Kein Stapel, keine Wertung. Im Reiter _Hexland → Kachel-Katalog_ (21 Kacheln,
-`catalogue`: jedes Gelände ganz, halb und halb, drittel, Flüsse und Wege in
-jeder Form, See, Ufer, Brücke, Sackgasse) sucht man die nächste Kachel aus; sie
-bleibt in der Hand, bis man eine andere wählt (jede mit neuer Deko).
+Kein Stapel, keine Wertung. Die nächste Kachel kommt aus drei Quellen; sie
+bleibt in der Hand, bis man eine andere wählt (jede mit neuer Deko):
+
+- **Hexland → Kachel-Katalog → Kacheln**: 21 fertige (`catalogue`: jedes
+  Gelände ganz, halb und halb, drittel, Flüsse und Wege in jeder Form, See,
+  Ufer, Brücke, Sackgasse).
+- **Hexland → Kachel-Katalog → Kachel bauen** (`builderMenu`): zuoberst die
+  Kachel, wie sie ist, darunter ihre sechs Stücke (_Rechts_, _Unten rechts_
+  … — das Stück im Bild hervorgehoben). Ein Tipp auf ein Stück fragt, was
+  dorthin soll: Dorf, Wald, Feld, Wiese, Fluss, Weg. _In die Hand nehmen_
+  sucht im Regal die Grundkachel, deren Wasser und Wege genau so liegen
+  (`hexRules.matchBase`, mit Drehung; dafür stehen die Fluss- und Weggabeln
+  `G…L` mit Gewicht 0 in `BASE_TILES` — nie im Stapel, aber baubar). Gibt es
+  keine (ein Fluss mit einem Arm, Fluss und Weg durcheinander), steht dort
+  _Gibt es so nicht_. Gewünscht: _„ein Hex-Tile in der Mitte sehen und auf
+  die einzelnen Stücke klicken … Das Spiel schaut dann in seinem Katalog,
+  welches Plättchen dafür passt."_
+- **Die Schnellliste** am Schirm über der Leiste (`fillQuick`, `QUICK_TILES`):
+  Dorf, Wald, Feld, Wiese, Flüsse, Wege, See, halbe Kacheln — und vorn, was
+  zuletzt gebaut wurde. Gewünscht: _„in der Welt eine Schnellliste … mit
+  Default-Tiles, die häufig gebraucht werden"_. In der Brille gibt es sie
+  (noch) nicht, dort bleibt der Katalog im Menü.
 Gewünscht: _„zwischen Creative Modus wechseln, wo ich dann einen Hex-Katalog
 habe und mir das nächste Tile aussuchen kann"_.
 
@@ -110,8 +132,11 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     Button kann weg und oben die Verbindung und VR-Button/Von oben"_. Alles
     davon bleibt im Menü erreichbar.
   - **Legen**: Feld antippen oder anklicken (Vorschau dorthin), Kachel
-    antippen (drehen). Unten steht eine **Leiste** mit dem Bildchen
-    der Kachel, Punkten, Stapel und offenen Aufträgen, ⟲, ✓ Legen und ⟳. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
+    antippen (drehen). Unten steht eine **Leiste** über die ganze
+    Breite: oben die Zeile mit dem Bildchen der Kachel, Punkten, Stapel,
+    offenen Aufträgen und dem Auftrag der Kachel, darunter ⟲ ganz links,
+    ✓ Legen in der Mitte, ⟳ ganz rechts (im Kreativ-Modus darüber die
+    Schnellliste). Die Tastenhilfe ist hier aus — sie lag über den Knöpfen. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
     legt — `Q` dreht hier also nicht das Bild, die Leertaste springt nicht.
   - Am Handy sind die Stöcke weg (`touchStick(false)`); ein kurzer, ruhiger
     Tipp ist „zeigen", alles andere schiebt oder zoomt.
@@ -139,6 +164,15 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   tiles sollen nicht unterschiedlich hoch sein sondern eine grade Fläche
   ergeben"_, dann _„Ne keine Stufen, alles eben erdig bitte"_. Die Flussgabeln mit vier und mehr Armen (`G…L`) sind nicht
   im Stapel — sie wären kaum je anzulegen.
+- **Böden** (`hexDressing.groundPatches`, gezeichnet als „Modelle" `ground:…`
+  in `hexView.HexModels.ground`): unter Dorf-Stücken braune Erde, unter Wald
+  ein dunkleres Grün, Feld ist ein Weizenfeld mit Furchen (Leinwand-Textur),
+  das kurz vor der Kante endet, darunter ein brauner Rand — so sieht man, wo
+  ein Gebiet aufhört. Gewünscht: _„unter Dörfern gerne auch den braunen Boden
+  … bei Wald ein leicht dunklerer Boden … Weizen bis kurz vorm Rand mit
+  braunem Rand"_. Auf Fluss-, Weg- und Brückenkacheln nur der äußere Ring,
+  auf See und Ufer keiner. Das Kornfeld-Modell (`building_grain`) ist dafür
+  weg.
 - **Die Ausstattung** (`hexland/hexDressing.ts`, ohne three.js): Jede Kante hat
   ihr Dreieck der Kachel, und dort steht, was zu ihrem Gelände gehört — eine
   Baumgruppe, zwei Häuser, ein Kornfeld (`building_grain`), auf Wiese

@@ -25,7 +25,13 @@ export const TERRAIN_COLOUR: Readonly<Record<Terrain, string>> = {
  * `heading` ist die Drehung des Bildes von oben (`TopDownCamera.heading`),
  * damit oben im Bildchen oben im Bild ist.
  */
-export function drawHexIcon(canvas: HTMLCanvasElement, spec: TileSpec, rot = 0, heading = 0): void {
+export function drawHexIcon(
+  canvas: HTMLCanvasElement,
+  spec: TileSpec,
+  rot = 0,
+  heading = 0,
+  highlight: number | null = null,
+): void {
   const g = canvas.getContext('2d');
   if (!g) return;
   const w = canvas.width;
@@ -52,7 +58,10 @@ export function drawHexIcon(canvas: HTMLCanvasElement, spec: TileSpec, rot = 0, 
     g.closePath();
     const hard = terrain === 'water' || terrain === 'road';
     g.fillStyle = TERRAIN_COLOUR[lake ? 'water' : hard ? 'grass' : terrain];
+    // Im Baukasten steht ein Stück vorn, die übrigen treten zurück.
+    g.globalAlpha = highlight === null || highlight === e ? 1 : 0.35;
     g.fill();
+    g.globalAlpha = 1;
   }
   // Fluss und Weg als Bänder von der Mitte zur Kante.
   for (const kind of ['water', 'road'] as const) {
@@ -61,12 +70,26 @@ export function drawHexIcon(canvas: HTMLCanvasElement, spec: TileSpec, rot = 0, 
     g.lineCap = 'round';
     for (let e = 0; e < 6; e++) {
       if (lake || edgeAt(spec, rot, e) !== kind) continue;
+      g.globalAlpha = highlight === null || highlight === e ? 1 : 0.35;
       const a = e * (Math.PI / 3);
       g.beginPath();
       g.moveTo(0, 0);
       g.lineTo(Math.cos(a) * r * 0.87, Math.sin(a) * r * 0.87);
       g.stroke();
     }
+  }
+  g.globalAlpha = 1;
+  if (highlight !== null) {
+    const [x1, y1] = corner(highlight - 1);
+    const [x2, y2] = corner(highlight);
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(x1, y1);
+    g.lineTo(x2, y2);
+    g.closePath();
+    g.lineWidth = Math.max(3, r * 0.09);
+    g.strokeStyle = '#ffd84a';
+    g.stroke();
   }
   // Der Rand.
   g.beginPath();
@@ -115,12 +138,24 @@ export function drawHexIcon(canvas: HTMLCanvasElement, spec: TileSpec, rot = 0, 
 }
 
 /** **Dasselbe als Adresse** — für Bilder im Menü (`MenuEntry.image`). */
-export function hexIconUrl(spec: TileSpec, size = 128): string {
+export function hexIconUrl(spec: TileSpec, size = 128, highlight: number | null = null): string {
+  // Das Menü baut sich bei jeder Wahl im Baukasten neu — gemalt wird jedes Bild nur einmal.
+  const key = `${spec.base}|${spec.edges.join(',')}|${spec.quest?.terrain ?? ''}${spec.quest?.target ?? ''}|${spec.flag ?? ''}|${size}|${highlight ?? ''}`;
+  const known = urls.get(key);
+  if (known) return known;
+  const url = paintUrl(spec, size, highlight);
+  urls.set(key, url);
+  return url;
+}
+
+const urls = new Map<string, string>();
+
+function paintUrl(spec: TileSpec, size: number, highlight: number | null): string {
   // Quer, weil die Kacheln im Menü quer sind (sie füllen ihr Feld) — so passt
   // das ganze Sechseck hinein und wird nicht beschnitten.
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(size * 1.8);
   canvas.height = size;
-  drawHexIcon(canvas, spec);
+  drawHexIcon(canvas, spec, 0, 0, highlight);
   return canvas.toDataURL('image/png');
 }

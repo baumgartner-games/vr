@@ -179,6 +179,19 @@ export const BASE_TILES: readonly BaseTile[] = [
   road('E', [0, 3, 5], 1),
   road('F', [0, 1, 3], 0.6),
   road('M', [3], 1.2),
+  // **Nur für den Baukasten** (Gewicht 0, also nie im Stapel): die Gabeln mit
+  // vier und mehr Armen — wer sie sich selbst baut, soll sie auch bekommen.
+  river('G', [2, 3, 4], 0),
+  river('H', [0, 2, 3, 4], 0),
+  river('I', [1, 2, 4, 5], 0),
+  river('J', [0, 1, 2, 3], 0),
+  river('K', [1, 2, 3, 4, 5], 0),
+  road('G', [2, 3, 4], 0),
+  road('H', [0, 2, 3, 4], 0),
+  road('I', [1, 2, 4, 5], 0),
+  road('J', [0, 1, 2, 3], 0),
+  road('K', [1, 2, 3, 4, 5], 0),
+  road('L', [0, 1, 2, 3, 4, 5], 0),
   {
     id: 'crossing-A',
     model: 'tiles/rivers/hex_river_crossing_A.glb',
@@ -339,7 +352,11 @@ export function drawTile(
     const kinds = QUEST_TERRAINS.filter((t) => edges.includes(t));
     if (kinds.length > 0) {
       const terrain = kinds[Math.floor(random() * kinds.length)]!;
-      return { base: base.id, edges, seed, quest: { terrain, target: null, state: 'open' } };
+      // Die Zahl steht schon beim Ziehen fest — man soll vor dem Legen sehen,
+      // was verlangt ist (gewünscht: _„vor dem Legen erkennbar, welcher
+      // Auftrag es ist (Stadt 4 z.B.)"_), und sie ist immer 4, 5 oder 6.
+      const target = QUEST_TARGETS[Math.floor(random() * QUEST_TARGETS.length)]!;
+      return { base: base.id, edges, seed, quest: { terrain, target, state: 'open' } };
     }
   }
   if (areas.length > 0 && random() < FLAG_CHANCE) {
@@ -347,6 +364,9 @@ export function drawTile(
   }
   return { base: base.id, edges, seed };
 }
+
+/** Wie groß ein Auftrag sein kann — gewünscht: _„entweder 4, 5, 6 benötigten Feldern"_. */
+export const QUEST_TARGETS: readonly number[] = [4, 5, 6];
 
 /** Wie viele normale Kacheln eine Partie hat. */
 export const NORMAL_TILES = 40;
@@ -416,6 +436,36 @@ export function catalogue(): CatalogueTile[] {
   add('road-E', 'Weg Gabel', 'road-E', ['house', 'house', 'field']);
   add('road-M', 'Weg Ende', 'road-M', ['house', 'house', 'house', 'house', 'house']);
   return out;
+}
+
+/**
+ * **Welche Kachel des Regals zu selbst gebauten Kanten passt** — für den
+ * Baukasten des Kreativ-Modus. Gesucht wird eine Grundkachel und eine Drehung,
+ * bei der Wasser und Weg genau dort liegen, wo sie gebaut sind; das übrige
+ * Land malt die Ausstattung ohnehin nach den Kanten (`hexDressing`). `null`:
+ * So eine Kachel gibt es im Regal nicht (ein Fluss mit nur einem Arm, Fluss
+ * und Weg durcheinander).
+ *
+ * Bei zwei Treffern gewinnt der erste in `BASE_TILES` — ein Fluss vor einem
+ * Ufer mit derselben Form.
+ */
+export function matchBase(edges: readonly Terrain[]): TileSpec | null {
+  for (const base of BASE_TILES) {
+    for (let k = 0; k < 6; k++) {
+      let ok = true;
+      for (let e = 0; e < 6 && ok; e++) {
+        const model = (e - k + 6) % 6;
+        const water = base.water.includes(model);
+        const road = base.road.includes(model);
+        ok = (edges[e] === 'water') === water && (edges[e] === 'road') === road;
+      }
+      if (!ok) continue;
+      // Im Bauplan der Kachel stehen die Kanten ungedreht: Kante i liegt bei Drehung k an i + k.
+      const own = Array.from({ length: 6 }, (_, i) => edges[(i + k) % 6]!);
+      return { base: base.id, edges: own, seed: 1 };
+    }
+  }
+  return null;
 }
 
 // --- das Brett ------------------------------------------------------------------
@@ -631,12 +681,10 @@ export class HexBoard {
     this.tiles.set(hexKey(q, r), { q, r, spec, rot });
     this.placed++;
 
-    // Der Auftrag dieser Kachel bekommt seine Zahl: ein Stück über dem, was schon da ist.
+    // Ein Auftrag aus einem Stand ohne Zahl bekommt sie jetzt.
     const quest = spec.quest;
     if (quest && quest.target === null) {
-      const now = this.areaSize(q, r, quest.terrain);
-      const span = quest.terrain === 'water' || quest.terrain === 'road' ? 5 : 4;
-      quest.target = Math.max(now + 1, 3 + Math.floor(this.random() * span));
+      quest.target = QUEST_TARGETS[Math.floor(this.random() * QUEST_TARGETS.length)]!;
     }
     const { done, failed } = this.checkQuests();
     this.hand = this.nextHand();
