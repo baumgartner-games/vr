@@ -386,7 +386,6 @@ export class HexlandWorld extends FurnishedWorld {
     const parts: string[] = [];
     for (const t of result.questsDone) parts.push(`${TERRAIN_LABEL[t]}-Auftrag erfüllt`);
     for (const t of result.questsFailed) parts.push(`${TERRAIN_LABEL[t]}-Auftrag verpasst`);
-    for (const t of result.questsLost) parts.push(`${TERRAIN_LABEL[t]}-Auftrag verloren · zu groß`);
     if (result.points > 0) parts.push(`+${result.points}`);
     if (this.board.over) {
       const s = this.board.scoring();
@@ -601,12 +600,8 @@ export class HexlandWorld extends FurnishedWorld {
       }
       badge.show(
         tile.spec.quest!.terrain,
-        progress.done
-          ? `${progress.size} / ${progress.target} ✓`
-          : `${progress.size} / ${progress.target}`,
-        progress.done
-          ? 'erfüllt · nicht weiter wachsen lassen'
-          : `noch ${progress.target - progress.size} · genau ${progress.target} Kacheln`,
+        `${progress.size} / ${progress.target}`,
+        `noch ${progress.target - progress.size} · genau ${progress.target} Kacheln`,
       );
     }
     for (const [key, badge] of this.badges) {

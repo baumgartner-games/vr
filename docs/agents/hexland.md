@@ -39,11 +39,11 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   sein, welcher Auftrag es ist (Stadt 4 z.B.)… immer 3 Aufträge mit entweder
   4, 5, 6 benötigten Feldern"_. Das Gebiet soll **genau** so viele Kacheln groß
   werden: dann ist die Zahl verdient; wächst es darüber, ist der Auftrag
-  verpasst — **auch wenn er schon erfüllt war** (_„nur erfüllt, wenn es exakt
-  die Anzahl sind und nicht mehr oder weniger"_). Ein erfüllter Auftrag bleibt
-  deshalb mit „5 / 5 ✓ · nicht weiter wachsen lassen" über seiner Kachel
-  stehen, und wer das Gebiet trotzdem vergrößert, verliert ihn wieder
-  („…-Auftrag verloren · zu groß", `PlaceResult.questsLost`). Über der gelegten Kachel steht ein Schild „4 / 6".
+  verpasst. Gewertet wird **beim Legen**: Ist das Gebiet in diesem
+  Augenblick genau so groß, ist der Auftrag erfüllt und bleibt es, auch wenn
+  das Gebiet danach weiterwächst — _„Es muss nur zum Bewertungszeitpunkt
+  erfüllt sein."_ (Ein Versuch, ihn bei Weiterwachsen wieder zu entziehen,
+  stand einen Commit lang drin und ist wieder raus.) Über der gelegten Kachel steht ein Schild „4 / 6".
 - **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell
   `flag_*` aus dem Regal, grün Wald, rot Dorf, gelb Feld). Ein Gebiet mit
   Flagge, das ringsum **geschlossen** ist, zählt seine Kacheln.

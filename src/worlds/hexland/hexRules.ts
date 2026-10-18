@@ -478,8 +478,6 @@ export interface PlaceResult {
   points: number;
   questsDone: QuestTerrain[];
   questsFailed: QuestTerrain[];
-  /** Schon erfüllt, aber das Gebiet ist darüber hinausgewachsen. */
-  questsLost: QuestTerrain[];
 }
 
 /** **Die Wertung wie im Brettspiel**, Posten für Posten (`HexBoard.scoring`). */
@@ -688,14 +686,9 @@ export class HexBoard {
     if (quest && quest.target === null) {
       quest.target = QUEST_TARGETS[Math.floor(this.random() * QUEST_TARGETS.length)]!;
     }
-    const { done, failed, lost } = this.checkQuests();
+    const { done, failed } = this.checkQuests();
     this.hand = this.nextHand();
-    return {
-      points: this.scoring().total - before,
-      questsDone: done,
-      questsFailed: failed,
-      questsLost: lost,
-    };
+    return { points: this.scoring().total - before, questsDone: done, questsFailed: failed };
   }
 
   // --- Gebiete ------------------------------------------------------------------
@@ -763,28 +756,23 @@ export class HexBoard {
    * **Die offenen Aufträge nachsehen**: erfüllt, wenn ihr Gebiet genau so groß
    * ist wie ihre Zahl; verpasst, wenn es größer geworden ist.
    */
-  private checkQuests(): { done: QuestTerrain[]; failed: QuestTerrain[]; lost: QuestTerrain[] } {
+  private checkQuests(): { done: QuestTerrain[]; failed: QuestTerrain[] } {
     const done: QuestTerrain[] = [];
     const failed: QuestTerrain[] = [];
-    const lost: QuestTerrain[] = [];
     const cache = new Map<Terrain, Areas>();
     for (const [key, tile] of this.tiles) {
       const quest = tile.spec.quest;
-      if (!quest || quest.target === null) continue;
-      if (quest.state !== 'open' && quest.state !== 'done') continue;
+      if (!quest || quest.state !== 'open' || quest.target === null) continue;
       let areas = cache.get(quest.terrain);
       if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain)));
       const size = areas.size.get(areas.find(key)) ?? 0;
-      // **Genau die Zahl, nicht mehr und nicht weniger** — gewünscht: _„Die
-      // Aufträge sind nur erfüllt, wenn es exakt die Anzahl sind und nicht mehr
-      // oder weniger."_ Ein erfüllter Auftrag bleibt es also nur, solange das
-      // Gebiet nicht weiterwächst; wächst es, ist er verloren.
-      if (quest.state === 'done') {
-        if (size !== quest.target) {
-          quest.state = 'failed';
-          lost.push(quest.terrain);
-        }
-      } else if (size === quest.target) {
+      // **Gewertet wird beim Legen**: Ist das Gebiet in diesem Augenblick
+      // genau so groß, ist der Auftrag erfüllt und bleibt es — was danach
+      // dazukommt, ist egal. Gewünscht: _„Ist der Auftrag erledigt und danach
+      // kommt noch was hinzu, ist das egal. Es muss nur zum
+      // Bewertungszeitpunkt erfüllt sein."_ Ist es schon größer, ohne je genau
+      // gepasst zu haben, ist er verpasst.
+      if (size === quest.target) {
         quest.state = 'done';
         done.push(quest.terrain);
       } else if (size > quest.target) {
@@ -792,19 +780,14 @@ export class HexBoard {
         failed.push(quest.terrain);
       }
     }
-    return { done, failed, lost };
+    return { done, failed };
   }
 
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
-  questProgress(tile: PlacedTile): { size: number; target: number; done: boolean } | null {
+  questProgress(tile: PlacedTile): { size: number; target: number } | null {
     const quest = tile.spec.quest;
-    if (!quest || quest.target === null) return null;
-    if (quest.state !== 'open' && quest.state !== 'done') return null;
-    return {
-      size: this.areaSize(tile.q, tile.r, quest.terrain),
-      target: quest.target,
-      done: quest.state === 'done',
-    };
+    if (!quest || quest.target === null || quest.state !== 'open') return null;
+    return { size: this.areaSize(tile.q, tile.r, quest.terrain), target: quest.target };
   }
 
   /**
