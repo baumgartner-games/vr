@@ -577,7 +577,18 @@ export class HexlandWorld extends FurnishedWorld {
     // Fertig zählt nach Punkten: Eine Stadt 5, die sofort fertig wird, schlägt
     // einen Weg 4 — gemeldet: _„Intelligent könnte die Stadt direkt beenden,
     // stattdessen wird das Tile woanders vorgeschlagen."_
-    return a.completes * 50 + a.points * 4 + a.closer * 20 + a.progress * 5 - a.breaks * 100;
+    // Angebunden (ein neuer Auftrag hängt an einem anderen, der noch nicht
+    // fertig ist) zählt dagegen; ein vorbereitetes Gebiet für einen Auftrag,
+    // der noch im Stapel liegt (`ready`), dafür.
+    return (
+      a.completes * 50 +
+      a.points * 4 +
+      a.closer * 20 +
+      a.progress * 5 +
+      a.ready * 8 -
+      a.tied * 15 -
+      a.breaks * 100
+    );
   }
 
   /**

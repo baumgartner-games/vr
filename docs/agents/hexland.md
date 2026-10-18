@@ -187,6 +187,18 @@ aus bzw. _In der Nähe_.
     galten als unmöglich — sind sie nicht, das Gebiet wächst weiter, erst der
     kleine, dann der große. Nachgerechnet über 20 Runden: erfüllt 116 → 137,
     Punkte im Schnitt 38 → 45.
+    Dazu zwei weitere Posten (`assess`): **angebunden** (`tied`, −15) — der
+    eigene Auftrag der Kachel landet in einem Gebiet mit einem anderen offenen
+    Auftrag, und keiner wird dabei fertig; geht, ist aber schwerer als zwei
+    eigene Gebiete (gemeldet an einem dritten Stand: _„Auch hier wird der
+    Fluss falsch platziert"_ — der Fluss 6 hing sich an einen Fluss 1/4).
+    Und **vorbereitet** (`ready`, +8 je Stück, `HexBoard.readiness`): je
+    Gelände und Zahl, die noch im Auftragsstapel liegt, ein offenes Gebiet
+    ohne Auftrag, genau eins kleiner — dann macht die Auftragskachel es auf
+    einen Schlag fertig. Gewünscht: _„dass das Spiel Städte bzw. Gebiete so
+    weit vorbereitet, … dass man eine 3er-Stadt, falls noch nicht
+    existierend, mit freier Kachel nebenan so weit aufbaut"_. Mit beiden über
+    20 Runden: erfüllt 137 → 166, Punkte 45 → 53.
     Gewünscht: _„Bei einem Auftrag und an einer passenden Grenze muss sich
     nicht ausschließen … ‚intelligent' nennen und nach unten packen."_
 - **Die Auswahlen sind Kreise, kein Schieber**, und stehen als Block ohne

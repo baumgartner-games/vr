@@ -886,12 +886,34 @@ export class HexBoard {
     q: number,
     r: number,
     rot: number,
-  ): { progress: number; completes: number; points: number; breaks: number; closer: number } {
+  ): {
+    progress: number;
+    completes: number;
+    points: number;
+    breaks: number;
+    closer: number;
+    tied: number;
+    ready: number;
+  } {
     const key = hexKey(q, r);
     const before = this.questStates();
+    const readyBefore = this.readiness();
     this.tiles.set(key, { q, r, spec, rot });
     const after = this.questStates();
+    const readyAfter = this.readiness();
     this.tiles.delete(key);
+    // **Angebunden**: Der eigene Auftrag der Kachel landet in einem Gebiet, in
+    // dem schon ein anderer offener Auftrag wartet, und keiner wird fertig —
+    // dann hängt der eine am anderen (erst genau die kleinere Zahl, dann genau
+    // die größere). Geht, ist aber schwerer als zwei eigene Gebiete.
+    let tied = 0;
+    const own = after.get(key);
+    if (own && own.possible && own.size !== own.target) {
+      for (const [id, other] of after) {
+        if (id === key || other.area !== own.area || !other.possible) continue;
+        if (other.size !== other.target && other.target !== own.target) tied++;
+      }
+    }
     let progress = 0;
     let completes = 0;
     let points = 0;
@@ -912,12 +934,18 @@ export class HexBoard {
       progress += grown;
       if ((grown > 0 || !was) && now.size < now.target) closer += now.size / now.target;
     }
-    return { progress, completes, points, breaks, closer };
+    return { progress, completes, points, breaks, closer, tied, ready: readyAfter - readyBefore };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */
-  private questStates(): Map<string, { size: number; target: number; possible: boolean }> {
-    const out = new Map<string, { size: number; target: number; possible: boolean }>();
+  private questStates(): Map<
+    string,
+    { size: number; target: number; possible: boolean; area: string }
+  > {
+    const out = new Map<
+      string,
+      { size: number; target: number; possible: boolean; area: string }
+    >();
     const cache = new Map<Terrain, Areas>();
     const rows: Array<{ id: string; area: string; size: number; target: number; open: boolean }> =
       [];
@@ -943,9 +971,42 @@ export class HexBoard {
     // 3 / 4 galt als unmöglich und wurde nie vorgeschlagen.
     for (const row of rows) {
       const possible = row.size === row.target || (row.size < row.target && row.open);
-      out.set(row.id, { size: row.size, target: row.target, possible });
+      out.set(row.id, { size: row.size, target: row.target, possible, area: row.area });
     }
     return out;
+  }
+  /**
+   * **Wie viele kommende Aufträge sofort fertig würden** — je Gelände und Zahl
+   * im Auftragsstapel (`tasks`) zählt eins, wenn es ein offenes Gebiet ohne
+   * Auftrag gibt, das genau eins kleiner ist: Eine Auftragskachel daneben
+   * macht es dann auf einen Schlag genau richtig. Gewünscht: _„dass das Spiel
+   * Städte bzw. Gebiete so weit vorbereitet, wenn z. B. noch klar ist, dass
+   * eine 4er-Stadt als Mission kommen kann, dass man eine 3er-Stadt, falls
+   * noch nicht existierend, mit freier Kachel nebenan so weit aufbaut"_.
+   */
+  private readiness(): number {
+    const wanted = new Map<QuestTerrain, Set<number>>();
+    for (const t of this.tasks) {
+      let set = wanted.get(t.terrain);
+      if (!set) wanted.set(t.terrain, (set = new Set()));
+      set.add(t.target);
+    }
+    let ready = 0;
+    for (const [terrain, targets] of wanted) {
+      const areas = this.areas(terrain);
+      // Gebiete, in denen schon ein offener Auftrag liegt, sind vergeben.
+      const taken = new Set<string>();
+      for (const [key, tile] of this.tiles) {
+        if (tile.spec.quest?.state === 'open' && tile.spec.quest.terrain === terrain)
+          taken.add(areas.find(key));
+      }
+      const sizes = new Set<number>();
+      for (const [root, size] of areas.size) {
+        if (!taken.has(root) && areas.open.get(root) === true) sizes.add(size);
+      }
+      for (const target of targets) if (sizes.has(target - 1)) ready++;
+    }
+    return ready;
   }
 
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
