@@ -368,6 +368,14 @@ export function drawTile(
 /** Wie groß ein Auftrag sein kann — gewünscht: _„entweder 4, 5, 6 benötigten Feldern"_. */
 export const QUEST_TARGETS: readonly number[] = [4, 5, 6];
 
+/**
+ * **Wie viele Auftragskacheln eine normale Runde hat** — endlich, wie im
+ * Brettspiel, damit man sieht, wie viele noch kommen können (gewünscht: _„Es
+ * wäre schön zu sehen, wie viele Aufträge es noch geben könnte und wie viele
+ * Spielplan-Tiles"_). Im unendlichen Spiel gibt es beliebig viele.
+ */
+export const QUEST_TILES = 12;
+
 /** Wie viele normale Kacheln eine Partie hat. */
 export const NORMAL_TILES = 40;
 /** Wie viele Aufträge offen liegen sollen — fehlt einer, kommt eine Auftragskachel. */
@@ -518,6 +526,8 @@ export class HexBoard {
   hand: TileSpec | null = null;
   mode: HexMode = 'game';
   placed = 0;
+  /** Wie viele Auftragskacheln noch kommen können — `Infinity` im unendlichen Spiel. */
+  tasksLeft = QUEST_TILES;
   private random: () => number;
   private seed: number;
 
@@ -550,6 +560,7 @@ export class HexBoard {
     this.tiles.clear();
     this.placed = 0;
     this.stack = [];
+    this.tasksLeft = mode === 'endless' ? Infinity : mode === 'creative' ? 0 : QUEST_TILES;
     const first = drawTile(this.random, { landOnly: true });
     this.tiles.set(hexKey(0, 0), {
       q: 0,
@@ -600,7 +611,10 @@ export class HexBoard {
     if (this.mode === 'endless')
       while (this.stack.length < 3) this.stack.unshift(drawTile(this.random));
     if (this.stack.length === 0) return null;
-    if (this.openTasks() < OPEN_TASKS) return drawTile(this.random, { task: true });
+    if (this.openTasks() < OPEN_TASKS && this.tasksLeft > 0) {
+      this.tasksLeft--;
+      return drawTile(this.random, { task: true });
+    }
     return this.stack.pop()!;
   }
 
@@ -793,42 +807,76 @@ export class HexBoard {
   }
 
   /**
-   * **Wie viele Kanten dieser Lage ein offenes Auftragsgebiet weiterführen** —
-   * für die Spielhilfen (`HexlandWorld`, _an einem offenen Auftrag_): Eine
-   * Kante zählt, wenn ihr Gelände an die gleiche Kante eines Nachbarn stößt,
-   * dessen Gebiet einen offenen Auftrag dieses Geländes trägt, der noch nicht
-   * voll ist. Trägt die Kachel selbst einen Auftrag, zählt auch, dass ihr
-   * Gebiet überhaupt anschließt.
+   * **Was diese Lage für die Aufträge bedeutet** — für die Spielhilfen, die
+   * Felder vorschlagen. Gerechnet wird, als läge die Kachel schon dort.
+   *
+   * - `progress`: um wie viele Kacheln offene Aufträge wachsen, ohne über ihre
+   *   Zahl zu kommen;
+   * - `completes`: wie viele dadurch genau ihre Zahl erreichen;
+   * - `breaks`: wie viele dadurch **unerfüllbar** werden — ihr Gebiet wird
+   *   größer als die Zahl, schließt sich ringsum, bevor die Zahl erreicht ist,
+   *   oder trägt nun zwei Aufträge mit verschiedenen Zahlen. Auch der eigene
+   *   Auftrag der Kachel zählt mit.
+   *
+   * Gemeldet war, dass die Hilfe Felder empfahl, nach denen ein Auftrag nie
+   * mehr zu schaffen war — sie zählte nur, ob ein Gebiet weiterwächst.
    */
-  questLinks(spec: TileSpec, q: number, r: number, rot: number): number {
-    const wanting = new Map<Terrain, Set<string>>();
+  assess(
+    spec: TileSpec,
+    q: number,
+    r: number,
+    rot: number,
+  ): { progress: number; completes: number; breaks: number } {
+    const key = hexKey(q, r);
+    const before = this.questStates();
+    this.tiles.set(key, { q, r, spec, rot });
+    const after = this.questStates();
+    this.tiles.delete(key);
+    let progress = 0;
+    let completes = 0;
+    let breaks = 0;
+    for (const [id, now] of after) {
+      const was = before.get(id);
+      if (!now.possible && (was?.possible ?? true)) breaks++;
+      if (!now.possible) continue;
+      if (now.size === now.target && (was?.size ?? 0) !== now.target) completes++;
+      if (was) progress += Math.max(0, now.size - was.size);
+    }
+    return { progress, completes, breaks };
+  }
+
+  /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */
+  private questStates(): Map<string, { size: number; target: number; possible: boolean }> {
+    const out = new Map<string, { size: number; target: number; possible: boolean }>();
+    const cache = new Map<Terrain, Areas>();
+    const targets = new Map<string, Set<number>>();
+    const rows: Array<{ id: string; area: string; size: number; target: number; open: boolean }> =
+      [];
     for (const [key, tile] of this.tiles) {
       const quest = tile.spec.quest;
       if (!quest || quest.state !== 'open' || quest.target === null) continue;
-      const areas = this.areas(quest.terrain);
+      let areas = cache.get(quest.terrain);
+      if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain)));
       const root = areas.find(key);
-      if ((areas.size.get(root) ?? 0) >= quest.target) continue;
-      let roots = wanting.get(quest.terrain);
-      if (!roots) wanting.set(quest.terrain, (roots = new Set()));
-      roots.add(`${root}`);
-      this.areaCache.set(quest.terrain, areas);
+      const area = `${quest.terrain}:${root}`;
+      let set = targets.get(area);
+      if (!set) targets.set(area, (set = new Set()));
+      set.add(quest.target);
+      rows.push({
+        id: key,
+        area,
+        size: areas.size.get(root) ?? 0,
+        target: quest.target,
+        open: areas.open.get(root) === true,
+      });
     }
-    let links = 0;
-    for (let e = 0; e < 6; e++) {
-      const mine = edgeAt(spec, rot, e);
-      const n = neighbour({ q, r }, e);
-      const other = this.at(n.q, n.r);
-      if (!other || edgeAt(other.spec, other.rot, opposite(e)) !== mine) continue;
-      const roots = wanting.get(mine);
-      const areas = this.areaCache.get(mine);
-      if (roots && areas && roots.has(areas.find(hexKey(n.q, n.r)))) links++;
-      else if (spec.quest?.terrain === mine) links += 0.5;
+    for (const row of rows) {
+      const clash = (targets.get(row.area)?.size ?? 1) > 1;
+      const possible = !clash && (row.size === row.target || (row.size < row.target && row.open));
+      out.set(row.id, { size: row.size, target: row.target, possible });
     }
-    this.areaCache.clear();
-    return links;
+    return out;
   }
-
-  private readonly areaCache = new Map<Terrain, Areas>();
 
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
   questProgress(tile: PlacedTile): { size: number; target: number } | null {
@@ -877,6 +925,8 @@ export class HexBoard {
       tiles: [...this.tiles.values()].map((t) => [t.q, t.r, t.rot, packSpec(t.spec)]),
       stack: this.stack.map(packSpec),
       hand: this.hand ? packSpec(this.hand) : null,
+      // `-1`: unendlich (JSON kennt kein `Infinity`).
+      tasks: Number.isFinite(this.tasksLeft) ? this.tasksLeft : -1,
     });
   }
 
@@ -909,6 +959,9 @@ export class HexBoard {
       this.hand = data.hand ? unpackSpec(data.hand) : null;
       this.mode = data.mode === 'creative' || data.mode === 'endless' ? data.mode : 'game';
       this.placed = Number(data.placed) || 0;
+      // Ein Stand ohne Zahl (vor dem Auftragsstapel) bekommt, was eine Runde hat.
+      const tasks = typeof data.tasks === 'number' ? data.tasks : QUEST_TILES;
+      this.tasksLeft = this.mode === 'endless' || tasks < 0 ? Infinity : tasks;
       this.seed = Number(data.seed) || 1;
       // Der Würfel geht weiter, wo der Stand war — nicht wieder von vorn.
       this.random = rng(this.seed + this.placed * 7919);
@@ -938,6 +991,7 @@ interface SaveData {
   tiles: Array<[number, number, number, PackedSpec]>;
   stack: PackedSpec[];
   hand: PackedSpec | null;
+  tasks?: number;
 }
 
 const TERRAIN_CODE: Readonly<Record<Terrain, string>> = {

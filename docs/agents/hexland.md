@@ -26,7 +26,10 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   Ist der Stapel leer, ist die Partie vorbei.
 - **Immer drei Aufträge offen** (`OPEN_TASKS`): Liegen weniger als drei offene
   auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
-  nicht vom Stapel ab. Ihr Auftrag gilt einem ihrer Gelände (Wald, Dorf, Feld,
+  nicht vom Stapel ab. In der normalen Runde gibt es **12 Auftragskacheln**
+  (`QUEST_TILES`, `HexBoard.tasksLeft`, im Speicher als `tasks`); Leiste und
+  Reiter zeigen, wie viele noch kommen (_„wie viele Aufträge es noch geben
+  könnte und wie viele Spielplan-Tiles"_). Im unendlichen Spiel ohne Ende. Ihr Auftrag gilt einem ihrer Gelände (Wald, Dorf, Feld,
   Fluss oder Weg) und hat **schon beim Ziehen** seine Zahl: 4, 5 oder 6
   (`QUEST_TARGETS`). Man sieht ihn vor dem Legen — als Schild „Weizen 4"
   über der schwebenden Kachel, in der Leiste und als Zahl im Bildchen.
@@ -112,9 +115,10 @@ aus bzw. _In der Nähe_.
   in die Drehung, die dort am besten passt (`bestRotation`: Aufträge zuerst,
   dann Kanten; bei Gleichstand bleibt die jetzige). Aus: Die Drehung des
   Spielers bleibt.
-- **Felder einfärben** (Schalter, `slotColour`): gold, wo die Kachel einen
-  offenen Auftrag weiterführt; grün, je kräftiger, desto mehr Kanten passen;
-  rötlich, wo sie gar nicht liegen darf.
+- **Felder einfärben** (Schalter, `slotColour`): gold, wo die Kachel einem
+  Auftrag hilft, ohne einen anderen unmöglich zu machen; grün, je kräftiger,
+  desto mehr Kanten passen; **orange**, wo jede Lage einen Auftrag
+  unerfüllbar machen würde; rötlich, wo sie gar nicht liegen darf.
 - **Passende Kanten als Zahl** (Schalter, `drawDigits`): auf jedem freien Feld,
   wo sie liegen darf, die Ziffer 0–6 — wie viele Kanten bestenfalls passen,
   flach am Boden und zum Bild gedreht (ein Bündel je Ziffer). Rot bleibt rot.
@@ -125,8 +129,17 @@ aus bzw. _In der Nähe_.
   - _In der Nähe_: das nächste freie Feld daneben, in der Drehung des Spielers
     (wenn sie dort passt).
   - _An passender Grenze_: wo die meisten Kanten passen, schon gedreht.
-  - _Intelligent_ (unten): erst wo sie ein offenes Auftragsgebiet weiterführt
-    (`HexBoard.questLinks`), sonst nach passenden Kanten, schon gedreht.
+  - _Intelligent_ (unten): erst nach den Aufträgen, sonst nach passenden
+    Kanten, schon gedreht. Für die Aufträge rechnet `HexBoard.assess` die Lage
+    durch, als läge die Kachel schon: wie viel offene Aufträge wachsen, ob
+    einer **genau** seine Zahl erreicht — und ob einer **unerfüllbar** würde
+    (Gebiet größer als die Zahl, ringsum geschlossen vor der Zahl, oder zwei
+    Aufträge mit verschiedenen Zahlen im selben Gebiet; der eigene Auftrag der
+    Kachel zählt mit). So eine Lage schlägt keine Hilfe mehr vor, auch _An
+    passender Grenze_ und _Kachel vordrehen_ nicht. Gemeldet war: _„Einige
+    Empfehlungen würden dazu führen, dass ich die Aufträge niemals schaffen
+    könnte."_ Nachgerechnet über 20 Runden: nur nach Kanten 50 Aufträge
+    verpasst und 84 erfüllt, mit `assess` 0 verpasst und 157 erfüllt.
     Gewünscht: _„Bei einem Auftrag und an einer passenden Grenze muss sich
     nicht ausschließen … ‚intelligent' nennen und nach unten packen."_
 - **Die Auswahlen sind Kreise, kein Schieber**, und stehen als Block ohne

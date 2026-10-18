@@ -17,6 +17,7 @@ import {
   HexBoard,
   NORMAL_TILES,
   OPEN_TASKS,
+  QUEST_TILES,
   TERRAIN_LABEL,
   catalogue,
   matchBase,
@@ -524,17 +525,28 @@ export class HexlandWorld extends FurnishedWorld {
       let score: number;
       if (place === 'near') score = -far(slot) - penalty;
       else if (place === 'smart') {
-        const links = this.board.questLinks(spec, slot.q, slot.r, rot);
-        score = links * 10 + matched - far(slot) * 0.25 - penalty;
+        score = this.questScore(spec, slot, rot) + matched - far(slot) * 0.25 - penalty;
       } else {
+        // Auch an der Grenze nie dorthin, wo ein Auftrag unmöglich würde.
         const ratio = fit && fit.neighbours > 0 ? matched / fit.neighbours : 0;
-        score = matched * 3 + ratio - far(slot) * 0.25 - penalty;
+        const breaks = fit ? this.board.assess(spec, slot.q, slot.r, rot).breaks : 0;
+        score = matched * 3 + ratio - breaks * 100 - far(slot) * 0.25 - penalty;
       }
       if (!best || score > best.score) best = { hex: slot, rot, score };
     }
     if (!best) return;
     this.at = best.hex;
     this.rot = best.rot;
+  }
+
+  /**
+   * **Was eine Lage den Aufträgen bringt** (`HexBoard.assess`): Ein Auftrag,
+   * der genau seine Zahl erreicht, zählt am meisten, Wachstum viel — und ein
+   * Auftrag, der dadurch unerfüllbar würde, schließt die Lage praktisch aus.
+   */
+  private questScore(spec: TileSpec, slot: Hex, rot: number): number {
+    const a = this.board.assess(spec, slot.q, slot.r, rot);
+    return a.completes * 40 + a.progress * 10 - a.breaks * 100;
   }
 
   /**
@@ -549,7 +561,7 @@ export class HexlandWorld extends FurnishedWorld {
       const rot = (this.rot + k) % 6;
       const fit = this.board.fit(spec, slot.q, slot.r, rot);
       if (!fit) continue;
-      const score = this.board.questLinks(spec, slot.q, slot.r, rot) * 10 + fit.matched;
+      const score = this.questScore(spec, slot, rot) + fit.matched;
       if (score > bestScore) {
         bestScore = score;
         best = rot;
@@ -615,8 +627,10 @@ export class HexlandWorld extends FurnishedWorld {
   /** Die kleine Zeile: was im Stapel liegt und wie viele Aufträge offen sind. */
   private statusLine(): string {
     if (this.board.mode === 'creative') return 'Katalog · im Menü';
-    const stack = this.board.mode === 'endless' ? '∞' : `${this.board.stack.length}`;
-    return `Stapel ${stack} · Aufträge ${this.board.openTasks()}/${OPEN_TASKS}`;
+    const b = this.board;
+    const stack = b.mode === 'endless' ? '∞' : `${b.stack.length}`;
+    const left = Number.isFinite(b.tasksLeft) ? ` · noch ${b.tasksLeft}` : '';
+    return `Stapel ${stack} · Aufträge ${b.openTasks()}/${OPEN_TASKS}${left}`;
   }
 
   /** **Das Bildchen der Kachel in der Hand** in der Leiste — gedreht wie sie liegen wird. */
@@ -729,11 +743,16 @@ export class HexlandWorld extends FurnishedWorld {
     if (!(this.help.colours || this.help.numbers) || !spec) return out.setHex(0xffffff);
     let bestMatched = -1;
     let ratio = 0;
-    let links = 0;
+    let helps = false;
+    let safe = false;
     for (let rot = 0; rot < 6; rot++) {
       const fit = this.board.fit(spec, slot.q, slot.r, rot);
       if (!fit) continue;
-      links = Math.max(links, this.board.questLinks(spec, slot.q, slot.r, rot));
+      const a = this.board.assess(spec, slot.q, slot.r, rot);
+      if (a.breaks === 0) {
+        safe = true;
+        if (a.progress > 0 || a.completes > 0) helps = true;
+      }
       if (fit.matched > bestMatched) {
         bestMatched = fit.matched;
         ratio = fit.neighbours > 0 ? fit.matched / fit.neighbours : 0;
@@ -741,7 +760,9 @@ export class HexlandWorld extends FurnishedWorld {
     }
     if (bestMatched < 0) return out.setHex(0xe8a0a0);
     if (!this.help.colours) return out.setHex(0xffffff);
-    if (links >= 1) return out.setHex(0xffd84a);
+    // Orange: Legen geht, aber in jeder Lage würde ein Auftrag unerfüllbar.
+    if (!safe) return out.setHex(0xf0a050);
+    if (helps) return out.setHex(0xffd84a);
     return out.setHex(0xffffff).lerp(_green, Math.min(1, 0.25 + ratio * 0.75));
   }
 
@@ -1258,7 +1279,11 @@ export class HexlandWorld extends FurnishedWorld {
           b.mode === 'endless'
             ? 'Stapel: unendlich'
             : `Stapel: ${b.stack.length} von ${NORMAL_TILES}`,
-        sub: `${b.openTasks()} von ${OPEN_TASKS} Aufträgen offen · fehlt einer, kommt eine Auftragskachel dazu`,
+        sub:
+          `${b.openTasks()} von ${OPEN_TASKS} Aufträgen offen · ` +
+          (Number.isFinite(b.tasksLeft)
+            ? `noch ${b.tasksLeft} von ${QUEST_TILES} Auftragskacheln im Auftragsstapel`
+            : 'Auftragskacheln ohne Ende'),
         icon: 'cube',
         accent: ACCENT,
         run: close,
@@ -1413,7 +1438,7 @@ export class HexlandWorld extends FurnishedWorld {
         toggle(
           'colours',
           'Felder einfärben',
-          'Gold: führt einen Auftrag weiter · grün: je kräftiger, desto mehr Kanten passen · rot: geht hier nicht',
+          'Gold: hilft einem Auftrag · grün: je kräftiger, desto mehr Kanten passen · orange: jede Lage macht einen Auftrag unmöglich · rot: geht hier nicht',
           'palette',
         ),
         toggle(
@@ -1426,7 +1451,7 @@ export class HexlandWorld extends FurnishedWorld {
         placeRow('border', 'Wo die meisten Kanten zu den Nachbarn passen — schon passend gedreht'),
         placeRow(
           'smart',
-          'Erst nach offenen Aufträgen, sonst nach passenden Kanten — schon passend gedreht',
+          'Erst nach offenen Aufträgen (nie so, dass einer unmöglich wird), sonst nach passenden Kanten — schon passend gedreht',
         ),
       ],
     };
