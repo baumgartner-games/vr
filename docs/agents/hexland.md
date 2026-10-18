@@ -169,8 +169,9 @@ aus bzw. _In der Nähe_.
     durch, als läge die Kachel schon: wie viel offene Aufträge wachsen, ob
     einer **genau** seine Zahl erreicht, wie nah die übrigen ihrer Zahl kommen
     (`closer`, Größe durch Zahl) — und ob einer **unerfüllbar** würde
-    (Gebiet größer als die Zahl oder ringsum geschlossen vor der Zahl; der
-    eigene Auftrag der Kachel zählt mit). So eine Lage schlägt keine Hilfe mehr vor, auch _An
+    (Gebiet größer als die Zahl, oder es kann nicht mehr bis zur Zahl wachsen —
+    ringsum geschlossen, oder die freien Felder daneben nehmen nur noch
+    Sackgassen auf; der eigene Auftrag der Kachel zählt mit). So eine Lage schlägt keine Hilfe mehr vor, auch _An
     passender Grenze_ und _Kachel vordrehen_ nicht. Gemeldet war: _„Einige
     Empfehlungen würden dazu führen, dass ich die Aufträge niemals schaffen
     könnte."_ Nachgerechnet über 20 Runden: nur nach Kanten 50 Aufträge
@@ -199,6 +200,17 @@ aus bzw. _In der Nähe_.
     weit vorbereitet, … dass man eine 3er-Stadt, falls noch nicht
     existierend, mit freier Kachel nebenan so weit aufbaut"_. Mit beiden über
     20 Runden: erfüllt 137 → 166, Punkte 45 → 53.
+    **Wie weit ein Gebiet noch wachsen kann** (`slotFor`, `areas(…, strict)` →
+    `room`): Ein freies Feld am Gebiet ist `grow`, wenn eine Kachel aus dem
+    Stapel dort passt und das Gelände zu einem weiteren freien Feld führt;
+    `end`, wenn nur eine Sackgasse passt; `dead`, wenn gar keine passt (etwa
+    Weg und Fluss gemischt). Ohne `grow` wächst das Gebiet um höchstens eins
+    je `end`-Feld — reicht das nicht bis zur Zahl, ist der Auftrag
+    unerfüllbar (`breaks`). Gemeldet an einem Stand: _„hier wird ein
+    Spielplan-Tile vorgeschlagen, wodurch aber zwei Missionen nie möglich sein
+    werden zu beenden"_ — eine Wiese neben dem einzigen Wegende ließ dort nur
+    noch eine Sackgasse zu, Weg 3/5 und Weg 3/6 wären bei 4 stehen geblieben.
+    Die Wertung der Flaggen fragt weiter nur, ob wirklich geschlossen ist.
     Gewünscht: _„Bei einem Auftrag und an einer passenden Grenze muss sich
     nicht ausschließen … ‚intelligent' nennen und nach unten packen."_
 - **Die Auswahlen sind Kreise, kein Schieber**, und stehen als Block ohne

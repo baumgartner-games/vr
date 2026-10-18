@@ -562,6 +562,8 @@ interface Areas {
   find: (key: string) => string;
   size: Map<string, number>;
   open: Map<string, boolean>;
+  /** Nur mit `strict`: um wie viele Kacheln das Gebiet höchstens noch wachsen kann. */
+  room: Map<string, number>;
 }
 
 /**
@@ -779,7 +781,60 @@ export class HexBoard {
    * Knoten hängen zusammen, wenn sich ihre Kacheln an einer Kante dieses
    * Geländes berühren. Gezählt wird wie im Brettspiel in **Kacheln**.
    */
-  private areas(terrain: Terrain): Areas {
+  /**
+   * **Was ein freies Feld einem Gebiet noch bringen kann** — gemeldet: _„hier
+   * wird ein Spielplan-Tile vorgeschlagen, wodurch aber zwei Missionen nie
+   * möglich sein werden zu beenden."_ Ein Weg, dessen einziges offenes Ende in
+   * ein Feld führt, das nur noch eine Sackgasse aufnehmen kann, wächst um
+   * höchstens eins — und ein Feld, für das keine Kachel im Stapel passt (etwa
+   * Weg und Fluss gemischt), um gar nichts.
+   *
+   * - `dead`: Keine Kachel passt auf die Kanten der Nachbarn.
+   * - `end`: Eine passt, führt das Gelände aber zu keinem weiteren freien Feld.
+   * - `grow`: Eine passt und führt es weiter.
+   */
+  slotFor(terrain: Terrain, q: number, r: number): 'dead' | 'end' | 'grow' {
+    const need: Array<'w' | 'r' | 'l' | null> = [];
+    for (let e = 0; e < 6; e++) {
+      const n = neighbour({ q, r }, e);
+      const other = this.at(n.q, n.r);
+      if (!other) {
+        need.push(null);
+        continue;
+      }
+      const t = edgeAt(other.spec, other.rot, opposite(e));
+      need.push(t === 'water' ? 'w' : t === 'road' ? 'r' : 'l');
+    }
+    const kind = terrain === 'water' ? 'w' : terrain === 'road' ? 'r' : 'l';
+    let fits = false;
+    for (const base of BASE_TILES) {
+      if (base.weight <= 0) continue;
+      for (let k = 0; k < 6; k++) {
+        let ok = true;
+        let onward = false;
+        for (let e = 0; e < 6 && ok; e++) {
+          const i = (e - k + 6) % 6;
+          const has = base.water.includes(i) ? 'w' : base.road.includes(i) ? 'r' : 'l';
+          const want = need[e];
+          if (want) ok = has === want;
+          else if (has === kind) onward = true;
+        }
+        if (!ok) continue;
+        if (onward) return 'grow';
+        fits = true;
+      }
+    }
+    return fits ? 'end' : 'dead';
+  }
+
+  /**
+   * `strict`: dazu, um wie viele Kacheln jedes Gebiet höchstens noch wachsen
+   * kann (`room`, `slotFor`): unendlich, wenn eines seiner freien Felder es
+   * weiterführen kann, sonst eins je freiem Feld, das eine Sackgasse aufnimmt.
+   * Für die Frage, ob ein Auftrag noch zu schaffen ist; die Wertung der
+   * Flaggen fragt ohne — dort zählt, was wirklich geschlossen ist.
+   */
+  private areas(terrain: Terrain, strict = false): Areas {
     const parent = new Map<string, string>();
     const find = (key: string): string => {
       let root = key;
@@ -809,6 +864,9 @@ export class HexBoard {
     }
     const size = new Map<string, number>();
     const open = new Map<string, boolean>();
+    const slots = new Map<string, 'dead' | 'end' | 'grow'>();
+    const grows = new Set<string>();
+    const ends = new Map<string, Set<string>>();
     for (const [key, tile] of this.tiles) {
       if (!parent.has(key)) continue;
       const root = find(key);
@@ -816,10 +874,27 @@ export class HexBoard {
       for (let e = 0; e < 6; e++) {
         if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
         const n = neighbour(tile, e);
-        if (!this.at(n.q, n.r)) open.set(root, true);
+        if (this.at(n.q, n.r)) continue;
+        open.set(root, true);
+        if (!strict) continue;
+        const slot = hexKey(n.q, n.r);
+        let kind = slots.get(slot);
+        if (kind === undefined) slots.set(slot, (kind = this.slotFor(terrain, n.q, n.r)));
+        if (kind === 'grow') grows.add(root);
+        else if (kind === 'end') {
+          let set = ends.get(root);
+          if (!set) ends.set(root, (set = new Set()));
+          set.add(slot);
+        }
       }
     }
-    return { find, size, open };
+    const room = new Map<string, number>();
+    if (strict) {
+      for (const root of size.keys()) {
+        room.set(root, grows.has(root) ? Infinity : (ends.get(root)?.size ?? 0));
+      }
+    }
+    return { find, size, open, room };
   }
 
   /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört, in Kacheln. */
@@ -947,13 +1022,13 @@ export class HexBoard {
       { size: number; target: number; possible: boolean; area: string }
     >();
     const cache = new Map<Terrain, Areas>();
-    const rows: Array<{ id: string; area: string; size: number; target: number; open: boolean }> =
+    const rows: Array<{ id: string; area: string; size: number; target: number; room: number }> =
       [];
     for (const [key, tile] of this.tiles) {
       const quest = tile.spec.quest;
       if (!quest || quest.state !== 'open' || quest.target === null) continue;
       let areas = cache.get(quest.terrain);
-      if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain)));
+      if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain, true)));
       const root = areas.find(key);
       const area = `${quest.terrain}:${root}`;
       rows.push({
@@ -961,7 +1036,7 @@ export class HexBoard {
         area,
         size: areas.size.get(root) ?? 0,
         target: quest.target,
-        open: areas.open.get(root) === true,
+        room: areas.room.get(root) ?? 0,
       });
     }
     // Mehrere offene Aufträge in einem Gebiet sind **kein** Widerspruch, auch
@@ -970,7 +1045,9 @@ export class HexBoard {
     // statt beim 2er vorgeschlagen werden"_ — ein Weg-Auftrag 5 an einem Weg
     // 3 / 4 galt als unmöglich und wurde nie vorgeschlagen.
     for (const row of rows) {
-      const possible = row.size === row.target || (row.size < row.target && row.open);
+      // Noch zu schaffen, solange das Gebiet weit genug wachsen kann (`room`).
+      const possible =
+        row.size === row.target || (row.size < row.target && row.size + row.room >= row.target);
       out.set(row.id, { size: row.size, target: row.target, possible, area: row.area });
     }
     return out;
