@@ -193,12 +193,13 @@ aus bzw. _In der Nähe_.
     galten als unmöglich — sind sie nicht, das Gebiet wächst weiter, erst der
     kleine, dann der große. Nachgerechnet über 20 Runden: erfüllt 116 → 137,
     Punkte im Schnitt 38 → 45.
-    Dazu zwei weitere Posten (`assess`): **angebunden** (`tied`, −15) — der
-    eigene Auftrag der Kachel landet in einem Gebiet mit einem anderen offenen
-    Auftrag, und keiner wird dabei fertig; geht, ist aber schwerer als zwei
-    eigene Gebiete (gemeldet an einem dritten Stand: _„Auch hier wird der
-    Fluss falsch platziert"_ — der Fluss 6 hing sich an einen Fluss 1/4).
-    Und **vorbereitet** (`ready`, +8 je Stück, `HexBoard.readiness`): je
+    Einen neuen Auftrag an einen offenen desselben Geländes hängen ist
+    erwünscht (eine Zeit lang zählte das dagegen, `tied`; zurückgenommen nach
+    _„Hier wurde der Fluss falsch vorgeschlagen, und nicht bei der
+    Fluss-Mission"_ — der frühere Fall stammte noch aus einer Version mit der
+    falschen Widerspruchs-Regel). Über 80 Runden: erfüllt 745 → 815, Punkte
+    58,1 → 63,1.
+    Dazu **vorbereitet** (`ready`, +8 je Stück, `HexBoard.readiness`): je
     Gelände und Zahl, die noch im Auftragsstapel liegt, ein offenes Gebiet
     ohne Auftrag, genau eins kleiner — dann macht die Auftragskachel es auf
     einen Schlag fertig. Gewünscht: _„dass das Spiel Städte bzw. Gebiete so

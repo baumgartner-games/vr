@@ -988,7 +988,6 @@ export class HexBoard {
     points: number;
     breaks: number;
     closer: number;
-    tied: number;
     ready: number;
   } {
     const key = hexKey(q, r);
@@ -998,18 +997,6 @@ export class HexBoard {
     const after = this.questStates();
     const readyAfter = this.readiness();
     this.tiles.delete(key);
-    // **Angebunden**: Der eigene Auftrag der Kachel landet in einem Gebiet, in
-    // dem schon ein anderer offener Auftrag wartet, und keiner wird fertig —
-    // dann hängt der eine am anderen (erst genau die kleinere Zahl, dann genau
-    // die größere). Geht, ist aber schwerer als zwei eigene Gebiete.
-    let tied = 0;
-    const own = after.get(key);
-    if (own && own.possible && own.size !== own.target) {
-      for (const [id, other] of after) {
-        if (id === key || other.area !== own.area || !other.possible) continue;
-        if (other.size !== other.target && other.target !== own.target) tied++;
-      }
-    }
     let progress = 0;
     let completes = 0;
     let points = 0;
@@ -1051,7 +1038,7 @@ export class HexBoard {
       }
     // Ein Gebiet, das von „bereit für 4" zu „bereit für 5" wächst, gibt etwas her.
     for (const terrain of gained) if (lost.has(terrain)) ready -= 0.15;
-    return { progress, completes, points, breaks, closer, tied, ready };
+    return { progress, completes, points, breaks, closer, ready };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */
