@@ -1312,12 +1312,17 @@ export class FlatControls {
   }
 
   /**
-   * **Zwei Finger in der oberen Hälfte sind ein Pinch** (Plan, _Pinch-Zoom_).
+   * **Zwei Finger sind ein Pinch — überall außerhalb der Bedienfelder** (Plan,
+   * _Pinch-Zoom_).
    *
-   * Die obere Hälfte, weil unten die Stöcke und die Knöpfe liegen: Wer dort
-   * mit zwei Daumen arbeitet, läuft und schießt — und hätte die Kamera sonst
-   * bei jedem zweiten Schritt neu eingestellt. Und weil ein Pinch keine
-   * Wischbewegung ist, gibt der Blick währenddessen Ruhe.
+   * Bis Oktober 2026 nur in der oberen Hälfte, weil unten die Stöcke und die
+   * Knöpfe liegen. Das schloss aber auch die freie untere Hälfte aus, und
+   * gemeldet war: _„Das Zoomen durch Pinch sollte bitte außerhalb von den
+   * Panels überall klappen … Ich kann wohl nur recht weit oben im Screen
+   * zoomen."_ Ein Finger auf Stock oder Knopf ist ohnehin kein freier Finger
+   * (`freeHit`) — wer mit zwei Daumen läuft und schießt, pincht also nicht.
+   * Und weil ein Pinch keine Wischbewegung ist, gibt der Blick währenddessen
+   * Ruhe.
    *
    * @returns ob gerade einer angefangen hat
    */
@@ -1326,11 +1331,6 @@ export class FlatControls {
     // dürften dort nicht heimlich das Umsehen abstellen.
     if (!this.topDownOn || !this.view) return false;
     if (this.pinchGap !== null || this.freeTouches.size !== 2) return false;
-    const half = this.canvas.getBoundingClientRect();
-    const middle = half.top + half.height / 2;
-    for (const at of this.freeTouches.values()) {
-      if (at.y > middle) return false;
-    }
     this.pinchGap = this.touchGap();
     return this.pinchGap !== null;
   }

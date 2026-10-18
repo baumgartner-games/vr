@@ -183,7 +183,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
       `A`, auf derselben Höhe und mit einer Handbreit Luft zum Stock. Vorher
       saß `B` allein darüber und `A` darunter, und der Daumen, der den Stock
       hält, erwischte auf dem Weg nach oben zuerst den falschen.
-    - **Zwei Finger in der oberen Hälfte zoomen** (`TopDownCamera.zoomScale`).
+    - **Zwei Finger zoomen, überall außerhalb der Bedienfelder** (`TopDownCamera.zoomScale`; bis Oktober 2026 nur in der oberen Hälfte — _„Ich kann wohl nur recht weit oben im Screen zoomen.“_).
       Ein Pinch ist die Geste, mit der auf einem Telefon seit jeher gezoomt
       wird, und stufenlos: Der Abstand wird mit dem Faktor der Finger skaliert
       und zwischen der nächsten und der fernsten Stufe geklemmt

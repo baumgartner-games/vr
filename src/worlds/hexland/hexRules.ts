@@ -470,7 +470,13 @@ export function matchBase(edges: readonly Terrain[]): TileSpec | null {
 
 // --- das Brett ------------------------------------------------------------------
 
-export type HexMode = 'game' | 'creative';
+/**
+ * **Die drei Spielarten**: eine Partie mit 40 Kacheln, das **unendliche Spiel**
+ * (dieselben Regeln und dieselbe Wertung, aber der Stapel füllt sich immer
+ * nach — gewünscht: _„normale Runde, unendliches Spiel, Creative Modus"_) und
+ * der Kreativ-Modus.
+ */
+export type HexMode = 'game' | 'endless' | 'creative';
 
 /** Was ein Legen gebracht hat — für die Meldung. */
 export interface PlaceResult {
@@ -521,8 +527,8 @@ export class HexBoard {
   }
 
   /** **Eine neue Partie** — eine Landkachel in der Mitte, 40 im Stapel, dann die Aufträge. */
-  reset(seed = Date.now() % 1e9): void {
-    this.start(seed, 'game');
+  reset(seed = Date.now() % 1e9, mode: 'game' | 'endless' = 'game'): void {
+    this.start(seed, mode);
     // Die letzten (obersten) ohne Fluss und Weg — sonst verlangt die zweite
     // Kachel schon einen Fluss, bevor es überhaupt Land gibt.
     for (let i = 0; i < NORMAL_TILES; i++) {
@@ -590,6 +596,9 @@ export class HexBoard {
       const last = this.hand;
       return last ? { base: last.base, edges: last.edges, seed: this.newSeed() } : null;
     }
+    // Unendlich: Der Stapel wird nie leer.
+    if (this.mode === 'endless')
+      while (this.stack.length < 3) this.stack.unshift(drawTile(this.random));
     if (this.stack.length === 0) return null;
     if (this.openTasks() < OPEN_TASKS) return drawTile(this.random, { task: true });
     return this.stack.pop()!;
@@ -898,7 +907,7 @@ export class HexBoard {
       for (const [key, tile] of tiles) this.tiles.set(key, tile);
       this.stack = stack;
       this.hand = data.hand ? unpackSpec(data.hand) : null;
-      this.mode = data.mode === 'creative' ? 'creative' : 'game';
+      this.mode = data.mode === 'creative' || data.mode === 'endless' ? data.mode : 'game';
       this.placed = Number(data.placed) || 0;
       this.seed = Number(data.seed) || 1;
       // Der Würfel geht weiter, wo der Stand war — nicht wieder von vorn.

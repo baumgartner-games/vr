@@ -1258,7 +1258,22 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       ctx.fillText(clip(ctx, entry.sub, rightEdge - textX), textX, y + 90);
     }
 
-    if (entry.checked !== undefined) {
+    if (entry.checked !== undefined && entry.radio) {
+      // Eine Auswahl (`MenuEntry.radio`): ein Kreis, gefüllt, wenn gewählt.
+      const cx = right - 24 - 22;
+      const cy = y + ROW_H / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 20, 0, Math.PI * 2);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = entry.checked ? accent : 'rgba(255,255,255,0.45)';
+      ctx.stroke();
+      if (entry.checked) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+        ctx.fillStyle = accent;
+        ctx.fill();
+      }
+    } else if (entry.checked !== undefined) {
       const width = 74;
       const height = 38;
       const left = right - 24 - width;

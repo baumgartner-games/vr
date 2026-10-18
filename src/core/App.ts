@@ -555,12 +555,14 @@ export class App {
       }
       // Der Blickwinkel von oben hängt am selben Zuhörer — eine Zeile, kein zweiter.
       this.topDownCamera.setTilt(now.topDownTilt);
+      // Und die Bildrate im Bild: Auch eine Welt darf sie schalten (Hexland).
+      this.frameStats.visible = now.showFps;
     });
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
     this.gpuTimer = new GpuTimer(this.renderer);
     this.camera.add(this.xrBadge.mesh);
-    // Das Feld unten rechts hängt am Häkchen im Grafik-Menü — und F3 schaltet
+    // Das Feld oben rechts hängt am Häkchen im Grafik-Menü — und F3 schaltet
     // dasselbe Häkchen, damit beide dasselbe sagen.
     this.frameStats.visible = graphics().showFps;
     this.positionHud = new PositionHud();
@@ -2639,7 +2641,7 @@ export class App {
         {
           id: 'gfx:fps-hud',
           label: 'Bildrate im Bild',
-          sub: 'Das kleine Feld unten rechts, auch am Telefon',
+          sub: 'Das kleine Feld oben rechts, auch am Telefon',
           caption: 'Am Schreibtisch auch mit F3',
           icon: 'settings',
           accent: 0x6f7d99,

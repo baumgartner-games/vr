@@ -329,6 +329,17 @@ export interface MenuEntry {
    */
   checked?: boolean;
   /**
+   * **Eine Auswahl, kein Schalter** — der Name der Gruppe, zu der die Zeile
+   * gehört. Statt des Schiebers steht ein Kreis (gefüllt, wenn `checked`), und
+   * Zeilen derselben Gruppe, die aufeinander folgen, stehen als **ein Block**
+   * ohne Lücke (`PageMenu`, `ui/pageMenu.css`). Gewünscht für die Spielhilfen
+   * von Hexland: _„dass es keine Slider sind, sondern Kreise für eine
+   * Selection-Box. Dann brauche ich bei diesen Selections auch keinen Abstand,
+   * da es ein Block ist."_ Welche gewählt ist, entscheidet die Welt — `run`
+   * setzt sie, das Menü zeigt nur.
+   */
+  radio?: string;
+  /**
    * Statt der gezeichneten Ikone ein **kleines Modell der Sache selbst**,
    * das vor der Zeile im Raum steht, schräg von vorn (`previewGrid.PREVIEW_YAW`).
    *

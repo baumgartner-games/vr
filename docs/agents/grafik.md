@@ -214,7 +214,7 @@ Seite (`App.fpsEntry`, aus `FrameStats.latest` — gemessen wird auch in der
 Brille, wo das F3-Feld unsichtbar bleibt) und wird alle halbe Sekunde
 nachgeschrieben, solange das Menü offen ist (`GameMenu.refresh`, nur die
 Zeile, nicht das Menü). Darunter das Häkchen **Bildrate im Bild**
-(`showFps`, ab Werk aus): das F3-Feld unten rechts, auch am Telefon, wo es
+(`showFps`, ab Werk aus): das F3-Feld oben rechts (seit Oktober 2026, vorher unten rechts; gewünscht: _„eine fps Anzeige im Screen oben rechts“_), auch am Telefon, wo es
 kein F3 gibt — und F3 schaltet dasselbe Häkchen (`FrameStats.onToggle`),
 damit Menü und Taste nie zweierlei sagen.
 

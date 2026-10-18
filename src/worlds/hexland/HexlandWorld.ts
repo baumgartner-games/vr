@@ -5,6 +5,7 @@ import type { PlanSolid } from '../grid/solids';
 import type { PlateTile } from '../shared/plateField';
 import { createSky } from '../shared/environment';
 import { setBuildFlight } from '../../core/buildFlight';
+import { graphics, saveGraphics } from '../../core/graphicsSettings';
 import { TextPlane } from '../../ui/TextPlane';
 import type { MenuEntry } from '../../ui/menu';
 import type { PointerHit } from '../../core/Pointer';
@@ -89,6 +90,11 @@ export class HexlandWorld extends FurnishedWorld {
   private help: HexHelp = readHelp();
   /** Wo zuletzt gelegt wurde — dort in der Nähe liegt die nächste (`autoPlace`). */
   private lastPlaced: Hex | null = null;
+  /** Die Ziffern 0–6 auf den freien Feldern (`drawDigits`). */
+  private readonly digits: THREE.InstancedMesh[] = [];
+  /** Mit welcher Drehung des Bildes die Ziffern zuletzt gelegt wurden. */
+  private digitHeading = 0;
+  private flight: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null = null;
   /** Der Ring um das Feld der neuen Kachel — er pulsiert (`update`). */
   private ring: THREE.Mesh | null = null;
 
@@ -209,6 +215,25 @@ export class HexlandWorld extends FurnishedWorld {
     this.slots.setColorAt(0, new THREE.Color(0xffffff));
     this.slots.name = 'hexland-slots';
     this.root.add(this.slots);
+
+    // **Die Zahlen auf den Feldern** (Spielhilfe _Passende Kanten als Zahl_):
+    // ein Bündel je Ziffer 0–6, flach auf dem Boden, zum Bild gedreht.
+    const digitGeometry = new THREE.PlaneGeometry(HEX_WIDTH * 0.42, HEX_WIDTH * 0.42);
+    for (let n = 0; n <= 6; n++) {
+      const material = new THREE.MeshBasicMaterial({
+        map: digitTexture(n),
+        transparent: true,
+        depthWrite: false,
+      });
+      this.hexMaterials.push(material);
+      const digits = new THREE.InstancedMesh(digitGeometry, material, 256);
+      digits.count = 0;
+      digits.frustumCulled = false;
+      digits.renderOrder = 2;
+      digits.name = `hexland-digit-${n}`;
+      this.digits.push(digits);
+      this.root.add(digits);
+    }
 
     const hoverMaterial = new THREE.MeshBasicMaterial({
       color: 0xfff1a8,
@@ -384,6 +409,21 @@ export class HexlandWorld extends FurnishedWorld {
     writeSave(this.board.save(), this.board.mode);
     this.announceResult(result);
     this.refresh(true);
+    // **Die Kamera fliegt zur neuen Kachel** — von oben am Schirm. Gewünscht:
+    // _„nach dem Legen des neuen Tiles soll die Kamera zum neuen Tile fliegen …
+    // smoothe Bewegung, langsam zu Anfang, dann schnell, dann abbremsen. Aber
+    // in einer festen Zeit."_
+    // `refresh` hat ein neues Feld gewählt — TypeScript weiß das nicht.
+    const next = this.at as Hex | null;
+    if (next && this.board2d && this.lastCtx) {
+      const c = hexCentre(next.q, next.r, HEX_WIDTH);
+      const rig = this.lastCtx.rig.position;
+      this.flight = {
+        from: new THREE.Vector3(rig.x, this.lastCtx.rig.getFloorY(), rig.z),
+        to: new THREE.Vector3(c.x, this.lastCtx.rig.getFloorY(), c.z),
+        t: 0,
+      };
+    }
   }
 
   private canPlaceSomewhere(): boolean {
@@ -477,7 +517,7 @@ export class HexlandWorld extends FurnishedWorld {
       const matched = fit?.matched ?? 0;
       let score: number;
       if (place === 'near') score = -far(slot) - penalty;
-      else if (place === 'quest') {
+      else if (place === 'smart') {
         const links = this.board.questLinks(spec, slot.q, slot.r, rot);
         score = links * 10 + matched - far(slot) * 0.25 - penalty;
       } else {
@@ -569,7 +609,8 @@ export class HexlandWorld extends FurnishedWorld {
   /** Die kleine Zeile: was im Stapel liegt und wie viele Aufträge offen sind. */
   private statusLine(): string {
     if (this.board.mode === 'creative') return 'Katalog · im Menü';
-    return `Stapel ${this.board.stack.length} · Aufträge ${this.board.openTasks()}/${OPEN_TASKS}`;
+    const stack = this.board.mode === 'endless' ? '∞' : `${this.board.stack.length}`;
+    return `Stapel ${stack} · Aufträge ${this.board.openTasks()}/${OPEN_TASKS}`;
   }
 
   /** **Das Bildchen der Kachel in der Hand** in der Leiste — gedreht wie sie liegen wird. */
@@ -631,6 +672,45 @@ export class HexlandWorld extends FurnishedWorld {
     slots.count = this.board.over ? 0 : open.length;
     slots.instanceMatrix.needsUpdate = true;
     if (slots.instanceColor) slots.instanceColor.needsUpdate = true;
+    this.drawDigits(open, spec);
+  }
+
+  /**
+   * **Wie viele Kanten bestenfalls passen** — als Ziffer auf jedem freien Feld,
+   * wo die Kachel überhaupt liegen darf. Gewünscht: _„bei der Anzeige je
+   * kräftiger wäre es schön, wenn da eine Zahl steht, wie viele Kanten
+   * passen"_. Die Ziffern liegen flach und sind zum Bild gedreht
+   * (`digitHeading`), damit man sie auch nach dem Drehen lesen kann.
+   */
+  private drawDigits(open: Hex[], spec: TileSpec | null): void {
+    const counts = this.digits.map(() => 0);
+    const heading = this.lastCtx ? this.headingNow(this.lastCtx) : 0;
+    this.digitHeading = heading;
+    if (this.help.numbers && spec && !this.board.over) {
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(-Math.PI / 2, heading, 0, 'YXZ'),
+      );
+      const scale = new THREE.Vector3(1, 1, 1);
+      for (const slot of open) {
+        let best = -1;
+        for (let rot = 0; rot < 6; rot++) {
+          const fit = this.board.fit(spec, slot.q, slot.r, rot);
+          if (fit) best = Math.max(best, fit.matched);
+        }
+        if (best < 0) continue;
+        const mesh = this.digits[best]!;
+        const i = counts[best]!;
+        if (i >= mesh.instanceMatrix.count) continue;
+        const c = hexCentre(slot.q, slot.r, HEX_WIDTH);
+        mesh.setMatrixAt(i, m.compose(new THREE.Vector3(c.x, 0.06, c.z), q, scale));
+        counts[best] = i + 1;
+      }
+    }
+    this.digits.forEach((mesh, n) => {
+      mesh.count = counts[n]!;
+      mesh.instanceMatrix.needsUpdate = true;
+    });
   }
 
   /**
@@ -640,7 +720,7 @@ export class HexlandWorld extends FurnishedWorld {
    * liegen darf.
    */
   private slotColour(spec: TileSpec | null, slot: Hex, out: THREE.Color): THREE.Color {
-    if (!this.help.highlight || !spec) return out.setHex(0xffffff);
+    if (!(this.help.colours || this.help.numbers) || !spec) return out.setHex(0xffffff);
     let bestMatched = -1;
     let ratio = 0;
     let links = 0;
@@ -654,6 +734,7 @@ export class HexlandWorld extends FurnishedWorld {
       }
     }
     if (bestMatched < 0) return out.setHex(0xe8a0a0);
+    if (!this.help.colours) return out.setHex(0xffffff);
     if (links >= 1) return out.setHex(0xffd84a);
     return out.setHex(0xffffff).lerp(_green, Math.min(1, 0.25 + ratio * 0.75));
   }
@@ -717,6 +798,10 @@ export class HexlandWorld extends FurnishedWorld {
       this.ring.scale.setScalar(1 + pulse * 0.06);
       (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 + pulse * 0.45;
     }
+    this.stepFlight(dt, ctx);
+    // Dreht sich das Bild, liegen die Ziffern neu (`drawDigits`).
+    if (this.help.numbers && Math.abs(this.headingNow(ctx) - this.digitHeading) > 0.05)
+      this.drawSlots();
     // Dreht sich das Bild, dreht das Bildchen in der Leiste mit.
     if (this.board2d && Math.abs(this.headingNow(ctx) - this.iconHeading) > 0.01)
       this.drawBarIcon();
@@ -785,6 +870,25 @@ export class HexlandWorld extends FurnishedWorld {
       this.tileQuick.style.display = this.board.mode === 'creative' ? 'flex' : 'none';
   }
 
+  /**
+   * **Ein Bild des Kameraflugs** — in fester Zeit (`FLIGHT_SECONDS`), langsam
+   * an, schnell in der Mitte, sanft ab (kubisch ein und aus). Die Kamera hängt
+   * an der unsichtbaren Figur; die wird geführt.
+   */
+  private stepFlight(dt: number, ctx: WorldContext): void {
+    const flight = this.flight;
+    if (!flight) return;
+    if (!this.board2d) {
+      this.flight = null;
+      return;
+    }
+    flight.t = Math.min(1, flight.t + dt / FLIGHT_SECONDS);
+    const t = flight.t;
+    const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    this.movePlayerTo(ctx, flight.from.clone().lerp(flight.to, ease));
+    if (t >= 1) this.flight = null;
+  }
+
   /** **Wie schnell WASD das Bild schiebt**: ein Drittel des Kameraabstands je Sekunde. */
   private panSpeed(ctx: WorldContext): number {
     const zoom = ctx.topDownView?.get().zoom ?? 20;
@@ -793,6 +897,8 @@ export class HexlandWorld extends FurnishedWorld {
 
   /** **Das Bild schieben** — die unsichtbare Figur dorthin, wo die Kamera hinsoll. */
   private panBy(ctx: WorldContext, dx: number, dz: number): void {
+    // Wer selbst schiebt, hält den Flug an.
+    this.flight = null;
     const at = ctx.rig.position;
     const x = THREE.MathUtils.clamp(at.x + dx, FIELD.x + 2, FIELD.x + FIELD.w - 2);
     const z = THREE.MathUtils.clamp(at.z + dz, FIELD.z + 2, FIELD.z + FIELD.d - 2);
@@ -1142,51 +1248,18 @@ export class HexlandWorld extends FurnishedWorld {
       });
       rows.push({
         id: 'hexland:stack',
-        label: `Stapel: ${b.stack.length} von ${NORMAL_TILES}`,
+        label:
+          b.mode === 'endless'
+            ? 'Stapel: unendlich'
+            : `Stapel: ${b.stack.length} von ${NORMAL_TILES}`,
         sub: `${b.openTasks()} von ${OPEN_TASKS} Aufträgen offen · fehlt einer, kommt eine Auftragskachel dazu`,
         icon: 'cube',
         accent: ACCENT,
         run: close,
       });
     }
-    rows.push(
-      {
-        id: 'hexland:new',
-        label: 'Neue Partie',
-        sub: `${NORMAL_TILES} Kacheln, immer ${OPEN_TASKS} Aufträge offen, Wertung wie im Brettspiel`,
-        icon: 'reset',
-        accent: 0x5fe07a,
-        run: () => {
-          this.startGame('game');
-          close();
-        },
-      },
-      this.helpMenu(),
-      {
-        id: 'hexland:creative',
-        label: 'Kreativ-Modus',
-        sub: creative
-          ? 'An · die nächste Kachel suchst du im Katalog aus, ohne Wertung'
-          : 'Frei bauen: jede Kachel aus dem Katalog, so oft du willst',
-        icon: 'brush',
-        accent: 0xb58cff,
-        checked: creative,
-        run: () => this.switchMode(creative ? 'game' : 'creative'),
-      },
-    );
-    if (creative) {
-      rows.push({
-        id: 'hexland:clear',
-        label: 'Kreatives Brett leeren',
-        sub: 'Alles weg, eine Kachel in die Mitte',
-        icon: 'reset',
-        accent: 0xe0605f,
-        run: () => {
-          this.startGame('creative');
-          close();
-        },
-      });
-    } else {
+    rows.push(...this.modeRows(), this.helpMenu(), this.fpsRow());
+    if (!creative) {
       rows.push({
         id: 'hexland:rules',
         label: 'So wird gewertet',
@@ -1199,10 +1272,74 @@ export class HexlandWorld extends FurnishedWorld {
     return {
       id: 'hexland',
       label: 'Hexland',
-      sub: creative ? 'Kreativ' : `${s.total} Punkte · Stapel ${b.stack.length}`,
+      sub: creative ? 'Kreativ' : `${s.total} Punkte · ${MODE_LABEL[b.mode]}`,
       icon: 'cube',
       accent: ACCENT,
       children: rows,
+    };
+  }
+
+  /**
+   * **Der Spielmodus** — drei Kreise in einem Block: normale Runde, unendliches
+   * Spiel, Kreativ-Modus. Gewünscht: _„Beim Spielmodus will ich auch eine
+   * Select-Option haben … Und beim Wechsel wird man gefragt, weiter spielen
+   * oder neu starten."_ Jede Zeile öffnet deshalb ihre kleine Seite mit genau
+   * dieser Frage; jeder Modus hat sein eigenes Brett im Browser.
+   */
+  private modeRows(): MenuEntry[] {
+    const close = (): void => this.context?.menu.toggle(false);
+    return MODES.map((mode) => {
+      const saved = savedSummary(mode);
+      return {
+        id: `hexland:mode:${mode}`,
+        label: MODE_LABEL[mode],
+        sub: MODE_SUB[mode],
+        icon: mode === 'creative' ? 'brush' : 'cube',
+        accent: 0xb58cff,
+        radio: 'hexland-mode',
+        checked: this.board.mode === mode,
+        children: [
+          {
+            id: `hexland:mode:${mode}:go`,
+            label: 'Weiterspielen',
+            sub: saved ?? 'Noch nichts gespielt — fängt neu an',
+            icon: 'worlds',
+            accent: 0x5fe07a,
+            run: () => {
+              this.switchMode(mode);
+              close();
+            },
+          },
+          {
+            id: `hexland:mode:${mode}:new`,
+            label: 'Neu starten',
+            sub: mode === 'creative' ? 'Brett leeren, eine Kachel in die Mitte' : MODE_SUB[mode],
+            icon: 'reset',
+            accent: 0xe0605f,
+            run: () => {
+              this.startGame(mode);
+              close();
+            },
+          },
+        ],
+      };
+    });
+  }
+
+  /** **Bildrate im Bild** — derselbe Schalter wie unter _Grafik_ (`graphicsSettings.showFps`). */
+  private fpsRow(): MenuEntry {
+    const on = graphics().showFps;
+    return {
+      id: 'hexland:fps',
+      label: 'Bildrate im Bild',
+      sub: 'Das kleine Feld oben rechts — derselbe Schalter wie unter Grafik',
+      icon: 'settings',
+      accent: 0x6f7d99,
+      checked: on,
+      run: () => {
+        saveGraphics({ showFps: !graphics().showFps });
+        this.context?.refreshWorldMenu();
+      },
     };
   }
 
@@ -1223,80 +1360,68 @@ export class HexlandWorld extends FurnishedWorld {
       this.context?.refreshWorldMenu();
       this.say(message);
     };
-    const places: Record<HexHelp['place'], string> = {
-      near: 'in der Nähe',
-      quest: 'an einem Auftrag',
-      border: 'an passender Grenze',
-    };
-    const placeRow = (id: HexHelp['place'], label: string, sub: string): MenuEntry => ({
-      id: `hexland:help:place:${id}`,
+    const toggle = (
+      key: 'smartRotate' | 'colours' | 'numbers',
+      label: string,
+      sub: string,
+      icon: MenuEntry['icon'],
+    ): MenuEntry => ({
+      id: `hexland:help:${key}`,
       label,
       sub,
-      icon: 'cube',
-      accent: ACCENT,
-      checked: h.place === id,
-      run: () => set({ place: id }, `Neue Kachel · ${places[id]}`),
+      icon,
+      accent: 0x59c8ff,
+      checked: h[key],
+      run: () => set({ [key]: !h[key] }, `${label} ${h[key] ? 'aus' : 'an'}`),
     });
+    const placeRow = (id: HexHelp['place'], sub: string): MenuEntry => ({
+      id: `hexland:help:place:${id}`,
+      label: PLACE_LABEL[id],
+      sub,
+      icon: 'cube',
+      accent: 0x59c8ff,
+      radio: 'hexland-place',
+      checked: h.place === id,
+      run: () => set({ place: id }, `Neue Kachel · ${PLACE_LABEL[id]}`),
+    });
+    const shown = [
+      h.smartRotate ? 'vordrehen' : '',
+      h.colours ? 'Farben' : '',
+      h.numbers ? 'Zahlen' : '',
+    ]
+      .filter((part) => part !== '')
+      .join(' · ');
     return {
       id: 'hexland:help',
       label: 'Spielhilfen',
-      sub: [
-        h.smartRotate ? 'vordrehen' : '',
-        h.highlight ? 'Felder zeigen' : '',
-        `neue Kachel ${places[h.place]}`,
-      ]
-        .filter((part) => part !== '')
-        .join(' · '),
+      sub: `${shown ? `${shown} · ` : ''}neue Kachel: ${PLACE_LABEL[h.place]}`,
       icon: 'brain',
       accent: 0x59c8ff,
       children: [
-        {
-          id: 'hexland:help:rotate',
-          label: 'Kachel vordrehen',
-          sub: 'Tippst du ein Feld an, liegt die Kachel schon so gedreht, wie sie dort passt',
-          icon: 'reset',
-          accent: 0x59c8ff,
-          checked: h.smartRotate,
-          run: () =>
-            set({ smartRotate: !h.smartRotate }, h.smartRotate ? 'Vordrehen aus' : 'Vordrehen an'),
-        },
-        {
-          id: 'hexland:help:highlight',
-          label: 'Passende Felder zeigen',
-          sub: 'Gold: führt einen Auftrag weiter · grün: je mehr Kanten passen · rot: geht hier nicht',
-          icon: 'xray',
-          accent: 0x59c8ff,
-          checked: h.highlight,
-          run: () =>
-            set(
-              { highlight: !h.highlight },
-              h.highlight ? 'Felder zeigen aus' : 'Felder zeigen an',
-            ),
-        },
-        {
-          id: 'hexland:help:place',
-          label: 'Neue Kachel liegt …',
-          sub: places[h.place],
-          icon: 'cube',
-          accent: 0x59c8ff,
-          children: [
-            placeRow(
-              'near',
-              'In der Nähe',
-              'Neben der zuletzt gelegten Kachel, sonst so nah wie möglich',
-            ),
-            placeRow(
-              'quest',
-              'An einem Auftrag',
-              'Wo sie ein offenes Auftragsgebiet weiterführt — schon passend gedreht',
-            ),
-            placeRow(
-              'border',
-              'An passender Grenze',
-              'Wo die meisten Kanten zu den Nachbarn passen — schon passend gedreht',
-            ),
-          ],
-        },
+        toggle(
+          'smartRotate',
+          'Kachel vordrehen',
+          'Tippst du ein Feld an, liegt die Kachel schon so gedreht, wie sie dort passt',
+          'reset',
+        ),
+        toggle(
+          'colours',
+          'Felder einfärben',
+          'Gold: führt einen Auftrag weiter · grün: je kräftiger, desto mehr Kanten passen · rot: geht hier nicht',
+          'palette',
+        ),
+        toggle(
+          'numbers',
+          'Passende Kanten als Zahl',
+          'Auf jedem freien Feld, wie viele Kanten bestenfalls passen (rot: geht hier nicht)',
+          'xray',
+        ),
+        placeRow('near', 'Neben der zuletzt gelegten Kachel, sonst so nah wie möglich'),
+        placeRow('border', 'Wo die meisten Kanten zu den Nachbarn passen — schon passend gedreht'),
+        placeRow(
+          'smart',
+          'Erst nach offenen Aufträgen, sonst nach passenden Kanten — schon passend gedreht',
+        ),
       ],
     };
   }
@@ -1419,8 +1544,9 @@ export class HexlandWorld extends FurnishedWorld {
     writeSave(this.board.save(), this.board.mode);
     writeMode(mode);
     this.board = loadBoard(mode);
+    this.lastPlaced = null;
     this.redraw();
-    this.say(mode === 'creative' ? 'Kreativ-Modus · Kachel im Menü wählen' : 'Partie');
+    this.say(`${MODE_LABEL[mode]} · weiter`);
   }
 
   /** **Ein neues Brett** in diesem Modus. */
@@ -1428,14 +1554,11 @@ export class HexlandWorld extends FurnishedWorld {
     writeMode(mode);
     this.board = new HexBoard();
     if (mode === 'creative') this.board.resetCreative();
-    else this.board.reset();
+    else this.board.reset(undefined, mode);
     writeSave(this.board.save(), mode);
+    this.lastPlaced = null;
     this.redraw();
-    this.say(
-      mode === 'creative'
-        ? 'Kreatives Brett geleert'
-        : `Neue Partie · ${NORMAL_TILES} Kacheln, ${OPEN_TASKS} Aufträge`,
-    );
+    this.say(`${MODE_LABEL[mode]} · neu gestartet`);
   }
 
   /** Alles vom Brett neu zeichnen. */
@@ -1463,7 +1586,11 @@ export class HexlandWorld extends FurnishedWorld {
     this.models.dispose();
     this.slots?.dispose();
     this.slots?.geometry.dispose();
-    for (const material of this.hexMaterials) material.dispose();
+    for (const material of this.hexMaterials) {
+      (material as THREE.MeshBasicMaterial).map?.dispose();
+      material.dispose();
+    }
+    for (const digits of this.digits) digits.dispose();
     this.confirm?.dispose();
     this.info?.dispose();
     this.handQuest?.dispose();
@@ -1504,8 +1631,45 @@ const QUICK_TILES = [
 /** Die Spielhilfen (`helpMenu`). */
 interface HexHelp {
   smartRotate: boolean;
-  highlight: boolean;
-  place: 'near' | 'quest' | 'border';
+  /** Felder einfärben: gold, grün nach passenden Kanten, rot. */
+  colours: boolean;
+  /** Auf jedem Feld die Zahl der passenden Kanten. */
+  numbers: boolean;
+  /** Wo die neue Kachel liegt — `smart`: erst nach Aufträgen, sonst nach Kanten. */
+  place: 'near' | 'border' | 'smart';
+}
+
+const PLACE_LABEL: Readonly<Record<HexHelp['place'], string>> = {
+  near: 'In der Nähe',
+  border: 'An passender Grenze',
+  smart: 'Intelligent',
+};
+
+const MODES: readonly HexMode[] = ['game', 'endless', 'creative'];
+const MODE_LABEL: Readonly<Record<HexMode, string>> = {
+  game: 'Normale Runde',
+  endless: 'Unendliches Spiel',
+  creative: 'Kreativ-Modus',
+};
+const MODE_SUB: Readonly<Record<HexMode, string>> = {
+  game: `${NORMAL_TILES} Kacheln, immer ${OPEN_TASKS} Aufträge, Wertung wie im Brettspiel`,
+  endless: 'Dieselben Regeln, aber der Stapel wird nie leer',
+  creative: 'Frei bauen, jede Kachel aus dem Katalog, ohne Wertung',
+};
+
+/** **Was im Speicher eines Modus liegt** — für _Weiterspielen_; `null`: nichts. */
+function savedSummary(mode: HexMode): string | null {
+  const board = new HexBoard(1);
+  let text: string | null = null;
+  try {
+    text = localStorage.getItem(SAVE_KEY[mode]);
+  } catch {
+    text = null;
+  }
+  if (!board.load(text) || board.mode !== mode) return null;
+  if (mode === 'creative') return `${board.tiles.size} Kacheln gebaut`;
+  const points = board.scoring().total;
+  return board.over ? `Vorbei · ${points} Punkte` : `${board.placed} gelegt · ${points} Punkte`;
 }
 
 const HELP_KEY = 'hexland:help';
@@ -1513,13 +1677,21 @@ const HELP_KEY = 'hexland:help';
 function readHelp(): HexHelp {
   try {
     const data = JSON.parse(localStorage.getItem(HELP_KEY) ?? 'null') as Partial<HexHelp> | null;
+    const old = data as { highlight?: boolean; place?: string } | null;
     return {
       smartRotate: data?.smartRotate === true,
-      highlight: data?.highlight === true,
-      place: data?.place === 'quest' || data?.place === 'border' ? data.place : 'near',
+      colours: data?.colours === true || old?.highlight === true,
+      numbers: data?.numbers === true,
+      // `quest` hieß bis Oktober 2026 die Hilfe, die jetzt _Intelligent_ ist.
+      place:
+        old?.place === 'border'
+          ? 'border'
+          : old?.place === 'smart' || old?.place === 'quest'
+            ? 'smart'
+            : 'near',
     };
   } catch {
-    return { smartRotate: false, highlight: false, place: 'near' };
+    return { smartRotate: false, colours: false, numbers: false, place: 'near' };
   }
 }
 
@@ -1533,6 +1705,27 @@ function writeHelp(help: HexHelp): void {
 
 /** Das Grün der gut passenden Felder (`slotColour`). */
 const _green = new THREE.Color(0x7ee08a);
+
+/** Wie lange der Kameraflug zur neuen Kachel dauert, in Sekunden — immer gleich lang. */
+const FLIGHT_SECONDS = 0.8;
+
+/** **Eine Ziffer als Bild** — weiß mit dunklem Rand, für die Felder (`drawDigits`). */
+function digitTexture(n: number): THREE.Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const g = canvas.getContext('2d')!;
+  g.font = '800 96px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineWidth = 14;
+  g.strokeStyle = 'rgba(20, 28, 40, 0.85)';
+  g.strokeText(String(n), 64, 70);
+  g.fillStyle = '#ffffff';
+  g.fillText(String(n), 64, 70);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 
 /** Wie viel Grad Neigung ein Pixel Fingerweg ist. */
 const TILT_PER_PIXEL = 0.25;
@@ -1566,7 +1759,10 @@ function ensureCleanStyle(): void {
   style.id = 'hexland-clean-style';
   // Die Tastenhilfe (`.hints`) auch: Sie lag am Handy über ⟲ ✓ ⟳, und was sie
   // sagt (Klick, Q, Rad), stimmt hier ohnehin nicht — das steht in der Leiste.
-  style.textContent = `.${CLEAN_CLASS} .hud__row, .${CLEAN_CLASS} #hud-tool, .${CLEAN_CLASS} .hints { display: none !important; }`;
+  style.textContent =
+    `.${CLEAN_CLASS} .hud__row, .${CLEAN_CLASS} #hud-tool, .${CLEAN_CLASS} .hints { display: none !important; }` +
+    // Ohne die Knopfreihe rückt die Bildrate ganz nach oben.
+    `.${CLEAN_CLASS} .frame-stats { top: max(10px, env(safe-area-inset-top)); }`;
   document.head.append(style);
 }
 
@@ -1577,13 +1773,15 @@ function ensureCleanStyle(): void {
  */
 const SAVE_KEY: Readonly<Record<HexMode, string>> = {
   game: 'hexland:game',
+  endless: 'hexland:endless',
   creative: 'hexland:creative',
 };
 const MODE_KEY = 'hexland:mode';
 
 function readMode(): HexMode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'creative' ? 'creative' : 'game';
+    const mode = localStorage.getItem(MODE_KEY);
+    return mode === 'creative' || mode === 'endless' ? mode : 'game';
   } catch {
     return 'game';
   }
@@ -1608,7 +1806,7 @@ function loadBoard(mode: HexMode): HexBoard {
   }
   if (board.load(text) && board.mode === mode) return board;
   if (mode === 'creative') board.resetCreative();
-  else board.reset();
+  else board.reset(undefined, mode);
   return board;
 }
 

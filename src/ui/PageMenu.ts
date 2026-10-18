@@ -1161,9 +1161,17 @@ export class PageMenu {
       Math.min(this.window, source.length),
     );
     const ready = this.hasModel;
-    const fresh = shown.map((entry, at) =>
-      page.grid ? tile(entry, from + at, ready) : row(entry, from + at, page.take, ready),
-    );
+    const fresh = shown.map((entry, at) => {
+      if (page.grid) return tile(entry, from + at, ready);
+      const node = row(entry, from + at, page.take, ready);
+      // **Eine Auswahl steht als Block** (`MenuEntry.radio`): Nachbarn derselben Gruppe
+      // rücken ohne Lücke aneinander.
+      if (entry.radio) {
+        if (shown[at - 1]?.radio === entry.radio) node.classList.add('pmenu__row--joined-top');
+        if (shown[at + 1]?.radio === entry.radio) node.classList.add('pmenu__row--joined-bottom');
+      }
+      return node;
+    });
     this.list.style.paddingTop = from > 0 ? `calc(10px + ${this.skippedHeight()}px)` : '';
     const standing = [...this.list.children] as HTMLElement[];
     const sameRows =
@@ -1900,7 +1908,7 @@ function row(
     node.setAttribute('aria-disabled', 'true');
   }
   if (entry.checked !== undefined) {
-    node.setAttribute('role', 'switch');
+    node.setAttribute('role', entry.radio ? 'radio' : 'switch');
     node.setAttribute('aria-checked', entry.checked ? 'true' : 'false');
   }
   if (entry.caption) node.title = entry.caption;
@@ -1914,7 +1922,11 @@ function row(
 
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
 
-  if (entry.checked !== undefined) {
+  if (entry.checked !== undefined && entry.radio) {
+    const dot = el('span', 'pmenu__radio');
+    if (entry.checked) dot.classList.add('is-on');
+    node.append(dot);
+  } else if (entry.checked !== undefined) {
     const toggle = el('span', 'pmenu__switch');
     if (entry.checked) toggle.classList.add('is-on');
     node.append(toggle);

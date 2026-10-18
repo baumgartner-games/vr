@@ -86,30 +86,59 @@ bleibt in der Hand, bis man eine andere wählt (jede mit neuer Deko):
 Gewünscht: _„zwischen Creative Modus wechseln, wo ich dann einen Hex-Katalog
 habe und mir das nächste Tile aussuchen kann"_.
 
+### Spielmodus
+
+Drei Kreise in einem Block im Reiter (`modeRows`, `MenuEntry.radio`):
+**Normale Runde** (40 Kacheln), **Unendliches Spiel** (dieselben Regeln und
+dieselbe Wertung, der Stapel füllt sich immer nach, `HexMode` `endless`) und
+**Kreativ-Modus**. Jede Zeile öffnet die Frage _Weiterspielen_ (mit dem, was im
+Speicher dieses Modus liegt) oder _Neu starten_. Jeder Modus hat sein eigenes
+Brett (`hexland:game`, `hexland:endless`, `hexland:creative`). Gewünscht:
+_„Beim Spielmodus will ich auch eine Select-Option haben: normale Runde,
+unendliches Spiel, Creative Modus. Und beim Wechsel wird man gefragt, weiter
+spielen oder neu starten."_
+
 ### Spielhilfen
 
 Im Reiter _Hexland → Spielhilfen_, gemerkt im Browser (`hexland:help`), ab Werk
-alle aus bzw. _in der Nähe_. Gewünscht: _„intelligentes Vordrehen …
-Highlights von passenden Tile-Plätzen … Select-Options (nur eines davon) …
-Das sind halt Spielhilfen."_
+aus bzw. _In der Nähe_.
 
-- **Wo die neue Kachel liegt**: immer gemessen von der **zuletzt gelegten**
-  (`lastPlaced`) — _„soll an einem angrenzenden freien Feld platziert werden
-  oder sonst am nächsten dran"_. Eine der drei Arten (`autoPlace`):
+- **Kachel vordrehen** (Schalter): Ein Tipp auf ein Feld legt die Kachel gleich
+  in die Drehung, die dort am besten passt (`bestRotation`: Aufträge zuerst,
+  dann Kanten; bei Gleichstand bleibt die jetzige). Aus: Die Drehung des
+  Spielers bleibt.
+- **Felder einfärben** (Schalter, `slotColour`): gold, wo die Kachel einen
+  offenen Auftrag weiterführt; grün, je kräftiger, desto mehr Kanten passen;
+  rötlich, wo sie gar nicht liegen darf.
+- **Passende Kanten als Zahl** (Schalter, `drawDigits`): auf jedem freien Feld,
+  wo sie liegen darf, die Ziffer 0–6 — wie viele Kanten bestenfalls passen,
+  flach am Boden und zum Bild gedreht (ein Bündel je Ziffer). Rot bleibt rot.
+  Gewünscht: _„dass man bei der Anzeige wählen kann, kräftigere Farbe und
+  oder Zahlen darin"_.
+- **Wo die neue Kachel liegt** — drei Kreise in einem Block (`autoPlace`),
+  immer gemessen von der **zuletzt gelegten** (`lastPlaced`):
   - _In der Nähe_: das nächste freie Feld daneben, in der Drehung des Spielers
     (wenn sie dort passt).
-  - _An einem Auftrag_: wo sie ein offenes Auftragsgebiet weiterführt
-    (`HexBoard.questLinks`), schon passend gedreht.
-  - _An passender Grenze_: wo die meisten Kanten zu den Nachbarn passen,
-    schon passend gedreht.
-- **Kachel vordrehen**: Ein Tipp auf ein Feld legt die Kachel gleich in die
-  Drehung, die dort am besten passt (`bestRotation`: Aufträge zuerst, dann
-  Kanten; bei Gleichstand bleibt die jetzige). Aus: Die Drehung des Spielers
-  bleibt.
-- **Passende Felder zeigen** (`slotColour`): Die freien Felder sind gefärbt —
-  gold, wo die Kachel in irgendeiner Drehung einen offenen Auftrag
-  weiterführt; grün, je mehr ihrer Kanten passen; rötlich, wo sie gar nicht
-  liegen darf.
+  - _An passender Grenze_: wo die meisten Kanten passen, schon gedreht.
+  - _Intelligent_ (unten): erst wo sie ein offenes Auftragsgebiet weiterführt
+    (`HexBoard.questLinks`), sonst nach passenden Kanten, schon gedreht.
+    Gewünscht: _„Bei einem Auftrag und an einer passenden Grenze muss sich
+    nicht ausschließen … ‚intelligent' nennen und nach unten packen."_
+- **Die Auswahlen sind Kreise, kein Schieber**, und stehen als Block ohne
+  Lücke (`MenuEntry.radio`, neu im Menü am Schirm und in der Brille).
+
+### Kamera und Bildrate
+
+- **Nach dem Legen fliegt die Kamera zur neuen Kachel** (`stepFlight`): in
+  fester Zeit (`FLIGHT_SECONDS`, 0,8 s), kubisch ein und aus — langsam an,
+  schnell, sanft ab. Wer selbst schiebt, hält den Flug an. Gewünscht:
+  _„smoothe Bewegung (Kurve bei Beschleunigung), langsame Geschwindigkeit zu
+  Anfang, dann schnell, dann abbremsen. Aber in einer festen Zeit."_
+- **Bildrate im Bild** steht auch im Reiter — derselbe Schalter wie unter
+  _Grafik_ (`showFps`); das Feld steht jetzt überall oben rechts, in Hexland
+  ganz oben (die Knopfreihe fehlt dort).
+- **Pinch überall**: Zwei Finger zoomen jetzt auf dem ganzen Schirm außerhalb
+  der Bedienfelder (`FlatControls.startPinch`, galt vorher nur oben).
 
 ### Der Reiter _Hexland_
 
