@@ -90,7 +90,10 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 - **Die Kamera kreist** (`orbitEnd`): einmal Mitte des Bretts, Neigung 40°,
   Abstand so, dass das Brett auch hochkant quer hineinpasst; dann dreht sie
   sich mit `ORBIT_SPEED` (0,12 rad/s) über `topDownView.twist`. Bei einer
-  neuen Runde kehrt die Neigung von vorher zurück. Gewünscht: _„Dabei fliegt
+  neuen Runde (`startGame`, jeder Modus) kehrt die Neigung von vorher zurück,
+  der Abstand geht auf höchstens 30 m (`START_ZOOM`), und die Kamera fliegt
+  zu den Startkacheln in der Mitte — gewünscht: _„Bei einer neuen Runde
+  fliegt die Kamera bei den Start-Tiles."_ Gewünscht: _„Dabei fliegt
   die Kamera um die Spielwelt herum im 40°-Winkel und dreht sich langsam."_
 - **Während des Spiels** steht in der Leiste mit Bildchen, was noch kommt
   (`barCounts`): ein Sechseck mit der Zahl der Kacheln im Stapel, ein

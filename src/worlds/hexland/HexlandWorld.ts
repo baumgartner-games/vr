@@ -1970,6 +1970,19 @@ export class HexlandWorld extends FurnishedWorld {
     this.lastPlaced = null;
     this.redraw();
     this.say(`${MODE_LABEL[mode]} · neu gestartet`);
+    // **Die Kamera fliegt zu den Startkacheln** — gewünscht: _„Bei einer neuen
+    // Runde fliegt die Kamera bei den Start-Tiles."_ Vom Rundflug am Spielende
+    // (oder von wo man gerade war) zurück in die Mitte, nah genug zum Legen.
+    const view = this.lastCtx?.topDownView;
+    if (view) {
+      if (this.tiltBefore !== null) {
+        view.tilt?.(this.tiltBefore);
+        this.tiltBefore = null;
+      }
+      const state = view.get();
+      if (state.zoom > START_ZOOM) view.set({ ...state, zoom: START_ZOOM });
+    }
+    this.flyTo({ q: 0, r: 0 });
   }
 
   /** Alles vom Brett neu zeichnen. */
@@ -2117,6 +2130,8 @@ const BADGE_DISTANCE = 22;
 const BADGE_HIDE = 100;
 /** Wie schnell die Kamera am Spielende um das Brett kreist, im Bogenmaß je Sekunde. */
 const ORBIT_SPEED = 0.12;
+/** Wie nah die Kamera zu Beginn einer Runde höchstens steht, in Metern. */
+const START_ZOOM = 30;
 /** Wie weit hinaus gezoomt werden darf (`TopDownCamera.setMaxZoom`). */
 const HEX_MAX_ZOOM = 240;
 const _look = new THREE.Vector3();
