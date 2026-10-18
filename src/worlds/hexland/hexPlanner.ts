@@ -1,4 +1,4 @@
-import type { HexBoard, TileSpec } from './hexRules';
+import { hexKey, type HexBoard, type TileSpec } from './hexRules';
 
 /**
  * **Wohin mit der Kachel in der Hand** — die Rechnung hinter den Spielhilfen
@@ -51,17 +51,19 @@ export function scorePlacement(
 
 /**
  * **Intelligent (optimiert)** — gefunden in Runden gegen den Benchmark
- * (`docs/agents/hexland.md`, _Optimierung von Intelligent_).
+ * (`docs/agents/hexland.md`, _Optimierung von Intelligent_): die Rechnung von
+ * `smart`, dazu was die Lage sofort an Flaggen, Fluss und Weg bringt.
  */
 function optimizedScore(
-  _board: HexBoard,
-  _spec: TileSpec,
-  _q: number,
-  _r: number,
-  _rot: number,
+  board: HexBoard,
+  spec: TileSpec,
+  q: number,
+  r: number,
+  rot: number,
   a: ReturnType<HexBoard['assess']>,
   fit: NonNullable<ReturnType<HexBoard['fit']>>,
 ): number {
+  const side = sideGain(board, spec, q, r, rot);
   return (
     a.completes * 50 +
     a.points * 4 +
@@ -69,8 +71,43 @@ function optimizedScore(
     a.progress * 5 +
     a.ready * 8 -
     a.breaks * 100 +
-    fit.matched
+    fit.matched +
+    // Ein Punkt Flagge, Fluss oder Weg wiegt 8 — so viel wie ein Auftrag,
+    // der eine Kachel näher kommt, nicht mehr: Mit 15 kosteten die Aufträge
+    // mehr, als Flaggen und Fluss brachten (Runde 1b).
+    side * 8
   );
+}
+
+/**
+ * Wertung ohne Aufträge vor dem Zug — je Zug nur einmal gerechnet. Gemerkt
+ * an der Kachel in der Hand: Die ist mit jedem Zug ein neues Objekt.
+ */
+const sideBefore = new WeakMap<HexBoard, { hand: TileSpec | null; value: number }>();
+
+function sideOf(board: HexBoard): number {
+  const s = board.scoring();
+  return s.flags + s.river + s.road;
+}
+
+/**
+ * **Was die Lage sofort an Flaggen, Fluss und Weg bringt** — der Unterschied
+ * der Wertung ohne Aufträge (`HexBoard.scoring`), als läge die Kachel schon:
+ * eine Flagge, deren Gebiet sie schließt, der längste Fluss oder Weg, den sie
+ * verlängert. _Intelligent_ sah davon nichts und brachte im Schnitt nur 1,5
+ * Punkte Flaggen heim.
+ */
+function sideGain(board: HexBoard, spec: TileSpec, q: number, r: number, rot: number): number {
+  let before = sideBefore.get(board);
+  if (!before || before.hand !== board.current) {
+    before = { hand: board.current, value: sideOf(board) };
+    sideBefore.set(board, before);
+  }
+  const key = hexKey(q, r);
+  board.tiles.set(key, { q, r, spec, rot });
+  const after = sideOf(board);
+  board.tiles.delete(key);
+  return after - before.value;
 }
 
 /** **Die beste Lage** über alle freien Felder und Drehungen — `null`, wenn nichts passt. */

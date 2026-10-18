@@ -590,7 +590,32 @@ Flaggen 1,5, Fluss 5,4, Weg 4,7; 9,6 Aufträge erfüllt, 0,03 verpasst,
 
 ### Selbst gespielt
 
+#### Runde 1
+
+Von Hand (`hexplay`, nur 3 von 138 Zügen per `auto … smart`) gegen `auto 99 smart`:
+Samen 1001 **165** gegen 83, Samen 1002 **162** gegen 56 — beide weit über 59,3.
+Erfüllt 28 und 26 Aufträge (smart 14 und 9; bei smart lagen am Ende je **drei
+Aufträge fest**, 13 bzw. 18 Aufträge kamen nie). Der Unterschied ist der
+**Durchsatz an Auftragskacheln**, nicht Fluss oder Weg. Was ihn gemacht hat:
+
+- **Stapeln**: Auftragskachel in das Gebiet eines offenen Auftrags desselben Geländes mit gleicher oder größerer Zahl (A4+A5, H6+H6, F4+F6, F5+F6, w4+w5, r6+r6) — ein Gebiet zahlt zweimal. Merkmal: Auftrag der Kachel landet in einem Gebiet mit offenem Auftrag, Zahl ≥ eigene und Größe danach ≤ eigene → etwa +15.
+- **„Bereit" auch für vergebene Gebiete**: Ein Gebiet mit offenem Auftrag (Zahl T, Größe s) ist bereit für einen kommenden Auftrag s+1 ≤ T; `readiness` zählt es nicht.
+- **Bereit nur, wenn eine Landkachel andocken kann**: Ein bereites Gebiet, dessen einziges freies Feld Wasser oder Weg verlangt, ist wertlos (1002: F4 kam, passte nicht). Merkmal: `ready` nur zählen, wenn ein angrenzendes freies Feld keine harte Kante fordert.
+- **Brücken**: freies Feld, das zwei Gebiete desselben Geländes berührt, deren Größen + 1 genau die Zahl ergeben (A5, A6, H6 in 1001; r6+r6 in 1002 gab +14). Merkmal: je freiem Feld Summe der angrenzenden Gebietsgrößen + 1 = Zahl eines offenen Auftrags → +10.
+- **Hoffnungslose Aufträge opfern**: Weg-Auftrag mit Sackgasse oder ≥ 3 fehlenden Wegkacheln, H6 ohne passendes Feld — absichtlich überfüllen (an den langen Weg hängen, +1 Weg) gibt den Platz frei; viermal getan, die nächste Auftragskachel war jedes Mal bald fertig. smart rechnet dafür −88 bis −105. Merkmal: `breaks` nur bestrafen, wenn der Auftrag realistisch noch geht; sonst +3…5, solange der Auftragsstapel nicht leer ist.
+- **Seltenes Gelände zuerst**: Weg- (~12 %) und Flusskacheln (~20 %) für Weg-/Fluss-Aufträge verwenden, Wald/Stadt kommen ohnehin wieder. Weg-Sackgasse eines Auftrags an den vorhandenen Weg hängen (r6 1001: smart wollte sie allein legen); Küste w6 an den großen Fluss (5/6) statt Weizen-Fortschritt (smart 19 gegen 10). Merkmal: `progress` für Fluss/Weg ×2.
+- **Flaggen schließen**: +3, +5, +7, +8 sofort — smart wertet solche Lagen mit 1–2. (Deckt sich mit Runde 1a.)
+- **Keine Arme ins Leere**: Fluss-/Wegarme nicht auf Felder richten, die schon eine andere harte Kante verlangen (tote Felder) oder das einzige Wachstumsfeld eines Auftrags sind.
+
 ### Runden des Optimierers
 
 | Runde | Idee | optimiert − smart (Samen 1–300) | behalten |
 |---|---|---|---|
+| 1a | Sofortgewinn an Flaggen, Fluss und Weg (Unterschied von `scoring()` ohne Aufträge, als läge die Kachel schon) × 8 | +5,14 ± 1,41 (Flaggen 1,5 → 4,8) | ja |
+| 1b | wie 1a, aber × 15 | +3,45 ± 1,50 (gegen 1a −1,7; Aufträge 48,1 → 45,1) | nein |
+| 1c | 1a + −10 je freiem Nachbarfeld, das die Lage tot macht (`slotFor` → `dead`) | +5,86 ± 1,58 (gegen 1a +0,72 ± 0,86) | nein |
+| 1d | 1a, `closer` (Größe/Zahl) ersetzt durch 1/(Zahl − Größe) | gegen 1a −0,70 ± 0,84 | nein |
+| 1e | 1a, `ready` 8 → 16 | gegen 1a −2,50 ± 1,26 | nein |
+| 1f | 1a, `progress` 5 → 10 | gegen 1a +0,44 ± 0,46 | nein |
+| 1g | 1a, `ready` 8 → 4 | gegen 1a +0,42 ± 1,41 | nein |
+| 1h | 1a + −2 je offener Kante, die Gebiete mit Flagge dazubekommen (Flaggen 4,8 → 5,8, Aufträge 48,1 → 47,9) | gegen 1a +0,76 ± 1,01 | nein |
