@@ -74,6 +74,30 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   gehören zu einem Gebiet (eine Vereinfachung gegenüber dem Brettspiel, die
   man an keiner Kachel sieht).
 
+### Spielende (normale Runde)
+
+- **Vorbei ist es, wenn keine normale Kachel mehr da ist** (`HexBoard.over`,
+  `nextHand` gibt `null`, sobald der Stapel leer ist) — auch wenn noch
+  Auftragskacheln übrig wären. Gewünscht: _„Spielende ist, wenn ich keine
+  normalen Tiles legen kann, auch wenn Missionen übrig sind."_
+- **Die Leiste am Ende** (`drawBarIcon`, `endRow`): groß „Spielende · 82
+  Punkte", darunter gelegte Kacheln und erfüllte Aufträge; statt ⟲ ✓ ⟳
+  mittig **Neue Runde** und rechts **Punkte** (`toggleDetails`: Aufträge mit
+  erfüllt/verpasst, Flaggen, längster Fluss, längster Weg, Gesamt — über der
+  Leiste). Gewünscht: _„anstatt Legen und links/rechts gibt es einen
+  Neue-Runde-Button (mittig) und Punkte-im-Detail-Button"_. Die
+  Auftragsliste oben rechts verschwindet.
+- **Die Kamera kreist** (`orbitEnd`): einmal Mitte des Bretts, Neigung 40°,
+  Abstand so, dass das Brett auch hochkant quer hineinpasst; dann dreht sie
+  sich mit `ORBIT_SPEED` (0,12 rad/s) über `topDownView.twist`. Bei einer
+  neuen Runde kehrt die Neigung von vorher zurück. Gewünscht: _„Dabei fliegt
+  die Kamera um die Spielwelt herum im 40°-Winkel und dreht sich langsam."_
+- **Während des Spiels** steht in der Leiste mit Bildchen, was noch kommt
+  (`barCounts`): ein Sechseck mit der Zahl der Kacheln im Stapel, ein
+  Sechseck mit Ring mit offenen Aufträgen / 3 und dem Rest im
+  Auftragsstapel. Gewünscht: _„Ich will im Spiel noch sehen, wie viele Tiles
+  und Missionen ich habe (ggf. mit Icons über dem Legen-Button)"_.
+
 ### Kreativ-Modus
 
 Kein Stapel, keine Wertung. Die nächste Kachel kommt aus drei Quellen; sie

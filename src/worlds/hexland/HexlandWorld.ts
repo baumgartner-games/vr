@@ -602,6 +602,8 @@ export class HexlandWorld extends FurnishedWorld {
     const at = this.at;
     if (!spec || !at) {
       this.hand.visible = false;
+      // Die Leiste zeigt trotzdem, was gilt — am Spielende die Endpunkte.
+      this.drawBarIcon();
       return;
     }
     const c = hexCentre(at.q, at.r, HEX_WIDTH);
@@ -663,10 +665,22 @@ export class HexlandWorld extends FurnishedWorld {
   /** **Das Bildchen der Kachel in der Hand** in der Leiste — gedreht wie sie liegen wird. */
   private drawBarIcon(): void {
     const spec = this.board.current;
+    const ended = this.board.over && this.board.mode !== 'creative';
+    if (this.playRow) this.playRow.style.display = ended ? 'none' : 'grid';
+    if (this.endRow) this.endRow.style.display = ended ? 'grid' : 'none';
+    if (this.tileBarIcon) this.tileBarIcon.style.display = ended ? 'none' : '';
+    if (!ended && this.detailBox) this.detailBox.style.display = 'none';
+    if (ended && this.tileBarText) {
+      const done = this.questCount('done');
+      this.tileBarText.innerHTML =
+        `<b style="color:var(--hud-ink);font-size:20px">Spielende · ${this.board.scoring().total} Punkte</b>` +
+        `<br>${this.board.tiles.size} Kacheln gelegt · ${done} ${done === 1 ? 'Auftrag' : 'Aufträge'} erfüllt`;
+      return;
+    }
     if (this.tileBarText) {
       const quest = this.questLabel(spec);
       this.tileBarText.innerHTML =
-        `<b style="color:var(--hud-ink);font-size:15px">${this.statusTitle()}</b> · ${this.statusLine()}` +
+        `<b style="color:var(--hud-ink);font-size:15px">${this.statusTitle()}</b> · ${this.barCounts()}` +
         (quest
           ? `<br><b style="color:${TERRAIN_COLOUR[spec!.quest!.terrain]}">Auftrag: ${quest}</b> · genau so viele Kacheln`
           : spec?.flag
@@ -679,6 +693,108 @@ export class HexlandWorld extends FurnishedWorld {
     else this.tileBarIcon.getContext('2d')?.clearRect(0, 0, 999, 999);
     this.iconHeading = heading;
   }
+
+  /**
+   * **Wie viele Kacheln und Aufträge noch kommen, mit Bildchen** — gewünscht:
+   * _„Ich will im Spiel noch sehen, wie viele Tiles und Missionen ich habe
+   * (ggf. mit Icons da über dem Legen-Button)"_. Ein Sechseck für die
+   * Kacheln im Stapel, ein Sechseck mit Ring für die Aufträge: offen auf dem
+   * Brett / drei, und wie viele noch im Auftragsstapel liegen.
+   */
+  private barCounts(): string {
+    const b = this.board;
+    if (b.mode === 'creative') return this.statusLine();
+    const hex = (inner: string): string =>
+      `<svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-2px;margin-right:3px">` +
+      `<polygon points="10,1 18,5.5 18,14.5 10,19 2,14.5 2,5.5" fill="#9cc95a" stroke="#fff" stroke-width="1.4"/>${inner}</svg>`;
+    const tile = hex('');
+    const task = hex(
+      '<circle cx="10" cy="10" r="4.2" fill="#fff" stroke="#c8553d" stroke-width="1.6"/>',
+    );
+    const stack = b.mode === 'endless' ? '∞' : `${b.stack.length}`;
+    const deck = Number.isFinite(b.tasksLeft) ? ` · ${b.tasksLeft}` : '';
+    return (
+      `<span title="Kacheln im Stapel">${tile}${stack}</span>` +
+      ` &nbsp; <span title="Aufträge offen / ${OPEN_TASKS} · noch im Auftragsstapel">${task}${b.openTasks()}/${OPEN_TASKS}${deck}</span>`
+    );
+  }
+
+  /** Wie viele Aufträge auf dem Brett erfüllt (`done`) oder verpasst sind. */
+  private questCount(state: 'done' | 'failed'): number {
+    let n = 0;
+    for (const tile of this.board.tiles.values()) if (tile.spec.quest?.state === state) n++;
+    return n;
+  }
+
+  /** **Punkte im Detail** — über der Leiste, ein Tipp auf _Punkte_ zeigt und verbirgt sie. */
+  private toggleDetails(): void {
+    const box = this.detailBox;
+    if (!box) return;
+    const show = box.style.display === 'none';
+    box.style.display = show ? 'flex' : 'none';
+    if (!show) return;
+    const s = this.board.scoring();
+    const line = (label: string, points: number, note = ''): string =>
+      `<div style="display:flex;justify-content:space-between;gap:12px"><span>${label}` +
+      `${note ? `<span style="color:var(--hud-dim);font-weight:500"> · ${note}</span>` : ''}</span><b>${points}</b></div>`;
+    box.innerHTML =
+      line(
+        'Aufträge',
+        s.tasks,
+        `${this.questCount('done')} erfüllt, ${this.questCount('failed')} verpasst`,
+      ) +
+      line('Flaggen', s.flags, 'geschlossene Gebiete') +
+      line('Längster Fluss', s.river, 'je Kachel 1') +
+      line('Längster Weg', s.road, 'je Kachel 1') +
+      `<div style="border-top:1px solid var(--hud-line);margin-top:4px;padding-top:4px">${line('Gesamt', s.total)}</div>`;
+  }
+
+  /**
+   * **Am Spielende kreist die Kamera** — gewünscht: _„Dabei fliegt die Kamera
+   * um die Spielwelt herum im 40°-Winkel und dreht sich langsam."_ Einmal zu
+   * Beginn: Mitte des Bretts, Abstand, dass alles hineinpasst, Neigung 40°;
+   * dann dreht sie sich in jedem Bild ein Stück weiter. Wer zoomt, darf das.
+   */
+  private orbitEnd(dt: number, ctx: WorldContext): void {
+    const ended = this.board.over && this.board.mode !== 'creative' && this.board2d;
+    const view = ctx.topDownView;
+    if (!ended || !view) {
+      if (this.tiltBefore !== null && !this.board.over) {
+        view?.tilt?.(this.tiltBefore);
+        this.tiltBefore = null;
+      }
+      return;
+    }
+    if (this.tiltBefore === null) {
+      this.tiltBefore = view.tilt?.() ?? 60;
+      view.tilt?.(40);
+      let x = 0;
+      let z = 0;
+      for (const t of this.board.tiles.values()) {
+        const c = hexCentre(t.q, t.r, HEX_WIDTH);
+        x += c.x;
+        z += c.z;
+      }
+      const n = Math.max(1, this.board.tiles.size);
+      this.orbitCentre.set(x / n, ctx.rig.getFloorY(), z / n);
+      let radius = 0;
+      for (const t of this.board.tiles.values()) {
+        const c = hexCentre(t.q, t.r, HEX_WIDTH);
+        radius = Math.max(radius, Math.hypot(c.x - this.orbitCentre.x, c.z - this.orbitCentre.z));
+      }
+      // So weit weg, dass das ganze Brett auch quer ins Bild passt (am Handy hochkant).
+      const camera = ctx.viewCamera ?? ctx.camera;
+      const spread =
+        Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect);
+      const fit = (0.85 * (radius + HEX_WIDTH)) / Math.max(0.05, spread);
+      view.set({ ...view.get(), zoom: Math.min(HEX_MAX_ZOOM, Math.max(22, fit)) });
+      this.flight = null;
+    }
+    this.movePlayerTo(ctx, this.orbitCentre);
+    view.twist?.(dt * ORBIT_SPEED);
+  }
+
+  private readonly orbitCentre = new THREE.Vector3();
 
   /** **„Dorf 4"** — was der Auftrag einer Kachel verlangt, oder `null`. */
   private questLabel(spec: TileSpec | null): string | null {
@@ -858,7 +974,6 @@ export class HexlandWorld extends FurnishedWorld {
     if (!list) {
       list = document.createElement('div');
       list.className = 'hexland-quests';
-      list.hidden = true;
       list.style.cssText = [
         'position:fixed',
         'right:max(10px, env(safe-area-inset-right))',
@@ -956,6 +1071,7 @@ export class HexlandWorld extends FurnishedWorld {
       (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 + pulse * 0.45;
     }
     this.stepFlight(dt, ctx);
+    this.orbitEnd(dt, ctx);
     this.sizeBadges(ctx);
     // Dreht sich das Bild, liegen die Ziffern neu (`drawDigits`).
     if (this.help.numbers && Math.abs(this.headingNow(ctx) - this.digitHeading) > 0.05)
@@ -1001,6 +1117,13 @@ export class HexlandWorld extends FurnishedWorld {
   private tileBarIcon: HTMLCanvasElement | null = null;
   private tileQuick: HTMLElement | null = null;
   private legenButton: HTMLButtonElement | null = null;
+  /** ⟲ ✓ ⟳ — während des Spiels; am Ende `endRow` (`showEnd`). */
+  private playRow: HTMLElement | null = null;
+  private endRow: HTMLElement | null = null;
+  /** Die Punkte im Detail, über der Leiste, am Spielende auf Wunsch. */
+  private detailBox: HTMLElement | null = null;
+  /** Die Neigung, die vor dem Rundflug am Spielende galt — für die nächste Runde. */
+  private tiltBefore: number | null = null;
   /** Was zuletzt im Baukasten gebaut wurde — vorn in der Schnellliste. */
   private lastBuilt: TileSpec | null = null;
   /** Die Kanten im Baukasten, von Kante 0 (rechts) im Uhrzeigersinn. */
@@ -1048,7 +1171,10 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.info) this.info.visible = !flat;
     if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
     if (this.questList) {
-      this.questList.hidden = !flat || ctx.menu.isOpen || this.questList.childElementCount === 0;
+      // `style.display` und nicht `hidden`: Das `display:flex` der Liste schlüge das Attribut.
+      const hide =
+        !flat || ctx.menu.isOpen || this.board.over || this.questList.childElementCount === 0;
+      this.questList.style.display = hide ? 'none' : 'flex';
       // Unter der Bildrate, wenn sie zu sehen ist.
       const stats = document.querySelector<HTMLElement>('.frame-stats:not([hidden])');
       const top = stats
@@ -1183,6 +1309,25 @@ export class HexlandWorld extends FurnishedWorld {
 
     const row = document.createElement('div');
     row.style.cssText = 'display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px';
+    this.playRow = row;
+    // **Am Spielende** statt ⟲ ✓ ⟳: mittig _Neue Runde_, rechts die Punkte im
+    // Detail — gewünscht: _„anstatt Legen und links/rechts gibt es einen
+    // Neue-Runde-Button (mittig) und Punkte-im-Detail-Button"_.
+    const end = document.createElement('div');
+    end.style.cssText = 'display:none;grid-template-columns:1fr 1.4fr 1fr;gap:10px';
+    const spacer = document.createElement('span');
+    const details = button('Punkte', 'Punkte im Detail', () => this.toggleDetails());
+    details.style.fontSize = '16px';
+    end.append(
+      spacer,
+      button('Neue Runde', 'Neue Runde starten', () => this.startGame('game'), true),
+      details,
+    );
+    this.endRow = end;
+    const detail = document.createElement('div');
+    detail.style.cssText =
+      'display:none;flex-direction:column;gap:4px;padding:4px 6px;font:600 14px var(--hud-font);color:var(--hud-ink)';
+    this.detailBox = detail;
     row.append(
       button('⟲', 'Kachel links drehen (Q)', () => this.rotate(-1)),
       (this.legenButton = button(
@@ -1193,7 +1338,7 @@ export class HexlandWorld extends FurnishedWorld {
       )),
       button('⟳', 'Kachel rechts drehen (R / E)', () => this.rotate(1)),
     );
-    bar.append(quick, info, row);
+    bar.append(quick, detail, info, row, end);
     document.body.append(bar);
     this.tileBar = bar;
     this.tileBarText = text;
@@ -1970,6 +2115,8 @@ const _badge = new THREE.Vector3();
 const BADGE_DISTANCE = 22;
 /** Ab hier keine Schilder mehr über dem Brett (`sizeBadges`). */
 const BADGE_HIDE = 100;
+/** Wie schnell die Kamera am Spielende um das Brett kreist, im Bogenmaß je Sekunde. */
+const ORBIT_SPEED = 0.12;
 /** Wie weit hinaus gezoomt werden darf (`TopDownCamera.setMaxZoom`). */
 const HEX_MAX_ZOOM = 240;
 const _look = new THREE.Vector3();
