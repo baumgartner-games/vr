@@ -866,13 +866,13 @@ export class HexBoard {
    * **Was diese Lage für die Aufträge bedeutet** — für die Spielhilfen, die
    * Felder vorschlagen. Gerechnet wird, als läge die Kachel schon dort.
    *
-   * - `progress`: um wie viele Kacheln offene Aufträge wachsen, ohne über ihre
-   *   Zahl zu kommen;
-   * - `completes`: wie viele dadurch genau ihre Zahl erreichen;
+   * - `progress`: um wie viele Kacheln offene Aufträge wachsen, ohne ihre
+   *   Zahl schon zu erreichen;
+   * - `completes`: wie viele dadurch genau ihre Zahl erreichen, und `points`,
+   *   was sie zusammen bringen (ihre Zahlen);
    * - `breaks`: wie viele dadurch **unerfüllbar** werden — ihr Gebiet wird
-   *   größer als die Zahl, schließt sich ringsum, bevor die Zahl erreicht ist,
-   *   oder trägt nun zwei Aufträge mit verschiedenen Zahlen. Auch der eigene
-   *   Auftrag der Kachel zählt mit;
+   *   größer als die Zahl oder schließt sich ringsum, bevor die Zahl erreicht
+   *   ist. Auch der eigene Auftrag der Kachel zählt mit;
    * - `closer`: wie nah die gewachsenen, noch nicht erfüllten Aufträge danach
    *   ihrer Zahl sind — je Auftrag Größe durch Zahl, aufsummiert. So zieht ein
    *   Auftrag, dem nur noch eine Kachel fehlt, stärker als einer, der eben
@@ -886,7 +886,7 @@ export class HexBoard {
     q: number,
     r: number,
     rot: number,
-  ): { progress: number; completes: number; breaks: number; closer: number } {
+  ): { progress: number; completes: number; points: number; breaks: number; closer: number } {
     const key = hexKey(q, r);
     const before = this.questStates();
     this.tiles.set(key, { q, r, spec, rot });
@@ -894,25 +894,31 @@ export class HexBoard {
     this.tiles.delete(key);
     let progress = 0;
     let completes = 0;
+    let points = 0;
     let breaks = 0;
     let closer = 0;
     for (const [id, now] of after) {
       const was = before.get(id);
       if (!now.possible && (was?.possible ?? true)) breaks++;
       if (!now.possible) continue;
-      if (now.size === now.target && (was?.size ?? 0) !== now.target) completes++;
+      if (now.size === now.target && (was?.size ?? 0) !== now.target) {
+        completes++;
+        points += now.target;
+        continue;
+      }
+      // Der eigene Auftrag der Kachel war vorher nicht da: Er zählt nur damit,
+      // wie nah er gleich seiner Zahl ist — gewachsen ist er nicht.
       const grown = was ? Math.max(0, now.size - was.size) : 0;
       progress += grown;
-      if (grown > 0 && now.size < now.target) closer += now.size / now.target;
+      if ((grown > 0 || !was) && now.size < now.target) closer += now.size / now.target;
     }
-    return { progress, completes, breaks, closer };
+    return { progress, completes, points, breaks, closer };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */
   private questStates(): Map<string, { size: number; target: number; possible: boolean }> {
     const out = new Map<string, { size: number; target: number; possible: boolean }>();
     const cache = new Map<Terrain, Areas>();
-    const targets = new Map<string, Set<number>>();
     const rows: Array<{ id: string; area: string; size: number; target: number; open: boolean }> =
       [];
     for (const [key, tile] of this.tiles) {
@@ -922,9 +928,6 @@ export class HexBoard {
       if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain)));
       const root = areas.find(key);
       const area = `${quest.terrain}:${root}`;
-      let set = targets.get(area);
-      if (!set) targets.set(area, (set = new Set()));
-      set.add(quest.target);
       rows.push({
         id: key,
         area,
@@ -933,9 +936,13 @@ export class HexBoard {
         open: areas.open.get(root) === true,
       });
     }
+    // Mehrere offene Aufträge in einem Gebiet sind **kein** Widerspruch, auch
+    // mit verschiedenen Zahlen: Das Gebiet wächst weiter, erst wird der kleine
+    // erfüllt, später der große. Gemeldet: _„Hier könnte der Weg bei dem 3er
+    // statt beim 2er vorgeschlagen werden"_ — ein Weg-Auftrag 5 an einem Weg
+    // 3 / 4 galt als unmöglich und wurde nie vorgeschlagen.
     for (const row of rows) {
-      const clash = (targets.get(row.area)?.size ?? 1) > 1;
-      const possible = !clash && (row.size === row.target || (row.size < row.target && row.open));
+      const possible = row.size === row.target || (row.size < row.target && row.open);
       out.set(row.id, { size: row.size, target: row.target, possible });
     }
     return out;

@@ -169,17 +169,24 @@ aus bzw. _In der Nähe_.
     durch, als läge die Kachel schon: wie viel offene Aufträge wachsen, ob
     einer **genau** seine Zahl erreicht, wie nah die übrigen ihrer Zahl kommen
     (`closer`, Größe durch Zahl) — und ob einer **unerfüllbar** würde
-    (Gebiet größer als die Zahl, ringsum geschlossen vor der Zahl, oder zwei
-    Aufträge mit verschiedenen Zahlen im selben Gebiet; der eigene Auftrag der
-    Kachel zählt mit). So eine Lage schlägt keine Hilfe mehr vor, auch _An
+    (Gebiet größer als die Zahl oder ringsum geschlossen vor der Zahl; der
+    eigene Auftrag der Kachel zählt mit). So eine Lage schlägt keine Hilfe mehr vor, auch _An
     passender Grenze_ und _Kachel vordrehen_ nicht. Gemeldet war: _„Einige
     Empfehlungen würden dazu führen, dass ich die Aufträge niemals schaffen
     könnte."_ Nachgerechnet über 20 Runden: nur nach Kanten 50 Aufträge
     verpasst und 84 erfüllt, mit `assess` 0 verpasst und 157 erfüllt.
-    Reihenfolge in `questScore`: fertig (60) vor nah dran (20 × Größe/Zahl)
-    vor bloßem Wachstum (5 je Kachel) — gewünscht: _„Bei dem Vorschlag sollte
-    ggf. auch dort vorgeschlagen werden, wo Aufträge am ehesten beendet
-    werden."_
+    Reihenfolge in `questScore`: fertig nach Punkten (50 je Auftrag + 4 je
+    Punkt der Zahl) vor nah dran (20 × Größe/Zahl, auch für den eigenen
+    Auftrag der Kachel) vor bloßem Wachstum (5 je Kachel) — gewünscht: _„Bei
+    dem Vorschlag sollte ggf. auch dort vorgeschlagen werden, wo Aufträge am
+    ehesten beendet werden."_ Und an zwei geteilten Spielständen gemeldet:
+    _„Intelligent könnte die Stadt direkt beenden, stattdessen wird das Tile
+    woanders vorgeschlagen"_ (Stadt 5 sofort fertig zählte so viel wie ein
+    Weg 4) und _„Hier könnte der Weg bei dem 3er statt beim 2er vorgeschlagen
+    werden"_: Zwei offene Aufträge mit verschiedenen Zahlen im selben Gebiet
+    galten als unmöglich — sind sie nicht, das Gebiet wächst weiter, erst der
+    kleine, dann der große. Nachgerechnet über 20 Runden: erfüllt 116 → 137,
+    Punkte im Schnitt 38 → 45.
     Gewünscht: _„Bei einem Auftrag und an einer passenden Grenze muss sich
     nicht ausschließen … ‚intelligent' nennen und nach unten packen."_
 - **Die Auswahlen sind Kreise, kein Schieber**, und stehen als Block ohne
