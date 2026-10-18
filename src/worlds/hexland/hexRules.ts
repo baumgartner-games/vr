@@ -1116,14 +1116,21 @@ export class HexBoard {
    *   Auftrag, dem nur noch eine Kachel fehlt, stärker als einer, der eben
    *   erst angefangen hat.
    *
+   * - `rareProgress`, `rareCloser`: der Teil davon, der auf Fluss- und
+   *   Weg-Aufträge fällt — für _Intelligent (optimiert)_, das ihn doppelt zählt.
+   *
    * Gemeldet war, dass die Hilfe Felder empfahl, nach denen ein Auftrag nie
    * mehr zu schaffen war — sie zählte nur, ob ein Gebiet weiterwächst.
+   *
+   * `landReady`: `ready` zählt nur Gebiete, an die eine Landkachel andocken
+   * kann (`readiness`) — so rechnet _Intelligent (optimiert)_.
    */
   assess(
     spec: TileSpec,
     q: number,
     r: number,
     rot: number,
+    landReady = false,
   ): {
     progress: number;
     completes: number;
@@ -1131,19 +1138,23 @@ export class HexBoard {
     breaks: number;
     closer: number;
     ready: number;
+    rareProgress: number;
+    rareCloser: number;
   } {
     const key = hexKey(q, r);
     const before = this.questStates();
-    const readyBefore = this.readiness();
+    const readyBefore = this.readiness(landReady);
     this.tiles.set(key, { q, r, spec, rot });
     const after = this.questStates();
-    const readyAfter = this.readiness();
+    const readyAfter = this.readiness(landReady);
     this.tiles.delete(key);
     let progress = 0;
     let completes = 0;
     let points = 0;
     let breaks = 0;
     let closer = 0;
+    let rareProgress = 0;
+    let rareCloser = 0;
     for (const [id, now] of after) {
       const was = before.get(id);
       if (!now.possible && (was?.possible ?? true)) breaks++;
@@ -1156,8 +1167,13 @@ export class HexBoard {
       // Der eigene Auftrag der Kachel war vorher nicht da: Er zählt nur damit,
       // wie nah er gleich seiner Zahl ist — gewachsen ist er nicht.
       const grown = was ? Math.max(0, now.size - was.size) : 0;
+      const rare = now.area.startsWith('water:') || now.area.startsWith('road:');
       progress += grown;
-      if ((grown > 0 || !was) && now.size < now.target) closer += now.size / now.target;
+      if (rare) rareProgress += grown;
+      if ((grown > 0 || !was) && now.size < now.target) {
+        closer += now.size / now.target;
+        if (rare) rareCloser += now.size / now.target;
+      }
     }
     // **Vorbereitet**: was dazukommt, zählt, was verloren geht, zählt dagegen.
     // Und ein 3er-Wald, der für einen kommenden Wald 4 bereitsteht, wird nicht
@@ -1180,7 +1196,7 @@ export class HexBoard {
       }
     // Ein Gebiet, das von „bereit für 4" zu „bereit für 5" wächst, gibt etwas her.
     for (const terrain of gained) if (lost.has(terrain)) ready -= 0.15;
-    return { progress, completes, points, breaks, closer, ready };
+    return { progress, completes, points, breaks, closer, ready, rareProgress, rareCloser };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */
@@ -1231,8 +1247,13 @@ export class HexBoard {
    * Städte bzw. Gebiete so weit vorbereitet, wenn z. B. noch klar ist, dass
    * eine 4er-Stadt als Mission kommen kann, dass man eine 3er-Stadt, falls
    * noch nicht existierend, mit freier Kachel nebenan so weit aufbaut"_.
+   *
+   * `land`: Wald, Stadt und Weizen zählen nur, wenn eines ihrer freien Felder
+   * keinen Fluss und keinen Weg verlangt (`landing`) — die Auftragskachel ist
+   * dort fast immer eine Landkachel. Beim Spielen gefunden: Ein bereiter Wald 3,
+   * dessen einziges freies Feld an einem Weg lag, nahm den Wald 4 nicht auf.
    */
-  private readiness(): Set<string> {
+  private readiness(land = false): Set<string> {
     const wanted = new Map<QuestTerrain, Set<number>>();
     for (const t of this.tasks) {
       let set = wanted.get(t.terrain);
@@ -1248,13 +1269,46 @@ export class HexBoard {
         if (tile.spec.quest?.state === 'open' && tile.spec.quest.terrain === terrain)
           taken.add(areas.find(key));
       }
+      const landing = land && terrain !== 'water' && terrain !== 'road' ? this.landing(terrain, areas) : null;
       const sizes = new Set<number>();
       for (const [root, size] of areas.size) {
+        if (landing && !landing.has(root)) continue;
         if (!taken.has(root) && areas.open.get(root) === true) sizes.add(size);
       }
       for (const target of targets) if (sizes.has(target - 1)) ready.add(`${terrain}:${target}`);
     }
     return ready;
+  }
+
+  /** Die Gebiete, an deren Rand ein freies Feld liegt, an dem kein Nachbar Fluss oder Weg verlangt. */
+  private landing(terrain: Terrain, areas: Areas): Set<string> {
+    const out = new Set<string>();
+    const free = new Map<string, boolean>();
+    for (const [key, tile] of this.tiles) {
+      if (!tile.spec.edges.includes(terrain)) continue;
+      const root = areas.find(key);
+      if (out.has(root)) continue;
+      for (let e = 0; e < 6; e++) {
+        if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
+        const n = neighbour(tile, e);
+        const slot = hexKey(n.q, n.r);
+        if (this.tiles.has(slot)) continue;
+        let ok = free.get(slot);
+        if (ok === undefined) {
+          ok = HEX_DIRS.every((_, f) => {
+            const m = neighbour(n, f);
+            const other = this.at(m.q, m.r);
+            return !other || !hard(edgeAt(other.spec, other.rot, opposite(f)));
+          });
+          free.set(slot, ok);
+        }
+        if (ok) {
+          out.add(root);
+          break;
+        }
+      }
+    }
+    return out;
   }
 
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */

@@ -34,8 +34,8 @@ export function scorePlacement(
 ): number | null {
   const fit = board.fit(spec, q, r, rot);
   if (!fit) return null;
-  const a = board.assess(spec, q, r, rot);
   if (strategy === 'smart') {
+    const a = board.assess(spec, q, r, rot);
     return (
       a.completes * 50 +
       a.points * 4 +
@@ -46,13 +46,15 @@ export function scorePlacement(
       fit.matched
     );
   }
-  return optimizedScore(board, spec, q, r, rot, a, fit);
+  return optimizedScore(board, spec, q, r, rot, fit);
 }
 
 /**
  * **Intelligent (optimiert)** — gefunden in Runden gegen den Benchmark
  * (`docs/agents/hexland.md`, _Optimierung von Intelligent_): die Rechnung von
- * `smart`, dazu was die Lage sofort an Flaggen, Fluss und Weg bringt.
+ * `smart`, dazu was die Lage sofort an Flaggen, Fluss und Weg bringt; Fluss-
+ * und Weg-Aufträge wachsen doppelt so viel wert, und „vorbereitet" zählt nur,
+ * wo eine Landkachel andocken kann.
  */
 function optimizedScore(
   board: HexBoard,
@@ -60,15 +62,21 @@ function optimizedScore(
   q: number,
   r: number,
   rot: number,
-  a: ReturnType<HexBoard['assess']>,
   fit: NonNullable<ReturnType<HexBoard['fit']>>,
 ): number {
+  // Ein bereites Gebiet, an dessen freien Feldern schon Fluss oder Weg
+  // anliegt, nimmt die Auftragskachel selten auf (Runde 2, Idee aus dem
+  // Selbst-Spielen; +3,4 gegen 1a).
+  const a = board.assess(spec, q, r, rot, true);
   const side = sideGain(board, spec, q, r, rot);
   return (
     a.completes * 50 +
     a.points * 4 +
-    a.closer * 20 +
-    a.progress * 5 +
+    // Fluss- und Wegkacheln sind selten (etwa jede fünfte und achte): Ein
+    // Fluss- oder Weg-Auftrag, der wächst, ist schwerer zu ersetzen als ein
+    // Wald. Doppelt gezählt brachte das +2,1 (Runde 2).
+    (a.closer + a.rareCloser) * 20 +
+    (a.progress + a.rareProgress) * 5 +
     a.ready * 8 -
     a.breaks * 100 +
     fit.matched +
