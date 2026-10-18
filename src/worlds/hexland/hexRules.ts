@@ -783,6 +783,44 @@ export class HexBoard {
     return { done, failed };
   }
 
+  /**
+   * **Wie viele Kanten dieser Lage ein offenes Auftragsgebiet weiterführen** —
+   * für die Spielhilfen (`HexlandWorld`, _an einem offenen Auftrag_): Eine
+   * Kante zählt, wenn ihr Gelände an die gleiche Kante eines Nachbarn stößt,
+   * dessen Gebiet einen offenen Auftrag dieses Geländes trägt, der noch nicht
+   * voll ist. Trägt die Kachel selbst einen Auftrag, zählt auch, dass ihr
+   * Gebiet überhaupt anschließt.
+   */
+  questLinks(spec: TileSpec, q: number, r: number, rot: number): number {
+    const wanting = new Map<Terrain, Set<string>>();
+    for (const [key, tile] of this.tiles) {
+      const quest = tile.spec.quest;
+      if (!quest || quest.state !== 'open' || quest.target === null) continue;
+      const areas = this.areas(quest.terrain);
+      const root = areas.find(key);
+      if ((areas.size.get(root) ?? 0) >= quest.target) continue;
+      let roots = wanting.get(quest.terrain);
+      if (!roots) wanting.set(quest.terrain, (roots = new Set()));
+      roots.add(`${root}`);
+      this.areaCache.set(quest.terrain, areas);
+    }
+    let links = 0;
+    for (let e = 0; e < 6; e++) {
+      const mine = edgeAt(spec, rot, e);
+      const n = neighbour({ q, r }, e);
+      const other = this.at(n.q, n.r);
+      if (!other || edgeAt(other.spec, other.rot, opposite(e)) !== mine) continue;
+      const roots = wanting.get(mine);
+      const areas = this.areaCache.get(mine);
+      if (roots && areas && roots.has(areas.find(hexKey(n.q, n.r)))) links++;
+      else if (spec.quest?.terrain === mine) links += 0.5;
+    }
+    this.areaCache.clear();
+    return links;
+  }
+
+  private readonly areaCache = new Map<Terrain, Areas>();
+
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
   questProgress(tile: PlacedTile): { size: number; target: number } | null {
     const quest = tile.spec.quest;

@@ -85,6 +85,10 @@ export class HexlandWorld extends FurnishedWorld {
   private lastCtx: WorldContext | null = null;
   private offDom: Array<() => void> = [];
   private hexMaterials: THREE.Material[] = [];
+  /** Die Spielhilfen (`helpMenu`), gemerkt im Browser. */
+  private help: HexHelp = readHelp();
+  /** Wo zuletzt gelegt wurde — dort in der Nähe liegt die nächste (`autoPlace`). */
+  private lastPlaced: Hex | null = null;
   /** Der Ring um das Feld der neuen Kachel — er pulsiert (`update`). */
   private ring: THREE.Mesh | null = null;
 
@@ -200,6 +204,9 @@ export class HexlandWorld extends FurnishedWorld {
     this.hexMaterials.push(slotMaterial);
     this.slots = new THREE.InstancedMesh(slotGeometry, slotMaterial, 256);
     this.slots.frustumCulled = false;
+    // Die Farbe je Feld gibt es von Anfang an (`slotColour`), sonst müsste der
+    // Shader beim ersten Einfärben neu gebaut werden.
+    this.slots.setColorAt(0, new THREE.Color(0xffffff));
     this.slots.name = 'hexland-slots';
     this.root.add(this.slots);
 
@@ -334,6 +341,8 @@ export class HexlandWorld extends FurnishedWorld {
     // gespeicherte Drehung sollte auch beibehalten werden, wenn ich das Tile
     // wechsle bzw. die Position."_ Passt sie dort nicht, wird der Ring rot.
     this.at = hex;
+    // **Kachel vordrehen** (Spielhilfe): schon so gedreht, wie sie hier passt.
+    if (this.help.smartRotate) this.rot = this.bestRotation(spec, hex);
     this.refresh(false);
   }
 
@@ -370,6 +379,7 @@ export class HexlandWorld extends FurnishedWorld {
     }
     const tile = this.board.at(at.q, at.r)!;
     void this.view?.add(tile);
+    this.lastPlaced = { q: at.q, r: at.r };
     this.at = null;
     writeSave(this.board.save(), this.board.mode);
     this.announceResult(result);
@@ -437,32 +447,69 @@ export class HexlandWorld extends FurnishedWorld {
   private autoPlace(): void {
     const spec = this.board.current;
     if (!spec) return;
-    const me = this.context?.rig.position ?? new THREE.Vector3();
-    // Erst ein Feld, auf dem die Kachel **in ihrer jetzigen Drehung** passt —
-    // die Drehung gehört dem Spieler. Nur wenn es keines gibt, dreht sie mit.
+    const slots = this.board.openSlots();
+    if (slots.length === 0) return;
+    // **Woher gemessen wird**: von der zuletzt gelegten Kachel — gewünscht:
+    // _„Wenn ich ein Tile gesetzt habe, soll das neue Tile dann nicht irgendwo
+    // default vorbereitet werden, sondern an einem angrenzenden freien Feld
+    // platziert werden oder sonst am nächsten dran."_ Ohne eine (frisch
+    // betreten) von der Bildmitte.
+    const from = this.lastPlaced
+      ? hexCentre(this.lastPlaced.q, this.lastPlaced.r, HEX_WIDTH)
+      : (this.context?.rig.position ?? { x: 0, z: 0 });
+    const far = (slot: Hex): number => {
+      const c = hexCentre(slot.q, slot.r, HEX_WIDTH);
+      return Math.hypot(c.x - from.x, c.z - from.z) / HEX_WIDTH;
+    };
+    const place = this.help.place;
     let best: { hex: Hex; rot: number; score: number } | null = null;
-    for (const keep of [true, false]) {
-      for (const slot of this.board.openSlots()) {
-        const rotations = keep ? [this.rot] : this.board.rotations(spec, slot.q, slot.r);
-        const rot = rotations[0];
-        if (rot === undefined) continue;
-        const fit = this.board.fit(spec, slot.q, slot.r, rot);
-        if (!fit) continue;
-        const c = hexCentre(slot.q, slot.r, HEX_WIDTH);
-        const far = Math.hypot(c.x - me.x, c.z - me.z) / HEX_WIDTH;
-        const score = fit.matched * 2 - far;
-        if (!best || score > best.score) best = { hex: slot, rot, score };
+    for (const slot of slots) {
+      // In der Nähe behält die Kachel die Drehung des Spielers (oder die
+      // vorgedrehte); an Auftrag und Grenze dreht die Hilfe sie selbst.
+      const keep =
+        place === 'near' &&
+        !this.help.smartRotate &&
+        this.board.fit(spec, slot.q, slot.r, this.rot);
+      const rot = keep ? this.rot : this.bestRotation(spec, slot);
+      const fit = this.board.fit(spec, slot.q, slot.r, rot);
+      // Ein Feld, auf dem sie so gar nicht liegen darf, nur als letzter Ausweg.
+      const penalty = fit ? 0 : 1000;
+      const matched = fit?.matched ?? 0;
+      let score: number;
+      if (place === 'near') score = -far(slot) - penalty;
+      else if (place === 'quest') {
+        const links = this.board.questLinks(spec, slot.q, slot.r, rot);
+        score = links * 10 + matched - far(slot) * 0.25 - penalty;
+      } else {
+        const ratio = fit && fit.neighbours > 0 ? matched / fit.neighbours : 0;
+        score = matched * 3 + ratio - far(slot) * 0.25 - penalty;
       }
-      if (best) break;
+      if (!best || score > best.score) best = { hex: slot, rot, score };
     }
-    if (best) {
-      this.at = best.hex;
-      this.rot = best.rot;
-    } else {
-      // Nirgends passend: Dann eben das nächste freie Feld, und sie darf überall hin.
-      const slot = this.board.openSlots()[0] ?? null;
-      this.at = slot;
+    if (!best) return;
+    this.at = best.hex;
+    this.rot = best.rot;
+  }
+
+  /**
+   * **Die Drehung, die auf diesem Feld am besten passt** — Aufträge zuerst,
+   * dann passende Kanten; bei Gleichstand die jetzige, damit nichts unnötig
+   * springt. Geht keine, bleibt die jetzige.
+   */
+  private bestRotation(spec: TileSpec, slot: Hex): number {
+    let best = this.rot;
+    let bestScore = -Infinity;
+    for (let k = 0; k < 6; k++) {
+      const rot = (this.rot + k) % 6;
+      const fit = this.board.fit(spec, slot.q, slot.r, rot);
+      if (!fit) continue;
+      const score = this.board.questLinks(spec, slot.q, slot.r, rot) * 10 + fit.matched;
+      if (score > bestScore) {
+        bestScore = score;
+        best = rot;
+      }
     }
+    return best;
   }
 
   private posePreview(): void {
@@ -574,12 +621,41 @@ export class HexlandWorld extends FurnishedWorld {
       this.slots = slots = bigger;
     }
     const m = new THREE.Matrix4();
+    const colour = new THREE.Color();
+    const spec = this.board.current;
     open.forEach((slot, i) => {
       const c = hexCentre(slot.q, slot.r, HEX_WIDTH);
       slots.setMatrixAt(i, m.makeTranslation(c.x, 0.01, c.z));
+      slots.setColorAt(i, this.slotColour(spec, slot, colour));
     });
     slots.count = this.board.over ? 0 : open.length;
     slots.instanceMatrix.needsUpdate = true;
+    if (slots.instanceColor) slots.instanceColor.needsUpdate = true;
+  }
+
+  /**
+   * **Wie ein freies Feld gefärbt ist** — weiß, oder mit der Spielhilfe
+   * _Passende Felder zeigen_: gold, wo die Kachel einen offenen Auftrag
+   * weiterführt; grün, je mehr Kanten passen; rötlich, wo sie gar nicht
+   * liegen darf.
+   */
+  private slotColour(spec: TileSpec | null, slot: Hex, out: THREE.Color): THREE.Color {
+    if (!this.help.highlight || !spec) return out.setHex(0xffffff);
+    let bestMatched = -1;
+    let ratio = 0;
+    let links = 0;
+    for (let rot = 0; rot < 6; rot++) {
+      const fit = this.board.fit(spec, slot.q, slot.r, rot);
+      if (!fit) continue;
+      links = Math.max(links, this.board.questLinks(spec, slot.q, slot.r, rot));
+      if (fit.matched > bestMatched) {
+        bestMatched = fit.matched;
+        ratio = fit.neighbours > 0 ? fit.matched / fit.neighbours : 0;
+      }
+    }
+    if (bestMatched < 0) return out.setHex(0xe8a0a0);
+    if (links >= 1) return out.setHex(0xffd84a);
+    return out.setHex(0xffffff).lerp(_green, Math.min(1, 0.25 + ratio * 0.75));
   }
 
   /** **Die Schilder der offenen Aufträge** — wie groß das Gebiet ist und werden soll. */
@@ -1085,6 +1161,7 @@ export class HexlandWorld extends FurnishedWorld {
           close();
         },
       },
+      this.helpMenu(),
       {
         id: 'hexland:creative',
         label: 'Kreativ-Modus',
@@ -1126,6 +1203,101 @@ export class HexlandWorld extends FurnishedWorld {
       icon: 'cube',
       accent: ACCENT,
       children: rows,
+    };
+  }
+
+  /**
+   * **Die Spielhilfen** — gewünscht: _„intelligentes Vordrehen (dass bei Klick
+   * eines Feldes das Tile schon gedreht ist, wie es passen könnte), Highlights
+   * von passenden Tile-Plätzen, Select-Options (nur eines davon): neues Tile
+   * liegt an einem Platz in der Nähe, neues Tile liegt an einer Mission oder
+   * alternativ an passender Grenze zu anderen Tiles. Das sind halt
+   * Spielhilfen."_ Gemerkt im Browser (`hexland:help`).
+   */
+  private helpMenu(): MenuEntry {
+    const h = this.help;
+    const set = (next: Partial<HexHelp>, message: string): void => {
+      this.help = { ...this.help, ...next };
+      writeHelp(this.help);
+      this.refresh(false);
+      this.context?.refreshWorldMenu();
+      this.say(message);
+    };
+    const places: Record<HexHelp['place'], string> = {
+      near: 'in der Nähe',
+      quest: 'an einem Auftrag',
+      border: 'an passender Grenze',
+    };
+    const placeRow = (id: HexHelp['place'], label: string, sub: string): MenuEntry => ({
+      id: `hexland:help:place:${id}`,
+      label,
+      sub,
+      icon: 'cube',
+      accent: ACCENT,
+      checked: h.place === id,
+      run: () => set({ place: id }, `Neue Kachel · ${places[id]}`),
+    });
+    return {
+      id: 'hexland:help',
+      label: 'Spielhilfen',
+      sub: [
+        h.smartRotate ? 'vordrehen' : '',
+        h.highlight ? 'Felder zeigen' : '',
+        `neue Kachel ${places[h.place]}`,
+      ]
+        .filter((part) => part !== '')
+        .join(' · '),
+      icon: 'brain',
+      accent: 0x59c8ff,
+      children: [
+        {
+          id: 'hexland:help:rotate',
+          label: 'Kachel vordrehen',
+          sub: 'Tippst du ein Feld an, liegt die Kachel schon so gedreht, wie sie dort passt',
+          icon: 'reset',
+          accent: 0x59c8ff,
+          checked: h.smartRotate,
+          run: () =>
+            set({ smartRotate: !h.smartRotate }, h.smartRotate ? 'Vordrehen aus' : 'Vordrehen an'),
+        },
+        {
+          id: 'hexland:help:highlight',
+          label: 'Passende Felder zeigen',
+          sub: 'Gold: führt einen Auftrag weiter · grün: je mehr Kanten passen · rot: geht hier nicht',
+          icon: 'xray',
+          accent: 0x59c8ff,
+          checked: h.highlight,
+          run: () =>
+            set(
+              { highlight: !h.highlight },
+              h.highlight ? 'Felder zeigen aus' : 'Felder zeigen an',
+            ),
+        },
+        {
+          id: 'hexland:help:place',
+          label: 'Neue Kachel liegt …',
+          sub: places[h.place],
+          icon: 'cube',
+          accent: 0x59c8ff,
+          children: [
+            placeRow(
+              'near',
+              'In der Nähe',
+              'Neben der zuletzt gelegten Kachel, sonst so nah wie möglich',
+            ),
+            placeRow(
+              'quest',
+              'An einem Auftrag',
+              'Wo sie ein offenes Auftragsgebiet weiterführt — schon passend gedreht',
+            ),
+            placeRow(
+              'border',
+              'An passender Grenze',
+              'Wo die meisten Kanten zu den Nachbarn passen — schon passend gedreht',
+            ),
+          ],
+        },
+      ],
     };
   }
 
@@ -1328,6 +1500,39 @@ const QUICK_TILES = [
   'half-forest-field',
   'half-field-house',
 ];
+
+/** Die Spielhilfen (`helpMenu`). */
+interface HexHelp {
+  smartRotate: boolean;
+  highlight: boolean;
+  place: 'near' | 'quest' | 'border';
+}
+
+const HELP_KEY = 'hexland:help';
+
+function readHelp(): HexHelp {
+  try {
+    const data = JSON.parse(localStorage.getItem(HELP_KEY) ?? 'null') as Partial<HexHelp> | null;
+    return {
+      smartRotate: data?.smartRotate === true,
+      highlight: data?.highlight === true,
+      place: data?.place === 'quest' || data?.place === 'border' ? data.place : 'near',
+    };
+  } catch {
+    return { smartRotate: false, highlight: false, place: 'near' };
+  }
+}
+
+function writeHelp(help: HexHelp): void {
+  try {
+    localStorage.setItem(HELP_KEY, JSON.stringify(help));
+  } catch {
+    // Kein Speicher: Dann gelten die Hilfen bis zum Neuladen.
+  }
+}
+
+/** Das Grün der gut passenden Felder (`slotColour`). */
+const _green = new THREE.Color(0x7ee08a);
 
 /** Wie viel Grad Neigung ein Pixel Fingerweg ist. */
 const TILT_PER_PIXEL = 0.25;

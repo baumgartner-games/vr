@@ -86,6 +86,31 @@ bleibt in der Hand, bis man eine andere wählt (jede mit neuer Deko):
 Gewünscht: _„zwischen Creative Modus wechseln, wo ich dann einen Hex-Katalog
 habe und mir das nächste Tile aussuchen kann"_.
 
+### Spielhilfen
+
+Im Reiter _Hexland → Spielhilfen_, gemerkt im Browser (`hexland:help`), ab Werk
+alle aus bzw. _in der Nähe_. Gewünscht: _„intelligentes Vordrehen …
+Highlights von passenden Tile-Plätzen … Select-Options (nur eines davon) …
+Das sind halt Spielhilfen."_
+
+- **Wo die neue Kachel liegt**: immer gemessen von der **zuletzt gelegten**
+  (`lastPlaced`) — _„soll an einem angrenzenden freien Feld platziert werden
+  oder sonst am nächsten dran"_. Eine der drei Arten (`autoPlace`):
+  - _In der Nähe_: das nächste freie Feld daneben, in der Drehung des Spielers
+    (wenn sie dort passt).
+  - _An einem Auftrag_: wo sie ein offenes Auftragsgebiet weiterführt
+    (`HexBoard.questLinks`), schon passend gedreht.
+  - _An passender Grenze_: wo die meisten Kanten zu den Nachbarn passen,
+    schon passend gedreht.
+- **Kachel vordrehen**: Ein Tipp auf ein Feld legt die Kachel gleich in die
+  Drehung, die dort am besten passt (`bestRotation`: Aufträge zuerst, dann
+  Kanten; bei Gleichstand bleibt die jetzige). Aus: Die Drehung des Spielers
+  bleibt.
+- **Passende Felder zeigen** (`slotColour`): Die freien Felder sind gefärbt —
+  gold, wo die Kachel in irgendeiner Drehung einen offenen Auftrag
+  weiterführt; grün, je mehr ihrer Kanten passen; rötlich, wo sie gar nicht
+  liegen darf.
+
 ### Der Reiter _Hexland_
 
 Die Welt bringt einen **eigenen Reiter** mit (`World.menuTab`, neu im Kern):
