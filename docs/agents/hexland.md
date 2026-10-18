@@ -32,7 +32,12 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   also 30 (`QUEST_TILES`), gemischt. Gewünscht: _„Es gibt bei Städten 4, 4,
   5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen, Wald, Wasser,
   Straße/Weg."_ Zum Auftrag wird eine Kachel gezogen, die das Gelände trägt
-  (`drawTile` mit `task`). Gespeichert als `deck` (Kürzel und Zahl je
+  (`drawTile` mit `task`) — und zwar eine, auf der das Gelände **nicht von
+  Fluss oder Weg geteilt** ist (`runs` = 1; Fluss- und Weg-Aufträge
+  ausgenommen). Gemeldet: _„Hier ist nicht klar, wo die Stadt zählt. Bei
+  Flüssen und Straßen, die eine Mission sind (die nicht Fluss bzw. Straße
+  sind), darf von der Mission nicht das Element durch den Fluss geteilt
+  sein."_ Dasselbe gilt für Flaggen. Gespeichert als `deck` (Kürzel und Zahl je
   Auftrag); Stände ohne `deck` bekommen einen frisch gemischten Stapel in der
   Größe von `tasks` (Test in `hexRules.test.ts`). Leiste und Reiter zeigen,
   wie viele noch kommen (_„wie viele Aufträge es noch geben könnte und wie

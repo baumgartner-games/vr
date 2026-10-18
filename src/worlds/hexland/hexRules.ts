@@ -275,6 +275,18 @@ export function edgeAt(spec: TileSpec, rot: number, edge: number): Terrain {
   return spec.edges[(((edge - rot) % 6) + 6) % 6]!;
 }
 
+/**
+ * **In wie vielen Stücken ein Gelände auf der Kachel liegt** — zusammenhängende
+ * Kanten im Kreis. Fluss und Weg teilen das Land: Stadt, Weg, Stadt sind zwei.
+ */
+export function runs(edges: readonly Terrain[], terrain: Terrain): number {
+  let n = 0;
+  for (let e = 0; e < 6; e++) {
+    if (edges[e] === terrain && edges[(e + 5) % 6] !== terrain) n++;
+  }
+  return n;
+}
+
 /** Wasser und Weg sind hart: Sie müssen auf ihresgleichen treffen. */
 function hard(t: Terrain): boolean {
   return t === 'water' || t === 'road';
@@ -332,6 +344,12 @@ export function drawTile(
     for (let tries = 0; tries < 60; tries++) {
       const spec = drawTile(random, { landOnly: false });
       if (!spec.edges.includes(task.terrain)) continue;
+      // **Eindeutig, wo der Auftrag zählt** — gemeldet: _„Hier ist nicht klar,
+      // wo die Stadt zählt. Bei Flüssen und Straßen, die eine Mission sind (die
+      // nicht Fluss bzw. Straße sind), darf von der Mission nicht das Element
+      // durch den Fluss geteilt sein."_
+      if (task.terrain !== 'water' && task.terrain !== 'road' && runs(spec.edges, task.terrain) > 1)
+        continue;
       return {
         base: spec.base,
         edges: spec.edges,
@@ -383,8 +401,11 @@ export function drawTile(
   }
   const seed = Math.floor(random() * 1e9);
   const areas = AREA_TERRAINS.filter((t) => edges.includes(t));
-  if (areas.length > 0 && random() < FLAG_CHANCE) {
-    return { base: base.id, edges, seed, flag: areas[Math.floor(random() * areas.length)]! };
+  // Eine Flagge nur auf einem Gelände, das auf der Kachel nicht geteilt ist —
+  // sonst wäre unklar, welches Gebiet sie meint (wie beim Auftrag).
+  const whole = areas.filter((t) => runs(edges, t) === 1);
+  if (whole.length > 0 && random() < FLAG_CHANCE) {
+    return { base: base.id, edges, seed, flag: whole[Math.floor(random() * whole.length)]! };
   }
   return { base: base.id, edges, seed };
 }
