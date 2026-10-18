@@ -28,8 +28,13 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
   nicht vom Stapel ab. Ihr Auftrag gilt einem ihrer Gelände (Wald, Dorf, Feld,
   Fluss oder Weg) und hat **schon beim Ziehen** seine Zahl: 4, 5 oder 6
-  (`QUEST_TARGETS`). Man sieht ihn vor dem Legen — als Schild „Auftrag: Dorf 4"
+  (`QUEST_TARGETS`). Man sieht ihn vor dem Legen — als Schild „Weizen 4"
   über der schwebenden Kachel, in der Leiste und als Zahl im Bildchen.
+  Die Schilder (`hexBadge.QuestBadge`) tragen vorn das Gelände als farbiges
+  Sechseck und daneben groß Art und Zahl („Stadt 2 / 5", „Fluss 4 / 6") —
+  gewünscht: _„erkenne ich zwar wie viele, aber nicht was gemacht werden soll
+  … ‚Stadt: 5', ‚Fluss: X', ‚Weizen: X' … ein kleines Icon"_. Seitdem heißen
+  Dorf und Feld im Spiel **Stadt** und **Weizen** (`TERRAIN_LABEL`).
   Gewünscht: _„Es muss bei einem Auftrags-Plättchen vor dem Legen erkennbar
   sein, welcher Auftrag es ist (Stadt 4 z.B.)… immer 3 Aufträge mit entweder
   4, 5, 6 benötigten Feldern"_. Das Gebiet soll **genau** so viele Kacheln groß
@@ -165,14 +170,20 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   ergeben"_, dann _„Ne keine Stufen, alles eben erdig bitte"_. Die Flussgabeln mit vier und mehr Armen (`G…L`) sind nicht
   im Stapel — sie wären kaum je anzulegen.
 - **Böden** (`hexDressing.groundPatches`, gezeichnet als „Modelle" `ground:…`
-  in `hexView.HexModels.ground`): unter Dorf-Stücken braune Erde, unter Wald
-  ein dunkleres Grün, Feld ist ein Weizenfeld mit Furchen (Leinwand-Textur),
-  das kurz vor der Kante endet, darunter ein brauner Rand — so sieht man, wo
-  ein Gebiet aufhört. Gewünscht: _„unter Dörfern gerne auch den braunen Boden
-  … bei Wald ein leicht dunklerer Boden … Weizen bis kurz vorm Rand mit
-  braunem Rand"_. Auf Fluss-, Weg- und Brückenkacheln nur der äußere Ring,
-  auf See und Ufer keiner. Das Kornfeld-Modell (`building_grain`) ist dafür
-  weg.
+  in `hexView.HexModels.ground`): unter Stadt braune Erde, unter Wald ein
+  dunkleres Grün, unter Weizen brauner Acker mit Furchen; darauf stehen die
+  **Kornfelder mit Höhe** (`building_grain`, kleiner als ihr Stück), so dass der
+  Acker ringsum als Rand bleibt — außen wie innen. Gewünscht: _„Ich will schon
+  noch das Heu sehen, dass es hoch ist, nur einfach so wie jetzt den Rand drum
+  herum auf dem Boden. Dazu bitte auch den Rand rein ins Innenfeld."_
+  Ein Boden je **Lauf** gleicher Kanten (`runGeometry`): außen die
+  Kachelkante, gerade und scharf; innen eine weiche Kurve durch die Nähe der
+  Mitte (`RUN_BOW`, so gewählt, dass zwei Gebiete einer Kachel genau
+  aufeinander laufen). Gewünscht: _„Die Grenzen in das Innere des Feldes
+  müssen nicht so scharf kantig sein, sondern können leicht gerundet sein …
+  eine scharfe Kante am äußeren Rand des Hex-Tiles, aber innen gerne
+  weicher"_. Auf Fluss-, Weg- und Brückenkacheln je Kante nur der äußere
+  Ring (gerade), auf See und Ufer keiner.
 - **Die Ausstattung** (`hexland/hexDressing.ts`, ohne three.js): Jede Kante hat
   ihr Dreieck der Kachel, und dort steht, was zu ihrem Gelände gehört — eine
   Baumgruppe, zwei Häuser, ein Kornfeld (`building_grain`), auf Wiese

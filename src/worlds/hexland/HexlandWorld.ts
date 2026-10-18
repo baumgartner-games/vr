@@ -29,6 +29,7 @@ import {
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { dressingModels } from './hexDressing';
+import { QuestBadge } from './hexBadge';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
 
 /**
@@ -72,14 +73,14 @@ export class HexlandWorld extends FurnishedWorld {
   private previewEdges: THREE.Mesh[] = [];
   private confirm: TextPlane | null = null;
   private info: TextPlane | null = null;
-  private handQuest: TextPlane | null = null;
+  private handQuest: QuestBadge | null = null;
   /** Wo die Vorschau gerade liegt, und wie gedreht. */
   private at: Hex | null = null;
   private rot = 0;
   /** Die Kachel, für die `previewTile` gebaut ist — sonst neu bauen. */
   private previewFor: unknown = null;
   /** Die Schilder der offenen Aufgaben, je Kachel. */
-  private readonly badges = new Map<string, TextPlane>();
+  private readonly badges = new Map<string, QuestBadge>();
   private clock = 0;
   private lastCtx: WorldContext | null = null;
   private offDom: Array<() => void> = [];
@@ -289,14 +290,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.hand.add(this.info);
     // **Der Auftrag der Kachel in der Hand** — sichtbar, bevor sie liegt, in
     // jeder Ansicht (auch von oben, wo ✓ und Zeile in der Leiste stehen).
-    this.handQuest = new TextPlane({
-      width: 2,
-      height: 0.9,
-      title: '',
-      accent: ACCENT,
-      align: 'center',
-      face: true,
-    });
+    this.handQuest = new QuestBadge(2.4);
     this.handQuest.position.y = 1.5;
     this.hand.add(this.handQuest);
     this.hand.name = 'hexland-ghost';
@@ -491,10 +485,11 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.handQuest) {
       this.handQuest.visible = label !== null;
       if (label) {
-        this.handQuest.setText(
-          `Auftrag: ${label}`,
-          'genau so viele Kacheln',
-          QUEST_ACCENT[spec.quest!.terrain],
+        const quest = spec.quest!;
+        this.handQuest.show(
+          quest.terrain,
+          `${quest.target ?? '?'}`,
+          'Auftrag · genau so viele Kacheln',
         );
       }
     }
@@ -579,22 +574,16 @@ export class HexlandWorld extends FurnishedWorld {
       seen.add(key);
       let badge = this.badges.get(key);
       if (!badge) {
-        badge = new TextPlane({
-          width: 1.9,
-          height: 1,
-          title: '',
-          accent: QUEST_ACCENT[tile.spec.quest!.terrain],
-          align: 'center',
-          face: true,
-        });
+        badge = new QuestBadge();
         const c = hexCentre(tile.q, tile.r, HEX_WIDTH);
         badge.position.set(c.x, 2.2, c.z);
         this.badges.set(key, badge);
         this.root.add(badge);
       }
-      badge.setText(
+      badge.show(
+        tile.spec.quest!.terrain,
         `${progress.size} / ${progress.target}`,
-        `${TERRAIN_LABEL[tile.spec.quest!.terrain]} · genau ${progress.target} Kacheln`,
+        `noch ${progress.target - progress.size} · genau ${progress.target} Kacheln`,
       );
     }
     for (const [key, badge] of this.badges) {

@@ -156,15 +156,20 @@ export class HexModels {
   /**
    * **Ein Stück Boden** (`hexDressing.groundPatches`) als „Modell" — so geht es
    * denselben Weg in die Bündel wie Häuser und Bäume. Die Adresse sagt Gelände
-   * und Form: `ground:field:ring`. Ein Dreieck von der Mitte bis an Kante 0,
-   * gedreht wird es wie eine Deko.
+   * und Form: `ground:field:run3` (drei Kanten ab Kante 0, `runGeometry`) oder
+   * `ground:field:ring` (der äußere Ring von Kante 0). Gedreht wird es wie
+   * eine Deko.
    *
-   * Dorf: braune Erde. Wald: ein dunkleres Grün. Feld: ein brauner Rand unter
-   * einem Weizenfeld mit Furchen, das kurz vor der Kante endet.
+   * Stadt: braune Erde. Wald: ein dunkleres Grün. Weizen: brauner Acker mit
+   * Furchen — die Kornfelder mit Höhe stehen darauf (`hexDressing`), und der
+   * Acker bleibt ringsum als Rand zu sehen.
    */
   private ground(model: string): Part[] {
-    const [, kind, form] = model.split(':') as [string, GroundKind, 'ring' | 'full'];
-    const inner = form === 'ring' ? RING_INNER : 0;
+    const [, kind, form] = model.split(':') as [string, GroundKind, string];
+    const geometry = (y: number): THREE.BufferGeometry =>
+      form === 'ring'
+        ? sectorGeometry(RING_INNER, 1, y)
+        : runGeometry(Number(form.slice(3)) || 1, y);
     const flat = (colour: number, map: THREE.Texture | null, offset: number): THREE.Material => {
       const material = new THREE.MeshStandardMaterial({
         color: colour,
@@ -183,14 +188,11 @@ export class HexModels {
     };
     switch (kind) {
       case 'house':
-        return [part(sectorGeometry(inner, 1, 0.012), flat(0x8a6644, null, -4))];
+        return [part(geometry(0.012), flat(0x8a6644, null, -4))];
       case 'forest':
-        return [part(sectorGeometry(inner, 1, 0.012), flat(0x6b8f30, null, -4))];
+        return [part(geometry(0.012), flat(0x6b8f30, null, -4))];
       case 'field':
-        return [
-          part(sectorGeometry(inner, 1, 0.01), flat(0x8f6a42, null, -4)),
-          part(sectorGeometry(inner, FIELD_EDGE, 0.02), flat(0xffffff, wheatTexture(), -8)),
-        ];
+        return [part(geometry(0.012), flat(0xffffff, fieldTexture(), -4))];
     }
   }
 
@@ -258,8 +260,74 @@ function flatTop(source: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.Buf
 const GROUND = 'ground:';
 /** Auf Fluss- und Wegkacheln beginnt der Boden erst so weit draußen (Anteil der Kante). */
 const RING_INNER = 0.55;
-/** Bis wohin das Weizenfeld reicht — dahinter der braune Rand. */
-const FIELD_EDGE = 0.9;
+/**
+ * **Wie weit die Grenze innen von der Mitte abrückt**, je Länge des Laufs,
+ * als Anteil des Halbmessers — positiv in das Stück hinein. Paare, die sich
+ * eine Kachel teilen (1 und 5, 2 und 4, 3 und 3), haben entgegengesetzte
+ * Zahlen: Dann laufen ihre beiden Kurven genau aufeinander, ohne Spalt.
+ */
+const RUN_BOW: Readonly<Record<number, number>> = { 1: 0.16, 2: 0.1, 3: 0, 4: -0.1, 5: -0.16 };
+
+/**
+ * **Ein Lauf von `length` Kanten ab Kante 0** — außen die Kachelkante, gerade
+ * und scharf; innen eine Kurve durch die Nähe der Mitte (eine quadratische
+ * Kurve von Ecke zu Ecke, deren Mitte bei `RUN_BOW` liegt). So sind die
+ * Grenzen zwischen zwei Gebieten auf einer Kachel weich, die zur Nachbarkachel
+ * nicht.
+ */
+function runGeometry(length: number, y: number): THREE.BufferGeometry {
+  const r = 2 / Math.sqrt(3);
+  const corner = (j: number): THREE.Vector2 => {
+    const a = ((60 * j + 30) * Math.PI) / 180;
+    return new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r);
+  };
+  const shape = new THREE.Shape();
+  const start = corner(-1);
+  shape.moveTo(start.x, start.y);
+  const last = Math.min(length, 6);
+  for (let j = 0; j < last; j++) {
+    const c = corner(j);
+    shape.lineTo(c.x, c.y);
+  }
+  if (length < 6) {
+    const end = corner(length - 1);
+    const bisector = ((length - 1) * 30 * Math.PI) / 180;
+    const bow = (RUN_BOW[length] ?? 0) * r;
+    const mid = new THREE.Vector2(Math.cos(bisector) * bow, Math.sin(bisector) * bow);
+    const chord = start.clone().add(end).multiplyScalar(0.5);
+    // Die Mitte einer quadratischen Kurve liegt halb zwischen Sehnenmitte und Stützpunkt.
+    const control = mid.multiplyScalar(2).sub(chord);
+    shape.quadraticCurveTo(control.x, control.y, start.x, start.y);
+  }
+  const flat = new THREE.ShapeGeometry(shape, 12);
+  // Aus der Ebene des Bildes (x, y) wird der Boden (x, z), knapp über der Oberseite.
+  const from = flat.getAttribute('position');
+  const position = new Float32Array(from.count * 3);
+  const normal = new Float32Array(from.count * 3);
+  const uv = new Float32Array(from.count * 2);
+  for (let i = 0; i < from.count; i++) {
+    const x = from.getX(i);
+    const z = from.getY(i);
+    position.set([x, y, z], i * 3);
+    normal.set([0, 1, 0], i * 3);
+    uv.set([x * 1.5, z * 1.5], i * 2);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  // Beim Umklappen auf den Boden kehrt sich die Laufrichtung der Dreiecke um —
+  // ohne den Tausch zeigten sie nach unten und blieben schwarz.
+  const index = flat.index ? Array.from(flat.index.array) : [];
+  for (let i = 0; i + 2 < index.length; i += 3) {
+    const b = index[i + 1]!;
+    index[i + 1] = index[i + 2]!;
+    index[i + 2] = b;
+  }
+  geometry.setIndex(index);
+  flat.dispose();
+  return geometry;
+}
 
 /**
  * **Das Dreieck von der Mitte bis an Kante 0** — oder sein äußerer Teil ab
@@ -292,18 +360,16 @@ function sectorGeometry(inner: number, outer: number, y: number): THREE.BufferGe
   return geometry;
 }
 
-/** **Weizen mit Furchen** — gelbe Reihen, dazwischen dunklere Rillen. */
-function wheatTexture(): THREE.Texture {
+/** **Der Acker unter dem Weizen** — braune Erde mit dunkleren Furchen. */
+function fieldTexture(): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const g = canvas.getContext('2d')!;
-  g.fillStyle = '#e4b43e';
+  g.fillStyle = '#93704a';
   g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#c38f2e';
-  for (let y = 0; y < 64; y += 16) g.fillRect(0, y, 64, 3);
-  g.fillStyle = '#efc95a';
-  for (let y = 8; y < 64; y += 16) g.fillRect(0, y, 64, 2);
+  g.fillStyle = '#7a5a38';
+  for (let y = 0; y < 64; y += 16) g.fillRect(0, y, 64, 4);
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -335,7 +401,7 @@ function pieces(spec: TileSpec): Array<{ model: string; local: THREE.Matrix4 }> 
   for (const patch of groundPatches(spec)) {
     _q.setFromAxisAngle(_up, -patch.edge * (Math.PI / 3));
     out.push({
-      model: `${GROUND}${patch.kind}:${patch.ring ? 'ring' : 'full'}`,
+      model: `${GROUND}${patch.kind}:${patch.ring ? 'ring' : `run${patch.length}`}`,
       local: new THREE.Matrix4().makeRotationFromQuaternion(_q),
     });
   }

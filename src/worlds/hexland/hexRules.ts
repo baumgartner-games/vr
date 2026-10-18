@@ -60,8 +60,8 @@ export const QUEST_TERRAINS: readonly QuestTerrain[] = [
 export const TERRAIN_LABEL: Readonly<Record<Terrain, string>> = {
   grass: 'Wiese',
   forest: 'Wald',
-  house: 'Dorf',
-  field: 'Feld',
+  house: 'Stadt',
+  field: 'Weizen',
   water: 'Fluss',
   road: 'Weg',
 };

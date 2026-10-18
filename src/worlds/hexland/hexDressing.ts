@@ -51,6 +51,7 @@ export function dressingModels(): string[] {
     out.add(`decoration/nature/${name}.glb`);
   }
   out.add('decoration/props/haybale.glb');
+  out.add('buildings/neutral/building_grain.glb');
   out.add('decoration/props/boat.glb');
   for (const colour of Object.values(FLAG_COLOUR)) out.add(`decoration/props/flag_${colour}.glb`);
   return [...out];
@@ -133,8 +134,16 @@ function dressLand(spec: TileSpec): Dress[] {
         }
         break;
       case 'field':
-        // Das Feld selbst ist der Boden (`groundPatches`) — hier nur ab und zu ein Heuballen.
-        if (random() < 0.3) {
+        // **Das Kornfeld mit Höhe** auf seinem braunen Acker (`groundPatches`):
+        // kleiner als sein Stück, damit der Rand ringsum zu sehen bleibt.
+        out.push({
+          model: 'buildings/neutral/building_grain.glb',
+          x: cx * 0.97,
+          z: cz * 0.97,
+          yaw: -a,
+          scale: 0.33 * shrink,
+        });
+        if (random() < 0.25) {
           out.push({
             model: 'decoration/props/haybale.glb',
             x: cx * 1.25 + jitter(),
@@ -235,6 +244,7 @@ function whole(
       });
       return;
     case 'field':
+      out.push({ model: 'buildings/neutral/building_grain.glb', x: 0, z: 0, yaw: 0, scale: 0.84 });
       if (random() < 0.6)
         out.push({ model: building('windmill'), x: 0.2, z: 0.1, yaw: turn(), scale: 0.55 });
       return;
@@ -275,34 +285,60 @@ function whole(
 /** Gelände, die einen eigenen Boden bekommen (`groundPatches`). */
 export type GroundKind = 'house' | 'forest' | 'field';
 
-/** Ein Stück Boden: welche Kante, welches Gelände, und ob nur der äußere Ring. */
+/**
+ * Ein Stück Boden: ab welcher Kante, über wie viele, welches Gelände — und
+ * ob nur der äußere Ring einer einzelnen Kante (Fluss- und Wegkacheln).
+ */
 export interface GroundPatch {
   readonly edge: number;
+  readonly length: number;
   readonly kind: GroundKind;
-  /** Nur der äußere Teil des Stücks — auf Fluss- und Wegkacheln bleibt die Mitte frei. */
   readonly ring: boolean;
 }
 
 /**
- * **Der Boden unter den Stücken einer Kachel** — gewünscht: _„bei den hex
- * tiles unter Dörfern gerne auch den braunen Boden haben (um besser zu
- * erkennen, wo die Grenzen liegen). Auch bei Wald wäre ein leicht dunklerer
- * Boden schön. Weizen kann gerne bis kurz vorm Rand des Hex-Feldes gehen und
- * einfach einen braunen Rand haben"_. Je Kante, deren Gelände Dorf, Wald oder
- * Feld ist, ein Dreieck von der Mitte bis an die Kante; gezeichnet wird es in
- * `hexView.ts`. Auf Fluss-, Weg- und Brückenkacheln nur der äußere Ring, damit
- * das Wasser in der Mitte sichtbar bleibt; Ufer und See bekommen keinen, ihr
- * Uferbogen liefe sonst unter einen geraden Rand.
+ * **Der Boden unter den Gebieten einer Kachel** — gewünscht erst: _„unter
+ * Dörfern gerne auch den braunen Boden … bei Wald ein leicht dunklerer Boden"_,
+ * dann: _„Die Grenzen in das Innere des Feldes müssen nicht so scharf kantig
+ * sein, sondern können leicht gerundet sein … eine scharfe Kante wie jetzt am
+ * äußeren Rand des Hex-Tiles, aber innen gerne weicher"_.
+ *
+ * Deshalb nicht mehr ein Dreieck je Kante, sondern **ein Stück je Lauf**:
+ * nebeneinanderliegende Kanten desselben Geländes sind eine Fläche, außen an
+ * der Kachelkante gerade, innen eine Kurve durch die Mitte
+ * (`hexView.runGeometry`). Auf Fluss-, Weg- und Brückenkacheln je Kante nur der
+ * äußere Ring, damit das Wasser in der Mitte sichtbar bleibt; Ufer und See
+ * bekommen keinen, ihr Uferbogen liefe sonst unter einen geraden Rand.
  */
 export function groundPatches(spec: TileSpec): GroundPatch[] {
   const base = baseTile(spec.base);
   if (base.id === 'lake' || base.id.startsWith('coast')) return [];
-  const ring = base.id !== 'land';
+  const ground = (t: Terrain): GroundKind | null =>
+    t === 'house' || t === 'forest' || t === 'field' ? t : null;
+  if (base.id !== 'land') {
+    const out: GroundPatch[] = [];
+    spec.edges.forEach((terrain, edge) => {
+      const kind = ground(terrain);
+      if (kind) out.push({ edge, length: 1, kind, ring: true });
+    });
+    return out;
+  }
+  const edges = spec.edges;
+  const first = ground(edges[0]!);
+  if (edges.every((t) => t === edges[0])) {
+    return first ? [{ edge: 0, length: 6, kind: first, ring: false }] : [];
+  }
+  // Am Anfang eines Laufs beginnen: dort, wo die Kante davor anders ist.
+  let start = 0;
+  while (edges[(start + 5) % 6] === edges[start]) start++;
   const out: GroundPatch[] = [];
-  spec.edges.forEach((terrain, edge) => {
-    if (terrain === 'house' || terrain === 'forest' || terrain === 'field') {
-      out.push({ edge, kind: terrain, ring });
-    }
-  });
+  for (let i = 0; i < 6;) {
+    const edge = (start + i) % 6;
+    let length = 1;
+    while (i + length < 6 && edges[(edge + length) % 6] === edges[edge]) length++;
+    const kind = ground(edges[edge]!);
+    if (kind) out.push({ edge, length, kind, ring: false });
+    i += length;
+  }
   return out;
 }
