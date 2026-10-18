@@ -112,14 +112,51 @@ export const WATER_VERTEX = `
     vHexWorld = (modelMatrix * vec4(position, 1.0)).xz;
   #endif`;
 
+/**
+ * **Wie schnell Wasser fließt — und der Wind weht**, in Metern je Sekunde.
+ * Gewünscht: _„Der Wind ist mir zu schnell und sollte so schnell sein, wie das
+ * Wasser fließt."_
+ */
+export const FLOW_SPEED = 0.8;
+
+/**
+ * Im Fluss laufen die Wellen **den Fluss hinab** (`aFlow`, gerechnet von
+ * `hexDressing.riverFlow`): Der nächste Arm der Kachel sagt, wo man ist, und
+ * `S` zählt von der Quelle an in Halbmessern der Kachel — an der Kante
+ * zweier Kacheln ist es auf beiden Seiten dasselbe, die Wellen laufen ohne
+ * Sprung hinüber. Seen und Ufer glitzern still vor sich hin, langsam.
+ */
 export const WATER_FRAGMENT = `
   {
     float blue = smoothstep(0.06, 0.22, diffuseColor.b - max(diffuseColor.r, diffuseColor.g * 0.9));
     vec2 w = vHexWorld;
     float t = uHexTime;
-    float s = sin(w.x * 2.1 + t * 1.3 + sin(w.y * 1.7 + t * 0.7) * 1.5)
-      * sin(w.y * 2.6 - t * 1.1 + sin(w.x * 1.3 - t * 0.4) * 1.2);
-    diffuseColor.rgb += blue * uHexAnim * (smoothstep(0.45, 0.95, s) * 0.16 + s * 0.025);
+    float glint;
+    if (vFlow.w > 1.5) {
+      vec2 p = vHexLocal.xz;
+      float best = -10.0;
+      float S = 0.0;
+      for (int e = 0; e < 6; e++) {
+        float fe = float(e);
+        float into = mod(floor(vFlow.x / exp2(fe) + 0.01), 2.0);
+        float out_ = mod(floor(vFlow.y / exp2(fe) + 0.01), 2.0);
+        if (into + out_ < 0.5) continue;
+        float a = fe * 1.0471976;
+        float d = dot(p, vec2(cos(a), sin(a)));
+        if (d > best) {
+          best = d;
+          S = vFlow.z + (out_ > 0.5 ? d : -d);
+        }
+      }
+      // Etwas quer verwirbelt, damit es keine Streifen wie gezogen sind.
+      float n = sin(w.x * 2.3 + w.y * 1.9) * 0.8 + sin(w.y * 3.1 - w.x * 1.3) * 0.6;
+      float k = 3.5;
+      glint = sin(S * k - t * k * ${(FLOW_SPEED / 1.5).toFixed(4)} + n);
+    } else {
+      glint = sin(w.x * 2.1 + t * 0.45 + sin(w.y * 1.7 + t * 0.25) * 1.5)
+        * sin(w.y * 2.6 - t * 0.4 + sin(w.x * 1.3 - t * 0.15) * 1.2);
+    }
+    diffuseColor.rgb += blue * uHexAnim * (smoothstep(0.45, 0.95, glint) * 0.16 + glint * 0.025);
   }`;
 
 export function waterUniforms(uniforms: Record<string, THREE.IUniform>): void {
@@ -127,11 +164,6 @@ export function waterUniforms(uniforms: Record<string, THREE.IUniform>): void {
   uniforms.uHexAnim = ANIM.on;
 }
 
-/**
- * Wie lange eine Böe übers Bild braucht, und wie lange es ruhig bleibt — in
- * Sekunden, gleich wie weit man herausgezoomt ist.
- */
-const CROSSING = 4.5;
 const CALM = [5, 11] as const;
 const STREAKS = 6;
 
@@ -234,14 +266,18 @@ export class WindGusts {
     this.centre.copy(centre);
     this.reach = Math.max(8, reach);
     this.front = -this.reach;
-    this.speed = (2 * this.reach + 4) / CROSSING;
     // Von weit oben wären Schlieren in Metern unsichtbar dünn — sie wachsen mit.
     const size = Math.max(1, this.reach / 12);
+    // So schnell wie das Wasser — weit herausgezoomt so viel schneller, wie die
+    // Schlieren größer sind, damit es im Bild gleich schnell aussieht.
+    this.speed = FLOW_SPEED * size;
     const spread = Math.max(3, wide);
     this.streaks.forEach((s, i) => {
       s.side = (i / (STREAKS - 1) - 0.5) * 2 * spread + (Math.random() - 0.5) * spread * 0.3;
       s.lag = Math.random() * 3;
-      s.height = (0.9 + Math.random() * 0.8) * size;
+      // Tief über den Kacheln, wie Wasser über das Brett — gewünscht: _„Auch
+      // sollte es wie Wasser auf den Tiles entlang fließen, von Tile zu Tile."_
+      s.height = (0.2 + Math.random() * 0.3) * size;
       s.lag *= size;
       s.mesh.scale.setScalar(size);
       s.mesh.material.uniforms.uLen!.value = 3 + Math.random() * 2.5;
@@ -292,7 +328,7 @@ const RIBBON_VERTEX = /* glsl */ `
     // Der Schwanz schlängelt sich, und kurz hinter der Spitze schlägt er
     // einen kleinen Kringel — wie eine Windlinie im Zeichentrick.
     float x = -aT * uLen;
-    float z = sin(aT * 7.0 - uTime * 5.0 + uSeed) * 0.22 * aT;
+    float z = sin(aT * 7.0 - uTime * 1.6 + uSeed) * 0.22 * aT;
     float curl = smoothstep(0.12, 0.2, aT) * (1.0 - smoothstep(0.32, 0.4, aT));
     float ang = (aT - 0.12) / 0.28 * 6.2831853;
     x += curl * sin(ang) * 0.35;

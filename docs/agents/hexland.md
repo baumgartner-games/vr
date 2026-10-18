@@ -298,13 +298,32 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     Bündeln — die Kachel in der Hand bleibt still. Schatten wiegen nicht mit.
   - Der Mühlenflügel (`building_windmill_top_fan_*`, ein eigenes Netz, mittig
     auf seiner Achse z) dreht im Shader (`fanMaterial`).
-  - Wasser glitzert im Shader der Kacheln (`bevelEdges` + `WATER_FRAGMENT`):
-    wo die Textur blau ist, ziehen helle Wellen in Brettkoordinaten.
-  - Die Böe (`WindGusts`): alle 5–11 s sechs weiße Bänder mit Kringel, vom
-    Rand des Bildes quer übers Bild in 4,5 s — Größe und Weite rechnet
-    `HexlandWorld.blowWind` aus Blickpunkt und Sichtfeld der Kamera, damit
-    sie auch weit herausgezoomt zu sehen sind. Sechs Zeichenaufrufe, nur
-    während einer Böe.
+  - **Wasser fließt den Fluss hinab** — gemeldet: _„Das Wasser fließt leider
+    aktuell einfach irgendwie random umher, statt entlang des
+    Wasserverlaufs."_ `hexDressing.riverFlow` gibt jedem Flusssystem eine
+    Richtung: Quelle ist ein offenes Ende möglichst weit (über den Fluss
+    gezählt) von einem See, von dort fließt es in jede verbundene Kachel, in
+    Seen und Ufer hinein, an offenen Enden vom Brett. Je Kachel: Arme hinein
+    und hinaus (Bitmasken in den Kanten des **Modells**, also zurückgedreht)
+    und `centre`, wie weit die Mitte den Fluss hinab liegt (Kante → Mitte
+    = 1). Das kommt als Spalte je Kopie (`aFlow`, `InstancedBufferAttribute`)
+    an die Bündel der Grundkacheln (`Part.flows`; die Hülle um dieselben Ecken
+    gehört dem Bündel, die Kachel in der Hand hat keine Spalte und steht
+    still). `HexBoardView.updateFlow` rechnet nach jeder Kachel alles neu —
+    eine neue kann zwei Flüsse verbinden. Im Shader (`WATER_FRAGMENT`) sagt
+    der nächste Arm, wo man ist, und `S` zählt den Fluss hinab; an der Kante
+    zweier Kacheln ist `S` auf beiden Seiten gleich, die Wellen laufen ohne
+    Sprung hinüber. Seen und Ufer glitzern langsam ungerichtet.
+  - **Ein Tempo für Wasser und Wind** (`FLOW_SPEED`, 0,8 m/s) — gewünscht:
+    _„Der Wind ist mir zu schnell und sollte so schnell sein, wie das Wasser
+    fließt. Auch sollte es wie Wasser auf den Tiles entlang fließen, von Tile
+    zu Tile."_
+  - Die Böe (`WindGusts`): sechs weiße Bänder mit Kringel, **tief über den
+    Kacheln** (0,2–0,5 m), vom Rand des Bildes quer übers Bild mit
+    `FLOW_SPEED`; einige Sekunden nach dem Ende die nächste. Weit
+    herausgezoomt sind die Bänder größer und um denselben Faktor schneller,
+    damit sie im Bild gleich schnell wirken (`HexlandWorld.blowWind` rechnet
+    Blickpunkt und Sichtfeld). Sechs Zeichenaufrufe, nur während einer Böe.
   - Aus heißt: Zeit steht (Flügel stehen), Wiegen, Glitzern und Böen weg.
 - **Die Kante jeder Kachel** (`hexView.bevelEdges`, ein Zusatz im Shader der
   Kacheln und Böden): nah am Rand eine dunkle Fuge, knapp davor eine helle

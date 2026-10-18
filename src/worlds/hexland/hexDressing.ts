@@ -1,4 +1,13 @@
-import { baseTile, rng, type Terrain, type TileSpec } from './hexRules';
+import {
+  baseTile,
+  hexKey,
+  neighbour,
+  opposite,
+  rng,
+  type PlacedTile,
+  type Terrain,
+  type TileSpec,
+} from './hexRules';
 
 /**
  * **Was auf einer Kachel steht** — Bäume, Häuser, Felder, alles aus dem Regal
@@ -345,6 +354,156 @@ export function groundPatches(spec: TileSpec): GroundPatch[] {
     const kind = ground(edges[edge]!);
     if (kind) out.push({ edge, length, kind, ring: false });
     i += length;
+  }
+  return out;
+}
+
+/**
+ * **Wie das Wasser einer Flusskachel fließt** — in den Kanten der Kachel
+ * selbst (ungedreht, wie ihr Modell): aus welchen Armen es zur Mitte kommt
+ * (`into`, Bitmaske), aus welchen es hinausläuft (`out`), und wie weit die
+ * Mitte den Fluss hinab liegt (`centre`, in Halbmessern der Kachel: von Kante
+ * zu Mitte 1). So laufen die Wellen im Shader (`hexAnimate.WATER_FRAGMENT`)
+ * ohne Sprung von Kachel zu Kachel weiter.
+ *
+ * Gemeldet war: _„Das Wasser fließt leider aktuell einfach irgendwie random
+ * umher, statt entlang des Wasserverlaufs."_
+ */
+export interface RiverFlow {
+  readonly into: number;
+  readonly out: number;
+  readonly centre: number;
+}
+
+/** Fluss- und Brückenkacheln — Seen und Ufer stehen still. */
+function flowing(tile: PlacedTile): boolean {
+  const id = baseTile(tile.spec.base).id;
+  return id.startsWith('river') || id.startsWith('crossing');
+}
+
+/** Die Wasserkanten einer Kachel, auf dem Brett (gedreht). */
+function waterEdges(tile: PlacedTile): number[] {
+  const out: number[] = [];
+  tile.spec.edges.forEach((t, e) => {
+    if (t === 'water') out.push((e + tile.rot) % 6);
+  });
+  return out;
+}
+
+/**
+ * **Die Richtung jedes Flusses auf dem Brett.** Ein Fluss beginnt an einem
+ * offenen Ende, möglichst weit weg von einem See, und fließt von dort durch
+ * jede verbundene Kachel weiter — in Seen und Ufer hinein, an offenen Enden
+ * vom Brett hinunter. Bei Gabelungen teilt er sich.
+ */
+export function riverFlow(tiles: ReadonlyMap<string, PlacedTile>): Map<string, RiverFlow> {
+  const river = new Map<string, PlacedTile>();
+  for (const [key, tile] of tiles) if (flowing(tile)) river.set(key, tile);
+  // Wohin eine Wasserkante führt: zu einer Flusskachel, in stehendes Wasser oder ins Offene.
+  const across = (tile: PlacedTile, edge: number): 'river' | 'lake' | 'open' => {
+    const n = neighbour(tile, edge);
+    const other = tiles.get(hexKey(n.q, n.r));
+    if (!other || !other.spec.edges.includes('water')) return 'open';
+    if (!waterEdges(other).includes(opposite(edge))) return 'open';
+    return flowing(other) ? 'river' : 'lake';
+  };
+  const linked = (tile: PlacedTile): PlacedTile[] =>
+    waterEdges(tile)
+      .filter((e) => across(tile, e) === 'river')
+      .map((e) => {
+        const n = neighbour(tile, e);
+        return river.get(hexKey(n.q, n.r))!;
+      });
+
+  // Wie weit jede Kachel (über den Fluss) von einem See ist — die Quelle liegt möglichst weit weg.
+  const toLake = new Map<string, number>();
+  const queue: PlacedTile[] = [];
+  for (const [key, tile] of river) {
+    if (waterEdges(tile).some((e) => across(tile, e) === 'lake')) {
+      toLake.set(key, 0);
+      queue.push(tile);
+    }
+  }
+  while (queue.length) {
+    const tile = queue.shift()!;
+    const d = toLake.get(hexKey(tile.q, tile.r))!;
+    for (const next of linked(tile)) {
+      const key = hexKey(next.q, next.r);
+      if (toLake.has(key)) continue;
+      toLake.set(key, d + 1);
+      queue.push(next);
+    }
+  }
+
+  const flow = new Map<string, { into: Set<number>; out: Set<number>; centre: number }>();
+  for (const [startKey] of river) {
+    if (flow.has(startKey)) continue;
+    // Das ganze Flusssystem dieser Kachel …
+    const system: PlacedTile[] = [];
+    const seen = new Set([startKey]);
+    const walk = [river.get(startKey)!];
+    while (walk.length) {
+      const tile = walk.pop()!;
+      system.push(tile);
+      for (const next of linked(tile)) {
+        const key = hexKey(next.q, next.r);
+        if (!seen.has(key)) {
+          seen.add(key);
+          walk.push(next);
+        }
+      }
+    }
+    // … und seine Quelle: ein offenes Ende, so weit vom See wie möglich.
+    const open = (t: PlacedTile): number[] => waterEdges(t).filter((e) => across(t, e) === 'open');
+    let source = system[0]!;
+    let best = -1;
+    for (const tile of system) {
+      if (open(tile).length === 0) continue;
+      const d = toLake.get(hexKey(tile.q, tile.r)) ?? 1e6;
+      if (d > best) {
+        best = d;
+        source = tile;
+      }
+    }
+    const sourceIn = open(source)[0] ?? waterEdges(source)[0]!;
+    flow.set(hexKey(source.q, source.r), { into: new Set([sourceIn]), out: new Set(), centre: 0 });
+    const order = [source];
+    while (order.length) {
+      const tile = order.shift()!;
+      const mine = flow.get(hexKey(tile.q, tile.r))!;
+      for (const e of waterEdges(tile)) {
+        if (mine.into.has(e) || mine.out.has(e)) continue;
+        const kind = across(tile, e);
+        if (kind !== 'river') {
+          mine.out.add(e);
+          continue;
+        }
+        const n = neighbour(tile, e);
+        const key = hexKey(n.q, n.r);
+        const theirs = flow.get(key);
+        if (theirs) {
+          // Schon vergeben: Läuft es dort hinaus zu mir, kommt es hier herein.
+          if (theirs.out.has(opposite(e))) mine.into.add(e);
+          else {
+            mine.out.add(e);
+            theirs.into.add(opposite(e));
+          }
+          continue;
+        }
+        mine.out.add(e);
+        flow.set(key, { into: new Set([opposite(e)]), out: new Set(), centre: mine.centre + 2 });
+        order.push(river.get(key)!);
+      }
+    }
+  }
+
+  const out = new Map<string, RiverFlow>();
+  for (const [key, f] of flow) {
+    const tile = river.get(key)!;
+    // In die Kanten des Modells zurückdrehen.
+    const mask = (edges: Set<number>): number =>
+      [...edges].reduce((m, e) => m | (1 << ((e - tile.rot + 6) % 6)), 0);
+    out.set(key, { into: mask(f.into), out: mask(f.out), centre: f.centre });
   }
   return out;
 }

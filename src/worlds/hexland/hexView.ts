@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { kaykitModel } from '../../core/kaykitModel';
-import { baseTile, hexCentre, type PlacedTile, type TileSpec } from './hexRules';
-import { dressTile, groundPatches, type GroundKind } from './hexDressing';
+import { baseTile, hexCentre, hexKey, type PlacedTile, type TileSpec } from './hexRules';
+import { dressTile, groundPatches, riverFlow, type GroundKind } from './hexDressing';
 import {
   WATER_FRAGMENT,
   WATER_VERTEX,
@@ -28,7 +28,16 @@ interface Part {
   readonly material: THREE.Material;
   readonly matrix: THREE.Matrix4;
   readonly castShadow: boolean;
+  /** Eine Grundkachel — trägt je Kopie, wie ihr Wasser fließt (`aFlow`). */
+  readonly flows?: boolean;
 }
+
+/**
+ * Was eine Kopie ohne Fluss trägt: `w` 1 heißt stehendes Wasser. Ein Fluss
+ * trägt Arme hinein (`x`, Bitmaske), hinaus (`y`), die Lage der Mitte den
+ * Fluss hinab (`z`) und `w` 2 (`hexAnimate.WATER_FRAGMENT`).
+ */
+const STILL: readonly [number, number, number, number] = [0, 0, 0, 1];
 
 /**
  * **Ein Bündel je Netz** (`InstancedMesh`) — und nicht ein Modell je Haus.
@@ -42,6 +51,8 @@ interface Part {
 class Batch {
   mesh: THREE.InstancedMesh;
   readonly matrices: THREE.Matrix4[] = [];
+  /** Je Kopie, wie ihr Wasser fließt — nur bei Grundkacheln (`Part.flows`). */
+  private readonly flows: number[] = [];
   dirty = false;
 
   constructor(
@@ -51,13 +62,22 @@ class Batch {
     this.mesh = this.build(16);
   }
 
-  add(world: THREE.Matrix4): void {
+  /** Gibt zurück, die wievielte Kopie es ist — für `setFlow`. */
+  add(world: THREE.Matrix4): number {
     this.matrices.push(new THREE.Matrix4().multiplyMatrices(world, this.part.matrix));
+    this.flows.push(...STILL);
+    this.dirty = true;
+    return this.matrices.length - 1;
+  }
+
+  setFlow(index: number, flow: readonly number[]): void {
+    for (let k = 0; k < 4; k++) this.flows[index * 4 + k] = flow[k]!;
     this.dirty = true;
   }
 
   clear(): void {
     this.matrices.length = 0;
+    this.flows.length = 0;
     this.dirty = true;
   }
 
@@ -74,15 +94,38 @@ class Batch {
     this.matrices.forEach((m, i) => this.mesh.setMatrixAt(i, m));
     this.mesh.count = this.matrices.length;
     this.mesh.instanceMatrix.needsUpdate = true;
+    const flow = this.mesh.geometry.getAttribute('aFlow') as
+      THREE.InstancedBufferAttribute | undefined;
+    if (flow) {
+      (flow.array as Float32Array).set(this.flows);
+      flow.needsUpdate = true;
+    }
   }
 
   dispose(): void {
     this.parent.remove(this.mesh);
+    if (this.part.flows) this.mesh.geometry.dispose();
     this.mesh.dispose();
   }
 
   private build(capacity: number): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(this.part.geometry, this.part.material, capacity);
+    let geometry = this.part.geometry;
+    if (this.part.flows) {
+      // Eine eigene Hülle um dieselben Ecken, mit einer Spalte je Kopie dazu:
+      // Die Vorlage teilt sich das Brett mit der Kachel in der Hand.
+      if (this.mesh) this.mesh.geometry.dispose();
+      const source = geometry;
+      geometry = new THREE.BufferGeometry();
+      for (const [name, attribute] of Object.entries(source.attributes))
+        geometry.setAttribute(name, attribute);
+      geometry.setIndex(source.index);
+      for (const g of source.groups) geometry.addGroup(g.start, g.count, g.materialIndex);
+      geometry.setAttribute(
+        'aFlow',
+        new THREE.InstancedBufferAttribute(new Float32Array(capacity * 4), 4),
+      );
+    }
+    const mesh = new THREE.InstancedMesh(geometry, this.part.material, capacity);
     mesh.count = 0;
     // Das Brett wächst in alle Richtungen; eine Hüllkugel nachzuführen kostet
     // mehr, als ein paar Dutzend Bündel ungeprüft zu zeichnen.
@@ -131,7 +174,13 @@ export class HexModels {
             this.owned.push(geometry);
             const own = bevelEdges(material.clone());
             this.ownMaterials.push(own);
-            out.push({ geometry, material: own, matrix: new THREE.Matrix4(), castShadow: false });
+            out.push({
+              geometry,
+              material: own,
+              matrix: new THREE.Matrix4(),
+              castShadow: false,
+              flows: true,
+            });
           } else {
             out.push({
               geometry: mesh.geometry,
@@ -314,12 +363,12 @@ function bevelEdges<M extends THREE.Material>(material: M): M {
   material.onBeforeCompile = (shader) => {
     // Dazu glitzert das Wasser, wenn Animationen an sind (`hexAnimate.ts`).
     waterUniforms(shader.uniforms);
-    const head = 'varying vec3 vHexLocal;\nvarying vec2 vHexWorld;';
+    const head = 'varying vec3 vHexLocal;\nvarying vec2 vHexWorld;\nvarying vec4 vFlow;';
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${head}`)
+      .replace('#include <common>', `#include <common>\n${head}\nattribute vec4 aFlow;`)
       .replace(
         '#include <begin_vertex>',
-        `#include <begin_vertex>\nvHexLocal = position;\n${WATER_VERTEX}`,
+        `#include <begin_vertex>\nvHexLocal = position;\nvFlow = aFlow;\n${WATER_VERTEX}`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -342,7 +391,7 @@ function bevelEdges<M extends THREE.Material>(material: M): M {
         ${WATER_FRAGMENT}`,
       );
   };
-  material.customProgramCacheKey = () => 'hexland-bevel';
+  material.customProgramCacheKey = () => 'hexland-bevel-flow';
   material.needsUpdate = true;
   return material;
 }
@@ -518,6 +567,9 @@ export class HexBoardView {
   readonly root = new THREE.Group();
   private readonly batches = new Map<THREE.BufferGeometry, Batch>();
   private disposed = false;
+  /** Was liegt, und wo seine Grundkachel in den Bündeln steht — für den Fluss. */
+  private readonly placed = new Map<string, PlacedTile>();
+  private readonly bases = new Map<string, Array<{ batch: Batch; index: number }>>();
 
   constructor(private readonly models: HexModels) {
     this.root.name = 'hexland-board';
@@ -528,14 +580,38 @@ export class HexBoardView {
     const loaded = await Promise.all(list.map((p) => this.models.load(p.model)));
     if (this.disposed) return;
     const at = tileMatrix(tile.q, tile.r, tile.rot);
+    const key = hexKey(tile.q, tile.r);
+    const bases: Array<{ batch: Batch; index: number }> = [];
     list.forEach((piece, i) => {
       _m.multiplyMatrices(at, piece.local);
-      for (const part of loaded[i]!) this.batch(part).add(_m);
+      for (const part of loaded[i]!) {
+        const batch = this.batch(part);
+        const index = batch.add(_m);
+        if (part.flows) bases.push({ batch, index });
+      }
     });
+    this.placed.set(key, tile);
+    this.bases.set(key, bases);
+    this.updateFlow();
   }
 
   clear(): void {
     for (const batch of this.batches.values()) batch.clear();
+    this.placed.clear();
+    this.bases.clear();
+  }
+
+  /**
+   * **Die Fließrichtung neu** (`hexDressing.riverFlow`) — bei jeder Kachel, denn
+   * eine neue kann zwei Flüsse verbinden und einen umdrehen.
+   */
+  private updateFlow(): void {
+    const flows = riverFlow(this.placed);
+    for (const [key, list] of this.bases) {
+      const f = flows.get(key);
+      const value = f ? [f.into, f.out, f.centre, 2] : STILL;
+      for (const { batch, index } of list) batch.setFlow(index, value);
+    }
   }
 
   /** Einmal je Bild: was sich geändert hat, auf die Grafikkarte. */
