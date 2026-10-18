@@ -25,8 +25,19 @@ export class QuestBadge extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicM
     texture.colorSpace = THREE.SRGBColorSpace;
     super(
       new THREE.PlaneGeometry(width, (width * 192) / 512),
-      new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false }),
+      // **Immer vor allem anderen** — gemeldet: _„Der Text wird leider verdeckt
+      // von hohen Elementen. Bitte immer darüber setzen."_ Ohne Tiefenprüfung
+      // und spät gezeichnet liegt das Schild über Bäumen und Häusern, wie die
+      // Tafeln mit `front` (`ui/TextPlane.ts`).
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        toneMapped: false,
+        depthTest: false,
+        depthWrite: false,
+      }),
     );
+    this.renderOrder = 8;
     this.canvas = canvas;
     this.texture = texture;
     this.name = 'hexland-quest-badge';

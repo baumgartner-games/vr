@@ -34,7 +34,12 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   Sechseck und daneben groß Art und Zahl („Stadt 2 / 5", „Fluss 4 / 6") —
   gewünscht: _„erkenne ich zwar wie viele, aber nicht was gemacht werden soll
   … ‚Stadt: 5', ‚Fluss: X', ‚Weizen: X' … ein kleines Icon"_. Seitdem heißen
-  Dorf und Feld im Spiel **Stadt** und **Weizen** (`TERRAIN_LABEL`).
+  Dorf und Feld im Spiel **Stadt** und **Weizen** (`TERRAIN_LABEL`). Die Schilder liegen
+  **immer über allem** (ohne Tiefenprüfung, `renderOrder` 8) — vorher
+  verschwanden sie hinter hohen Bäumen (_„Bitte immer darüber setzen."_);
+  „✓ Legen" und die Zeile darüber ebenso (`TextPlane` mit `front`). Und die
+  schwebende Kachel wird von oben nicht mehr durchsichtig: Sie trägt
+  `KEEP_SOLID`, sonst hielte das Ghosting die unsichtbare Figur unter ihr frei.
   Gewünscht: _„Es muss bei einem Auftrags-Plättchen vor dem Legen erkennbar
   sein, welcher Auftrag es ist (Stadt 4 z.B.)… immer 3 Aufträge mit entweder
   4, 5, 6 benötigten Feldern"_. Das Gebiet soll **genau** so viele Kacheln groß

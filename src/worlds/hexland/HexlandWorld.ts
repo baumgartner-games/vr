@@ -6,6 +6,7 @@ import type { PlateTile } from '../shared/plateField';
 import { createSky } from '../shared/environment';
 import { setBuildFlight } from '../../core/buildFlight';
 import { graphics, saveGraphics } from '../../core/graphicsSettings';
+import { KEEP_SOLID } from '../../core/occluderGhost';
 import { TextPlane } from '../../ui/TextPlane';
 import type { MenuEntry } from '../../ui/menu';
 import type { PointerHit } from '../../core/Pointer';
@@ -307,6 +308,7 @@ export class HexlandWorld extends FurnishedWorld {
       background: 'rgba(36, 120, 64, 0.92)',
       align: 'center',
       face: true,
+      front: true,
     });
     this.confirm.position.y = 2.5;
     this.hand.add(this.confirm);
@@ -317,6 +319,7 @@ export class HexlandWorld extends FurnishedWorld {
       accent: 0xf3d3df,
       align: 'center',
       face: true,
+      front: true,
     });
     this.info.position.y = 3.45;
     this.hand.add(this.info);
@@ -326,6 +329,9 @@ export class HexlandWorld extends FurnishedWorld {
     this.handQuest.position.y = 1.5;
     this.hand.add(this.handQuest);
     this.hand.name = 'hexland-ghost';
+    // Von oben steht die Figur unsichtbar unter der Kamera — die Kachel in der
+    // Hand würde sonst als „Verdecker" durchsichtig (`core/occluderGhost.ts`).
+    this.hand.userData[KEEP_SOLID] = true;
     this.hand.visible = false;
     this.root.add(this.hand);
 
