@@ -529,8 +529,12 @@ export class HexlandWorld extends FurnishedWorld {
       } else {
         // Auch an der Grenze nie dorthin, wo ein Auftrag unmöglich würde.
         const ratio = fit && fit.neighbours > 0 ? matched / fit.neighbours : 0;
-        const breaks = fit ? this.board.assess(spec, slot.q, slot.r, rot).breaks : 0;
-        score = matched * 3 + ratio - breaks * 100 - far(slot) * 0.25 - penalty;
+        // Ein Auftrag, der hier genau fertig würde, wiegt so viel wie zwei
+        // passende Kanten — gewünscht: _„Bei dem Vorschlag sollte ggf. auch dort
+        // vorgeschlagen werden, wo Aufträge am ehesten beendet werden."_
+        const a = fit ? this.board.assess(spec, slot.q, slot.r, rot) : null;
+        const quests = a ? a.completes * 6 + a.closer - a.breaks * 100 : 0;
+        score = matched * 3 + ratio + quests - far(slot) * 0.25 - penalty;
       }
       if (!best || score > best.score) best = { hex: slot, rot, score };
     }
@@ -541,12 +545,18 @@ export class HexlandWorld extends FurnishedWorld {
 
   /**
    * **Was eine Lage den Aufträgen bringt** (`HexBoard.assess`): Ein Auftrag,
-   * der genau seine Zahl erreicht, zählt am meisten, Wachstum viel — und ein
-   * Auftrag, der dadurch unerfüllbar würde, schließt die Lage praktisch aus.
+   * der genau seine Zahl erreicht, zählt am meisten; danach, wie nah die
+   * übrigen ihrer Zahl kommen, dann bloßes Wachstum — und ein Auftrag, der
+   * dadurch unerfüllbar würde, schließt die Lage praktisch aus.
+   *
+   * Gewünscht: _„Bei dem Vorschlag sollte ggf. auch dort vorgeschlagen werden,
+   * wo Aufträge am ehesten beendet werden."_ Ein Auftrag bei 4 / 5, der auf
+   * 5 / 5 käme, schlägt jedes Wachstum anderswo; einer, der auf 4 / 5 wüchse,
+   * einen, der auf 2 / 6 wüchse.
    */
   private questScore(spec: TileSpec, slot: Hex, rot: number): number {
     const a = this.board.assess(spec, slot.q, slot.r, rot);
-    return a.completes * 40 + a.progress * 10 - a.breaks * 100;
+    return a.completes * 60 + a.closer * 20 + a.progress * 5 - a.breaks * 100;
   }
 
   /**
@@ -1448,10 +1458,13 @@ export class HexlandWorld extends FurnishedWorld {
           'xray',
         ),
         placeRow('near', 'Neben der zuletzt gelegten Kachel, sonst so nah wie möglich'),
-        placeRow('border', 'Wo die meisten Kanten zu den Nachbarn passen — schon passend gedreht'),
+        placeRow(
+          'border',
+          'Wo die meisten Kanten zu den Nachbarn passen, bei Gleichstand wo ein Auftrag fertig wird — schon passend gedreht',
+        ),
         placeRow(
           'smart',
-          'Erst nach offenen Aufträgen (nie so, dass einer unmöglich wird), sonst nach passenden Kanten — schon passend gedreht',
+          'Erst wo ein Auftrag fertig wird oder seiner Zahl am nächsten kommt (nie so, dass einer unmöglich wird), sonst nach passenden Kanten — schon passend gedreht',
         ),
       ],
     };

@@ -816,7 +816,11 @@ export class HexBoard {
    * - `breaks`: wie viele dadurch **unerfüllbar** werden — ihr Gebiet wird
    *   größer als die Zahl, schließt sich ringsum, bevor die Zahl erreicht ist,
    *   oder trägt nun zwei Aufträge mit verschiedenen Zahlen. Auch der eigene
-   *   Auftrag der Kachel zählt mit.
+   *   Auftrag der Kachel zählt mit;
+   * - `closer`: wie nah die gewachsenen, noch nicht erfüllten Aufträge danach
+   *   ihrer Zahl sind — je Auftrag Größe durch Zahl, aufsummiert. So zieht ein
+   *   Auftrag, dem nur noch eine Kachel fehlt, stärker als einer, der eben
+   *   erst angefangen hat.
    *
    * Gemeldet war, dass die Hilfe Felder empfahl, nach denen ein Auftrag nie
    * mehr zu schaffen war — sie zählte nur, ob ein Gebiet weiterwächst.
@@ -826,7 +830,7 @@ export class HexBoard {
     q: number,
     r: number,
     rot: number,
-  ): { progress: number; completes: number; breaks: number } {
+  ): { progress: number; completes: number; breaks: number; closer: number } {
     const key = hexKey(q, r);
     const before = this.questStates();
     this.tiles.set(key, { q, r, spec, rot });
@@ -835,14 +839,17 @@ export class HexBoard {
     let progress = 0;
     let completes = 0;
     let breaks = 0;
+    let closer = 0;
     for (const [id, now] of after) {
       const was = before.get(id);
       if (!now.possible && (was?.possible ?? true)) breaks++;
       if (!now.possible) continue;
       if (now.size === now.target && (was?.size ?? 0) !== now.target) completes++;
-      if (was) progress += Math.max(0, now.size - was.size);
+      const grown = was ? Math.max(0, now.size - was.size) : 0;
+      progress += grown;
+      if (grown > 0 && now.size < now.target) closer += now.size / now.target;
     }
-    return { progress, completes, breaks };
+    return { progress, completes, breaks, closer };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */

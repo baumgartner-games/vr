@@ -128,11 +128,13 @@ aus bzw. _In der Nähe_.
   immer gemessen von der **zuletzt gelegten** (`lastPlaced`):
   - _In der Nähe_: das nächste freie Feld daneben, in der Drehung des Spielers
     (wenn sie dort passt).
-  - _An passender Grenze_: wo die meisten Kanten passen, schon gedreht.
+  - _An passender Grenze_: wo die meisten Kanten passen, schon gedreht; ein
+    Auftrag, der dort genau fertig würde, wiegt wie zwei passende Kanten.
   - _Intelligent_ (unten): erst nach den Aufträgen, sonst nach passenden
     Kanten, schon gedreht. Für die Aufträge rechnet `HexBoard.assess` die Lage
     durch, als läge die Kachel schon: wie viel offene Aufträge wachsen, ob
-    einer **genau** seine Zahl erreicht — und ob einer **unerfüllbar** würde
+    einer **genau** seine Zahl erreicht, wie nah die übrigen ihrer Zahl kommen
+    (`closer`, Größe durch Zahl) — und ob einer **unerfüllbar** würde
     (Gebiet größer als die Zahl, ringsum geschlossen vor der Zahl, oder zwei
     Aufträge mit verschiedenen Zahlen im selben Gebiet; der eigene Auftrag der
     Kachel zählt mit). So eine Lage schlägt keine Hilfe mehr vor, auch _An
@@ -140,6 +142,10 @@ aus bzw. _In der Nähe_.
     Empfehlungen würden dazu führen, dass ich die Aufträge niemals schaffen
     könnte."_ Nachgerechnet über 20 Runden: nur nach Kanten 50 Aufträge
     verpasst und 84 erfüllt, mit `assess` 0 verpasst und 157 erfüllt.
+    Reihenfolge in `questScore`: fertig (60) vor nah dran (20 × Größe/Zahl)
+    vor bloßem Wachstum (5 je Kachel) — gewünscht: _„Bei dem Vorschlag sollte
+    ggf. auch dort vorgeschlagen werden, wo Aufträge am ehesten beendet
+    werden."_
     Gewünscht: _„Bei einem Auftrag und an einer passenden Grenze muss sich
     nicht ausschließen … ‚intelligent' nennen und nach unten packen."_
 - **Die Auswahlen sind Kreise, kein Schieber**, und stehen als Block ohne
