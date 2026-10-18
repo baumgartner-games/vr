@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { kaykitModel } from '../../core/kaykitModel';
 import { baseTile, hexCentre, type PlacedTile, type TileSpec } from './hexRules';
 import { dressTile, groundPatches, type GroundKind } from './hexDressing';
+import {
+  WATER_FRAGMENT,
+  WATER_VERTEX,
+  fanMaterial,
+  swayMaterial,
+  waterUniforms,
+} from './hexAnimate';
 
 /**
  * **Wie groß eine Kachel des Regals hier wird.** Im Regal ist sie 2 breit
@@ -128,7 +135,7 @@ export class HexModels {
           } else {
             out.push({
               geometry: mesh.geometry,
-              material,
+              material: this.animated(model, mesh.name, material),
               matrix: mesh.matrixWorld.clone(),
               castShadow: true,
             });
@@ -151,9 +158,38 @@ export class HexModels {
       material.dispose();
     }
     this.ownMaterials.length = 0;
+    for (const material of this.moving.values()) material.dispose();
+    this.moving.clear();
   }
 
   private readonly ownMaterials: THREE.Material[] = [];
+  /** Kopien der Vorlage mit Bewegung (`hexAnimate.ts`) — die Textur gehört der Vorlage. */
+  private readonly moving = new Map<string, THREE.Material>();
+
+  /**
+   * **Was sich bewegt, bekommt eine eigene Kopie des Materials** — Bäume und
+   * Weizen wiegen sich, Mühlenflügel drehen sich. Die Vorlage teilen sich
+   * alle Welten mit KayKit-Modellen; die bleibt still.
+   */
+  private animated(model: string, mesh: string, material: THREE.Material): THREE.Material {
+    const kind = mesh.includes('_fan')
+      ? 'fan'
+      : model.startsWith('decoration/nature/tree')
+        ? 'tree'
+        : model.endsWith('building_grain.glb')
+          ? 'grain'
+          : null;
+    if (!kind) return material;
+    const key = `${kind}|${material.uuid}`;
+    let own = this.moving.get(key);
+    if (!own) {
+      own = material.clone();
+      if (kind === 'fan') fanMaterial(own);
+      else swayMaterial(own, kind === 'tree' ? 0.35 : 3);
+      this.moving.set(key, own);
+    }
+    return own;
+  }
 
   /**
    * **Ein Stück Boden** (`hexDressing.groundPatches`) als „Modell" — so geht es
@@ -276,11 +312,20 @@ function flatTop(source: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.Buf
  */
 function bevelEdges<M extends THREE.Material>(material: M): M {
   material.onBeforeCompile = (shader) => {
+    // Dazu glitzert das Wasser, wenn Animationen an sind (`hexAnimate.ts`).
+    waterUniforms(shader.uniforms);
+    const head = 'varying vec3 vHexLocal;\nvarying vec2 vHexWorld;';
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vHexLocal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHexLocal = position;');
+      .replace('#include <common>', `#include <common>\n${head}`)
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>\nvHexLocal = position;\n${WATER_VERTEX}`,
+      );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vHexLocal;')
+      .replace(
+        '#include <common>',
+        `#include <common>\n${head}\nuniform float uHexTime;\nuniform float uHexAnim;`,
+      )
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
@@ -293,7 +338,8 @@ function bevelEdges<M extends THREE.Material>(material: M): M {
             * (1.0 - smoothstep(${BEVEL.toFixed(3)}, ${(BEVEL * 1.8).toFixed(3)}, edge));
           diffuseColor.rgb *= mix(1.0, 0.52, groove * groove);
           diffuseColor.rgb += lip * 0.07;
-        }`,
+        }
+        ${WATER_FRAGMENT}`,
       );
   };
   material.customProgramCacheKey = () => 'hexland-bevel';

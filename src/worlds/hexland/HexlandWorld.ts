@@ -31,6 +31,7 @@ import {
   type TileSpec,
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
+import { WindGusts } from './hexAnimate';
 import { dressingModels } from './hexDressing';
 import { QuestBadge } from './hexBadge';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
@@ -88,6 +89,9 @@ export class HexlandWorld extends FurnishedWorld {
   private lastCtx: WorldContext | null = null;
   private offDom: Array<() => void> = [];
   private hexMaterials: THREE.Material[] = [];
+  /** Mühlen, Wasser, Wind (`hexAnimate.ts`) — an oder aus, gemerkt im Browser. */
+  private animations = readAnimations();
+  private readonly wind = new WindGusts();
   /** Die Spielhilfen (`helpMenu`), gemerkt im Browser. */
   private help: HexHelp = readHelp();
   /** Wo zuletzt gelegt wurde — dort in der Nähe liegt die nächste (`autoPlace`). */
@@ -201,6 +205,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.view.root.userData.sharedAssets = true;
     this.root.add(this.view.root);
     for (const tile of this.board.tiles.values()) void this.view.add(tile);
+    this.root.add(this.wind.root);
 
     const slotGeometry = new THREE.CylinderGeometry(HEX_WIDTH * 0.555, HEX_WIDTH * 0.555, 0.04, 6);
     const slotMaterial = new THREE.MeshBasicMaterial({
@@ -828,6 +833,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.clock += dt;
     this.view?.flush();
     this.fitView(ctx);
+    this.blowWind(dt, ctx);
     // Die Vorschau schwebt eine Handbreit über dem Feld und wiegt sich ein wenig.
     if (this.previewTile) this.previewTile.position.y = 0.55 + Math.sin(this.clock * 2.2) * 0.08;
     if (this.ring) {
@@ -842,6 +848,31 @@ export class HexlandWorld extends FurnishedWorld {
     // Dreht sich das Bild, dreht das Bildchen in der Leiste mit.
     if (this.board2d && Math.abs(this.headingNow(ctx) - this.iconHeading) > 0.01)
       this.drawBarIcon();
+  }
+
+  /**
+   * **Der Wind** — die Böe beginnt am Rand des Bildes: gemessen von der Stelle,
+   * auf die die Kamera schaut, so weit, wie das Bild von dort reicht.
+   */
+  private blowWind(dt: number, ctx: WorldContext): void {
+    const camera = ctx.viewCamera ?? ctx.camera;
+    camera.getWorldPosition(_eye);
+    camera.getWorldDirection(_look);
+    // Wo der Blick das Brett trifft; schaut man flach oder nach oben, die Stelle unter einem.
+    const t = _look.y < -0.05 ? -_eye.y / _look.y : 0;
+    _aim.copy(_eye).addScaledVector(_look, Math.min(t, 80));
+    this.root.worldToLocal(_aim);
+    // Wie weit das Bild von dort reicht, quer und hoch.
+    const far = _eye.distanceTo(this.root.localToWorld(_aim.clone()));
+    const half = far * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const wide = half * camera.aspect;
+    this.wind.update(
+      dt,
+      this.animations,
+      _centre.set(_aim.x, _aim.z),
+      Math.max(half, wide) * 1.1,
+      Math.min(half, wide) * 0.8,
+    );
   }
 
   // --- die Ansichten ---------------------------------------------------------------
@@ -1299,7 +1330,7 @@ export class HexlandWorld extends FurnishedWorld {
         run: close,
       });
     }
-    rows.push(...this.modeRows(), this.helpMenu(), this.fpsRow());
+    rows.push(...this.modeRows(), this.helpMenu(), this.animationRow(), this.fpsRow());
     if (!creative) {
       rows.push({
         id: 'hexland:rules',
@@ -1365,6 +1396,27 @@ export class HexlandWorld extends FurnishedWorld {
         ],
       };
     });
+  }
+
+  /**
+   * **Animationen** — Mühlenflügel, fließendes Wasser, Wind in Bäumen und
+   * Weizen, ab und zu eine weiße Böe (`hexAnimate.ts`). Gewünscht: _„Können
+   * wir noch einen Hex-Menüpunkt einbauen: Animationen aktiviert"_.
+   */
+  private animationRow(): MenuEntry {
+    return {
+      id: 'hexland:animations',
+      label: 'Animationen',
+      sub: 'Mühlen drehen sich, Wasser fließt, Wind wiegt Bäume und Weizen',
+      icon: 'glider',
+      accent: 0x6fb7e0,
+      checked: this.animations,
+      run: () => {
+        this.animations = !this.animations;
+        writeAnimations(this.animations);
+        this.context?.refreshWorldMenu();
+      },
+    };
   }
 
   /** **Bildrate im Bild** — derselbe Schalter wie unter _Grafik_ (`graphicsSettings.showFps`). */
@@ -1627,6 +1679,7 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.pickPlane) ctx.pointer.remove(this.pickPlane);
     if (this.confirm) ctx.pointer.remove(this.confirm);
     this.view?.dispose();
+    this.wind.dispose();
     this.models.dispose();
     this.slots?.dispose();
     this.slots?.geometry.dispose();
@@ -1715,6 +1768,30 @@ function savedSummary(mode: HexMode): string | null {
   const points = board.scoring().total;
   return board.over ? `Vorbei · ${points} Punkte` : `${board.placed} gelegt · ${points} Punkte`;
 }
+
+const ANIM_KEY = 'hexland:animations';
+
+/** Ohne Eintrag an — es ist eine Welt zum Anschauen. */
+function readAnimations(): boolean {
+  try {
+    return localStorage.getItem(ANIM_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function writeAnimations(on: boolean): void {
+  try {
+    localStorage.setItem(ANIM_KEY, on ? 'on' : 'off');
+  } catch {
+    // Ohne Speicher gilt es nur bis zum Neuladen.
+  }
+}
+
+const _eye = new THREE.Vector3();
+const _look = new THREE.Vector3();
+const _aim = new THREE.Vector3();
+const _centre = new THREE.Vector2();
 
 const HELP_KEY = 'hexland:help';
 

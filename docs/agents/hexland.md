@@ -279,8 +279,33 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   ihr Dreieck der Kachel, und dort steht, was zu ihrem Gelände gehört — eine
   Baumgruppe, zwei Häuser, ein Kornfeld (`building_grain`), auf Wiese
   manchmal ein Baum oder Stein. Eine Landkachel aus einem einzigen Gelände
-  bekommt das große Stück: ganzer Wald, ganzes Feld mit Mühle, Dorfring mit
-  Kirche oder Markt. Gewürfelt mit dem Samen der Kachel, also immer gleich.
+  bekommt das große Stück: ganzes Feld mit Mühle, Dorfring mit Kirche oder
+  Markt — nur der ganze Wald nicht: Er sind sieben kleine Baumgruppen (eine je
+  Kante, eine in der Mitte), wie auf den gemischten Kacheln. Gewünscht: _„Die
+  Wälder, wo komplett Wald ist, sollen nicht so groß sein, sondern lieber
+  viele kleine wie bei den anderen auch."_ Gewürfelt mit dem Samen der
+  Kachel, also immer gleich.
+- **Animationen** (`hexland/hexAnimate.ts`, Schalter _Animationen_ im Reiter,
+  gemerkt unter `hexland:animations`, ohne Eintrag an). Gewünscht: _„Dann
+  soll sich die Windmühle drehen oder das Wasser leicht fließen und die Bäume
+  leicht wackeln durch einen Wind, ggf. wäre ein kleines Wind-System schön,
+  was vom Bildschirmrand ab und zu in einer sichtbaren Welle (in weiß)
+  fliegt."_ Alles im Shader der Bündel, kein JavaScript je Baum:
+  - Bäume und Weizen bekommen eine eigene Kopie des Materials der Vorlage
+    (`HexModels.animated`, die Vorlage teilen sich alle KayKit-Welten) mit
+    `swayMaterial`: Die Spitze weicht um Höhe² aus, leise aus fester Richtung
+    und stark, wo die Front der Böe gerade ist (`ANIM.gust`). Nur in
+    Bündeln — die Kachel in der Hand bleibt still. Schatten wiegen nicht mit.
+  - Der Mühlenflügel (`building_windmill_top_fan_*`, ein eigenes Netz, mittig
+    auf seiner Achse z) dreht im Shader (`fanMaterial`).
+  - Wasser glitzert im Shader der Kacheln (`bevelEdges` + `WATER_FRAGMENT`):
+    wo die Textur blau ist, ziehen helle Wellen in Brettkoordinaten.
+  - Die Böe (`WindGusts`): alle 5–11 s sechs weiße Bänder mit Kringel, vom
+    Rand des Bildes quer übers Bild in 4,5 s — Größe und Weite rechnet
+    `HexlandWorld.blowWind` aus Blickpunkt und Sichtfeld der Kamera, damit
+    sie auch weit herausgezoomt zu sehen sind. Sechs Zeichenaufrufe, nur
+    während einer Böe.
+  - Aus heißt: Zeit steht (Flügel stehen), Wiegen, Glitzern und Böen weg.
 - **Die Kante jeder Kachel** (`hexView.bevelEdges`, ein Zusatz im Shader der
   Kacheln und Böden): nah am Rand eine dunkle Fuge, knapp davor eine helle
   Rundung — die Kacheln liegen sichtbar als Plättchen nebeneinander, ohne

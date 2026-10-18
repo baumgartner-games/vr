@@ -11,7 +11,7 @@ import { baseTile, rng, type Terrain, type TileSpec } from './hexRules';
  * Liegt an einer Kante Wald, stehen in diesem Dreieck Bäume; liegt Dorf dort,
  * zwei Häuser; Feld ist ein Kornfeld. So sieht man an der Kachel, was an
  * welcher Kante liegt — und damit, wo sie passt. Ist eine Landkachel ganz aus
- * einem Gelände, bekommt sie das große Stück dafür: einen ganzen Wald, ein
+ * einem Gelände, bekommt sie das große Stück dafür: viele Baumgruppen, ein
  * ganzes Feld mit Mühle, ein Dorf mit Kirche in der Mitte.
  */
 export interface Dress {
@@ -39,8 +39,6 @@ export function dressingModels(): string[] {
     'trees_B_small',
     'trees_A_medium',
     'trees_B_medium',
-    'trees_A_large',
-    'trees_B_large',
     'tree_single_A',
     'tree_single_B',
     'rock_single_A',
@@ -235,13 +233,21 @@ function whole(
 ): void {
   switch (terrain) {
     case 'forest':
-      out.push({
-        model: `decoration/nature/${random() < 0.5 ? 'trees_A_large' : 'trees_B_large'}.glb`,
-        x: 0,
-        z: 0,
-        yaw: turn(),
-        scale: 0.98,
-      });
+      // **Viele kleine Gruppen statt eines großen Waldes** — gewünscht: _„Die
+      // Wälder, wo komplett Wald ist, sollen nicht so groß sein, sondern lieber
+      // viele kleine wie bei den anderen auch."_ Eine Gruppe je Kante wie auf
+      // den gemischten Kacheln, dazu eine in der Mitte.
+      for (let e = 0; e < 7; e++) {
+        const a = e * (Math.PI / 3) + (random() - 0.5) * 0.3;
+        const d = e === 6 ? 0 : 0.6 + (random() - 0.5) * 0.1;
+        out.push({
+          model: `decoration/nature/${['trees_A_small', 'trees_B_small', 'trees_A_medium'][Math.floor(random() * 3)]}.glb`,
+          x: Math.cos(a) * d,
+          z: Math.sin(a) * d,
+          yaw: random() * Math.PI * 2,
+          scale: 0.44 + random() * 0.06,
+        });
+      }
       return;
     case 'field':
       out.push({ model: 'buildings/neutral/building_grain.glb', x: 0, z: 0, yaw: 0, scale: 0.84 });
