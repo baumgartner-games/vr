@@ -199,7 +199,15 @@ aus bzw. _In der Nähe_.
     einen Schlag fertig. Gewünscht: _„dass das Spiel Städte bzw. Gebiete so
     weit vorbereitet, … dass man eine 3er-Stadt, falls noch nicht
     existierend, mit freier Kachel nebenan so weit aufbaut"_. Mit beiden über
-    20 Runden: erfüllt 137 → 166, Punkte 45 → 53.
+    20 Runden: erfüllt 137 → 166, Punkte 45 → 53. Wächst ein Gebiet nur von
+    „bereit für 4" zu „bereit für 5" (dasselbe Gelände verliert und gewinnt),
+    zählt das leicht dagegen (−0,15): Kleiner bleiben lässt beides offen.
+    Gewünscht an einem Stand: _„Hier ist es sinnvoller, den Wald nicht zu
+    einem 4er-Wald zu machen, sondern ihn als 3er-Wald zu lassen und gegenüber
+    vom Weizen zu setzen, falls eine 4er-Wald-Mission kommt."_ Kostet in der
+    Rechnung über 80 Runden etwa 2 % Punkte (59,1 → 58,1) — die Simulation
+    legt aber immer nur den Vorschlag und plant nicht weiter; gewünscht ist
+    es so.
     **Wie weit ein Gebiet noch wachsen kann** (`slotFor`, `areas(…, strict)` →
     `room`): Ein freies Feld am Gebiet ist `grow`, wenn eine Kachel aus dem
     Stapel dort passt und das Gelände zu einem weiteren freien Feld führt;

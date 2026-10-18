@@ -1009,7 +1009,28 @@ export class HexBoard {
       progress += grown;
       if ((grown > 0 || !was) && now.size < now.target) closer += now.size / now.target;
     }
-    return { progress, completes, points, breaks, closer, tied, ready: readyAfter - readyBefore };
+    // **Vorbereitet**: was dazukommt, zählt, was verloren geht, zählt dagegen.
+    // Und ein 3er-Wald, der für einen kommenden Wald 4 bereitsteht, wird nicht
+    // zum 4er, nur weil auch ein Wald 5 kommen kann — kleiner bleiben lässt
+    // beides offen, größer nicht mehr. Gemeldet: _„Hier ist es sinnvoller,
+    // den Wald nicht zu einem 4er-Wald zu machen, sondern ihn als 3er-Wald zu
+    // lassen … falls eine 4er-Wald-Mission kommt."_
+    let ready = 0;
+    const gained = new Set<string>();
+    const lost = new Set<string>();
+    for (const key of readyAfter)
+      if (!readyBefore.has(key)) {
+        ready++;
+        gained.add(key.split(':')[0]!);
+      }
+    for (const key of readyBefore)
+      if (!readyAfter.has(key)) {
+        ready--;
+        lost.add(key.split(':')[0]!);
+      }
+    // Ein Gebiet, das von „bereit für 4" zu „bereit für 5" wächst, gibt etwas her.
+    for (const terrain of gained) if (lost.has(terrain)) ready -= 0.15;
+    return { progress, completes, points, breaks, closer, tied, ready };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */
@@ -1061,14 +1082,14 @@ export class HexBoard {
    * eine 4er-Stadt als Mission kommen kann, dass man eine 3er-Stadt, falls
    * noch nicht existierend, mit freier Kachel nebenan so weit aufbaut"_.
    */
-  private readiness(): number {
+  private readiness(): Set<string> {
     const wanted = new Map<QuestTerrain, Set<number>>();
     for (const t of this.tasks) {
       let set = wanted.get(t.terrain);
       if (!set) wanted.set(t.terrain, (set = new Set()));
       set.add(t.target);
     }
-    let ready = 0;
+    const ready = new Set<string>();
     for (const [terrain, targets] of wanted) {
       const areas = this.areas(terrain);
       // Gebiete, in denen schon ein offener Auftrag liegt, sind vergeben.
@@ -1081,7 +1102,7 @@ export class HexBoard {
       for (const [root, size] of areas.size) {
         if (!taken.has(root) && areas.open.get(root) === true) sizes.add(size);
       }
-      for (const target of targets) if (sizes.has(target - 1)) ready++;
+      for (const target of targets) if (sizes.has(target - 1)) ready.add(`${terrain}:${target}`);
     }
     return ready;
   }
