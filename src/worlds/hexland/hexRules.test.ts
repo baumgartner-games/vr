@@ -28,6 +28,17 @@ describe('Hexland-Spielstand', () => {
     expect(copy.current).toEqual(board.current);
   });
 
+  it('liest Stände von vor dem Auftragsstapel mit Zahlen', () => {
+    const board = played();
+    const old = JSON.parse(board.save()) as Record<string, unknown>;
+    delete old.deck;
+    old.tasks = 7;
+    const copy = new HexBoard(1);
+    expect(copy.load(JSON.stringify(old))).toBe(true);
+    expect(copy.tasks).toHaveLength(7);
+    expect(copy.tiles.size).toBe(board.tiles.size);
+  });
+
   it('lässt ein Brett stehen, wenn der Speicher kaputt ist', () => {
     const board = played();
     const before = board.save();

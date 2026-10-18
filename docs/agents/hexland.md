@@ -26,12 +26,19 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   Ist der Stapel leer, ist die Partie vorbei.
 - **Immer drei Aufträge offen** (`OPEN_TASKS`): Liegen weniger als drei offene
   auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
-  nicht vom Stapel ab. In der normalen Runde gibt es **12 Auftragskacheln**
-  (`QUEST_TILES`, `HexBoard.tasksLeft`, im Speicher als `tasks`); Leiste und
-  Reiter zeigen, wie viele noch kommen (_„wie viele Aufträge es noch geben
-  könnte und wie viele Spielplan-Tiles"_). Im unendlichen Spiel ohne Ende. Ihr Auftrag gilt einem ihrer Gelände (Wald, Dorf, Feld,
-  Fluss oder Weg) und hat **schon beim Ziehen** seine Zahl: 4, 5 oder 6
-  (`QUEST_TARGETS`). Man sieht ihn vor dem Legen — als Schild „Weizen 4"
+  nicht vom Stapel ab. Die Aufträge kommen aus einem **Auftragsstapel wie im
+  Brettspiel** (`taskDeck`, `HexBoard.tasks`): je Gelände — Stadt, Weizen,
+  Wald, Fluss, Weg — sechs Aufträge mit 4, 4, 5, 5, 6, 6 (`TASK_TARGETS`),
+  also 30 (`QUEST_TILES`), gemischt. Gewünscht: _„Es gibt bei Städten 4, 4,
+  5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen, Wald, Wasser,
+  Straße/Weg."_ Zum Auftrag wird eine Kachel gezogen, die das Gelände trägt
+  (`drawTile` mit `task`). Gespeichert als `deck` (Kürzel und Zahl je
+  Auftrag); Stände ohne `deck` bekommen einen frisch gemischten Stapel in der
+  Größe von `tasks` (Test in `hexRules.test.ts`). Leiste und Reiter zeigen,
+  wie viele noch kommen (_„wie viele Aufträge es noch geben könnte und wie
+  viele Spielplan-Tiles"_), der Reiter dazu je Gelände die Zahlen, die noch
+  im Stapel liegen. Im unendlichen Spiel wird der Stapel neu gemischt, wenn
+  er leer ist. Die Zahl steht **schon beim Ziehen** fest. Man sieht ihn vor dem Legen — als Schild „Weizen 4"
   über der schwebenden Kachel, in der Leiste und als Zahl im Bildchen.
   Die Schilder (`hexBadge.QuestBadge`) tragen vorn das Gelände als farbiges
   Sechseck und daneben groß Art und Zahl („Stadt 2 / 5", „Fluss 4 / 6") —

@@ -316,8 +316,36 @@ function landWeights(base: BaseTile): Record<Exclude<Terrain, 'water' | 'road'>,
  */
 export function drawTile(
   random: () => number,
-  options: { landOnly?: boolean; task?: boolean } = {},
+  options: { landOnly?: boolean; task?: Task } = {},
 ): TileSpec {
+  const task = options.task;
+  if (task) {
+    // So lange ziehen, bis das verlangte Gelände auf der Kachel liegt — Fluss
+    // und Weg gibt es nur auf ihren Grundkacheln.
+    for (let tries = 0; tries < 60; tries++) {
+      const spec = drawTile(random, { landOnly: false });
+      if (!spec.edges.includes(task.terrain)) continue;
+      return {
+        base: spec.base,
+        edges: spec.edges,
+        seed: spec.seed,
+        quest: { terrain: task.terrain, target: task.target, state: 'open' },
+      };
+    }
+    // Sehr unwahrscheinlich: dann eine Landkachel, ganz aus dem Gelände.
+    const terrain: Terrain =
+      task.terrain === 'water' || task.terrain === 'road' ? 'grass' : task.terrain;
+    const base = task.terrain === 'water' ? 'river-A' : task.terrain === 'road' ? 'road-A' : 'land';
+    const edges: Terrain[] = Array.from({ length: 6 }, () => terrain);
+    for (const i of baseTile(base).water) edges[i] = 'water';
+    for (const i of baseTile(base).road) edges[i] = 'road';
+    return {
+      base,
+      edges,
+      seed: Math.floor(random() * 1e9),
+      quest: { terrain: task.terrain, target: task.target, state: 'open' },
+    };
+  }
   const pool = options.landOnly ? [BASE_TILES[0]!] : BASE_TILES;
   const base = pick(pool, (b) => b.weight, random());
   const edges: Terrain[] = Array.from({ length: 6 }, () => 'grass');
@@ -348,17 +376,6 @@ export function drawTile(
   }
   const seed = Math.floor(random() * 1e9);
   const areas = AREA_TERRAINS.filter((t) => edges.includes(t));
-  if (options.task) {
-    const kinds = QUEST_TERRAINS.filter((t) => edges.includes(t));
-    if (kinds.length > 0) {
-      const terrain = kinds[Math.floor(random() * kinds.length)]!;
-      // Die Zahl steht schon beim Ziehen fest — man soll vor dem Legen sehen,
-      // was verlangt ist (gewünscht: _„vor dem Legen erkennbar, welcher
-      // Auftrag es ist (Stadt 4 z.B.)"_), und sie ist immer 4, 5 oder 6.
-      const target = QUEST_TARGETS[Math.floor(random() * QUEST_TARGETS.length)]!;
-      return { base: base.id, edges, seed, quest: { terrain, target, state: 'open' } };
-    }
-  }
   if (areas.length > 0 && random() < FLAG_CHANCE) {
     return { base: base.id, edges, seed, flag: areas[Math.floor(random() * areas.length)]! };
   }
@@ -368,13 +385,40 @@ export function drawTile(
 /** Wie groß ein Auftrag sein kann — gewünscht: _„entweder 4, 5, 6 benötigten Feldern"_. */
 export const QUEST_TARGETS: readonly number[] = [4, 5, 6];
 
+/** Ein Auftrag im Auftragsstapel: welches Gelände, wie groß. */
+export interface Task {
+  readonly terrain: QuestTerrain;
+  readonly target: number;
+}
+
+/**
+ * **Die Zahlen je Gelände im Auftragsstapel** — wie im Brettspiel: _„Es gibt
+ * bei Städten 4, 4, 5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen,
+ * Wald, Wasser, Straße/Weg."_ Die Zahl steht schon vor dem Legen fest (_„vor
+ * dem Legen erkennbar, welcher Auftrag es ist (Stadt 4 z.B.)"_).
+ */
+export const TASK_TARGETS: readonly number[] = [4, 4, 5, 5, 6, 6];
+
+/** **Der ganze Auftragsstapel**, gemischt: je Gelände die sechs Zahlen. */
+export function taskDeck(random: () => number): Task[] {
+  const deck: Task[] = [];
+  for (const terrain of QUEST_TERRAINS)
+    for (const target of TASK_TARGETS) deck.push({ terrain, target });
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+  }
+  return deck;
+}
+
 /**
  * **Wie viele Auftragskacheln eine normale Runde hat** — endlich, wie im
  * Brettspiel, damit man sieht, wie viele noch kommen können (gewünscht: _„Es
  * wäre schön zu sehen, wie viele Aufträge es noch geben könnte und wie viele
- * Spielplan-Tiles"_). Im unendlichen Spiel gibt es beliebig viele.
+ * Spielplan-Tiles"_). Im unendlichen Spiel wird der Stapel neu gemischt,
+ * wenn er leer ist.
  */
-export const QUEST_TILES = 12;
+export const QUEST_TILES = QUEST_TERRAINS.length * TASK_TARGETS.length;
 
 /** Wie viele normale Kacheln eine Partie hat. */
 export const NORMAL_TILES = 40;
@@ -526,8 +570,13 @@ export class HexBoard {
   hand: TileSpec | null = null;
   mode: HexMode = 'game';
   placed = 0;
+  /** Die Aufträge, die noch kommen — oben ist das Ende der Liste. */
+  tasks: Task[] = [];
+
   /** Wie viele Auftragskacheln noch kommen können — `Infinity` im unendlichen Spiel. */
-  tasksLeft = QUEST_TILES;
+  get tasksLeft(): number {
+    return this.mode === 'endless' ? Infinity : this.tasks.length;
+  }
   private random: () => number;
   private seed: number;
 
@@ -560,7 +609,7 @@ export class HexBoard {
     this.tiles.clear();
     this.placed = 0;
     this.stack = [];
-    this.tasksLeft = mode === 'endless' ? Infinity : mode === 'creative' ? 0 : QUEST_TILES;
+    this.tasks = mode === 'creative' ? [] : taskDeck(this.random);
     const first = drawTile(this.random, { landOnly: true });
     this.tiles.set(hexKey(0, 0), {
       q: 0,
@@ -611,9 +660,9 @@ export class HexBoard {
     if (this.mode === 'endless')
       while (this.stack.length < 3) this.stack.unshift(drawTile(this.random));
     if (this.stack.length === 0) return null;
-    if (this.openTasks() < OPEN_TASKS && this.tasksLeft > 0) {
-      this.tasksLeft--;
-      return drawTile(this.random, { task: true });
+    if (this.mode === 'endless' && this.tasks.length === 0) this.tasks = taskDeck(this.random);
+    if (this.openTasks() < OPEN_TASKS && this.tasks.length > 0) {
+      return drawTile(this.random, { task: this.tasks.pop()! });
     }
     return this.stack.pop()!;
   }
@@ -934,6 +983,8 @@ export class HexBoard {
       hand: this.hand ? packSpec(this.hand) : null,
       // `-1`: unendlich (JSON kennt kein `Infinity`).
       tasks: Number.isFinite(this.tasksLeft) ? this.tasksLeft : -1,
+      // Der Auftragsstapel selbst, Gelände und Zahl je Auftrag.
+      deck: this.tasks.map((t) => [TERRAIN_CODE[t.terrain], t.target]),
     });
   }
 
@@ -966,10 +1017,8 @@ export class HexBoard {
       this.hand = data.hand ? unpackSpec(data.hand) : null;
       this.mode = data.mode === 'creative' || data.mode === 'endless' ? data.mode : 'game';
       this.placed = Number(data.placed) || 0;
-      // Ein Stand ohne Zahl (vor dem Auftragsstapel) bekommt, was eine Runde hat.
-      const tasks = typeof data.tasks === 'number' ? data.tasks : QUEST_TILES;
-      this.tasksLeft = this.mode === 'endless' || tasks < 0 ? Infinity : tasks;
       this.seed = Number(data.seed) || 1;
+      this.tasks = readDeck(data, this.mode, rng(this.seed + 104729));
       // Der Würfel geht weiter, wo der Stand war — nicht wieder von vorn.
       this.random = rng(this.seed + this.placed * 7919);
       return true;
@@ -999,6 +1048,29 @@ interface SaveData {
   stack: PackedSpec[];
   hand: PackedSpec | null;
   tasks?: number;
+  deck?: Array<[string, number]>;
+}
+
+/**
+ * **Den Auftragsstapel lesen.** Stände von vor dem Stapel mit Zahlen
+ * (Oktober 2026) haben nur, wie viele noch kommen (`tasks`) oder gar nichts —
+ * sie bekommen einen frisch gemischten Stapel in dieser Größe.
+ */
+function readDeck(data: SaveData, mode: HexMode, random: () => number): Task[] {
+  if (mode === 'creative') return [];
+  if (Array.isArray(data.deck)) {
+    const deck: Task[] = [];
+    for (const entry of data.deck) {
+      const terrain = Array.isArray(entry) ? CODE_TERRAIN.get(entry[0]) : undefined;
+      const target = Array.isArray(entry) ? Number(entry[1]) : NaN;
+      if (!terrain || !QUEST_TERRAINS.includes(terrain as QuestTerrain)) continue;
+      if (!TASK_TARGETS.includes(target)) continue;
+      deck.push({ terrain: terrain as QuestTerrain, target });
+    }
+    return deck;
+  }
+  const count = typeof data.tasks === 'number' && data.tasks >= 0 ? data.tasks : QUEST_TILES;
+  return taskDeck(random).slice(0, Math.min(count, QUEST_TILES));
 }
 
 const TERRAIN_CODE: Readonly<Record<Terrain, string>> = {

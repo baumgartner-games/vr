@@ -17,6 +17,7 @@ import {
   HexBoard,
   NORMAL_TILES,
   OPEN_TASKS,
+  QUEST_TERRAINS,
   QUEST_TILES,
   TERRAIN_LABEL,
   catalogue,
@@ -1451,6 +1452,26 @@ export class HexlandWorld extends FurnishedWorld {
         accent: ACCENT,
         run: close,
       });
+      // **Was im Auftragsstapel noch liegt**, je Gelände mit seinen Zahlen —
+      // je Gelände 4, 4, 5, 5, 6, 6 (`TASK_TARGETS`), damit man planen kann.
+      if (b.tasks.length > 0) {
+        const left = QUEST_TERRAINS.map((terrain) => {
+          const targets = b.tasks
+            .filter((t) => t.terrain === terrain)
+            .map((t) => t.target)
+            .sort((x, y) => x - y);
+          return `${TERRAIN_LABEL[terrain]} ${targets.length > 0 ? targets.join('·') : '–'}`;
+        });
+        rows.push({
+          id: 'hexland:deck',
+          label:
+            b.mode === 'endless' ? 'Auftragsstapel (bis er neu gemischt wird)' : 'Auftragsstapel',
+          sub: left.join(' · '),
+          icon: 'sign',
+          accent: ACCENT,
+          run: close,
+        });
+      }
     }
     rows.push(
       ...this.modeRows(),
