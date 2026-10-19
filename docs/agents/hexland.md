@@ -617,6 +617,11 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     er gerade ist (feste Punkte nur alle 6 cm), wird hinten genau auf ihre
     Länge geschnitten, und ihre Durchsichtigkeit folgt den Metern, nicht der
     Zahl der Punkte.
+    **Zwei Windstöße zugleich** (`WIND_COUNT`, Oktober 2026) — gewünscht:
+    _„Können wir den Wind doppelt so häufig auftreten lassen?"_ Die Pause war
+    schon fast null, also läuft ein zweiter nebenher, zu Beginn 2,5 s
+    versetzt; jeder hat eigene Uniformen (`gustTiles2`, `gustPush2`), der
+    Shader zählt beide. Zwei Zeichenaufrufe.
   - Aus heißt: Zeit steht (Flügel stehen), Wiegen, Glitzern und Böen weg.
 - **Böden in eigener Höhe** (gegen Z-Fighting, gemeldet): Stadt 0,012,
   Wald 0,018, Feld 0,024 (Maße der Kachel), mit wachsendem `polygonOffset`.

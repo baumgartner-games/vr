@@ -37,7 +37,7 @@ import {
   type TileSpec,
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
-import { WindGusts } from './hexAnimate';
+import { WIND_COUNT, WindGusts } from './hexAnimate';
 import { packSave, unpackSave } from './hexShare';
 import { bestPlacement } from './hexPlanner';
 import { dressingModels } from './hexDressing';
@@ -148,7 +148,10 @@ export class HexlandWorld extends FurnishedWorld {
   private animations = readFlag(ANIM_KEY, true);
   /** Pfeile der Flussrichtung (`HexBoardView.showArrows`), gemerkt im Browser. */
   private arrows = readFlag(ARROW_KEY, false);
-  private readonly wind = new WindGusts(HEX_WIDTH);
+  private readonly winds = Array.from(
+    { length: WIND_COUNT },
+    (_, slot) => new WindGusts(HEX_WIDTH, slot),
+  );
   /** Die Spielhilfen (`helpMenu`), gemerkt im Browser. */
   private help: HexHelp = readHelp();
   /** Wo zuletzt gelegt wurde — dort in der Nähe liegt die nächste (`autoPlace`). */
@@ -275,7 +278,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.view.root.userData.sharedAssets = true;
     this.board3d.add(this.view.root);
     for (const tile of this.board.tiles.values()) void this.view.add(tile);
-    this.board3d.add(this.wind.root);
+    for (const wind of this.winds) this.board3d.add(wind.root);
 
     const slotGeometry = new THREE.CylinderGeometry(HEX_WIDTH * 0.555, HEX_WIDTH * 0.555, 0.04, 6);
     const slotMaterial = new THREE.MeshBasicMaterial({
@@ -1757,11 +1760,9 @@ export class HexlandWorld extends FurnishedWorld {
     // Wie weit das Bild von dort reicht — die längere Seite, halb.
     const half = far * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const reach = half * Math.max(1, camera.aspect);
-    this.wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / scale / 25), {
-      x: _aim.x,
-      z: _aim.z,
-      r: reach / scale,
-    });
+    const view = { x: _aim.x, z: _aim.z, r: reach / scale };
+    for (const wind of this.winds)
+      wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / scale / 25), view);
   }
 
   // --- am Tisch ---------------------------------------------------------------------
@@ -3228,7 +3229,7 @@ export class HexlandWorld extends FurnishedWorld {
     for (const material of this.clipMaterials.values()) material.dispose();
     this.aimMaterials.clear();
     this.view?.dispose();
-    this.wind.dispose();
+    for (const wind of this.winds) wind.dispose();
     this.models.dispose();
     this.slots?.dispose();
     this.slots?.geometry.dispose();
