@@ -47,8 +47,8 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: calc(var(--top) + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 12px 0;
+  height: calc(var(--top) + var(--safe-top, env(safe-area-inset-top, 0px)));
+  padding: var(--safe-top, env(safe-area-inset-top, 0px)) 12px 0;
   background: rgba(5, 7, 13, 0.86);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -151,7 +151,7 @@ html, body {
 
 .drawer {
   position: fixed;
-  top: calc(var(--top) + env(safe-area-inset-top));
+  top: calc(var(--top) + var(--safe-top, env(safe-area-inset-top, 0px)));
   left: 0;
   z-index: 19;
   display: grid;

@@ -24,7 +24,7 @@ import {
   toggleFullscreen,
 } from './core/fullscreen';
 import { showScreenPads } from './core/screenPads';
-import { INSTALL_TEXT } from './core/install';
+import { INSTALL_TEXT, isAppleHandheld, isStandalone } from './core/install';
 import { registerServiceWorker, watchInstall } from './core/pwa';
 import { armAudioUnlock, unlockAudio } from './core/audioUnlock';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
@@ -78,6 +78,19 @@ import { padNav } from './ui/padNav';
  * Fenster meinen, ist der ganze Punkt (`ui/safeArea.ts`).
  */
 trackViewport();
+
+/**
+ * **Installiert auf iPhone oder iPad** — dann hält `ui/safeArea.css` oben
+ * zusätzlich den Streifen frei, den iOS 26 verwischt (`--edge-ramp`).
+ */
+if (
+  isAppleHandheld(navigator) &&
+  isStandalone({
+    matchMedia: (query) => window.matchMedia(query),
+    standalone: (navigator as { standalone?: boolean }).standalone,
+  })
+)
+  document.documentElement.dataset.iosApp = '';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;

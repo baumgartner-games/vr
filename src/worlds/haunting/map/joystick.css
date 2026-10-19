@@ -19,7 +19,7 @@
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px);
+  --flat-top: calc(max(12px, var(--safe-top, env(safe-area-inset-top, 0px))) + 58px);
   --flat-bottom: max(14px, env(safe-area-inset-bottom));
 }
 .flat [hidden] {

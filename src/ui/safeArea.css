@@ -15,7 +15,7 @@
    Freigehalten wird der **Inhalt**, nicht die Fläche. */
 
 :root {
-  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-top: calc(env(safe-area-inset-top, 0px) + var(--edge-ramp, 0px));
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
@@ -38,6 +38,18 @@
    `100%`. Wer sie benutzt, schreibt den Ersatz trotzdem dazu
    (`var(--app-height, 100%)`) — diese Datei kann in einem anderen Bündel
    liegen als der Stil, der sie liest. */
+/* **Der Streifen, den iOS 26 verwischt** — nur in der installierten App auf
+   iPhone und iPad (`data-ios-app`, gesetzt in `main.ts`). Dort legt iOS unter
+   die Uhr eine Unschärfe, die rund 40 pt in die Seite hineinläuft, auch mit
+   deckender Statusleiste, und kein CSS schaltet sie ab. Gemeldet am Menüknopf:
+   _„Schau dir den Menü Button bitte genau an"_ — oben verwischt, unten scharf.
+   Die Welt darf darunter liegen; Knöpfe und Leisten rücken darunter hervor.
+   Wer oben am Rand sitzt, rechnet deshalb mit `--safe-top` und nicht mit
+   `env(safe-area-inset-top)`. */
+:root[data-ios-app] {
+  --edge-ramp: 44px;
+}
+
 :root {
   --app-width: 100%;
   --app-height: 100%;

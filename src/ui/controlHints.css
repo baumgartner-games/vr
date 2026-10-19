@@ -62,7 +62,7 @@
 /* Am Glas liegen unten die Stöcke und Knöpfe — die Zeile rückt nach oben, unter die Kopfzeile. */
 .hints[data-device='touch'] {
   bottom: auto;
-  top: calc(env(safe-area-inset-top, 0px) + 58px);
+  top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 58px);
 }
 /*
  * Im Schiff ist die Kopfzeile weg (`body.orbital-on #hud`), und an ihrer Stelle
@@ -76,7 +76,7 @@ body.orbital-on .hints[data-device='touch'] {
   left: auto;
   right: calc(max(24px, env(safe-area-inset-right, 0px)) + 74px);
   margin-inline: 0;
-  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 52px);
+  top: calc(max(12px, var(--safe-top, env(safe-area-inset-top, 0px))) + 52px);
 }
 @media (max-width: 480px) {
   body.orbital-on .hints[data-device='touch'] {
@@ -95,7 +95,7 @@ body.orbital-on .hints[data-device='touch'] {
 }
 @media (max-width: 600px) {
   .hints[data-zone='build'][data-device='touch'] {
-    top: max(200px, calc(env(safe-area-inset-top, 0px) + 192px));
+    top: max(200px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 192px));
   }
 }
 /* Auf dem Telefon ist das Menü ein Blatt über die ganze Breite — dort läge die Zeile auf den Zeilen. */

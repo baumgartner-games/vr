@@ -786,6 +786,17 @@ Schalter in CSS oder Meta.
   im Vollbild, Safari kennt `display_override` nicht. `EdgeTint` färbt nur noch
   `<html>` und `<body>` (für die Leiste im Safari-Tab), nie die Leinwand.
 
+- **Und trotzdem noch verwischt:** Auch mit `black` legt iOS 26 unter die
+  Leiste eine Unschärfe, die rund 40 pt in die Seite läuft — gemeldet am
+  Menüknopf, oben verwischt, unten scharf (_„Schau dir den Menü Button bitte
+  genau an"_). Deshalb rückt in der installierten App alles, was oben am
+  Rand sitzt, um `--edge-ramp` (44 px) nach unten: `main.ts` setzt
+  `data-ios-app` am `<html>`, `ui/safeArea.css` rechnet es in `--safe-top`
+  ein, und **jede** Stelle, die oben am Rand sitzt, liest
+  `var(--safe-top, env(safe-area-inset-top, 0px))` statt
+  `env(safe-area-inset-top)` — wer eine neue Leiste oben baut, auch. Die Welt
+  selbst liegt weiter bis an den Rand und darf dort verwischen.
+
 ### Die Welt geht bis an die Kante — `100%` ist nicht der ganze Schirm
 
 Gemeldet wurde es wieder an einem Bild, diesmal vom Telefon im Hochformat:

@@ -74,18 +74,18 @@ html, body {
 }
 
 /* Oben rechts, unter der Knopfreihe — gewünscht: „eine fps Anzeige im Screen oben rechts“. */
-.frame-stats { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 58px); right: max(10px, env(safe-area-inset-right)); z-index: 9; padding: 6px 9px; border: 1px solid #65808e; border-radius: 6px; background: #061016e6; color: #c7f4df; font: 12px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
+.frame-stats { position: fixed; top: calc(max(10px, var(--safe-top, env(safe-area-inset-top, 0px))) + 58px); right: max(10px, env(safe-area-inset-right)); z-index: 9; padding: 6px 9px; border: 1px solid #65808e; border-radius: 6px; background: #061016e6; color: #c7f4df; font: 12px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
 .frame-stats[hidden] { display: none; }
 /* Wo man steht (`core/positionHud.ts`): oben links unter dem Menüknopf — die
    Ecke, in der am Telefon kein Stock und kein Knopf liegt. */
-.position-hud { position: fixed; top: max(64px, calc(env(safe-area-inset-top) + 56px)); left: max(10px, env(safe-area-inset-left)); z-index: 4; padding: 6px 9px; border: 1px solid #65808e; border-radius: 6px; background: #061016e6; color: #c7f4df; font: 12px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
+.position-hud { position: fixed; top: max(64px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px)); left: max(10px, env(safe-area-inset-left)); z-index: 4; padding: 6px 9px; border: 1px solid #65808e; border-radius: 6px; background: #061016e6; color: #c7f4df; font: 12px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
 .position-hud[hidden] { display: none; }
 .position-hud__text { display: block; }
 .position-hud__copy { display: block; margin-top: 5px; min-height: 30px; padding: 3px 10px; border: 1px solid #65808e; border-radius: 5px; background: #0f2530; color: #c7f4df; font: inherit; cursor: pointer; pointer-events: auto; }
 .position-hud__copy:hover { background: #17384a; }
 
 /* ---------- Sturz aus der Welt (`ui/fallReport.ts`) ---------- */
-.fall-report { --msg-accent: #b86b5c; position: fixed; top: max(64px, calc(env(safe-area-inset-top) + 56px)); left: 50%; transform: translateX(-50%); z-index: 6; width: min(560px, calc(100vw - 32px)); border-color: #b86b5c; background: #1a0c0ae8; color: #f4d7c7; font: 12px/1.45 ui-monospace, monospace; pointer-events: auto; }
+.fall-report { --msg-accent: #b86b5c; position: fixed; top: max(64px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px)); left: 50%; transform: translateX(-50%); z-index: 6; width: min(560px, calc(100vw - 32px)); border-color: #b86b5c; background: #1a0c0ae8; color: #f4d7c7; font: 12px/1.45 ui-monospace, monospace; pointer-events: auto; }
 .fall-report .msg__title { font-size: 12px; }
 .fall-report__text { max-height: 40vh; overflow: auto; margin: 6px 0; white-space: pre; font: inherit; user-select: text; }
 .fall-report__row { display: flex; gap: 8px; }
@@ -100,7 +100,7 @@ html, body {
 .eye-crosshair[hidden] { display: none; }
 .area-surface { position: fixed; inset: 0; z-index: 3; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 .area-surface[hidden] { display: none; }
-.area-bar { position: fixed; top: max(64px, calc(env(safe-area-inset-top) + 56px)); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid #65808e; border-radius: 8px; background: #061016e6; color: #e8f1ff; font: 13px/1.3 system-ui, sans-serif; }
+.area-bar { position: fixed; top: max(64px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px)); left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid #65808e; border-radius: 8px; background: #061016e6; color: #e8f1ff; font: 13px/1.3 system-ui, sans-serif; }
 .area-bar[hidden] { display: none; }
 .area-bar__text { padding: 0 6px; text-align: center; }
 .area-bar__text[hidden] { display: none; }
@@ -121,7 +121,7 @@ html, body {
    trägt; auf dem Telefon rechts oben unter der Kopfzeile, unten liegen die Stöcke. */
 button.crane-empty { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 7; background: var(--hud-bg); color: var(--hud-ink); font: 12px/1.2 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
 button.crane-empty[hidden] { display: none; }
-@media (max-width: 600px) { button.crane-empty { bottom: auto; top: max(124px, calc(env(safe-area-inset-top) + 116px)); } .crane-empty .build-bar__label { display: inline; } }
+@media (max-width: 600px) { button.crane-empty { bottom: auto; top: max(124px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 116px)); } .crane-empty .build-bar__label { display: inline; } }
 /* Die Malpalette am Schirm (`worlds/portal/paletteBar.ts`): neun Fächer unten, wie in Minecraft. */
 .palette-bar { position: fixed; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 44px); left: 50%; transform: translateX(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid var(--hud-line); border-radius: var(--hud-radius); background: var(--hud-bg); color: var(--hud-ink); font: 12px/1.2 var(--hud-font); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); }
 .palette-bar[hidden] { display: none; }
@@ -155,7 +155,7 @@ button.crane-empty[hidden] { display: none; }
 .build-bar__status[data-valid="true"] { background: var(--hud-good-bg); color: var(--hud-good); }
 .build-bar__status[data-valid="false"] { background: var(--hud-bad-bg); color: var(--hud-bad); }
 @media (max-width: 600px) {
-  .build-bar { bottom: auto; top: max(64px, calc(env(safe-area-inset-top) + 56px)); padding: 4px; gap: 4px; left: 0; right: 0; margin: 0 auto; transform: none; width: fit-content; }
+  .build-bar { bottom: auto; top: max(64px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px)); padding: 4px; gap: 4px; left: 0; right: 0; margin: 0 auto; transform: none; width: fit-content; }
   .build-bar__row { gap: 3px; flex-wrap: wrap; justify-content: center; }
   .build-bar__gap { margin: 4px 1px; }
   .build-bar__btn { min-width: 38px; min-height: 44px; padding: 2px; }
@@ -185,13 +185,13 @@ button.crane-empty[hidden] { display: none; }
   Stand vorher als `style.cssText` im Code, mit eigenen Farben.
 */
 .plateup-strip, .plateup-card { --hud-accent: #f2a33a; position: fixed; left: 50%; transform: translateX(-50%); z-index: 4; }
-.plateup-strip { box-sizing: border-box; background: var(--hud-bg); color: var(--hud-ink); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); pointer-events: none; top: calc(env(safe-area-inset-top, 0px) + 64px); max-width: calc(100vw - 24px); padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); font: 600 14px/1.2 var(--hud-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plateup-strip { box-sizing: border-box; background: var(--hud-bg); color: var(--hud-ink); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); pointer-events: none; top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 64px); max-width: calc(100vw - 24px); padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); font: 600 14px/1.2 var(--hud-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Die Karte ist eine Meldung wie alle (`ui/ScreenMessage.ts`, Aussehen und ✕ in `ui/screenMessage.css`); hier steht nur, wo. */
 .plateup-card { bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); width: min(92vw, 420px); }
 .plateup-strip[hidden] { display: none; }
 /* Am Glas steht die Tastenhilfe oben (`controlHints.css`) — Tafelzeile und Bestellzettel rücken darunter, statt verdeckt zu werden. */
-body:has(.hints[data-device="touch"]:not([hidden])) .plateup-strip { top: calc(env(safe-area-inset-top, 0px) + 104px); }
-body:has(.hints[data-device="touch"]:not([hidden])) .plateup-tickets { top: calc(env(safe-area-inset-top, 0px) + 140px); }
+body:has(.hints[data-device="touch"]:not([hidden])) .plateup-strip { top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 104px); }
+body:has(.hints[data-device="touch"]:not([hidden])) .plateup-tickets { top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 140px); }
 /*
   Die Leiste unten (Tipp der Einsteigerhilfe, was man in der Hand hat) und die
   Bestellzettel oben. `bottom` der Leiste setzt der Code (über der
@@ -199,7 +199,7 @@ body:has(.hints[data-device="touch"]:not([hidden])) .plateup-tickets { top: calc
 */
 .plateup-hand, .plateup-tickets { position: fixed; left: 12px; right: 12px; z-index: 4; display: flex; gap: 6px; pointer-events: none; font-family: var(--hud-font); }
 .plateup-hand { bottom: 64px; flex-direction: column; align-items: center; font-weight: 600; font-size: 14px; line-height: 1.3; }
-.plateup-tickets { top: calc(env(safe-area-inset-top, 0px) + 100px); flex-wrap: wrap; justify-content: center; }
+.plateup-tickets { top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 100px); flex-wrap: wrap; justify-content: center; }
 .plateup-hand[hidden], .plateup-tickets[hidden] { display: none; }
 .plateup-pill { --hud-accent: #f2a33a; max-width: 100%; box-sizing: border-box; padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); background: var(--hud-bg); color: var(--hud-ink); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); text-align: center; }
 /* Der Tipp der Einsteigerhilfe ist eine Meldung mit ✕ (`ui/ScreenMessage.ts`) — nur grün. */
@@ -228,7 +228,7 @@ body:has(.hints[data-device="touch"]:not([hidden])) .plateup-tickets { top: calc
   inset: 0;
   display: grid;
   place-items: center;
-  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  padding: max(24px, var(--safe-top, env(safe-area-inset-top, 0px))) 24px max(24px, env(safe-area-inset-bottom));
   background:
     radial-gradient(120% 90% at 20% 0%, rgba(74, 168, 255, 0.18), transparent 60%),
     radial-gradient(90% 80% at 90% 100%, rgba(255, 157, 61, 0.14), transparent 60%),
@@ -359,7 +359,7 @@ h1 {
 
 .hud {
   position: fixed;
-  top: max(10px, env(safe-area-inset-top));
+  top: max(10px, var(--safe-top, env(safe-area-inset-top, 0px)));
   left: max(10px, env(safe-area-inset-left));
   right: max(10px, env(safe-area-inset-right));
   z-index: 5;
@@ -396,7 +396,7 @@ h1 {
 
 .landing__menu {
   position: absolute;
-  top: max(10px, env(safe-area-inset-top));
+  top: max(10px, var(--safe-top, env(safe-area-inset-top, 0px)));
   left: max(10px, env(safe-area-inset-left));
   z-index: 11;
 }
@@ -404,7 +404,7 @@ h1 {
 /* Vollbild auf der Startseite: derselbe runde Knopf, andere Ecke. */
 .landing__full {
   position: absolute;
-  top: max(10px, env(safe-area-inset-top));
+  top: max(10px, var(--safe-top, env(safe-area-inset-top, 0px)));
   right: max(10px, env(safe-area-inset-right));
   z-index: 11;
 }
@@ -746,7 +746,7 @@ input[type="range"] {
 
 .panel {
   position: fixed;
-  top: max(64px, calc(env(safe-area-inset-top) + 56px));
+  top: max(64px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px));
   right: max(12px, env(safe-area-inset-right));
   z-index: 6;
   width: min(300px, calc(100vw - 24px));

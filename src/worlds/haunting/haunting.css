@@ -146,13 +146,13 @@ body.orbital-on #hud { display: none; }
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: calc(6px + env(safe-area-inset-top)) 8px 6px;
+  padding: calc(6px + var(--safe-top, env(safe-area-inset-top, 0px))) 8px 6px;
   background: var(--haunt-bar);
   border-bottom: 1px solid var(--haunt-line);
 }
 /* **Am Rechner: ein Kopf wie das Menü** (`ui/pageMenu.css`, `.pmenu__head`) —
    links der Platz, rechts Zahnrad und ✕, rund und 40 Punkte groß. */
-.haunt__bar--desk { align-items: center; padding: calc(8px + env(safe-area-inset-top)) 8px 8px 14px; }
+.haunt__bar--desk { align-items: center; padding: calc(8px + var(--safe-top, env(safe-area-inset-top, 0px))) 8px 8px 14px; }
 .haunt__seat { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; border-left: 4px solid var(--haunt-accent); padding-left: 10px; }
 .haunt__seat-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .haunt__seat-role { font-size: 12px; color: var(--haunt-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -326,7 +326,7 @@ body.orbital-on #hud { display: none; }
    Derselbe Kasten und dieselben Knöpfe wie im Optionsmenü der 2D-Welt
    (`ui/widgets.css`: `ui-panel`, `ui-head`, `ui-option`) — hier steht nur,
    wo er hängt und dass er in den Farben der Zentrale bleibt. */
-.haunt__menu { position: absolute; left: 50%; top: calc(max(12px, env(safe-area-inset-top)) + 96px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); overflow: auto; border-color: var(--haunt-line-strong); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); font-size: 13px; z-index: 8; }
+.haunt__menu { position: absolute; left: 50%; top: calc(max(12px, var(--safe-top, env(safe-area-inset-top, 0px))) + 96px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); overflow: auto; border-color: var(--haunt-line-strong); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); font-size: 13px; z-index: 8; }
 .haunt .haunt__menu .ui-option { border-color: var(--haunt-line); background: var(--haunt-card); color: var(--haunt-ink); font-size: 13px; }
 .haunt .haunt__menu .ui-option small { color: var(--haunt-dim); }
 .haunt .haunt__menu .ui-option--go { border-color: rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; }
@@ -348,7 +348,7 @@ body.orbital-on #hud { display: none; }
  * hochkant richtig sitzt, frisst hier die halbe Seite.
  */
 @media (orientation: landscape) and (max-height: 560px) {
-  .haunt__bar { padding-top: calc(4px + env(safe-area-inset-top)); }
+  .haunt__bar { padding-top: calc(4px + var(--safe-top, env(safe-area-inset-top, 0px))); }
 }
 
 /* ORBITAL: instruments readable on a phone, no blur/post-processing. */
@@ -401,7 +401,7 @@ body.orbital-on #hud { display: none; }
    in dieser Welt weg (`body.orbital-on #hud`), und damit rücken Kompass und
    Tafel an den oberen Rand — dieselbe Rechnung wie in der 2D-Welt, wo
    `--flat-top` nach oben rückt, sobald der Streifen verschwindet. */
-.orbital-player, .orbital-compass, .orbital-menu { --orbital-top: max(12px, env(safe-area-inset-top)); --orbital-left: max(12px, env(safe-area-inset-left)); --orbital-right: max(12px, env(safe-area-inset-right)); }
+.orbital-player, .orbital-compass, .orbital-menu { --orbital-top: max(12px, var(--safe-top, env(safe-area-inset-top, 0px))); --orbital-left: max(12px, env(safe-area-inset-left)); --orbital-right: max(12px, env(safe-area-inset-right)); }
 /* **Oben links, unter dem Kompass** — nicht unten links, wo es dem Weltmenü
    ins Bild lief (Befund 1.1, letzter Punkt). `--orbital-head` sind die 44 px
    des Kompasses (`.orbital-compass`, 38 px hoch) — und zwar nur dann, wenn er
