@@ -780,7 +780,10 @@ Schalter in CSS oder Meta.
   `black-translucent` (`index.html`). Die Seite beginnt unter einer
   deckenden Leiste, unter der Uhr liegt nichts mehr, das verwischt werden
   könnte. iOS liest das nur beim Hinzufügen — eine schon installierte App muss
-  einmal entfernt und neu hinzugefügt werden. `EdgeTint` färbt nur noch
+  einmal entfernt und neu hinzugefügt werden. Dazu steht im Manifest
+  `display: standalone` (`fullscreen` legt das Bild auf dem iPad womöglich
+  trotzdem unter die Uhr); Android liest zuerst `display_override` und bleibt
+  im Vollbild, Safari kennt `display_override` nicht. `EdgeTint` färbt nur noch
   `<html>` und `<body>` (für die Leiste im Safari-Tab), nie die Leinwand.
 
 ### Die Welt geht bis an die Kante — `100%` ist nicht der ganze Schirm
