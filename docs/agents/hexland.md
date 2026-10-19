@@ -679,3 +679,7 @@ Samen 1005, alle 54 Züge von Hand: **76** (11 erfüllt, 1 absichtlich verpasst)
 | 3d | 3b, hoffnungslos schon unter 6 % | gegen 3b −0,06 ± 0,51 | nein |
 | 3-Ende | Stand 3b; Samen 1–300 und Gegenprobe 5001–5300 (nicht getunt); Rechenzeit 3128–3694 gegen 1193 ms je Runde (2,6–3,1 ×, Wiederholung schwankt), auf 5001–5300 3605 gegen 1321 ms (2,7 ×) | 1–300: **+27,12 ± 2,09** (smart 59,30, optimiert 86,42; Aufträge 47,6 → 68,7, Flaggen 1,5 → 5,2); 5001–5300: **+25,93 ± 2,04** (smart 58,90, optimiert 84,83; Aufträge 47,6 → 68,0, Flaggen 1,4 → 4,7) | — |
 | 4a | 3b, statt der festen 15-%-Schwelle erwartete Treffer E = Chance × (Stapel + offene Aufträge im Auftragsstapel) gegen Fehlende m = Zahl − Größe: Kippen auf E < m −30, zurück +15; Opfern nur bei E < m (Runde 3 der Spieler) | gegen 3b −3,64 ± 1,42 (optimiert 82,77; Aufträge 68,7 → 65,4) | nein |
+| 5a | 3b, Festlegen kostet −40 statt −25 | gegen 3b +0,65 ± 0,60 (optimiert 87,06) | nein |
+| 5b | 3b, Befreien bringt +25 statt +15 | gegen 3b −0,16 ± 0,16 (optimiert 86,26) | nein |
+| 5c | 3b, fest schon unter 10 % statt 15 % | gegen 3b +1,43 ± 1,00 (optimiert 87,84; Aufträge 68,7 → 70,3) — unter 2 SE | nein |
+| 5d | 3b, fest erst unter 20 % | gegen 3b −0,14 ± 1,14 (optimiert 86,28) | nein |
