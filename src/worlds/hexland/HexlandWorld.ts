@@ -1143,17 +1143,21 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   /**
-   * **Was zu einem Auftrag zählt, ist am Boden umrandet** — jede Kachel seines
-   * Gebiets bekommt einen Rand in der Farbe des Geländes. Gewünscht: _„Ich
-   * dachte zum einen, die Elemente zu highlighten"_. Ein Bündel für alle,
-   * knapp über den Böden; liegt eine Kachel in zwei Gebieten, rückt der
-   * zweite Rand ein Stück nach innen.
+   * **Was zu einem Auftrag zählt, ist am Boden umrandet** — in der Farbe des
+   * Geländes, aber nur an den Kanten, an denen das Stück des Gebiets liegt
+   * (`HexBoard.areaEdges`): Eine Kachel mit Wald und Stadt bekommt bei einem
+   * Stadt-Auftrag nur an der Stadt einen Rand. Gewünscht: _„Ich dachte zum
+   * einen, die Elemente zu highlighten"_ und _„Die Rahmen-Farben sollen auch
+   * nur dort gezeichnet werden, wo es wirklich angrenzt."_ Ein Bündel für
+   * alle, ein Randstück je Kante, knapp über den Böden; liegt eine Kante in
+   * zwei Gebieten, rückt das zweite Stück ein Stück nach innen.
    */
   private drawQuestRims(open: Array<{ tile: PlacedTile }>): void {
     let rims = this.questRims;
     if (!rims) {
       const r = HEX_WIDTH / Math.sqrt(3);
-      const geometry = new THREE.RingGeometry(r * 0.84, r * 0.95, 6, 1, Math.PI / 6);
+      // Ein Sechstel des Rings: das Stück an Kante 0 (+x).
+      const geometry = new THREE.RingGeometry(r * 0.84, r * 0.95, 1, 1, -Math.PI / 6, Math.PI / 3);
       geometry.rotateX(-Math.PI / 2);
       rims = new THREE.InstancedMesh(
         geometry,
@@ -1163,7 +1167,7 @@ export class HexlandWorld extends FurnishedWorld {
           depthWrite: false,
           toneMapped: false,
         }),
-        128,
+        768,
       );
       rims.frustumCulled = false;
       rims.renderOrder = 2;
@@ -1176,15 +1180,15 @@ export class HexlandWorld extends FurnishedWorld {
     for (const { tile } of open) {
       const terrain = tile.spec.quest!.terrain;
       _rimColour.set(TERRAIN_COLOUR[terrain]);
-      for (const t of this.board.areaTiles(tile.q, tile.r, terrain)) {
+      for (const { tile: t, edge } of this.board.areaEdges(tile.q, tile.r, terrain)) {
         if (n >= rims.instanceMatrix.count) break;
-        const key = hexKey(t.q, t.r);
+        const key = `${hexKey(t.q, t.r)}:${edge}`;
         const layer = used.get(key) ?? 0;
         used.set(key, layer + 1);
         const c = hexCentre(t.q, t.r, HEX_WIDTH);
         _rimMatrix.compose(
           _rimPos.set(c.x, 0.06 + layer * 0.002, c.z),
-          _rimQuat,
+          _rimQuat.setFromAxisAngle(_rimUp, -edge * (Math.PI / 3)),
           _rimScale.setScalar(1 - layer * 0.13),
         );
         rims.setMatrixAt(n, _rimMatrix);
@@ -3067,6 +3071,7 @@ const _rimMatrix = new THREE.Matrix4();
 const _rimPos = new THREE.Vector3();
 const _rimQuat = new THREE.Quaternion();
 const _rimScale = new THREE.Vector3();
+const _rimUp = new THREE.Vector3(0, 1, 0);
 const _aim = new THREE.Vector3();
 const _badge = new THREE.Vector3();
 /** Bis zu diesem Abstand der Kamera haben die Schilder ihre eigene Größe, danach wachsen sie mit. */

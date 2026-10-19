@@ -75,9 +75,17 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   selten drei, wenig bloße Wiese (`drawTile`).
 - **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt
   eine Kachel nirgends, darf sie ausnahmsweise überall hin.
-- Gezählt wird in **Kacheln**: Alle Kanten desselben Geländes auf einer Kachel
-  gehören zu einem Gebiet (eine Vereinfachung gegenüber dem Brettspiel, die
-  man an keiner Kachel sieht).
+- Gezählt wird in **Kacheln**, verbunden wird über **Stücke**
+  (`segments`): Fluss und Weg teilen das Land auf einer Kachel, und jedes
+  Stück gehört zu seinem eigenen Gebiet. Gemeldet: _„(Wald)(Wald Fluss
+  Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_
+  Liegen beide Stücke einer Kachel doch im selben Gebiet (ringsherum
+  verbunden), zählt die Kachel einmal. Andere Gelände trennen nicht — auf
+  einer Kachel ohne Fluss und Weg ist alles Land ein Stück (`drawTile` legt
+  ein Gelände ohnehin am Stück). Auftrag und Flagge liegen auf dem ersten
+  Stück; neue liegen ohnehin auf einem ungeteilten (`runs` = 1). Intern sind
+  die Stücke Zahlen, nicht Zeichenketten — _Intelligent (optimiert)_ fragt
+  `areas` für jede Lage, mit Zeichenketten lief `hexbench` 1,7× so lang.
 
 ### Wie Aufträge auf dem Brett aussehen
 
@@ -86,10 +94,13 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   An der Kachel in der Hand nur die Zahl. Gewünscht: _„Können wir die
   Mission-Tiles anders darstellen? Aktuell verdecken diese viel … nur das
   Icon, aber mit X/Y rendern."_
-- **Ränder am Boden** (`drawQuestRims`, ein `InstancedMesh`): jede Kachel im
-  Gebiet eines offenen Auftrags bekommt einen Rand in der Farbe des Geländes
-  (`HexBoard.areaTiles`); liegt eine Kachel in zwei Gebieten, rückt der
-  zweite Rand nach innen. Gewünscht: _„die Elemente zu highlighten"_.
+- **Ränder am Boden** (`drawQuestRims`, ein `InstancedMesh`, ein Randstück
+  je Kante): Im Gebiet eines offenen Auftrags bekommt jede Kante, an der sein
+  Stück liegt, ein Randstück in der Farbe des Geländes
+  (`HexBoard.areaEdges`); liegt eine Kante in zwei Gebieten, rückt das zweite
+  nach innen. Gewünscht: _„die Elemente zu highlighten"_ — und seit Oktober
+  2026 _„nur dort, wo es wirklich angrenzt"_: Eine Kachel mit Wald und Stadt
+  wird bei einem Stadt-Auftrag nur an der Stadt umrandet, nicht ganz.
 
 ### Welt generieren
 

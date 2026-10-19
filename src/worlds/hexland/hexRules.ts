@@ -311,6 +311,36 @@ export function runs(edges: readonly Terrain[], terrain: Terrain): number {
   return n;
 }
 
+/**
+ * **Welches Stück des Geländes an welcher Kante liegt** — je Kante die Nummer
+ * des Stücks, `-1`, wo das Gelände dort nicht liegt. Getrennt wird nur durch
+ * **Fluss und Weg**: Wald, Fluss, Wald auf einer Kachel sind zwei Stücke, die
+ * zu zwei verschiedenen Gebieten gehören können. Gemeldet: _„(Wald)(Wald Fluss
+ * Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_
+ * Fluss und Weg selbst sind immer ein Stück — eine Gabelung ist ein Fluss.
+ */
+export function segments(edges: readonly Terrain[], terrain: Terrain): number[] {
+  const out = [-1, -1, -1, -1, -1, -1];
+  const cut = hard(terrain) ? -1 : edges.findIndex((t) => hard(t));
+  let seg = 0;
+  for (let k = 1; k <= 6; k++) {
+    const i = (cut + k + 6) % 6;
+    if (cut >= 0 && hard(edges[i]!)) seg++;
+    else if (edges[i] === terrain) out[i] = seg;
+  }
+  return out;
+}
+
+/** `segments` je Kachel und Gelände, gemerkt — die Kanten einer Kachel ändern sich nie. */
+const SEGMENTS = new WeakMap<TileSpec, Map<Terrain, number[]>>();
+function tileSegments(spec: TileSpec, terrain: Terrain): number[] {
+  let byTerrain = SEGMENTS.get(spec);
+  if (!byTerrain) SEGMENTS.set(spec, (byTerrain = new Map()));
+  let out = byTerrain.get(terrain);
+  if (!out) byTerrain.set(terrain, (out = segments(spec.edges, terrain)));
+  return out;
+}
+
 /** Wasser und Weg sind hart: Sie müssen auf ihresgleichen treffen. */
 function hard(t: Terrain): boolean {
   return t === 'water' || t === 'road';
@@ -608,13 +638,22 @@ export interface Scoring {
   total: number;
 }
 
-/** Ein Gebiet: welche Kacheln, und ob es noch eine offene Kante hat. */
+/**
+ * Ein Gebiet: welche Stücke von Kacheln (`segments`), und ob es noch eine
+ * offene Kante hat. Die Größe zählt **Kacheln**, nicht Stücke.
+ */
 interface Areas {
-  find: (key: string) => string;
-  size: Map<string, number>;
-  open: Map<string, boolean>;
+  find: (node: number) => number;
+  /**
+   * Das Stück einer Kachel — an Kante `edge` (auf dem Brett), ohne Kante das
+   * erste Stück des Geländes (Auftrag und Flagge liegen auf einem
+   * ungeteilten). `-1`, wo das Gelände nicht liegt.
+   */
+  node: (key: string, edge?: number) => number;
+  size: Map<number, number>;
+  open: Map<number, boolean>;
   /** Nur mit `strict`: um wie viele Kacheln das Gebiet höchstens noch wachsen kann. */
-  room: Map<string, number>;
+  room: Map<number, number>;
 }
 
 /**
@@ -990,44 +1029,71 @@ export class HexBoard {
    * Flaggen fragt ohne — dort zählt, was wirklich geschlossen ist.
    */
   private areas(terrain: Terrain, strict = false): Areas {
-    const parent = new Map<string, string>();
-    const find = (key: string): string => {
-      let root = key;
-      while (parent.get(root) !== root) root = parent.get(root)!;
-      let at = key;
-      while (parent.get(at) !== root) {
-        const next = parent.get(at)!;
-        parent.set(at, root);
-        at = next;
+    // Die Stücke als Zahlen (je Kachel sechs Plätze), nicht als Zeichenketten:
+    // _Intelligent (optimiert)_ fragt das für jede Lage jeder Kachel.
+    const parent: number[] = [];
+    const find = (node: number): number => {
+      let root = node;
+      while (parent[root] !== root) root = parent[root]!;
+      while (parent[node] !== root) {
+        const next = parent[node]!;
+        parent[node] = root;
+        node = next;
       }
       return root;
     };
+    // Je Kachel: der erste Platz und je Kante auf dem Brett das Stück, oder -1.
+    const segs = new Map<string, { first: number; board: number[] }>();
     for (const [key, tile] of this.tiles) {
-      if (tile.spec.edges.includes(terrain)) parent.set(key, key);
+      if (!tile.spec.edges.includes(terrain)) continue;
+      const local = tileSegments(tile.spec, terrain);
+      const first = segs.size * 6;
+      const board: number[] = [];
+      for (let e = 0; e < 6; e++) {
+        const seg = local[(((e - tile.rot) % 6) + 6) % 6]!;
+        board.push(seg);
+        if (seg >= 0) parent[first + seg] = first + seg;
+      }
+      segs.set(key, { first, board });
     }
+    const node = (key: string, edge?: number): number => {
+      const tile = segs.get(key);
+      if (!tile) return -1;
+      let seg = -1;
+      if (edge !== undefined) seg = tile.board[edge]!;
+      else for (const n of tile.board) if (n >= 0 && (seg < 0 || n < seg)) seg = n;
+      return seg >= 0 ? tile.first + seg : -1;
+    };
     for (const [key, tile] of this.tiles) {
-      if (!parent.has(key)) continue;
+      if (!segs.has(key)) continue;
       for (let e = 0; e < 3; e++) {
-        if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
+        const here = node(key, e);
+        if (here < 0) continue;
         const n = neighbour(tile, e);
-        const other = this.at(n.q, n.r);
-        if (!other || edgeAt(other.spec, other.rot, opposite(e)) !== terrain) continue;
-        const a = find(key);
-        const b = find(hexKey(n.q, n.r));
-        if (a !== b) parent.set(a, b);
+        const there = node(hexKey(n.q, n.r), opposite(e));
+        if (there < 0) continue;
+        const a = find(here);
+        const b = find(there);
+        if (a !== b) parent[a] = b;
       }
     }
-    const size = new Map<string, number>();
-    const open = new Map<string, boolean>();
+    const size = new Map<number, number>();
+    const open = new Map<number, boolean>();
     const slots = new Map<string, 'dead' | 'end' | 'grow'>();
-    const grows = new Set<string>();
-    const ends = new Map<string, Set<string>>();
+    const grows = new Set<number>();
+    const ends = new Map<number, Set<string>>();
     for (const [key, tile] of this.tiles) {
-      if (!parent.has(key)) continue;
-      const root = find(key);
-      size.set(root, (size.get(root) ?? 0) + 1);
+      if (!segs.has(key)) continue;
+      // Eine Kachel, deren beide Stücke im selben Gebiet liegen, zählt einmal.
+      const counted = new Set<number>();
       for (let e = 0; e < 6; e++) {
-        if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
+        const here = node(key, e);
+        if (here < 0) continue;
+        const root = find(here);
+        if (!counted.has(root)) {
+          counted.add(root);
+          size.set(root, (size.get(root) ?? 0) + 1);
+        }
         const n = neighbour(tile, e);
         if (this.at(n.q, n.r)) continue;
         open.set(root, true);
@@ -1043,36 +1109,55 @@ export class HexBoard {
         }
       }
     }
-    const room = new Map<string, number>();
+    const room = new Map<number, number>();
     if (strict) {
       for (const root of size.keys()) {
         room.set(root, grows.has(root) ? Infinity : (ends.get(root)?.size ?? 0));
       }
     }
-    return { find, size, open, room };
+    return { find, node, size, open, room };
   }
 
-  /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört, in Kacheln. */
-  /** **Die Kacheln eines Gebiets** — für die Ränder am Boden (`HexlandWorld.drawQuestRims`). */
+  /** **Die Kacheln eines Gebiets** — für das Hüpfen fertiger Aufträge. */
   areaTiles(q: number, r: number, terrain: Terrain): PlacedTile[] {
-    const key = hexKey(q, r);
-    const tile = this.tiles.get(key);
-    if (!tile || !tile.spec.edges.includes(terrain)) return [];
-    const { find } = this.areas(terrain);
-    const root = find(key);
     const out: PlacedTile[] = [];
-    for (const [k, t] of this.tiles) {
-      if (t.spec.edges.includes(terrain) && find(k) === root) out.push(t);
+    const seen = new Set<string>();
+    for (const { tile } of this.areaEdges(q, r, terrain)) {
+      const key = hexKey(tile.q, tile.r);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(tile);
     }
     return out;
   }
 
+  /**
+   * **Die Kanten eines Gebiets** — je Kachel nur die Kanten, an denen das
+   * Stück des Gebiets liegt, für die Ränder am Boden
+   * (`HexlandWorld.drawQuestRims`). Gewünscht: _„Die Rahmen-Farben sollen nur
+   * dort gezeichnet werden, wo es wirklich angrenzt"_ — eine Kachel mit Wald
+   * und Stadt wird bei einem Stadt-Auftrag nicht ganz umrandet.
+   */
+  areaEdges(q: number, r: number, terrain: Terrain): Array<{ tile: PlacedTile; edge: number }> {
+    const areas = this.areas(terrain);
+    const start = areas.node(hexKey(q, r));
+    if (start < 0) return [];
+    const root = areas.find(start);
+    const out: Array<{ tile: PlacedTile; edge: number }> = [];
+    for (const [key, tile] of this.tiles) {
+      for (let e = 0; e < 6; e++) {
+        const here = areas.node(key, e);
+        if (here >= 0 && areas.find(here) === root) out.push({ tile, edge: e });
+      }
+    }
+    return out;
+  }
+
+  /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört, in Kacheln. */
   areaSize(q: number, r: number, terrain: Terrain): number {
-    const key = hexKey(q, r);
-    const tile = this.tiles.get(key);
-    if (!tile || !tile.spec.edges.includes(terrain)) return 0;
-    const { find, size } = this.areas(terrain);
-    return size.get(find(key)) ?? 0;
+    const areas = this.areas(terrain);
+    const start = areas.node(hexKey(q, r));
+    return start < 0 ? 0 : (areas.size.get(areas.find(start)) ?? 0);
   }
 
   /**
@@ -1121,7 +1206,8 @@ export class HexBoard {
       if (!quest || quest.state !== 'open' || quest.target === null) continue;
       let areas = cache.get(quest.terrain);
       if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain)));
-      const size = areas.size.get(areas.find(key)) ?? 0;
+      const start = areas.node(key);
+      const size = start < 0 ? 0 : (areas.size.get(areas.find(start)) ?? 0);
       // **Gewertet wird beim Legen**: Ist das Gebiet in diesem Augenblick
       // genau so groß, ist der Auftrag erfüllt und bleibt es — was danach
       // dazukommt, ist egal. Gewünscht: _„Ist der Auftrag erledigt und danach
@@ -1280,7 +1366,9 @@ export class HexBoard {
       if (!quest || quest.state !== 'open' || quest.target === null) continue;
       let areas = cache.get(quest.terrain);
       if (!areas) cache.set(quest.terrain, (areas = this.areas(quest.terrain, true)));
-      const root = areas.find(key);
+      const start = areas.node(key);
+      if (start < 0) continue;
+      const root = areas.find(start);
       const area = `${quest.terrain}:${root}`;
       rows.push({
         id: key,
@@ -1328,13 +1416,14 @@ export class HexBoard {
     for (const [terrain, targets] of wanted) {
       const areas = this.areas(terrain);
       // Gebiete, in denen schon ein offener Auftrag liegt, sind vergeben.
-      const taken = new Set<string>();
+      const taken = new Set<number>();
       for (const [key, tile] of this.tiles) {
-        if (tile.spec.quest?.state === 'open' && tile.spec.quest.terrain === terrain)
-          taken.add(areas.find(key));
+        if (tile.spec.quest?.state !== 'open' || tile.spec.quest.terrain !== terrain) continue;
+        const start = areas.node(key);
+        if (start !== null) taken.add(areas.find(start));
       }
       const landing =
-        land && terrain !== 'water' && terrain !== 'road' ? this.landing(terrain, areas) : null;
+        land && terrain !== 'water' && terrain !== 'road' ? this.landing(areas) : null;
       const sizes = new Set<number>();
       for (const [root, size] of areas.size) {
         if (landing && !landing.has(root)) continue;
@@ -1346,15 +1435,15 @@ export class HexBoard {
   }
 
   /** Die Gebiete, an deren Rand ein freies Feld liegt, an dem kein Nachbar Fluss oder Weg verlangt. */
-  private landing(terrain: Terrain, areas: Areas): Set<string> {
-    const out = new Set<string>();
+  private landing(areas: Areas): Set<number> {
+    const out = new Set<number>();
     const free = new Map<string, boolean>();
     for (const [key, tile] of this.tiles) {
-      if (!tile.spec.edges.includes(terrain)) continue;
-      const root = areas.find(key);
-      if (out.has(root)) continue;
       for (let e = 0; e < 6; e++) {
-        if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
+        const here = areas.node(key, e);
+        if (here < 0) continue;
+        const root = areas.find(here);
+        if (out.has(root)) continue;
         const n = neighbour(tile, e);
         const slot = hexKey(n.q, n.r);
         if (this.tiles.has(slot)) continue;
@@ -1367,10 +1456,7 @@ export class HexBoard {
           });
           free.set(slot, ok);
         }
-        if (ok) {
-          out.add(root);
-          break;
-        }
+        if (ok) out.add(root);
       }
     }
     return out;
@@ -1397,10 +1483,12 @@ export class HexBoard {
     let flags = 0;
     for (const terrain of AREA_TERRAINS) {
       const areas = this.areas(terrain);
-      const counted = new Set<string>();
+      const counted = new Set<number>();
       for (const [key, tile] of this.tiles) {
         if (tile.spec.flag !== terrain) continue;
-        const root = areas.find(key);
+        const start = areas.node(key);
+        if (start < 0) continue;
+        const root = areas.find(start);
         if (counted.has(root) || areas.open.get(root)) continue;
         counted.add(root);
         flags += areas.size.get(root) ?? 0;
