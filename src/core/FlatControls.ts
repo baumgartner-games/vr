@@ -230,9 +230,10 @@ export class FlatControls {
    */
   private mouseButtons = 0;
   /**
-   * **Die rechte Maustaste kippt gerade das Bild** (`GraphicsSettings.tiltDrag`)
-   * — die Neigung in Grad, mit Nachkommastellen, damit langsames Ziehen nicht
-   * an der Rundung hängen bleibt. `null`: es kippt niemand.
+   * **Die rechte Maustaste kippt und dreht gerade das Bild**
+   * (`GraphicsSettings.dragView`) — die Neigung in Grad, mit Nachkommastellen,
+   * damit langsames Ziehen nicht an der Rundung hängen bleibt. `null`: es
+   * zieht niemand.
    */
   private tiltDrag: number | null = null;
   /** Wo der Mauszeiger zuletzt stand, in CSS-Punkten. `null`: noch nie bewegt. */
@@ -1059,9 +1060,9 @@ export class FlatControls {
           // **Rechts holt der Kran die Abrissbombe** (`core/craneBomb.ts`) —
           // ob er sie bekommt, entscheidet die Welt (nur im _Baukasten_).
           if (event.button === 2 && this.craneOn) this.rig.requestBomb();
-          // **Rechts halten und ziehen kippt das Bild** — wenn es unter
-          // _Grafik → Blickwinkel von oben_ eingeschaltet ist (ab Werk aus).
-          else if (event.button === 2 && this.view && graphics().tiltDrag) {
+          // **Rechts halten und ziehen kippt und dreht das Bild** — ab Werk
+          // an, abschaltbar unter _Grafik → Blickwinkel von oben_.
+          else if (event.button === 2 && this.view && graphics().dragView) {
             this.tiltDrag = this.view.tilt;
             this.canvas.setPointerCapture?.(event.pointerId);
           }
@@ -1169,6 +1170,10 @@ export class FlatControls {
             // Nach unten ziehen heißt steiler — man zieht die Kamera über die Figur.
             this.tiltDrag = clampTiltDrag(this.tiltDrag + event.movementY * TILT_DRAG_SPEED);
             this.view.setTilt(this.tiltDrag);
+            // Und zur Seite ziehen dreht: Man packt die Welt und schiebt sie
+            // herum — nach rechts gezogen wandert, was vorn ist, nach rechts.
+            // Stufenlos (`twist`); `Q` rastet danach wieder auf 45°.
+            if (event.movementX) this.view.twist(-event.movementX * TURN_DRAG_SPEED);
           }
         }
         if (this.pointerLocked) this.look(event.movementX, event.movementY);
@@ -1245,9 +1250,9 @@ export class FlatControls {
     };
     this.on(this.canvas, 'pointerup', end);
     this.on(this.canvas, 'pointercancel', end);
-    // Ein Rechtsklick, der das Bild kippt, öffnet kein Kontextmenü darüber.
+    // Ein Rechtsklick, der das Bild kippt und dreht, öffnet kein Kontextmenü darüber.
     this.on(this.canvas, 'contextmenu', (event: Event) => {
-      if (this.topDownOn && graphics().tiltDrag) event.preventDefault();
+      if (this.topDownOn && graphics().dragView) event.preventDefault();
     });
   }
 
@@ -1399,6 +1404,8 @@ export class FlatControls {
 
 /** Grad je Bildpunkt, den die rechte Maustaste zieht — 200 px sind 50°. */
 const TILT_DRAG_SPEED = 0.25;
+/** Bogenmaß je Bildpunkt beim Drehen — 900 px sind eine ganze Umdrehung. */
+const TURN_DRAG_SPEED = (Math.PI * 2) / 900;
 
 function clampTiltDrag(tilt: number): number {
   return Math.max(TOP_DOWN_TILT_MIN, Math.min(TOP_DOWN_TILT_MAX, tilt));

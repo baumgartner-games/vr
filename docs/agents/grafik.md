@@ -437,12 +437,19 @@ dieselbe Zeitkonstante wie das Drehen), und das Zielen mit der Maus rechnet mit
 dem Winkel, der gerade gilt (`groundDirection`). Auch der Start-Zoom einer Welt
 (`topDownFit`) nimmt ihn.
 
-**Nur am Schirm** steht darunter der Schalter **Rechtsklick ziehen: frei
-kippen** (`GraphicsSettings.tiltDrag`, ab Werk aus): rechte Maustaste halten und
-nach unten ziehen macht das Bild steiler, nach oben flacher (0,25° je
-Bildpunkt, `FlatControls.TILT_DRAG_SPEED`); beim Loslassen wird der Winkel die
-Einstellung. Als Kran bleibt rechts die Abrissbombe; solange der Schalter an
-ist, öffnet ein Rechtsklick von oben kein Kontextmenü.
+**Nur am Schirm** steht darunter der Schalter **Rechtsklick ziehen: kippen
+und drehen** (`GraphicsSettings.dragView`, **ab Werk an**): rechte Maustaste
+halten und nach unten ziehen macht das Bild steiler, nach oben flacher (0,25° je
+Bildpunkt, `FlatControls.TILT_DRAG_SPEED`); **zur Seite ziehen dreht es**,
+stufenlos (`TopDownCamera.twist`, 900 Bildpunkte eine Umdrehung,
+`TURN_DRAG_SPEED`) — man packt die Welt: nach rechts gezogen wandert, was vorn
+ist, nach rechts. `Q` rastet danach wieder auf ganze 45°. Gewünscht: _„am PC
+mit rechtsklick und maus bewegen, soll gekippt und gedreht werden können der
+kamera"_. Beim Loslassen wird der Winkel die Einstellung. Bis dahin hieß der
+Schalter `tiltDrag`, konnte nur kippen und war ab Werk aus; weil jeder
+gespeicherte Stand ihn als `false` trägt, hat die neue Fassung einen neuen
+Namen. Als Kran bleibt rechts die Abrissbombe; solange der Schalter an ist,
+öffnet ein Rechtsklick von oben kein Kontextmenü.
 
 Was mit 55° rechnet und nicht nachzieht: die Auswahl der Wände vorn, das
 Deckel-Licht der Haunting-Station, die Schilder — sie sind für 55° gebaut und

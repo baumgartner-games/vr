@@ -465,12 +465,16 @@ export interface GraphicsSettings extends WeatherSettings {
    */
   topDownTilt: number;
   /**
-   * **Rechte Maustaste halten und ziehen stellt die Neigung frei ein** — nur
-   * am Schirm mit Maus und nur von oben (`FlatControls`). Ab Werk aus: Der
-   * Rechtsklick holt als Kran die Abrissbombe, und wer das nicht weiß, soll
-   * sich das Bild nicht aus Versehen verkippen.
+   * **Rechte Maustaste halten und ziehen kippt und dreht das Bild** — nur am
+   * Schirm mit Maus und nur von oben (`FlatControls`): hoch/runter kippt,
+   * links/rechts dreht. Gewünscht: _„am PC mit rechtsklick und maus bewegen,
+   * soll gekippt und gedreht werden können der kamera"_ — deshalb **ab Werk
+   * an**, unter neuem Namen: Der alte Schalter (`tiltDrag`, nur Kippen, ab
+   * Werk aus) steht in jedem gespeicherten Stand als `false` und hätte das
+   * Gewünschte gleich wieder ausgeschaltet. Als Kran bleibt rechts die
+   * Abrissbombe.
    */
-  tiltDrag: boolean;
+  dragView: boolean;
   /**
    * **Weltbau: simulierte Physik-Optik** — was man in der Brille loslässt,
    * fällt sichtbar aus der Hand, dreht sich in der Luft, kippt beim Aufkommen
@@ -763,7 +767,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   visorBreath: 'off',
   visorBreathStyle: 'realistic',
   topDownTilt: TOP_DOWN_TILT,
-  tiltDrag: false,
+  dragView: true,
   dropPhysics: true,
   ...DEFAULT_WEATHER,
 };
@@ -1022,7 +1026,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     visorBreathStyle,
     // Ein Stand von gestern kennt den Winkel nicht und bekommt die 55° von immer.
     topDownTilt: clampTilt(raw.topDownTilt),
-    tiltDrag: raw.tiltDrag === true,
+    // Ab Werk an; nur ein ausdrückliches Aus ist aus.
+    dragView: raw.dragView !== false,
     // Ab Werk an: „kenne ich nicht" heißt an, nur ein ausdrückliches Aus ist aus.
     dropPhysics: raw.dropPhysics !== false,
     // Ein Stand von gestern kennt kein Wetter und bekommt keines.
