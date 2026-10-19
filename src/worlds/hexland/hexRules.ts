@@ -12,7 +12,7 @@
  * **Gewertet wird wie im Brettspiel** (_Dorfromantik — Das Brettspiel_),
  * gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
  * aktiven Missionen und einer festen Anzahl an normalen Karten … Und Punkte
- * berechnen wie im Brett Spiel"_. Eine Partie hat 45 normale Kacheln
+ * berechnen wie im Brett Spiel"_. Eine Partie beginnt ohne Startkachel und hat 45 normale Kacheln
  * (`NORMAL_TILES`); liegen weniger als drei offene Aufträge
  * (`OPEN_TASKS`), kommt statt einer normalen eine **Auftragskachel** — sie
  * zählt nicht vom Stapel ab. Ein Auftrag nennt eine Zahl: Das Gebiet, zu dem
@@ -700,14 +700,14 @@ export class HexBoard {
     this.random = rng(seed);
   }
 
-  /** **Eine neue Partie** — eine Landkachel in der Mitte, 45 im Stapel, dann die Aufträge. */
+  /**
+   * **Eine neue Partie** — wie im Brettspiel ohne Startkachel: Das Brett ist
+   * leer, 45 liegen im Stapel, und die ersten drei Züge sind Aufträge (es sind
+   * noch keine offen). Gewünscht: _„Ne mach es nahe an dem Brettspiel bitte."_
+   */
   reset(seed = Date.now() % 1e9, mode: 'game' | 'endless' = 'game'): void {
     this.start(seed, mode);
-    // Die letzten (obersten) ohne Fluss und Weg — sonst verlangt die zweite
-    // Kachel schon einen Fluss, bevor es überhaupt Land gibt.
-    for (let i = 0; i < NORMAL_TILES; i++) {
-      this.stack.push(drawTile(this.random, { landOnly: i >= NORMAL_TILES - 3 }));
-    }
+    for (let i = 0; i < NORMAL_TILES; i++) this.stack.push(drawTile(this.random));
     this.hand = this.nextHand();
   }
 
@@ -725,6 +725,8 @@ export class HexBoard {
     this.placed = 0;
     this.stack = [];
     this.tasks = mode === 'creative' || mode === 'world' ? [] : taskDeck(this.random);
+    // Nur Kreativ-Modus und Welt beginnen mit einer Kachel in der Mitte.
+    if (mode === 'game' || mode === 'endless') return;
     const first = drawTile(this.random, { landOnly: true });
     this.tiles.set(hexKey(0, 0), {
       q: 0,
@@ -890,8 +892,9 @@ export class HexBoard {
     return this.tiles.get(hexKey(q, r));
   }
 
-  /** **Die freien Felder am Rand** — dort darf gelegt werden. */
+  /** **Die freien Felder am Rand** — dort darf gelegt werden; auf leerem Brett die Mitte. */
   openSlots(): Hex[] {
+    if (this.tiles.size === 0) return [{ q: 0, r: 0 }];
     const out = new Map<string, Hex>();
     for (const tile of this.tiles.values()) {
       for (let e = 0; e < 6; e++) {
@@ -905,6 +908,7 @@ export class HexBoard {
 
   isOpen(q: number, r: number): boolean {
     if (this.tiles.has(hexKey(q, r))) return false;
+    if (this.tiles.size === 0) return q === 0 && r === 0;
     return HEX_DIRS.some((d) => this.tiles.has(hexKey(q + d.q, r + d.r)));
   }
 
@@ -1598,7 +1602,9 @@ export class HexBoard {
     if (!text) return false;
     try {
       const data = JSON.parse(text) as SaveData;
-      if (data?.v !== SAVE_VERSION || !Array.isArray(data.tiles) || data.tiles.length === 0) {
+      if (data?.v !== SAVE_VERSION || !Array.isArray(data.tiles)) return false;
+      // Leer ist das Brett nur vor dem ersten Zug einer Partie — dann liegt die Hand bereit.
+      if (data.tiles.length === 0 && !data.hand) {
         return false;
       }
       const tiles = new Map<string, PlacedTile>();

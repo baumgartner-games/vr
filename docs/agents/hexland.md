@@ -22,7 +22,15 @@ Gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
 aktiven Missionen und einer festen Anzahl an normalen Karten. Die hex tiles
 sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 
-- **45 normale Kacheln** (`NORMAL_TILES`), eine Landkachel liegt in der Mitte.
+- **Keine Startkachel**, wie im Brettspiel: Das Brett beginnt leer, die erste
+  Kachel kommt in die Mitte (`openSlots`, `isOpen` auf leerem Brett), und weil
+  noch kein Auftrag offen ist, sind die ersten drei Züge Auftragskacheln.
+  Gewünscht: _„Ne mach es nahe an dem Brettspiel bitte."_ Bis dahin lag eine
+  Landkachel in der Mitte, und die obersten drei Stapelkacheln waren ohne Fluss
+  und Weg — beides ist raus. Kreativ-Modus und _Welt generieren_ beginnen
+  weiter mit einer Kachel in der Mitte. Ein Stand ohne Kachel lädt, wenn er
+  eine Hand hat.
+- **45 normale Kacheln** (`NORMAL_TILES`).
   Wie im Brettspiel: 48 Landschaftsplättchen, 3 gehen vorher unbesehen zurück
   in die Schachtel (Anleitung, _Spielmaterial_ und _Spielaufbau_). Bis Oktober
   2026 waren es 40 Kacheln und 30 Aufträge — gemeldet: _„sind zu wenig bzw.
