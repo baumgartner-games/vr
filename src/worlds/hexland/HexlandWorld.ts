@@ -30,6 +30,7 @@ import {
   type Hex,
   type HexMode,
   type PlaceResult,
+  type OutlineLine,
   type PlacedTile,
   type QuestTerrain,
   type Terrain,
@@ -41,6 +42,7 @@ import { packSave, unpackSave } from './hexShare';
 import { bestPlacement } from './hexPlanner';
 import { dressingModels } from './hexDressing';
 import { QuestBadge } from './hexBadge';
+import { outlineGeometry, outlineMaterial, type OutlineGroup } from './hexOutline';
 import { HexTray, curvedArrow, type StackKind } from './hexTable';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
 
@@ -547,32 +549,51 @@ export class HexlandWorld extends FurnishedWorld {
     const at = this.at;
     if (!at || this.board.over) return false;
     const force = !this.canPlaceSomewhere();
-    const doneBefore = new Set<string>();
+    const openBefore = new Set<string>();
     for (const [key, t] of this.board.tiles)
-      if (t.spec.quest?.state === 'done') doneBefore.add(key);
+      if (t.spec.quest?.state === 'open') openBefore.add(key);
     const result = this.board.place(at.q, at.r, this.rot, force);
     if (!result) {
       this.say('Passt so nicht · Fluss und Weg müssen weiterlaufen — drehen oder anderes Feld');
       return false;
     }
     const tile = this.board.at(at.q, at.r)!;
+    // Was dieses Legen entschieden hat: Aufträge, die eben erfüllt oder verpasst sind.
+    const settled: SettledQuest[] = [];
+    for (const [key, t] of this.board.tiles) {
+      const quest = t.spec.quest;
+      if (!quest || quest.state === 'open' || quest.target === null) continue;
+      // Die eben gelegte Kachel war vorher nicht auf dem Brett — ihr Auftrag zählt mit.
+      if (!openBefore.has(key) && t !== tile) continue;
+      settled.push({
+        tile: t,
+        terrain: quest.terrain,
+        target: quest.target,
+        size: this.board.areaSize(t.q, t.r, quest.terrain),
+        done: quest.state === 'done',
+      });
+    }
     // **Fertige Aufträge springen** (`HexBoardView.hop`) — sobald die neue
     // Kachel gezeichnet ist, damit sie mitspringt.
     const jumping: Hex[] = [];
     let origin: Hex | null = null;
-    for (const [key, t] of this.board.tiles) {
-      const quest = t.spec.quest;
-      if (quest?.state !== 'done' || doneBefore.has(key)) continue;
+    for (const { tile: t, terrain, done } of settled) {
+      if (!done) continue;
       origin ??= t;
-      jumping.push(...this.board.areaTiles(t.q, t.r, quest.terrain));
+      jumping.push(...this.board.areaTiles(t.q, t.r, terrain));
     }
+    // **Erst springen, dann fliegen**: Die Kamera wartet, bis der Sprung
+    // vorbei ist. Gewünscht: _„Nach dem erfüllen einer Mission soll die
+    // complete Animation noch abgespielt werden komplett und danach erst die
+    // Kamera zum nächsten Plätchen fliegen"_.
+    const landing = { wait: origin && this.view ? Infinity : 0 };
     void this.view?.add(tile).then(() => {
-      if (origin) this.view?.hop(jumping, origin);
+      landing.wait = origin ? (this.view?.hop(jumping, origin) ?? 0) + LANDING_PAUSE : 0;
     });
     this.lastPlaced = { q: at.q, r: at.r };
     this.at = null;
     writeSave(this.board.save(), this.board.mode);
-    this.announceResult(result);
+    this.announceResult(result, settled);
     this.refresh(true);
     // **Die Kamera fliegt zur neuen Kachel** — von oben am Schirm. Gewünscht:
     // _„nach dem Legen des neuen Tiles soll die Kamera zum neuen Tile fliegen …
@@ -580,12 +601,30 @@ export class HexlandWorld extends FurnishedWorld {
     // in einer festen Zeit."_
     // `refresh` hat ein neues Feld gewählt — TypeScript weiß das nicht.
     const next = this.at as Hex | null;
-    if (next) this.flyTo(next);
+    this.pendingFlight = null;
+    if (next) {
+      if (landing.wait > 0) this.pendingFlight = { hex: next, landing };
+      else this.flyTo(next);
+    }
     return true;
+  }
+
+  /** Ein Kameraflug, der wartet, bis ein Auftrag fertig gesprungen ist (`placeHere`). */
+  private pendingFlight: { hex: Hex; landing: { wait: number } } | null = null;
+
+  private stepPendingFlight(dt: number): void {
+    const pending = this.pendingFlight;
+    if (!pending) return;
+    pending.landing.wait -= dt;
+    if (pending.landing.wait > 0) return;
+    this.pendingFlight = null;
+    // Inzwischen woanders hingezogen? Dann dorthin.
+    this.flyTo(this.at ?? pending.hex);
   }
 
   /** **Die Kamera fliegt zu einer Kachel** (`stepFlight`) — nur von oben am Schirm. */
   private flyTo(hex: Hex): void {
+    this.pendingFlight = null;
     if (!this.board2d || !this.lastCtx) return;
     const c = hexCentre(hex.q, hex.r, HEX_WIDTH);
     const rig = this.lastCtx.rig.position;
@@ -601,12 +640,17 @@ export class HexlandWorld extends FurnishedWorld {
     return spec !== null && this.board.placeableAnywhere(spec);
   }
 
-  private announceResult(result: PlaceResult): void {
+  private announceResult(result: PlaceResult, settled: readonly SettledQuest[]): void {
     if (this.board.mode === 'creative') return;
+    for (const quest of settled) this.celebrate(quest);
+    // Am Schirm erzählen die Karten (`questCard`) von den Aufträgen, in der Brille die Zeile.
+    const cards = this.board2d && settled.length > 0;
     const parts: string[] = [];
-    for (const t of result.questsDone) parts.push(`${TERRAIN_LABEL[t]}-Auftrag erfüllt`);
-    for (const t of result.questsFailed) parts.push(`${TERRAIN_LABEL[t]}-Auftrag verpasst`);
-    if (result.points > 0) parts.push(`+${result.points}`);
+    if (!cards) {
+      for (const t of result.questsDone) parts.push(`${TERRAIN_LABEL[t]}-Auftrag erfüllt`);
+      for (const t of result.questsFailed) parts.push(`${TERRAIN_LABEL[t]}-Auftrag verpasst`);
+      if (result.points > 0) parts.push(`+${result.points}`);
+    }
     if (this.board.over) {
       const s = this.board.scoring();
       parts.push(`Partie vorbei · ${s.total} Punkte`);
@@ -616,6 +660,227 @@ export class HexlandWorld extends FurnishedWorld {
     }
     if (parts.length > 0) this.say(parts.join(' · '));
   }
+
+  /**
+   * **Ein Auftrag ist entschieden — und man sieht es.** Gewünscht: _„Bei nicht
+   * schaffen einer Mission in hex Land und bei, schaffen einer Mission bitte
+   * in der ui Feedback geben an den Nutzer."_
+   *
+   * - **Über der Auftragskachel** steigt ein Schild auf und verblasst
+   *   (`pops`): „✓ +5" mit goldenem Rand, oder „✗ 7/5" in Rot — in der Brille
+   *   wie am Schirm, dort, wo man hinschaut.
+   * - **Erfüllt**: Dazu springt das Gebiet (`HexBoardView.hop`).
+   * - **Verpasst**: Der Umriss des Gebiets blinkt dreimal rot und erlischt
+   *   (`flashes`) — man sieht, was zu groß geworden ist.
+   * - **Am Schirm** kommt zusätzlich eine Karte über die Leiste (`questCard`):
+   *   „Stadt-Auftrag erfüllt! · +5 Punkte", oder „Wald-Auftrag verpasst ·
+   *   Gebiet 7 statt 5", die rote schüttelt sich.
+   */
+  private celebrate({ tile, terrain, target, size, done }: SettledQuest): void {
+    const badge = new QuestBadge();
+    if (done) {
+      badge.show(
+        terrain,
+        [{ text: '✓ ', colour: QUEST_TONE.done }, { text: `+${target}` }],
+        QUEST_TONE.done,
+      );
+    } else {
+      badge.show(
+        terrain,
+        [
+          { text: '✗ ', colour: QUEST_TONE.over },
+          { text: `${size}/${target}`, colour: QUEST_TONE.over },
+        ],
+        QUEST_TONE.over,
+      );
+    }
+    badge.renderOrder = 9;
+    badge.material.opacity = 0;
+    const c = hexCentre(tile.q, tile.r, HEX_WIDTH);
+    badge.position.set(c.x, POP_BASE, c.z);
+    this.board3d.add(badge);
+    this.pops.push({ badge, t: 0 });
+    if (!done) {
+      const flash = new THREE.Mesh(
+        outlineGeometry([
+          { colour: QUEST_TONE.over, lines: this.board.areaOutline(tile.q, tile.r, terrain) },
+        ]),
+        outlineMaterial(),
+      );
+      flash.frustumCulled = false;
+      flash.renderOrder = 7;
+      flash.position.y = RIM_HEIGHT + 0.01;
+      flash.name = 'hexland-quest-failed';
+      this.board3d.add(flash);
+      this.flashes.push({ mesh: flash, t: 0 });
+    }
+    if (this.board2d) {
+      this.questCard(
+        done,
+        terrain,
+        done
+          ? `${TERRAIN_LABEL[terrain]}-Auftrag erfüllt!`
+          : `${TERRAIN_LABEL[terrain]}-Auftrag verpasst`,
+        done ? `+${target} ${target === 1 ? 'Punkt' : 'Punkte'}` : `Gebiet ${size} statt ${target}`,
+      );
+    }
+  }
+
+  /** Aufsteigende Schilder über entschiedenen Aufträgen (`celebrate`). */
+  private readonly pops: Array<{ badge: QuestBadge; t: number }> = [];
+  /** Rot blinkende Umrisse verpasster Aufträge (`celebrate`). */
+  private readonly flashes: Array<{
+    mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+    t: number;
+  }> = [];
+
+  /** Einmal je Bild: die Schilder steigen, die roten Umrisse blinken, dann sind sie weg. */
+  private stepFeedback(dt: number, ctx: WorldContext): void {
+    if (this.pops.length > 0) (ctx.viewCamera ?? ctx.camera).getWorldPosition(_eye);
+    for (let i = this.pops.length - 1; i >= 0; i--) {
+      const pop = this.pops[i]!;
+      pop.t += dt;
+      const u = pop.t / POP_SECONDS;
+      if (u >= 1) {
+        this.board3d.remove(pop.badge);
+        pop.badge.dispose();
+        this.pops.splice(i, 1);
+        continue;
+      }
+      pop.badge.getWorldPosition(_badge);
+      const far = _eye.distanceTo(_badge) / this.board3d.scale.x;
+      const size = Math.max(1, far / BADGE_DISTANCE);
+      // Kurz aufploppen (über das Ziel hinaus und zurück), dann ruhig steigen.
+      const pop01 = Math.min(1, pop.t / 0.3);
+      const bounce = pop01 < 1 ? Math.sin(pop01 * Math.PI) * 0.25 + pop01 : 1;
+      pop.badge.scale.setScalar(size * 1.25 * bounce);
+      pop.badge.position.y = POP_BASE + 0.45 * size + POP_RISE * size * (1 - (1 - u) ** 2);
+      pop.badge.material.opacity = u < 0.65 ? Math.min(1, pop.t / 0.12) : 1 - (u - 0.65) / 0.35;
+    }
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      const flash = this.flashes[i]!;
+      flash.t += dt;
+      const u = flash.t / FLASH_SECONDS;
+      if (u >= 1) {
+        this.board3d.remove(flash.mesh);
+        flash.mesh.geometry.dispose();
+        flash.mesh.material.dispose();
+        this.flashes.splice(i, 1);
+        continue;
+      }
+      // Dreimal blinken, jedes Mal etwas schwächer.
+      flash.mesh.material.opacity = (0.5 + 0.5 * Math.cos(u * Math.PI * 6)) * (1 - u * 0.7);
+    }
+  }
+
+  /** **Die Karte über der Leiste** — erfüllt (Gold, springt auf) oder verpasst (Rot, schüttelt sich). */
+  private questCard(done: boolean, terrain: QuestTerrain, title: string, sub: string): void {
+    let box = this.cardBox;
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'hexland-quest-cards';
+      box.style.cssText = [
+        'position:fixed',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'z-index:5',
+        'display:flex',
+        'flex-direction:column-reverse',
+        'align-items:center',
+        'gap:8px',
+        'pointer-events:none',
+        'font-family:var(--hud-font)',
+        'user-select:none',
+      ].join(';');
+      document.body.append(box);
+      this.cardBox = box;
+    }
+    // Knapp über der Leiste unten: Die Mitte des Bilds bleibt frei für das Brett und den Sprung.
+    const bar = this.tileBar && !this.tileBar.hidden ? this.tileBar.getBoundingClientRect() : null;
+    box.style.bottom = `${bar && bar.height > 0 ? window.innerHeight - bar.top + 12 : 24}px`;
+    const accent = done ? QUEST_TONE.done : QUEST_TONE.over;
+    const card = document.createElement('div');
+    card.style.cssText = [
+      'display:flex',
+      'align-items:center',
+      'gap:12px',
+      'padding:10px 18px 10px 10px',
+      'background:var(--hud-bg)',
+      `border:2px solid ${accent}`,
+      'border-radius:16px',
+      `box-shadow:var(--hud-shadow), 0 0 28px ${accent}66`,
+      'backdrop-filter:var(--hud-blur)',
+      'color:var(--hud-ink)',
+      'white-space:nowrap',
+    ].join(';');
+    const iconBox = document.createElement('span');
+    iconBox.style.cssText = 'position:relative;width:48px;height:48px;flex:none';
+    const icon = document.createElement('canvas');
+    icon.width = icon.height = 96;
+    icon.style.cssText = 'width:48px;height:48px';
+    drawHexIcon(icon, {
+      base: 'land',
+      edges: [terrain, terrain, terrain, terrain, terrain, terrain],
+      seed: 1,
+    });
+    const mark = document.createElement('span');
+    mark.textContent = done ? '✓' : '✗';
+    mark.style.cssText = [
+      'position:absolute',
+      'right:-6px',
+      'bottom:-4px',
+      'width:24px',
+      'height:24px',
+      'border-radius:50%',
+      `background:${accent}`,
+      'color:#141824',
+      'font:900 16px/24px system-ui, sans-serif',
+      'text-align:center',
+    ].join(';');
+    iconBox.append(icon, mark);
+    const text = document.createElement('span');
+    text.style.cssText = 'display:flex;flex-direction:column;line-height:1.2';
+    const head = document.createElement('strong');
+    head.style.cssText = 'font-size:18px';
+    head.textContent = title;
+    const line = document.createElement('span');
+    line.style.cssText = `font-size:14px;font-weight:700;color:${accent}`;
+    line.textContent = sub;
+    text.append(head, line);
+    card.append(iconBox, text);
+    box.append(card);
+    const enter = card.animate(
+      done
+        ? [
+            { transform: 'translateY(-10px) scale(0.6)', opacity: 0 },
+            { transform: 'translateY(0) scale(1.08)', opacity: 1, offset: 0.6 },
+            { transform: 'scale(1)', opacity: 1 },
+          ]
+        : [
+            { transform: 'translateY(-10px)', opacity: 0 },
+            { transform: 'translateX(0)', opacity: 1, offset: 0.3 },
+            { transform: 'translateX(-9px)', offset: 0.45 },
+            { transform: 'translateX(8px)', offset: 0.6 },
+            { transform: 'translateX(-6px)', offset: 0.75 },
+            { transform: 'translateX(4px)', offset: 0.88 },
+            { transform: 'translateX(0)', opacity: 1 },
+          ],
+      { duration: done ? 420 : 620, easing: 'ease-out' },
+    );
+    void enter.finished
+      .then(
+        () =>
+          card.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-8px)' }], {
+            duration: 450,
+            delay: CARD_SECONDS * 1000,
+            fill: 'forwards',
+          }).finished,
+      )
+      .catch(() => undefined)
+      .finally(() => card.remove());
+  }
+
+  private cardBox: HTMLDivElement | null = null;
 
   private say(message: string): void {
     this.context?.notify(message);
@@ -1121,10 +1386,11 @@ export class HexlandWorld extends FurnishedWorld {
    * **Die Schilder der offenen Aufträge** — wie groß das Gebiet ist und werden
    * soll, und **was die Kachel in der Hand daran ändert**: Liegt sie so, wie
    * sie schwebt (und dort gelegt werden darf), rechnet das Brett probehalber
-   * mit ihr (`HexBoard.pretend`). Ein Auftrag, der wüchse, zeigt „4→5/5", die
-   * Liste oben rechts „Wald 4 → 5 / 5". Gewünscht: _„Auch soll bei der Mission
-   * dann angezeigt werden, wie der Wert sich verändern würde."_ Die Umrisse
-   * am Boden zeigen das Gebiet ebenso schon mit der Kachel.
+   * mit ihr (`HexBoard.pretend`). Ein Auftrag, der wüchse, zeigt schon „5/5",
+   * die 5 farbig (`QUEST_TONE`), die Liste oben rechts ebenso. Gewünscht:
+   * _„Auch soll bei der Mission dann angezeigt werden, wie der Wert sich
+   * verändern würde"_ und dann _„nur X/Y"_. Die Umrisse am Boden zeigen das
+   * Gebiet ebenso schon mit der Kachel.
    */
   private drawBadges(): void {
     const seen = new Set<string>();
@@ -1154,7 +1420,8 @@ export class HexlandWorld extends FurnishedWorld {
     } else {
       outlines = open.map((row) => this.questOutline(row.tile, row.terrain));
     }
-    for (const { tile, size, next, target, terrain } of open) {
+    for (const row of open) {
+      const { tile, terrain, target } = row;
       const key = hexKey(tile.q, tile.r);
       seen.add(key);
       let badge = this.badges.get(key);
@@ -1165,10 +1432,16 @@ export class HexlandWorld extends FurnishedWorld {
         this.badges.set(key, badge);
         this.board3d.add(badge);
       }
-      badge.show(terrain, next === size ? `${size}/${target}` : `${size}→${next}/${target}`);
+      // **Nur X/Y** — X ist schon der Wert mit der Kachel in der Hand, farbig,
+      // wenn er sich ändert (`QUEST_TONE`).
+      const tone = questTone(row);
+      badge.show(terrain, [
+        { text: `${row.next}`, colour: tone ? QUEST_TONE[tone] : undefined },
+        { text: `/${target}` },
+      ]);
     }
     this.drawQuestList(open);
-    this.drawQuestRims(outlines);
+    this.drawQuestRims(outlines, preview?.at ?? null);
     for (const [key, badge] of this.badges) {
       if (seen.has(key)) continue;
       this.board3d.remove(badge);
@@ -1191,89 +1464,55 @@ export class HexlandWorld extends FurnishedWorld {
    * zusammenhängenden Gebiete der Missionen sind rund, sollen aber eckig
    * sein"_.
    *
-   * Ein Bündel für alle (`InstancedMesh` aus flachen Leisten), ohne
-   * Tiefenprüfung über Bäumen und Häusern, unter den Schildern: erst ein
-   * dunkler, breiterer Saum für alle Linien, darüber die Farbe des Geländes —
-   * so liest sich Grün auch über Wald. Außenkanten rücken um eine halbe
-   * Linienbreite nach innen, damit zwei Gebiete an derselben Kante
-   * nebeneinander liegen statt übereinander.
+   * Gezeichnet als Band mit Gehrung und weichem Schein nach innen
+   * (`hexOutline.ts`), ohne Tiefenprüfung über Bäumen und Häusern, unter den
+   * Schildern. **Die Linien auf dem Feld der schwebenden Kachel schweben mit
+   * ihr** — sie hängen an der Vorschau (`handRims`), nicht am Brett. Gemeldet:
+   * _„Auch schweben die Linien nicht mit wenn das tile schwebt vor dem
+   * legen."_
    */
-  private drawQuestRims(outlines: QuestOutline[]): void {
-    let rims = this.questRims;
-    if (!rims) {
-      const geometry = new THREE.BoxGeometry(1, 0.02, 1);
-      rims = new THREE.InstancedMesh(
-        geometry,
-        new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, toneMapped: false }),
-        1536,
-      );
-      rims.frustumCulled = false;
-      rims.renderOrder = 7;
-      rims.name = 'hexland-quest-rims';
-      this.board3d.add(rims);
-      this.questRims = rims;
+  private drawQuestRims(outlines: QuestOutline[], floating: Hex | null): void {
+    if (!this.questRims) {
+      this.questRims = new THREE.Mesh(new THREE.BufferGeometry(), outlineMaterial());
+      this.questRims.frustumCulled = false;
+      this.questRims.renderOrder = 7;
+      this.questRims.position.y = RIM_HEIGHT;
+      this.questRims.name = 'hexland-quest-rims';
+      this.board3d.add(this.questRims);
+      this.handRims = new THREE.Mesh(new THREE.BufferGeometry(), this.questRims.material);
+      this.handRims.frustumCulled = false;
+      this.handRims.renderOrder = 7;
+      this.handRims.name = 'hexland-quest-rims-hand';
+      this.hand.add(this.handRims);
     }
-    const radius = HEX_WIDTH / Math.sqrt(3);
-    const corner = (q: number, r: number, angle: number, inset: number): THREE.Vector2 => {
-      const c = hexCentre(q, r, HEX_WIDTH);
-      const d = radius - inset;
-      return new THREE.Vector2(c.x + Math.cos(angle) * d, c.z + Math.sin(angle) * d);
-    };
-    const segments: Array<{ a: THREE.Vector2; b: THREE.Vector2; colour: string }> = [];
+    const board = new Map<QuestTerrain, OutlineLine[]>();
+    const hand = new Map<QuestTerrain, OutlineLine[]>();
     const drawn = new Set<string>();
     for (const { terrain, lines } of outlines) {
       for (const line of lines) {
-        const id = `${terrain}|${line.q},${line.r},${line.edge},${line.spoke}`;
+        const id = `${terrain}|${line.q},${line.r},${line.edge},${line.spoke},${line.side}`;
         if (drawn.has(id)) continue;
         drawn.add(id);
-        const mid = line.edge * (Math.PI / 3);
-        const colour = TERRAIN_COLOUR[terrain];
-        if (line.spoke) {
-          const c = hexCentre(line.q, line.r, HEX_WIDTH);
-          segments.push({
-            a: new THREE.Vector2(c.x, c.z),
-            b: corner(line.q, line.r, mid + Math.PI / 6, 0),
-            colour,
-          });
-        } else {
-          // Nach innen gerückt: Die Ecken liegen auf dem kleineren Sechseck.
-          const inset = (RIM_WIDTH * 0.6) / Math.cos(Math.PI / 6);
-          segments.push({
-            a: corner(line.q, line.r, mid - Math.PI / 6, inset),
-            b: corner(line.q, line.r, mid + Math.PI / 6, inset),
-            colour,
-          });
-        }
+        const onHand = floating !== null && line.q === floating.q && line.r === floating.r;
+        const into = onHand ? hand : board;
+        let list = into.get(terrain);
+        if (!list) into.set(terrain, (list = []));
+        list.push(line);
       }
     }
-    let n = 0;
-    const max = rims.instanceMatrix.count;
-    for (const pass of [0, 1] as const) {
-      const width = pass === 0 ? RIM_WIDTH * 1.9 : RIM_WIDTH;
-      for (const { a, b, colour } of segments) {
-        if (n >= max) break;
-        const dx = b.x - a.x;
-        const dz = b.y - a.y;
-        // Etwas länger als die Strecke, damit sich die Ecken schließen.
-        const length = Math.hypot(dx, dz) + width;
-        _rimMatrix.compose(
-          _rimPos.set((a.x + b.x) / 2, RIM_HEIGHT + pass * 0.01, (a.y + b.y) / 2),
-          _rimQuat.setFromAxisAngle(_rimUp, Math.atan2(-dz, dx)),
-          _rimScale.set(length, 1, width),
-        );
-        rims.setMatrixAt(n, _rimMatrix);
-        _rimColour.set(colour);
-        if (pass === 0) _rimColour.multiplyScalar(0.35);
-        rims.setColorAt(n, _rimColour);
-        n++;
-      }
-    }
-    rims.count = n;
-    rims.instanceMatrix.needsUpdate = true;
-    if (rims.instanceColor) rims.instanceColor.needsUpdate = true;
+    const groups = (from: Map<QuestTerrain, OutlineLine[]>): OutlineGroup[] =>
+      [...from].map(([terrain, lines]) => ({ colour: TERRAIN_COLOUR[terrain], lines }));
+    this.questRims.geometry.dispose();
+    this.questRims.geometry = outlineGeometry(groups(board));
+    this.handRims!.geometry.dispose();
+    this.handRims!.geometry = floating
+      ? outlineGeometry(groups(hand), hexCentre(floating.q, floating.r, HEX_WIDTH))
+      : new THREE.BufferGeometry();
   }
 
-  private questRims: THREE.InstancedMesh | null = null;
+  private questRims: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null = null;
+  /** Die Linien auf dem Feld der schwebenden Kachel — sie schweben mit ihr. */
+  private handRims: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null = null;
 
   /**
    * **Die offenen Aufträge oben rechts** — gewünscht: _„Ich würde gerne
@@ -1303,7 +1542,8 @@ export class HexlandWorld extends FurnishedWorld {
       this.questList = list;
     }
     list.replaceChildren();
-    for (const { tile, size, next, target, terrain } of open) {
+    for (const quest of open) {
+      const { tile, next, target, terrain } = quest;
       const row = document.createElement('button');
       row.type = 'button';
       row.title = 'Zur Kachel';
@@ -1335,20 +1575,24 @@ export class HexlandWorld extends FurnishedWorld {
       text.style.cssText = 'display:flex;flex-direction:column;line-height:1.15;min-width:0';
       const title = document.createElement('strong');
       title.style.cssText = 'font-size:15px;white-space:nowrap';
-      title.textContent =
-        next === size
-          ? `${TERRAIN_LABEL[terrain]} ${size} / ${target}`
-          : `${TERRAIN_LABEL[terrain]} ${size} → ${next} / ${target}`;
+      // Nur „X / Y" — X farbig, wenn die Kachel in der Hand etwas ändert.
+      const tone = questTone(quest);
+      const value = document.createElement('span');
+      value.textContent = `${next}`;
+      if (tone) value.style.color = QUEST_TONE[tone];
+      title.append(`${TERRAIN_LABEL[terrain]} `, value, ` / ${target}`);
       const sub = document.createElement('span');
       sub.style.cssText = 'font-size:12px;opacity:.75;white-space:nowrap';
       sub.textContent =
-        next === size
-          ? `noch ${target - size}`
-          : next === target
-            ? 'mit dieser Kachel fertig'
-            : next > target
-              ? 'mit dieser Kachel zu groß'
-              : `mit dieser Kachel noch ${target - next}`;
+        tone === 'done'
+          ? '✓ wird erfüllt'
+          : tone === 'over'
+            ? '✗ wird zu groß'
+            : `noch ${target - next}`;
+      if (tone && tone !== 'grow') {
+        sub.style.color = QUEST_TONE[tone];
+        sub.style.opacity = '1';
+      }
       text.append(title, sub);
       row.append(icon, text);
       row.addEventListener('click', (event) => {
@@ -1473,8 +1717,9 @@ export class HexlandWorld extends FurnishedWorld {
     // Die Vorschau schwebt eine Handbreit über dem Feld und wiegt sich ein wenig.
     if (this.previewTile)
       this.previewTile.position.y = this.table?.held ? 0 : 0.55 + Math.sin(this.clock * 2.2) * 0.08;
-    // Die Griffpunkte sitzen auf der Höhe der Kachel.
+    // Die Griffpunkte sitzen auf der Höhe der Kachel, die Umrisse auf ihr auch.
     this.knobs.position.y = this.previewTile?.position.y ?? 0;
+    if (this.handRims) this.handRims.position.y = this.knobs.position.y + RIM_HEIGHT;
     // Die Drehpfeile laufen langsam im Uhrzeigersinn (von oben: negatives Gieren).
     if (this.spin.visible) this.spin.rotation.y -= dt * 0.6;
     if (this.ring) {
@@ -1482,7 +1727,9 @@ export class HexlandWorld extends FurnishedWorld {
       this.ring.scale.setScalar(1 + pulse * 0.06);
       (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 + pulse * 0.45;
     }
+    this.stepPendingFlight(dt);
     this.stepFlight(dt, ctx);
+    this.stepFeedback(dt, ctx);
     this.orbitEnd(dt, ctx);
     this.stepGenerate(dt);
     this.sizeBadges(ctx);
@@ -2994,8 +3241,18 @@ export class HexlandWorld extends FurnishedWorld {
     this.info?.dispose();
     this.handQuest?.dispose();
     this.questRims?.geometry.dispose();
-    (this.questRims?.material as THREE.Material | undefined)?.dispose();
-    this.questRims?.dispose();
+    this.questRims?.material.dispose();
+    this.handRims?.geometry.dispose();
+    for (const pop of this.pops) pop.badge.dispose();
+    this.pops.length = 0;
+    for (const flash of this.flashes) {
+      flash.mesh.geometry.dispose();
+      flash.mesh.material.dispose();
+    }
+    this.flashes.length = 0;
+    this.cardBox?.remove();
+    this.cardBox = null;
+    this.pendingFlight = null;
     for (const badge of this.badges.values()) badge.dispose();
     this.badges.clear();
     this.lastCtx = null;
@@ -3147,16 +3404,42 @@ const _scale = new THREE.Vector3();
 const _euler = new THREE.Euler();
 const _inverse = new THREE.Matrix4();
 const _up = new THREE.Vector3(0, 1, 0);
-const _rimColour = new THREE.Color();
-const _rimMatrix = new THREE.Matrix4();
-const _rimPos = new THREE.Vector3();
-const _rimQuat = new THREE.Quaternion();
-const _rimScale = new THREE.Vector3();
-const _rimUp = new THREE.Vector3(0, 1, 0);
-
-/** Breite und Höhe der Umrisse am Boden (`drawQuestRims`). */
-const RIM_WIDTH = 0.11;
+/** Wie hoch die Umrisse über dem Boden liegen (`drawQuestRims`). */
 const RIM_HEIGHT = 0.08;
+
+/**
+ * **Wie sich ein Auftrag mit der Kachel in der Hand ändert** — die Farbe von
+ * X in „X/Y". Gewünscht: _„nur X/Y gezeigt …, wobei x dann farbig ist wenn es
+ * besser wird oder wenn es überschreiten wird. Oder farbig wenn komplett
+ * erfüllt wird"_.
+ */
+/** Ein Auftrag, den das letzte Legen entschieden hat (`placeHere`, `celebrate`). */
+interface SettledQuest {
+  tile: PlacedTile;
+  terrain: QuestTerrain;
+  target: number;
+  size: number;
+  done: boolean;
+}
+
+/** Das aufsteigende Schild (`celebrate`): wo es beginnt, wie weit es steigt, wie lange. */
+const POP_BASE = 1.0;
+const POP_RISE = 1.4;
+const POP_SECONDS = 2.4;
+/** So lange blinkt der Umriss eines verpassten Auftrags. */
+const FLASH_SECONDS = 1.8;
+/** So lange steht die Karte am Schirm, bevor sie verblasst. */
+const CARD_SECONDS = 2.6;
+/** Nach dem Sprung eines fertigen Auftrags noch kurz stehen, dann fliegen. */
+const LANDING_PAUSE = 0.25;
+
+const QUEST_TONE = { grow: '#7be08a', done: '#ffd84a', over: '#ff6b6b' } as const;
+
+function questTone(row: QuestRow): keyof typeof QUEST_TONE | null {
+  if (row.next === row.size) return null;
+  if (row.next === row.target) return 'done';
+  return row.next > row.target ? 'over' : 'grow';
+}
 
 /** Ein offener Auftrag: wie groß sein Gebiet ist, und wie groß mit der Kachel in der Hand. */
 interface QuestRow {
@@ -3170,7 +3453,7 @@ interface QuestRow {
 /** Der Umriss des Gebiets eines Auftrags (`HexBoard.areaOutline`). */
 interface QuestOutline {
   terrain: QuestTerrain;
-  lines: Array<{ q: number; r: number; edge: number; spoke: boolean }>;
+  lines: OutlineLine[];
 }
 const _aim = new THREE.Vector3();
 const _badge = new THREE.Vector3();

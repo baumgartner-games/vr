@@ -626,6 +626,16 @@ export interface PlaceResult {
   questsFailed: QuestTerrain[];
 }
 
+/** Eine Linie im Umriss eines Gebiets (`HexBoard.areaOutline`). */
+export interface OutlineLine {
+  q: number;
+  r: number;
+  edge: number;
+  spoke: boolean;
+  /** Das Dreieck der Kachel, das zum Gebiet gehört. */
+  side: number;
+}
+
 /** **Die Wertung wie im Brettspiel**, Posten für Posten (`HexBoard.scoring`). */
 export interface Scoring {
   /** Erfüllte Aufträge: ihre Zahlen zusammen. */
@@ -1161,15 +1171,12 @@ export class HexBoard {
    * Linien, auf deren einer Seite das Gebiet liegt und auf der anderen nicht:
    * Kanten (`spoke: false`, Kante `edge`) zu einem Nachbarn außerhalb, und
    * Speichen von der Mitte zur Ecke zwischen `edge` und `edge + 1`
-   * (`spoke: true`), wo das Gebiet mitten auf einer Kachel endet.
-   * Gewünscht: _„Die zusammenhängenden Gebiete der Missionen sind rund, sollen
+   * (`spoke: true`), wo das Gebiet mitten auf einer Kachel endet. `side` ist
+   * das Dreieck, auf dessen Seite das Gebiet liegt — so weiß die Linie, wohin
+   * sie leuchtet. Gewünscht: _„Die zusammenhängenden Gebiete der Missionen sind rund, sollen
    * aber eckig sein"_ — eine Linie um das ganze Gebiet, nicht um jede Kachel.
    */
-  areaOutline(
-    q: number,
-    r: number,
-    terrain: Terrain,
-  ): Array<{ q: number; r: number; edge: number; spoke: boolean }> {
+  areaOutline(q: number, r: number, terrain: Terrain): OutlineLine[] {
     const areas = this.areas(terrain);
     const start = areas.node(hexKey(q, r));
     if (start < 0) return [];
@@ -1179,16 +1186,17 @@ export class HexBoard {
       const node = whole ? areas.node(key) : areas.node(key, edge);
       return node >= 0 && areas.find(node) === root;
     };
-    const out: Array<{ q: number; r: number; edge: number; spoke: boolean }> = [];
+    const out: OutlineLine[] = [];
     for (const [key, tile] of this.tiles) {
       for (let e = 0; e < 6; e++) {
         if (!inside(key, e)) continue;
         const n = neighbour(tile, e);
         if (!inside(hexKey(n.q, n.r), opposite(e)))
-          out.push({ q: tile.q, r: tile.r, edge: e, spoke: false });
-        if (!inside(key, (e + 1) % 6)) out.push({ q: tile.q, r: tile.r, edge: e, spoke: true });
+          out.push({ q: tile.q, r: tile.r, edge: e, spoke: false, side: e });
+        if (!inside(key, (e + 1) % 6))
+          out.push({ q: tile.q, r: tile.r, edge: e, spoke: true, side: e });
         if (!inside(key, (e + 5) % 6))
-          out.push({ q: tile.q, r: tile.r, edge: (e + 5) % 6, spoke: true });
+          out.push({ q: tile.q, r: tile.r, edge: (e + 5) % 6, spoke: true, side: e });
       }
     }
     return out;

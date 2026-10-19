@@ -94,23 +94,48 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   An der Kachel in der Hand nur die Zahl. Gewünscht: _„Können wir die
   Mission-Tiles anders darstellen? Aktuell verdecken diese viel … nur das
   Icon, aber mit X/Y rendern."_
-- **Umrisse am Boden** (`drawQuestRims`, `HexBoard.areaOutline`): eine
-  **eckige Linie um das ganze Gebiet** eines offenen Auftrags, in der Farbe
-  des Geländes über einem dunklen Saum, ohne Tiefenprüfung über Bäumen und
-  Häusern. Jede Kachel zählt als sechs Dreiecke, eins je Kante; zum Gebiet
-  gehören die Dreiecke seines Stücks (bei Fluss und Weg die ganze Kachel).
-  Gezeichnet werden Außenkanten zu Nachbarn außerhalb und, wo das Gebiet
-  mitten auf einer Kachel endet, Speichen von der Mitte zur Ecke. Kanten
-  zwischen zwei Kacheln desselben Gebiets bleiben frei. Gewünscht erst _„die
-  Elemente zu highlighten"_, dann _„nur dort, wo es wirklich angrenzt"_ und
-  zuletzt mit einer Skizze: _„Die zusammenhängenden Gebiete der Missionen
-  sind rund, sollen aber eckig sein."_
+- **Umrisse am Boden** (`drawQuestRims`, `HexBoard.areaOutline`,
+  `hexOutline.ts`): eine **eckige Linie um das ganze Gebiet** eines offenen
+  Auftrags, ohne Tiefenprüfung über Bäumen und Häusern. Jede Kachel zählt als
+  sechs Dreiecke, eins je Kante; zum Gebiet gehören die Dreiecke seines Stücks
+  (bei Fluss und Weg die ganze Kachel). Gezeichnet werden Außenkanten zu
+  Nachbarn außerhalb und, wo das Gebiet mitten auf einer Kachel endet,
+  Speichen von der Mitte zur Ecke; jede Linie weiß, auf welcher Seite ihr
+  Gebiet liegt (`side`). Kanten zwischen zwei Kacheln desselben Gebiets
+  bleiben frei. Gewünscht erst _„die Elemente zu highlighten"_, dann _„nur
+  dort, wo es wirklich angrenzt"_ und zuletzt mit einer Skizze: _„Die
+  zusammenhängenden Gebiete der Missionen sind rund, sollen aber eckig
+  sein."_
+  **Wie die Linie aussieht** (Oktober 2026, gemeldet: _„sollten allerdings
+  schöner gemacht werden"_ — vorher Leisten über einem dunklen Saum, an jeder
+  Ecke zwei Klötzchen übereinander): Die Strecken werden zu Linienzügen
+  verkettet und als ein Band mit Gehrung gezeichnet — schmale helle Linie
+  genau auf der Grenze, nach innen ein weicher Schein in der Farbe des
+  Geländes, nach außen ein Hauch Schatten (`PROFILE` in `hexOutline.ts`, Farbe
+  und Deckkraft je Ecke). Zwei Gebiete an derselben Kante leuchten jedes in
+  sein Feld. **Die Linien auf dem Feld der schwebenden Kachel schweben mit**
+  (`handRims` hängt an der Vorschau) — gemeldet: _„Auch schweben die Linien
+  nicht mit wenn das tile schwebt vor dem legen."_
 - **Was die Kachel in der Hand ändert** (`drawBadges`, `HexBoard.pretend`):
   Darf sie liegen, wo sie schwebt, rechnet das Brett probehalber mit ihr.
-  Schild „3→4/5", Liste „Wald 3 → 4 / 5 · mit dieser Kachel noch 1" (oder
-  „fertig" / „zu groß"), der eigene Auftrag der Kachel „1/6", und die Umrisse
-  zeigen das Gebiet schon mit ihr. Gewünscht: _„Auch soll bei der Mission
-  dann angezeigt werden, wie der Wert sich verändern würde."_
+  **Nur X/Y**, X schon mit der Kachel, und farbig, wenn sie etwas ändert
+  (`QUEST_TONE`): grün, wenn das Gebiet wächst, gold, wenn es genau fertig
+  wird, rot, wenn es zu groß wird (Liste: „noch 1", „✓ wird erfüllt", „✗ wird
+  zu groß"). Der eigene Auftrag der Kachel zeigt „1/6", und die Umrisse zeigen
+  das Gebiet schon mit ihr. Gewünscht erst _„wie der Wert sich verändern
+  würde"_ (damals „3→4/5"), dann _„nur X/Y …, wobei x dann farbig ist wenn es
+  besser wird oder wenn es überschreiten wird. Oder farbig wenn komplett
+  erfüllt wird"_.
+- **Erfüllt oder verpasst — man sieht es** (`celebrate`, `stepFeedback`,
+  `questCard`). Gewünscht: _„Bei nicht schaffen einer Mission … und bei
+  schaffen einer Mission bitte in der ui Feedback geben"_. Über der
+  Auftragskachel steigt ein Schild auf und verblasst („✓ +5" gold, „✗ 7/5"
+  rot; Brille wie Schirm). Erfüllt: Das Gebiet springt (unten). Verpasst: Der
+  Umriss des Gebiets blinkt dreimal rot und erlischt. Am Schirm kommt
+  zusätzlich eine Karte über die Leiste — „Stadt-Auftrag erfüllt! · +5
+  Punkte" (springt auf) oder „Wald-Auftrag verpasst · Gebiet 7 statt 5"
+  (schüttelt sich) — und die Zeile unten (`notify`) sagt es dann nicht noch
+  einmal; in der Brille bleibt die Zeile.
 
 ### Welt generieren
 
@@ -144,7 +169,11 @@ aus allen Tiles, die daran perfekt matchen."_
   dann die Tiles, die dem Auftrag dazu gehörten, alle leicht nach oben gehen
   und dann runterfallen auf die normale Position wieder, wie so ein
   gemeinsamer Sprung bzw. wie bei Lego spielen, wenn am Ende das Objekt
-  fertig ist."_ Die Regel bleibt wie im Brettspiel: Ein Auftrag, dessen
+  fertig ist."_ **Die Kamera wartet**, bis der Sprung vorbei ist
+  (`pendingFlight`, `hop` gibt die Dauer zurück), und fliegt erst dann zur
+  nächsten Kachel — gewünscht: _„Nach dem erfüllen einer Mission soll die
+  complete Animation noch abgespielt werden komplett und danach erst die
+  Kamera zum nächsten Plätchen fliegen"_. Die Regel bleibt wie im Brettspiel: Ein Auftrag, dessen
   Gebiet zu groß wird, ist verpasst und gibt seinen Platz frei.
 
 ### Spielende (normale Runde)
