@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { graphics, onGraphicsChange } from '../../core/graphicsSettings';
 
 /**
  * Wie weit der Boden reicht — und damit, wie weit man laufen kann.
@@ -58,7 +59,29 @@ export function markBackdrop<T extends THREE.Object3D>(object: T): T {
   return object;
 }
 
-/** Cheap gradient sky as an inverted sphere — no HDRI download needed. */
+/**
+ * **Ob der Himmel zu sehen ist** — `GraphicsSettings.sky`, _Grafik → Himmel_.
+ * Eine Zahl, die jeder Himmel teilt: Ein Schalter erreicht damit auch die
+ * Kuppeln von Welten, die gerade nicht geladen sind, ohne Liste.
+ */
+const SKY_SHOWN = { value: graphics().sky ? 1 : 0 };
+onGraphicsChange(() => {
+  SKY_SHOWN.value = graphics().sky ? 1 : 0;
+});
+
+/**
+ * Cheap gradient sky as an inverted sphere — no HDRI download needed.
+ *
+ * **Gezeichnet wird sie im Unendlichen**: nur die Richtung zählt, nicht wo
+ * die Kugel steht, und die Tiefe liegt auf der Fernebene. Gemeldet aus der
+ * Brille: _„Der Himmel ist wohl, wenn ich weiter oben bin, einfach weg und ich
+ * sehe Passthrough mein Zimmer."_ — eine Kugel von 560 m um den Ursprung lag
+ * hoch oben hinter der Fernebene (`CAMERA_FAR` durch den Flugmaßstab), und
+ * wo kein Himmel ist, schaut die AR-Sitzung in den Raum.
+ *
+ * Mit _Grafik → Himmel_ aus wird nichts gezeichnet: in der Brille der Raum,
+ * am Schirm die Hintergrundfarbe.
+ */
 export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THREE.Mesh {
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
@@ -66,13 +89,22 @@ export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THR
     uniforms: {
       topColor: { value: new THREE.Color(top) },
       bottomColor: { value: new THREE.Color(bottom) },
+      skyShown: SKY_SHOWN,
     },
     vertexShader: /* glsl */ `
+      uniform float skyShown;
       varying vec3 vWorldPosition;
       void main() {
-        vec4 world = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = world.xyz;
-        gl_Position = projectionMatrix * viewMatrix * world;
+        if (skyShown < 0.5) {
+          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+          return;
+        }
+        vec3 dir = normalize(mat3(modelMatrix) * position);
+        vWorldPosition = dir;
+        // Eine Richtung (w = 0) statt eines Punktes: Wo die Kamera steht,
+        // fällt heraus; z = w legt die Kuppel knapp auf die Fernebene.
+        vec4 clip = projectionMatrix * vec4(mat3(viewMatrix) * dir, 0.0);
+        gl_Position = vec4(clip.xy, clip.w * 0.99999, clip.w);
       }
     `,
     fragmentShader: /* glsl */ `

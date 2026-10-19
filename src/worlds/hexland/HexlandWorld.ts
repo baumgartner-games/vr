@@ -8,6 +8,7 @@ import { setBuildFlight } from '../../core/buildFlight';
 import { graphics, saveGraphics } from '../../core/graphicsSettings';
 import { KEEP_SOLID } from '../../core/occluderGhost';
 import { TextPlane } from '../../ui/TextPlane';
+import { faceCamera } from '../../ui/billboard';
 import type { MenuEntry } from '../../ui/menu';
 import type { PointerHit } from '../../core/Pointer';
 import type { WorldContext } from '../../core/types';
@@ -80,6 +81,20 @@ export class HexlandWorld extends FurnishedWorld {
   private previewTile: THREE.Group | null = null;
   private previewEdges: THREE.Mesh[] = [];
   private confirm: TextPlane | null = null;
+  /** ✓ Legen mit ↺ und ↻ daneben — eine Tafel, die sich als Ganzes zum Blick dreht. */
+  private controls = new THREE.Group();
+  private turnLeft: TextPlane | null = null;
+  private turnRight: TextPlane | null = null;
+  /**
+   * **Der Geist**: die Kachel in der Hand, blass auf dem Feld, auf das gezielt
+   * wird (`showHover`). Gewünscht: _„Ziele ich auf ein unbesetztes Tile, wird
+   * das neue Tile dort als Ghost angezeigt, bis ich Trigger drücke."_
+   */
+  private aim = new THREE.Group();
+  private aimGhostFor: unknown = null;
+  private readonly aimMaterials = new Map<THREE.Material, THREE.Material>();
+  /** Die Pfeile um die Kachel in der Hand, wenn auf sie gezielt wird — Trigger dreht. */
+  private spin = new THREE.Group();
   private info: TextPlane | null = null;
   private handQuest: QuestBadge | null = null;
   /** Wo die Vorschau gerade liegt, und wie gedreht. */
@@ -326,8 +341,50 @@ export class HexlandWorld extends FurnishedWorld {
       face: true,
       front: true,
     });
-    this.confirm.position.y = 2.5;
-    this.hand.add(this.confirm);
+    // **Drehen am Schild** — gewünscht: _„bei dem Panel ‚Legen' auch die
+    // Buttons links und rechts mit Drehen einbauen."_
+    const arrowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffd84a,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.hexMaterials.push(arrowMaterial);
+    const turn = (clockwise: boolean, x: number): TextPlane => {
+      const button = new TextPlane({
+        width: 0.8,
+        height: 0.8,
+        title: '',
+        accent: 0xffd84a,
+        background: 'rgba(40, 46, 66, 0.92)',
+        align: 'center',
+        front: true,
+      });
+      button.position.x = x;
+      // Ein gezeichneter Pfeil statt ↺/↻: Die Schrift der Tafel ist für ein Zeichen zu klein.
+      for (const part of curvedArrow(
+        0.2,
+        0.07,
+        clockwise ? 2.4 : 0.75,
+        4,
+        clockwise,
+        arrowMaterial,
+      )) {
+        part.renderOrder = button.renderOrder + 1;
+        part.position.z = 0.01;
+        button.add(part);
+      }
+      this.controls.add(button);
+      return button;
+    };
+    this.turnLeft = turn(false, -1.8);
+    this.turnRight = turn(true, 1.8);
+    this.controls.add(this.confirm);
+    this.controls.position.y = 2.5;
+    this.hand.add(this.controls);
+    faceCamera(this.controls);
+    this.buildSpin();
     this.info = new TextPlane({
       width: 3,
       height: 0.95,
@@ -359,6 +416,12 @@ export class HexlandWorld extends FurnishedWorld {
       onSelect: (hit) => this.pointAt(hit),
     });
     ctx.pointer.add({ object: this.confirm, onSelect: () => this.placeHere() });
+    ctx.pointer.add({ object: this.turnLeft, onSelect: () => this.rotate(-1) });
+    ctx.pointer.add({ object: this.turnRight, onSelect: () => this.rotate(1) });
+    this.aim.name = 'hexland-ghost-aim';
+    this.aim.visible = false;
+    this.aim.userData[KEEP_SOLID] = true;
+    this.root.add(this.aim);
     // **Und von oben am Schirm** — dort ruht der Strahl, also eigene Finger.
     this.listenToScreen(ctx);
     this.buildTileBar();
@@ -1143,17 +1206,99 @@ export class HexlandWorld extends FurnishedWorld {
   private showHover(point: THREE.Vector3 | null): void {
     const hover = this.hover;
     if (!hover) return;
-    if (!point) {
-      hover.visible = false;
-      return;
-    }
-    const hex = hexAt(point.x, point.z, HEX_WIDTH);
-    const open = this.board.isOpen(hex.q, hex.r) && !this.board.over;
+    const hex = point ? hexAt(point.x, point.z, HEX_WIDTH) : null;
+    const open = !!hex && this.board.isOpen(hex.q, hex.r) && !this.board.over;
     hover.visible = open;
+    // Auf die Kachel in der Hand gezielt: Pfeile; auf ein anderes freies Feld: der Geist.
+    const onHand = !!hex && !!this.at && hex.q === this.at.q && hex.r === this.at.r;
+    this.spin.visible = onHand && !this.board2d && this.hand.visible;
+    this.showAim(open && !onHand && !this.board2d ? hex : null);
     if (!open) return;
     const c = hexCentre(hex.q, hex.r, HEX_WIDTH);
     hover.position.x = c.x;
     hover.position.z = c.z;
+  }
+
+  /**
+   * **Den Geist auf dieses Feld** — so gedreht, wie die Kachel dort landen
+   * würde (mit _Vordrehen_ die beste Lage dort, sonst die gemerkte). Ein
+   * Trigger legt sie dann wie bisher dorthin, ganz sichtbar, aber noch nicht
+   * fest: Gelegt wird erst mit ✓.
+   */
+  private showAim(hex: Hex | null): void {
+    const spec = this.board.current;
+    if (!hex || !spec) {
+      this.aim.visible = false;
+      return;
+    }
+    const rot = this.help.smartRotate ? this.bestRotation(spec, hex) : this.rot;
+    const c = hexCentre(hex.q, hex.r, HEX_WIDTH);
+    this.aim.position.set(c.x, 0.3, c.z);
+    this.aim.rotation.y = -rot * (Math.PI / 3);
+    this.aim.visible = true;
+    if (this.aimGhostFor === spec) return;
+    this.aimGhostFor = spec;
+    void buildTileGroup(this.models, spec).then((group) => {
+      if (this.aimGhostFor !== spec) return;
+      group.userData.sharedAssets = true;
+      group.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.castShadow = false;
+        mesh.material = this.aimMaterial(mesh.material as THREE.Material);
+      });
+      this.aim.clear();
+      this.aim.add(group);
+    });
+  }
+
+  /** Ein Stoff, halb durchsichtig — je Stoff einmal, geteilt von allen Geistern. */
+  private aimMaterial(source: THREE.Material): THREE.Material {
+    let ghost = this.aimMaterials.get(source);
+    if (!ghost) {
+      ghost = source.clone();
+      ghost.transparent = true;
+      ghost.opacity = 0.55;
+      ghost.depthWrite = false;
+      this.aimMaterials.set(source, ghost);
+    }
+    return ghost;
+  }
+
+  /**
+   * **Zwei Pfeile im Uhrzeigersinn** um die Kachel in der Hand — sie zeigen,
+   * wohin der Trigger dreht, und laufen langsam selbst so herum. Gewünscht:
+   * _„Zielen auf das aktuelle Tile zeigt rotierende Pfeile langsam mit der
+   * Drehrichtung über dem Tile, dass erkennbar ist, dass durch Trigger es
+   * gedreht wird."_
+   */
+  private buildSpin(): void {
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.hexMaterials.push(material);
+    for (const start of [0, Math.PI]) {
+      for (const part of curvedArrow(
+        HEX_WIDTH * 0.68,
+        0.24,
+        start,
+        (Math.PI * 2) / 3,
+        true,
+        material,
+      )) {
+        part.rotation.x = -Math.PI / 2;
+        part.renderOrder = 4;
+        this.spin.add(part);
+      }
+    }
+    this.spin.position.y = 0.75;
+    this.spin.visible = false;
+    this.hand.add(this.spin);
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -1166,6 +1311,8 @@ export class HexlandWorld extends FurnishedWorld {
     this.blowWind(dt, ctx);
     // Die Vorschau schwebt eine Handbreit über dem Feld und wiegt sich ein wenig.
     if (this.previewTile) this.previewTile.position.y = 0.55 + Math.sin(this.clock * 2.2) * 0.08;
+    // Die Drehpfeile laufen langsam im Uhrzeigersinn (von oben: negatives Gieren).
+    if (this.spin.visible) this.spin.rotation.y -= dt * 0.6;
     if (this.ring) {
       const pulse = 0.5 + 0.5 * Math.sin(this.clock * 4);
       this.ring.scale.setScalar(1 + pulse * 0.06);
@@ -1275,7 +1422,7 @@ export class HexlandWorld extends FurnishedWorld {
       ctx.rig.pace = flat ? (sprint) => this.panSpeed(ctx) * (sprint ? 2 : 1) : null;
     }
     // Am Schirm stehen Punkte und ✓ unten in der Leiste — über der Kachel nur die Kachel.
-    if (this.confirm) this.confirm.visible = !flat;
+    this.controls.visible = !flat;
     if (this.info) this.info.visible = !flat;
     if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
     if (this.questList) {
@@ -1553,7 +1700,7 @@ export class HexlandWorld extends FurnishedWorld {
       ndc.set(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
       raycaster.setFromCamera(ndc, c.viewCamera ?? c.camera);
       const targets: THREE.Object3D[] = [];
-      if (this.hand.visible && this.confirm) targets.push(this.confirm);
+      if (this.hand.visible && this.controls.visible) targets.push(this.controls);
       if (this.hand.visible && this.previewTile) targets.push(this.previewTile);
       if (this.pickPlane) targets.push(this.pickPlane);
       return raycaster.intersectObjects(targets, true)[0] ?? null;
@@ -1627,6 +1774,8 @@ export class HexlandWorld extends FurnishedWorld {
       const hit = cast(c, event.clientX, event.clientY);
       if (!hit) return;
       if (hit.object === this.confirm) this.placeHere();
+      else if (hit.object === this.turnLeft) this.rotate(-1);
+      else if (hit.object === this.turnRight) this.rotate(1);
       else if (hit.object === this.pickPlane) this.pointAt(hit);
       else this.rotate();
     };
@@ -1756,6 +1905,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.animationRow(),
       this.arrowRow(),
       this.fpsRow(),
+      this.skyRow(),
       this.shareMenu(),
     );
     if (!creative && !world) {
@@ -1945,6 +2095,26 @@ export class HexlandWorld extends FurnishedWorld {
     this.lastPlaced = null;
     this.redraw();
     this.say(`Spielstand geladen · ${MODE_LABEL[board.mode]} · ${board.tiles.size} Kacheln`);
+  }
+
+  /**
+   * **Himmel** — derselbe Schalter wie unter _Grafik_ (`graphicsSettings.sky`).
+   * Gewünscht: _„In den Grafik-Menü einstellen, ob Skybox aus/an sein soll.
+   * Auch in den allgemeinen Grafik-Einstellungen spiegeln."_
+   */
+  private skyRow(): MenuEntry {
+    return {
+      id: 'hexland:sky',
+      label: 'Himmel',
+      sub: 'Aus: in der Brille der eigene Raum — derselbe Schalter wie unter Grafik',
+      icon: 'settings',
+      accent: 0x9fd0ff,
+      checked: graphics().sky,
+      run: () => {
+        saveGraphics({ sky: !graphics().sky });
+        this.context?.refreshWorldMenu();
+      },
+    };
   }
 
   /** **Bildrate im Bild** — derselbe Schalter wie unter _Grafik_ (`graphicsSettings.showFps`). */
@@ -2267,6 +2437,12 @@ export class HexlandWorld extends FurnishedWorld {
     ctx.topDownView?.maxZoom?.();
     if (this.pickPlane) ctx.pointer.remove(this.pickPlane);
     if (this.confirm) ctx.pointer.remove(this.confirm);
+    if (this.turnLeft) ctx.pointer.remove(this.turnLeft);
+    if (this.turnRight) ctx.pointer.remove(this.turnRight);
+    this.turnLeft?.dispose();
+    this.turnRight?.dispose();
+    for (const material of this.aimMaterials.values()) material.dispose();
+    this.aimMaterials.clear();
     this.view?.dispose();
     this.wind.dispose();
     this.models.dispose();
@@ -2387,6 +2563,43 @@ function writeFlag(key: string, on: boolean): void {
   } catch {
     // Ohne Speicher gilt es nur bis zum Neuladen.
   }
+}
+
+/**
+ * **Ein gebogener Pfeil** in der xy-Ebene: ein Bogen von `start` über `sweep`
+ * (Bogenmaß, gegen den Uhrzeiger gezählt) und eine Spitze an dem Ende, zu dem
+ * er läuft — im Uhrzeigersinn am Anfang, sonst am Ende.
+ */
+function curvedArrow(
+  radius: number,
+  width: number,
+  start: number,
+  sweep: number,
+  clockwise: boolean,
+  material: THREE.Material,
+): THREE.Mesh[] {
+  const head = (width * 1.4) / radius;
+  const arcStart = clockwise ? start + head * 0.55 : start;
+  const arc = new THREE.Mesh(
+    new THREE.RingGeometry(
+      radius - width / 2,
+      radius + width / 2,
+      24,
+      1,
+      arcStart,
+      sweep - head * 0.55,
+    ),
+    material,
+  );
+  const at = (r: number, a: number): [number, number] => [Math.cos(a) * r, Math.sin(a) * r];
+  const base = clockwise ? start + head * 0.6 : start + sweep - head * 0.6;
+  const tipAt = clockwise ? start - head * 0.6 : start + sweep + head * 0.6;
+  const shape = new THREE.Shape();
+  shape.moveTo(...at(radius - width * 1.6, base));
+  shape.lineTo(...at(radius + width * 1.6, base));
+  shape.lineTo(...at(radius, tipAt));
+  shape.closePath();
+  return [arc, new THREE.Mesh(new THREE.ShapeGeometry(shape), material)];
 }
 
 const _eye = new THREE.Vector3();

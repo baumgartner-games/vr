@@ -2654,6 +2654,19 @@ export class App {
           },
         },
         {
+          id: 'gfx:sky',
+          label: 'Himmel',
+          sub: 'Die Himmelskuppel der Welt · aus: in der Brille der eigene Raum',
+          caption: 'Auch im Hexland-Menü',
+          icon: 'settings',
+          accent: 0x9fd0ff,
+          checked: settings.sky,
+          run: () => {
+            saveGraphics({ sky: !graphics().sky });
+            this.menuDirty = true;
+          },
+        },
+        {
           id: 'gfx:controllers',
           label: 'Controller einblenden',
           sub: 'Die echten Quest-Controller unter den Händen — zum Vergleichen',

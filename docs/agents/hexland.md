@@ -327,6 +327,17 @@ aus bzw. _In der Nähe_.
   Browser (`bgvr.world.board`), um z. B. `assess` und die Spielhilfen an
   genau dem Brett nachzurechnen.
 
+### Himmel
+
+_Grafik → Himmel_ (`GraphicsSettings.sky`, ab Werk an), gespiegelt im Reiter
+_Hexland_ (`skyRow`). Aus heißt: keine Kuppel — in der Brille sieht man durch
+das Passthrough den eigenen Raum, am Schirm die Hintergrundfarbe. Die Kuppel
+(`shared/environment.createSky`) wird seitdem **im Unendlichen** gezeichnet:
+nur die Richtung zählt, die Tiefe liegt auf der Fernebene. Vorher war sie eine
+Kugel von 560 m um den Ursprung, und hoch oben im Weltbau lag sie hinter der
+Fernebene — gemeldet: _„Der Himmel ist wohl, wenn ich weiter oben bin, einfach
+weg und ich sehe Passthrough mein Zimmer."_ Das gilt für alle Welten.
+
 ### Der Reiter _Hexland_
 
 Die Welt bringt einen **eigenen Reiter** mit (`World.menuTab`, neu im Kern):
@@ -351,6 +362,19 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   _„Meine gespeicherte Drehung sollte auch beibehalten werden, wenn ich das
   Tile wechsle bzw. die Position."_ Die nächste Kachel sucht sich zuerst ein
   Feld, auf dem sie in dieser Drehung passt.
+- **In der Brille und aus den Augen zielen** (`showHover`, `showAim`): Auf
+  einem anderen freien Feld steht die Kachel als **Geist** (halb durchsichtig,
+  in der Drehung, in der sie dort landen würde); Trigger holt sie hin, ganz
+  sichtbar, aber noch nicht gelegt. Auf der Kachel in der Hand laufen **zwei
+  Pfeile langsam im Uhrzeigersinn** um sie (`buildSpin`) — Trigger dreht.
+  Gewünscht: _„Ziele ich auf ein unbesetztes Tile, wird das neue Tile dort
+  als Ghost angezeigt, bis ich Trigger drücke … zielen auf das aktuelle Tile
+  zeigt rotierende Pfeile langsam mit der Drehrichtung."_ Von oben am Schirm
+  gibt es beides nicht (dort Ziffern, Leiste und Klick).
+- **Neben ✓ Legen stehen ↺ und ↻** (`controls`, eine Tafel, die sich als
+  Ganzes zum Blick dreht; die Pfeile sind gezeichnet, `curvedArrow`) —
+  gewünscht: _„bei dem Panel ‚Legen' auch die Buttons links und rechts mit
+  Drehen einbauen."_
 - **Auf das grüne ✓ darüber zeigen**: legen. Darüber steht die Zeile mit
   Punkten, Stapel und dem Auftrag der Kachel (in der Brille und aus den
   Augen; von oben steht beides in der Leiste unten).

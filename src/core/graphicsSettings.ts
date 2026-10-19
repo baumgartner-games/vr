@@ -172,6 +172,14 @@ export interface GraphicsSettings extends WeatherSettings {
    */
   showFps: boolean;
   /**
+   * **Der Himmel** — die Kuppel jeder Welt (`shared/environment.createSky`).
+   * Gewünscht aus der Brille: _„In den Grafik-Menü einstellen, ob Skybox
+   * aus/an sein soll."_ Aus heißt in der Brille: der eigene Raum durch das
+   * Passthrough; am Schirm die Hintergrundfarbe. Ab Werk **an**; Hexland
+   * spiegelt den Schalter in seinem Menü.
+   */
+  sky: boolean;
+  /**
    * **Die echten Controller in der Brille** — das Modell der Quest unter den
    * Handschuhen (`HandVisuals.showControllers`). Gewünscht: _„es gibt doch in
    * den einstellung screen die option die controller einblenden zu lassen in
@@ -727,6 +735,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   xrScale: 1,
   xrRate: 120,
   showFps: false,
+  sky: true,
   showControllers: false,
   gridLines: false,
   cellFootprints: false,
@@ -917,6 +926,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     ? (raw.xrRate as XrRate)
     : DEFAULT_GRAPHICS.xrRate;
   const showFps = raw.showFps === true;
+  // Ab Werk an: nur ein ausdrückliches Aus ist aus.
+  const sky = raw.sky !== false;
   const showControllers = raw.showControllers === true;
   const gridLines = raw.gridLines === true;
   const cellFootprints = raw.cellFootprints === true;
@@ -982,6 +993,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     xrScale,
     xrRate,
     showFps,
+    sky,
     showControllers,
     gridLines,
     cellFootprints,
