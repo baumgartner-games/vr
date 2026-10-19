@@ -590,6 +590,22 @@ vergleichen kann."_
 Flaggen 1,5, Fluss 5,4, Weg 4,7; 9,6 Aufträge erfüllt, 0,03 verpasst,
 2,9 am Ende noch offen).
 
+**Ergebnis** (nach vier Runden): _Intelligent (optimiert)_ **86,42** gegen
+59,30 auf Samen 1–300 (**+27,12 ± 2,09** je Samen) und **84,83** gegen 58,90
+auf der nicht getunten Gegenprobe 5001–5300 (**+25,93 ± 2,04**); Aufträge
+47,6 → 68,7, Flaggen 1,5 → 5,2. Rechenzeit 2,6–3,1 × smart (≈ 3,1–3,7 s je
+Runde). Den Unterschied machten: **Festfahren** über die Chance je Auftrag
+samt Opfern Hoffnungsloser (3b, +14,4, darin Erfüllen-und-Opfern +2,4),
+**Sofortgewinn** an Flaggen, Fluss und Weg (1a, +5,1), **Vorausschau** auf die
+nächste Stapelkachel (2o, +3,2), `ready` nur mit andockbarem Feld (2f, +3,4)
+und seltenes Gelände Fluss/Weg × 2 (2d, +2,1). Nichts brachten: Gewichte
+drehen (`ready`, `side`, × 15), Brücken, Stapeln, Opfern nach fester Zahl
+fehlender Kacheln oder nach „erwartete Treffer < Fehlende" (4a, −3,6), Arme
+ins Leere. Die Lehre der Spieler: Punkte kommen aus
+dem **Durchsatz an Aufträgen** — ein fest liegender Auftrag sperrt ein Drittel
+davon; von Hand kamen auf manchen Samen 140–165 Punkte. Im Spiel ist unter den
+Spielhilfen „Intelligent (optimiert)" zum Vergleich mit „Intelligent" wählbar.
+
 ### Selbst gespielt
 
 #### Runde 1
@@ -662,3 +678,4 @@ Samen 1005, alle 54 Züge von Hand: **76** (11 erfüllt, 1 absichtlich verpasst)
 | 3c | 3b ohne „Erfüllen und Opfern" (eigener Auftrag der Kachel zählt nicht als `breaks`, wenn die Lage einen anderen erfüllt) | gegen 3b −2,41 ± 0,78 — das Erfüllen-und-Opfern bringt also +2,4 | ja (in 3b) |
 | 3d | 3b, hoffnungslos schon unter 6 % | gegen 3b −0,06 ± 0,51 | nein |
 | 3-Ende | Stand 3b; Samen 1–300 und Gegenprobe 5001–5300 (nicht getunt); Rechenzeit 3128–3694 gegen 1193 ms je Runde (2,6–3,1 ×, Wiederholung schwankt), auf 5001–5300 3605 gegen 1321 ms (2,7 ×) | 1–300: **+27,12 ± 2,09** (smart 59,30, optimiert 86,42; Aufträge 47,6 → 68,7, Flaggen 1,5 → 5,2); 5001–5300: **+25,93 ± 2,04** (smart 58,90, optimiert 84,83; Aufträge 47,6 → 68,0, Flaggen 1,4 → 4,7) | — |
+| 4a | 3b, statt der festen 15-%-Schwelle erwartete Treffer E = Chance × (Stapel + offene Aufträge im Auftragsstapel) gegen Fehlende m = Zahl − Größe: Kippen auf E < m −30, zurück +15; Opfern nur bei E < m (Runde 3 der Spieler) | gegen 3b −3,64 ± 1,42 (optimiert 82,77; Aufträge 68,7 → 65,4) | nein |
