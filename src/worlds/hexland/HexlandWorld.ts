@@ -2630,7 +2630,7 @@ export class HexlandWorld extends FurnishedWorld {
         run: close,
       });
       // **Was im Auftragsstapel noch liegt**, je Gelände mit seinen Zahlen —
-      // je Gelände 4, 4, 5, 5, 6, 6 (`TASK_TARGETS`), damit man planen kann.
+      // je Gelände 4, 5, 5, 6, 6 (`TASK_TARGETS`), damit man planen kann.
       if (b.tasks.length > 0) {
         const left = QUEST_TERRAINS.map((terrain) => {
           const targets = b.tasks

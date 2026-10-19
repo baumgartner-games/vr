@@ -12,7 +12,7 @@
  * **Gewertet wird wie im Brettspiel** (_Dorfromantik — Das Brettspiel_),
  * gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
  * aktiven Missionen und einer festen Anzahl an normalen Karten … Und Punkte
- * berechnen wie im Brett Spiel"_. Eine Partie hat 40 normale Kacheln
+ * berechnen wie im Brett Spiel"_. Eine Partie hat 45 normale Kacheln
  * (`NORMAL_TILES`); liegen weniger als drei offene Aufträge
  * (`OPEN_TASKS`), kommt statt einer normalen eine **Auftragskachel** — sie
  * zählt nicht vom Stapel ab. Ein Auftrag nennt eine Zahl: Das Gebiet, zu dem
@@ -474,12 +474,14 @@ export interface Task {
 }
 
 /**
- * **Die Zahlen je Gelände im Auftragsstapel** — wie im Brettspiel: _„Es gibt
- * bei Städten 4, 4, 5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen,
- * Wald, Wasser, Straße/Weg."_ Die Zahl steht schon vor dem Legen fest (_„vor
- * dem Legen erkennbar, welcher Auftrag es ist (Stadt 4 z.B.)"_).
+ * **Die Zahlen je Gelände im Auftragsstapel** — wie im Brettspiel, laut
+ * Anleitung je Auftragstyp 1 × 4, 2 × 5, 2 × 6 (fünf Auftragsplättchen je
+ * Gelände, 25 im Ganzen). Bis Oktober 2026 standen hier 4, 4, 5, 5, 6, 6;
+ * gemeldet: _„sind zu wenig bzw. unpassend viele hex tiles"_. Die Zahl steht
+ * schon vor dem Legen fest (_„vor dem Legen erkennbar, welcher Auftrag es ist
+ * (Stadt 4 z.B.)"_).
  */
-export const TASK_TARGETS: readonly number[] = [4, 4, 5, 5, 6, 6];
+export const TASK_TARGETS: readonly number[] = [4, 5, 5, 6, 6];
 
 /** **Der ganze Auftragsstapel**, gemischt: je Gelände die sechs Zahlen. */
 export function taskDeck(random: () => number): Task[] {
@@ -502,8 +504,12 @@ export function taskDeck(random: () => number): Task[] {
  */
 export const QUEST_TILES = QUEST_TERRAINS.length * TASK_TARGETS.length;
 
-/** Wie viele normale Kacheln eine Partie hat. */
-export const NORMAL_TILES = 40;
+/**
+ * Wie viele normale Kacheln eine Partie hat — wie im Brettspiel: 48
+ * Landschaftsplättchen, von denen vor der Partie 3 unbesehen in die Schachtel
+ * zurückgehen.
+ */
+export const NORMAL_TILES = 45;
 /** Wie viele Aufträge offen liegen sollen — fehlt einer, kommt eine Auftragskachel. */
 export const OPEN_TASKS = 3;
 /** Wie oft eine normale Kachel eine Flagge trägt. */
@@ -605,7 +611,7 @@ export function matchBase(edges: readonly Terrain[]): TileSpec | null {
 // --- das Brett ------------------------------------------------------------------
 
 /**
- * **Die drei Spielarten**: eine Partie mit 40 Kacheln, das **unendliche Spiel**
+ * **Die drei Spielarten**: eine Partie mit 45 Kacheln, das **unendliche Spiel**
  * (dieselben Regeln und dieselbe Wertung, aber der Stapel füllt sich immer
  * nach — gewünscht: _„normale Runde, unendliches Spiel, Creative Modus"_) und
  * der Kreativ-Modus.
@@ -694,7 +700,7 @@ export class HexBoard {
     this.random = rng(seed);
   }
 
-  /** **Eine neue Partie** — eine Landkachel in der Mitte, 40 im Stapel, dann die Aufträge. */
+  /** **Eine neue Partie** — eine Landkachel in der Mitte, 45 im Stapel, dann die Aufträge. */
   reset(seed = Date.now() % 1e9, mode: 'game' | 'endless' = 'game'): void {
     this.start(seed, mode);
     // Die letzten (obersten) ohne Fluss und Weg — sonst verlangt die zweite

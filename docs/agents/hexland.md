@@ -22,16 +22,22 @@ Gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
 aktiven Missionen und einer festen Anzahl an normalen Karten. Die hex tiles
 sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 
-- **40 normale Kacheln** (`NORMAL_TILES`), eine Landkachel liegt in der Mitte.
+- **45 normale Kacheln** (`NORMAL_TILES`), eine Landkachel liegt in der Mitte.
+  Wie im Brettspiel: 48 Landschaftsplättchen, 3 gehen vorher unbesehen zurück
+  in die Schachtel (Anleitung, _Spielmaterial_ und _Spielaufbau_). Bis Oktober
+  2026 waren es 40 Kacheln und 30 Aufträge — gemeldet: _„sind zu wenig bzw.
+  unpassend viele hex tiles. Schau nach wie viele im Spiel dorfromantik
+  existieren"_.
   Ist der Stapel leer, ist die Partie vorbei.
 - **Immer drei Aufträge offen** (`OPEN_TASKS`): Liegen weniger als drei offene
   auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
   nicht vom Stapel ab. Die Aufträge kommen aus einem **Auftragsstapel wie im
   Brettspiel** (`taskDeck`, `HexBoard.tasks`): je Gelände — Stadt, Weizen,
-  Wald, Fluss, Weg — sechs Aufträge mit 4, 4, 5, 5, 6, 6 (`TASK_TARGETS`),
-  also 30 (`QUEST_TILES`), gemischt. Gewünscht: _„Es gibt bei Städten 4, 4,
-  5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen, Wald, Wasser,
-  Straße/Weg."_ Zum Auftrag wird eine Kachel gezogen, die das Gelände trägt
+  Wald, Fluss, Weg — fünf Aufträge mit 4, 5, 5, 6, 6 (`TASK_TARGETS`),
+  also 25 (`QUEST_TILES`), gemischt; so steht es in der Anleitung (25
+  Auftragsplättchen, je Typ Marker 1 × 4, 2 × 5, 2 × 6). Vorher gewünscht
+  waren 4, 4, 5, 5, 6, 6 je Gelände (_„Es gibt bei Städten 4, 4, 5, 5, 6, 6
+  Aufträge und bei den anderen Gebieten …"_), das waren 30. Zum Auftrag wird eine Kachel gezogen, die das Gelände trägt
   (`drawTile` mit `task`) — und zwar eine, auf der das Gelände **nicht von
   Fluss oder Weg geteilt** ist (`runs` = 1; Fluss- und Weg-Aufträge
   ausgenommen). Gemeldet: _„Hier ist nicht klar, wo die Stadt zählt. Bei
@@ -233,7 +239,7 @@ habe und mir das nächste Tile aussuchen kann"_.
 ### Spielmodus
 
 Drei Kreise in einem Block im Reiter (`modeRows`, `MenuEntry.radio`):
-**Normale Runde** (40 Kacheln), **Unendliches Spiel** (dieselben Regeln und
+**Normale Runde** (45 Kacheln), **Unendliches Spiel** (dieselben Regeln und
 dieselbe Wertung, der Stapel füllt sich immer nach, `HexMode` `endless`) und
 **Kreativ-Modus**. Jede Zeile öffnet die Frage _Weiterspielen_ (mit dem, was im
 Speicher dieses Modus liegt) oder _Neu starten_. Jeder Modus hat sein eigenes
