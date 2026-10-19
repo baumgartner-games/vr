@@ -12,13 +12,6 @@ import {
   type TileSpec,
 } from './hexRules';
 
-const X = JSON.parse((globalThis as any).process?.env?.HEXP ?? '{}') as Record<string, number>;
-const LOW = X.low ?? 0.15;
-const STUCK = X.stuck ?? 25;
-const FREED = X.freed ?? 15;
-const HOPE = X.hope ?? 0.03;
-const HOPE_BONUS = X.hopeBonus ?? 4;
-const OWN = X.own ?? 1;
 
 /**
  * **Wohin mit der Kachel in der Hand** — die Rechnung hinter den Spielhilfen
@@ -91,8 +84,11 @@ function optimizedScore(
   const before = beforeMove(board);
   const a = board.assess(spec, q, r, rot, true, before.base);
   const side = sideGain(board, before, spec, q, r, rot);
-  let breaks = a.breaks;
-  if (OWN && a.ownBreaks && a.completes > 0) breaks--;
+  // **Erfüllen und Opfern mit einer Kachel**: Bringt die Auftragskachel ein
+  // Gebiet genau auf die Zahl eines offenen Auftrags und überschreitet dabei
+  // ihre eigene, ist ihr eigener Auftrag kein Verlust — er war nie zu haben,
+  // und der Platz wird frei (beim Selbst-Spielen 4× je +5…+7; +2,4, Runde 3c).
+  const breaks = a.breaks - (a.ownBreaks && a.completes > 0 ? 1 : 0);
   return (
     stuckGain(board, before, spec, q, r, rot) +
     a.completes * 50 +
@@ -265,7 +261,18 @@ function questChance(
 }
 
 /**
- * **Festfahren** (Runde 3): Für jeden offenen Auftrag, an dessen freien
+ * Unter dieser Chance liegt ein Auftrag fest (etwa jede siebte Kachel); unter
+ * `HOPE` ist er so gut wie hoffnungslos. Was das Festlegen kostet, das
+ * Befreien bringt und das Opfern eines hoffnungslosen Auftrags (Runde 3b).
+ */
+const LOW = 0.15;
+const STUCK = 25;
+const FREED = 15;
+const HOPE = 0.03;
+const HOPE_BONUS = 4;
+
+/**
+ * **Festfahren** (Runde 3b, +14,4 gegen den Stand von Runde 2): Für jeden offenen Auftrag, an dessen freien
  * Feldern die Lage etwas ändert, die Chance davor und danach. Fällt sie unter
  * `LOW`, kostet das; hebt die Lage sie von dort heraus, bringt es etwas. Ein
  * Auftrag, der schon davor so gut wie hoffnungslos war (unter `HOPE`), darf
@@ -352,9 +359,11 @@ export function bestPlacement(
  * gelegt, mit ihrer besten Lage zur Hälfte gezählt. Käme als nächstes eine
  * Auftragskachel (weil die Lage einen Auftrag erfüllt), zählt das pauschal 15:
  * Ein frei gewordener Platz ist etwa so viel wert wie eine gute Lage. Brachte
- * +3,2 gegen den Stand ohne (Runde 2o); kostet je Zug etwa das Vierfache von
- * _Intelligent_ (die nächste Kachel wird zweimal ganz durchgerechnet) — darum
- * nur zwei Lagen, jede weitere kostet noch einmal so viel.
+ * +3,2 gegen den Stand ohne (Runde 2o). Die nächste Kachel wird zweimal ganz
+ * durchgerechnet — darum nur zwei Lagen, jede weitere kostet noch einmal so
+ * viel. Seit der Stand vor dem Zug je Zug nur einmal gerechnet wird
+ * (`beforeMove`, Runde 3a), kostet alles zusammen etwa das 2,6- bis 3-Fache von
+ * _Intelligent_ (vorher fast das Vierfache).
  */
 const LOOK_MARGIN = 5;
 
