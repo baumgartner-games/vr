@@ -18,6 +18,21 @@ import type * as THREE from 'three';
  * Leinwand (und als `theme-color` für alle, die es noch lesen). Dann ist der
  * Schleier so hell wie der Himmel darunter und nicht mehr zu sehen.
  *
+ * **Und als App vom Home-Bildschirm verwischt iOS 26 den Inhalt darunter.**
+ * Gemeldet, nachdem die Farbe schon stimmte: _„Die blurrnes ist noch nicht
+ * gefixt"_ — in der installierten App, und unscharf wird der **Inhalt**, der
+ * oben an den Rand kommt. Das ist der Scroll-Edge-Effekt von Liquid Glass:
+ * eine Unschärfe, die rund 40 pt von oben ausläuft, ohne Schalter in CSS
+ * oder Meta. WebKit lässt ihn nur weg, wenn am oberen Rand ein fest
+ * positionierter Kasten über die ganze Breite liegt, der **eine** deckende
+ * Farbe malt und höher als 10 px ist (`LocalFrameView::fixedContainerEdges`).
+ * Die Leinwand ist so ein Kasten, malt aber Kacheln — viele Farben.
+ *
+ * Deshalb liegt in der installierten App ein **Streifen** unter der Uhr
+ * (`strip`): so hoch wie der sichere Rand oben, mindestens 12 px, in
+ * derselben Farbe wie der obere Bildrand. Unter der Uhr steht ohnehin nichts,
+ * was man lesen müsste; Knöpfe und Leisten liegen darüber (`z-index`).
+ *
  * Gelesen wird zweimal je Sekunde und nur auf iPhone und iPad
  * (`isAppleHandheld`): `readPixels` wartet auf die Grafikkarte, und kein
  * anderes Gerät braucht es. Nie in der Brille. Auf der Startseite gilt
@@ -34,13 +49,26 @@ export class EdgeTint {
   private row = new Uint8Array(0);
   private meta: HTMLMetaElement | null = null;
   private metaDefault: string | null = null;
+  private readonly strip: HTMLElement | null = null;
 
+  /** `strip`: als App vom Home-Bildschirm — der Streifen unter der Uhr. */
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly enabled: boolean,
+    strip = false,
   ) {
     this.meta = document.querySelector('meta[name="theme-color"]');
     this.metaDefault = this.meta?.content ?? null;
+    if (enabled && strip) {
+      this.strip = document.createElement('div');
+      this.strip.className = 'edge-strip';
+      this.strip.setAttribute('aria-hidden', 'true');
+      // Über der Leinwand, unter HUD (5) und Menü (20).
+      this.strip.style.cssText =
+        'position:fixed;top:0;left:0;right:0;z-index:1;pointer-events:none;' +
+        'height:max(env(safe-area-inset-top, 0px), 12px);background-color:var(--bg)';
+      document.body.appendChild(this.strip);
+    }
   }
 
   /** Direkt nach dem Bild aufrufen — danach ist der Puffer leer. */
@@ -70,6 +98,7 @@ export class EdgeTint {
     if (this.color === null) return;
     this.color = null;
     for (const el of this.targets()) el.style.removeProperty('background-color');
+    this.strip?.style.setProperty('background-color', 'var(--bg)');
     if (this.meta && this.metaDefault !== null) this.meta.content = this.metaDefault;
   }
 
@@ -83,6 +112,8 @@ export class EdgeTint {
   }
 
   private targets(): HTMLElement[] {
-    return [document.documentElement, document.body, this.canvas];
+    const out = [document.documentElement, document.body, this.canvas];
+    if (this.strip) out.push(this.strip);
+    return out;
   }
 }

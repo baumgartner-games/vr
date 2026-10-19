@@ -764,6 +764,19 @@ Hintergrund von `<html>`, `<body>` und `#scene` (und als `theme-color`). Nur
 auf iPhone und iPad (`isAppleHandheld`) — `readPixels` wartet auf die
 Grafikkarte —, nie in der Brille; auf der Startseite gilt wieder der Stil.
 
+Das allein reichte nicht. Nachgemeldet: _„Die blurrnes ist noch nicht
+gefixt"_, in der **App vom Home-Bildschirm**, und unscharf wurde der
+**Inhalt**, der oben an den Rand kam. Das ist der Scroll-Edge-Effekt von iOS
+26: eine Unschärfe, die rund 40 pt von oben ausläuft, ohne Schalter in CSS
+oder Meta. WebKit lässt ihn nur weg, wenn oben ein fest positionierter Kasten
+über die ganze Breite liegt, der **eine** deckende Farbe malt und höher als
+10 px ist. Die Leinwand malt Kacheln, also viele Farben. In der installierten
+App (`isStandalone`) legt `EdgeTint` deshalb einen Streifen `.edge-strip`
+unter die Uhr — `max(env(safe-area-inset-top), 12px)` hoch, in der Farbe des
+oberen Bildrands, über der Leinwand (`z-index` 1) und unter HUD und Menü. Ein
+offenes Menü (durchscheinender Grund über allem) kann die Unschärfe
+zurückbringen; das ist in Kauf genommen.
+
 ### Die Welt geht bis an die Kante — `100%` ist nicht der ganze Schirm
 
 Gemeldet wurde es wieder an einem Bild, diesmal vom Telefon im Hochformat:
