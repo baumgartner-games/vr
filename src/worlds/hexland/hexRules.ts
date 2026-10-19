@@ -341,7 +341,7 @@ function pick<T>(items: readonly T[], weight: (item: T) => number, roll: number)
 }
 
 /** Das Land neben Wasser oder Weg: am Weg eher Dorf, am Fluss eher Wiese und Feld. */
-function landWeights(base: BaseTile): Record<Exclude<Terrain, 'water' | 'road'>, number> {
+export function landWeights(base: BaseTile): Record<Exclude<Terrain, 'water' | 'road'>, number> {
   if (base.road.length > 0) return { forest: 24, house: 40, field: 24, grass: 12 };
   if (base.water.length > 0) return { forest: 28, house: 22, field: 28, grass: 22 };
   return { forest: 36, house: 28, field: 26, grass: 10 };
@@ -583,6 +583,12 @@ export function matchBase(edges: readonly Terrain[]): TileSpec | null {
 export type HexMode = 'game' | 'endless' | 'creative' | 'world';
 
 /** Was ein Legen gebracht hat — für die Meldung. */
+/** Aufträge und bereite Gebiete vor dem Zug — siehe `HexBoard.assessBase`. */
+export interface AssessBase {
+  quests: Map<string, { size: number; target: number; possible: boolean; area: string }>;
+  ready: Set<string>;
+}
+
 export interface PlaceResult {
   /** Wie viele Punkte die Wertung dadurch gewonnen hat. */
   points: number;
@@ -1158,6 +1164,7 @@ export class HexBoard {
     r: number,
     rot: number,
     landReady = false,
+    base?: AssessBase,
   ): {
     progress: number;
     completes: number;
@@ -1167,10 +1174,10 @@ export class HexBoard {
     ready: number;
     rareProgress: number;
     rareCloser: number;
+    ownBreaks: boolean;
   } {
     const key = hexKey(q, r);
-    const before = this.questStates();
-    const readyBefore = this.readiness(landReady);
+    const { quests: before, ready: readyBefore } = base ?? this.assessBase(landReady);
     this.tiles.set(key, { q, r, spec, rot });
     const after = this.questStates();
     const readyAfter = this.readiness(landReady);
@@ -1182,9 +1189,13 @@ export class HexBoard {
     let closer = 0;
     let rareProgress = 0;
     let rareCloser = 0;
+    let ownBreaks = false;
     for (const [id, now] of after) {
       const was = before.get(id);
-      if (!now.possible && (was?.possible ?? true)) breaks++;
+      if (!now.possible && (was?.possible ?? true)) {
+        breaks++;
+        if (id === key) ownBreaks = true;
+      }
       if (!now.possible) continue;
       if (now.size === now.target && (was?.size ?? 0) !== now.target) {
         completes++;
@@ -1223,7 +1234,17 @@ export class HexBoard {
       }
     // Ein Gebiet, das von „bereit für 4" zu „bereit für 5" wächst, gibt etwas her.
     for (const terrain of gained) if (lost.has(terrain)) ready -= 0.15;
-    return { progress, completes, points, breaks, closer, ready, rareProgress, rareCloser };
+    return { progress, completes, points, breaks, closer, ready, rareProgress, rareCloser, ownBreaks };
+  }
+
+  /**
+   * **Der Stand vor dem Zug**, wie `assess` ihn vergleicht — für alle Lagen
+   * einer Kachel derselbe. _Intelligent (optimiert)_ rechnet ihn je Zug nur
+   * einmal und reicht ihn an `assess` weiter; ohne ihn rechnet `assess` ihn
+   * bei jeder Lage neu.
+   */
+  assessBase(landReady = false): AssessBase {
+    return { quests: this.questStates(), ready: this.readiness(landReady) };
   }
 
   /** Jeder offene Auftrag: Größe, Zahl und ob er noch zu schaffen ist. */

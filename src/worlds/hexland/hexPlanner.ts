@@ -1,4 +1,24 @@
-import { hexKey, type Hex, type HexBoard, type TileSpec } from './hexRules';
+import {
+  BASE_TILES,
+  edgeAt,
+  hexKey,
+  landWeights,
+  neighbour,
+  opposite,
+  type AssessBase,
+  type Hex,
+  type HexBoard,
+  type Terrain,
+  type TileSpec,
+} from './hexRules';
+
+const X = JSON.parse((globalThis as any).process?.env?.HEXP ?? '{}') as Record<string, number>;
+const LOW = X.low ?? 0.15;
+const STUCK = X.stuck ?? 25;
+const FREED = X.freed ?? 15;
+const HOPE = X.hope ?? 0.03;
+const HOPE_BONUS = X.hopeBonus ?? 4;
+const OWN = X.own ?? 1;
 
 /**
  * **Wohin mit der Kachel in der Hand** — die Rechnung hinter den Spielhilfen
@@ -68,9 +88,13 @@ function optimizedScore(
   // Ein bereites Gebiet, an dessen freien Feldern schon Fluss oder Weg
   // anliegt, nimmt die Auftragskachel selten auf (Idee aus dem
   // Selbst-Spielen; +3,4 gegen 1a, Runde 2f).
-  const a = board.assess(spec, q, r, rot, true);
-  const side = sideGain(board, spec, q, r, rot);
+  const before = beforeMove(board);
+  const a = board.assess(spec, q, r, rot, true, before.base);
+  const side = sideGain(board, before, spec, q, r, rot);
+  let breaks = a.breaks;
+  if (OWN && a.ownBreaks && a.completes > 0) breaks--;
   return (
+    stuckGain(board, before, spec, q, r, rot) +
     a.completes * 50 +
     a.points * 4 +
     // Fluss- und Wegkacheln sind selten (etwa jede fünfte und achte): Ein
@@ -79,7 +103,7 @@ function optimizedScore(
     (a.closer + a.rareCloser) * 20 +
     (a.progress + a.rareProgress) * 5 +
     a.ready * 8 -
-    a.breaks * 100 +
+    breaks * 100 +
     fit.matched +
     // Ein Punkt Flagge, Fluss oder Weg wiegt 8 — so viel wie ein Auftrag,
     // der eine Kachel näher kommt, nicht mehr: Mit 15 kosteten die Aufträge
@@ -88,11 +112,32 @@ function optimizedScore(
   );
 }
 
+interface Before {
+  hand: TileSpec | null;
+  side: number;
+  base: AssessBase;
+  quests: QuestChance[];
+}
+
 /**
- * Wertung ohne Aufträge vor dem Zug — je Zug nur einmal gerechnet. Gemerkt
- * an der Kachel in der Hand: Die ist mit jedem Zug ein neues Objekt.
+ * Was je Zug für alle Lagen gleich ist — einmal gerechnet und an der Kachel
+ * in der Hand gemerkt: Die ist mit jedem Zug ein neues Objekt.
  */
-const sideBefore = new WeakMap<HexBoard, { hand: TileSpec | null; value: number }>();
+const memo = new WeakMap<HexBoard, Before>();
+
+function beforeMove(board: HexBoard): Before {
+  let before = memo.get(board);
+  if (!before || before.hand !== board.current) {
+    before = {
+      hand: board.current,
+      side: sideOf(board),
+      base: board.assessBase(true),
+      quests: openQuests(board),
+    };
+    memo.set(board, before);
+  }
+  return before;
+}
 
 function sideOf(board: HexBoard): number {
   const s = board.scoring();
@@ -106,17 +151,167 @@ function sideOf(board: HexBoard): number {
  * verlängert. _Intelligent_ sah davon nichts und brachte im Schnitt nur 1,5
  * Punkte Flaggen heim.
  */
-function sideGain(board: HexBoard, spec: TileSpec, q: number, r: number, rot: number): number {
-  let before = sideBefore.get(board);
-  if (!before || before.hand !== board.current) {
-    before = { hand: board.current, value: sideOf(board) };
-    sideBefore.set(board, before);
-  }
+function sideGain(
+  board: HexBoard,
+  before: Before,
+  spec: TileSpec,
+  q: number,
+  r: number,
+  rot: number,
+): number {
   const key = hexKey(q, r);
   board.tiles.set(key, { q, r, spec, rot });
   const after = sideOf(board);
   board.tiles.delete(key);
-  return after - before.value;
+  return after - before.side;
+}
+
+interface QuestChance {
+  key: string;
+  terrain: Terrain;
+  target: number;
+  /** Die freien Felder am Rand seines Gebiets. */
+  slots: Set<string>;
+  chance: number;
+}
+
+/** Jeder offene Auftrag mit seiner Chance (`questChance`). */
+function openQuests(board: HexBoard): QuestChance[] {
+  const out: QuestChance[] = [];
+  for (const [key, tile] of board.tiles) {
+    const quest = tile.spec.quest;
+    if (!quest || quest.state !== 'open' || quest.target === null) continue;
+    const found = questChance(board, key, quest.terrain);
+    out.push({ key, terrain: quest.terrain, target: quest.target, ...found });
+  }
+  return out;
+}
+
+const STACK_WEIGHT = BASE_TILES.reduce((sum, b) => sum + Math.max(0, b.weight), 0);
+
+/**
+ * **Wie wahrscheinlich die nächste Kachel einen Auftrag weiterbringt** — der
+ * Anteil des Stapels (nach `BASE_TILES.weight`, das Land grob nach
+ * `landWeights`), der in irgendeiner Drehung an eines der freien Felder seines
+ * Gebiets passt und dort das Gelände anlegt. Beide Spieler fanden: Ab dem
+ * 4.–8. Zug lagen bei _Intelligent_ drei Aufträge fest, deren einziges Feld
+ * eine harte Kante verlangt — `slotFor` nennt so ein Feld `grow`, weil
+ * _irgendeine_ Kachel passt, und in 40 Zügen kam keine.
+ */
+function questChance(
+  board: HexBoard,
+  start: string,
+  terrain: Terrain,
+): { size: number; slots: Set<string>; chance: number } {
+  const seen = new Set<string>([start]);
+  const todo = [start];
+  const slots = new Map<string, { q: number; r: number; faces: number[] }>();
+  while (todo.length) {
+    const tile = board.tiles.get(todo.pop()!)!;
+    for (let e = 0; e < 6; e++) {
+      if (edgeAt(tile.spec, tile.rot, e) !== terrain) continue;
+      const n = neighbour(tile, e);
+      const key = hexKey(n.q, n.r);
+      const other = board.tiles.get(key);
+      if (!other) {
+        let slot = slots.get(key);
+        if (!slot) slots.set(key, (slot = { q: n.q, r: n.r, faces: [] }));
+        slot.faces.push(opposite(e));
+      } else if (!seen.has(key) && edgeAt(other.spec, other.rot, opposite(e)) === terrain) {
+        seen.add(key);
+        todo.push(key);
+      }
+    }
+  }
+  const kind = terrain === 'water' ? 'w' : terrain === 'road' ? 'r' : 'l';
+  const best = new Map<string, number>();
+  for (const slot of slots.values()) {
+    const need: Array<'w' | 'r' | 'l' | null> = [];
+    for (let e = 0; e < 6; e++) {
+      const n = neighbour(slot, e);
+      const other = board.tiles.get(hexKey(n.q, n.r));
+      if (!other) need.push(null);
+      else {
+        const t = edgeAt(other.spec, other.rot, opposite(e));
+        need.push(t === 'water' ? 'w' : t === 'road' ? 'r' : 'l');
+      }
+    }
+    for (const base of BASE_TILES) {
+      if (base.weight <= 0) continue;
+      const share = kind === 'l' ? landWeights(base)[terrain as 'forest'] / 100 : 1;
+      for (let k = 0; k < 6; k++) {
+        let ok = true;
+        for (let e = 0; e < 6 && ok; e++) {
+          const want = need[e];
+          if (!want) continue;
+          const i = (e - k + 6) % 6;
+          ok = (base.water.includes(i) ? 'w' : base.road.includes(i) ? 'r' : 'l') === want;
+        }
+        if (!ok) continue;
+        // Die Kanten zum Gebiet hin: Fluss und Weg liegen fest, Land wird gewürfelt.
+        let p = 0;
+        for (const f of slot.faces) {
+          const i = (f - k + 6) % 6;
+          const has = base.water.includes(i) ? 'w' : base.road.includes(i) ? 'r' : 'l';
+          if (has === kind) p = 1 - (1 - p) * (1 - share);
+        }
+        if (p > (best.get(base.id) ?? 0)) best.set(base.id, p);
+      }
+    }
+  }
+  let chance = 0;
+  for (const base of BASE_TILES) chance += (best.get(base.id) ?? 0) * Math.max(0, base.weight);
+  return { size: seen.size, slots: new Set(slots.keys()), chance: chance / STACK_WEIGHT };
+}
+
+/**
+ * **Festfahren** (Runde 3): Für jeden offenen Auftrag, an dessen freien
+ * Feldern die Lage etwas ändert, die Chance davor und danach. Fällt sie unter
+ * `LOW`, kostet das; hebt die Lage sie von dort heraus, bringt es etwas. Ein
+ * Auftrag, der schon davor so gut wie hoffnungslos war (unter `HOPE`), darf
+ * geopfert werden, solange Aufträge nachkommen: Das hebt dessen −100 aus
+ * `breaks` auf — der Platz wird frei für eine neue Auftragskachel.
+ */
+function stuckGain(
+  board: HexBoard,
+  before: Before,
+  spec: TileSpec,
+  q: number,
+  r: number,
+  rot: number,
+): number {
+  if (!before.quests.length) return 0;
+  const here = hexKey(q, r);
+  const sacrifice = (quest: QuestChance) =>
+    quest.chance < HOPE && board.tasks.length > 0 && before.base.quests.get(quest.key)?.possible
+      ? 100 + HOPE_BONUS
+      : 0;
+  const near = new Set<string>([here]);
+  for (let e = 0; e < 6; e++) {
+    const n = neighbour({ q, r }, e);
+    near.add(hexKey(n.q, n.r));
+  }
+  let gain = 0;
+  board.tiles.set(here, { q, r, spec, rot });
+  for (const quest of before.quests) {
+    let touched = false;
+    for (const key of near) if (quest.slots.has(key)) touched = true;
+    if (!touched) continue;
+    const now = questChance(board, quest.key, quest.terrain);
+    if (now.size >= quest.target && now.size !== quest.target) {
+      gain += sacrifice(quest);
+      continue;
+    }
+    if (now.size === quest.target) continue;
+    if (now.slots.size === 0) {
+      gain += sacrifice(quest);
+      continue;
+    }
+    if (now.chance < LOW && quest.chance >= LOW) gain -= STUCK;
+    else if (now.chance >= LOW && quest.chance < LOW) gain += FREED;
+  }
+  board.tiles.delete(here);
+  return gain;
 }
 
 /**
@@ -165,8 +360,8 @@ const LOOK_MARGIN = 5;
 
 function lookAhead(board: HexBoard, spec: TileSpec, at: Placement): number {
   if (board.stack.length === 0) return at.score;
-  // Die gemerkte Wertung vor dem Zug gehört zum echten Brett, nicht zum probehalber belegten.
-  sideBefore.delete(board);
+  // Der gemerkte Stand vor dem Zug gehört zum echten Brett, nicht zum probehalber belegten.
+  memo.delete(board);
   const value = board.tryPlace(spec, at.q, at.r, at.rot, (next) => {
     if (!next) return at.score + 15;
     let top = -Infinity;
@@ -178,6 +373,6 @@ function lookAhead(board: HexBoard, spec: TileSpec, at: Placement): number {
     }
     return top === -Infinity ? at.score : at.score + 0.5 * top;
   });
-  sideBefore.delete(board);
+  memo.delete(board);
   return value;
 }

@@ -619,6 +619,15 @@ Alle Züge von Hand gegen `auto 99` (optimized im Stand vom Lauf, Arbeitskopie m
 - **Stapeln** bestätigt (11×, je Gebiet doppelt): auch gleiche Zahlen (A4+A4 → +8 mit einer Kachel). **Bereit/Brücken** bestätigt (≈10 Sofort-Erfüllungen, je +4…+6); Brücken über zwei Gebiete (H 3+2+1 → H6, A 3+1+1 → A5).
 - **Flaggen vorbereiten** (neu): Flaggengebiete ohne Auftrag Feld für Feld zumachen (Gras/Wald an die offenen Kanten) brachte 1004 +6 und +5; ein 13er-Weizen mit Flagge blieb an einem Feld hängen, das nur eine Küstenkachel schließt. Merkmal: je geschlossenem freien Feld eines Flaggengebiets +Größe/(offene Felder), Felder mit harter Kante nicht mitzählen. optimized sieht nur den letzten Schritt (`imm`).
 
+#### Runde 3
+
+Samen 1005, alle 54 Züge von Hand: **76** (11 erfüllt, 1 absichtlich verpasst) gegen smart **57** (9) und optimized **58** (9; Arbeitsbaum 23:44) bzw. **70** (11; Arbeitsbaum 00:01). Diesmal lagen **bei allen dreien, auch bei mir, am Ende drei Weg-/Wasser-Aufträge fest** (ich: r5 1/5 ab Zug 10, r6+r5 3/x ab Zug 37) — weil nur bei < 3 offenen Aufträgen eine Auftragskachel kommt (`openTasks`), kamen danach 15 (smart 18) Aufträge nie. Samen 1006 nur bis Zug 23 (36 Punkte, 5 erfüllt, 2 geopfert; smart 39, optimized 108). Festfahren erkennt man **beim Legen**, nicht erst später:
+
+- **Erwartete Treffer E gegen Fehlende m**: je offenem Auftrag m = Zahl − Größe und p = Anteil der Stapelgewichte (`BASE_TILES` × 6 Drehungen), die an mindestens einem freien Feld des Gebiets legal passen *und* das Gelände anschließen; E = p × Kacheln, die noch kommen (Stapel + 1 je noch zu erfüllendem Auftrag). Wegkachel ≈ 14 %, Flusskachel ≈ 17 %, Weg-Sackgasse (`road-M`) 1,3 %. **E < m → fest**. Mein r5 hatte ein Feld, das nur eine Sackgasse schließt (alle anderen Nachbarn belegt, weiche Kanten) und eines, das Weg auf zwei Nachbarkanten verlangt: E ≈ 17 × 0,03 = 0,5 bei m = 4 — schon beim Legen fest.
+- **Arme nur ins Offene**: Weg-/Flussarm eines Auftrags auf ein Feld mit ≥ 4 freien Nachbarn richten, nie auf ein Feld, das schon eine andere harte Kante oder ≥ 3 belegte Nachbarn hat. 1006 so gelegt (r5+r5 gestapelt, beide Arme ins Leere) → +11 nach 17 Zügen.
+- **Opfern, sobald E < m**: Weg-/Wasser-Auftragskachel mit E < m sofort an einen Weg/Fluss hängen, der die Zahl schon überschreitet (1006 zweimal r4 an den 6er-Weg: verpasst, +1 Weg, Platz bleibt frei; der nächste Auftrag F6 war 1 Zug später fertig). Ein fest liegender Auftrag kostet nicht seine Punkte, sondern **ein Drittel des Auftragsdurchsatzes für den Rest der Partie** (≈ 5 Aufträge × 5 Punkte, wenn er früh festliegt).
+- **Zwei Weg-Aufträge in ein Gebiet stapeln** statt zwei Wege bauen: r5+r5 brauchen dann 3 statt 8 Wegkacheln. Aber nie einen dritten festen Auftrag zulassen: liegen schon 2 fest, ist jede Lage, die den dritten festlegt, die schlechteste.
+
 ### Runden des Optimierers
 
 | Runde | Idee | optimiert − smart (Samen 1–300) | behalten |
