@@ -1,3 +1,5 @@
+import { EdgeTint } from './edgeTint';
+import { isAppleHandheld } from './install';
 import * as THREE from 'three';
 import { infoViewsMenu } from '../ui/infoViewMenu';
 import { PlayerRig } from './PlayerRig';
@@ -422,6 +424,8 @@ export class App {
    * Speicher liest.
    */
   private readonly levelBlur: LevelBlur;
+  /** Die Statusleiste von iPhone und iPad in der Farbe der Welt (`core/edgeTint.ts`). */
+  private readonly edgeTint: EdgeTint;
   /** Nebel und Nacht in der Brille, wo der Durchgang fehlt (`core/weatherXr.ts`). */
   private readonly weatherXr = new WeatherXr();
   /** Lichter im Maßstab des Gestells, im Weltbau der Brille (`core/viewLights.ts`). */
@@ -546,6 +550,7 @@ export class App {
     this.screenFov = this.camera.fov;
     this.mirrors = new MirrorRenderer(this.renderer);
     this.levelBlur = new LevelBlur(this.renderer);
+    this.edgeTint = new EdgeTint(canvas, isAppleHandheld(navigator));
     this.stopLevelBlur = onGraphicsChange(() => {
       const now = graphics();
       this.levelBlurOn = now.levelBlur;
@@ -4411,6 +4416,9 @@ export class App {
       // Auch nach einem Fehler im Bild: Ein Ziel, das stehen bleibt, ist ein schwarzer Schirm.
       if (pass) this.levelBlur.end(view, blur, weather, this.rig.position, this.elapsed);
     }
+    // Gleich nach dem Bild, solange der Puffer noch voll ist.
+    if (presenting || (this.landingEl !== null && !this.landingEl.hidden)) this.edgeTint.clear();
+    else this.edgeTint.sample(this.renderer, time);
     this.topDownCamera.uncut();
     this.positionHud.update(
       dt,

@@ -747,6 +747,23 @@ der Startseite und im HUD rechnet schon länger mit `max(…, env(…))`; die
 Variablen stehen jetzt daneben und lassen sich dort nachziehen, wenn jemand
 ohnehin in der Datei ist.
 
+### Der Schleier unter der Uhr — Safari färbt ihn aus der Seite
+
+Gemeldet an einem Foto vom iPad: _„oben wird anscheinend etwas blurry"_ —
+über dem hellen Himmel von Hexland lag unter Uhr und Datum ein grauer,
+verwischter Streifen. Am Rechner im Browser ist dort nichts.
+
+Safari 26 (iPhone, iPad) legt unter die Statusleiste einen Weichzeichner und
+**färbt ihn aus der Seite**: aus dem, was am oberen Rand liegt, und bei einer
+Leinwand ohne Farbe aus dem Hintergrund von `<html>` — bei uns `--bg`, fast
+schwarz. `theme-color` liest Safari 26 nicht mehr.
+
+`core/edgeTint.ts` (`EdgeTint`) liest deshalb nach dem Bild zweimal je Sekunde
+die **oberste Zeile der Leinwand** und setzt ihre mittlere Farbe als
+Hintergrund von `<html>`, `<body>` und `#scene` (und als `theme-color`). Nur
+auf iPhone und iPad (`isAppleHandheld`) — `readPixels` wartet auf die
+Grafikkarte —, nie in der Brille; auf der Startseite gilt wieder der Stil.
+
 ### Die Welt geht bis an die Kante — `100%` ist nicht der ganze Schirm
 
 Gemeldet wurde es wieder an einem Bild, diesmal vom Telefon im Hochformat:
