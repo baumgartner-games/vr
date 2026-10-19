@@ -113,7 +113,7 @@
   left: 12px;
   right: 12px;
   margin-inline: auto;
-  top: calc(env(safe-area-inset-top, 0px) + 68px);
+  top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 68px);
   z-index: 65;
   width: min(460px, calc(100vw - 24px));
   opacity: 0;
@@ -123,7 +123,7 @@
     transform 240ms ease-out;
 }
 .welcome[data-device='touch'] {
-  top: calc(env(safe-area-inset-top, 0px) + 100px);
+  top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 100px);
 }
 .welcome.is-open {
   opacity: 1;
@@ -176,7 +176,7 @@
 }
 @media (max-width: 520px) {
   .welcome {
-    top: calc(env(safe-area-inset-top, 0px) + 60px);
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 60px);
     font-size: 13.5px;
   }
   .transit__title {

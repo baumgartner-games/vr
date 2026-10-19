@@ -38,7 +38,7 @@
 .monster__hud {
   position: absolute;
   left: 12px;
-  top: var(--flat-top, calc(max(10px, env(safe-area-inset-top)) + 58px));
+  top: var(--flat-top, calc(max(10px, var(--safe-top, env(safe-area-inset-top, 0px))) + 58px));
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -61,7 +61,7 @@
 .monster__toast {
   position: absolute;
   left: 50%;
-  top: calc(var(--flat-top, calc(max(10px, env(safe-area-inset-top)) + 58px)) + 62px);
+  top: calc(var(--flat-top, calc(max(10px, var(--safe-top, env(safe-area-inset-top, 0px))) + 58px)) + 62px);
   transform: translateX(-50%);
   background: rgba(28, 10, 14, 0.85);
   border-color: rgba(255, 77, 85, 0.3);

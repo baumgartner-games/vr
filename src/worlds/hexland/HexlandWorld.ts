@@ -1290,7 +1290,7 @@ export class HexlandWorld extends FurnishedWorld {
       list.style.cssText = [
         'position:fixed',
         'right:max(10px, env(safe-area-inset-right))',
-        'top:max(10px, env(safe-area-inset-top))',
+        'top:max(10px, var(--safe-top, env(safe-area-inset-top, 0px)))',
         'z-index:4',
         'display:flex',
         'flex-direction:column',
@@ -1937,7 +1937,7 @@ export class HexlandWorld extends FurnishedWorld {
       const stats = document.querySelector<HTMLElement>('.frame-stats:not([hidden])');
       const top = stats
         ? `${stats.getBoundingClientRect().bottom + 8}px`
-        : 'max(10px, env(safe-area-inset-top))';
+        : 'max(10px, var(--safe-top, env(safe-area-inset-top, 0px)))';
       if (this.questList.style.top !== top) this.questList.style.top = top;
     }
     // `style.display` und nicht `hidden`: Das `display:flex` der Liste schlüge das Attribut.
@@ -3280,7 +3280,7 @@ function ensureCleanStyle(): void {
   style.textContent =
     `.${CLEAN_CLASS} .hud__row, .${CLEAN_CLASS} #hud-tool, .${CLEAN_CLASS} .hints { display: none !important; }` +
     // Ohne die Knopfreihe rückt die Bildrate ganz nach oben.
-    `.${CLEAN_CLASS} .frame-stats { top: max(10px, env(safe-area-inset-top)); }`;
+    `.${CLEAN_CLASS} .frame-stats { top: max(10px, var(--safe-top, env(safe-area-inset-top, 0px))); }`;
   document.head.append(style);
 }
 
