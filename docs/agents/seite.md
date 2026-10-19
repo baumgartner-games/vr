@@ -767,15 +767,21 @@ Grafikkarte —, nie in der Brille; auf der Startseite gilt wieder der Stil.
 Das allein reichte nicht. Nachgemeldet: _„Die blurrnes ist noch nicht
 gefixt"_, in der **App vom Home-Bildschirm**, und unscharf wurde der
 **Inhalt**, der oben an den Rand kam. Das ist der Scroll-Edge-Effekt von iOS
-26: eine Unschärfe, die rund 40 pt von oben ausläuft, ohne Schalter in CSS
-oder Meta. WebKit lässt ihn nur weg, wenn oben ein fest positionierter Kasten
-über die ganze Breite liegt, der **eine** deckende Farbe malt und höher als
-10 px ist. Die Leinwand malt Kacheln, also viele Farben. In der installierten
-App (`isStandalone`) legt `EdgeTint` deshalb einen Streifen `.edge-strip`
-unter die Uhr — `max(env(safe-area-inset-top), 12px)` hoch, in der Farbe des
-oberen Bildrands, über der Leinwand (`z-index` 1) und unter HUD und Menü. Ein
-offenes Menü (durchscheinender Grund über allem) kann die Unschärfe
-zurückbringen; das ist in Kauf genommen.
+26: eine Unschärfe unter der Uhr, die rund 40 pt nach unten ausläuft, ohne
+Schalter in CSS oder Meta.
+
+- **Versucht und wieder raus:** ein deckender, fest positionierter Streifen
+  unter der Uhr (WebKit nimmt dann dessen Farbe, `fixedContainerEdges`) und
+  die Farbe auch an der Leinwand. Ergebnis am iPad: Die Statusleiste wurde
+  einfarbig, Menüknopf und Auftragsliste darunter blieben trotzdem verwischt
+  — und weil die Leinwand jetzt eine Farbe hatte, verlängerte WebKit sie auch
+  unten als grau-grünen Balken. Andere Projekte melden dasselbe.
+- **Jetzt:** `apple-mobile-web-app-status-bar-style` ist `black` statt
+  `black-translucent` (`index.html`). Die Seite beginnt unter einer
+  deckenden Leiste, unter der Uhr liegt nichts mehr, das verwischt werden
+  könnte. iOS liest das nur beim Hinzufügen — eine schon installierte App muss
+  einmal entfernt und neu hinzugefügt werden. `EdgeTint` färbt nur noch
+  `<html>` und `<body>` (für die Leiste im Safari-Tab), nie die Leinwand.
 
 ### Die Welt geht bis an die Kante — `100%` ist nicht der ganze Schirm
 

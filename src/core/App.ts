@@ -1,5 +1,5 @@
 import { EdgeTint } from './edgeTint';
-import { isAppleHandheld, isStandalone } from './install';
+import { isAppleHandheld } from './install';
 import * as THREE from 'three';
 import { infoViewsMenu } from '../ui/infoViewMenu';
 import { PlayerRig } from './PlayerRig';
@@ -550,14 +550,7 @@ export class App {
     this.screenFov = this.camera.fov;
     this.mirrors = new MirrorRenderer(this.renderer);
     this.levelBlur = new LevelBlur(this.renderer);
-    this.edgeTint = new EdgeTint(
-      canvas,
-      isAppleHandheld(navigator),
-      isStandalone({
-        matchMedia: (query) => window.matchMedia(query),
-        standalone: (navigator as { standalone?: boolean }).standalone,
-      }),
-    );
+    this.edgeTint = new EdgeTint(isAppleHandheld(navigator));
     this.stopLevelBlur = onGraphicsChange(() => {
       const now = graphics();
       this.levelBlurOn = now.levelBlur;

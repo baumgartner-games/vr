@@ -12,11 +12,18 @@
       und das zeigte den Videoplayer und nicht die Spielwiese. Für genau dieses
       Gerät gibt es nur einen ehrlichen Weg, und das sind diese drei Zeilen:
       *Zum Home-Bildschirm hinzufügen*, und die Seite startet ohne Adresszeile
-      und ohne Systemleiste. `black-translucent` schiebt das Bild dabei unter die
-      Uhr; die Ränder fängt `viewport-fit=cover` oben schon ab.
+      und ohne Systemleiste.
+
+      **`black` und nicht `black-translucent`**: Mit `black-translucent` lag das
+      Bild unter der Uhr, und iOS 26 verwischt in der installierten App alles,
+      was dort und rund 40 pt darunter liegt (Scroll-Edge-Effekt) — Menüknopf
+      und Auftragsliste wurden unscharf, und kein Kasten in CSS schaltet das
+      ab. Mit `black` beginnt die Seite unter einer deckenden Leiste. iOS liest
+      das nur beim Hinzufügen: Eine schon installierte App muss einmal vom
+      Home-Bildschirm entfernt und neu hinzugefügt werden.
     -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="BG VR" />
     <meta name="mobile-web-app-capable" content="yes" />
     <!--
