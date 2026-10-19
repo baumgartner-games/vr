@@ -94,13 +94,23 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   An der Kachel in der Hand nur die Zahl. Gewünscht: _„Können wir die
   Mission-Tiles anders darstellen? Aktuell verdecken diese viel … nur das
   Icon, aber mit X/Y rendern."_
-- **Ränder am Boden** (`drawQuestRims`, ein `InstancedMesh`, ein Randstück
-  je Kante): Im Gebiet eines offenen Auftrags bekommt jede Kante, an der sein
-  Stück liegt, ein Randstück in der Farbe des Geländes
-  (`HexBoard.areaEdges`); liegt eine Kante in zwei Gebieten, rückt das zweite
-  nach innen. Gewünscht: _„die Elemente zu highlighten"_ — und seit Oktober
-  2026 _„nur dort, wo es wirklich angrenzt"_: Eine Kachel mit Wald und Stadt
-  wird bei einem Stadt-Auftrag nur an der Stadt umrandet, nicht ganz.
+- **Umrisse am Boden** (`drawQuestRims`, `HexBoard.areaOutline`): eine
+  **eckige Linie um das ganze Gebiet** eines offenen Auftrags, in der Farbe
+  des Geländes über einem dunklen Saum, ohne Tiefenprüfung über Bäumen und
+  Häusern. Jede Kachel zählt als sechs Dreiecke, eins je Kante; zum Gebiet
+  gehören die Dreiecke seines Stücks (bei Fluss und Weg die ganze Kachel).
+  Gezeichnet werden Außenkanten zu Nachbarn außerhalb und, wo das Gebiet
+  mitten auf einer Kachel endet, Speichen von der Mitte zur Ecke. Kanten
+  zwischen zwei Kacheln desselben Gebiets bleiben frei. Gewünscht erst _„die
+  Elemente zu highlighten"_, dann _„nur dort, wo es wirklich angrenzt"_ und
+  zuletzt mit einer Skizze: _„Die zusammenhängenden Gebiete der Missionen
+  sind rund, sollen aber eckig sein."_
+- **Was die Kachel in der Hand ändert** (`drawBadges`, `HexBoard.pretend`):
+  Darf sie liegen, wo sie schwebt, rechnet das Brett probehalber mit ihr.
+  Schild „3→4/5", Liste „Wald 3 → 4 / 5 · mit dieser Kachel noch 1" (oder
+  „fertig" / „zu groß"), der eigene Auftrag der Kachel „1/6", und die Umrisse
+  zeigen das Gebiet schon mit ihr. Gewünscht: _„Auch soll bei der Mission
+  dann angezeigt werden, wie der Wert sich verändern würde."_
 
 ### Welt generieren
 

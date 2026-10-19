@@ -31,6 +31,7 @@ import {
   type HexMode,
   type PlaceResult,
   type PlacedTile,
+  type QuestTerrain,
   type Terrain,
   type TileSpec,
 } from './hexRules';
@@ -128,6 +129,8 @@ export class HexlandWorld extends FurnishedWorld {
   private readonly clipMaterials = new Map<THREE.Material, THREE.Material>();
   private info: TextPlane | null = null;
   private handQuest: QuestBadge | null = null;
+  /** „3/6" am Auftrag in der Hand, solange er probehalber liegt (`drawBadges`). */
+  private handQuestText: string | null = null;
   /** Wo die Vorschau gerade liegt, und wie gedreht. */
   private at: Hex | null = null;
   private rot = 0;
@@ -628,9 +631,9 @@ export class HexlandWorld extends FurnishedWorld {
   private refresh(fresh: boolean): void {
     this.drawSlots();
     if (this.table) this.fitTableTop();
-    this.drawBadges();
     const spec = this.board.current;
     if (!spec) {
+      this.drawBadges();
       this.hand.visible = false;
       // Ohne Kachel in der Hand (Spielende, Welt-Modus) zeigt die Leiste trotzdem, was gilt.
       this.drawBarIcon();
@@ -640,6 +643,8 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.table) {
       if (fresh) this.table.drawn = false;
     } else if (fresh || !this.at) this.autoPlace();
+    // Nach `autoPlace`: Die Schilder rechnen mit der Kachel, wo sie jetzt schwebt.
+    this.drawBadges();
     if (this.previewFor !== spec) {
       this.previewFor = spec;
       const old = this.previewTile;
@@ -814,7 +819,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.handQuest.visible = label !== null;
       if (label) {
         const quest = spec.quest!;
-        this.handQuest.show(quest.terrain, `${quest.target ?? '?'}`);
+        this.handQuest.show(quest.terrain, this.handQuestText ?? `${quest.target ?? '?'}`);
       }
     }
     this.drawBarIcon();
@@ -1112,14 +1117,44 @@ export class HexlandWorld extends FurnishedWorld {
     }
   }
 
-  /** **Die Schilder der offenen Aufträge** — wie groß das Gebiet ist und werden soll. */
+  /**
+   * **Die Schilder der offenen Aufträge** — wie groß das Gebiet ist und werden
+   * soll, und **was die Kachel in der Hand daran ändert**: Liegt sie so, wie
+   * sie schwebt (und dort gelegt werden darf), rechnet das Brett probehalber
+   * mit ihr (`HexBoard.pretend`). Ein Auftrag, der wüchse, zeigt „4→5/5", die
+   * Liste oben rechts „Wald 4 → 5 / 5". Gewünscht: _„Auch soll bei der Mission
+   * dann angezeigt werden, wie der Wert sich verändern würde."_ Die Umrisse
+   * am Boden zeigen das Gebiet ebenso schon mit der Kachel.
+   */
   private drawBadges(): void {
     const seen = new Set<string>();
-    const open: Array<{ tile: PlacedTile; size: number; target: number }> = [];
+    const open: QuestRow[] = [];
     for (const tile of this.board.tiles.values()) {
       const progress = this.board.questProgress(tile);
       if (progress === null) continue;
-      open.push({ tile, ...progress });
+      open.push({ tile, terrain: tile.spec.quest!.terrain, ...progress, next: progress.size });
+    }
+    const spec = this.board.current;
+    const at = this.at;
+    const preview = spec && at && !this.table?.held && this.fitsHere() ? { spec, at } : null;
+    let outlines: QuestOutline[];
+    this.handQuestText = null;
+    if (preview) {
+      outlines = this.board.pretend(preview.spec, preview.at.q, preview.at.r, this.rot, () => {
+        for (const row of open) row.next = this.board.areaSize(row.tile.q, row.tile.r, row.terrain);
+        const placed = this.board.at(preview.at.q, preview.at.r)!;
+        const own = this.board.questProgress(placed);
+        const shapes = open.map((row) => this.questOutline(row.tile, row.terrain));
+        if (own) {
+          this.handQuestText = `${own.size}/${own.target}`;
+          shapes.push(this.questOutline(placed, placed.spec.quest!.terrain));
+        }
+        return shapes;
+      });
+    } else {
+      outlines = open.map((row) => this.questOutline(row.tile, row.terrain));
+    }
+    for (const { tile, size, next, target, terrain } of open) {
       const key = hexKey(tile.q, tile.r);
       seen.add(key);
       let badge = this.badges.get(key);
@@ -1130,10 +1165,10 @@ export class HexlandWorld extends FurnishedWorld {
         this.badges.set(key, badge);
         this.board3d.add(badge);
       }
-      badge.show(tile.spec.quest!.terrain, `${progress.size}/${progress.target}`);
+      badge.show(terrain, next === size ? `${size}/${target}` : `${size}→${next}/${target}`);
     }
     this.drawQuestList(open);
-    this.drawQuestRims(open);
+    this.drawQuestRims(outlines);
     for (const [key, badge] of this.badges) {
       if (seen.has(key)) continue;
       this.board3d.remove(badge);
@@ -1142,56 +1177,93 @@ export class HexlandWorld extends FurnishedWorld {
     }
   }
 
+  private questOutline(tile: PlacedTile, terrain: QuestTerrain): QuestOutline {
+    return { terrain, lines: this.board.areaOutline(tile.q, tile.r, terrain) };
+  }
+
   /**
-   * **Was zu einem Auftrag zählt, ist am Boden umrandet** — in der Farbe des
-   * Geländes, aber nur an den Kanten, an denen das Stück des Gebiets liegt
-   * (`HexBoard.areaEdges`): Eine Kachel mit Wald und Stadt bekommt bei einem
-   * Stadt-Auftrag nur an der Stadt einen Rand. Gewünscht: _„Ich dachte zum
-   * einen, die Elemente zu highlighten"_ und _„Die Rahmen-Farben sollen auch
-   * nur dort gezeichnet werden, wo es wirklich angrenzt."_ Ein Bündel für
-   * alle, ein Randstück je Kante, knapp über den Böden; liegt eine Kante in
-   * zwei Gebieten, rückt das zweite Stück ein Stück nach innen.
+   * **Was zu einem Auftrag zählt, ist am Boden umrandet** — eine eckige Linie
+   * um das ganze Gebiet (`HexBoard.areaOutline`): an den Außenkanten entlang
+   * und, wo das Gebiet mitten auf einer Kachel endet, quer über die Kachel
+   * von der Mitte zur Ecke. Kanten zwischen zwei Kacheln desselben Gebiets
+   * bleiben frei. Gewünscht erst _„die Elemente zu highlighten"_, dann _„nur
+   * dort, wo es wirklich angrenzt"_, und zuletzt, mit einer Skizze: _„Die
+   * zusammenhängenden Gebiete der Missionen sind rund, sollen aber eckig
+   * sein"_.
+   *
+   * Ein Bündel für alle (`InstancedMesh` aus flachen Leisten), ohne
+   * Tiefenprüfung über Bäumen und Häusern, unter den Schildern: erst ein
+   * dunkler, breiterer Saum für alle Linien, darüber die Farbe des Geländes —
+   * so liest sich Grün auch über Wald. Außenkanten rücken um eine halbe
+   * Linienbreite nach innen, damit zwei Gebiete an derselben Kante
+   * nebeneinander liegen statt übereinander.
    */
-  private drawQuestRims(open: Array<{ tile: PlacedTile }>): void {
+  private drawQuestRims(outlines: QuestOutline[]): void {
     let rims = this.questRims;
     if (!rims) {
-      const r = HEX_WIDTH / Math.sqrt(3);
-      // Ein Sechstel des Rings: das Stück an Kante 0 (+x).
-      const geometry = new THREE.RingGeometry(r * 0.84, r * 0.95, 1, 1, -Math.PI / 6, Math.PI / 3);
-      geometry.rotateX(-Math.PI / 2);
+      const geometry = new THREE.BoxGeometry(1, 0.02, 1);
       rims = new THREE.InstancedMesh(
         geometry,
-        new THREE.MeshBasicMaterial({
-          transparent: true,
-          opacity: 0.9,
-          depthWrite: false,
-          toneMapped: false,
-        }),
-        768,
+        new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, toneMapped: false }),
+        1536,
       );
       rims.frustumCulled = false;
-      rims.renderOrder = 2;
+      rims.renderOrder = 7;
       rims.name = 'hexland-quest-rims';
       this.board3d.add(rims);
       this.questRims = rims;
     }
-    const used = new Map<string, number>();
+    const radius = HEX_WIDTH / Math.sqrt(3);
+    const corner = (q: number, r: number, angle: number, inset: number): THREE.Vector2 => {
+      const c = hexCentre(q, r, HEX_WIDTH);
+      const d = radius - inset;
+      return new THREE.Vector2(c.x + Math.cos(angle) * d, c.z + Math.sin(angle) * d);
+    };
+    const segments: Array<{ a: THREE.Vector2; b: THREE.Vector2; colour: string }> = [];
+    const drawn = new Set<string>();
+    for (const { terrain, lines } of outlines) {
+      for (const line of lines) {
+        const id = `${terrain}|${line.q},${line.r},${line.edge},${line.spoke}`;
+        if (drawn.has(id)) continue;
+        drawn.add(id);
+        const mid = line.edge * (Math.PI / 3);
+        const colour = TERRAIN_COLOUR[terrain];
+        if (line.spoke) {
+          const c = hexCentre(line.q, line.r, HEX_WIDTH);
+          segments.push({
+            a: new THREE.Vector2(c.x, c.z),
+            b: corner(line.q, line.r, mid + Math.PI / 6, 0),
+            colour,
+          });
+        } else {
+          // Nach innen gerückt: Die Ecken liegen auf dem kleineren Sechseck.
+          const inset = (RIM_WIDTH * 0.6) / Math.cos(Math.PI / 6);
+          segments.push({
+            a: corner(line.q, line.r, mid - Math.PI / 6, inset),
+            b: corner(line.q, line.r, mid + Math.PI / 6, inset),
+            colour,
+          });
+        }
+      }
+    }
     let n = 0;
-    for (const { tile } of open) {
-      const terrain = tile.spec.quest!.terrain;
-      _rimColour.set(TERRAIN_COLOUR[terrain]);
-      for (const { tile: t, edge } of this.board.areaEdges(tile.q, tile.r, terrain)) {
-        if (n >= rims.instanceMatrix.count) break;
-        const key = `${hexKey(t.q, t.r)}:${edge}`;
-        const layer = used.get(key) ?? 0;
-        used.set(key, layer + 1);
-        const c = hexCentre(t.q, t.r, HEX_WIDTH);
+    const max = rims.instanceMatrix.count;
+    for (const pass of [0, 1] as const) {
+      const width = pass === 0 ? RIM_WIDTH * 1.9 : RIM_WIDTH;
+      for (const { a, b, colour } of segments) {
+        if (n >= max) break;
+        const dx = b.x - a.x;
+        const dz = b.y - a.y;
+        // Etwas länger als die Strecke, damit sich die Ecken schließen.
+        const length = Math.hypot(dx, dz) + width;
         _rimMatrix.compose(
-          _rimPos.set(c.x, 0.06 + layer * 0.002, c.z),
-          _rimQuat.setFromAxisAngle(_rimUp, -edge * (Math.PI / 3)),
-          _rimScale.setScalar(1 - layer * 0.13),
+          _rimPos.set((a.x + b.x) / 2, RIM_HEIGHT + pass * 0.01, (a.y + b.y) / 2),
+          _rimQuat.setFromAxisAngle(_rimUp, Math.atan2(-dz, dx)),
+          _rimScale.set(length, 1, width),
         );
         rims.setMatrixAt(n, _rimMatrix);
+        _rimColour.set(colour);
+        if (pass === 0) _rimColour.multiplyScalar(0.35);
         rims.setColorAt(n, _rimColour);
         n++;
       }
@@ -1210,7 +1282,7 @@ export class HexlandWorld extends FurnishedWorld {
    * Zeile: das Gelände als Sechseck, „Stadt 2 / 5", darunter, wie viele noch
    * fehlen. Nur am Schirm von oben, wie die Leiste unten (`fitView`).
    */
-  private drawQuestList(open: Array<{ tile: PlacedTile; size: number; target: number }>): void {
+  private drawQuestList(open: QuestRow[]): void {
     let list = this.questList;
     if (!list) {
       list = document.createElement('div');
@@ -1231,8 +1303,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.questList = list;
     }
     list.replaceChildren();
-    for (const { tile, size, target } of open) {
-      const terrain = tile.spec.quest!.terrain;
+    for (const { tile, size, next, target, terrain } of open) {
       const row = document.createElement('button');
       row.type = 'button';
       row.title = 'Zur Kachel';
@@ -1264,10 +1335,20 @@ export class HexlandWorld extends FurnishedWorld {
       text.style.cssText = 'display:flex;flex-direction:column;line-height:1.15;min-width:0';
       const title = document.createElement('strong');
       title.style.cssText = 'font-size:15px;white-space:nowrap';
-      title.textContent = `${TERRAIN_LABEL[terrain]} ${size} / ${target}`;
+      title.textContent =
+        next === size
+          ? `${TERRAIN_LABEL[terrain]} ${size} / ${target}`
+          : `${TERRAIN_LABEL[terrain]} ${size} → ${next} / ${target}`;
       const sub = document.createElement('span');
       sub.style.cssText = 'font-size:12px;opacity:.75;white-space:nowrap';
-      sub.textContent = `noch ${target - size}`;
+      sub.textContent =
+        next === size
+          ? `noch ${target - size}`
+          : next === target
+            ? 'mit dieser Kachel fertig'
+            : next > target
+              ? 'mit dieser Kachel zu groß'
+              : `mit dieser Kachel noch ${target - next}`;
       text.append(title, sub);
       row.append(icon, text);
       row.addEventListener('click', (event) => {
@@ -3072,6 +3153,25 @@ const _rimPos = new THREE.Vector3();
 const _rimQuat = new THREE.Quaternion();
 const _rimScale = new THREE.Vector3();
 const _rimUp = new THREE.Vector3(0, 1, 0);
+
+/** Breite und Höhe der Umrisse am Boden (`drawQuestRims`). */
+const RIM_WIDTH = 0.11;
+const RIM_HEIGHT = 0.08;
+
+/** Ein offener Auftrag: wie groß sein Gebiet ist, und wie groß mit der Kachel in der Hand. */
+interface QuestRow {
+  tile: PlacedTile;
+  terrain: QuestTerrain;
+  size: number;
+  next: number;
+  target: number;
+}
+
+/** Der Umriss des Gebiets eines Auftrags (`HexBoard.areaOutline`). */
+interface QuestOutline {
+  terrain: QuestTerrain;
+  lines: Array<{ q: number; r: number; edge: number; spoke: boolean }>;
+}
 const _aim = new THREE.Vector3();
 const _badge = new THREE.Vector3();
 /** Bis zu diesem Abstand der Kamera haben die Schilder ihre eigene Größe, danach wachsen sie mit. */

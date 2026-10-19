@@ -1153,6 +1153,63 @@ export class HexBoard {
     return out;
   }
 
+  /**
+   * **Der Umriss eines Gebiets** — eckig, wie das Gebiet wirklich liegt
+   * (`HexlandWorld.drawQuestRims`). Jede Kachel ist in sechs Dreiecke geteilt,
+   * eins je Kante; zum Gebiet gehören die Dreiecke an den Kanten seines Stücks
+   * (`segments`), bei Fluss und Weg die ganze Kachel. Der Umriss sind die
+   * Linien, auf deren einer Seite das Gebiet liegt und auf der anderen nicht:
+   * Kanten (`spoke: false`, Kante `edge`) zu einem Nachbarn außerhalb, und
+   * Speichen von der Mitte zur Ecke zwischen `edge` und `edge + 1`
+   * (`spoke: true`), wo das Gebiet mitten auf einer Kachel endet.
+   * Gewünscht: _„Die zusammenhängenden Gebiete der Missionen sind rund, sollen
+   * aber eckig sein"_ — eine Linie um das ganze Gebiet, nicht um jede Kachel.
+   */
+  areaOutline(
+    q: number,
+    r: number,
+    terrain: Terrain,
+  ): Array<{ q: number; r: number; edge: number; spoke: boolean }> {
+    const areas = this.areas(terrain);
+    const start = areas.node(hexKey(q, r));
+    if (start < 0) return [];
+    const root = areas.find(start);
+    const whole = hard(terrain);
+    const inside = (key: string, edge: number): boolean => {
+      const node = whole ? areas.node(key) : areas.node(key, edge);
+      return node >= 0 && areas.find(node) === root;
+    };
+    const out: Array<{ q: number; r: number; edge: number; spoke: boolean }> = [];
+    for (const [key, tile] of this.tiles) {
+      for (let e = 0; e < 6; e++) {
+        if (!inside(key, e)) continue;
+        const n = neighbour(tile, e);
+        if (!inside(hexKey(n.q, n.r), opposite(e)))
+          out.push({ q: tile.q, r: tile.r, edge: e, spoke: false });
+        if (!inside(key, (e + 1) % 6)) out.push({ q: tile.q, r: tile.r, edge: e, spoke: true });
+        if (!inside(key, (e + 5) % 6))
+          out.push({ q: tile.q, r: tile.r, edge: (e + 5) % 6, spoke: true });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * **Als läge die Kachel schon dort** — `look` rechnet auf dem Brett mit ihr,
+   * danach ist alles wie vorher. Für die Vorschau: wie die Aufträge mit der
+   * Kachel in der Hand wüchsen, und welchen Umriss ihr Gebiet dann hätte.
+   */
+  pretend<T>(spec: TileSpec, q: number, r: number, rot: number, look: () => T): T {
+    const key = hexKey(q, r);
+    if (this.tiles.has(key)) return look();
+    this.tiles.set(key, { q, r, spec, rot });
+    try {
+      return look();
+    } finally {
+      this.tiles.delete(key);
+    }
+  }
+
   /** **Wie groß das Gebiet ist**, zu dem das Gelände dieser Kachel gehört, in Kacheln. */
   areaSize(q: number, r: number, terrain: Terrain): number {
     const areas = this.areas(terrain);
