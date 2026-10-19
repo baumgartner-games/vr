@@ -7,12 +7,13 @@ import { createSky } from '../shared/environment';
 import { setBuildFlight } from '../../core/buildFlight';
 import { graphics, saveGraphics } from '../../core/graphicsSettings';
 import { KEEP_SOLID } from '../../core/occluderGhost';
+import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../core/colors';
 import { TextPlane } from '../../ui/TextPlane';
 import { faceCamera } from '../../ui/billboard';
 import type { MenuEntry } from '../../ui/menu';
 import type { PointerHit } from '../../core/Pointer';
 import type { WorldContext } from '../../core/types';
-import type { Handedness } from '../../core/XRInput';
+import { gripAnchor, type Handedness } from '../../core/XRInput';
 import {
   BASE_TILES,
   HexBoard,
@@ -39,6 +40,7 @@ import { packSave, unpackSave } from './hexShare';
 import { bestPlacement } from './hexPlanner';
 import { dressingModels } from './hexDressing';
 import { QuestBadge } from './hexBadge';
+import { HexTray, curvedArrow, type StackKind } from './hexTable';
 import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
 
 /**
@@ -95,6 +97,35 @@ export class HexlandWorld extends FurnishedWorld {
   private readonly aimMaterials = new Map<THREE.Material, THREE.Material>();
   /** Die Pfeile um die Kachel in der Hand, wenn auf sie gezielt wird — Trigger dreht. */
   private spin = new THREE.Group();
+  /**
+   * **Das Brett als Ganzes** — alles, was auf den Kacheln liegt. Sonst steht es
+   * im Ursprung in voller Größe; im Tisch-Modus ist es eine Miniatur vor dem
+   * Spieler (`placeTable`, `pullBoard`).
+   */
+  private board3d = new THREE.Group();
+  /** In der Brille am Tisch statt im Flug (`tableRow`), gemerkt im Browser. */
+  private tableStyle = readFlag(TABLE_KEY, false);
+  /** Der Tisch-Modus, solange er läuft (`enterTable`) — sonst `null`. */
+  private table: TableState | null = null;
+  /** Das Feld unter der Vorschau — im Tisch-Modus aus, solange sie in der Hand ist. */
+  private target: THREE.Mesh | null = null;
+  /** Die Griffpunkte an den Ecken der Kachel, nur im Tisch-Modus. */
+  private knobs = new THREE.Group();
+  /**
+   * **Die Tischplatte** unter der Miniatur. Die Kacheln haben einen Sockel, der
+   * sonst im Boden steckt (`hexland-backdrop`); am Tisch verdeckt ihn die
+   * Platte. Sie wächst mit dem Brett (`fitTableTop`).
+   */
+  private tableTop: THREE.Mesh | null = null;
+  /** Die Mitte der gelegten Kacheln, als die Miniatur aufgestellt wurde. */
+  private tableMid = new THREE.Vector3();
+  /**
+   * **Wo die Kachel in der Hand aufhört** — eine Ebene knapp unter ihrer
+   * Oberfläche (`clipHand`). Die Modelle haben einen Sockel, so dick wie eine
+   * halbe Kachel; am Tisch sähe die Kachel in der Hand sonst wie ein Klotz aus.
+   */
+  private readonly handClip = new THREE.Plane();
+  private readonly clipMaterials = new Map<THREE.Material, THREE.Material>();
   private info: TextPlane | null = null;
   private handQuest: QuestBadge | null = null;
   /** Wo die Vorschau gerade liegt, und wie gedreht. */
@@ -213,6 +244,15 @@ export class HexlandWorld extends FurnishedWorld {
     const ctx = this.context;
     if (!ctx) return;
     this.board = loadBoard(readMode());
+    this.board3d.name = 'hexland-board';
+    this.root.add(this.board3d);
+    const top = new THREE.MeshStandardMaterial({ color: TABLE_COLOUR, roughness: 0.9 });
+    this.hexMaterials.push(top);
+    this.tableTop = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.2, 48), top);
+    this.tableTop.position.y = -0.63;
+    this.tableTop.visible = false;
+    this.tableTop.name = 'hexland-table';
+    this.board3d.add(this.tableTop);
     this.buildBoard(ctx);
     // Alles vorladen, was eine Kachel tragen kann — sonst stockt die erste Vorschau.
     for (const model of dressingModels()) void this.models.load(model);
@@ -228,9 +268,9 @@ export class HexlandWorld extends FurnishedWorld {
     this.view = new HexBoardView(this.models, () => this.board.tiles);
     this.view.showArrows(this.arrows);
     this.view.root.userData.sharedAssets = true;
-    this.root.add(this.view.root);
+    this.board3d.add(this.view.root);
     for (const tile of this.board.tiles.values()) void this.view.add(tile);
-    this.root.add(this.wind.root);
+    this.board3d.add(this.wind.root);
 
     const slotGeometry = new THREE.CylinderGeometry(HEX_WIDTH * 0.555, HEX_WIDTH * 0.555, 0.04, 6);
     const slotMaterial = new THREE.MeshBasicMaterial({
@@ -246,7 +286,7 @@ export class HexlandWorld extends FurnishedWorld {
     // Shader beim ersten Einfärben neu gebaut werden.
     this.slots.setColorAt(0, new THREE.Color(0xffffff));
     this.slots.name = 'hexland-slots';
-    this.root.add(this.slots);
+    this.board3d.add(this.slots);
 
     // **Die Zahlen auf den Feldern** (Spielhilfe _Passende Kanten als Zahl_):
     // ein Bündel je Ziffer 0–6, flach auf dem Boden, zum Bild gedreht.
@@ -264,7 +304,7 @@ export class HexlandWorld extends FurnishedWorld {
       digits.renderOrder = 2;
       digits.name = `hexland-digit-${n}`;
       this.digits.push(digits);
-      this.root.add(digits);
+      this.board3d.add(digits);
     }
 
     const hoverMaterial = new THREE.MeshBasicMaterial({
@@ -277,7 +317,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.hover = new THREE.Mesh(slotGeometry, hoverMaterial);
     this.hover.position.y = 0.03;
     this.hover.visible = false;
-    this.root.add(this.hover);
+    this.board3d.add(this.hover);
 
     const pickMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
     this.hexMaterials.push(pickMaterial);
@@ -285,7 +325,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.pickPlane.rotation.x = -Math.PI / 2;
     this.pickPlane.position.set(FIELD.x + FIELD.w / 2, 0.02, FIELD.z + FIELD.d / 2);
     this.pickPlane.name = 'hexland-pick';
-    this.root.add(this.pickPlane);
+    this.board3d.add(this.pickPlane);
 
     // Das Feld unter der Vorschau leuchtet — von oben sieht man sonst nicht, wo sie landet.
     const targetMaterial = new THREE.MeshBasicMaterial({
@@ -298,6 +338,25 @@ export class HexlandWorld extends FurnishedWorld {
     const target = new THREE.Mesh(slotGeometry, targetMaterial);
     target.position.y = 0.035;
     this.hand.add(target);
+    this.target = target;
+    // **Griffpunkte** an den sechs Ecken — im Tisch-Modus nimmt man die Kachel
+    // daran (`updateTable`). Gewünscht: _„… habe mehrere Haltepunkte daran,
+    // sodass ich es drehen kann."_
+    const knobMaterial = new THREE.MeshStandardMaterial({
+      color: GRAB_TINT,
+      roughness: 0.6,
+      emissive: new THREE.Color(GRAB_TINT).multiplyScalar(GRAB_TINT_EMISSIVE),
+    });
+    this.hexMaterials.push(knobMaterial);
+    const knobGeometry = new THREE.SphereGeometry(0.22, 10, 8);
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 6 + i * (Math.PI / 3);
+      const knob = new THREE.Mesh(knobGeometry, knobMaterial);
+      knob.position.set(Math.cos(a) * HEX_WIDTH * 0.58, 0, Math.sin(a) * HEX_WIDTH * 0.58);
+      this.knobs.add(knob);
+    }
+    this.knobs.visible = false;
+    this.hand.add(this.knobs);
 
     // **Ein leuchtender Ring um das Feld** — gewünscht: _„Dann soll erkennbar
     // sein was das neue Tile ist."_ Er pulsiert, die Kachel darüber schwebt.
@@ -406,7 +465,7 @@ export class HexlandWorld extends FurnishedWorld {
     // Hand würde sonst als „Verdecker" durchsichtig (`core/occluderGhost.ts`).
     this.hand.userData[KEEP_SOLID] = true;
     this.hand.visible = false;
-    this.root.add(this.hand);
+    this.board3d.add(this.hand);
 
     // **Zeigen in der Brille und aus den Augen** — der Strahl (`core/Pointer.ts`).
     ctx.pointer.add({
@@ -414,6 +473,8 @@ export class HexlandWorld extends FurnishedWorld {
       onHover: (hit) => this.showHover(hit.point),
       onBlur: () => this.showHover(null),
       onSelect: (hit) => this.pointAt(hit),
+      // Im Tisch-Modus wird mit der Hand gelegt, nicht mit dem Strahl.
+      ignore: () => this.table !== null,
     });
     ctx.pointer.add({ object: this.confirm, onSelect: () => this.placeHere() });
     ctx.pointer.add({ object: this.turnLeft, onSelect: () => this.rotate(-1) });
@@ -421,7 +482,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.aim.name = 'hexland-ghost-aim';
     this.aim.visible = false;
     this.aim.userData[KEEP_SOLID] = true;
-    this.root.add(this.aim);
+    this.board3d.add(this.aim);
     // **Und von oben am Schirm** — dort ruht der Strahl, also eigene Finger.
     this.listenToScreen(ctx);
     this.buildTileBar();
@@ -432,7 +493,8 @@ export class HexlandWorld extends FurnishedWorld {
 
   /** Ein Feld wurde angezeigt — Vorschau dorthin, oder weiterdrehen, wenn sie schon dort liegt. */
   private pointAt(hit: PointerHit | { point: THREE.Vector3 }): void {
-    const hex = hexAt(hit.point.x, hit.point.z, HEX_WIDTH);
+    const local = this.board3d.worldToLocal(_local.copy(hit.point));
+    const hex = hexAt(local.x, local.z, HEX_WIDTH);
     if (this.at && hex.q === this.at.q && hex.r === this.at.r) {
       this.rotate();
       return;
@@ -478,9 +540,9 @@ export class HexlandWorld extends FurnishedWorld {
     return this.board.fit(spec, at.q, at.r, this.rot) !== null || !this.canPlaceSomewhere();
   }
 
-  private placeHere(): void {
+  private placeHere(): boolean {
     const at = this.at;
-    if (!at || this.board.over) return;
+    if (!at || this.board.over) return false;
     const force = !this.canPlaceSomewhere();
     const doneBefore = new Set<string>();
     for (const [key, t] of this.board.tiles)
@@ -488,7 +550,7 @@ export class HexlandWorld extends FurnishedWorld {
     const result = this.board.place(at.q, at.r, this.rot, force);
     if (!result) {
       this.say('Passt so nicht · Fluss und Weg müssen weiterlaufen — drehen oder anderes Feld');
-      return;
+      return false;
     }
     const tile = this.board.at(at.q, at.r)!;
     // **Fertige Aufträge springen** (`HexBoardView.hop`) — sobald die neue
@@ -516,6 +578,7 @@ export class HexlandWorld extends FurnishedWorld {
     // `refresh` hat ein neues Feld gewählt — TypeScript weiß das nicht.
     const next = this.at as Hex | null;
     if (next) this.flyTo(next);
+    return true;
   }
 
   /** **Die Kamera fliegt zu einer Kachel** (`stepFlight`) — nur von oben am Schirm. */
@@ -564,6 +627,7 @@ export class HexlandWorld extends FurnishedWorld {
    */
   private refresh(fresh: boolean): void {
     this.drawSlots();
+    if (this.table) this.fitTableTop();
     this.drawBadges();
     const spec = this.board.current;
     if (!spec) {
@@ -572,7 +636,10 @@ export class HexlandWorld extends FurnishedWorld {
       this.drawBarIcon();
       return;
     }
-    if (fresh || !this.at) this.autoPlace();
+    // Im Tisch-Modus liegt die neue Kachel verdeckt im Stapel, bis man sie nimmt.
+    if (this.table) {
+      if (fresh) this.table.drawn = false;
+    } else if (fresh || !this.at) this.autoPlace();
     if (this.previewFor !== spec) {
       this.previewFor = spec;
       const old = this.previewTile;
@@ -583,6 +650,7 @@ export class HexlandWorld extends FurnishedWorld {
         if (this.previewTile) this.hand.remove(this.previewTile);
         this.previewTile = group;
         this.hand.add(group);
+        this.clipPreview(this.table !== null);
         this.posePreview();
       });
     }
@@ -701,6 +769,11 @@ export class HexlandWorld extends FurnishedWorld {
   }
 
   private posePreview(): void {
+    // In der Hand (Tisch-Modus) trägt die Hand die Kachel, nicht das Feld.
+    if (this.table?.held) {
+      this.drawBarIcon();
+      return;
+    }
     const spec = this.board.current;
     const at = this.at;
     if (!spec || !at) {
@@ -928,9 +1001,9 @@ export class HexlandWorld extends FurnishedWorld {
       const bigger = new THREE.InstancedMesh(slots.geometry, slots.material, open.length * 2);
       bigger.frustumCulled = false;
       bigger.name = slots.name;
-      this.root.remove(slots);
+      this.board3d.remove(slots);
       slots.dispose();
-      this.root.add(bigger);
+      this.board3d.add(bigger);
       this.slots = slots = bigger;
     }
     const m = new THREE.Matrix4();
@@ -1029,7 +1102,8 @@ export class HexlandWorld extends FurnishedWorld {
     (ctx.viewCamera ?? ctx.camera).getWorldPosition(_eye);
     for (const badge of this.badges.values()) {
       badge.getWorldPosition(_badge);
-      const far = _eye.distanceTo(_badge);
+      // In Kacheln gemessen: Im Tisch-Modus ist das Brett eine Miniatur.
+      const far = _eye.distanceTo(_badge) / this.board3d.scale.x;
       const scale = Math.max(1, far / BADGE_DISTANCE);
       badge.scale.setScalar(scale);
       // Ganz weit draußen lägen die Schilder übereinander — dort reicht die Liste oben rechts.
@@ -1054,7 +1128,7 @@ export class HexlandWorld extends FurnishedWorld {
         const c = hexCentre(tile.q, tile.r, HEX_WIDTH);
         badge.position.set(c.x, 1.45, c.z);
         this.badges.set(key, badge);
-        this.root.add(badge);
+        this.board3d.add(badge);
       }
       badge.show(tile.spec.quest!.terrain, `${progress.size}/${progress.target}`);
     }
@@ -1062,7 +1136,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.drawQuestRims(open);
     for (const [key, badge] of this.badges) {
       if (seen.has(key)) continue;
-      this.root.remove(badge);
+      this.board3d.remove(badge);
       badge.dispose();
       this.badges.delete(key);
     }
@@ -1094,7 +1168,7 @@ export class HexlandWorld extends FurnishedWorld {
       rims.frustumCulled = false;
       rims.renderOrder = 2;
       rims.name = 'hexland-quest-rims';
-      this.root.add(rims);
+      this.board3d.add(rims);
       this.questRims = rims;
     }
     const used = new Map<string, number>();
@@ -1206,7 +1280,8 @@ export class HexlandWorld extends FurnishedWorld {
   private showHover(point: THREE.Vector3 | null): void {
     const hover = this.hover;
     if (!hover) return;
-    const hex = point ? hexAt(point.x, point.z, HEX_WIDTH) : null;
+    const local = point ? this.board3d.worldToLocal(_local.copy(point)) : null;
+    const hex = local ? hexAt(local.x, local.z, HEX_WIDTH) : null;
     const open = !!hex && this.board.isOpen(hex.q, hex.r) && !this.board.over;
     hover.visible = open;
     // Auf die Kachel in der Hand gezielt: Pfeile; auf ein anderes freies Feld: der Geist.
@@ -1308,9 +1383,13 @@ export class HexlandWorld extends FurnishedWorld {
     this.view?.animate(dt);
     this.view?.flush();
     this.fitView(ctx);
+    if (this.table) this.updateTable(dt, ctx, this.table);
     this.blowWind(dt, ctx);
     // Die Vorschau schwebt eine Handbreit über dem Feld und wiegt sich ein wenig.
-    if (this.previewTile) this.previewTile.position.y = 0.55 + Math.sin(this.clock * 2.2) * 0.08;
+    if (this.previewTile)
+      this.previewTile.position.y = this.table?.held ? 0 : 0.55 + Math.sin(this.clock * 2.2) * 0.08;
+    // Die Griffpunkte sitzen auf der Höhe der Kachel.
+    this.knobs.position.y = this.previewTile?.position.y ?? 0;
     // Die Drehpfeile laufen langsam im Uhrzeigersinn (von oben: negatives Gieren).
     if (this.spin.visible) this.spin.rotation.y -= dt * 0.6;
     if (this.ring) {
@@ -1341,15 +1420,351 @@ export class HexlandWorld extends FurnishedWorld {
     // Wo der Blick das Brett trifft, und wie weit es bis dahin ist.
     const far = _look.y < -0.05 ? Math.min(-_eye.y / _look.y, 400) : 10;
     _aim.copy(_eye).addScaledVector(_look, far);
-    this.root.worldToLocal(_aim);
+    this.board3d.worldToLocal(_aim);
+    const scale = this.board3d.scale.x;
     // Wie weit das Bild von dort reicht — die längere Seite, halb.
     const half = far * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const reach = half * Math.max(1, camera.aspect);
-    this.wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / 25), {
+    this.wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / scale / 25), {
       x: _aim.x,
       z: _aim.z,
-      r: reach,
+      r: reach / scale,
     });
+  }
+
+  // --- am Tisch ---------------------------------------------------------------------
+
+  /** Das Tablett mit den Stapeln (`hexTable.ts`) — einmal gebaut, am Tisch zu sehen. */
+  private tray: HexTray | null = null;
+
+  /**
+   * **An den Tisch**: Der Weltbau geht aus (man steht in Originalgröße), das
+   * Brett wird eine Miniatur vor dem Spieler und das Tablett schwebt daneben.
+   * Die Kachel in der Hand liegt verdeckt im Stapel, bis man sie nimmt.
+   */
+  private enterTable(): void {
+    const ctx = this.lastCtx;
+    if (!ctx) return;
+    setBuildFlight(false);
+    if (!this.tray) {
+      const tray = new HexTray();
+      this.tray = tray;
+      this.root.add(tray.root);
+      ctx.pointer.add({ object: tray.place, onSelect: () => this.placeHere() });
+      ctx.pointer.add({ object: tray.finish, onSelect: () => this.placeHere() });
+      ctx.pointer.add({ object: tray.turnLeft, onSelect: () => this.rotate(-1) });
+      ctx.pointer.add({ object: tray.turnRight, onSelect: () => this.rotate(1) });
+    }
+    this.tray.root.visible = false;
+    this.table = { placed: false, drawn: false, held: null, trayHeld: null, pull: null };
+    this.at = null;
+    this.aim.visible = false;
+    this.spin.visible = false;
+    this.knobs.visible = true;
+    this.clipPreview(true);
+    this.say(
+      'Am Tisch · Griff nimmt vom leuchtenden Stapel und legt ab · Trigger zieht das Brett heran',
+    );
+    this.refresh(false);
+  }
+
+  /** Die Platte reicht zweieinhalb Kacheln über das äußerste Feld hinaus. */
+  private fitTableTop(): void {
+    if (!this.tableTop) return;
+    let reach = 0;
+    for (const tile of this.board.tiles.values()) {
+      const c = hexCentre(tile.q, tile.r, HEX_WIDTH);
+      reach = Math.max(reach, Math.hypot(c.x - this.tableMid.x, c.z - this.tableMid.z));
+    }
+    const radius = reach + HEX_WIDTH * 2.5;
+    this.tableTop.scale.set(radius, 1, radius);
+    this.tableTop.position.x = this.tableMid.x;
+    this.tableTop.position.z = this.tableMid.z;
+    this.tableTop.visible = true;
+  }
+
+  private leaveTable(): void {
+    this.table = null;
+    if (this.tableTop) this.tableTop.visible = false;
+    if (this.tray) this.tray.root.visible = false;
+    this.board3d.position.set(0, 0, 0);
+    this.board3d.quaternion.identity();
+    this.board3d.scale.setScalar(1);
+    this.hand.quaternion.identity();
+    this.knobs.visible = false;
+    this.clipPreview(false);
+    if (this.ring) this.ring.visible = true;
+    if (this.target) this.target.visible = true;
+    this.refresh(false);
+  }
+
+  /**
+   * **Brett und Tablett vor den Spieler** — das Brett 75 cm vor ihm auf
+   * Tischhöhe, die Mitte der gelegten Kacheln vorn; das Tablett links davor.
+   */
+  private placeTable(ctx: WorldContext): void {
+    const tray = this.tray!;
+    ctx.camera.getWorldPosition(_eye);
+    ctx.camera.getWorldDirection(_look);
+    _look.y = 0;
+    if (_look.lengthSq() < 1e-6) _look.set(0, 0, -1);
+    _look.normalize();
+    const yaw = Math.atan2(-_look.x, -_look.z);
+    this.board3d.rotation.set(0, yaw, 0);
+    this.board3d.scale.setScalar(TABLE_SCALE);
+    let x = 0;
+    let z = 0;
+    for (const tile of this.board.tiles.values()) {
+      const c = hexCentre(tile.q, tile.r, HEX_WIDTH);
+      x += c.x;
+      z += c.z;
+    }
+    const n = Math.max(1, this.board.tiles.size);
+    const height = Math.max(0.6, _eye.y - 0.55);
+    _near.copy(_eye).addScaledVector(_look, 0.75).setY(height);
+    this.root.worldToLocal(_near);
+    this.tableMid.set(x / n, 0, z / n);
+    this.fitTableTop();
+    _local.copy(this.tableMid).multiplyScalar(TABLE_SCALE).applyQuaternion(this.board3d.quaternion);
+    this.board3d.position.copy(_near).sub(_local);
+    // Links: die Blickrichtung um 90° gegen den Uhrzeiger.
+    _near
+      .copy(_eye)
+      .addScaledVector(_look, 0.45)
+      .add(_local.set(_look.z, 0, -_look.x).multiplyScalar(0.42))
+      .setY(height + 0.04);
+    tray.root.position.copy(this.root.worldToLocal(_near));
+    // Leicht zum Spieler gekippt: die hintere Kante höher.
+    tray.root.rotation.set(0.3, yaw, 0, 'YXZ');
+    tray.root.visible = true;
+  }
+
+  /**
+   * **Jedes Bild am Tisch** — Griff und Trigger beider Hände:
+   *
+   * - **Griff an der Kachel** (liegend oder in der anderen Hand): nehmen. Sie
+   *   sitzt dann starr in der Hand, das Handgelenk dreht sie. Loslassen über
+   *   einem freien Feld legt sie dort hin (noch nicht fest), gedreht auf die
+   *   nächste der sechs Lagen; anderswo geht sie zurück auf den Stapel.
+   * - **Griff am leuchtenden Stapel**: die nächste Kachel ziehen. Liegt die
+   *   vorige noch, wird sie damit gelegt — gewünscht: _„Nehme ich ein neues
+   *   Tile, wird das alte Tile gelegt."_
+   * - **Griff an der Stange des Tabletts**: das Tablett tragen.
+   * - **Trigger ins Leere**: das Brett greifen; zum Körper ziehen vergrößert
+   *   es — gewünscht: _„mit dem anderen Trigger … die ganze Karte an mich
+   *   ranziehen und damit das Ganze reinzoomen."_
+   */
+  private updateTable(dt: number, ctx: WorldContext, t: TableState): void {
+    if (!t.placed) {
+      if (ctx.rig.flying) return;
+      this.placeTable(ctx);
+      t.placed = true;
+    }
+    const tray = this.tray!;
+    tray.update(dt);
+    ctx.camera.getWorldPosition(_eye);
+    for (const hand of HANDS) {
+      const c = ctx.input.get(hand);
+      if (!c?.tracked) continue;
+      const anchor = gripAnchor(c);
+      anchor.updateWorldMatrix(true, false);
+      _grab.setFromMatrixPosition(anchor.matrixWorld);
+      if (t.held?.hand === hand && !c.squeeze.pressed) this.dropTile(t);
+      if (t.trayHeld?.hand === hand && !c.squeeze.pressed) t.trayHeld = null;
+      if (t.pull?.hand === hand && !c.trigger.pressed) t.pull = null;
+      const busy = t.held?.hand === hand || t.trayHeld?.hand === hand;
+      if (c.squeeze.justPressed && !busy && this.handFree(hand) && this.takeWith(t, hand, anchor)) {
+        c.pulse(0.35, 20);
+      }
+      if (c.trigger.justPressed && !t.pull && !ctx.pointer.hoveringWith(hand)) {
+        t.pull = {
+          hand,
+          anchor: this.board3d.worldToLocal(_grab.clone()),
+          scale: this.board3d.scale.x,
+          dist: Math.max(0.05, _grab.distanceTo(_eye)),
+        };
+      }
+      if (t.pull?.hand === hand) this.pullBoard(t.pull, _grab);
+    }
+    if (t.held) this.carry(this.hand, t.held, this.board3d);
+    if (t.trayHeld) this.carry(tray.root, t.trayHeld, this.root);
+
+    // In der Hand: nur die Kachel und ihre Griffpunkte, darunter das Feld, auf dem sie landen würde.
+    const held = t.held !== null;
+    if (held) {
+      this.hand.visible = true;
+      for (const bar of this.previewEdges) bar.visible = false;
+      const hex = hexAt(this.hand.position.x, this.hand.position.z, HEX_WIDTH);
+      const open = this.board.isOpen(hex.q, hex.r) && Math.abs(this.hand.position.y) < DROP_HEIGHT;
+      if (this.hover) {
+        this.hover.visible = open;
+        const c = hexCentre(hex.q, hex.r, HEX_WIDTH);
+        this.hover.position.x = c.x;
+        this.hover.position.z = c.z;
+      }
+    }
+    if (this.ring) this.ring.visible = !held;
+    if (this.target) this.target.visible = !held;
+    // Die Schnittebene folgt der Kachel: senkrecht zu ihr, knapp unter ihrer Oberfläche.
+    if (this.previewTile) {
+      this.previewTile.updateWorldMatrix(true, false);
+      _local.set(0, 1, 0).transformDirection(this.previewTile.matrixWorld);
+      _near.set(0, -HAND_CLIP, 0).applyMatrix4(this.previewTile.matrixWorld);
+      this.handClip.setFromNormalAndCoplanarPoint(_local, _near);
+    }
+
+    const spec = this.board.current;
+    const waiting = spec && !t.drawn ? 1 : 0;
+    const quest = !!spec?.quest;
+    const last = t.drawn && !held && this.at !== null && !quest && this.board.stack.length === 0;
+    tray.show(
+      this.board.mode === 'endless' ? Infinity : this.board.stack.length + (quest ? 0 : waiting),
+      this.board.tasksLeft + (quest ? waiting : 0),
+      waiting ? (quest ? 'quest' : 'normal') : null,
+      last,
+    );
+    tray.info.setText(this.statusTitle(), this.statusLine());
+  }
+
+  /** Mit dieser Hand greifen — die Kachel, die Stange des Tabletts oder einen Stapel. */
+  private takeWith(t: TableState, hand: Handedness, anchor: THREE.Object3D): boolean {
+    const tray = this.tray!;
+    const scale = this.board3d.scale.x;
+    if (t.drawn && (t.held || this.at) && this.hand.visible) {
+      this.hand.getWorldPosition(_near);
+      if (_grab.distanceTo(_near) < HEX_WIDTH * 0.6 * scale + 0.06) {
+        this.holdTile(t, hand, anchor);
+        return true;
+      }
+    }
+    tray.handle.getWorldPosition(_near);
+    if (_grab.distanceTo(_near) < 0.1) {
+      tray.root.updateWorldMatrix(true, false);
+      t.trayHeld = { hand, anchor, offset: offsetOf(anchor, tray.root) };
+      return true;
+    }
+    for (const kind of ['normal', 'quest'] as const) {
+      if (_grab.distanceTo(tray.stackTop(kind, _near)) < 0.08)
+        return this.drawFrom(t, kind, hand, anchor);
+    }
+    return false;
+  }
+
+  /** Die Kachel in diese Hand — vom Feld, oder aus der anderen Hand herüber. */
+  private holdTile(t: TableState, hand: Handedness, anchor: THREE.Object3D): void {
+    if (!t.held) {
+      // Die Drehung des Feldes geht in die Hand über; die Kachel selbst liegt gerade darin.
+      this.hand.quaternion.setFromAxisAngle(_up, -this.rot * (Math.PI / 3));
+      if (this.previewTile) this.previewTile.rotation.y = 0;
+      this.at = null;
+    }
+    this.hand.updateWorldMatrix(true, true);
+    t.held = { hand, anchor, offset: offsetOf(anchor, this.hand) };
+  }
+
+  /** Vom Stapel ziehen — nur vom leuchtenden; eine liegende Kachel wird dabei gelegt. */
+  private drawFrom(
+    t: TableState,
+    kind: StackKind,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+  ): boolean {
+    const spec = this.board.current;
+    if (!spec || this.board.over) return false;
+    if (t.drawn && t.held) return false;
+    if (t.drawn && this.at) {
+      if (!this.fitsHere()) {
+        this.say('Die liegende Kachel passt so nicht · erst drehen oder umlegen');
+        return false;
+      }
+      if (!this.placeHere()) return false;
+      return this.drawFrom(t, kind, hand, anchor);
+    }
+    const want: StackKind = spec.quest ? 'quest' : 'normal';
+    if (kind !== want) {
+      this.say(
+        want === 'quest'
+          ? 'Jetzt kommt ein Auftrag · vom leuchtenden Stapel'
+          : 'Vom leuchtenden Stapel ziehen',
+      );
+      return false;
+    }
+    t.drawn = true;
+    this.hand.position.copy(this.board3d.worldToLocal(_near.copy(_grab)));
+    this.hand.quaternion.setFromAxisAngle(_up, -this.rot * (Math.PI / 3));
+    if (this.previewTile) {
+      this.previewTile.rotation.y = 0;
+      this.previewTile.position.y = 0;
+    }
+    this.hand.visible = true;
+    this.hand.updateWorldMatrix(true, true);
+    t.held = { hand, anchor, offset: offsetOf(anchor, this.hand) };
+    this.refresh(false);
+    return true;
+  }
+
+  /** Losgelassen: über einem freien Feld liegt sie dort (noch nicht fest), sonst zurück auf den Stapel. */
+  private dropTile(t: TableState): void {
+    t.held = null;
+    const local = this.hand.position;
+    const hex = hexAt(local.x, local.z, HEX_WIDTH);
+    _euler.setFromQuaternion(this.hand.quaternion, 'YXZ');
+    this.hand.quaternion.identity();
+    if (this.hover) this.hover.visible = false;
+    if (this.board.isOpen(hex.q, hex.r) && Math.abs(local.y) < DROP_HEIGHT) {
+      this.at = hex;
+      this.rot = ((Math.round(-_euler.y / (Math.PI / 3)) % 6) + 6) % 6;
+    } else {
+      this.at = null;
+      this.say('Zurück auf den Stapel · an ein freies Feld am Rand halten und loslassen');
+    }
+    this.refresh(false);
+  }
+
+  /** Die Kachel in der Hand mit oder ohne Schnitt — eigene Stoffe, das Brett teilt die anderen. */
+  private clipPreview(on: boolean): void {
+    this.previewTile?.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const plain =
+        (mesh.userData.unclipped as THREE.Material | undefined) ??
+        (mesh.material as THREE.Material);
+      mesh.userData.unclipped = plain;
+      let clipped = this.clipMaterials.get(plain);
+      if (on && !clipped) {
+        clipped = plain.clone();
+        clipped.clippingPlanes = [this.handClip];
+        this.clipMaterials.set(plain, clipped);
+      }
+      mesh.material = on ? clipped! : plain;
+    });
+  }
+
+  /** Ein gehaltenes Ding folgt der Hand — in den Maßen seines Elternteils. */
+  private carry(object: THREE.Object3D, grip: Grip, parent: THREE.Object3D): void {
+    grip.anchor.updateWorldMatrix(true, false);
+    parent.updateWorldMatrix(true, false);
+    _matrix.multiplyMatrices(grip.anchor.matrixWorld, grip.offset);
+    _matrix.premultiply(_inverse.copy(parent.matrixWorld).invert());
+    _matrix.decompose(object.position, object.quaternion, _scale);
+  }
+
+  /** Das Brett hängt an der Hand; je näher die Hand dem Kopf, desto größer. */
+  private pullBoard(pull: NonNullable<TableState['pull']>, at: THREE.Vector3): void {
+    const dist = Math.max(0.05, at.distanceTo(_eye));
+    const scale = THREE.MathUtils.clamp((pull.scale * pull.dist) / dist, TABLE_MIN, TABLE_MAX);
+    this.board3d.scale.setScalar(scale);
+    _local.copy(pull.anchor).multiplyScalar(scale).applyQuaternion(this.board3d.quaternion);
+    this.board3d.position.copy(this.root.worldToLocal(_near.copy(at))).sub(_local);
+  }
+
+  /** Eine Hand, die am Tisch etwas hält, schließt sich darum. */
+  protected override carriesInHand(hand: Handedness): boolean {
+    return (
+      super.carriesInHand(hand) ||
+      this.table?.held?.hand === hand ||
+      this.table?.trayHeld?.hand === hand
+    );
   }
 
   // --- die Ansichten ---------------------------------------------------------------
@@ -1404,14 +1819,17 @@ export class HexlandWorld extends FurnishedWorld {
    */
   private fitView(ctx: WorldContext): void {
     const presenting = ctx.renderer.xr.isPresenting;
-    if (presenting && !this.flewIn) {
+    const table = presenting && this.tableStyle;
+    if (table && !this.table) this.enterTable();
+    else if (!table && this.table) this.leaveTable();
+    if (presenting && !table && !this.flewIn) {
       this.flewIn = true;
       setBuildFlight(true);
       this.say('Von oben · linker Stick fliegt · rechter Stick vor: Welt kleiner, zurück: größer');
-    } else if (!presenting) {
+    } else if (!presenting || table) {
       this.flewIn = false;
     }
-    ctx.rig.flightScales = true;
+    ctx.rig.flightScales = !table;
 
     document.body.classList.add(CLEAN_CLASS);
     const flat = ctx.topDown && !presenting;
@@ -1422,8 +1840,8 @@ export class HexlandWorld extends FurnishedWorld {
       ctx.rig.pace = flat ? (sprint) => this.panSpeed(ctx) * (sprint ? 2 : 1) : null;
     }
     // Am Schirm stehen Punkte und ✓ unten in der Leiste — über der Kachel nur die Kachel.
-    this.controls.visible = !flat;
-    if (this.info) this.info.visible = !flat;
+    this.controls.visible = !flat && !table;
+    if (this.info) this.info.visible = !flat && !table;
     if (this.tileBar) this.tileBar.hidden = !flat || ctx.menu.isOpen;
     if (this.questList) {
       // `style.display` und nicht `hidden`: Das `display:flex` der Liste schlüge das Attribut.
@@ -1904,6 +2322,7 @@ export class HexlandWorld extends FurnishedWorld {
       this.helpMenu(),
       this.animationRow(),
       this.arrowRow(),
+      this.tableRow(),
       this.fpsRow(),
       this.skyRow(),
       this.shareMenu(),
@@ -2015,6 +2434,28 @@ export class HexlandWorld extends FurnishedWorld {
         this.arrows = !this.arrows;
         writeFlag(ARROW_KEY, this.arrows);
         this.view?.showArrows(this.arrows);
+        this.context?.refreshWorldMenu();
+      },
+    };
+  }
+
+  /**
+   * **Am Tisch spielen** — die zweite Art in der Brille. Gewünscht: _„Der
+   * andere Modus ist eher, von der Idee her, dass es wie auf dem Tisch liegt
+   * und ich die Tiles mit Grab in die Hand nehme und auf die freien Tiles
+   * loslassen kann zum Legen."_ Aus: fliegen wie bisher.
+   */
+  private tableRow(): MenuEntry {
+    return {
+      id: 'hexland:table',
+      label: 'In VR am Tisch spielen',
+      sub: 'Kleines Brett vor dir · Kacheln greifen und ablegen · aus: fliegen',
+      icon: 'controller',
+      accent: GRAB_TINT,
+      checked: this.tableStyle,
+      run: () => {
+        this.tableStyle = !this.tableStyle;
+        writeFlag(TABLE_KEY, this.tableStyle);
         this.context?.refreshWorldMenu();
       },
     };
@@ -2435,6 +2876,16 @@ export class HexlandWorld extends FurnishedWorld {
     ctx.rig.pace = null;
     ctx.rig.flightScales = false;
     ctx.topDownView?.maxZoom?.();
+    if (this.table) this.leaveTable();
+    if (this.tray)
+      for (const plane of [
+        this.tray.place,
+        this.tray.finish,
+        this.tray.turnLeft,
+        this.tray.turnRight,
+      ])
+        ctx.pointer.remove(plane);
+    this.tray?.dispose();
     if (this.pickPlane) ctx.pointer.remove(this.pickPlane);
     if (this.confirm) ctx.pointer.remove(this.confirm);
     if (this.turnLeft) ctx.pointer.remove(this.turnLeft);
@@ -2442,6 +2893,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.turnLeft?.dispose();
     this.turnRight?.dispose();
     for (const material of this.aimMaterials.values()) material.dispose();
+    for (const material of this.clipMaterials.values()) material.dispose();
     this.aimMaterials.clear();
     this.view?.dispose();
     this.wind.dispose();
@@ -2545,6 +2997,42 @@ function savedSummary(mode: HexMode): string | null {
 }
 
 const ANIM_KEY = 'hexland:animations';
+const TABLE_KEY = 'hexland:table';
+
+/** Eine Hand hält etwas: welche, woran, und wo das Ding relativ zu ihr sitzt. */
+interface Grip {
+  hand: Handedness;
+  anchor: THREE.Object3D;
+  offset: THREE.Matrix4;
+}
+
+interface TableState {
+  /** Ob Brett und Tablett schon vor den Spieler gestellt sind (erst nach der Landung). */
+  placed: boolean;
+  /** Ob die Kachel in der Hand schon vom Stapel genommen ist. */
+  drawn: boolean;
+  held: Grip | null;
+  trayHeld: Grip | null;
+  /** Das Brett heranziehen: Trigger, die Stelle unter der Hand, Maß und Abstand zum Kopf beim Drücken. */
+  pull: { hand: Handedness; anchor: THREE.Vector3; scale: number; dist: number } | null;
+}
+
+/** Die Tischplatte: das Rosa des Hintergrunds, eine Spur dunkler. */
+const TABLE_COLOUR = 0xd7b3c4;
+/** Wie groß das Brett am Tisch ist: eine Kachel 18 cm statt 3 m. */
+const TABLE_SCALE = 0.06;
+const TABLE_MIN = 0.01;
+const TABLE_MAX = 0.4;
+const HANDS: readonly Handedness[] = ['left', 'right'];
+/** Wie tief die Kachel in der Hand unter ihre Oberfläche reicht, in ihren Einheiten. */
+const HAND_CLIP = 0.12;
+/** Wie hoch über dem Brett (in Kacheleinheiten) eine Kachel noch als „abgelegt" zählt. */
+const DROP_HEIGHT = 4;
+
+/** Wo `object` relativ zu `anchor` sitzt — damit es beim Tragen nicht springt. */
+function offsetOf(anchor: THREE.Object3D, object: THREE.Object3D): THREE.Matrix4 {
+  return new THREE.Matrix4().copy(anchor.matrixWorld).invert().multiply(object.matrixWorld);
+}
 const ARROW_KEY = 'hexland:arrows';
 
 /** Ein Schalter im Browser — ohne Eintrag gilt `fallback`. */
@@ -2565,44 +3053,15 @@ function writeFlag(key: string, on: boolean): void {
   }
 }
 
-/**
- * **Ein gebogener Pfeil** in der xy-Ebene: ein Bogen von `start` über `sweep`
- * (Bogenmaß, gegen den Uhrzeiger gezählt) und eine Spitze an dem Ende, zu dem
- * er läuft — im Uhrzeigersinn am Anfang, sonst am Ende.
- */
-function curvedArrow(
-  radius: number,
-  width: number,
-  start: number,
-  sweep: number,
-  clockwise: boolean,
-  material: THREE.Material,
-): THREE.Mesh[] {
-  const head = (width * 1.4) / radius;
-  const arcStart = clockwise ? start + head * 0.55 : start;
-  const arc = new THREE.Mesh(
-    new THREE.RingGeometry(
-      radius - width / 2,
-      radius + width / 2,
-      24,
-      1,
-      arcStart,
-      sweep - head * 0.55,
-    ),
-    material,
-  );
-  const at = (r: number, a: number): [number, number] => [Math.cos(a) * r, Math.sin(a) * r];
-  const base = clockwise ? start + head * 0.6 : start + sweep - head * 0.6;
-  const tipAt = clockwise ? start - head * 0.6 : start + sweep + head * 0.6;
-  const shape = new THREE.Shape();
-  shape.moveTo(...at(radius - width * 1.6, base));
-  shape.lineTo(...at(radius + width * 1.6, base));
-  shape.lineTo(...at(radius, tipAt));
-  shape.closePath();
-  return [arc, new THREE.Mesh(new THREE.ShapeGeometry(shape), material)];
-}
-
 const _eye = new THREE.Vector3();
+const _local = new THREE.Vector3();
+const _grab = new THREE.Vector3();
+const _near = new THREE.Vector3();
+const _matrix = new THREE.Matrix4();
+const _scale = new THREE.Vector3();
+const _euler = new THREE.Euler();
+const _inverse = new THREE.Matrix4();
+const _up = new THREE.Vector3(0, 1, 0);
 const _rimColour = new THREE.Color();
 const _rimMatrix = new THREE.Matrix4();
 const _rimPos = new THREE.Vector3();

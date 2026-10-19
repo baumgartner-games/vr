@@ -396,6 +396,34 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   Bildchen (`hexIcon.ts`) — jede Kante in ihrer Farbe, Fluss und Weg als Band,
   der Auftrag als Kreis mit Zahl, gedreht wie sie liegen wird und wie das Bild
   gedreht ist. Gewünscht: _„Dann soll erkennbar sein was das neue Tile ist."_
+- **In der Brille am Tisch** (Reiter _Hexland → In VR am Tisch spielen_,
+  `hexland:table`; `enterTable`, `updateTable`, Tablett in `hexTable.ts`).
+  Gewünscht: _„dass es wie auf dem Tisch liegt und ich die Tiles mit Grab in
+  die Hand nehme und auf die freien Tiles loslassen kann zum Legen."_
+  - Der Weltbau geht aus, man steht in Originalgröße. Das Brett (`board3d`,
+    die Gruppe mit allem, was auf den Kacheln liegt) wird eine **Miniatur**
+    (Maß 0,06: eine Kachel 18 cm) 75 cm vor dem Spieler auf Tischhöhe, auf
+    einer **Tischplatte** (`tableTop`), die den Sockel der Kacheln verdeckt.
+  - Links davor schwebt das **Tablett**: Griffstange in Griff-Farbe vorn
+    (Griff dort trägt es), zwei Stapel **verdeckter Sechsecke** (normal
+    beige, Aufträge lila) mit der Zahl davor; der Stapel, von dem als
+    Nächstes gezogen wird, leuchtet und hat einen pulsierenden Ring. Vorn
+    ↺ · ✓ Legen · ↻ (Strahl), dahinter Punkte und Stapel.
+  - **Griff am leuchtenden Stapel** zieht die Kachel in die Hand. **Griff an
+    der Kachel** (sechs Griffpunkte an den Ecken) nimmt sie, auch aus der
+    anderen Hand. Das Handgelenk dreht sie; **Loslassen über einem freien
+    Feld** legt sie dort hin, auf die nächste der sechs Lagen gedreht —
+    noch nicht fest, der gelbe Ring zeigt, dass sie offen ist. Anderswo
+    losgelassen, geht sie zurück auf den Stapel.
+  - **Die nächste Kachel ziehen legt die liegende** (_„Nehme ich ein neues
+    Tile, wird das alte Tile gelegt"_); passt sie so nicht, bleibt alles
+    liegen. Bei der letzten normalen Kachel steht über dem Stapel
+    _■ Beenden_.
+  - **Trigger ins Leere** greift das Brett: es hängt an der Hand, und je
+    näher die Hand dem Kopf kommt, desto größer wird es (Maß 0,01–0,4) —
+    _„die ganze Karte an mich ranziehen und damit das Ganze reinzoomen."_
+  - Die Kachel in der Hand wird knapp unter ihrer Oberfläche abgeschnitten
+    (`handClip`, eigene Stoffe), sonst wäre sie ein Klotz.
 - **Am Schirm von oben gibt es keine Figur.** Gewünscht: _„bei von oben
   brauche ich keinen Spieler Charakter sondern kann direkt tiles auf die Welt
   legen und drehen lassen über Buttons. Auf pc mit wasd und Mausrad"_. Die
