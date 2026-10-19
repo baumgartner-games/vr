@@ -23,7 +23,18 @@ export const ANIM = {
   gustTiles: { value: new THREE.Vector4(1e4, 1e4, 1e4, 1e4) },
   /** Wie stark dort (x) und davor (y), und wohin er drückt (z, w). */
   gustPush: { value: new THREE.Vector4(0, 0, 1, 0) },
+  /** Dasselbe für den zweiten Windstoß (`WIND_COUNT`). */
+  gustTiles2: { value: new THREE.Vector4(1e4, 1e4, 1e4, 1e4) },
+  gustPush2: { value: new THREE.Vector4(0, 0, 1, 0) },
 };
+
+/**
+ * **Wie viele Windstöße zugleich über das Brett ziehen** — gewünscht (Oktober
+ * 2026): _„Können wir den Wind doppelt so häufig auftreten lassen?"_ Die
+ * Atempause zwischen zwei Stößen war schon fast null, also läuft ein zweiter
+ * nebenher, um eine halbe Runde versetzt (`HexlandWorld.blowWind`).
+ */
+export const WIND_COUNT = 2;
 
 /** Von der Mitte einer Kachel bis zu ihrer Kante, in Metern (`hexView.HEX_WIDTH` / 2). */
 const APOTHEM = 1.5;
@@ -43,6 +54,8 @@ export function swayMaterial<M extends THREE.Material>(material: M, bend: number
     shader.uniforms.uHexAnim = ANIM.on;
     shader.uniforms.uHexGustTiles = ANIM.gustTiles;
     shader.uniforms.uHexGustPush = ANIM.gustPush;
+    shader.uniforms.uHexGustTiles2 = ANIM.gustTiles2;
+    shader.uniforms.uHexGustPush2 = ANIM.gustPush2;
     shader.uniforms.uHexBend = { value: bend };
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -52,6 +65,8 @@ export function swayMaterial<M extends THREE.Material>(material: M, bend: number
         uniform float uHexAnim;
         uniform vec4 uHexGustTiles;
         uniform vec4 uHexGustPush;
+        uniform vec4 uHexGustTiles2;
+        uniform vec4 uHexGustPush2;
         uniform float uHexBend;
         float hexInside(vec2 d) {
           float m = max(abs(d.x), max(abs(dot(d, vec2(0.5, 0.8660254))), abs(dot(d, vec2(-0.5, 0.8660254)))));
@@ -69,8 +84,11 @@ export function swayMaterial<M extends THREE.Material>(material: M, bend: number
             float h = max(mvPosition.y, 0.0);
             float wind = uHexGustPush.x * hexInside(foot - uHexGustTiles.xy)
               + uHexGustPush.y * hexInside(foot - uHexGustTiles.zw);
+            float wind2 = uHexGustPush2.x * hexInside(foot - uHexGustTiles2.xy)
+              + uHexGustPush2.y * hexInside(foot - uHexGustTiles2.zw);
             float flutter = 0.7 + 0.3 * sin(uHexTime * 6.0 + phase);
-            mvPosition.xz += uHexGustPush.zw * wind * flutter * uHexBend * h * h * uHexAnim;
+            mvPosition.xz += (uHexGustPush.zw * wind + uHexGustPush2.zw * wind2)
+              * flutter * uHexBend * h * h * uHexAnim;
           }
         #endif
         mvPosition = modelViewMatrix * mvPosition;
@@ -259,7 +277,18 @@ export class WindGusts {
   private keep = 0;
   private readonly head = new THREE.Vector2();
 
-  constructor(private readonly width: number) {
+  /** Die Uniformen dieses Windstoßes: `slot` 0 oder 1 (`WIND_COUNT`). */
+  private readonly tiles: THREE.Vector4;
+  private readonly push: THREE.Vector4;
+
+  constructor(
+    private readonly width: number,
+    private readonly slot = 0,
+  ) {
+    this.tiles = slot === 0 ? ANIM.gustTiles.value : ANIM.gustTiles2.value;
+    this.push = slot === 0 ? ANIM.gustPush.value : ANIM.gustPush2.value;
+    // Der zweite wartet zuerst länger — die beiden laufen versetzt.
+    if (slot > 0) this.calm = 2.5;
     this.root.name = 'hexland-wind';
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
@@ -304,7 +333,7 @@ export class WindGusts {
     view: { x: number; z: number; r: number },
   ): void {
     ANIM.on.value = on ? 1 : 0;
-    const push = ANIM.gustPush.value;
+    const push = this.push;
     if (!on) {
       this.running = false;
       this.trail.length = 0;
@@ -312,7 +341,8 @@ export class WindGusts {
       push.x = push.y = 0;
       return;
     }
-    ANIM.time.value += dt;
+    // Die Uhr läuft einmal je Bild, nicht je Windstoß.
+    if (this.slot === 0) ANIM.time.value += dt;
     this.size = size;
     // Die Kachel davor klingt aus, die jetzige schwillt an.
     push.y = Math.max(0, push.y - dt / 0.8);
@@ -384,7 +414,7 @@ export class WindGusts {
     this.exit = (this.forward + (Math.random() < 0.5 ? 0 : 1)) % 6;
     const c = hexCentre(this.cell.q, this.cell.r, this.width);
     this.t = 0;
-    const tiles = ANIM.gustTiles.value;
+    const tiles = this.tiles;
     tiles.x = c.x;
     tiles.y = c.z;
   }
@@ -396,7 +426,7 @@ export class WindGusts {
    * 60 fps angezeigt."_
    */
   private advance(dt: number): void {
-    const push = ANIM.gustPush.value;
+    const push = this.push;
     let left = FLOW_SPEED * this.size * dt;
     // In kleinen Schritten, damit die Geschwindigkeit auf dem Bogen stimmt.
     for (let step = 0; step < 8 && left > 1e-6; step++) {
@@ -408,7 +438,7 @@ export class WindGusts {
         // Auf die nächste Kachel: Die jetzige wird die davor.
         const c = hexCentre(this.cell.q, this.cell.r, this.width);
         this.from.copy(this.edgePoint(c, this.exit));
-        const g = ANIM.gustTiles.value;
+        const g = this.tiles;
         g.z = g.x;
         g.w = g.y;
         push.y = push.x;
@@ -543,6 +573,6 @@ export class WindGusts {
   dispose(): void {
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
-    ANIM.gustPush.value.set(0, 0, 1, 0);
+    this.push.set(0, 0, 1, 0);
   }
 }

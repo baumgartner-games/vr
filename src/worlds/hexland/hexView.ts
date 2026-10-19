@@ -589,9 +589,11 @@ export class HexBoardView {
    * Auftrag abgeschlossen ist, dass dann die Tiles, die dem Auftrag dazu
    * gehörten, alle leicht nach oben gehen und dann runterfallen auf die
    * normale Position wieder, wie so ein gemeinsamer Sprung bzw. wie bei Lego
-   * spielen, wenn am Ende das Objekt fertig ist."_
+   * spielen, wenn am Ende das Objekt fertig ist."_ Gibt zurück, wie lange
+   * er dauert, in Sekunden.
    */
-  hop(tiles: readonly Hex[], from: Hex): void {
+  hop(tiles: readonly Hex[], from: Hex): number {
+    let last = 0;
     for (const t of tiles) {
       const key = hexKey(t.q, t.r);
       if (!this.parts.has(key)) continue;
@@ -599,7 +601,10 @@ export class HexBoardView {
       const dr = t.r - from.r;
       const rings = (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
       this.hops.set(key, -rings * HOP_STAGGER);
+      last = Math.max(last, rings * HOP_STAGGER);
     }
+    // So lange dauert der ganze Sprung, bis die letzte Kachel liegt.
+    return last + HOP_TIME;
   }
 
   /** Einmal je Bild, vor `flush`: die springenden Kacheln ein Stück weiter. */
