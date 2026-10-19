@@ -3500,20 +3500,20 @@ export class App {
           : [
               {
                 id: 'gfx:tilt-drag',
-                label: 'Rechtsklick ziehen: frei kippen',
-                sub: 'Rechte Maustaste halten und hoch/runter ziehen stellt den Winkel stufenlos ein',
+                label: 'Rechtsklick ziehen: kippen und drehen',
+                sub: 'Rechte Maustaste halten: hoch/runter kippt, links/rechts dreht das Bild',
                 caption:
                   'Nur von oben und nur mit der Maus · als Kran bleibt rechts die Abrissbombe',
                 icon: 'settings' as const,
                 accent,
-                checked: settings.tiltDrag,
+                checked: settings.dragView,
                 run: () => {
-                  const next = saveGraphics({ tiltDrag: !graphics().tiltDrag });
+                  const next = saveGraphics({ dragView: !graphics().dragView });
                   this.menuDirty = true;
                   this.notify(
-                    next.tiltDrag
-                      ? 'Rechtsklick kippt den Blickwinkel'
-                      : 'Rechtsklick kippt nicht mehr',
+                    next.dragView
+                      ? 'Rechtsklick kippt und dreht das Bild'
+                      : 'Rechtsklick kippt und dreht nicht mehr',
                   );
                 },
               },
