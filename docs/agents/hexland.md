@@ -590,21 +590,24 @@ vergleichen kann."_
 Flaggen 1,5, Fluss 5,4, Weg 4,7; 9,6 Aufträge erfüllt, 0,03 verpasst,
 2,9 am Ende noch offen).
 
-**Ergebnis** (nach vier Runden): _Intelligent (optimiert)_ **86,42** gegen
-59,30 auf Samen 1–300 (**+27,12 ± 2,09** je Samen) und **84,83** gegen 58,90
-auf der nicht getunten Gegenprobe 5001–5300 (**+25,93 ± 2,04**); Aufträge
-47,6 → 68,7, Flaggen 1,5 → 5,2. Rechenzeit 2,6–3,1 × smart (≈ 3,1–3,7 s je
-Runde). Den Unterschied machten: **Festfahren** über die Chance je Auftrag
-samt Opfern Hoffnungsloser (3b, +14,4, darin Erfüllen-und-Opfern +2,4),
-**Sofortgewinn** an Flaggen, Fluss und Weg (1a, +5,1), **Vorausschau** auf die
-nächste Stapelkachel (2o, +3,2), `ready` nur mit andockbarem Feld (2f, +3,4)
-und seltenes Gelände Fluss/Weg × 2 (2d, +2,1). Nichts brachten: Gewichte
-drehen (`ready`, `side`, × 15), Brücken, Stapeln, Opfern nach fester Zahl
-fehlender Kacheln oder nach „erwartete Treffer < Fehlende" (4a, −3,6), Arme
-ins Leere. Die Lehre der Spieler: Punkte kommen aus
-dem **Durchsatz an Aufträgen** — ein fest liegender Auftrag sperrt ein Drittel
-davon; von Hand kamen auf manchen Samen 140–165 Punkte. Im Spiel ist unter den
-Spielhilfen „Intelligent (optimiert)" zum Vergleich mit „Intelligent" wählbar.
+**Ergebnis** (nach sechs Runden): _Intelligent (optimiert)_ **110,10** gegen
+59,30 auf Samen 1–300 (**+50,80 ± 2,20** je Samen) und **108,62** gegen 58,90
+auf der nicht getunten Gegenprobe 5001–5300 (**+49,72 ± 2,44**); Aufträge
+47,6 → 88,7, Flaggen 1,5 → 5,7. Rechenzeit 2,9–3,2 × smart (≈ 3,8–3,9 s je
+Runde). Den Unterschied machten: **Opfern der eigenen Auftragskachel** —
+überfüllen statt festlegen, solange Aufträge nachkommen (6c/6f, +14,2),
+**Festfahren** über die Chance je Auftrag samt Opfern Hoffnungsloser (3b,
++14,4), dazu der eigene Auftrag der Kachel (6b/6e, +9,5), **Sofortgewinn** an
+Flaggen, Fluss und Weg (1a, +5,1), **Vorausschau** auf die nächste
+Stapelkachel (2o, +3,2), `ready` nur mit andockbarem Feld (2f, +3,4) und
+seltenes Gelände Fluss/Weg × 2 (2d, +2,1). Nichts brachten: Gewichte drehen
+(`ready`, `side`, × 15, Schwellen), Brücken, Stapeln, Opfern nach fester Zahl
+fehlender Kacheln oder nach „erwartete Treffer < Fehlende" für alle Aufträge
+(4a, −3,6), Arme ins Leere, eine breitere Vorausschau (6d). Die Lehre der
+Spieler: Punkte kommen aus dem **Durchsatz an Aufträgen** — ein fest
+liegender Auftrag sperrt ein Drittel davon; von Hand kamen auf manchen Samen
+140–165 Punkte. Im Spiel ist unter den Spielhilfen „Intelligent (optimiert)"
+zum Vergleich mit „Intelligent" wählbar.
 
 ### Selbst gespielt
 
@@ -643,6 +646,16 @@ Samen 1005, alle 54 Züge von Hand: **76** (11 erfüllt, 1 absichtlich verpasst)
 - **Arme nur ins Offene**: Weg-/Flussarm eines Auftrags auf ein Feld mit ≥ 4 freien Nachbarn richten, nie auf ein Feld, das schon eine andere harte Kante oder ≥ 3 belegte Nachbarn hat. 1006 so gelegt (r5+r5 gestapelt, beide Arme ins Leere) → +11 nach 17 Zügen.
 - **Opfern, sobald E < m**: Weg-/Wasser-Auftragskachel mit E < m sofort an einen Weg/Fluss hängen, der die Zahl schon überschreitet (1006 zweimal r4 an den 6er-Weg: verpasst, +1 Weg, Platz bleibt frei; der nächste Auftrag F6 war 1 Zug später fertig). Ein fest liegender Auftrag kostet nicht seine Punkte, sondern **ein Drittel des Auftragsdurchsatzes für den Rest der Partie** (≈ 5 Aufträge × 5 Punkte, wenn er früh festliegt).
 - **Zwei Weg-Aufträge in ein Gebiet stapeln** statt zwei Wege bauen: r5+r5 brauchen dann 3 statt 8 Wegkacheln. Aber nie einen dritten festen Auftrag zulassen: liegen schon 2 fest, ist jede Lage, die den dritten festlegt, die schlechteste.
+
+#### Runde 6 (Analyse)
+
+Fair verglichen (`hexplay auto … 1 optimized` Zug für Zug, derselbe Würfel wie von Hand): optimized auf 1001–1005 **62, 100, 74, 155, 138** gegen von Hand 165, 162, 142, 144, 76 — der Abstand liegt nicht in jedem Samen, aber wo, dann so:
+
+- **Opfern**: von Hand je Partie 1–7 Aufträge absichtlich verpasst, optimized 0–2 (im Benchmark 0,3 je Partie). Fast immer war es die **frisch gezogene** Auftragskachel, die gleich überfüllt wurde — optimized bestrafte das mit −100 und legte sie lieber dorthin, wo ihr Auftrag „noch ging".
+- **Lebensdauer** eines Auftrags von Hand 4,5–5,4 Züge, optimized 8,4–9,9; darum kamen bei optimized nur 11–20 der 30 Aufträge auf den Tisch, von Hand alle 30.
+- **Festfahren mit der eigenen Kachel**: Was am Ende festlag, waren Fluss-/Weg-Aufträge (o1001: w4 1/4 ab Zug 24, 28 Züge lang; r6 2/6, r5 4/5), die **schon beim Legen** keine Chance hatten — `stuckGain` sah nur die Aufträge, die schon lagen, nicht den der Kachel selbst.
+- Gestapelt wurde ähnlich oft (optimized 1–8, von Hand 5–10 je Partie); Flaggen, Fluss und Weg machen den Abstand nicht.
+- Im Benchmark (Samen 1–40): 15,5 Aufträge gezogen, 12,4 erfüllt, 2,8 am Ende offen, die letzte Auftragskachel kam im Mittel bei Zug 47 von 55.
 
 ### Runden des Optimierers
 
@@ -683,3 +696,12 @@ Samen 1005, alle 54 Züge von Hand: **76** (11 erfüllt, 1 absichtlich verpasst)
 | 5b | 3b, Befreien bringt +25 statt +15 | gegen 3b −0,16 ± 0,16 (optimiert 86,26) | nein |
 | 5c | 3b, fest schon unter 10 % statt 15 % | gegen 3b +1,43 ± 1,00 (optimiert 87,84; Aufträge 68,7 → 70,3) — unter 2 SE | nein |
 | 5d | 3b, fest erst unter 20 % | gegen 3b −0,14 ± 1,14 (optimiert 86,28) | nein |
+| 6a | 3b, liegen alle drei offenen Aufträge unter 15 %, darf jeder davon (nicht nur unter 3 %) geopfert werden | gegen 3b +0,36 ± 0,34 (optimiert 86,78) | nein |
+| 6b | 3b + der **eigene Auftrag** der Auftragskachel zählt beim Festfahren mit: liegt er nach dem Legen unter 15 %, −25 (bisher durfte sie sich gleich festlegen) | gegen 3b **+3,09 ± 0,85** (optimiert 89,51) | ja |
+| 6c | 6b + **eigene Auftragskachel opfern**: Überfüllt eine Fluss- oder Weg-Auftragskachel ihren eigenen Auftrag, kein −100, sondern +4 (solange Aufträge nachkommen) | gegen 6b **+10,98 ± 1,25** (optimiert 100,49; Aufträge 72,0 → 80,9) | ja |
+| 6e | 6c + eigener Auftrag auch fest, wenn Chance × Stapel < fehlende Kacheln (−25) | gegen 6c **+6,42 ± 0,92** (optimiert 106,91) | ja |
+| 6f | 6e, Opfern der eigenen Auftragskachel für alle Gelände, nicht nur Fluss und Weg | gegen 6e **+3,19 ± 1,07** (optimiert 110,10; Aufträge 88,7) | ja |
+| 6g | 6f, Opfern bringt +15 statt +4 | gegen 6f −6,67 ± 1,84 (optimiert 103,44) | nein |
+| 6h | 6f, Opfern kostet −10 statt +4 zu bringen | gegen 6f −3,21 ± 1,21 (optimiert 106,90) | nein |
+| 6d | 6f, Vorausschau über die 3 besten Lagen, höchstens 10 auseinander | gegen 6f +0,49 ± 1,11 (optimiert 110,60), Rechenzeit +31 % | nein |
+| 6-Ende | Stand 6f; Samen 1–300 und Gegenprobe 5001–5300 (nicht getunt); Rechenzeit 3844 gegen 1193 ms je Runde (3,2 ×), auf 5001–5300 3894 gegen 1321 ms (2,9 ×) — längere Partien, weil mehr Aufträge kommen | 1–300: **+50,80 ± 2,20** (smart 59,30, optimiert 110,10; gegen 3b +23,68; Aufträge 47,6 → 88,7, Flaggen 1,5 → 5,7); 5001–5300: **+49,72 ± 2,44** (smart 58,90, optimiert 108,62; gegen 3b +23,79 ± 1,68; Aufträge 47,6 → 87,8) | — |

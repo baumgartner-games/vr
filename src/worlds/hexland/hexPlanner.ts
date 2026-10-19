@@ -12,7 +12,6 @@ import {
   type TileSpec,
 } from './hexRules';
 
-
 /**
  * **Wohin mit der Kachel in der Hand** — die Rechnung hinter den Spielhilfen
  * _Intelligent_ und _Intelligent (optimiert)_, ohne three.js, damit derselbe
@@ -67,7 +66,9 @@ export function scorePlacement(
  * (`docs/agents/hexland.md`, _Optimierung von Intelligent_): die Rechnung von
  * `smart`, dazu was die Lage sofort an Flaggen, Fluss und Weg bringt; Fluss-
  * und Weg-Aufträge wachsen doppelt so viel wert, und „vorbereitet" zählt nur,
- * wo eine Landkachel andocken kann. Liegen die zwei besten Lagen nah
+ * wo eine Landkachel andocken kann. Ein Auftrag, der festliegt, kostet
+ * (`stuckGain`), und eine Auftragskachel, deren Auftrag nichts verspricht,
+ * wird geopfert (Runde 6). Liegen die zwei besten Lagen nah
  * beieinander, schaut `bestPlacement` eine Kachel voraus (`lookAhead`).
  */
 function optimizedScore(
@@ -88,7 +89,17 @@ function optimizedScore(
   // Gebiet genau auf die Zahl eines offenen Auftrags und überschreitet dabei
   // ihre eigene, ist ihr eigener Auftrag kein Verlust — er war nie zu haben,
   // und der Platz wird frei (beim Selbst-Spielen 4× je +5…+7; +2,4, Runde 3c).
-  const breaks = a.breaks - (a.ownBreaks && a.completes > 0 ? 1 : 0);
+  //
+  // **Die eigene Auftragskachel opfern** (Runde 6c/6f, zusammen +14,2): Von
+  // Hand wurden je Partie 3–7 Aufträge absichtlich verpasst, _Intelligent
+  // (optimiert)_ verpasste 0,3 — es legte jede Auftragskachel dorthin, wo ihr
+  // Auftrag noch ging, auch wenn er dort lange einen der drei Plätze
+  // sperrte. Kommen noch Aufträge nach, kostet das Überfüllen des eigenen
+  // Auftrags nichts mehr, es bringt sogar etwas: Der Platz bleibt frei, und die
+  // nächste Auftragskachel kommt sofort. Behalten wird die Kachel nur, wo ihr
+  // Auftrag mehr verspricht (`stuckGain` prüft ihn mit).
+  const sacrificed = a.ownBreaks && a.completes === 0 && board.tasks.length > 0;
+  const breaks = a.breaks - (a.ownBreaks && (a.completes > 0 || sacrificed) ? 1 : 0);
   return (
     stuckGain(board, before, spec, q, r, rot) +
     a.completes * 50 +
@@ -101,6 +112,7 @@ function optimizedScore(
     a.ready * 8 -
     breaks * 100 +
     fit.matched +
+    (sacrificed ? HOPE_BONUS : 0) +
     // Ein Punkt Flagge, Fluss oder Weg wiegt 8 — so viel wie ein Auftrag,
     // der eine Kachel näher kommt, nicht mehr: Mit 15 kosteten die Aufträge
     // mehr, als Flaggen und Fluss brachten (Runde 1b).
@@ -316,6 +328,22 @@ function stuckGain(
     }
     if (now.chance < LOW && quest.chance >= LOW) gain -= STUCK;
     else if (now.chance >= LOW && quest.chance < LOW) gain += FREED;
+  }
+  // Der eigene Auftrag einer Auftragskachel zählte bisher nicht mit — sie
+  // durfte sich gleich festlegen. Er kostet `STUCK`, wenn er hier unter `LOW`
+  // liegt (Runde 6b, +3,1) oder wenn die Kacheln, die noch kommen, im Mittel
+  // nicht reichen: Chance × Stapel < fehlende Kacheln (Runde 6e, +6,4; als
+  // Ersatz für `LOW` bei allen Aufträgen kostete dieselbe Rechnung −3,6,
+  // Runde 4a).
+  const own = spec.quest;
+  if (own && own.target !== null && board.tasks.length > 0) {
+    const mine = questChance(board, here, own.terrain);
+    const missing = own.target - mine.size;
+    if (
+      missing > 0 &&
+      (mine.slots.size === 0 || mine.chance < LOW || mine.chance * board.stack.length < missing)
+    )
+      gain -= STUCK;
   }
   board.tiles.delete(here);
   return gain;
