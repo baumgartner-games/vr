@@ -419,13 +419,28 @@ export class HexlandWorld extends FurnishedWorld {
     const at = this.at;
     if (!at || this.board.over) return;
     const force = !this.canPlaceSomewhere();
+    const doneBefore = new Set<string>();
+    for (const [key, t] of this.board.tiles)
+      if (t.spec.quest?.state === 'done') doneBefore.add(key);
     const result = this.board.place(at.q, at.r, this.rot, force);
     if (!result) {
       this.say('Passt so nicht · Fluss und Weg müssen weiterlaufen — drehen oder anderes Feld');
       return;
     }
     const tile = this.board.at(at.q, at.r)!;
-    void this.view?.add(tile);
+    // **Fertige Aufträge springen** (`HexBoardView.hop`) — sobald die neue
+    // Kachel gezeichnet ist, damit sie mitspringt.
+    const jumping: Hex[] = [];
+    let origin: Hex | null = null;
+    for (const [key, t] of this.board.tiles) {
+      const quest = t.spec.quest;
+      if (quest?.state !== 'done' || doneBefore.has(key)) continue;
+      origin ??= t;
+      jumping.push(...this.board.areaTiles(t.q, t.r, quest.terrain));
+    }
+    void this.view?.add(tile).then(() => {
+      if (origin) this.view?.hop(jumping, origin);
+    });
     this.lastPlaced = { q: at.q, r: at.r };
     this.at = null;
     writeSave(this.board.save(), this.board.mode);
@@ -1145,6 +1160,7 @@ export class HexlandWorld extends FurnishedWorld {
     super.update(dt, ctx);
     this.lastCtx = ctx;
     this.clock += dt;
+    this.view?.animate(dt);
     this.view?.flush();
     this.fitView(ctx);
     this.blowWind(dt, ctx);

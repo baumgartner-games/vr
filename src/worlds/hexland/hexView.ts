@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { kaykitModel } from '../../core/kaykitModel';
-import { baseTile, hexCentre, hexKey, type PlacedTile, type TileSpec } from './hexRules';
+import { baseTile, hexCentre, hexKey, type Hex, type PlacedTile, type TileSpec } from './hexRules';
 import { dressTile, groundPatches, riverFlow, type GroundKind } from './hexDressing';
 import {
   WATER_FRAGMENT,
@@ -574,6 +574,57 @@ export class HexBoardView {
   private disposed = false;
   /** Wo die Grundkachel jeder Kachel in den Bündeln steht — für den Fluss. */
   private readonly bases = new Map<string, Array<{ batch: Batch; index: number }>>();
+  /** Jede Kopie jeder Kachel in den Bündeln, mit ihrer Ruhelage — für `hop`. */
+  private readonly parts = new Map<
+    string,
+    Array<{ batch: Batch; index: number; rest: THREE.Matrix4 }>
+  >();
+  /** Kacheln, die gerade springen: wie weit im Sprung (negativ: wartet noch). */
+  private readonly hops = new Map<string, number>();
+
+  /**
+   * **Ein fertiger Auftrag springt** — alle Kacheln seines Gebiets hüpfen kurz
+   * hoch und plumpsen mit einem kleinen Nachfedern zurück, von der
+   * Auftragskachel aus leicht versetzt wie eine Welle. Gewünscht: _„wenn ein
+   * Auftrag abgeschlossen ist, dass dann die Tiles, die dem Auftrag dazu
+   * gehörten, alle leicht nach oben gehen und dann runterfallen auf die
+   * normale Position wieder, wie so ein gemeinsamer Sprung bzw. wie bei Lego
+   * spielen, wenn am Ende das Objekt fertig ist."_
+   */
+  hop(tiles: readonly Hex[], from: Hex): void {
+    for (const t of tiles) {
+      const key = hexKey(t.q, t.r);
+      if (!this.parts.has(key)) continue;
+      const dq = t.q - from.q;
+      const dr = t.r - from.r;
+      const rings = (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+      this.hops.set(key, -rings * HOP_STAGGER);
+    }
+  }
+
+  /** Einmal je Bild, vor `flush`: die springenden Kacheln ein Stück weiter. */
+  animate(dt: number): void {
+    for (const [key, t] of this.hops) {
+      const now = t + dt;
+      const parts = this.parts.get(key);
+      if (!parts) {
+        this.hops.delete(key);
+        continue;
+      }
+      const u = now / HOP_TIME;
+      const done = u >= 1;
+      if (done) this.hops.delete(key);
+      else this.hops.set(key, now);
+      if (u < 0) continue;
+      const y = done ? 0 : hopHeight(u);
+      _hop.makeTranslation(0, y, 0);
+      for (const { batch, index, rest } of parts) {
+        batch.matrices[index]!.multiplyMatrices(_hop, rest);
+        batch.dirty = true;
+      }
+    }
+  }
+
   /** Zählt jedes `clear` — eine Kachel, die noch lud, als geleert wurde, kommt nicht mehr dazu. */
   private generation = 0;
   /** Die Pfeile der Flussrichtung (`showArrows`), einer je Arm. */
@@ -626,15 +677,18 @@ export class HexBoardView {
     if (this.disposed || generation !== this.generation || this.bases.has(key)) return;
     const at = tileMatrix(tile.q, tile.r, tile.rot);
     const bases: Array<{ batch: Batch; index: number }> = [];
+    const all: Array<{ batch: Batch; index: number; rest: THREE.Matrix4 }> = [];
     list.forEach((piece, i) => {
       _m.multiplyMatrices(at, piece.local);
       for (const part of loaded[i]!) {
         const batch = this.batch(part);
         const index = batch.add(_m);
         if (part.flows) bases.push({ batch, index });
+        all.push({ batch, index, rest: batch.matrices[index]!.clone() });
       }
     });
     this.bases.set(key, bases);
+    this.parts.set(key, all);
     this.updateFlow();
   }
 
@@ -642,6 +696,8 @@ export class HexBoardView {
     this.generation++;
     for (const batch of this.batches.values()) batch.clear();
     this.bases.clear();
+    this.parts.clear();
+    this.hops.clear();
     this.arrows.count = 0;
   }
 
@@ -709,6 +765,27 @@ export class HexBoardView {
     }
     return batch;
   }
+}
+
+/** Wie lange ein Sprung dauert, und wie weit der Nachbar später losspringt, in Sekunden. */
+const HOP_TIME = 0.75;
+const HOP_STAGGER = 0.06;
+/** Wie hoch, in Metern. */
+const HOP_HEIGHT = 0.55;
+const _hop = new THREE.Matrix4();
+
+/**
+ * **Die Höhe im Sprung** bei `u` (0…1): schnell hoch, kurz oben, dann fallen
+ * mit zweimal kleinem Nachfedern — wie ein Steinchen, das aufgesetzt wird.
+ */
+function hopHeight(u: number): number {
+  const up = 0.35;
+  if (u < up) return HOP_HEIGHT * Math.sin(((u / up) * Math.PI) / 2);
+  const v = (u - up) / (1 - up);
+  // Fallen (Parabel) bis 55 %, dann zwei kleine Hüpfer.
+  if (v < 0.55) return HOP_HEIGHT * (1 - (v / 0.55) ** 2);
+  if (v < 0.82) return HOP_HEIGHT * 0.16 * Math.sin(((v - 0.55) / 0.27) * Math.PI);
+  return HOP_HEIGHT * 0.05 * Math.sin(((v - 0.82) / 0.18) * Math.PI);
 }
 
 /**

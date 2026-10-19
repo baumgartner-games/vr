@@ -1082,7 +1082,13 @@ export class HexBoard {
    * nicht gezogen, also unbekannt) oder der Stapel leer ist. Danach ist alles
    * wieder wie vorher; der Würfel wird nicht angefasst.
    */
-  tryPlace<T>(spec: TileSpec, q: number, r: number, rot: number, look: (next: TileSpec | null) => T): T {
+  tryPlace<T>(
+    spec: TileSpec,
+    q: number,
+    r: number,
+    rot: number,
+    look: (next: TileSpec | null) => T,
+  ): T {
     const key = hexKey(q, r);
     const states: Array<[Quest, Quest['state']]> = [];
     for (const tile of this.tiles.values())
@@ -1234,7 +1240,17 @@ export class HexBoard {
       }
     // Ein Gebiet, das von „bereit für 4" zu „bereit für 5" wächst, gibt etwas her.
     for (const terrain of gained) if (lost.has(terrain)) ready -= 0.15;
-    return { progress, completes, points, breaks, closer, ready, rareProgress, rareCloser, ownBreaks };
+    return {
+      progress,
+      completes,
+      points,
+      breaks,
+      closer,
+      ready,
+      rareProgress,
+      rareCloser,
+      ownBreaks,
+    };
   }
 
   /**
@@ -1317,7 +1333,8 @@ export class HexBoard {
         if (tile.spec.quest?.state === 'open' && tile.spec.quest.terrain === terrain)
           taken.add(areas.find(key));
       }
-      const landing = land && terrain !== 'water' && terrain !== 'road' ? this.landing(terrain, areas) : null;
+      const landing =
+        land && terrain !== 'water' && terrain !== 'road' ? this.landing(terrain, areas) : null;
       const sizes = new Set<number>();
       for (const [root, size] of areas.size) {
         if (landing && !landing.has(root)) continue;

@@ -114,6 +114,18 @@ aus allen Tiles, die daran perfekt matchen."_
   `stepGenerate`; noch einmal tippen hält an) und **+10**. Bei +1/+10 fliegt
   die Kamera zur letzten neuen Kachel. Keine Aufträge, keine Wertung.
 
+- **Ein fertiger Auftrag springt** (`HexBoardView.hop`/`animate`): Wird beim
+  Legen ein Auftrag erfüllt, hüpfen alle Kacheln seines Gebiets (mit allem,
+  was darauf steht) 0,55 m hoch und plumpsen mit zweimal kleinem Nachfedern
+  zurück, 0,75 s, je Ring Abstand von der Auftragskachel 0,06 s später — eine
+  Welle. Gerechnet an den Kopien in den Bündeln (Ruhelage je Kopie gemerkt),
+  kein eigenes Modell. Gewünscht: _„wenn ein Auftrag abgeschlossen ist, dass
+  dann die Tiles, die dem Auftrag dazu gehörten, alle leicht nach oben gehen
+  und dann runterfallen auf die normale Position wieder, wie so ein
+  gemeinsamer Sprung bzw. wie bei Lego spielen, wenn am Ende das Objekt
+  fertig ist."_ Die Regel bleibt wie im Brettspiel: Ein Auftrag, dessen
+  Gebiet zu groß wird, ist verpasst und gibt seinen Platz frei.
+
 ### Spielende (normale Runde)
 
 - **Vorbei ist es, wenn keine normale Kachel mehr da ist** (`HexBoard.over`,
