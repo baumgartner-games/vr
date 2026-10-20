@@ -313,20 +313,33 @@ export function runs(edges: readonly Terrain[], terrain: Terrain): number {
 
 /**
  * **Welches Stück des Geländes an welcher Kante liegt** — je Kante die Nummer
- * des Stücks, `-1`, wo das Gelände dort nicht liegt. Getrennt wird nur durch
- * **Fluss und Weg**: Wald, Fluss, Wald auf einer Kachel sind zwei Stücke, die
- * zu zwei verschiedenen Gebieten gehören können. Gemeldet: _„(Wald)(Wald Fluss
- * Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_
- * Fluss und Weg selbst sind immer ein Stück — eine Gabelung ist ein Fluss.
+ * des Stücks, `-1`, wo das Gelände dort nicht liegt. **Land hängt nur über
+ * benachbarte Kanten zusammen**: Stadt, Wald, Stadt auf einer Kachel sind zwei
+ * Stücke, genauso Wald, Fluss, Wald — damit ist auch die alte Regel „Fluss
+ * und Weg teilen das Land" abgedeckt. Gemeldet erst _„(Wald)(Wald Fluss
+ * Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_,
+ * dann an einem Weizen, der über ein Dorf hinweg zählte: _„Gebiete müssen über
+ * kanten verbunden sein."_ Fluss und Weg selbst sind immer ein Stück — sie
+ * laufen durch die Kachel, eine Gabelung ist ein Fluss.
  */
 export function segments(edges: readonly Terrain[], terrain: Terrain): number[] {
   const out = [-1, -1, -1, -1, -1, -1];
-  const cut = hard(terrain) ? -1 : edges.findIndex((t) => hard(t));
-  let seg = 0;
+  if (hard(terrain)) {
+    edges.forEach((t, i) => {
+      if (t === terrain) out[i] = 0;
+    });
+    return out;
+  }
+  // Ganz dieses Gelände: ein Stück. Sonst ab einer fremden Kante im Kreis,
+  // jeder neue Lauf ein neues Stück.
+  const start = edges.findIndex((t) => t !== terrain);
+  if (start < 0) return out.map(() => 0);
+  let seg = -1;
   for (let k = 1; k <= 6; k++) {
-    const i = (cut + k + 6) % 6;
-    if (cut >= 0 && hard(edges[i]!)) seg++;
-    else if (edges[i] === terrain) out[i] = seg;
+    const i = (start + k) % 6;
+    if (edges[i] !== terrain) continue;
+    if (edges[(i + 5) % 6] !== terrain) seg++;
+    out[i] = seg;
   }
   return out;
 }

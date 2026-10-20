@@ -131,7 +131,9 @@ export function dressTile(spec: TileSpec): Dress[] {
       x: Math.cos(a) * 0.32,
       z: Math.sin(a) * 0.32,
       yaw: -a,
-      scale: 1.6,
+      // Doppelt so groß wie zuerst — gewünscht: _„Die flaggen auf den teilen
+      // müssen doppelt so groß sein"_.
+      scale: 3.2,
     });
   }
   return out;

@@ -70,7 +70,7 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   das Gebiet danach weiterwächst — _„Es muss nur zum Bewertungszeitpunkt
   erfüllt sein."_ (Ein Versuch, ihn bei Weiterwachsen wieder zu entziehen,
   stand einen Commit lang drin und ist wieder raus.) Über der gelegten Kachel steht ein Schild „4 / 6".
-- **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell
+- **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell, Maß 3,2 — doppelt so groß wie zuerst,
   `flag_*` aus dem Regal, grün Wald, rot Dorf, gelb Feld). Ein Gebiet mit
   Flagge, das ringsum **geschlossen** ist, zählt seine Kacheln.
 - **Längster Fluss, längster Weg**: je Kachel ein Punkt.
@@ -103,13 +103,17 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 - **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt
   eine Kachel nirgends, darf sie ausnahmsweise überall hin.
 - Gezählt wird in **Kacheln**, verbunden wird über **Stücke**
-  (`segments`): Fluss und Weg teilen das Land auf einer Kachel, und jedes
-  Stück gehört zu seinem eigenen Gebiet. Gemeldet: _„(Wald)(Wald Fluss
-  Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_
-  Liegen beide Stücke einer Kachel doch im selben Gebiet (ringsherum
-  verbunden), zählt die Kachel einmal. Andere Gelände trennen nicht — auf
-  einer Kachel ohne Fluss und Weg ist alles Land ein Stück (`drawTile` legt
-  ein Gelände ohnehin am Stück). Auftrag und Flagge liegen auf dem ersten
+  (`segments`): **Land hängt auf einer Kachel nur über benachbarte Kanten
+  zusammen** — jede ununterbrochene Folge gleicher Kanten ist ein Stück und
+  gehört zu ihrem eigenen Gebiet. Stadt, Wald, Stadt sind zwei Stücke, Wald,
+  Fluss, Wald ebenso (die frühere Sonderregel „Fluss und Weg teilen das Land"
+  ist darin enthalten). Fluss und Weg selbst sind immer ein Stück, sie laufen
+  durch die Kachel. Gemeldet erst _„(Wald)(Wald Fluss Wald)(Wald) zählt nicht
+  als ein 3er Wald, sondern als zwei 2er Wälder."_, dann an einem Weizen, der
+  über ein Dorf hinweg zählte: _„das sollte bitte nicht zählen. Gebiete müssen
+  über kanten verbunden sein."_ Liegen zwei Stücke einer Kachel doch im
+  selben Gebiet (ringsherum verbunden), zählt die Kachel einmal. Auftrag und
+  Flagge liegen auf dem ersten
   Stück; neue liegen ohnehin auf einem ungeteilten (`runs` = 1). Intern sind
   die Stücke Zahlen, nicht Zeichenketten — _Intelligent (optimiert)_ fragt
   `areas` für jede Lage, mit Zeichenketten lief `hexbench` 1,7× so lang.
