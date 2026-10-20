@@ -127,21 +127,35 @@ laufen. Diese npc und diese spänen hinter einem Baum Felsen Busch Haus, wo man
 diese von der Kamera erst nicht sieht und machen dann es und verschwinden dann
 auch dahinter. … Ein Karren/Wagen entlang der Wege."_
 
-- **Höchstens eins je Sorte**, nur im Ausschnitt der Kamera (derselbe `view`
+- **Wie viele** (`LIMIT`): je ein Boot, ein Karren, ein Wolf, ein Schwarm,
+  bis zu zwei Holzfäller und drei Leute im Dorf — _„Es dürfen ruhig mehr
+  Menschen unterwegs sein."_ Nur im Ausschnitt der Kamera (derselbe `view`
   wie beim Wind), mit gewürfelten Pausen (`PAUSE`).
-- **Boot** (`decoration/props/boat.glb`) den Fluss entlang, **Karren mit
-  Pferd** (`units/neutral/cart.glb`, `horse_A`) den Weg entlang: von einem Ende
-  (Rand des Bretts oder Sackgasse, `ends`) Kachel für Kachel (`trail`, an
-  Gabeln gewürfelt), weich auf einer Kurve; vorn und hinten wachsen sie aus
-  dem Nichts (`FADE`).
+- **Langsam** (`BOAT_SPEED`, `CART_SPEED`, `WALK_PACE`, `WOLF_PACE`,
+  `BIRD_SPEED`) — gemeldet: _„Boote, Karren, Vögel, Wölfe und Menschen sind
+  zu schnell."_
+- **Boot** (`decoration/props/boat.glb`, Bug nach −Z) **immer flussabwärts**
+  (`downstream`, dieselbe Richtung wie Wellen und Pfeile aus `riverFlow`):
+  von einem Arm, durch den Wasser hereinkommt und hinter dem kein Fluss
+  weitergeht, bis zum Ende des Flusses, in einen See oder eine Bucht hinein.
+  Darin sitzt jemand (`rider`, `Sit_Floor_Idle`). Gemeldet: _„Boote sind um
+  90 falsch gedreht und schwimmen leider auch Fluss aufwärts."_, _„Auf dem
+  Boot darf auch ein Mensch sitzen."_
+- **Karren mit Pferd** (`units/neutral/cart.glb`, `horse_A`, das Pferd vorn und
+  nach vorn schauend) den Weg entlang: von einem Ende (Rand oder Sackgasse,
+  `ends`) Kachel für Kachel (`trail`, an Gabeln gewürfelt), weich auf einer
+  Kurve; vorn und hinten wachsen Boot und Karren aus dem Nichts (`FADE`).
 - **Holzfäller** (eine Figur aus _Adventurers_, `loadKaykitFigure` mit
-  `merge`, Axt in der rechten Hand): aus einem Haus (`building_home` der
-  Ausstattung) zum nächsten Baum, hackt (`Melee_2H_Attack_Chop`), geht zurück
-  ins Haus — beginnt und endet im Haus, also unsichtbar.
-- **Fuchs**: der Wolf aus _Mystery Monthly 4_ (Werwolf-Paket), orange getönt
-  (`tint`) — ein Fuchsmodell gibt es im Regal nicht. Läuft von hinter einem
-  Baum, Busch oder Stein (`behind`: die von der Kamera abgewandte Seite) zum
-  nächsten.
+  `merge`, Axt in der rechten Hand): aus einem Haus (`building_home`) zum
+  nächsten Baum, hackt (`Melee_2H_Attack_Chop`), geht zurück ins Haus.
+- **Leute im Dorf** (`villager`): von einem Gebäude zu einem anderen in der
+  Nähe, aus der einen Tür hinaus, in die andere hinein.
+- **Wolf** (Werwolf-Paket, ungefärbt — ein Fuchsmodell gibt es nicht; der
+  orange getönte „Fuchs" ist wieder raus): **nur im Wald**, von hinter einem
+  Baum durch dasselbe Waldgebiet über Waldkanten (`forestRoute`,
+  `areaEdges`) bis hinter einen Baum weiter drinnen. Gemeldet: _„Wölfe es
+  sollen nur innerhalb eines Wald Gebietes von Gebiet zu Gebiet laufen nicht
+  über unentdeckte Felder oder andere."_
 - **Vögel**: ein Schwarm aus sieben, der hoch übers Bild zieht. Kein
   Vogelmodell im Regal — jeder Vogel sind zwei schlagende Dreiecke, alle in
   zwei Bündeln (`Flock`).
