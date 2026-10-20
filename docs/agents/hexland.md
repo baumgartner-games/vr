@@ -93,6 +93,49 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   die Stücke Zahlen, nicht Zeichenketten — _Intelligent (optimiert)_ fragt
   `areas` für jede Lage, mit Zeichenketten lief `hexbench` 1,7× so lang.
 
+### Übersicht, übrige Kacheln, Vorschlag
+
+Gewünscht (Oktober 2026): _„dass ich zwar die aktuellen Missionen sehe, aber
+auch sehe, welche Missionen (Icon und Zahl) ich bereits erledigt habe und
+welche noch fehlen"_, _„wie viele tiles von welchen gebieten übrig sind (ggf
+Missionen und normale Unterteilen?) und ein umschalt Button … um die übrigen
+tiles im Detail sehen zu können"_, der Planer soll aussichtslose Aufträge
+aufgeben, und _„einen Button im hex Spiel Screen (Hilfe/Lege Vorschlag
+(intelligent optimiert)) …, der das Tile platziert und ich auf ein (Info
+Icon) drücken kann um zu erfahren, warum er es dort hin gelegt hat"_.
+
+- **Alle Aufträge** (`HexBoard.questOverview`): je Gelände jede Zahl der
+  Partie mit Zustand — erfüllt, verpasst, offen (mit Stand), in der Hand,
+  noch im Auftragsstapel. Am Schirm klappt _Alle Aufträge ▾_ über den offenen
+  Aufträgen oben rechts eine Tafel auf (`drawOverview`, `questChip`: gold ✓,
+  rot durchgestrichen, Rahmen in der Farbe des Geländes, gestrichelt, grau;
+  gemerkt in `hexland:overview`). Im Reiter dasselbe als Seite _Aufträge im
+  Überblick_ (`questMenu`) mit dem Schalter dafür.
+- **Übrige Kacheln** (`HexBoard.leftOver`, `leftOverMenu`): je Gelände, wie
+  viele normale Kacheln es tragen (eine Kachel mit Wald und Fluss zählt bei
+  beiden) und wie viele Auftragskacheln es verlangen. _Jede Kachel einzeln
+  zeigen_ schaltet auf zwei Raster um: jede Kachel im Stapel als Bild
+  (gedrehte gleiche zusammen, nach Anzahl, also ohne die Reihenfolge zu
+  verraten) und jede Auftragskachel mit Gelände und Zahl.
+- **Der Planer zählt mit** (`hexPlanner.stackPool`, `count`, `hopelessBy`):
+  In der normalen Runde kennt _Intelligent (optimiert)_, was noch im Stapel
+  und in der Hand liegt (nicht die Reihenfolge). Fehlen einem Auftrag mehr
+  Kacheln, als noch Kacheln mit seinem Gelände kommen (Auftragskacheln
+  desselben Geländes zählen mit), oder passt keine einzige mehr an seine
+  freien Felder, ist er **aussichtslos**: `assess` (Parameter `ignore`) zählt
+  ihn nicht mehr — kein Wachsen, kein Verlust —, und platzt er durch eine
+  Lage, bringt das `HOPE_BONUS`, solange noch Aufträge nachkommen (sein Platz
+  wird frei). 200 Runden (Samen 1–200): 98,72 → 99,67 Punkte.
+- **💡 Vorschlag** in der Leiste (`suggest`): legt die Kachel sofort dorthin,
+  wo _Intelligent (optimiert)_ sie hinlegt (mit Vorausschau). Danach steht
+  **ⓘ** daneben bis zur nächsten Kachel; es öffnet über der Leiste _Warum
+  dort?_ (`showWhy`, Gründe aus `hexPlanner.explainPlacement`): welcher
+  Auftrag fertig wird, wächst, platzt oder aufgegeben ist (mit der Zählung:
+  „es fehlen 3, aber nur noch 2 Kacheln mit Weg kommen"), der eigene Auftrag
+  der Kachel, Flagge, längster Fluss und Weg, vorbereitete Gebiete, passende
+  Kanten und ob knapp entschieden wurde. _Zeigen_ fliegt zur Kachel. Am
+  schmalen Handy rutschen 💡 und ⓘ unter die Zeile.
+
 ### Wie Aufträge auf dem Brett aussehen
 
 - **Kleines Abzeichen** (`hexBadge.QuestBadge`): Gelände-Sechseck und „3/5",

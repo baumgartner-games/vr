@@ -643,6 +643,38 @@ export interface OutlineLine {
 }
 
 /** **Die Wertung wie im Brettspiel**, Posten für Posten (`HexBoard.scoring`). */
+/** Wo ein Auftrag gerade steht — für die Übersicht aller Aufträge. */
+export type QuestPlace = 'done' | 'failed' | 'open' | 'hand' | 'deck';
+
+/** Ein Auftrag der Partie in der Übersicht (`HexBoard.questOverview`). */
+export interface QuestEntry {
+  readonly terrain: QuestTerrain;
+  readonly target: number;
+  readonly place: QuestPlace;
+  /** Wie groß sein Gebiet ist — nur bei offenen. */
+  readonly size?: number;
+}
+
+/** Was noch kommt, je Gelände (`HexBoard.leftOver`). */
+export interface LeftOver {
+  /** Normale Kacheln im Stapel (ohne die in der Hand). */
+  readonly normal: number;
+  /** Auftragskacheln im Auftragsstapel. */
+  readonly tasks: number;
+  /** Je Gelände: wie viele normale Kacheln es tragen, wie viele Aufträge es verlangen. */
+  readonly byTerrain: ReadonlyMap<Terrain, { normal: number; tasks: number }>;
+}
+
+/** Die Reihenfolge der Gelände in Übersichten. */
+export const OVERVIEW_TERRAINS: readonly Terrain[] = [
+  'house',
+  'field',
+  'forest',
+  'water',
+  'road',
+  'grass',
+];
+
 export interface Scoring {
   /** Erfüllte Aufträge: ihre Zahlen zusammen. */
   tasks: number;
@@ -1320,6 +1352,10 @@ export class HexBoard {
    *
    * `landReady`: `ready` zählt nur Gebiete, an die eine Landkachel andocken
    * kann (`readiness`) — so rechnet _Intelligent (optimiert)_.
+   *
+   * `ignore`: Aufträge, die ohnehin nicht mehr zu schaffen sind (der Planer
+   * zählt dafür den Stapel, `hexPlanner`) — sie wachsen nicht mehr und gehen
+   * nicht mehr verloren; nur ein Zufallstreffer genau auf die Zahl zählt.
    */
   assess(
     spec: TileSpec,
@@ -1328,6 +1364,7 @@ export class HexBoard {
     rot: number,
     landReady = false,
     base?: AssessBase,
+    ignore?: ReadonlySet<string>,
   ): {
     progress: number;
     completes: number;
@@ -1355,6 +1392,8 @@ export class HexBoard {
     let ownBreaks = false;
     for (const [id, now] of after) {
       const was = before.get(id);
+      if (ignore?.has(id) && !(now.size === now.target && (was?.size ?? 0) !== now.target))
+        continue;
       if (!now.possible && (was?.possible ?? true)) {
         breaks++;
         if (id === key) ownBreaks = true;
@@ -1534,6 +1573,54 @@ export class HexBoard {
   }
 
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
+  /**
+   * **Alle Aufträge der Partie** — erfüllt, verpasst, offen, in der Hand und
+   * die, die noch im Auftragsstapel liegen; je Gelände nach Zahl. Gewünscht:
+   * _„dass ich zwar die aktuellen Missionen sehe, aber auch sehe, welche
+   * Missionen (Icon und Zahl) ich bereits erledigt habe und welche noch
+   * fehlen"_.
+   */
+  questOverview(): QuestEntry[] {
+    const out: QuestEntry[] = [];
+    for (const tile of this.tiles.values()) {
+      const quest = tile.spec.quest;
+      if (!quest || quest.target === null) continue;
+      out.push({
+        terrain: quest.terrain,
+        target: quest.target,
+        place: quest.state,
+        size: quest.state === 'open' ? this.areaSize(tile.q, tile.r, quest.terrain) : undefined,
+      });
+    }
+    const hand = this.hand?.quest;
+    if (hand && hand.target !== null)
+      out.push({ terrain: hand.terrain, target: hand.target, place: 'hand' });
+    for (const task of this.tasks)
+      out.push({ terrain: task.terrain, target: task.target, place: 'deck' });
+    const order: Record<QuestPlace, number> = { done: 0, failed: 1, open: 2, hand: 3, deck: 4 };
+    return out.sort(
+      (a, b) =>
+        QUEST_TERRAINS.indexOf(a.terrain) - QUEST_TERRAINS.indexOf(b.terrain) ||
+        a.target - b.target ||
+        order[a.place] - order[b.place],
+    );
+  }
+
+  /**
+   * **Was noch kommt** — normale Kacheln im Stapel und Auftragskacheln im
+   * Auftragsstapel, je Gelände gezählt: Eine Kachel mit Wald und Fluss zählt
+   * bei beiden. Die Reihenfolge des Stapels verrät das nicht, nur was darin
+   * liegt — wie beim Mitzählen am Tisch. Gewünscht: _„wie viele tiles von
+   * welchen gebieten übrig sind (ggf Missionen und normale Unterteilen?)"_.
+   */
+  leftOver(): LeftOver {
+    const byTerrain = new Map<Terrain, { normal: number; tasks: number }>();
+    for (const t of OVERVIEW_TERRAINS) byTerrain.set(t, { normal: 0, tasks: 0 });
+    for (const spec of this.stack) for (const t of new Set(spec.edges)) byTerrain.get(t)!.normal++;
+    for (const task of this.tasks) byTerrain.get(task.terrain)!.tasks++;
+    return { normal: this.stack.length, tasks: this.tasks.length, byTerrain };
+  }
+
   questProgress(tile: PlacedTile): { size: number; target: number } | null {
     const quest = tile.spec.quest;
     if (!quest || quest.target === null || quest.state !== 'open') return null;
