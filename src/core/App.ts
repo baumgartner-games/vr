@@ -841,6 +841,9 @@ export class App {
           return this.topDownCamera.tilt;
         },
         maxZoom: (meters) => this.topDownCamera.setMaxZoom(meters),
+        lockTilt: (locked) => {
+          this.topDownCamera.tiltLocked = locked;
+        },
       },
       pad: this.flat.padFrame,
       elapsed: this.elapsed,

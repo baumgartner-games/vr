@@ -539,8 +539,16 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   - **Bild schieben**: WASD (so schnell, wie die Kamera weit weg ist —
     `PlayerRig.pace`), oder mit Maus/Finger ziehen (`panBy`). **Zoomen**:
     Mausrad, zwei Finger auseinander und zusammen.
+  - **Kippen ist ab Werk gesperrt**, nur Drehen und Zoomen gehen
+    (`TopDownCamera.tiltLocked` über `topDownView.lockTilt`; rechts Ziehen
+    dreht dann nur). Freigegeben wird es im Reiter mit _Erweiterte
+    Kamerasteuerung_ (`cameraRow`, `hexland:camera`). Gewünscht: _„Bei hex
+    Welt soll die Kamera kippen nicht verändert werden können standardmäßig
+    (drehen weiterhin). Das kippen kann nur über das hex Menü erweiterte
+    Kamera Steuerung aktiviert werden."_ Rundflug am Spielende und
+    _Grafik → Blickwinkel von oben_ setzen die Neigung weiter.
   - **Zwei Finger** (`twoFingers`): gemeinsam hoch oder runter **neigt** das
-    Bild (hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
+    Bild (nur mit _Erweiterter Kamerasteuerung_; hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
     stufenlos (`TopDownCamera.twist`, `WorldContext.topDownView.twist/tilt`).
     Gewünscht: _„mit zwei Fingern gedrückt hoch und runter ändert die
     Neigung. Zwei Finger entgegengesetzt, einer hoch der andere runter,

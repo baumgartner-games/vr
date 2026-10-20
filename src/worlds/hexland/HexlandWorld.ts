@@ -148,6 +148,13 @@ export class HexlandWorld extends FurnishedWorld {
   private hexMaterials: THREE.Material[] = [];
   /** Mühlen, Wasser, Wind (`hexAnimate.ts`) — an oder aus, gemerkt im Browser. */
   private animations = readFlag(ANIM_KEY, true);
+  /**
+   * **Ob die Kamera von Hand gekippt werden darf** — ab Werk nicht, nur
+   * gedreht. Gewünscht: _„Bei hex Welt soll die Kamera kippen nicht verändert
+   * werden können standardmäßig (drehen weiterhin). Das kippen kann nur über
+   * das hex Menü erweiterte Kamera Steuerung aktiviert werden."_
+   */
+  private freeTilt = readFlag(CAMERA_KEY, false);
   /** Ob oben rechts unter den offenen Aufträgen alle Aufträge der Partie stehen (`drawOverview`). */
   private overview = readFlag(OVERVIEW_KEY, false);
   /** Ob _Übrige Kacheln_ jede Kachel einzeln zeigt (`leftOverMenu`). */
@@ -285,6 +292,7 @@ export class HexlandWorld extends FurnishedWorld {
     // **Weiter hinaus als in anderen Welten** — gewünscht: _„Ich will gerne noch
     // weiter raus zoomen können."_ 240 m fassen ein Brett von gut 60 Kacheln Breite.
     ctx.topDownView?.maxZoom?.(HEX_MAX_ZOOM);
+    ctx.topDownView?.lockTilt?.(!this.freeTilt);
     this.view = new HexBoardView(this.models, () => this.board.tiles);
     this.view.showArrows(this.arrows);
     this.view.root.userData.sharedAssets = true;
@@ -2782,7 +2790,9 @@ export class HexlandWorld extends FurnishedWorld {
       Math.atan2(before.by - before.ay, before.bx - before.ax);
     const spin = Math.atan2(Math.sin(turn), Math.cos(turn));
     if (Math.abs(spin) > 0.002) view.twist?.(spin);
-    if (Math.abs(dy) > 0.5 && view.tilt) view.tilt(view.tilt() + dy * TILT_PER_PIXEL);
+    // Kippen nur mit _Erweiterter Kamerasteuerung_ (`freeTilt`); drehen immer.
+    if (this.freeTilt && Math.abs(dy) > 0.5 && view.tilt)
+      view.tilt(view.tilt() + dy * TILT_PER_PIXEL);
   }
 
   /**
@@ -2839,6 +2849,7 @@ export class HexlandWorld extends FurnishedWorld {
     rows.push(
       ...this.modeRows(),
       this.helpMenu(),
+      this.cameraRow(),
       this.animationRow(),
       this.arrowRow(),
       this.tableRow(),
@@ -3113,6 +3124,26 @@ export class HexlandWorld extends FurnishedWorld {
    * Weizen, ab und zu eine weiße Böe (`hexAnimate.ts`). Gewünscht: _„Können
    * wir noch einen Hex-Menüpunkt einbauen: Animationen aktiviert"_.
    */
+  /** **Erweiterte Kamerasteuerung** — erlaubt das Kippen (zwei Finger hoch/runter, rechts ziehen). */
+  private cameraRow(): MenuEntry {
+    return {
+      id: 'hexland:camera',
+      label: 'Erweiterte Kamerasteuerung',
+      sub: this.freeTilt
+        ? 'An: Kamera kippen mit zwei Fingern hoch und runter oder rechter Maustaste'
+        : 'Aus: Kamera nur drehen und zoomen, die Neigung bleibt',
+      icon: 'glider',
+      accent: 0x6fb7e0,
+      checked: this.freeTilt,
+      run: () => {
+        this.freeTilt = !this.freeTilt;
+        writeFlag(CAMERA_KEY, this.freeTilt);
+        this.context?.topDownView?.lockTilt?.(!this.freeTilt);
+        this.context?.refreshWorldMenu();
+      },
+    };
+  }
+
   private animationRow(): MenuEntry {
     return {
       id: 'hexland:animations',
@@ -3587,6 +3618,7 @@ export class HexlandWorld extends FurnishedWorld {
     ctx.rig.pace = null;
     ctx.rig.flightScales = false;
     ctx.topDownView?.maxZoom?.();
+    ctx.topDownView?.lockTilt?.(false);
     if (this.table) this.leaveTable();
     if (this.tray)
       for (const plane of [
@@ -3756,6 +3788,7 @@ function offsetOf(anchor: THREE.Object3D, object: THREE.Object3D): THREE.Matrix4
 }
 const ARROW_KEY = 'hexland:arrows';
 const OVERVIEW_KEY = 'hexland:overview';
+const CAMERA_KEY = 'hexland:camera';
 
 /** Ein Schalter im Browser — ohne Eintrag gilt `fallback`. */
 function readFlag(key: string, fallback: boolean): boolean {

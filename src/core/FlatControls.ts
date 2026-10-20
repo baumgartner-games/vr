@@ -1168,8 +1168,10 @@ export class FlatControls {
           if ((event.buttons & 2) === 0) this.endTiltDrag();
           else {
             // Nach unten ziehen heißt steiler — man zieht die Kamera über die Figur.
-            this.tiltDrag = clampTiltDrag(this.tiltDrag + event.movementY * TILT_DRAG_SPEED);
-            this.view.setTilt(this.tiltDrag);
+            if (!this.view.tiltLocked) {
+              this.tiltDrag = clampTiltDrag(this.tiltDrag + event.movementY * TILT_DRAG_SPEED);
+              this.view.setTilt(this.tiltDrag);
+            }
             // Und zur Seite ziehen dreht: Man packt die Welt und schiebt sie
             // herum — nach rechts gezogen wandert, was vorn ist, nach rechts.
             // Stufenlos (`twist`); `Q` rastet danach wieder auf 45°.
