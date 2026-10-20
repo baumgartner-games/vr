@@ -625,6 +625,11 @@ export class HexlandWorld extends FurnishedWorld {
     return true;
   }
 
+  /** Von oben gibt es keine Figur — also auch kein Werkzeug und nichts Getragenes in ihrer Hand. */
+  protected override screenHandShown(): boolean {
+    return !this.board2d;
+  }
+
   /**
    * **Vorschlag legen** — die Lage von _Intelligent (optimiert)_ (`bestPlacement`,
    * mit Vorausschau), sofort gelegt; die Gründe (`explainPlacement`) bleiben

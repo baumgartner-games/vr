@@ -16708,6 +16708,17 @@ export class PortalWorld implements World {
     );
     // Die Hand der Figur greift nur dort nach, wo man sie sieht — von oben.
     ctx.avatar.screenHand = ctx.topDown ? fresh.at : null;
+    fresh.setShown(this.screenHandShown(ctx));
+  }
+
+  /**
+   * **Ob Werkzeug und Getragenes der Bildschirmhand zu sehen sind** — ja,
+   * solange die Welt die Figur zeigt. Hexland von oben zeigt keine Figur, und
+   * dort stand sonst das gewählte Werkzeug allein mitten im Bild (gemeldet:
+   * _„Es ist wohl ein gewähltes item? Bitte entfernen."_).
+   */
+  protected screenHandShown(_ctx: WorldContext): boolean {
+    return true;
   }
 
   /**

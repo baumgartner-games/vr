@@ -129,6 +129,15 @@ export class ScreenHand {
   /** Ob die Hand gerade vor dem Auge hängt — sonst steht sie an der Figur. */
   private eye = false;
 
+  /**
+   * **Werkzeug und Getragenes zeigen oder nicht** — eine Welt, die die Figur
+   * nicht zeigt, will auch nichts sehen, was sie hält (`PortalWorld.screenHandShown`).
+   */
+  setShown(on: boolean): void {
+    this.pivot.visible = on;
+    this.carry.visible = on;
+  }
+
   constructor(private readonly rig: PlayerRig) {
     this.grip.name = 'screen-hand';
     this.ray.name = 'screen-hand-ray';
