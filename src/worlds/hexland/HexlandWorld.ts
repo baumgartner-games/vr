@@ -40,6 +40,7 @@ import {
 } from './hexRules';
 import { HEX_WIDTH, HexBoardView, HexModels, buildTileGroup } from './hexView';
 import { WIND_COUNT, WindGusts } from './hexAnimate';
+import { HexLife } from './hexLife';
 import { packSave, unpackSave } from './hexShare';
 import { bestPlacement, explainPlacement, type Reason } from './hexPlanner';
 import { dressingModels } from './hexDressing';
@@ -175,6 +176,8 @@ export class HexlandWorld extends FurnishedWorld {
     { length: WIND_COUNT },
     (_, slot) => new WindGusts(HEX_WIDTH, slot),
   );
+  /** Boote, Karren, Holzfäller, Fuchs und Vögel (`hexLife.ts`) — nur mit _Animationen_. */
+  private readonly life = new HexLife(() => this.board);
   /** Die Spielhilfen (`helpMenu`), gemerkt im Browser. */
   private help: HexHelp = readHelp();
   /** Wo zuletzt gelegt wurde — dort in der Nähe liegt die nächste (`autoPlace`). */
@@ -303,6 +306,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.board3d.add(this.view.root);
     for (const tile of this.board.tiles.values()) void this.view.add(tile);
     for (const wind of this.winds) this.board3d.add(wind.root);
+    this.board3d.add(this.life.root);
 
     const slotGeometry = new THREE.CylinderGeometry(HEX_WIDTH * 0.555, HEX_WIDTH * 0.555, 0.04, 6);
     const slotMaterial = new THREE.MeshBasicMaterial({
@@ -1977,6 +1981,8 @@ export class HexlandWorld extends FurnishedWorld {
     const view = { x: _aim.x, z: _aim.z, r: reach / scale };
     for (const wind of this.winds)
       wind.update(dt, this.animations, this.board.tiles, Math.max(1, far / scale / 25), view);
+    // Das Leben auf dem Brett rechnet im selben Ausschnitt, die Kamera in Metern des Bretts.
+    this.life.update(dt, this.animations, view, this.board3d.worldToLocal(_eye));
   }
 
   // --- am Tisch ---------------------------------------------------------------------
@@ -3688,6 +3694,7 @@ export class HexlandWorld extends FurnishedWorld {
 
   /** Alles vom Brett neu zeichnen. */
   private redraw(): void {
+    this.life.clear();
     this.at = null;
     this.view?.clear();
     for (const tile of this.board.tiles.values()) void this.view?.add(tile);
@@ -3730,6 +3737,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.aimMaterials.clear();
     this.view?.dispose();
     for (const wind of this.winds) wind.dispose();
+    this.life.dispose();
     this.models.dispose();
     this.slots?.dispose();
     this.slots?.geometry.dispose();
