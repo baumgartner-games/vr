@@ -77,12 +77,16 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 - **Wertung** (`HexBoard.scoring`) = Aufträge + Flaggen + Fluss + Weg, jederzeit
   im Reiter zu sehen. Passende Kanten bringen keine Punkte (wie im Brettspiel),
   helfen aber, Gebiete wachsen zu lassen; die Vorschau zeigt sie grün und rot.
-- **Auf der Wiese stehen keine Bäume** (`hexDressing.meadow`): Blumen
-  (Flachsblume aus _Mixed Bag_), Büsche (_City Builder_), Steine und ab und zu
-  ein Pilz (_Mystery Monthly 5_) — Modelle aus anderen Paketen tragen ein `/`
-  vorn (`HexModels.load`). Gemeldet: _„Bitte bei den hex Feldern die z.B. kein
-  Wald sind auch bitte keine Bäume platzieren. … lieber Blumen oder sonst
-  etwas legen."_ Bäume stehen nur noch im Wald.
+- **Auf der Wiese stehen keine Bäume** (`hexDressing.meadow`): kleine Büsche
+  (_Forest Nature_, `BUSH_SHAPES`: nur die runden `1_B…1_E`, Farbe 1) und ein
+  paar kleine Steine —
+  Modelle aus anderen Paketen tragen ein `/` vorn (`HexModels.load`).
+  Gemeldet erst _„Bitte bei den hex Feldern die z.B. kein Wald sind auch bitte
+  keine Bäume platzieren."_; die Flachsblumen danach waren _„leider
+  hässlich"_. Aus fünf Bildern (Grasbüschel, Büsche, Hügel, Weide, Steine)
+  gewählt: _„B bitte. und etwas kleiner. Auch gerne ein paar steine, aber
+  kleiner?"_, dann _„variante 1 bitte. aber auch gern runde büsche, statt
+  eckige"_. Bäume stehen nur noch im Wald.
 - **Die Kacheln** sind wie im Brettspiel: meist zwei Gelände, oft eines,
   selten drei, wenig bloße Wiese (`drawTile`).
 - **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt
@@ -539,8 +543,16 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   - **Bild schieben**: WASD (so schnell, wie die Kamera weit weg ist —
     `PlayerRig.pace`), oder mit Maus/Finger ziehen (`panBy`). **Zoomen**:
     Mausrad, zwei Finger auseinander und zusammen.
+  - **Kippen ist ab Werk gesperrt**, nur Drehen und Zoomen gehen
+    (`TopDownCamera.tiltLocked` über `topDownView.lockTilt`; rechts Ziehen
+    dreht dann nur). Freigegeben wird es im Reiter mit _Erweiterte
+    Kamerasteuerung_ (`cameraRow`, `hexland:camera`). Gewünscht: _„Bei hex
+    Welt soll die Kamera kippen nicht verändert werden können standardmäßig
+    (drehen weiterhin). Das kippen kann nur über das hex Menü erweiterte
+    Kamera Steuerung aktiviert werden."_ Rundflug am Spielende und
+    _Grafik → Blickwinkel von oben_ setzen die Neigung weiter.
   - **Zwei Finger** (`twoFingers`): gemeinsam hoch oder runter **neigt** das
-    Bild (hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
+    Bild (nur mit _Erweiterter Kamerasteuerung_; hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
     stufenlos (`TopDownCamera.twist`, `WorldContext.topDownView.twist/tilt`).
     Gewünscht: _„mit zwei Fingern gedrückt hoch und runter ändert die
     Neigung. Zwei Finger entgegengesetzt, einer hoch der andere runter,

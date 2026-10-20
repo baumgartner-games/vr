@@ -36,61 +36,54 @@ export interface Dress {
 const HOUSE_COLOURS = ['red', 'red', 'red', 'blue', 'yellow', 'red', 'green'] as const;
 
 /**
- * **Was auf der Wiese steht** — Blumen, Büsche, Steine, ab und zu ein Pilz;
- * **keine Bäume**: Bäume heißen Wald. Gemeldet: _„Bitte bei den hex Feldern
- * die z.B. kein Wald sind auch bitte keine Bäume platzieren. … lieber Blumen
- * oder sonst etwas legen."_ Blumen und Pilz kommen aus anderen Paketen des
- * Regals (`/` vorn, `HexModels.load`).
+ * **Was auf der Wiese steht** — kleine Büsche (_Forest Nature_) und ein paar
+ * kleine Steine; **keine Bäume**: Bäume heißen Wald. Gemeldet erst _„Bitte bei
+ * den hex Feldern die z.B. kein Wald sind auch bitte keine Bäume
+ * platzieren."_, dann waren die Blumen _„leider hässlich"_; gewählt aus fünf
+ * Varianten: _„B bitte. und etwas kleiner. Auch gerne ein paar steine, aber
+ * kleiner?"_ Die Büsche kommen aus einem anderen Paket des Regals (`/` vorn,
+ * `HexModels.load`), in den Farben `BUSH_COLOURS`.
  */
-const FLOWERS = ['/mixed-bag/flax_flower_A.glb', '/mixed-bag/flax_flower_B.glb'] as const;
-const BUSHES = ['/city-builder-bits/bush_A.glb', '/city-builder-bits/bush_B.glb'] as const;
-const MUSHROOM = '/mystery-monthly-5/5-november-2024-witch/Mushroom.glb';
-const MEADOW: readonly string[] = [...FLOWERS, ...BUSHES, MUSHROOM];
+const BUSH_SHAPES = ['1_B', '1_C', '1_D', '1_E'] as const;
+const BUSH_COLOURS = ['1'] as const;
+const bushModel = (shape: string, colour: string): string =>
+  `/forest-nature/color${colour}/Bush_${shape}_Color${colour}.glb`;
+const ROCKS = ['rock_single_A', 'rock_single_C', 'rock_single_D', 'rock_single_E'] as const;
+const MEADOW: readonly string[] = BUSH_SHAPES.flatMap((shape) =>
+  BUSH_COLOURS.map((colour) => bushModel(shape, colour)),
+);
 
-/** Ein Fleck Wiese um (`x`, `z`): zwei, drei Blumen, manchmal ein Busch, ein Stein oder ein Pilz. */
+/** Ein Fleck Wiese um (`x`, `z`): ein, zwei kleine Büsche, oft ein kleiner Stein daneben. */
 function meadow(out: Dress[], random: () => number, x: number, z: number, spread = 0.12): void {
   const near = (): number => (random() - 0.5) * spread * 2;
-  const flowers = 3 + Math.floor(random() * 3);
-  for (let i = 0; i < flowers; i++) {
+  const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+  const bushes = 1 + (random() < MEADOW_PAIR ? 1 : 0);
+  for (let i = 0; i < bushes; i++) {
     out.push({
-      model: FLOWERS[Math.floor(random() * FLOWERS.length)]!,
+      model: bushModel(pick(BUSH_SHAPES), pick(BUSH_COLOURS)),
       x: x + near(),
       z: z + near(),
       yaw: random() * Math.PI * 2,
-      scale: FLOWER_SCALE * (0.85 + random() * 0.3),
+      scale: BUSH_SCALE * (0.8 + random() * 0.4),
     });
   }
-  const roll = random();
-  if (roll < 0.3) {
+  for (let i = 0; i < MEADOW_ROCKS; i++) {
+    if (random() >= MEADOW_ROCK_CHANCE) continue;
     out.push({
-      model: BUSHES[Math.floor(random() * BUSHES.length)]!,
-      x: x + near(),
-      z: z + near(),
+      model: `decoration/nature/${pick(ROCKS)}.glb`,
+      x: x + near() * 1.6,
+      z: z + near() * 1.6,
       yaw: random() * Math.PI * 2,
-      scale: BUSH_SCALE,
-    });
-  } else if (roll < 0.5) {
-    out.push({
-      model: `decoration/nature/${random() < 0.5 ? 'rock_single_A' : 'rock_single_C'}.glb`,
-      x: x + near(),
-      z: z + near(),
-      yaw: random() * Math.PI * 2,
-      scale: 0.8,
-    });
-  } else if (roll < 0.58) {
-    out.push({
-      model: MUSHROOM,
-      x: x + near(),
-      z: z + near(),
-      yaw: random() * 6,
-      scale: MUSHROOM_SCALE,
+      scale: ROCK_SCALE * (0.7 + random() * 0.6),
     });
   }
 }
 
-const FLOWER_SCALE = 0.36;
-const BUSH_SCALE = 0.6;
-const MUSHROOM_SCALE = 0.4;
+const BUSH_SCALE = 0.3;
+const ROCK_SCALE = 0.6;
+const MEADOW_PAIR = 0.5;
+const MEADOW_ROCKS = 2;
+const MEADOW_ROCK_CHANCE = 0.5;
 
 /** Alle Modelle, die eine Kachel tragen kann — zum Vorladen. */
 export function dressingModels(): string[] {

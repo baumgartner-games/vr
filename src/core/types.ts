@@ -88,6 +88,8 @@ export interface WorldContext {
     twist?(radians: number): void;
     /** Die Neigung in Grad, gelesen und gesetzt (`TopDownCamera.setTilt`), 20–90°. */
     tilt?(degrees?: number): number;
+    /** Kippen von Hand sperren oder freigeben (`TopDownCamera.tiltLocked`); Drehen bleibt. */
+    lockTilt?(locked: boolean): void;
     /**
      * Wie weit hinaus gezoomt werden darf, in Metern (`TopDownCamera.setMaxZoom`)
      * — ohne Wert wieder die gewohnte Grenze. Eine Welt, die mehr erlaubt,

@@ -286,6 +286,14 @@ export class TopDownCamera {
     this.tiltGoal = clampTilt(degrees);
   }
 
+  /**
+   * **Kippen mit der Hand gesperrt** — eine Welt kann es abschalten
+   * (`WorldContext.topDownView.lockTilt`, Hexland ab Werk). Dann dreht
+   * rechts Ziehen nur noch (`FlatControls`); die Neigung selbst setzen Welt
+   * und Grafik-Einstellung weiter.
+   */
+  tiltLocked = false;
+
   /** Die Neigung, auf die die Kamera gerade zukippt, in Grad. */
   get tilt(): number {
     return this.tiltGoal;
