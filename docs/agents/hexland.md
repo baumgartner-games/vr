@@ -556,6 +556,11 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     ✓ Legen in der Mitte, ⟳ ganz rechts (im Kreativ-Modus darüber die
     Schnellliste). Die Tastenhilfe ist hier aus — sie lag über den Knöpfen. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
     legt — `Q` dreht hier also nicht das Bild, die Leertaste springt nicht.
+  - **Kein Werkzeug in der Bildmitte**: Was die unsichtbare Figur hält (das
+    gewählte Werkzeug, etwas Getragenes), ist von oben ebenfalls weg
+    (`PortalWorld.screenHandShown`, `ScreenHand.setShown`). Gemeldet: eine
+    graue Tonne mitten im Bild — _„Es ist wohl ein gewähltes item? Bitte
+    entfernen."_
   - Am Handy sind die Stöcke weg (`touchStick(false)`); ein kurzer, ruhiger
     Tipp ist „zeigen", alles andere schiebt oder zoomt.
   - Die Welt hört dafür selbst auf die Leinwand (`listenToScreen`) — von oben
