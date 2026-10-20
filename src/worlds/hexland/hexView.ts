@@ -158,7 +158,9 @@ export class HexModels {
       this.pending.set(model, done);
       return done;
     }
-    const job = kaykitModel(PACK + model).then((holder) => {
+    // Mit `/` vorn liegt das Modell in einem anderen Paket des Regals (Blumen, Büsche).
+    const path = model.startsWith('/') ? model.slice(1) : PACK + model;
+    const job = kaykitModel(path).then((holder) => {
       const out: Part[] = [];
       if (holder) {
         // In den Maßen der Datei, nicht in denen des Regals: Groß gemacht wird hier.

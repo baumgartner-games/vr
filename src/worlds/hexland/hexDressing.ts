@@ -35,6 +35,63 @@ export interface Dress {
 
 const HOUSE_COLOURS = ['red', 'red', 'red', 'blue', 'yellow', 'red', 'green'] as const;
 
+/**
+ * **Was auf der Wiese steht** — Blumen, Büsche, Steine, ab und zu ein Pilz;
+ * **keine Bäume**: Bäume heißen Wald. Gemeldet: _„Bitte bei den hex Feldern
+ * die z.B. kein Wald sind auch bitte keine Bäume platzieren. … lieber Blumen
+ * oder sonst etwas legen."_ Blumen und Pilz kommen aus anderen Paketen des
+ * Regals (`/` vorn, `HexModels.load`).
+ */
+const FLOWERS = ['/mixed-bag/flax_flower_A.glb', '/mixed-bag/flax_flower_B.glb'] as const;
+const BUSHES = ['/city-builder-bits/bush_A.glb', '/city-builder-bits/bush_B.glb'] as const;
+const MUSHROOM = '/mystery-monthly-5/5-november-2024-witch/Mushroom.glb';
+const MEADOW: readonly string[] = [...FLOWERS, ...BUSHES, MUSHROOM];
+
+/** Ein Fleck Wiese um (`x`, `z`): zwei, drei Blumen, manchmal ein Busch, ein Stein oder ein Pilz. */
+function meadow(out: Dress[], random: () => number, x: number, z: number, spread = 0.12): void {
+  const near = (): number => (random() - 0.5) * spread * 2;
+  const flowers = 3 + Math.floor(random() * 3);
+  for (let i = 0; i < flowers; i++) {
+    out.push({
+      model: FLOWERS[Math.floor(random() * FLOWERS.length)]!,
+      x: x + near(),
+      z: z + near(),
+      yaw: random() * Math.PI * 2,
+      scale: FLOWER_SCALE * (0.85 + random() * 0.3),
+    });
+  }
+  const roll = random();
+  if (roll < 0.3) {
+    out.push({
+      model: BUSHES[Math.floor(random() * BUSHES.length)]!,
+      x: x + near(),
+      z: z + near(),
+      yaw: random() * Math.PI * 2,
+      scale: BUSH_SCALE,
+    });
+  } else if (roll < 0.5) {
+    out.push({
+      model: `decoration/nature/${random() < 0.5 ? 'rock_single_A' : 'rock_single_C'}.glb`,
+      x: x + near(),
+      z: z + near(),
+      yaw: random() * Math.PI * 2,
+      scale: 0.8,
+    });
+  } else if (roll < 0.58) {
+    out.push({
+      model: MUSHROOM,
+      x: x + near(),
+      z: z + near(),
+      yaw: random() * 6,
+      scale: MUSHROOM_SCALE,
+    });
+  }
+}
+
+const FLOWER_SCALE = 0.36;
+const BUSH_SCALE = 0.6;
+const MUSHROOM_SCALE = 0.4;
+
 /** Alle Modelle, die eine Kachel tragen kann — zum Vorladen. */
 export function dressingModels(): string[] {
   const out = new Set<string>();
@@ -57,6 +114,7 @@ export function dressingModels(): string[] {
   ]) {
     out.add(`decoration/nature/${name}.glb`);
   }
+  for (const model of MEADOW) out.add(model);
   out.add('decoration/props/haybale.glb');
   out.add('buildings/neutral/building_grain.glb');
   out.add('decoration/props/boat.glb');
@@ -160,27 +218,9 @@ function dressLand(spec: TileSpec): Dress[] {
           });
         }
         break;
-      case 'grass': {
-        const roll = random();
-        if (roll < 0.35) {
-          out.push({
-            model: `decoration/nature/${pickOne(['tree_single_A', 'tree_single_B'])}.glb`,
-            x: cx + jitter() * 2,
-            z: cz + jitter() * 2,
-            yaw: random() * Math.PI * 2,
-            scale: 0.55,
-          });
-        } else if (roll < 0.5) {
-          out.push({
-            model: `decoration/nature/${pickOne(['rock_single_A', 'rock_single_C'])}.glb`,
-            x: cx + jitter() * 2,
-            z: cz + jitter() * 2,
-            yaw: random() * Math.PI * 2,
-            scale: 1,
-          });
-        }
+      case 'grass':
+        if (random() < 0.55) meadow(out, random, cx + jitter(), cz + jitter(), 0.1);
         break;
-      }
       case 'water':
         if (base.id === 'lake' && random() < 0.4) {
           out.push({
@@ -283,16 +323,11 @@ function whole(
       });
       return;
     default:
-      for (let i = 0; i < 3; i++) {
+      // Ganz Wiese: drei, vier Flecken Blumen, keine Bäume.
+      for (let i = 0, n = 3 + Math.floor(random() * 2); i < n; i++) {
         const a = random() * Math.PI * 2;
-        const d = 0.3 + random() * 0.4;
-        out.push({
-          model: `decoration/nature/${random() < 0.5 ? 'tree_single_A' : 'tree_single_B'}.glb`,
-          x: Math.cos(a) * d,
-          z: Math.sin(a) * d,
-          yaw: random() * 6,
-          scale: 0.55,
-        });
+        const d = 0.2 + random() * 0.45;
+        meadow(out, random, Math.cos(a) * d, Math.sin(a) * d);
       }
   }
 }
