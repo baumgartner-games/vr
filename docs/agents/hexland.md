@@ -77,6 +77,12 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 - **Wertung** (`HexBoard.scoring`) = Aufträge + Flaggen + Fluss + Weg, jederzeit
   im Reiter zu sehen. Passende Kanten bringen keine Punkte (wie im Brettspiel),
   helfen aber, Gebiete wachsen zu lassen; die Vorschau zeigt sie grün und rot.
+- **Auf der Wiese stehen keine Bäume** (`hexDressing.meadow`): Blumen
+  (Flachsblume aus _Mixed Bag_), Büsche (_City Builder_), Steine und ab und zu
+  ein Pilz (_Mystery Monthly 5_) — Modelle aus anderen Paketen tragen ein `/`
+  vorn (`HexModels.load`). Gemeldet: _„Bitte bei den hex Feldern die z.B. kein
+  Wald sind auch bitte keine Bäume platzieren. … lieber Blumen oder sonst
+  etwas legen."_ Bäume stehen nur noch im Wald.
 - **Die Kacheln** sind wie im Brettspiel: meist zwei Gelände, oft eines,
   selten drei, wenig bloße Wiese (`drawTile`).
 - **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt
@@ -390,8 +396,10 @@ aus bzw. _In der Nähe_.
   der Bedienfelder (`FlatControls.startPinch`, galt vorher nur oben).
 
 - **Die offenen Aufträge oben rechts** (`drawQuestList`, DOM, nur von oben am
-  Schirm): je Auftrag eine Zeile mit Gelände-Sechseck, „Stadt 2 / 5" und
-  „noch 3"; ein Tipp fliegt die Kamera zur Kachel (`flyTo`, derselbe Flug
+  Schirm): je Auftrag eine Zeile mit Gelände-Sechseck und „Stadt 2 / 5" —
+  ohne „noch 3" (gewünscht: _„Bei den Missionen das ‚noch' bitte
+  entfernen."_); darunter steht nur „✓ wird erfüllt" oder „✗ wird zu groß",
+  wenn die Kachel in der Hand das entscheidet. Ein Tipp fliegt die Kamera zur Kachel (`flyTo`, derselbe Flug
   wie nach dem Legen). Steht die Bildrate oben rechts, rückt die Liste
   darunter. Gewünscht: _„Ich würde gerne seitlich in der UI oben rechts meine
   aktiven Quests sehen, und wenn ich drauf tippe, springt die Kamera zu der

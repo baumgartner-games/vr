@@ -1678,19 +1678,16 @@ export class HexlandWorld extends FurnishedWorld {
       value.textContent = `${next}`;
       if (tone) value.style.color = QUEST_TONE[tone];
       title.append(`${TERRAIN_LABEL[terrain]} `, value, ` / ${target}`);
-      const sub = document.createElement('span');
-      sub.style.cssText = 'font-size:12px;opacity:.75;white-space:nowrap';
-      sub.textContent =
-        tone === 'done'
-          ? '✓ wird erfüllt'
-          : tone === 'over'
-            ? '✗ wird zu groß'
-            : `noch ${target - next}`;
-      if (tone && tone !== 'grow') {
-        sub.style.color = QUEST_TONE[tone];
-        sub.style.opacity = '1';
+      text.append(title);
+      // Ohne „noch X" — das steht schon in X / Y. Gewünscht: _„Bei den
+      // Missionen das ‚noch' bitte entfernen."_ Nur was die Kachel in der Hand
+      // entscheidet, steht darunter.
+      if (tone === 'done' || tone === 'over') {
+        const sub = document.createElement('span');
+        sub.style.cssText = `font-size:12px;white-space:nowrap;color:${QUEST_TONE[tone]}`;
+        sub.textContent = tone === 'done' ? '✓ wird erfüllt' : '✗ wird zu groß';
+        text.append(sub);
       }
-      text.append(title, sub);
       row.append(icon, text);
       row.addEventListener('click', (event) => {
         event.stopPropagation();
