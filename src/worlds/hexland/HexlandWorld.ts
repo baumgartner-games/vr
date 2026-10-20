@@ -75,6 +75,8 @@ import { TERRAIN_COLOUR, drawHexIcon, hexIconUrl } from './hexIcon';
  * nichts davon sperrt eine Zelle.
  */
 export class HexlandWorld extends FurnishedWorld {
+  /** Am Schirm nur von oben (`World.onlyTopDown`) — aus den Augen gibt es hier nicht. */
+  readonly onlyTopDown = true;
   private board = new HexBoard();
   private readonly models = new HexModels();
   private view: HexBoardView | null = null;

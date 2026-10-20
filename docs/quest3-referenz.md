@@ -315,6 +315,11 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
 | `ad94bd5` (#409) | 30 | 9,0 ms | 5,6 ms | 3,4 ms | 350 |
 | `b0c604e` (#410), 120 Hz | 25–30 (im Menü abgelesen), **40** beim Spielen (#411) | 7,3 ms | 5,8 ms (Median 4,4) | 1,5 ms | 312 |
 
+**Mit Portalen** (`--portals`, Oktober 2026): eines 2,5 m vor dem Techniker,
+eines im Rücken — Zeichenaufrufe 1 258 vor dem Zuschnitt der Portalsichten,
+356 danach; beide im Blick (`--portals=both`) 1 460 → 570. Die fps der Brille
+dazu fehlen noch. Einzelheiten in `docs/agents/performance.md` (_Portale_).
+
 **Was die Tabelle sagt:**
 
 - **Die Brille läuft mit 90 Hz und zeigt jedes Bild ganze Auffrischungen

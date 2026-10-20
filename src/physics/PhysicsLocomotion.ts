@@ -407,6 +407,15 @@ export class PhysicsLocomotion implements Locomotion {
    */
   plane: PlayerPlane | null = null;
 
+  /**
+   * **Die Bits, bei denen die Ebene den Spieler durchlässt** — die der Wände
+   * aus dem Regal, auf denen ein Portal sitzt (`worlds/portal/portalWalls.ts`).
+   * Steht der Spieler im Trichter eines solchen Portals (`phaseMask`), gleitet
+   * er nicht an der Wand entlang, die das Zellgitter dort hat, sondern geht
+   * hinein — und durch das Portal.
+   */
+  planeGate = 0;
+
   /** Wo die Sohle der Kapsel steht — die Haut unter ihr eingerechnet. */
   private footY(): number {
     return this.body.translation().y - this.halfHeight - RADIUS - CHARACTER_SKIN;
@@ -503,10 +512,13 @@ export class PhysicsLocomotion implements Locomotion {
     // der Controller hochklettert.
     _ask.copy(_desired);
     const plane = this.plane;
+    // Im Trichter eines Portals auf einer Wand des Gitters hält die Ebene
+    // nicht auf — Höhe und Treppen rechnet sie weiter.
+    const walls = plane && (this.phaseMask & this.planeGate) === 0 ? plane : null;
     const from = this.body.translation();
     const foot = this.footY();
-    if (plane) {
-      const to = plane.slide(from.x, from.z, _desired.x, _desired.z, foot);
+    if (walls) {
+      const to = walls.slide(from.x, from.z, _desired.x, _desired.z, foot);
       _ask.x = to.x - from.x;
       _ask.z = to.z - from.z;
     }
@@ -531,8 +543,8 @@ export class PhysicsLocomotion implements Locomotion {
       else this.walkPhysics();
       // Was die Physik noch dazutut (ein Stoß, eine Rutsche), bleibt
       // ebenfalls vor den Wänden der Ebene.
-      if (plane && (_applied.x !== 0 || _applied.z !== 0)) {
-        const to = plane.slide(from.x, from.z, _applied.x, _applied.z, foot);
+      if (walls && (_applied.x !== 0 || _applied.z !== 0)) {
+        const to = walls.slide(from.x, from.z, _applied.x, _applied.z, foot);
         _applied.x = to.x - from.x;
         _applied.z = to.z - from.z;
       }

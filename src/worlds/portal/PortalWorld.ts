@@ -101,6 +101,7 @@ import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
 import { PortalGhosts } from './PortalGhosts';
 import { crossPoint } from './portalCrossing';
 import { funnelGroups } from './portalFunnel';
+import { PortalWalls } from './portalWalls';
 import { ToolBelt, type BeltSlot } from './ToolBelt';
 import {
   DEFAULT_BELT,
@@ -1455,6 +1456,17 @@ export class PortalWorld implements World {
   protected readonly root = new THREE.Group();
   private readonly portalBlue = new Portal('a', COLOR_BLUE);
   private readonly portalRed = new Portal('b', COLOR_RED);
+  /**
+   * **Die Wände aus dem Katalog als Portalflächen** (`portalWalls.ts`) —
+   * angelegt beim ersten Zielen, wenn die Welt schon steht.
+   */
+  private portalWalls: PortalWalls | null = null;
+  /** Gebaute Flächen und Katalogwände zusammen — worauf ein Schuss trifft. */
+  private readonly portalTargetList: THREE.Object3D[] = [];
+  private readonly portalWallScratch: PhysicsBody[] = [];
+  private readonly portalWallHits: PhysicsBody[] = [];
+  /** Wann die Kästen der Katalogwände zuletzt fürs Zielen nachgezogen wurden. */
+  private portalWallsSynced = -Infinity;
   private readonly raycaster = new THREE.Raycaster();
   /** Surfaces a portal may stick to. */
   protected readonly surfaces: THREE.Object3D[] = [];
@@ -2477,6 +2489,7 @@ export class PortalWorld implements World {
     this.updateHandProbes(ctx);
     this.handleReset(ctx);
 
+    this.updatePortalWalls();
     this.locomotion.phaseMask = this.playerFunnelMask();
     this.updateCraneFlight(ctx);
 
@@ -17507,7 +17520,7 @@ export class PortalWorld implements World {
     _aimRay.direction.copy(direction).normalize();
 
     const portal = this.portalOf(key);
-    const hit = this.castSurface(_aimRay);
+    const hit = this.castSurface(_aimRay, 60, this.portalTargets(true));
     if (!hit) {
       ctx.notify('Keine Fläche getroffen');
       return;
@@ -17533,6 +17546,7 @@ export class PortalWorld implements World {
       _placeUp,
       this.funnelGroups(hit.point, hit.normal, _placeUp),
     );
+    this.claimPortalWalls(portal);
     this.sync?.portalChanged(portal.key, this.portalState(portal.key));
     ctx.notify(key === 'a' ? 'Blaues Portal' : 'Rotes Portal');
   }
@@ -17564,7 +17578,7 @@ export class PortalWorld implements World {
         ray = this.headRay(ctx, _aimRay);
       }
 
-      const hit = ray ? this.castSurface(ray) : null;
+      const hit = ray ? this.castSurface(ray, 60, this.portalTargets(false)) : null;
       if (!ray || !hit) {
         ring.visible = false;
         continue;
@@ -17611,17 +17625,108 @@ export class PortalWorld implements World {
    * nicht, und neun Strahlen je Bild wären neun zu viel.
    */
   private funnelGroups(point: THREE.Vector3, normal: THREE.Vector3, up: THREE.Vector3): number {
+    const walls = this.portalWalls;
     return funnelGroups(
       {
         raycaster: this.raycaster,
-        surfaces: this.surfaces,
-        groupOf: (surface) => this.surfaceGroups.get(surface) ?? 0,
+        surfaces: this.portalTargets(false),
+        groupOf: (surface) =>
+          this.surfaceGroups.get(surface) ?? (walls?.wallOf(surface) ? walls.group : 0),
         depth: FUNNEL_DEPTH,
       },
       point,
       normal,
       up,
     );
+  }
+
+  /**
+   * **Worauf ein Portal treffen kann**: die gebauten Flächen und die Wände
+   * aus dem Katalog (`portalWalls.ts`). Die Kästen der Wände werden beim
+   * Schießen immer nachgezogen (`fresh`), fürs Zielen fünfmal je Sekunde —
+   * eine Wand, die gerade erst hingestellt wurde, ist dann eben ein paar
+   * Bilder später zu treffen.
+   */
+  private portalTargets(fresh: boolean): readonly THREE.Object3D[] {
+    const physics = this.physics;
+    if (!physics) return this.surfaces;
+    if (!this.portalWalls) {
+      // Ein Bit nach denen der gebauten Flächen — dasselbe für alle Katalogwände:
+      // Durchlässig ist eine Wand ohnehin nur im Trichter eines Portals.
+      this.portalWalls = new PortalWalls(portalSurfaceGroup(this.surfaceGroups.size));
+      if (this.locomotion) this.locomotion.planeGate = this.portalWalls.group;
+    }
+    const now = performance.now();
+    if (fresh || now - this.portalWallsSynced > 200) {
+      this.portalWallsSynced = now;
+      const walls = this.placedModels(this.portalWallScratch).filter(
+        (entry) => !isDoorModel(this.modelPath(entry)),
+      );
+      this.portalWalls.sync(walls);
+    }
+    const list = this.portalTargetList;
+    list.length = 0;
+    for (const surface of this.surfaces) list.push(surface);
+    for (const proxy of this.portalWalls.proxies) list.push(proxy);
+    return list;
+  }
+
+  /**
+   * **Die Katalogwände, durch die ein Portal geht**, für dieses Portal
+   * belegen — gemessen wie der Trichter (`portalFunnel.ts`), je Wand einzeln.
+   * Steht es auf keiner, wird nur freigegeben, was es vorher belegt hatte.
+   */
+  private claimPortalWalls(portal: Portal): void {
+    const walls = this.portalWalls;
+    const physics = this.physics;
+    if (!walls || !physics) return;
+    if (!portal.placed) {
+      walls.release(portal.key, physics);
+      return;
+    }
+    portal.updateMatrixWorld();
+    portal.getWorldNormal(_funnelNormal);
+    // Die Fläche, auf der es klebt: knapp hinter dem Portal selbst.
+    portal.getWorldPosition(_point).addScaledVector(_funnelNormal, -0.02);
+    _placeUp.set(0, 1, 0).applyQuaternion(portal.getWorldQuaternion(_quaternion));
+    const hits = this.portalWallHits;
+    hits.length = 0;
+    for (const proxy of walls.proxies) {
+      _probe.setFromMatrixPosition(proxy.matrixWorld);
+      if (_probe.distanceToSquared(_point) > 9) continue;
+      const one = funnelGroups(
+        { raycaster: this.raycaster, surfaces: [proxy], groupOf: () => 1, depth: FUNNEL_DEPTH },
+        _point,
+        _funnelNormal,
+        _placeUp,
+      );
+      const entry = walls.wallOf(proxy);
+      if (one !== 0 && entry) hits.push(entry);
+    }
+    walls.claim(portal.key, hits, physics);
+    if (hits.length > 0) portal.surfaceGroup |= walls.group;
+  }
+
+  /**
+   * **Ein Portal auf einer Wand, die weg ist, schließt** — weggenommen,
+   * getragen, verschoben. Und eines, das jemand anders zurückgesetzt hat,
+   * gibt seine Wände frei.
+   */
+  private updatePortalWalls(): void {
+    const walls = this.portalWalls;
+    const physics = this.physics;
+    if (!walls || !physics) return;
+    for (const portal of [this.portalBlue, this.portalRed]) {
+      if (!walls.holds(portal.key)) continue;
+      if (!portal.placed) {
+        walls.release(portal.key, physics);
+        continue;
+      }
+      if (!walls.stale(portal.key)) continue;
+      portal.reset();
+      walls.release(portal.key, physics);
+      this.sync?.portalChanged(portal.key, null);
+    }
   }
 
   /** Lets the player fall through a wall while standing in a portal opening. */
@@ -17954,6 +18059,10 @@ export class PortalWorld implements World {
       _quaternion.set(pose[3], pose[4], pose[5], pose[6]),
       state.group,
     );
+    // Drüben auf eine Katalogwand geschossen: hier dieselben Wände belegen —
+    // ihr Bit ist hier ein anderes als dort.
+    this.portalTargets(true);
+    this.claimPortalWalls(portal);
   }
 
   // --- the other players in the room --------------------------------------
@@ -18172,7 +18281,11 @@ export class PortalWorld implements World {
 
       this.raycaster.set(_probe, _direction);
       this.raycaster.far = 0.5;
-      const hit = this.raycaster.intersectObject(object, false)[0];
+      // Auf einer Katalogwand darf die Öffnung über die Fuge zur nächsten
+      // reichen — zwei Stücke derselben Wand sind eine Fläche.
+      const hit = this.portalWalls?.wallOf(object)
+        ? this.raycaster.intersectObjects(this.portalWalls.proxies, false)[0]
+        : this.raycaster.intersectObject(object, false)[0];
       if (!hit || Math.abs(hit.distance - 0.25) > 0.02) return false;
     }
     return true;

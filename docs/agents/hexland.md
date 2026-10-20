@@ -516,7 +516,7 @@ ganz vorn, und aufgeschlagen, wenn man die Welt betritt (`App.refreshMenu`,
 _Neue Partie_, der Schalter _Kreativ-Modus_, im Kreativ-Modus der Katalog und
 _Kreatives Brett leeren_, sonst _So wird gewertet_.
 
-## Bedienung — eine für alle drei Ansichten
+## Bedienung — eine für alle Ansichten
 
 - **Auf ein freies Feld zeigen**: Die oberste Kachel schwebt darüber, schon
   in der besten Drehung. Ein helles Sechseck darunter zeigt, wo sie landet;
@@ -636,8 +636,13 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     Tipp ist „zeigen", alles andere schiebt oder zoomt.
   - Die Welt hört dafür selbst auf die Leinwand (`listenToScreen`) — von oben
     zeigt kein Strahl (`Pointer.topDown`).
-- **Aus den Augen** zielt die Bildmitte, wie bei jedem Strahl am Schirm; die
-  Figur ist dort wieder da.
+- **Aus den Augen gibt es hier nicht** (`World.onlyTopDown`, Oktober 2026).
+  Gewünscht: _„In hex World gibt es kein ‚aus den Augen' Modus, da default auf
+  von oben springen."_ Am Schirm ist Hexland immer von oben, egal was auf der
+  Startseite oder unter _Spiel-Sicht_ gewählt ist; dort fehlen _Aus den Augen_
+  und die _VR-Ansicht_. Die Wahl selbst bleibt gespeichert und gilt in der
+  nächsten Welt wieder. In der Brille und beim Zuschauen bleibt alles, wie es
+  war.
 
 ## Wie es gebaut ist
 

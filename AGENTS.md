@@ -189,8 +189,8 @@ Stichpunkten).
 - **[Das Restaurant](docs/agents/burgerladen.md)** (vormals Burgerladen, `#plateup`) — Küche und Gastraum, im September 2026 neu aus dem Möbelkatalog: Fliesen, Dielen, die Regalwände der Test Navigation auf den Fugen (auch im Katalog unter _Wände_, _Türen_, _Fenster_), die Küche als Spielelemente, noch ohne Tische und Gäste (`plateup/plateUpRoom.ts`). Darunter das Spiel nach _PlateUp!_, wie es bis dahin war (Commit `56462b6`).
   Darin: Neu aus dem Möbelkatalog · Das Spiel bis September 2026 · Was wo liegt · Wie es aussieht · Der Spielablauf · Steuerung · Zum Prüfen · Offen.
 
-- **[Hexland](docs/agents/hexland.md)** (`#hexland`) — Ein _Dorfromantik_-Klon aus den Kacheln von `medieval-hexagon`: Partie wie im Brettspiel (45 Kacheln, 25 Aufträge, drei offene Aufträge mit genauer Zielgröße, Flaggen, längster Fluss und Weg) oder Kreativ-Modus mit Kachel-Katalog, eigener Menü-Reiter (`World.menuTab`). Brille: Weltbau, der skaliert; von oben ohne Figur, Leiste ⟲ ✓ ⟳, Gesten zum Neigen und Drehen; alles ebenerdig.
-  Darin: Das Spiel (Partie, Kreativ-Modus, der Reiter) · Bedienung — eine für alle drei Ansichten · Wie es gebaut ist · Offen.
+- **[Hexland](docs/agents/hexland.md)** (`#hexland`) — Ein _Dorfromantik_-Klon aus den Kacheln von `medieval-hexagon`: Partie wie im Brettspiel (45 Kacheln, 25 Aufträge, drei offene Aufträge mit genauer Zielgröße, Flaggen, längster Fluss und Weg) oder Kreativ-Modus mit Kachel-Katalog, eigener Menü-Reiter (`World.menuTab`). Brille: Weltbau, der skaliert; am Schirm nur von oben (`World.onlyTopDown`), ohne Figur, Leiste ⟲ ✓ ⟳, Gesten zum Neigen und Drehen; alles ebenerdig.
+  Darin: Das Spiel (Partie, Kreativ-Modus, der Reiter) · Bedienung — eine für alle Ansichten · Wie es gebaut ist · Offen.
 
 ### Spielideen
 
@@ -213,7 +213,7 @@ Stichpunkten).
 
 - **[Architektur](docs/agents/architektur.md)** — Der Überblick: welcher Ordner was tut, und warum die Rechnung neben der Darstellung steht.
 - **[Das Zellgitter](docs/agents/zellgitter.md)** — Halbe Kacheln, Figuren auf 2 × 2, Wände unter 45° — und was noch nicht auf Zellen läuft.
-- **[Bildrate in der Brille](docs/agents/performance.md)** — Wie man misst (Schild in der Brille, `npm run perf:haunting`), was schon gebündelt, eingefroren und gespart ist, das Vorgehen für die nächste Runde und die Fallen dabei.
+- **[Bildrate in der Brille](docs/agents/performance.md)** — Wie man misst (Schild in der Brille, `npm run perf:haunting`), was schon gebündelt, eingefroren und gespart ist, Portale (nur zeichnen, was durch das Loch zu sehen ist — wie in _Portal_ und im Minecraft-Mod), das Vorgehen für die nächste Runde und die Fallen dabei.
 - **[Wie schön es aussieht](docs/agents/grafik.md)** — Licht, Schatten, Regler, Wetter und Tageslauf je Welt — und was ein Bild in der Brille kostet.
 - **[Lampen und Lichter](docs/agents/lampen.md)** — Welche Modelle leuchten, bei Nacht an, Flackern/Blinken/Drehlicht, Typ-Standard und Abweichung je Lampe in der Weltdatei, Rechtsklick-Menü im Einrichten, Finden wie Röntgen.
   Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Ghosting zeigen · Wände vorn: die Wände des eigenen Raums · Position zeigen · Griffe zeigen · Quest-3-Blickfeld, Sichtfeld hervorheben und Mensch als Boxen · Info-Ansichten: ein Optionsfeld für alle · Squishy: die Figur federt beim Laufen und atmet im Stehen · Weltbau: simulierte Physik-Optik · Untere Ebenen unscharf · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht · Die Messstrecke der Welten — was die neuen Welten kosten.
@@ -230,7 +230,7 @@ Stichpunkten).
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.
   Darin: Wer hier herumläuft · Charakter: übernehmen, vormachen, nachspielen · Wie sich NPCs orientieren · Verhalten: Plätze aufsuchen, warten, ausweichen.
 - **[Welten, Kacheln, Portale und Spiegel](docs/agents/welten.md)** — Das Kachelgitter des Geländes, eine neue Welt dazutun, Sandbox (vormals Testwelt), Ordner von Welten und die Test Navigation, und wie Portale und Spiegel rechnen.
-  Darin: Welten auf dem Kachelgitter · Eine neue Welt hinzufügen · Wie die Portale funktionieren · Wie die Spiegel funktionieren.
+  Darin: Welten auf dem Kachelgitter · Eine neue Welt hinzufügen · Wie die Portale funktionieren (auch auf Wänden aus dem Katalog) · Wie die Spiegel funktionieren.
 - **[Zusammen spielen](docs/agents/netzwerk.md)** — Peer-to-Peer, Chat, Stimmen, geteilte Objekte, Zuschauen, asymmetrisches Spielen.
   Darin: Zusammen spielen (Peer-to-Peer) · Chat: Text, und vor allem Codes · Sprechen: Stimmen im Raum · Die Welt teilen: Objekte und Portale · Zuschauen: First und Third Person · Asymmetrisches Spielen.
 

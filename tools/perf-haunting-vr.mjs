@@ -29,7 +29,16 @@
  *
  * Optionen: `--url=…`, `--seconds=12`, `--runs=1` (Wiederholungen, Mittel
  * daraus), `--json` (eine Zeile JSON statt Text), `--lamp` (die Taschenlampe
- * eingeschaltet in der rechten Hand — mit ihrer Schattenkarte).
+ * eingeschaltet in der rechten Hand — mit ihrer Schattenkarte), `--portals`
+ * (zwei Portale: eines 2,5 m vor dem Techniker und zu ihm gedreht, das andere
+ * 3 m hinter ihm, vom Blick abgewandt — so, wie man mit einem Paar an zwei
+ * Wänden steht und auf eines davon schaut), `--portals=both` (beide 2,5 m
+ * vor ihm, nebeneinander und zu ihm gedreht — dann sieht man in jedem auch
+ * das andere, und die inneren Ebenen werden gebraucht).
+ *
+ * Die Zeichenaufrufe sind **je Bild** gezählt, alle Durchgänge zusammen
+ * (Schatten, Portalsichten, Hauptbild): Der Kern setzt `renderer.info` erst zu
+ * Beginn des nächsten Bildes zurück (`App.step`), gelesen wird kurz davor.
  */
 import { chromium } from 'playwright';
 
@@ -48,6 +57,10 @@ const runs = Math.max(1, Number(args.get('runs') ?? 1));
 const asJson = args.has('json');
 /** Mit eingeschalteter Lampe in der rechten Hand — so, wie der Besitzer spielt. */
 const lamp = args.has('lamp');
+/** Zwei Portale, eines im Blick und eines im Rücken (`PortalRenderer`). */
+const portals = args.has('portals');
+/** `--portals=both`: beide im Blick, nebeneinander zum Techniker gedreht. */
+const bothSeen = args.get('portals') === 'both';
 const executablePath = process.env.SMOKE_EXECUTABLE ?? '/opt/pw-browsers/chromium';
 
 async function measure() {
@@ -92,24 +105,67 @@ async function measure() {
         world.carriedTool('right')?.setLit?.(true);
       });
     }
+    if (portals) {
+      await page.evaluate((both) => {
+        const world = globalThis.bgvr.world;
+        const rig = world.context.rig;
+        const head = rig.getHeadPosition(new world.portalBlue.position.constructor());
+        const forward = world.context.camera.getWorldDirection(head.clone());
+        forward.y = 0;
+        forward.normalize();
+        const up = new forward.constructor(0, 1, 0);
+        const front = head.clone().addScaledVector(forward, 2.5);
+        front.y = rig.getFloorY() + 1.2;
+        const back = head.clone().addScaledVector(forward, -3);
+        back.y = front.y;
+        const side = new forward.constructor().crossVectors(forward, up).normalize();
+        // Vorn zum Techniker gedreht, hinten von ihm weg: Das hintere sieht er
+        // nicht. Mit `both` stehen beide vorn, 1,4 m auseinander.
+        if (both) {
+          front.addScaledVector(side, -0.7);
+          back.copy(front).addScaledVector(side, 1.4);
+        }
+        world.portalBlue.place(front, forward.clone().negate(), up, 0);
+        world.portalRed.place(back, forward.clone().negate(), up, 0);
+      }, bothSeen);
+    }
     await page.waitForTimeout(5000);
 
-    // Gang 2 zuerst, solange noch gezeichnet wird: Aufrufe und Dreiecke.
+    // Gang 2 zuerst, solange noch gezeichnet wird: Aufrufe, Dreiecke und
+    // Durchgänge je Bild.
     const drawn = await page.evaluate(async () => {
-      const renderer = globalThis.bgvr.world.context.renderer;
+      const world = globalThis.bgvr.world;
+      const renderer = world.context.renderer;
       const seen = [];
+      let passes = 0;
       const render = renderer.render.bind(renderer);
       renderer.render = (scene, camera) => {
-        // Die Schattenkarte zählt mit: Sie zeichnet three.js innerhalb von
-        // `render`, und `info` wird nur zu Beginn zurückgesetzt.
+        passes++;
         render(scene, camera);
-        seen.push([renderer.info.render.calls, renderer.info.render.triangles]);
       };
+      // Kurz vor dem Zurücksetzen gelesen ist `info` die Summe des ganzen
+      // letzten Bildes — Schattenkarte und Portalsichten eingeschlossen.
+      const info = renderer.info;
+      const reset = info.reset.bind(info);
+      info.reset = () => {
+        if (passes > 0) seen.push([info.render.calls, info.render.triangles, passes]);
+        passes = 0;
+        reset();
+      };
+      const started = performance.now();
       await new Promise((resolve) => setTimeout(resolve, 3000));
+      const elapsed = performance.now() - started;
       renderer.render = render;
-      const tail = seen.slice(-5);
+      info.reset = reset;
+      const tail = seen.slice(-10);
       const mean = (i) => tail.reduce((sum, one) => sum + one[i], 0) / Math.max(1, tail.length);
-      return { calls: Math.round(mean(0)), triangles: Math.round(mean(1)) };
+      return {
+        calls: Math.round(mean(0)),
+        triangles: Math.round(mean(1)),
+        passes: Math.round(mean(2) * 10) / 10,
+        // SwiftShader zeichnet auf der CPU — nur zum Vergleich auf diesem Rechner.
+        drawnFps: (seen.length * 1000) / elapsed,
+      };
     });
 
     // Gang 1: ohne Zeichnen, nur Rechnung und Matrizenlauf.
@@ -164,6 +220,8 @@ const summary = {
   cpu: avg('updateMean') + avg('matrixMean'),
   calls: Math.round(avg('calls')),
   triangles: Math.round(avg('triangles')),
+  passes: avg('passes'),
+  drawnFps: avg('drawnFps'),
   autoNodes: Math.round(avg('autoNodes')),
   nodes: Math.round(avg('nodes')),
   frames: Math.round(avg('frames')),
@@ -172,7 +230,9 @@ const summary = {
 if (asJson) console.log(JSON.stringify(summary));
 else {
   const ms = (value) => `${value.toFixed(2)} ms`;
-  console.log('Haunting, Brille (simuliert), Übungsrunde vor dem ersten Schrank');
+  console.log(
+    `Haunting, Brille (simuliert), Übungsrunde vor dem ersten Schrank${portals ? (bothSeen ? ', zwei Portale im Blick' : ', zwei Portale') : ''}`,
+  );
   console.log(
     `  world.update        ${ms(summary.updateMean)} (Median ${ms(summary.updateMedian)})`,
   );
@@ -180,6 +240,8 @@ else {
   console.log(`  CPU je Bild (Summe) ${ms(summary.cpu)}   ← diese Zahl in die Tabelle`);
   console.log(`  Zeichenaufrufe      ${summary.calls} (beide Augen)`);
   console.log(`  Dreiecke            ${summary.triangles}`);
+  console.log(`  Durchgänge je Bild  ${summary.passes.toFixed(1)}`);
+  console.log(`  Bilder/s gezeichnet ${summary.drawnFps.toFixed(1)} (SwiftShader, nur relativ)`);
   console.log(`  Knoten mit Matrix   ${summary.autoNodes} von ${summary.nodes}`);
   console.log(`  (${summary.frames} Bilder, ${runs} Lauf/Läufe)`);
 }
