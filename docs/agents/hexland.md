@@ -22,7 +22,7 @@ Gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
 aktiven Missionen und einer festen Anzahl an normalen Karten. Die hex tiles
 sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 
-- **45 normale Kacheln** (`NORMAL_TILES`), eine Landkachel liegt in der Mitte.
+- **45 normale Kacheln** (`NORMAL_TILES`, einstellbar unter _Partie einstellen_), eine Landkachel liegt in der Mitte.
   Wie im Brettspiel: 48 Landschaftsplättchen, 3 gehen vorher unbesehen zurück
   in die Schachtel (Anleitung, _Spielmaterial_ und _Spielaufbau_). Bis Oktober
   2026 waren es 40 Kacheln und 30 Aufträge — gemeldet: _„sind zu wenig bzw.
@@ -77,6 +77,17 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 - **Wertung** (`HexBoard.scoring`) = Aufträge + Flaggen + Fluss + Weg, jederzeit
   im Reiter zu sehen. Passende Kanten bringen keine Punkte (wie im Brettspiel),
   helfen aber, Gebiete wachsen zu lassen; die Vorschau zeigt sie grün und rot.
+- **Wind** biegt Bäume, Weizen und die Büsche der Wiese (`hexView.SWAY_BEND`:
+  0,3 / 2,4 / 1,6 — das Maß wächst mit dem Quadrat der Höhe, niedriges braucht
+  mehr). Gewünscht: _„Weizen und Büsche sollten sich vom Wind auch bewegen
+  lassen."_
+- **Ufer und Wasser-Endstück** (`groundPatches`): Ufer-Kacheln bekommen wie
+  Flusskacheln am Rand den Boden ihres Geländes (Wald dunkelgrün), und das
+  Endstück (`coast-A`, eine Wasserkante) eine tiefere Bucht in Wasserfarbe
+  (`GroundKind` `water`, `BAY_BOW`) — die des Modells war zu klein. Gemeldet:
+  _„beim wasser endstück, ist das wasser noch zu klein, es sollte weiter rein
+  ragen. auch sollte, wenn dort Wald ist, auch der boden davon dunkel grün
+  sein wie beim wald."_
 - **Auf der Wiese stehen keine Bäume** (`hexDressing.meadow`): kleine Büsche
   (_Forest Nature_, `BUSH_SHAPES`: nur die runden `1_B…1_E`, Farbe 1) und ein
   paar kleine Steine —
@@ -136,15 +147,31 @@ Icon) drücken kann um zu erfahren, warum er es dort hin gelegt hat"_.
   ihn nicht mehr — kein Wachsen, kein Verlust —, und platzt er durch eine
   Lage, bringt das `HOPE_BONUS`, solange noch Aufträge nachkommen (sein Platz
   wird frei). 200 Runden (Samen 1–200): 98,72 → 99,67 Punkte.
-- **💡 Vorschlag** in der Leiste (`suggest`): legt die Kachel sofort dorthin,
-  wo _Intelligent (optimiert)_ sie hinlegt (mit Vorausschau). Danach steht
-  **ⓘ** daneben bis zur nächsten Kachel; es öffnet über der Leiste _Warum
-  dort?_ (`showWhy`, Gründe aus `hexPlanner.explainPlacement`): welcher
-  Auftrag fertig wird, wächst, platzt oder aufgegeben ist (mit der Zählung:
-  „es fehlen 3, aber nur noch 2 Kacheln mit Weg kommen"), der eigene Auftrag
-  der Kachel, Flagge, längster Fluss und Weg, vorbereitete Gebiete, passende
-  Kanten und ob knapp entschieden wurde. _Zeigen_ fliegt zur Kachel. Am
-  schmalen Handy rutschen 💡 und ⓘ unter die Zeile.
+- **💡 Vorschlag** — nur die Lampe, rechts in der oberen Zeile der Leiste
+  (bricht auch am schmalen Handy nicht um). Sie **legt nicht**, sie schiebt
+  die Kachel nur auf Feld und Drehung, die _Intelligent (optimiert)_ wählt
+  (`suggest`, mit Vorausschau), und die Kamera fliegt hin. Solange die Kachel
+  genau so liegt (`whyHere`), steht statt der Lampe **ⓘ** (`syncSuggest`);
+  es öffnet über der Leiste _Warum dort?_ (`showWhy`, Gründe aus
+  `hexPlanner.explainPlacement`): welcher Auftrag fertig wird, wächst, platzt
+  oder aufgegeben ist (mit der Zählung: „es fehlen 3, aber nur noch 2 Kacheln
+  mit Weg kommen"), der eigene Auftrag der Kachel, Flagge, längster Fluss und
+  Weg, vorbereitete Gebiete, passende Kanten und ob knapp entschieden wurde.
+  Verschoben oder gedreht, wird ⓘ wieder zur Lampe. Gewünscht: _„das
+  vorschlag feld soll nur die lampe sein, und das feld nicht legen, sondern
+  nur dort hinbewegen … (die lampe ändert sich zum info icon) dann die
+  begründung lesen. Die lampe sollte in den oberen panel kommen und nicht bei
+  kleineren displays runter geben."_ In der Leiste steht der Auftrag der Kachel
+  nicht mehr („Auftrag: Weizen 6") — _„Ich brauche in dem panel auch nicht
+  die information ‚Auftrag Weizen'."_
+- **Partie einstellen** (`setupMenu`, `hexland:setup`): Anzahl Kacheln (5–200,
+  Standard 45) und Anzahl Aufträge (0–100, Standard 25), je eine Seite mit
+  −10, −1, ↺ Standard, +1, +10; dazu _Neue Partie mit diesen Zahlen_. Gilt ab
+  der nächsten Partie; das Brett merkt sich, womit es begann
+  (`HexBoard.startTiles`, `startTasks`, im Stand als `size`). Mehr als 25
+  Aufträge sind weitere ganze, je für sich gemischte Stapel
+  (`taskDeckOf`). Gewünscht: _„im hex welt menü beim spiel noch einstellen
+  können mit wie vielen tiles und missionen ich spielen will"_.
 
 ### Wie Aufträge auf dem Brett aussehen
 

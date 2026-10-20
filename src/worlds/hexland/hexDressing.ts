@@ -326,7 +326,7 @@ function whole(
 }
 
 /** Gelände, die einen eigenen Boden bekommen (`groundPatches`). */
-export type GroundKind = 'house' | 'forest' | 'field';
+export type GroundKind = 'house' | 'forest' | 'field' | 'water';
 
 /**
  * Ein Stück Boden: ab welcher Kante, über wie viele, welches Gelände — und
@@ -355,11 +355,18 @@ export interface GroundPatch {
  */
 export function groundPatches(spec: TileSpec): GroundPatch[] {
   const base = baseTile(spec.base);
-  if (base.id === 'lake' || base.id.startsWith('coast')) return [];
+  if (base.id === 'lake') return [];
   const ground = (t: Terrain): GroundKind | null =>
     t === 'house' || t === 'forest' || t === 'field' ? t : null;
   if (base.id !== 'land') {
     const out: GroundPatch[] = [];
+    // **Das Wasser-Endstück** (`coast-A`): Die Bucht des Modells ist klein —
+    // eine tiefere Bucht darüber, damit der Fluss sichtbar hineinläuft.
+    // Gemeldet: _„beim wasser endstück, ist das wasser noch zu klein, es
+    // sollte weiter rein ragen."_ Ufer bekommen wie Flusskacheln ihren
+    // Gelände-Boden am Rand — _„wenn dort Wald ist, auch der boden davon
+    // dunkel grün sein wie beim wald"_.
+    if (base.id === 'coast-A') out.push({ edge: 1, length: 1, kind: 'water', ring: false });
     spec.edges.forEach((terrain, edge) => {
       const kind = ground(terrain);
       if (kind) out.push({ edge, length: 1, kind, ring: true });

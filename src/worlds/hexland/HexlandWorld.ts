@@ -148,6 +148,8 @@ export class HexlandWorld extends FurnishedWorld {
   private hexMaterials: THREE.Material[] = [];
   /** Mühlen, Wasser, Wind (`hexAnimate.ts`) — an oder aus, gemerkt im Browser. */
   private animations = readFlag(ANIM_KEY, true);
+  /** Wie groß die nächste normale Partie wird (`setupMenu`). */
+  private setup = readSetup();
   /**
    * **Ob die Kamera von Hand gekippt werden darf** — ab Werk nicht, nur
    * gedreht. Gewünscht: _„Bei hex Welt soll die Kamera kippen nicht verändert
@@ -162,6 +164,8 @@ export class HexlandWorld extends FurnishedWorld {
   /** Warum der letzte Vorschlag dort liegt — bis zur nächsten Kachel (`suggest`). */
   private why: { reasons: Reason[]; spec: TileSpec; rot: number; at: Hex } | null = null;
   private whyButton: HTMLButtonElement | null = null;
+  /** Ob gerade ⓘ statt 💡 steht — damit die Leiste nur bei einem Wechsel neu schreibt. */
+  private whyShown = false;
   /** 💡 Vorschlag und ⓘ — nur während einer Partie (`drawBarIcon`). */
   private barTools: HTMLElement | null = null;
   private whyBox: HTMLElement | null = null;
@@ -657,16 +661,42 @@ export class HexlandWorld extends FurnishedWorld {
       return;
     }
     const reasons = explainPlacement(b, pick, info);
+    this.why = { reasons, spec, rot: pick.rot, at: { q: pick.q, r: pick.r } };
     this.at = { q: pick.q, r: pick.r };
     this.rot = pick.rot;
-    if (!this.placeHere()) return;
-    this.setWhy({ reasons, spec, rot: pick.rot, at: { q: pick.q, r: pick.r } });
+    this.refresh(false);
+    this.flyTo(this.at);
+  }
+
+  /** Ob die Kachel noch genau so liegt, wie der letzte Vorschlag sie hingeschoben hat. */
+  private whyHere(): boolean {
+    const why = this.why;
+    const at = this.at;
+    return (
+      !!why &&
+      !!at &&
+      why.spec === this.board.current &&
+      why.at.q === at.q &&
+      why.at.r === at.r &&
+      why.rot === this.rot
+    );
+  }
+
+  /** 💡 oder ⓘ — und die Gründe zu, sobald die Kachel den Vorschlag verlässt. */
+  private syncSuggest(): void {
+    const here = this.whyHere();
+    if (here === this.whyShown) return;
+    this.whyShown = here;
+    if (this.whyButton) {
+      this.whyButton.textContent = here ? 'ⓘ' : '💡';
+      this.whyButton.title = here ? 'Warum dort?' : 'Vorschlag (Intelligent optimiert)';
+    }
+    if (!here && this.whyBox) this.whyBox.style.display = 'none';
   }
 
   private setWhy(why: HexlandWorld['why']): void {
     this.why = why;
-    if (this.whyButton) this.whyButton.style.display = why ? '' : 'none';
-    if (this.whyBox && !why) this.whyBox.style.display = 'none';
+    this.syncSuggest();
   }
 
   /** **Warum dort?** — die Gründe des letzten Vorschlags über der Leiste, ein zweiter Tipp schließt. */
@@ -1222,6 +1252,7 @@ export class HexlandWorld extends FurnishedWorld {
     if (this.tileBarIcon) this.tileBarIcon.style.display = ended ? 'none' : '';
     const playing = this.board.mode === 'game' || this.board.mode === 'endless';
     if (this.barTools) this.barTools.style.display = playing && !ended ? 'flex' : 'none';
+    this.syncSuggest();
     if (!ended && this.detailBox) this.detailBox.style.display = 'none';
     if (ended && this.tileBarText) {
       const done = this.questCount('done');
@@ -1231,16 +1262,16 @@ export class HexlandWorld extends FurnishedWorld {
       return;
     }
     if (this.tileBarText) {
-      const quest = this.questLabel(spec);
+      // Ohne „Auftrag: Weizen 6" — das steht im Bildchen daneben und über der
+      // Kachel. Gewünscht: _„Ich brauche in dem panel auch nicht die
+      // information ‚Auftrag Weizen'."_
       this.tileBarText.innerHTML =
         `<b style="color:var(--hud-ink);font-size:15px">${this.statusTitle()}</b> · ${this.barCounts()}` +
-        (quest
-          ? `<br><b style="color:${TERRAIN_COLOUR[spec!.quest!.terrain]}">Auftrag: ${quest}</b> · genau so viele Kacheln`
-          : spec?.flag
-            ? `<br>Flagge: ${TERRAIN_LABEL[spec.flag]} — schließe das Gebiet`
-            : this.board.mode === 'world'
-              ? `<br>${this.generating ? 'Generiert …' : 'Im Kreis um die Mitte, jede Kachel passt genau'}`
-              : '<br>Feld antippen · Kachel antippen dreht');
+        (spec?.flag
+          ? `<br>Flagge: ${TERRAIN_LABEL[spec.flag]} — schließe das Gebiet`
+          : this.board.mode === 'world'
+            ? `<br>${this.generating ? 'Generiert …' : 'Im Kreis um die Mitte, jede Kachel passt genau'}`
+            : '<br>Feld antippen · Kachel antippen dreht');
     }
     if (!this.tileBarIcon) return;
     const heading = this.lastCtx?.topDownView ? this.headingNow(this.lastCtx) : 0;
@@ -2486,8 +2517,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.tileQuick = quick;
 
     const info = document.createElement('div');
-    // Am schmalen Handy rutschen 💡 und ⓘ unter die Zeile, statt sie abzuschneiden.
-    info.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;min-width:0';
+    info.style.cssText = 'display:flex;align-items:center;gap:10px;min-width:0';
     const icon = document.createElement('canvas');
     icon.width = 96;
     icon.height = 96;
@@ -2496,30 +2526,20 @@ export class HexlandWorld extends FurnishedWorld {
     const text = document.createElement('div');
     text.style.cssText =
       'font:600 13px var(--hud-font);line-height:1.3;color:var(--hud-dim);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-    // **Vorschlag** legt die Kachel dorthin, wo _Intelligent (optimiert)_ sie
-    // hinlegen würde; ⓘ sagt danach, warum (`suggest`, `showWhy`).
-    const small = (label: string, title: string, run: () => void): HTMLButtonElement => {
-      const b = button(label, title, run);
-      b.style.height = '38px';
-      b.style.padding = '0 12px';
-      b.style.fontSize = '14px';
-      b.style.flex = 'none';
-      return b;
-    };
-    const tools = document.createElement('div');
-    tools.style.cssText = 'display:flex;gap:6px;margin-left:auto;flex:none';
-    const suggestButton = small('💡 Vorschlag', 'Vorschlag legen (Intelligent optimiert)', () =>
-      this.suggest(),
+    // **💡 Vorschlag** (`suggest`) — nur die Lampe, rechts in der oberen Zeile,
+    // auch am schmalen Handy. Sie legt nicht, sie schiebt die Kachel nur
+    // dorthin; solange sie dort liegt, wird aus der Lampe ⓘ (`syncSuggest`).
+    // Gewünscht: _„das vorschlag feld soll nur die lampe sein, und das feld
+    // nicht legen, sondern nur dort hinbewegen … (die lampe ändert sich zum
+    // info icon) dann die begründung lesen."_
+    const tools = button('💡', 'Vorschlag (Intelligent optimiert)', () =>
+      this.whyHere() ? this.showWhy() : this.suggest(),
     );
-    const whyButton = small('ⓘ', 'Warum dort?', () => this.showWhy());
-    whyButton.style.display = 'none';
-    whyButton.style.width = '38px';
-    whyButton.style.padding = '0';
-    whyButton.style.fontSize = '20px';
-    tools.append(suggestButton, whyButton);
-    this.whyButton = whyButton;
+    tools.style.cssText +=
+      ';height:42px;width:42px;min-width:42px;padding:0;flex:none;margin-left:auto;font-size:20px;border-radius:50%';
+    this.whyButton = tools;
     this.barTools = tools;
-    text.style.flex = '1 1 200px';
+    text.style.flex = '1';
     info.append(icon, text, tools);
     const why = document.createElement('div');
     why.style.cssText =
@@ -2834,17 +2854,17 @@ export class HexlandWorld extends FurnishedWorld {
         label:
           b.mode === 'endless'
             ? 'Stapel: unendlich'
-            : `Stapel: ${b.stack.length} von ${NORMAL_TILES}`,
+            : `Stapel: ${b.stack.length} von ${b.startTiles}`,
         sub:
           `${b.openTasks()} von ${OPEN_TASKS} Aufträgen offen · ` +
           (Number.isFinite(b.tasksLeft)
-            ? `noch ${b.tasksLeft} von ${QUEST_TILES} Auftragskacheln im Auftragsstapel`
+            ? `noch ${b.tasksLeft} von ${b.startTasks} Auftragskacheln im Auftragsstapel`
             : 'Auftragskacheln ohne Ende'),
         icon: 'cube',
         accent: ACCENT,
         run: close,
       });
-      rows.push(this.questMenu(), this.leftOverMenu());
+      rows.push(this.questMenu(), this.leftOverMenu(), this.setupMenu());
     }
     rows.push(
       ...this.modeRows(),
@@ -2944,6 +2964,73 @@ export class HexlandWorld extends FurnishedWorld {
       icon: 'sign',
       accent: ACCENT,
       children: rows,
+    };
+  }
+
+  /**
+   * **Partie einstellen** — mit wie vielen normalen Kacheln und Aufträgen die
+   * nächste normale Runde beginnt, je eine Seite mit −10, −1, Standard, +1,
+   * +10. Gewünscht: _„ich würde gerne im hex welt menü beim spiel noch
+   * einstellen können mit wie vielen tiles und missionen ich spielen will …
+   * anzahl tiles <Aktuelle Zahl> -- -10, -1, reset, +1, +10"_. Gilt ab der
+   * nächsten Partie; die laufende behält ihre Zahlen (`HexBoard.startTiles`).
+   */
+  private setupMenu(): MenuEntry {
+    const close = (): void => this.context?.menu.toggle(false);
+    const stepper = (key: keyof HexSetup, name: string, fallback: number): MenuEntry => {
+      const value = this.setup[key];
+      const step = (id: string, label: string, to: number, sub?: string): MenuEntry => ({
+        id: `hexland:setup:${key}:${id}`,
+        label,
+        sub,
+        icon: 'cube',
+        accent: ACCENT,
+        run: () => {
+          this.setup = { ...this.setup, [key]: clampSetup(key, to) };
+          writeSetup(this.setup);
+          this.context?.refreshWorldMenu();
+        },
+      });
+      return {
+        id: `hexland:setup:${key}`,
+        label: `${name} · ${value}`,
+        sub: `Standard ${fallback} · ${SETUP_LIMITS[key][0]} bis ${SETUP_LIMITS[key][1]}`,
+        icon: key === 'tiles' ? 'cube' : 'sign',
+        accent: ACCENT,
+        grid: true,
+        cols: 5,
+        take: false,
+        children: [
+          step('m10', '−10', value - 10),
+          step('m1', '−1', value - 1),
+          step('reset', `↺ ${fallback}`, fallback, 'Standard'),
+          step('p1', '+1', value + 1),
+          step('p10', '+10', value + 10),
+        ],
+      };
+    };
+    const { tiles, tasks } = this.setup;
+    return {
+      id: 'hexland:setup',
+      label: 'Partie einstellen',
+      sub: `${tiles} Kacheln · ${tasks} Aufträge — gilt ab der nächsten Partie`,
+      icon: 'cube',
+      accent: ACCENT,
+      children: [
+        stepper('tiles', 'Anzahl Kacheln', NORMAL_TILES),
+        stepper('tasks', 'Anzahl Aufträge', QUEST_TILES),
+        {
+          id: 'hexland:setup:start',
+          label: 'Neue Partie mit diesen Zahlen',
+          sub: `${tiles} normale Kacheln, ${tasks} Auftragskacheln`,
+          icon: 'cube',
+          accent: 0x5fe07a,
+          run: () => {
+            this.startGame('game');
+            close();
+          },
+        },
+      ],
     };
   }
 
@@ -3576,7 +3663,7 @@ export class HexlandWorld extends FurnishedWorld {
     this.board = new HexBoard();
     if (mode === 'creative') this.board.resetCreative();
     else if (mode === 'world') this.board.resetWorld();
-    else this.board.reset(undefined, mode);
+    else this.board.reset(undefined, mode, mode === 'game' ? this.setup : {});
     writeSave(this.board.save(), mode);
     this.lastPlaced = null;
     this.redraw();
@@ -3727,7 +3814,7 @@ const MODE_LABEL: Readonly<Record<HexMode, string>> = {
   creative: 'Kreativ-Modus',
 };
 const MODE_SUB: Readonly<Record<HexMode, string>> = {
-  game: `${NORMAL_TILES} Kacheln, immer ${OPEN_TASKS} Aufträge, Wertung wie im Brettspiel`,
+  game: `Fester Stapel, immer ${OPEN_TASKS} Aufträge, Wertung wie im Brettspiel`,
   endless: 'Dieselben Regeln, aber der Stapel wird nie leer',
   world: 'Feld für Feld im Kreis um die Mitte — jede Kachel passt genau',
   creative: 'Frei bauen, jede Kachel aus dem Katalog, ohne Wertung',
@@ -4054,8 +4141,42 @@ function loadBoard(mode: HexMode): HexBoard {
   if (board.load(text) && board.mode === mode) return board;
   if (mode === 'creative') board.resetCreative();
   else if (mode === 'world') board.resetWorld();
-  else board.reset(undefined, mode);
+  else board.reset(undefined, mode, mode === 'game' ? readSetup() : {});
   return board;
+}
+
+/** **Wie groß eine neue Partie ist** — `Partie einstellen` im Reiter. */
+interface HexSetup {
+  tiles: number;
+  tasks: number;
+}
+
+const SETUP_KEY = 'hexland:setup';
+const SETUP_LIMITS = { tiles: [5, 200], tasks: [0, 100] } as const;
+
+function readSetup(): HexSetup {
+  const out: HexSetup = { tiles: NORMAL_TILES, tasks: QUEST_TILES };
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') as Partial<HexSetup>;
+    if (Number.isFinite(raw.tiles)) out.tiles = clampSetup('tiles', raw.tiles!);
+    if (Number.isFinite(raw.tasks)) out.tasks = clampSetup('tasks', raw.tasks!);
+  } catch {
+    // Ein kaputter Speicher heißt: wie im Brettspiel.
+  }
+  return out;
+}
+
+function writeSetup(setup: HexSetup): void {
+  try {
+    localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
+  } catch {
+    // Ohne Speicher gilt die Zahl nur bis zum Neuladen.
+  }
+}
+
+function clampSetup(key: keyof HexSetup, value: number): number {
+  const [min, max] = SETUP_LIMITS[key];
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function writeSave(text: string, mode: HexMode): void {

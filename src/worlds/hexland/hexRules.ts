@@ -496,6 +496,17 @@ export function taskDeck(random: () => number): Task[] {
 }
 
 /**
+ * **Ein Auftragsstapel beliebiger Größe** — weniger als ein ganzer Stapel:
+ * die obersten; mehr: weitere ganze Stapel, jeder für sich gemischt. So bleibt
+ * die Mischung der Zahlen je Gelände wie im Brettspiel.
+ */
+export function taskDeckOf(random: () => number, count: number): Task[] {
+  const deck: Task[] = [];
+  while (deck.length < count) deck.push(...taskDeck(random));
+  return deck.slice(0, count);
+}
+
+/**
  * **Wie viele Auftragskacheln eine normale Runde hat** — endlich, wie im
  * Brettspiel, damit man sieht, wie viele noch kommen können (gewünscht: _„Es
  * wäre schön zu sehen, wie viele Aufträge es noch geben könnte und wie viele
@@ -720,6 +731,10 @@ export class HexBoard {
   /** Die Aufträge, die noch kommen — oben ist das Ende der Liste. */
   tasks: Task[] = [];
 
+  /** Mit wie vielen normalen Kacheln und Aufträgen die Partie begann (`reset`). */
+  startTiles = NORMAL_TILES;
+  startTasks = QUEST_TILES;
+
   /** Wie viele Auftragskacheln noch kommen können — `Infinity` im unendlichen Spiel. */
   get tasksLeft(): number {
     return this.mode === 'endless' ? Infinity : this.tasks.length;
@@ -733,12 +748,22 @@ export class HexBoard {
   }
 
   /** **Eine neue Partie** — eine Landkachel in der Mitte, 45 im Stapel, dann die Aufträge. */
-  reset(seed = Date.now() % 1e9, mode: 'game' | 'endless' = 'game'): void {
+  reset(
+    seed = Date.now() % 1e9,
+    mode: 'game' | 'endless' = 'game',
+    size: { tiles?: number; tasks?: number } = {},
+  ): void {
     this.start(seed, mode);
+    // **Wie groß die Partie ist** — im Reiter einstellbar (_Partie
+    // einstellen_), ab Werk wie im Brettspiel.
+    this.startTiles = Math.max(1, Math.round(size.tiles ?? NORMAL_TILES));
+    this.startTasks = Math.max(0, Math.round(size.tasks ?? QUEST_TILES));
+    if (mode === 'game' && this.startTasks !== QUEST_TILES)
+      this.tasks = taskDeckOf(this.random, this.startTasks);
     // Die letzten (obersten) ohne Fluss und Weg — sonst verlangt die zweite
     // Kachel schon einen Fluss, bevor es überhaupt Land gibt.
-    for (let i = 0; i < NORMAL_TILES; i++) {
-      this.stack.push(drawTile(this.random, { landOnly: i >= NORMAL_TILES - 3 }));
+    for (let i = 0; i < this.startTiles; i++) {
+      this.stack.push(drawTile(this.random, { landOnly: i >= this.startTiles - 3 }));
     }
     this.hand = this.nextHand();
   }
@@ -1673,6 +1698,7 @@ export class HexBoard {
       tasks: Number.isFinite(this.tasksLeft) ? this.tasksLeft : -1,
       // Der Auftragsstapel selbst, Gelände und Zahl je Auftrag.
       deck: this.tasks.map((t) => [TERRAIN_CODE[t.terrain], t.target]),
+      size: [this.startTiles, this.startTasks],
     });
   }
 
@@ -1710,6 +1736,10 @@ export class HexBoard {
       this.placed = Number(data.placed) || 0;
       this.seed = Number(data.seed) || 1;
       this.tasks = readDeck(data, this.mode, rng(this.seed + 104729));
+      const size = Array.isArray(data.size) ? data.size : [];
+      this.startTiles = Number(size[0]) > 0 ? Number(size[0]) : NORMAL_TILES;
+      this.startTasks =
+        Number(size[1]) >= 0 && size[1] !== undefined ? Number(size[1]) : QUEST_TILES;
       // Der Würfel geht weiter, wo der Stand war — nicht wieder von vorn.
       this.random = rng(this.seed + this.placed * 7919);
       return true;
@@ -1740,6 +1770,8 @@ interface SaveData {
   hand: PackedSpec | null;
   tasks?: number;
   deck?: Array<[string, number]>;
+  /** Normale Kacheln und Aufträge zu Beginn (`startTiles`, `startTasks`). */
+  size?: [number, number];
 }
 
 /**
