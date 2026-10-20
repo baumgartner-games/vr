@@ -118,6 +118,34 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   die Stücke Zahlen, nicht Zeichenketten — _Intelligent (optimiert)_ fragt
   `areas` für jede Lage, mit Zeichenketten lief `hexbench` 1,7× so lang.
 
+### Leben auf dem Brett
+
+`hexLife.ts` (`HexLife`, hängt an `board3d`, läuft nur mit _Animationen_).
+Gewünscht: _„ein paar weitere Animationen … npc die laufen und Holz hacken.
+Boote die auf dem Fluss fahren. Vögel die fliegen. Füchse die über Wiesen
+laufen. Diese npc und diese spänen hinter einem Baum Felsen Busch Haus, wo man
+diese von der Kamera erst nicht sieht und machen dann es und verschwinden dann
+auch dahinter. … Ein Karren/Wagen entlang der Wege."_
+
+- **Höchstens eins je Sorte**, nur im Ausschnitt der Kamera (derselbe `view`
+  wie beim Wind), mit gewürfelten Pausen (`PAUSE`).
+- **Boot** (`decoration/props/boat.glb`) den Fluss entlang, **Karren mit
+  Pferd** (`units/neutral/cart.glb`, `horse_A`) den Weg entlang: von einem Ende
+  (Rand des Bretts oder Sackgasse, `ends`) Kachel für Kachel (`trail`, an
+  Gabeln gewürfelt), weich auf einer Kurve; vorn und hinten wachsen sie aus
+  dem Nichts (`FADE`).
+- **Holzfäller** (eine Figur aus _Adventurers_, `loadKaykitFigure` mit
+  `merge`, Axt in der rechten Hand): aus einem Haus (`building_home` der
+  Ausstattung) zum nächsten Baum, hackt (`Melee_2H_Attack_Chop`), geht zurück
+  ins Haus — beginnt und endet im Haus, also unsichtbar.
+- **Fuchs**: der Wolf aus _Mystery Monthly 4_ (Werwolf-Paket), orange getönt
+  (`tint`) — ein Fuchsmodell gibt es im Regal nicht. Läuft von hinter einem
+  Baum, Busch oder Stein (`behind`: die von der Kamera abgewandte Seite) zum
+  nächsten.
+- **Vögel**: ein Schwarm aus sieben, der hoch übers Bild zieht. Kein
+  Vogelmodell im Regal — jeder Vogel sind zwei schlagende Dreiecke, alle in
+  zwei Bündeln (`Flock`).
+
 ### Übersicht, übrige Kacheln, Vorschlag
 
 Gewünscht (Oktober 2026): _„dass ich zwar die aktuellen Missionen sehe, aber
