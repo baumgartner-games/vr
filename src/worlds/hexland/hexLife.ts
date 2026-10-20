@@ -303,7 +303,7 @@ interface Part {
 }
 const BOAT: readonly Part[] = [
   // Der Bug zeigt im Modell nach −Z — gemeldet: _„Boote sind um 90 falsch gedreht"_.
-  { path: 'medieval-hexagon/decoration/props/boat.glb', scale: 1.1 },
+  { path: 'medieval-hexagon/decoration/props/boat.glb', scale: 0.8 },
 ];
 const CART: readonly Part[] = [
   // Die Deichsel des Karrens zeigt im Modell nach +Z — gedreht, damit sie vorn ist.
@@ -317,13 +317,15 @@ const PEOPLE = [
   'adventurers/characters/Rogue_Hooded.glb',
 ] as const;
 const AXE = 'adventurers/axe_1handed.glb';
-const PERSON_HEIGHT = 0.32;
-/** Wer im Boot sitzt: kleiner, ein Stück über dem Boden des Boots. */
-const RIDER_HEIGHT = 0.26;
-const RIDER_LIFT = 0.03;
+// Gemeldet: _„Menschen in Booten, Menschen und Wölfe 2x groß machen. Das Boot
+// ggf kleiner, dass es zum Menschen darin passt"_.
+const PERSON_HEIGHT = 0.64;
+/** Wer im Boot sitzt: etwas kleiner, ein Stück über dem Boden des Boots. */
+const RIDER_HEIGHT = 0.52;
+const RIDER_LIFT = 0.02;
 const CHOP_SECONDS = 5;
 const WOLF = 'mystery-monthly-4/4-october-2023-werewolf/characters/Werewolf_Wolf.glb';
-const WOLF_HEIGHT = 0.3;
+const WOLF_HEIGHT = 0.6;
 /**
  * **Wie schnell sie fahren** (Meter des Bretts je Sekunde) — langsam, die
  * Welt soll leben, nicht hetzen. Gemeldet: _„Boote, Karren, Vögel, Wölfe und
