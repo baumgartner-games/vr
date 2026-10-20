@@ -3882,7 +3882,11 @@ export class HauntingWorld extends FurnishedWorld {
     if (!ui) {
       this.nextPhoneRender = 0;
       this.liftLid(this.state.crew.simulation);
-      return false;
+      // **Der Techniker sieht durch Portale** — das Bild der Welt darunter
+      // zeichnet erst die Portalsichten und dann die Szene
+      // (`PortalWorld.render`). Mit `false` zeichnete der Kern nur die Szene,
+      // und ein Portal an einer Wand der Station blieb ein Wirbel.
+      return super.render(ctx);
     }
     // Phone dashboards keep their DOM/radar updates, but their optional 3D
     // camera needs at most 15 frames/s. Return before clear to retain the image.

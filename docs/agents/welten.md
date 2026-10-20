@@ -744,6 +744,30 @@ Bild über die _Bildschirmposition_ nachschlägt, bekommt sie vor jedem Durchgan
 gesagt, wie groß das Bild ist, das gerade gezeichnet wird — sonst säße das
 innere Bild verschoben.
 
+**Gezeichnet wird nur, was durch das Loch zu sehen ist** (Oktober 2026,
+`portalView.ts`): je Portal, Ebene und Auge das Rechteck, in dem die Öffnung
+auf dem Bild liegt, als Viewport, und eine Projektion, die genau darauf
+zugeschnitten ist. Ein Portal hinter einem kostet nichts mehr, eines im Blick
+nur noch, was hinter ihm liegt. Wie und warum — und die Zahlen — steht in
+[Bildrate in der Brille](performance.md#portale-oktober-2026).
+
+**Portale auf Wänden aus dem Katalog** (Oktober 2026, `portalWalls.ts`).
+Gewünscht: _„Ich würde gerne wieder die Portal Waffe nutzen können, um auf
+Wände aus dem Katalog Portale zum teleportieren zu nutzen."_ Seit die Welten
+aus dem Regal gebaut werden, sind ihre Wände keine gebauten Quader mehr,
+sondern Modelle mit einem Körper — und der Schuss ging durch sie hindurch.
+Jetzt bekommt jede Wand (Körper ein Kasten, mindestens 1,2 m hoch, höchstens
+0,6 m dick, keine Tür) einen unsichtbaren Kasten in der Größe ihres Colliders,
+auf den gezielt wird wie auf jede Fläche (`PortalWorld.portalTargets`). Ein
+Portal darf über die Fuge zweier Stücke reichen (`fits`). Was der Trichter
+durchstößt, bekommt solange ein Portalbit als Mitgliedschaft
+(`PhysicsWorld.setMembership`), und weil eine Wand auf dem Gitter den Spieler
+nicht mit ihrem Körper, sondern im Zellgitter aufhält, lässt die Ebene ihn im
+Trichter durch (`PhysicsLocomotion.planeGate`). Ohne das blieb man 20 cm vor
+der Wand stehen. Wird die Wand weggenommen, getragen oder verschoben, schließt
+das Portal. Geschossen von einem Mitspieler, belegt jeder die Wände bei sich
+(`applyPortal`).
+
 Bekannte Grenzen des Prototyps: Portale nur auf ebenen Flächen, und die
 inneren Ebenen zeigen ein Nachbarportal mit der Kamera der eigenen Kette —
 für zwei sich gegenüberstehende Portale (der Fall, den man ansieht) stimmt es,

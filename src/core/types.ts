@@ -335,6 +335,14 @@ export interface World {
    */
   readonly ownsFlat?: boolean;
   /**
+   * **Am Schirm gibt es hier nur _von oben_.** Hexland ist ein Brett, kein
+   * Ort zum Herumlaufen — gewünscht: _„In hex World gibt es kein ‚aus den
+   * Augen' Modus, da default auf von oben springen."_ Die Wahl der Spiel-Sicht
+   * bleibt gespeichert und gilt in der nächsten Welt wieder; die Brille und
+   * das Zuschauen gehen weiter vor.
+   */
+  readonly onlyTopDown?: boolean;
+  /**
    * **Auf welcher Ebene das Rig gerade steht** — für die Ansicht von oben.
    *
    * Von dort aus wird aufgeschnitten (`core/cutaway.ts`): Alles über dieser

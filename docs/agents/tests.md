@@ -3,7 +3,7 @@
 Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 über alle, und dort stehen die Arbeitsregeln.
 
-**Getestet wird nur, was kritisch ist.** `npm test` fährt 27 Suiten mit gut
+**Getestet wird nur, was kritisch ist.** `npm test` fährt 28 Suiten mit gut
 400 Tests in **unter zehn Sekunden**. Gewünscht: _„Wir sollten echt nur das
 notwendigste testen."_
 
@@ -17,7 +17,7 @@ Funktion gut testen lässt.
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Navigation          | `nav/navTile`, `nav/navGraph`, `nav/navPath`, `nav/cellGrid`, `nav/cellRoute`, `nav/navAgent`, `haunting/navmesh/route`, `haunting/navmesh/pathSmoothing`, `haunting/stationNavigation` | Ein falscher Weg sieht aus wie ein dummer Bot, nicht wie ein Fehler; dass jeder Raum der Station erreichbar ist, sieht man in keiner einzelnen Runde. |
 | Greifen             | `portal/grabReach`, `core/grabSettings`                                                                                            | Die Mathematik hinter dem Fern- und Handgriff, Vorzeichen eingeschlossen.                                                    |
-| Boden und Portale   | `physics/playerFooting`, `portal/portalFall`, `portal/portalCrossing`                                                              | Durch den Boden fallen, bei jeder Bildrate; durch ein Portal fallen oder an seiner Wand hängen bleiben.                     |
+| Boden und Portale   | `physics/playerFooting`, `portal/portalFall`, `portal/portalCrossing`, `portal/portalView`                                         | Durch den Boden fallen, bei jeder Bildrate; durch ein Portal fallen oder an seiner Wand hängen bleiben; der Zuschnitt der Portalsichten — ein Pixel daneben ist eine Naht, ein Portal fälschlich „unsichtbar“ zeigt das Bild von gestern. |
 | Speicherstände      | `grid/worldFile`, `grid/worldStore`, `core/configCode`, `portal/tools/gearCodec`, `npc/characterStore`, `hexland/hexRules`         | Ein Fehler im Format kostet gespeicherte Welten, Bretter, Codes und Figuren — das ist nicht zurückzuholen.                            |
 | Netz                | `net/hello`, `net/host`, `haunting/net`                                                                                            | Zwei Spieler, die sich nicht verstehen, testet niemand allein vor dem Rechner.                                               |
 | App-Hülle           | `core/swRoutes`, `core/staleBuild`, `core/appVersion`, `worlds/index`                                                              | Geht das schief, startet nach einem Deploy gar nichts mehr — oder eine alte Fassung geht nicht weg.                         |
