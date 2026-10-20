@@ -78,13 +78,15 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   im Reiter zu sehen. Passende Kanten bringen keine Punkte (wie im Brettspiel),
   helfen aber, Gebiete wachsen zu lassen; die Vorschau zeigt sie grün und rot.
 - **Auf der Wiese stehen keine Bäume** (`hexDressing.meadow`): kleine Büsche
-  (_Forest Nature_, `BUSH_SHAPES`, Farbe 1) und ein paar kleine Steine —
+  (_Forest Nature_, `BUSH_SHAPES`: nur die runden `1_B…1_E`, Farbe 1) und ein
+  paar kleine Steine —
   Modelle aus anderen Paketen tragen ein `/` vorn (`HexModels.load`).
   Gemeldet erst _„Bitte bei den hex Feldern die z.B. kein Wald sind auch bitte
   keine Bäume platzieren."_; die Flachsblumen danach waren _„leider
   hässlich"_. Aus fünf Bildern (Grasbüschel, Büsche, Hügel, Weide, Steine)
   gewählt: _„B bitte. und etwas kleiner. Auch gerne ein paar steine, aber
-  kleiner?"_ Bäume stehen nur noch im Wald.
+  kleiner?"_, dann _„variante 1 bitte. aber auch gern runde büsche, statt
+  eckige"_. Bäume stehen nur noch im Wald.
 - **Die Kacheln** sind wie im Brettspiel: meist zwei Gelände, oft eines,
   selten drei, wenig bloße Wiese (`drawTile`).
 - **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt

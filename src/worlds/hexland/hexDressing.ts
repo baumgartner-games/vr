@@ -44,7 +44,7 @@ const HOUSE_COLOURS = ['red', 'red', 'red', 'blue', 'yellow', 'red', 'green'] as
  * kleiner?"_ Die Büsche kommen aus einem anderen Paket des Regals (`/` vorn,
  * `HexModels.load`), in den Farben `BUSH_COLOURS`.
  */
-const BUSH_SHAPES = ['1_A', '1_B', '1_C', '2_A', '2_B'] as const;
+const BUSH_SHAPES = ['1_B', '1_C', '1_D', '1_E'] as const;
 const BUSH_COLOURS = ['1'] as const;
 const bushModel = (shape: string, colour: string): string =>
   `/forest-nature/color${colour}/Bush_${shape}_Color${colour}.glb`;
@@ -79,7 +79,7 @@ function meadow(out: Dress[], random: () => number, x: number, z: number, spread
   }
 }
 
-const BUSH_SCALE = 0.35;
+const BUSH_SCALE = 0.3;
 const ROCK_SCALE = 0.6;
 const MEADOW_PAIR = 0.5;
 const MEADOW_ROCKS = 2;
