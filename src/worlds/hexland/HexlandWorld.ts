@@ -688,7 +688,7 @@ export class HexlandWorld extends FurnishedWorld {
     if (here === this.whyShown) return;
     this.whyShown = here;
     if (this.whyButton) {
-      this.whyButton.textContent = here ? 'ⓘ' : '💡';
+      this.whyButton.innerHTML = here ? INFO_ICON : LAMP_ICON;
       this.whyButton.title = here ? 'Warum dort?' : 'Vorschlag (Intelligent optimiert)';
     }
     if (!here && this.whyBox) this.whyBox.style.display = 'none';
@@ -2535,8 +2535,11 @@ export class HexlandWorld extends FurnishedWorld {
     const tools = button('💡', 'Vorschlag (Intelligent optimiert)', () =>
       this.whyHere() ? this.showWhy() : this.suggest(),
     );
+    // Gezeichnet statt Emoji: Das 💡 saß am iPhone nicht in der Mitte des
+    // Kreises — gemeldet: _„bitte vorschlag button zentrieren das icon"_.
+    tools.innerHTML = LAMP_ICON;
     tools.style.cssText +=
-      ';height:42px;width:42px;min-width:42px;padding:0;flex:none;margin-left:auto;font-size:20px;border-radius:50%';
+      ';height:42px;width:42px;min-width:42px;padding:0;flex:none;margin-left:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;line-height:0';
     this.whyButton = tools;
     this.barTools = tools;
     text.style.flex = '1';
@@ -3875,6 +3878,15 @@ function offsetOf(anchor: THREE.Object3D, object: THREE.Object3D): THREE.Matrix4
 }
 const ARROW_KEY = 'hexland:arrows';
 const OVERVIEW_KEY = 'hexland:overview';
+
+/** Die Lampe des Vorschlags und das ⓘ — als Zeichnung, damit sie genau mittig sitzen. */
+const LAMP_ICON =
+  '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M9 17.5h6M10 20.5h4M12 3.5a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3.5z" fill="#ffe27a" stroke="#ffe27a" stroke-width="1.6"/>' +
+  '<path d="M9 17.5h6M10 20.5h4" stroke="#e8edf5" stroke-width="1.8"/></svg>';
+const INFO_ICON =
+  '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#e8edf5" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+  '<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r="0.6" fill="#e8edf5"/></svg>';
 const CAMERA_KEY = 'hexland:camera';
 
 /** Ein Schalter im Browser — ohne Eintrag gilt `fallback`. */
