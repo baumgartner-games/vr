@@ -401,7 +401,10 @@ class Traveller extends Actor {
 /**
  * **Zu Fuß** — die Punkte nacheinander ablaufen, am letzten `work` Sekunden
  * arbeiten (der Holzfäller hackt) und dann, wenn `back`, denselben Weg zurück.
- * Am Anfang und am Ende steht er hinter etwas (im Haus, hinter einem Baum).
+ * Am Anfang und am Ende steht er hinter etwas (im Haus, hinter einem Baum) und
+ * wächst dort wie Boot und Karren aus dem Nichts bzw. schrumpft wieder hinein —
+ * gewünscht: _„nicht einfach auftauchen und verschwinden sondern wie beim Boot
+ * winzig sind und dann wachsen und am Ende wieder schrumpfen"_.
  */
 class Walker extends Actor {
   private figure: KaykitFigure | null = null;
@@ -410,6 +413,8 @@ class Walker extends Actor {
   private working = 0;
   private route: THREE.Vector3[];
   private returning = false;
+  /** Sekunden unterwegs, seit die Figur da ist — fürs Wachsen am Anfang. */
+  private age = 0;
 
   constructor(
     kind: Kind,
@@ -420,6 +425,7 @@ class Walker extends Actor {
     this.route = points;
     this.root.position.copy(points[0]!);
     this.root.visible = false;
+    this.body.scale.setScalar(0.001);
   }
 
   wear(figure: KaykitFigure): void {
@@ -460,13 +466,27 @@ class Walker extends Actor {
     const pace = this.kind === 'wolf' ? WOLF_PACE : WALK_PACE;
     const span = from.distanceTo(to);
     this.along += dt * pace;
+    this.age += dt;
     const u = Math.min(1, this.along / Math.max(span, 1e-3));
     this.root.position.lerpVectors(from, to, u);
     this.root.rotation.y = Math.atan2(-(to.x - from.x), -(to.z - from.z));
+    // Wer am Ende des Wegs verschwindet, schrumpft auf den letzten Schritten;
+    // wer zur Arbeit geht, kommt in voller Größe beim Baum an.
+    const leaving = this.returning || this.plan.work <= 0;
+    const left = leaving ? (span * (1 - u) + this.rest(this.leg + 1)) / pace : FADE;
+    this.body.scale.setScalar(Math.max(0.001, Math.min(1, this.age / FADE, left / FADE)));
     if (u >= 1) {
       this.leg++;
       this.along = 0;
     }
+  }
+
+  /** Weglänge ab Punkt `from` bis zum Ende der Route. */
+  private rest(from: number): number {
+    let sum = 0;
+    for (let i = from; i + 1 < this.route.length; i++)
+      sum += this.route[i]!.distanceTo(this.route[i + 1]!);
+    return sum;
   }
 
   override dispose(): void {

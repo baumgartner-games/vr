@@ -156,6 +156,11 @@ auch dahinter. … Ein Karren/Wagen entlang der Wege."_
   `areaEdges`) bis hinter einen Baum weiter drinnen. Gemeldet: _„Wölfe es
   sollen nur innerhalb eines Wald Gebietes von Gebiet zu Gebiet laufen nicht
   über unentdeckte Felder oder andere."_
+- **Zu Fuß wie im Boot**: Leute, Holzfäller und Wolf wachsen am Anfang ihres
+  Wegs aus dem Nichts und schrumpfen auf den letzten Schritten wieder hinein
+  (`Walker`, `FADE`); der Holzfäller kommt in voller Größe am Baum an.
+  Gewünscht: _„nicht einfach auftauchen und verschwinden sondern wie beim
+  Boot winzig sind und dann wachsen und am Ende wieder schrumpfen"_.
 - **Vögel**: ein Schwarm aus sieben, der hoch übers Bild zieht. Kein
   Vogelmodell im Regal — jeder Vogel sind zwei schlagende Dreiecke, alle in
   zwei Bündeln (`Flock`).
