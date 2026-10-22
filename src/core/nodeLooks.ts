@@ -58,6 +58,8 @@ export function skyNodeMaterial(
   material.transparent = false;
   material.alphaTest = 0.5;
   material.fog = false;
+  // Der alte Shader gab roh aus, ohne Tonemapping und sRGB (`appRenderer.inlineOutput`).
+  material.userData['rawOutput'] = true;
   return wrap(material, { topColor, bottomColor, skyShown });
 }
 
@@ -113,6 +115,8 @@ export function comfortBorderNodeMaterial(): THREE.ShaderMaterial | null {
   material.colorNode = TSL.vec3(0, 0, 0);
   const rim = TSL.smoothstep(0.46, 0.94, TSL.length(TSL.positionGeometry.xy));
   material.opacityNode = rim.mul(amount).mul(primaryView);
+  // Der alte Shader gab roh aus, ohne Tonemapping und sRGB (`appRenderer.inlineOutput`).
+  material.userData['rawOutput'] = true;
   return wrap(material, { amount, primaryView });
 }
 
@@ -143,6 +147,8 @@ export function condensationNodeMaterial(): THREE.ShaderMaterial | null {
     hurt.div(TSL.max(white.add(hurt), 0.001)),
   );
   material.opacityNode = TSL.min(white.add(hurt), 0.6);
+  // Der alte Shader gab roh aus, ohne Tonemapping und sRGB (`appRenderer.inlineOutput`).
+  material.userData['rawOutput'] = true;
   return wrap(material, { fogAmount, damage, time });
 }
 
@@ -192,5 +198,7 @@ export function visorFogNodeMaterial(): THREE.ShaderMaterial | null {
   );
   material.colorNode = TSL.vec3(0.86, 0.9, 0.93).mul(TSL.mix(0.93, 1.06, grain));
   material.opacityNode = TSL.clamp(density.mul(cover).mul(TSL.mix(0.8, 1.12, grain)), 0, 0.94);
+  // Der alte Shader gab roh aus, ohne Tonemapping und sRGB (`appRenderer.inlineOutput`).
+  material.userData['rawOutput'] = true;
   return wrap(material, { uFog, uRealistic, uImage, uMap, uBoxMin, uBoxSize });
 }

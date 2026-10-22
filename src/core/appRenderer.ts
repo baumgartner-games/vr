@@ -203,7 +203,24 @@ function inlineOutput(
     const out = base.call(this, builder, output);
     const target = (builder as unknown as { renderer: { getRenderTarget(): unknown } }).renderer;
     if (target !== (renderer as unknown) || renderer.getRenderTarget() !== null) return out;
+    // Ein eigener Shader, der unter WebGL ohne `#include <tonemapping_fragment>`
+    // und `<colorspace_fragment>` ausgab, schreibt seine Werte roh ins Bild —
+    // sein Nachbau sagt das mit `userData.rawOutput` (`core/nodeLooks.ts`).
+    if (this.userData['rawOutput'] === true) return out;
     const mapping = this.toneMapped ? renderer.toneMapping : THREE.NoToneMapping;
-    return gpu.TSL.renderOutput(out, mapping, renderer.outputColorSpace);
+    if (this.premultipliedAlpha)
+      return gpu.TSL.renderOutput(out, mapping, renderer.outputColorSpace);
+    // `renderOutput` gibt vormultipliert zurück; gemischt wird hier aber mit
+    // `SRC_ALPHA` — die Deckkraft zählte doppelt (Rauch zu dunkel, Feuer zu
+    // klein). Also nur die Farbe umrechnen und die Deckkraft danebenstellen.
+    const { TSL } = gpu;
+    // Die Ausgabe ist immer ein vec4 — die Typen kennen nur `Node`.
+    const rgba = out as unknown as ReturnType<typeof TSL.vec4>;
+    const colour = TSL.renderOutput(
+      TSL.vec4(rgba.rgb, 1),
+      mapping,
+      renderer.outputColorSpace,
+    ) as unknown as ReturnType<typeof TSL.vec4>;
+    return TSL.vec4(colour.rgb, rgba.a);
   } as Setup;
 }
