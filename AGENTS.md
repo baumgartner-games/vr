@@ -194,7 +194,7 @@ Stichpunkten).
 
 ### Godot
 
-- **[Wüstenfahrt](godot/desert/README.md)** (`godot/desert`, Godot 4.3, eigenes Projekt neben der Web-App) — Nachbau eines Videos: ein Pickup driftet über Sanddünen, Staubfahnen, Reifenspuren im Sand, Felsen, Kisten, Zäune, Strommasten aus dem Modellregal (für Godot entpackt). Darin: Starten, Tasten, wie es gebaut ist, Modelle, Offen.
+- **[Wüstenfahrt](godot/desert/README.md)** (`godot/desert`, Godot 4.3, eigenes Projekt neben der Web-App) — Nachbau eines Videos: ein Pickup driftet über Sanddünen, Staubfahnen, Reifenspuren im Sand, Felsen, Kisten, Zäune, Strommasten aus dem Modellregal (für Godot entpackt). **Im Browser:** `/vr/godot/desert/` — der Web-Export liegt fertig in `godot/desert/web` und wird beim Deploy nur hineinkopiert, der Service Worker lässt `godot/` vorbei; wer das Spiel ändert, exportiert neu. Darin: Im Browser spielen, Starten, Tasten, wie es gebaut ist, Modelle, Offen.
 
 ### Spielideen
 
