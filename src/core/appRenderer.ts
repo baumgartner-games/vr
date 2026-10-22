@@ -57,6 +57,7 @@ export function createRenderer(
       multiview: !/[?&]multiview=0\b/.test(location.search),
     });
     hideUnported(webgpu, renderer);
+    inlineOutput(webgpu, renderer);
     void renderer.init().then(() => patchMultiview(renderer.backend));
     return renderer as unknown as THREE.WebGLRenderer;
   }
@@ -163,4 +164,46 @@ function hideUnported(
   };
   library.addMaterial(Unported, 'ShaderMaterial');
   library.addMaterial(Unported, 'RawShaderMaterial');
+}
+
+/**
+ * **Ohne den Umweg über einen Zwischenpuffer.** Der neue Renderer zeichnet
+ * jedes Bild, das Tonemapping (ACES) oder sRGB braucht, zuerst in einen
+ * eigenen Puffer und kopiert es dann in einem zweiten Durchgang über das
+ * ganze Bild hinüber (`Renderer.needsFrameBufferTarget`, `_renderOutput`) —
+ * auch in der Brille, je Auge. Am Schirm kostete das gemessen fast die
+ * doppelte Bildzeit (`npm run fps -- --cases=basis,webgpu`, Hub +99 %), und
+ * auf der Quest ist ein Durchgang über das volle Bild das Teuerste, was es
+ * gibt. Der alte Renderer rechnet beides **im Material** aus. Das tut der neue
+ * jetzt auch: Für die Entscheidung über den Puffer meldet er „kein Tonemapping,
+ * kein sRGB", und jedes Knotenmaterial hängt die Umrechnung selbst an seine
+ * Ausgabe (`setupOutput`) — außer es zeichnet in ein eigenes Ziel.
+ */
+function inlineOutput(
+  gpu: WebGPUModule,
+  renderer: InstanceType<WebGPUModule['WebGPURenderer']>,
+): void {
+  Object.defineProperty(renderer, 'currentToneMapping', { get: () => THREE.NoToneMapping });
+  Object.defineProperty(renderer, 'currentColorSpace', {
+    get: () => THREE.ColorManagement.workingColorSpace,
+  });
+  // Die Brille fragt je Bild nach dem Zwischenpuffer, um ihn zu foveieren,
+  // und prüft nicht, ob es einen gibt. Ohne ihn foveiert die Projektionsebene
+  // selbst (`setFoveation`).
+  const xr = renderer.xr as unknown as { foveateBoundTexture(target: unknown): void };
+  const foveate = xr.foveateBoundTexture.bind(xr);
+  xr.foveateBoundTexture = (target) => {
+    if (target) foveate(target);
+  };
+  type Material = InstanceType<WebGPUModule['NodeMaterial']>;
+  type Setup = Material['setupOutput'];
+  const proto = gpu.NodeMaterial.prototype as unknown as { setupOutput: Setup };
+  const base = proto.setupOutput;
+  proto.setupOutput = function (this: Material, builder, output) {
+    const out = base.call(this, builder, output);
+    const target = (builder as unknown as { renderer: { getRenderTarget(): unknown } }).renderer;
+    if (target !== (renderer as unknown) || renderer.getRenderTarget() !== null) return out;
+    const mapping = this.toneMapped ? renderer.toneMapping : THREE.NoToneMapping;
+    return gpu.TSL.renderOutput(out, mapping, renderer.outputColorSpace);
+  } as Setup;
 }

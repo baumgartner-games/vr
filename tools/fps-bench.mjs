@@ -369,7 +369,9 @@ async function measure(browser, world, item) {
               // `cpuMs` ist die JavaScript-Zeit eines Schritts. Liegt sie nahe
               // an der Bildzeit, hängt das Bild am Rechnen und nicht am Füllen.
               cpuMs: latest?.cpuMs ?? null,
-              calls: render.calls,
+              // Der zweite Renderer (`core/appRenderer.ts`) zählt in `calls` die
+              // Aufrufe von `render()`; seine Zeichenaufrufe stehen in `drawCalls`.
+              calls: render.drawCalls ?? render.calls,
               triangles: render.triangles,
               programs: window.bgvr.renderer.info.programs?.length ?? null,
               pixelRatio: window.bgvr.renderer.getPixelRatio(),
