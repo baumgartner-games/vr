@@ -1,0 +1,29 @@
+; Godot 4.3 — Wüstenfahrt, nachgebaut nach einem Video (siehe README.md).
+
+config_version=5
+
+[application]
+
+config/name="Wüstenfahrt"
+config/description="Ein Pickup driftet über Sanddünen: Staubfahnen, Reifenspuren, Felsen, Zäune, Strommasten."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=6
+
+[physics]
+
+common/physics_ticks_per_second=120
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=2
+lights_and_shadows/directional_shadow/size=4096
