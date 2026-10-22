@@ -41,7 +41,7 @@ Zeile für Zeile, so wie sie unter _Menü → Einstellungen → Grafik_ steht
 
 | Zeile | Empfehlung | Was sie kostet, was sie bringt |
 | --- | --- | --- |
-| **Stufe** (`mode`) | **Einfach** | Comic zeichnet jedes Ding **zweimal** — einmal die Fläche, einmal die Kontur (`core/outlineShell.ts`). In der Testwelt steigen die Zeichenaufrufe dabei von **607 auf 988** und die Bildzeit um **18 %**, im Hub um **22 %**. Das ist der teuerste einzelne Schalter im Menü, und er kauft nichts als Aussehen. |
+| ~~**Stufe** (`mode`)~~ | — | Den Comic gibt es seit Oktober 2026 nicht mehr. Er zeichnete jedes Ding **zweimal** — in der Testwelt 607 → 988 Zeichenaufrufe, +18 % Bildzeit, im Hub +22 %. An seiner Stelle steht **Renderer** (WebGL oder Multiview, `core/rendererKind.ts`). |
 | **Schatten** (`shadows`) | **Aus** in der Testwelt, **an** im Hub | Der zweite Renderdurchgang für die Schattenkarte kostet in der Testwelt **126 zusätzliche Zeichenaufrufe** und **34 % Bildzeit**, im Hub 8 Aufrufe und 25 %. Das ist der **größte Gewinn, den das Menü hier hergibt** — und trotzdem meldet die Brille, dass Schatten an oder aus dort **nichts** ändert. Beides stimmt: Hier rastert eine CPU, und ein zweiter Durchgang über die Schattenkarte kostet sie Füllrate; auf der Quest erledigt das die GPU, die sich langweilt. **Die 34 % übertragen sich also nicht.** Mitnehmen kann man sie trotzdem, sie kosten nichts. Im Hub bleiben Schatten an: Dort sind 25 % von einer Bildzeit, die ohnehin unter dem Budget liegt, gut angelegtes Geld für ein Bild, das nicht schwebt. |
 | **Brille** (`xrScale`) | **0,7 (Flüssig)** in der Testwelt, **0,85 (Mittel)** im Hub | Der eine Regler, der **nur** in XR zieht (`GraphicsQuality.applyRenderer` → `setFramebufferScaleFactor`). Am Bildschirm ist er nachweislich wirkungslos (siehe die Kontrollzeilen unten); sein Stellvertreter am Schirm — derselbe Faktor auf den Bildpuffer — spart im Hub **39 %**, in der Testwelt aber nur **24 %**. Genau diese Hälfte ist die Aussage: In der Testwelt hängt die Bildzeit **nicht** an den Bildpunkten. |
 | **Bildrate im Bild** (`showFps`) | **An**, solange gestimmt wird | Kostet nichts (ein DOM-Feld, in der Brille unsichtbar), misst aber weiter — das Handgelenk-Menü zeigt die Zahl. Ohne sie stellt man in der Brille blind ein. |
@@ -50,8 +50,8 @@ Zeile für Zeile, so wie sie unter _Menü → Einstellungen → Grafik_ steht
 | **Hitboxen** (`hitBoxes`) | **Aus** | Werkstattansicht, **ohne Tiefenprüfung** gezeichnet: jeder Kasten, jede Kapsel, jeder Zylinder der Physik als eigener Zeichenaufruf über allem. |
 | **Griffe** (`showHandles`) | **Aus** | Ein Achsenkreuz je Griffstelle; dasselbe Argument wie eine Zeile darüber. |
 
-**In drei Zeilen:** Einfach statt Comic, Schatten in der Testwelt aus, Brille
-auf 0,7. Zusammen rund die Hälfte der Bildzeit — **auf dem Papier und auf dieser
+**In zwei Zeilen** (damals drei, mit _Einfach statt Comic_): Schatten in der
+Testwelt aus, Brille auf 0,7. Zusammen rund die Hälfte der Bildzeit — **auf dem Papier und auf dieser
 Maschine.** Warum das in der Brille nicht dasselbe ist, steht unter
 [_Die Zielmarken_](#die-zielmarken); die kurze Fassung: Das Menü hat keinen
 Regler für die Zahl der Dinge, und genau daran hängt die Testwelt.
@@ -201,7 +201,7 @@ Ein Absatz, ohne den die Tabellen oben gefährlich wären.
   bekommt, trotzdem an — verzerrt aus dem letzten. Eine gemessene Bildrate von
   30 auf einem 72-Hz-Panel ist deshalb etwas anderes als 30 hier.
 - **Keine Foveation.** `GraphicsQuality` stellt in XR `setFoveation` (1 im
-  einfachen Bild, 0,3 im Comic); der Bildschirm kennt das nicht. Am Rand des
+  einfachen Bild); der Bildschirm kennt das nicht. Am Rand des
   Blickfelds rechnet die Brille also gröber, als hier irgendwo abgebildet ist —
   das macht Auflösungsgewinne dort **kleiner**, als die Spalte „Bildpuffer"
   suggeriert.
@@ -239,7 +239,7 @@ Runde ansetzt, in der Reihenfolge, in der sie sich lohnen.
 | **M3** | **Küchenmöbel verschmelzen oder instanzieren** (`kitchenProps.ts`, `kitchenBelt.ts`). Ziel: von 607 auf unter 200 Zeichenaufrufe. Ein Tresen besteht aus 29 Meshes, ein Band aus 30, und es stehen 9 bzw. 10 davon herum. Zu prüfen ist dabei, was einzeln greifbar bleiben muss (`kitchenGrab.ts`, `kitchenCarry.ts`) — diese Teile bleiben eigene Meshes. | **−8 bis −14 ms** | groß · mittel |
 | **M4** | Die **Schattenkarte** nur neu bestellen, wenn ihr Anker springt (`core/GraphicsQuality.ts`). `aimSun` rastet den Kasten ohnehin auf ein 2-m-Gitter; solange man in derselben Zelle steht, ist die vorhandene Karte richtig. Spart 118 Zeichenaufrufe und einen Szenendurchlauf in fast jedem Bild. | −3 bis −6 ms | klein · klein |
 | **M5** | Den **Sekundendurchlauf** entschärfen (`core/GraphicsQuality.ts`, `RESCAN`). Er läuft einmal je Sekunde über alle 6000 Objekte — das ist der Ruckler hinter „29 ↔ 32 fps", nicht die Bildrate selbst. | gegen das Ruckeln | klein · klein |
-| **M6** | **Multiview** prüfen: Ob `OVR_multiview2` auf der Quest 3 da ist und three es nutzt, ließ sich hier nicht messen — der Container hat keine Brille. Wenn ja, halbiert das die Absetzkosten aller Zeichenaufrufe. Die größte verbleibende Schraube, falls M3 und M4 nicht reichen. | — | mittel |
+| **M6** | **Multiview** prüfen: Seit Oktober 2026 als Versuch eingebaut (_Grafik → Renderer: Multiview_, `core/appRenderer.ts`, three `WebGPURenderer` über WebGL 2). In der nachgestellten Brille halbieren sich die Zeichenaufrufe in Haunting (232 → 106). Ob `OVR_multiview2` auf der Quest 3 greift und was es an fps bringt, steht noch aus. | — | mittel |
 | **M7** | **Auf der Quest nachmessen.** Alle Zahlen dieses Dokuments sind Verhältnisse aus einem Software-Rasterizer. Die eine Messung, die zählt, steht noch aus: dieselbe Runde durch die Testwelt, vorher und nachher, mit der Bildratenanzeige aus dem Grafikmenü. | — | klein |
 
 **Die ehrliche Hochrechnung für die Brille**: Aus den 33 ms von heute werden mit
@@ -314,6 +314,12 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
 | `b2c478b` (#408) | 23 | 9,0 ms | 6,0 ms | 3,1 ms | 386 |
 | `ad94bd5` (#409) | 30 | 9,0 ms | 5,6 ms | 3,4 ms | 350 |
 | `b0c604e` (#410), 120 Hz | 25–30 (im Menü abgelesen), **40** beim Spielen (#411) | 7,3 ms | 5,8 ms (Median 4,4) | 1,5 ms | 312 |
+
+**Mit dem zweiten Renderer** (`--renderer=webgpu`, _Grafik → Renderer:
+Multiview_, Oktober 2026, zwei Läufe): Zeichenaufrufe **232 → 106** (ohne
+Multiview, `--multiview=0`: 239), JavaScript in `render()` (neue Zeile der
+Messstrecke, ohne Rastern) **7,9 → 5,9 ms**. Die fps der Brille dazu fehlen
+noch — bitte mit dem Schild (F3) in beiden Renderern ablesen.
 
 **Mit Portalen** (`--portals`, Oktober 2026): eines 2,5 m vor dem Techniker,
 eines im Rücken — Zeichenaufrufe 1 258 vor dem Zuschnitt der Portalsichten,

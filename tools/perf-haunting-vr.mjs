@@ -34,7 +34,9 @@
  * 3 m hinter ihm, vom Blick abgewandt — so, wie man mit einem Paar an zwei
  * Wänden steht und auf eines davon schaut), `--portals=both` (beide 2,5 m
  * vor ihm, nebeneinander und zu ihm gedreht — dann sieht man in jedem auch
- * das andere, und die inneren Ebenen werden gebraucht).
+ * das andere, und die inneren Ebenen werden gebraucht), `--renderer=webgpu`
+ * (der zweite Renderer, `core/rendererKind.ts` — in der nachgestellten Brille
+ * mit Multiview; `--multiview=0` derselbe Renderer, jedes Auge einzeln).
  *
  * Die Zeichenaufrufe sind **je Bild** gezählt, alle Durchgänge zusammen
  * (Schatten, Portalsichten, Hauptbild): Der Kern setzt `renderer.info` erst zu
@@ -61,6 +63,9 @@ const lamp = args.has('lamp');
 const portals = args.has('portals');
 /** `--portals=both`: beide im Blick, nebeneinander zum Techniker gedreht. */
 const bothSeen = args.get('portals') === 'both';
+/** Welcher Renderer zeichnet (`?renderer=`), und ob mit Multiview. */
+const renderer = args.get('renderer') === 'webgpu' ? 'webgpu' : 'webgl';
+const multiviewOff = args.get('multiview') === '0';
 const executablePath = process.env.SMOKE_EXECUTABLE ?? '/opt/pw-browsers/chromium';
 
 async function measure() {
@@ -70,7 +75,8 @@ async function measure() {
   });
   try {
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    await page.goto(`${base}?xr=sim#haunting`);
+    const extra = renderer === 'webgpu' ? `&renderer=webgpu${multiviewOff ? '&multiview=0' : ''}` : '';
+    await page.goto(`${base}?xr=sim${extra}#haunting`);
     await page.waitForFunction(() => globalThis.bgvr?.world?.goToSuit, null, { timeout: 120000 });
     await page.waitForTimeout(4000);
     const standUp = page.locator('[data-stand-up]').first();
@@ -129,7 +135,9 @@ async function measure() {
         world.portalRed.place(back, forward.clone().negate(), up, 0);
       }, bothSeen);
     }
-    await page.waitForTimeout(5000);
+    // Der zweite Renderer übersetzt seine Shader hier auf der CPU deutlich
+    // langsamer — erst wenn alle stehen, zählt eine Messung.
+    await page.waitForTimeout(renderer === 'webgpu' ? 30000 : 5000);
 
     // Gang 2 zuerst, solange noch gezeichnet wird: Aufrufe, Dreiecke und
     // Durchgänge je Bild.
@@ -138,17 +146,27 @@ async function measure() {
       const renderer = world.context.renderer;
       const seen = [];
       let passes = 0;
+      // Wie lange `render()` in JavaScript braucht — Szene ablaufen, Zustände
+      // setzen, Zeichenbefehle abgeben. Gerastert wird im GPU-Prozess, also
+      // zählt das hier nicht mit; das ist der Teil, den Multiview spart und
+      // den ein schwererer Renderer mehr kostet.
+      const renderMs = [];
       const render = renderer.render.bind(renderer);
       renderer.render = (scene, camera) => {
         passes++;
+        const t = performance.now();
         render(scene, camera);
+        renderMs.push(performance.now() - t);
       };
       // Kurz vor dem Zurücksetzen gelesen ist `info` die Summe des ganzen
       // letzten Bildes — Schattenkarte und Portalsichten eingeschlossen.
       const info = renderer.info;
       const reset = info.reset.bind(info);
       info.reset = () => {
-        if (passes > 0) seen.push([info.render.calls, info.render.triangles, passes]);
+        // Der zweite Renderer zählt in `calls` die Aufrufe von `render()`, die
+        // Zeichenaufrufe stehen bei ihm in `drawCalls`.
+        const calls = info.render.drawCalls ?? info.render.calls;
+        if (passes > 0) seen.push([calls, info.render.triangles, passes]);
         passes = 0;
         reset();
       };
@@ -163,6 +181,7 @@ async function measure() {
         calls: Math.round(mean(0)),
         triangles: Math.round(mean(1)),
         passes: Math.round(mean(2) * 10) / 10,
+        renderMs: [...renderMs].sort((a, b) => a - b)[Math.floor(renderMs.length / 2)] ?? 0,
         // SwiftShader zeichnet auf der CPU — nur zum Vergleich auf diesem Rechner.
         drawnFps: (seen.length * 1000) / elapsed,
       };
@@ -221,6 +240,7 @@ const summary = {
   calls: Math.round(avg('calls')),
   triangles: Math.round(avg('triangles')),
   passes: avg('passes'),
+  renderMs: avg('renderMs'),
   drawnFps: avg('drawnFps'),
   autoNodes: Math.round(avg('autoNodes')),
   nodes: Math.round(avg('nodes')),
@@ -240,6 +260,7 @@ else {
   console.log(`  CPU je Bild (Summe) ${ms(summary.cpu)}   ← diese Zahl in die Tabelle`);
   console.log(`  Zeichenaufrufe      ${summary.calls} (beide Augen)`);
   console.log(`  Dreiecke            ${summary.triangles}`);
+  console.log(`  render() in JS      ${ms(summary.renderMs)} (Median, ohne Rastern)`);
   console.log(`  Durchgänge je Bild  ${summary.passes.toFixed(1)}`);
   console.log(`  Bilder/s gezeichnet ${summary.drawnFps.toFixed(1)} (SwiftShader, nur relativ)`);
   console.log(`  Knoten mit Matrix   ${summary.autoNodes} von ${summary.nodes}`);

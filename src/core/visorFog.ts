@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { visorFogNodeMaterial } from './nodeLooks';
 import type { VisorBreathStyle } from './graphicsSettings';
 
 /**
@@ -108,26 +109,29 @@ export interface VisorFog {
 /** **Die Haut für ein Visier** — je Visier eine, weil jedes seine eigene Hülle hat. */
 export function visorFog(): VisorFog {
   let image: THREE.Texture | null = null;
-  const material = new THREE.ShaderMaterial({
-    vertexShader: VERTEX,
-    fragmentShader: FRAGMENT,
-    uniforms: {
-      uFog: { value: 0 },
-      uRealistic: { value: 1 },
-      uImage: { value: 0 },
-      uMap: { value: null },
-      uBoxMin: { value: new THREE.Vector3() },
-      uBoxSize: { value: new THREE.Vector3(1, 1, 1) },
-    },
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    // Auf dem Glas und nicht darin: ein Hauch vor dem Visier, damit die beiden
-    // nicht um dieselbe Tiefe streiten.
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -4,
-  });
+  // Für den neuen Renderer dasselbe Visier als Knotenmaterial (`core/nodeLooks.ts`).
+  const material =
+    visorFogNodeMaterial() ??
+    new THREE.ShaderMaterial({
+      vertexShader: VERTEX,
+      fragmentShader: FRAGMENT,
+      uniforms: {
+        uFog: { value: 0 },
+        uRealistic: { value: 1 },
+        uImage: { value: 0 },
+        uMap: { value: null },
+        uBoxMin: { value: new THREE.Vector3() },
+        uBoxSize: { value: new THREE.Vector3(1, 1, 1) },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      // Auf dem Glas und nicht darin: ein Hauch vor dem Visier, damit die beiden
+      // nicht um dieselbe Tiefe streiten.
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -4,
+    });
   material.name = 'visor-fog';
   const uniforms = material.uniforms as Record<string, THREE.IUniform>;
 

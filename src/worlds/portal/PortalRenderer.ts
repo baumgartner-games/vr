@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { usingWebGPU } from '../../core/appRenderer';
 import type { Portal } from './Portal';
 import { viewLayers } from '../../core/viewLayers';
 import { DEFAULT_PORTAL_DEPTH, clampPortalDepth } from './portalDepth';
@@ -104,6 +105,9 @@ export class PortalRenderer {
 
   /** Draws the portal views. Call before the main render pass. */
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, portals: Portal[]): void {
+    // Der neue Renderer (`core/appRenderer.ts`) zeichnet die Portalfläche nicht
+    // (eigener Shader) — dann auch keine Sicht hindurch.
+    if (usingWebGPU()) return;
     const renderer = this.renderer;
     const presenting = renderer.xr.isPresenting;
     const xrCamera = presenting ? renderer.xr.getCamera() : null;

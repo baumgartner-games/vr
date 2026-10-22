@@ -21,15 +21,29 @@ interface TimerQueryExt {
  * und dazwischen liegen höchstens vier offene Messungen.
  */
 export class GpuTimer {
-  private readonly gl: WebGL2RenderingContext | null;
-  private readonly ext: TimerQueryExt | null;
+  private gl: WebGL2RenderingContext | null = null;
+  private ext: TimerQueryExt | null = null;
+  /** Ob nach dem Zusammenhang schon gefragt wurde, mit Erfolg oder ohne. */
+  private looked = false;
   private readonly pending: WebGLQuery[] = [];
   private active: WebGLQuery | null = null;
   private sum = 0;
   private count = 0;
 
-  constructor(renderer: THREE.WebGLRenderer) {
-    const gl = renderer.getContext();
+  constructor(private readonly renderer: THREE.WebGLRenderer) {
+    this.look();
+  }
+
+  /**
+   * Den Zusammenhang holen — **auch noch später**: Der neue Renderer
+   * (`core/appRenderer.ts`) baut seinen WebGL-Zusammenhang erst beim ersten
+   * Bild, im Konstruktor gibt es ihn noch nicht.
+   */
+  private look(): void {
+    if (this.looked) return;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext | undefined;
+    if (!gl) return;
+    this.looked = true;
     const two =
       typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
     this.gl = two ? gl : null;
@@ -40,11 +54,13 @@ export class GpuTimer {
 
   /** Ob die Grafikkarte überhaupt gemessen werden kann. */
   get available(): boolean {
+    this.look();
     return this.ext !== null;
   }
 
   /** Vor dem Zeichnen eines Bildes. */
   begin(): void {
+    this.look();
     const { gl, ext } = this;
     if (!gl || !ext || this.active || this.pending.length >= 4) return;
     const query = gl.createQuery();

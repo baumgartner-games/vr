@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { usingWebGPU } from '../../core/appRenderer';
 import { mirrorDistance, mirrorMatrix } from './mirrorMath';
 import { isScreenSurface, type ScreenSurface } from './screenSurface';
 import { viewLayers } from '../../core/viewLayers';
@@ -305,6 +306,9 @@ export class MirrorRenderer {
 
   /** Vor dem Hauptdurchgang aufzurufen. */
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
+    // Der neue Renderer (`core/appRenderer.ts`) zeichnet die Spiegelfläche
+    // nicht (eigener Shader) — dann auch kein Bild dafür.
+    if (usingWebGPU()) return;
     const mirrors = collectMirrors(scene, this.found, this.screens);
     if (mirrors.length === 0) {
       this.trim(mirrors);

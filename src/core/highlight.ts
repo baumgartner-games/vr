@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { shellNodeMaterial } from './nodeLooks';
 import { ensureOutlineNormals, isOutline } from './outlineShell';
 
 /**
@@ -259,16 +260,24 @@ export class Highlight {
   /** Die umgestülpte Hülle eines Netzes — ein Kind davon, wie ein Saum (`outlineShell.ts`). */
   private shell(mesh: THREE.Mesh): THREE.Mesh | null {
     if (!ensureOutlineNormals(mesh.geometry)) return null;
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        thickness: { value: WIDTH },
-        maxGrow: { value: MAX_GROW },
-        diffuse: { value: new THREE.Color(HIGHLIGHT_COLOR) },
-      },
-      vertexShader,
-      fragmentShader,
-      side: THREE.BackSide,
-    });
+    mesh.updateWorldMatrix(true, false);
+    const material =
+      shellNodeMaterial(
+        WIDTH,
+        MAX_GROW,
+        new THREE.Color(HIGHLIGHT_COLOR),
+        mesh.getWorldScale(new THREE.Vector3()).x,
+      ) ??
+      new THREE.ShaderMaterial({
+        uniforms: {
+          thickness: { value: WIDTH },
+          maxGrow: { value: MAX_GROW },
+          diffuse: { value: new THREE.Color(HIGHLIGHT_COLOR) },
+        },
+        vertexShader,
+        fragmentShader,
+        side: THREE.BackSide,
+      });
 
     const skinned = mesh as THREE.SkinnedMesh;
     const instanced = mesh as THREE.InstancedMesh;

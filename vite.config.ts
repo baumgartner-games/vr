@@ -388,6 +388,10 @@ function manualChunks(id: string): string | undefined {
   // enthält ebenfalls `/node_modules/three/build/` — es landete sonst im
   // Chunk von three.js, den jeder beim Start lädt.
   if (EMULATOR.test(id)) return 'xr-emulator';
+  // **Der zweite Renderer für sich** (`core/appRenderer.ts`): `three/webgpu`
+  // liegt im selben Ordner, gehört aber nicht in den Chunk, den jeder lädt —
+  // nur wer _Grafik → Renderer: Multiview_ wählt, holt ihn.
+  if (/\/node_modules\/three\/build\/three\.webgpu/.test(id)) return 'three-webgpu';
   if (id.includes('/node_modules/three/build/')) return 'three';
   if (id.includes('/node_modules/@dimforge/')) return 'rapier';
   return undefined;

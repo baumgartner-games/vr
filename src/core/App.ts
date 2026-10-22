@@ -1,4 +1,11 @@
-import { activeRenderer, chosenRenderer, createRenderer, usingWebGPU } from './appRenderer';
+import {
+  activeRenderer,
+  chosenRenderer,
+  createRenderer,
+  drawStats,
+  syncXrLayers,
+  usingWebGPU,
+} from './appRenderer';
 import { RENDERER_LABELS, RENDERER_SUBS } from './rendererKind';
 import { EdgeTint } from './edgeTint';
 import { isAppleHandheld } from './install';
@@ -4422,11 +4429,14 @@ export class App {
       // Die Fernebene der App — im Weltbau im Maßstab des Gestells (`syncFlight`).
       CAMERA_FAR / (this.rig.flying ? BUILD_SCALE : 1),
     );
-    const pass = blur !== null || weather !== null;
+    // Unschärfe und Wetter sind ein Durchgang mit eigenem Shader — im neuen
+    // Renderer (`core/appRenderer.ts`) gibt es ihn noch nicht.
+    const pass = !usingWebGPU() && (blur !== null || weather !== null);
     if (pass) this.levelBlur.begin();
     // **Im Weltbau der Brille ist das Gestell zehnfach groß** — die Lichter
     // werden für dieses Bild in seinen Maßstab umgerechnet (`core/viewLights.ts`).
     this.viewLights.scale(this.scene, presenting ? this.rig.scale.x : 1);
+    if (presenting) syncXrLayers(this.renderer, this.camera);
     const timed = this.frameStats.visible;
     if (timed) this.gpuTimer.begin();
     try {
@@ -4452,7 +4462,7 @@ export class App {
     const sample = this.frameStats.update(
       time,
       performance.now() - started,
-      this.renderer.info.render,
+      drawStats(this.renderer),
       this.gpuTimer.available ? `GPU ${gpuText(this.gpuMs)}` : '',
     );
     if (sample) {

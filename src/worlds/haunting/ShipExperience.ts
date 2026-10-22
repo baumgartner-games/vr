@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { condensationNodeMaterial } from '../../core/nodeLooks';
 import { SPACE_RANGER } from '../../core/avatarFigures';
 import { IMMERSIVE_HAT } from '../../core/figureParts';
 import type { HeadgearKind } from '../../core/headgear';
@@ -770,15 +771,16 @@ export class ShipExperience {
     host.ctx.camera.add(this.hud.mesh);
     this.visor = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.25),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        depthTest: false,
-        uniforms: { fogAmount: { value: 0 }, damage: { value: 0 }, time: { value: 0 } },
-        vertexShader:
-          'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-        fragmentShader: CONDENSATION_FRAGMENT,
-      }),
+      condensationNodeMaterial() ??
+        new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          depthTest: false,
+          uniforms: { fogAmount: { value: 0 }, damage: { value: 0 }, time: { value: 0 } },
+          vertexShader:
+            'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+          fragmentShader: CONDENSATION_FRAGMENT,
+        }),
     );
     this.visor.name = 'helmet-condensation';
     this.visor.position.z = -0.58;

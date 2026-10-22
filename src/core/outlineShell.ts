@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { shellNodeMaterial } from './nodeLooks';
 
 /**
  * **Ein Saum um ein Ding** — eine farbige Kante, gezeichnet als umgestülpte
@@ -144,6 +145,14 @@ const _scale = new THREE.Vector3();
 
 /** Das Material des Saums. Jeder bekommt ein eigenes — siehe `addOutline`. */
 function outlineMaterial(mesh: THREE.Mesh, look: OutlineLook): THREE.ShaderMaterial {
+  // Für den neuen Renderer dieselbe Hülle als Knotenmaterial (`core/nodeLooks.ts`).
+  const node = shellNodeMaterial(
+    look.width,
+    maxGrowFor(mesh, look),
+    new THREE.Color(look.color),
+    mesh.getWorldScale(_scale).x,
+  );
+  if (node) return node;
   return new THREE.ShaderMaterial({
     uniforms: {
       thickness: { value: look.width },

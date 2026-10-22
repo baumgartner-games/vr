@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { skyNodeMaterial } from '../../core/nodeLooks';
 import { graphics, onGraphicsChange } from '../../core/graphicsSettings';
 
 /**
@@ -83,15 +84,18 @@ onGraphicsChange(() => {
  * am Schirm die Hintergrundfarbe.
  */
 export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THREE.Mesh {
-  const material = new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    uniforms: {
-      topColor: { value: new THREE.Color(top) },
-      bottomColor: { value: new THREE.Color(bottom) },
-      skyShown: SKY_SHOWN,
-    },
-    vertexShader: /* glsl */ `
+  // Für den neuen Renderer dieselbe Kuppel als Knotenmaterial (`core/nodeLooks.ts`).
+  const material =
+    skyNodeMaterial(new THREE.Color(top), new THREE.Color(bottom), SKY_SHOWN) ??
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        topColor: { value: new THREE.Color(top) },
+        bottomColor: { value: new THREE.Color(bottom) },
+        skyShown: SKY_SHOWN,
+      },
+      vertexShader: /* glsl */ `
       uniform float skyShown;
       varying vec3 vWorldPosition;
       void main() {
@@ -107,7 +111,7 @@ export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THR
         gl_Position = vec4(clip.xy, clip.w * 0.99999, clip.w);
       }
     `,
-    fragmentShader: /* glsl */ `
+      fragmentShader: /* glsl */ `
       uniform vec3 topColor;
       uniform vec3 bottomColor;
       varying vec3 vWorldPosition;
@@ -116,7 +120,7 @@ export function createSky(top: number, bottom: number, radius = SKY_RADIUS): THR
         gl_FragColor = vec4(mix(bottomColor, topColor, pow(h, 0.8)), 1.0);
       }
     `,
-  });
+    });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), material);
   sky.name = 'sky';
   sky.frustumCulled = false;
