@@ -79,15 +79,12 @@ export function setWallLook(look: WallLook): void {
  * Ein Klon und kein Umbau am Original, aus demselben Grund wie beim
  * durchsichtigen Zwilling: Das Original teilen sich viele Wände, und nur die
  * vor der Figur sollen es tragen. Ein eigenes `onBeforeCompile` des Originals
- * (die Tapete, `house/wallpaperSkin.ts`; die Stufen des Comics,
- * `core/materialLook.ts`) läuft zuerst, der Schnitt kommt danach dazu.
+ * (die Tapete, `house/wallpaperSkin.ts`) läuft zuerst, der Schnitt kommt
+ * danach dazu.
  */
 export function wallCutTwin(material: THREE.Material): THREE.Material {
   const made = material.clone();
   made.side = THREE.DoubleSide;
-  // Der Comic baut Materialien der Szene um (`materialLook.applyLook`) und
-  // würde den Schnitt dabei überschreiben — dieser Zwilling bleibt draußen.
-  made.userData['bgvrNoLook'] = true;
   const own = Object.prototype.hasOwnProperty.call(material, 'onBeforeCompile')
     ? material.onBeforeCompile.bind(material)
     : null;

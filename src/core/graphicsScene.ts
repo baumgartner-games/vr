@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import { applyLook, supportsLook } from './materialLook';
-import { addOutline, deniesOutline, isOutline, removeOutline } from './outlineShell';
 import type { GraphicsProfile } from './graphicsSettings';
 
 /**
@@ -16,8 +14,8 @@ import type { GraphicsProfile } from './graphicsSettings';
  * einmal, sondern alle paar Sekunden noch einmal — sonst hätte ein Zombie, der
  * nach dem Umschalten aus dem Käfig kommt, als Einziger keinen Schatten. Und
  * jeder Wert, der überschrieben wird, wird vorher unter `userData` gemerkt:
- * „Comic" muss sich vollständig zurücknehmen lassen, sonst ist „Einfach" nach
- * einem Ausflug nicht mehr dasselbe Einfach wie vorher.
+ * Schatten müssen sich vollständig zurücknehmen lassen, sonst ist das Bild
+ * nach einem Ausflug nicht mehr dasselbe wie vorher.
  *
  * Ohne three.js geht es hier nicht, gerechnet wird trotzdem nichts, was nicht
  * auch ohne Grafikkarte zu prüfen wäre — der Test dazu baut eine Szene aus
@@ -56,8 +54,7 @@ interface MeshShadowBase {
  * `castShadow = false` geboren (das ist die Voreinstellung von three.js), und
  * dass es trotzdem einen Schatten wirft, ist ja der Sinn dieses Durchlaufs.
  * Wer es **ausdrücklich** nicht will, sagt es deshalb hier und nicht am
- * Schalter, genau wie ein Ding, das keine Kontur will, das über
- * `outlineShell.denyOutline` sagt.
+ * Schalter.
  *
  * Wofür man das braucht: Ein aufgemalter Pfeil auf einem Laufband ist eine
  * Ebene ohne Dicke — sein Schatten ist ein schwarzes Blatt. Und drei Kästen,
@@ -140,9 +137,7 @@ export function applySceneQuality(
     if (dimAmbient(object, profile)) return;
 
     const mesh = object as THREE.Mesh;
-    // Ein Saum ist kein Ding der Welt, sondern ein zweites Bild eines Dings:
-    // Er bekommt weder Schatten noch Stufen, und schon gar keinen eigenen Saum.
-    if (!mesh.isMesh || isOutline(mesh)) return;
+    if (!mesh.isMesh) return;
     // **Schon erledigt?** Derselbe Durchlauf läuft jede Sekunde über die ganze
     // Szene; was mit dieser Stufe und diesem Material schon durch ist, braucht
     // ihn nicht noch einmal. In Haunting kostete er sonst gemessen rund 5 ms in
@@ -153,33 +148,19 @@ export function applySceneQuality(
     const materials = materialsOf(mesh).filter((material) => !!material);
     if (!materials.some(isLit)) return;
 
-    // --- die Farbstufen
-    for (const material of materials) {
-      applyLook(material, profile.toonBands);
-      if (recompile && supportsLook(material)) material.needsUpdate = true;
-    }
+    // Schatten an oder aus heißt ein anderer Shader — einmal neu übersetzen.
+    if (recompile)
+      for (const material of materials) if (isLit(material)) material.needsUpdate = true;
 
     // --- was für ein Ding das ist
     // Eine Kulisse ist kein Ding, sondern das, was hinter den Dingen steht:
     // Der Himmel steht um alles herum, die Bodenplatte reicht bis zum Horizont.
-    // Einen Schatten würfe sie über die halbe Welt, und eine Kontur legte einen
-    // schwarzen Strich um den Horizont. Empfangen darf sie ihn, dafür ist der
-    // Boden ja da.
+    // Einen Schatten würfe sie über die halbe Welt. Empfangen darf sie ihn,
+    // dafür ist der Boden ja da.
     const backdrop = mesh.userData['backdrop'] === true;
     // Und Durchsichtiges wirft keinen: Ein Fenster mit einem Brett als Schatten
     // ist schlimmer als ein Fenster ohne Schatten.
     const solid = materials.every((material) => !material.transparent);
-
-    // --- die Kontur
-    if (profile.outlines && !backdrop && solid && !deniesOutline(mesh)) {
-      addOutline(mesh, {
-        width: profile.outlineWidth,
-        maxGrow: profile.outlineMaxGrow,
-        color: profile.outlineColor,
-      });
-    } else {
-      removeOutline(mesh);
-    }
 
     // --- die Schatten
     const base = (mesh.userData[MESH_BASE] as MeshShadowBase | undefined) ?? {

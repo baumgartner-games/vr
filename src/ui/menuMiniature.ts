@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { denyOutline, isOutline } from '../core/outlineShell';
+import { isOutline } from '../core/outlineShell';
 import { PREVIEW_TILT } from './previewGrid';
 
 /**
@@ -95,12 +95,10 @@ function flatCopy(source: THREE.Object3D): THREE.Group {
   source.traverseVisible((child) => {
     const mesh = child as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
-    // Der schwarze Saum aus dem Comic-Modus ist kein Teil des Werkzeugs,
-    // sondern ein zweites Bild davon (`core/outlineShell.ts`). Abgeschrieben
-    // wäre er in der Menüzeile ein schwarzer Klotz — seine Breite ist für ein
-    // Werkzeug in Lebensgröße gerechnet, nicht für vier Zentimeter.
+    // Ein Saum (`core/outlineShell.ts`) ist kein Teil des Werkzeugs, sondern
+    // ein zweites Bild davon — in vier Zentimetern ein farbiger Klotz.
     if (isOutline(mesh)) return;
-    const copy = denyOutline(sameKind(mesh)) as THREE.Mesh;
+    const copy = sameKind(mesh);
     copy.matrixAutoUpdate = false;
     copy.matrix.multiplyMatrices(_world, mesh.matrixWorld);
     copy.matrixWorldNeedsUpdate = true;

@@ -1906,8 +1906,8 @@ export class HauntingWorld extends FurnishedWorld {
    * Draußen soll es Licht geben und drinnen nicht, und das ist mit einer
    * richtigen Sonne genau dann zu haben, wenn jemand die Schatten bezahlt: Ein
    * `DirectionalLight` scheint ohne Schattenkarte **durch das Dach**, und die
-   * Schattenkarte gibt es nur in der Stufe „Comic" (`core/graphicsSettings.ts`,
-   * ausgeliefert wird „Einfach"). Eine Sonne, die in der Auslieferung das halbe
+   * Schattenkarte der Sonne gibt es nur unter _Schatten: Voll_
+   * (`core/graphicsSettings.ts`, ausgeliefert wird der Kreis). Eine Sonne, die in der Auslieferung das halbe
    * Haus aufhellt, nimmt diesem Spiel das Einzige, worauf es steht.
    *
    * Also hängt hier ein **Scheinwerfer tief über dem Vorplatz** statt einer
@@ -3029,8 +3029,8 @@ export class HauntingWorld extends FurnishedWorld {
    * Das ist der ganze Unterschied: Ein Bildschirmzeichen gibt es in der
    * Brille nicht, weil dort zwei Augen zwei Bilder bekommen und niemand ein
    * Overlay dazwischenlegt. Was auf dem Boden liegt, liegt für beide Augen
-   * dort, wo es liegt — dieselbe Überlegung wie bei der schwarzen Kante
-   * (`core/outlineShell.ts`), die aus demselben Grund keine Nachbearbeitung
+   * dort, wo es liegt — dieselbe Überlegung wie beim Saum
+   * (`core/outlineShell.ts`), der aus demselben Grund keine Nachbearbeitung
    * ist.
    *
    * Die Scheiben werden **einmal gebaut und wiederverwendet**: höchstens

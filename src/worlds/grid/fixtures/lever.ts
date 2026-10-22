@@ -440,9 +440,8 @@ export const LEVER: FixtureKind<LeverState> = {
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.42, 10), steel);
     bar.position.y = 0.21;
     arm.add(bar);
-    // Ein beleuchtetes Material und kein leuchtendes: Den schwarzen Umriss
-    // (`core/outlineShell.ts`) bekommt nur, was Licht annimmt, und ohne ihn ist
-    // der Knauf von oben ein roter Fleck auf grauem Grund.
+    // Ein beleuchtetes Material und kein leuchtendes: Mit Schattierung ist der
+    // Knauf von oben eine Kugel und kein roter Fleck auf grauem Grund.
     const paint = new THREE.MeshStandardMaterial({ color: 0xff5a4a, roughness: 0.4 });
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), paint);
     knob.position.y = 0.42;

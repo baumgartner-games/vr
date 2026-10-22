@@ -266,6 +266,10 @@ async function startApp(): Promise<App | null> {
     import('./core/App'),
     import('./ui/NetPanel'),
   ]);
+  // Der neue Renderer (Grafik → Renderer) wird vor der App nachgeladen — sie
+  // baut ihn im Konstruktor, und der ist nicht asynchron.
+  const { chosenRenderer, prepareRenderer } = await import('./core/appRenderer');
+  await prepareRenderer(chosenRenderer());
   try {
     app = new App(canvas, pads, {
       onWorldChanged: (id, title) => {

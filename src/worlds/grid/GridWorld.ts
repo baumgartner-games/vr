@@ -93,7 +93,6 @@ import { Burst } from '../effects/Burst';
 import { findEffect, scaleEffect } from '../effects/effectKinds';
 import { levelOfBottom, levelStep, type ViewLevel } from '../../core/cutaway';
 import { canLoadModels } from '../../core/chefFit';
-import { denyOutline } from '../../core/outlineShell';
 import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
@@ -838,15 +837,11 @@ export abstract class GridWorld extends PortalWorld {
    * der Punkt, an dem diese Lösung billig ist: Ihre Körper in der Physik, ihr
    * Eintrag in `solids` und damit jeder Strahl, der auf sie zeigt, arbeiten
    * unverändert weiter — three prüft beim Abtasten keine Sichtbarkeit, beim
-   * Zeichnen dagegen schon. Ein Saum bekommen sie keinen mehr (`denyOutline`):
-   * Im Comic hängt der am sichtbaren Bündel, und tausend unsichtbare Hüllen
-   * daneben wären tausend Hüllen, die niemand sieht.
+   * Zeichnen dagegen schon.
    *
    * `returnable` ist die Ausnahme davon und meint die **Wände**: Sie kommen von
    * oben wieder einzeln zum Vorschein (`showGhostBatches`), also werden sie
-   * gemerkt statt vergessen — und ihren Saum behalten sie, weil sie ihn dann
-   * brauchen. Er hängt als Kind an ihnen und ist unsichtbar, solange sie es
-   * sind.
+   * gemerkt statt vergessen.
    */
   private buildBatches(
     group: THREE.Group,
@@ -900,12 +895,7 @@ export abstract class GridWorld extends PortalWorld {
         // Gemerkt für `freezeBatched()`: Was hier in ein Bündel gegangen ist,
         // steht von jetzt an still und braucht seine Matrix nie wieder neu.
         this.batched.push(mesh);
-        // **Ein Quader, der wiederkommt, behält seinen Saum.** Im Comic hängt
-        // die Kontur am sichtbaren Ding; wer von oben wieder einzeln dasteht,
-        // braucht dort eine — und solange er unsichtbar ist, kostet sie nichts,
-        // weil sie sein Kind ist (`core/outlineShell.ts`).
         if (returnable) this.ghostBatched.push(mesh);
-        else denyOutline(mesh);
       });
       batch.computeBoundingSphere();
       group.add(batch);
@@ -949,8 +939,8 @@ export abstract class GridWorld extends PortalWorld {
    * durchlaufen. Türblätter und Portalflächen kommen ohnehin nie in ein Bündel
    * (`gridBatch.joinsBatch`, `joinsGhostBatch`) und bleiben deshalb beweglich.
    *
-   * Nachträglich angehängte Kinder — die Konturhülle des Comics
-   * (`core/outlineShell.ts`) — bleiben ebenfalls richtig: Sie tragen ihre
+   * Nachträglich angehängte Kinder — eine Saumhülle (`core/outlineShell.ts`) —
+   * bleiben ebenfalls richtig: Sie tragen ihre
    * eigenen Schalter, und die Elternmatrix, mit der sie rechnen, steht ja
    * korrekt und für immer fest.
    */

@@ -932,9 +932,9 @@ export class WorldEditor {
    * wäre ein aufgeklappter Plan ohne Plan darin.
    *
    * Der Preis ist klein und steht hier, damit ihn niemand suchen muss: Was
-   * nicht in der Szene hängt, sieht der Grafikdurchlauf nicht. Klappt man im
-   * Comic die Karte auf, bekommen ihre Quader ihre Konturen erst beim nächsten
-   * Durchlauf (`GraphicsQuality.RESCAN`) — dieselbe Sekunde, die dort auch ein
+   * nicht in der Szene hängt, sieht der Grafikdurchlauf nicht. Klappt man mit
+   * Schatten die Karte auf, werfen ihre Quader erst beim nächsten Durchlauf
+   * einen (`GraphicsQuality.RESCAN`) — dieselbe Sekunde, die dort auch ein
    * frisch gebautes Möbel wartet.
    */
   private showMini(on: boolean): void {

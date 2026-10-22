@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { denyOutline, ensureOutlineNormals, isOutline } from './outlineShell';
+import { ensureOutlineNormals, isOutline } from './outlineShell';
 
 /**
  * **Der gelbe Saum um das, was `A` gerade meint.**
@@ -10,19 +10,16 @@ import { denyOutline, ensureOutlineNormals, isOutline } from './outlineShell';
  * es dem Spieler, bevor er drückt. Ohne sie ist die Auswahl eine Vermutung:
  * Man drückt und sieht dann, was passiert ist.
  *
- * **Gemacht wird das wie der Comic-Saum** (`core/outlineShell.ts`): Das Ding
+ * **Gemacht wird das wie der Saum** (`core/outlineShell.ts`): Das Ding
  * wird ein zweites Mal gezeichnet, ein wenig aufgeblasen und mit den
  * **Rückseiten** nach vorn. Was übersteht, ist der Saum. Kein
  * Nachbearbeitungsschritt, kein Zwischenpuffer — beides gibt eine
  * WebXR-Sitzung nicht her —, und beide Augen sehen dasselbe.
  *
- * **Dem schwarzen Saum kommt er dabei nicht in die Quere.** Er trägt eine
+ * **Einem anderen Saum kommt er dabei nicht in die Quere.** Er trägt eine
  * eigene Marke (`bgvrHighlight` statt `bgvrOutline`), hat sein eigenes
- * Material, wirft keinen Schatten, fängt keinen Strahl und sagt für sich
- * selbst jeden weiteren Saum ab (`denyOutline`) — sonst bekäme der Saum einen
- * Saum, sobald der Comic-Modus das nächste Mal über die Szene läuft. Er ist
- * etwas breiter als der schwarze und wird **nach** ihm gezeichnet
- * (`renderOrder`), damit die Farbe zu sehen ist und nicht die Kante darunter.
+ * Material, wirft keinen Schatten, fängt keinen Strahl und wird **nach**
+ * anderen Säumen gezeichnet (`renderOrder`), damit seine Farbe zu sehen ist.
  *
  * **Wo es keine Geometrie gibt, liegt ein Ring auf dem Boden.** Ein Usable
  * darf eine leere Gruppe sein — eine Zone, ein Platz, ein Ort, an dem etwas
@@ -37,8 +34,7 @@ const MARK = 'bgvrHighlight';
 export const HIGHLIGHT_COLOR = 0xffd35a;
 
 /**
- * Breite des Saums als Anteil der halben Bildhöhe — merklich breiter als der
- * Comic-Saum (0,006), sonst verschwände die Farbe in der schwarzen Kante.
+ * Breite des Saums als Anteil der halben Bildhöhe.
  */
 const WIDTH = 0.016;
 
@@ -260,7 +256,7 @@ export class Highlight {
     this.elapsed = 0;
   }
 
-  /** Die umgestülpte Hülle eines Netzes — ein Kind davon, wie der Comic-Saum. */
+  /** Die umgestülpte Hülle eines Netzes — ein Kind davon, wie ein Saum (`outlineShell.ts`). */
   private shell(mesh: THREE.Mesh): THREE.Mesh | null {
     if (!ensureOutlineNormals(mesh.geometry)) return null;
     const material = new THREE.ShaderMaterial({
@@ -291,9 +287,7 @@ export class Highlight {
 
     shell.name = 'highlight';
     shell.userData[MARK] = true;
-    // Er ist ein zweites Bild eines Dings und kein Ding: kein Schatten, kein
-    // Strahl, und ausdrücklich kein eigener Comic-Saum.
-    denyOutline(shell);
+    // Er ist ein zweites Bild eines Dings und kein Ding: kein Schatten, kein Strahl.
     shell.castShadow = false;
     shell.receiveShadow = false;
     shell.frustumCulled = mesh.frustumCulled;
@@ -320,7 +314,6 @@ export class Highlight {
     );
     ring.name = 'highlight-ring';
     ring.userData[MARK] = true;
-    denyOutline(ring);
     ring.castShadow = false;
     ring.receiveShadow = false;
     ring.rotation.x = -Math.PI / 2;

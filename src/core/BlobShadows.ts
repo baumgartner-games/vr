@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { blobLook, blobShadowRadius, followFloor } from './blobShadow';
 import { denyShadow } from './graphicsScene';
-import { denyOutline } from './outlineShell';
 
 /** Wie viele Kreise höchstens gleichzeitig liegen — mehr Figuren hat keine Welt. */
 const MAX_BLOBS = 96;
@@ -74,7 +73,6 @@ export class BlobShadows {
     // Kein Ding zum Anfassen: Zeiger, Strahlen und Treffer gehen hindurch.
     this.mesh.raycast = () => {};
     denyShadow(this.mesh);
-    denyOutline(this.mesh);
     this.mesh.visible = false;
     scene.add(this.mesh);
   }

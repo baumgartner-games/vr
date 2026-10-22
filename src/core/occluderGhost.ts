@@ -301,8 +301,8 @@ export class OccluderGhosts {
     thing.traverseVisible((node) => {
       const mesh = node as THREE.Mesh;
       if (!mesh.isMesh || node === rig || isHighlight(mesh)) return;
-      // **Der schwarze Rand des Comics geht solange weg**: Ein Ding, das
-      // durchsichtig ist und seinen Umriss behält, ist ein Drahtmodell.
+      // **Ein Saum geht solange weg**: Ein Ding, das durchsichtig ist und
+      // seinen Umriss behält, ist ein Drahtmodell.
       if (isOutline(mesh)) {
         this.saved.push({ mesh, material: mesh.material, visible: mesh.visible });
         mesh.visible = false;

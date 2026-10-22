@@ -1,50 +1,36 @@
 import * as THREE from 'three';
 
 /**
- * **Die schwarze Kante** — der Umriss, der aus einer Welt eine gezeichnete
- * macht.
+ * **Ein Saum um ein Ding** — eine farbige Kante, gezeichnet als umgestülpte
+ * Hülle. Bis Oktober 2026 bekam im Comic-Look **jedes** Ding so einen
+ * schwarzen Saum; der Comic ist heraus (_„Comic Look kann komplett raus"_),
+ * geblieben sind die gezielten Säume: das gelbe Ziel und das türkise Teil in
+ * Haunting (`ShipExperience.ts`), und `highlight.ts` borgt sich die
+ * geglätteten Normalen.
  *
- * Eine Kontur um alles, was man sieht, gibt es in einem Browser-Renderer auf
- * zwei Arten, und die naheliegende fällt hier aus. Der übliche Weg ist ein
- * **Nachbearbeitungsschritt**: Bild rendern, Tiefen- und Normalenbild
- * danebenlegen, Kanten darin suchen. Das braucht einen Zwischenpuffer für das
- * ganze Bild — und genau den gibt eine WebXR-Sitzung nicht her, ohne dass man
- * ihr das Bild aus der Hand nimmt, das sie selbst für zwei Augen zusammenbaut.
- *
- * Also der andere Weg, der ältere und der, den Comic-Spiele seit zwanzig
- * Jahren benutzen: **die umgestülpte Hülle.** Jedes Ding wird ein zweites Mal
- * gezeichnet, in Schwarz, ein wenig aufgeblasen und mit den **Rückseiten** nach
- * vorn (`side: BackSide`). Überall dort, wo das Ding selbst davorsteht, ist die
- * Hülle verdeckt; sichtbar bleibt genau der Saum, der ringsum darüber
- * hinausragt. Kein Zwischenpuffer, kein Bildschirmeffekt, funktioniert in
- * beiden Augen — und kostet einen zweiten Zeichenaufruf pro Ding.
+ * Der Weg ist der, den Comic-Spiele seit zwanzig Jahren benutzen: Das Ding
+ * wird ein zweites Mal gezeichnet, ein wenig aufgeblasen und mit den
+ * **Rückseiten** nach vorn (`side: BackSide`). Überall dort, wo das Ding selbst
+ * davorsteht, ist die Hülle verdeckt; sichtbar bleibt der Saum, der ringsum
+ * darüber hinausragt. Kein Zwischenpuffer — den gibt eine WebXR-Sitzung nicht
+ * her —, beide Augen sehen dasselbe, ein Zeichenaufruf mehr je Ding.
  *
  * Drei Feinheiten stecken darin:
  *
  * 1. **Gleich dick, egal wie weit weg.** Aufgeblasen wird im Blickraum um
- *    einen Betrag, der mit der Entfernung wächst — so bleibt der Saum auf dem
- *    Bildschirm gleich breit. Nach oben ist er zweifach gedeckelt: auf einen
- *    festen Betrag und, viel wichtiger, auf einen **Anteil des Dings selbst**.
- *    Ohne den zweiten Deckel verschluckt der Saum, was klein ist: Ein Domino
- *    ist zwei Zentimeter breit, und ein Zentimeter Kante ringsherum macht
- *    daraus einen schwarzen Klotz. Genau so sah die Dominoreihe im
- *    Portallabor aus.
- * 2. **Geglättete Normalen.** Ein Quader aus `BoxGeometry` hat an jeder Ecke
- *    drei Normalen, eine je Fläche; bläst man entlang dieser auf, fahren die
- *    Flächen auseinander und die Kontur bekommt an jeder Ecke eine Lücke. Also
- *    wird einmal je Geometrie eine **gemittelte** Normale danebengelegt
- *    (`bgvrOutlineNormal`) — dieselbe Rechnung, die ein Modellierer „weiche
- *    Kanten" nennt, nur dass sie hier nichts an der Geometrie ändert.
- * 3. **Der Saum ist unsichtbar für alles andere.** Er wirft keinen Schatten,
- *    er fängt keinen Zeigestrahl (`raycast` tut nichts) und er trägt eine
- *    Marke in `userData` — sonst hätte das Greifen plötzlich zwei Kisten
- *    unter dem Strahl, und die Physik hätte doppelt so viele Quader.
+ *    einen Betrag, der mit der Entfernung wächst; nach oben gedeckelt auf
+ *    einen festen Betrag und auf einen **Anteil des Dings selbst**, sonst
+ *    verschluckt der Saum, was klein ist.
+ * 2. **Geglättete Normalen** (`bgvrOutlineNormal`): Ein Quader hat an jeder
+ *    Ecke drei Normalen; entlang dieser aufgeblasen, fahren die Flächen
+ *    auseinander und die Kontur bekommt an jeder Ecke eine Lücke.
+ * 3. **Der Saum ist unsichtbar für alles andere.** Kein Schatten, kein
+ *    Zeigestrahl (`raycast` tut nichts), und eine Marke in `userData`, an der
+ *    Bündel, Geister und Abschriften ihn erkennen (`isOutline`).
  */
 
 /** Die Marke, an der ein Saum als Saum zu erkennen ist. */
 const MARK = 'bgvrOutline';
-/** Die Marke an einem Ding, das ausdrücklich keinen bekommen soll. */
-const DENY = 'bgvrNoOutline';
 /** Die Normale, entlang derer aufgeblasen wird. */
 const ATTRIBUTE = 'bgvrOutlineNormal';
 
@@ -229,24 +215,6 @@ export function ensureOutlineNormals(geometry: THREE.BufferGeometry): boolean {
 /** Ob dieses Ding selbst ein Saum ist. */
 export function isOutline(object: THREE.Object3D): boolean {
   return object.userData[MARK] === true;
-}
-
-/**
- * Sagt für ein Ding ab: Es bekommt keinen Saum, auch im Comic nicht.
- *
- * Für Abschriften, die zwar in der Szene hängen, aber keine Gegenstände sind —
- * die **kleinen Modelle in den Menüzeilen** (`ui/XRMenu.ts`) sind das eine
- * Beispiel, das es gibt. Sie leihen sich Geometrie und Material vom Werkzeug
- * und werden bei jeder Änderung des Menüs neu gebaut; ein Saum daran wäre ein
- * Material pro Neubau, das niemand mehr wegräumt.
- */
-export function denyOutline(object: THREE.Object3D): THREE.Object3D {
-  object.userData[DENY] = true;
-  return object;
-}
-
-export function deniesOutline(object: THREE.Object3D): boolean {
-  return object.userData[DENY] === true;
 }
 
 /**

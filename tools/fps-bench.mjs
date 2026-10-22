@@ -11,7 +11,7 @@
  * am Schreibtisch beantwortet werden musste: **In der Testwelt stehen 29–32 fps
  * und keine Einstellung ändert daran etwas, im Hub sind es 80.** Wer das
  * nachstellen will, braucht keine absolute Zahl — er braucht die
- * **Verhältnisse**: was der Comic kostet, was die Schatten kosten, was die
+ * **Verhältnisse**: was der Renderer ändert, was die Schatten kosten, was die
  * halbe Auflösung bringt, und vor allem, welcher Schalter **gar nichts** tut.
  * Genau diese Verhältnisse gibt der Bericht unten aus; die Referenz dazu steht
  * in `docs/quest3-referenz.md`.
@@ -30,7 +30,7 @@
  *   Auflösungsreihe unten ist deshalb die **schwächste** Aussage dieses
  *   Werkzeugs.
  * - **Was an der Zahl der Zeichenaufrufe und am JavaScript hängt, trägt.**
- *   Draw Calls, Szenendurchläufe, doppeltes Zeichnen (Comic), ein zweiter
+ *   Draw Calls, Szenendurchläufe, ein zweiter
  *   Renderdurchgang für die Schattenkarte — das sind dieselben Aufrufe auf
  *   demselben Renderer, und ihr **Verhältnis** zueinander überträgt sich.
  * - **Ein Schirm ist nicht zwei Augen.** Die Brille zeichnet alles zweimal,
@@ -106,7 +106,7 @@ const HELP = `Bildraten-Messstrecke (tools/fps-bench.mjs)
 
   --url=http://127.0.0.1:5183/   Der laufende Dev-Server.
   --worlds=hub,test              Welten, die verglichen werden.
-  --cases=basis,comic            Nur diese Fälle messen (Vorgabe: alle).
+  --cases=basis,webgpu           Nur diese Fälle messen (Vorgabe: alle).
   --size=1280x720                Fenstergröße der Basis.
   --sizes=1920x1080,960x540      Die Auflösungsreihe; --sizes=none lässt sie weg.
   --seconds=9                    Länge des Messfensters.
@@ -160,10 +160,9 @@ export class ErrorOverlay extends HTMLElement {}
  * **Die Matrix.** Kein volles Kreuzprodukt, sondern **eine Basis und je ein
  * gedrehter Regler**: Das ist die Anordnung, aus der sich „was kostet dieser
  * Schalter" überhaupt ablesen lässt — beim Kreuzprodukt steckte die Antwort in
- * einer Regression, hier steht sie in einer Zeile. Die beiden Comic-Fälle sind
- * die Ausnahme: Comic **ohne** Schatten ist der Kandidat für die Brille, und
- * ob Schatten im Comic dasselbe kosten wie im einfachen Bild, ist genau die
- * Frage, die eine Empfehlung braucht.
+ * einer Regression, hier steht sie in einer Zeile. `webgpu` ist der zweite
+ * Renderer (`core/rendererKind.ts`) am Schirm — ohne Brille ohne Multiview,
+ * also die Frage, was er an JavaScript mehr oder weniger kostet.
  *
  * `graphics` sind die Abweichungen vom Auslieferungszustand
  * (`core/graphicsSettings.DEFAULT_GRAPHICS`), `dpr` der `devicePixelRatio` des
@@ -173,12 +172,7 @@ function cases() {
   const list = [
     { id: 'basis', label: 'Basis · Einfach, Schatten an', graphics: {} },
     { id: 'ohne-schatten', label: 'Einfach, Schatten aus', graphics: { shadows: false } },
-    { id: 'comic', label: 'Comic, Schatten an', graphics: { mode: 'comic' } },
-    {
-      id: 'comic-ohne-schatten',
-      label: 'Comic, Schatten aus',
-      graphics: { mode: 'comic', shadows: false },
-    },
+    { id: 'webgpu', label: 'Renderer WebGPU (WebGL 2), Schatten an', graphics: { renderer: 'webgpu' } },
     { id: 'xr-0.85', label: 'xrScale 0,85 (wirkt nur in XR)', graphics: { xrScale: 0.85 } },
     { id: 'xr-0.7', label: 'xrScale 0,7 (wirkt nur in XR)', graphics: { xrScale: 0.7 } },
     { id: 'pixel-0.85', label: 'Bildpuffer 0,85 (Stellvertreter)', graphics: {}, dpr: 0.85 },
@@ -253,7 +247,7 @@ async function measure(browser, world, item) {
     localStorage.setItem(
       'bgvr.graphics',
       JSON.stringify({
-        mode: 'simple',
+        renderer: 'webgl',
         xrScale: 1,
         showFps: false,
         gridLines: false,
@@ -493,7 +487,7 @@ const save = () => writeFile(out, JSON.stringify(report, null, 2));
  * überhaupt etwas wert sind: SwiftShader rechnet auf der CPU, und auf dieser
  * CPU laufen nebenbei ein Vite, ein Jest oder ein zweiter Agent. Die Last
  * driftet über Minuten — misst man `basis` dreimal hintereinander und danach
- * `comic` dreimal hintereinander, misst man die Drift und nennt sie Comic. Ein
+ * `webgpu` dreimal hintereinander, misst man die Drift und nennt sie Renderer. Ein
  * Durchgang durch **alle** Fälle je Wiederholung verteilt jede Drift
  * gleichmäßig über die ganze Tabelle; der Median über die Durchgänge wirft den
  * Ausreißer weg.
@@ -599,7 +593,7 @@ console.log(
  * Das ist der Unterschied zwischen einer belastbaren und einer erfundenen
  * Prozentzahl: Die Maschine wird im Lauf schneller und langsamer, und beide
  * Werte einer Tabellenzeile stammen aus verschiedenen Minuten. Verglichen wird
- * deshalb **innerhalb eines Durchgangs** — `comic` des zweiten Durchgangs gegen
+ * deshalb **innerhalb eines Durchgangs** — `webgpu` des zweiten Durchgangs gegen
  * `basis` des zweiten Durchgangs — und erst über diese Quotienten wird der
  * Median gebildet. Der gemeinsame Geschwindigkeitsfaktor der Minute kürzt sich
  * dabei heraus.

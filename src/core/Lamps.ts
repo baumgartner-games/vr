@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { denyShadow } from './graphicsScene';
-import { denyOutline } from './outlineShell';
 import {
   lampBurns,
   lampLevel,
@@ -299,7 +298,6 @@ export class Lamps {
       // Kein Ding zum Anfassen: Zeiger, Strahlen und Treffer gehen hindurch.
       object.raycast = () => {};
       denyShadow(object);
-      denyOutline(object);
       scene.add(object);
     }
   }

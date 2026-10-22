@@ -445,10 +445,9 @@ export class ShipExperience {
   private readonly cabinets: Cabinet[] = [];
   /**
    * **Die Kiste, die gerade den Saum trägt**, und die Netze, an denen er hängt
-   * (`core/outlineShell.ts`). Gemerkt wird beides, weil der Durchlauf über die
-   * Szene (`core/graphicsScene.ts`) jede Sekunde seine eigene, schwarze Kontur
-   * darüberlegt: Sie jedes Bild neu einzustellen ist billig, sie jedes Bild an
-   * allen vierzig Kisten abzuräumen wäre es nicht.
+   * (`core/outlineShell.ts`). Gemerkt wird beides: Den Saum jedes Bild neu
+   * einzustellen ist billig, ihn jedes Bild an allen vierzig Kisten
+   * abzuräumen wäre es nicht.
    */
   private seamOn = '';
   private readonly seams: THREE.Mesh[] = [];
@@ -3032,9 +3031,8 @@ export class ShipExperience {
 
   /**
    * **Die Beute leuchtet**, solange die Kiste offen ist und man sie nehmen
-   * kann — ein Saum in der Farbe des Ziels um das Modell aus dem Regal. Jedes
-   * Bild neu eingestellt wie `seam`: Der Durchlauf über die Szene färbt
-   * Konturen sonst binnen einer Sekunde schwarz.
+   * kann — ein Saum in der Farbe des Ziels um das Modell aus dem Regal, jedes
+   * Bild neu eingestellt wie `seam`.
    */
   private glowLoot(cabinet: Cabinet, on: boolean): void {
     const loot = cabinet.lootMesh;

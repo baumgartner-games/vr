@@ -544,9 +544,8 @@ export class KitchenGauges {
 
   /**
    * Eine Farbe, geteilt. **Immer `MeshBasicMaterial`**, und das ist Absicht:
-   * Eine Anzeige soll in jedem Licht gleich aussehen — und der Comic-Durchlauf
-   * lässt unbeleuchtete Materialien in Ruhe (`core/graphicsScene.ts`), also
-   * bekommt kein Balken einen schwarzen Saum um sich.
+   * Eine Anzeige soll in jedem Licht gleich aussehen, und der Grafikdurchlauf
+   * lässt unbeleuchtete Materialien in Ruhe (`core/graphicsScene.ts`).
    */
   private skin(
     key: string,
