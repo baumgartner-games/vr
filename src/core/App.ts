@@ -841,6 +841,9 @@ export class App {
           return this.topDownCamera.tilt;
         },
         maxZoom: (meters) => this.topDownCamera.setMaxZoom(meters),
+        lockTilt: (locked) => {
+          this.topDownCamera.tiltLocked = locked;
+        },
       },
       pad: this.flat.padFrame,
       elapsed: this.elapsed,
@@ -1323,6 +1326,9 @@ export class App {
 
   /** Die andere der beiden Ansichten — `V` und ⊟ am Pad (`FlatControls.onView`). */
   toggleScreenView(): void {
+    // Wo es nur _von oben_ gibt (`World.onlyTopDown`), gibt es nichts zu
+    // wechseln — und die Wahl für die nächste Welt bleibt, wie sie war.
+    if (this.world?.onlyTopDown && !this.renderer.xr.isPresenting) return;
     this.setScreenView(this.view === '2d' ? '3d' : '2d');
   }
 
@@ -1350,7 +1356,7 @@ export class App {
    */
   get topDown(): boolean {
     return (
-      (screenTopDown(this.view, gameMode()) || buildFlight()) &&
+      (screenTopDown(this.view, gameMode()) || buildFlight() || !!this.world?.onlyTopDown) &&
       !this.renderer.xr.isPresenting &&
       !this.world?.ownsFlat &&
       !this.spectating
@@ -1781,7 +1787,8 @@ export class App {
   }
 
   private viewMenu(): MenuEntry {
-    const flat = this.view === '2d';
+    const onlyTop = !!this.world?.onlyTopDown;
+    const flat = this.view === '2d' || onlyTop;
     const presenting = this.renderer.xr.isPresenting;
     const available = !presenting && !this.world?.ownsFlat;
     return {
@@ -1795,9 +1802,11 @@ export class App {
       // oben (`core/crane.ts`), und das soll hier stehen und nicht verwundern.
       sub: !available
         ? 'Hier gibt es nur die eine'
-        : !flat && isCrane(gameMode())
-          ? `${SCREEN_VIEW_LABELS[this.view]} · als Kran von oben`
-          : SCREEN_VIEW_LABELS[this.view],
+        : onlyTop
+          ? `${SCREEN_VIEW_LABELS['2d']} · hier gibt es nur diese`
+          : !flat && isCrane(gameMode())
+            ? `${SCREEN_VIEW_LABELS[this.view]} · als Kran von oben`
+            : SCREEN_VIEW_LABELS[this.view],
       icon: 'worlds',
       accent: 0x9fe3ff,
       children: [
@@ -1826,7 +1835,9 @@ export class App {
         // _„Es ist nur eine option wie aus den augen dargestellt werden
         // soll"_. Metas Emulator mit eigener Steuerung gibt es weiter über
         // die Adresse (`?xr=sim`, `core/xrEmulator.ts`).
-        ...(presenting
+        // Wo es am Schirm nur _von oben_ gibt (`World.onlyTopDown`), fehlen
+        // die beiden Wege aus den Augen ganz.
+        ...(presenting || onlyTop
           ? []
           : [
               {
@@ -1842,23 +1853,29 @@ export class App {
                 run: () => this.setVrView(!this.vrView),
               },
             ]),
-        {
-          id: 'view:3d',
-          label: SCREEN_VIEW_LABELS['3d'],
-          sub: SCREEN_VIEW_SUBS['3d'],
-          icon: 'worlds',
-          accent: 0x4aa8ff,
-          selected: !presenting && !flat,
-          run: () => {
-            if (this.vrView) this.setVrView(false);
-            this.setScreenView('3d');
-          },
-        },
+        ...(onlyTop
+          ? []
+          : [
+              {
+                id: 'view:3d',
+                label: SCREEN_VIEW_LABELS['3d'],
+                sub: SCREEN_VIEW_SUBS['3d'],
+                icon: 'worlds' as const,
+                accent: 0x4aa8ff,
+                selected: !presenting && !flat,
+                run: () => {
+                  if (this.vrView) this.setVrView(false);
+                  this.setScreenView('3d');
+                },
+              },
+            ]),
         {
           id: 'view:2d',
           label: SCREEN_VIEW_LABELS['2d'],
           sub: available
-            ? SCREEN_VIEW_SUBS['2d']
+            ? onlyTop
+              ? 'In dieser Welt die einzige Sicht am Schirm'
+              : SCREEN_VIEW_SUBS['2d']
             : 'Hier nicht: die Brille ist auf, oder die Welt hat eine eigene',
           icon: 'worlds',
           accent: 0x5ee0a0,

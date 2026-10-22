@@ -35,6 +35,56 @@ export interface Dress {
 
 const HOUSE_COLOURS = ['red', 'red', 'red', 'blue', 'yellow', 'red', 'green'] as const;
 
+/**
+ * **Was auf der Wiese steht** — kleine Büsche (_Forest Nature_) und ein paar
+ * kleine Steine; **keine Bäume**: Bäume heißen Wald. Gemeldet erst _„Bitte bei
+ * den hex Feldern die z.B. kein Wald sind auch bitte keine Bäume
+ * platzieren."_, dann waren die Blumen _„leider hässlich"_; gewählt aus fünf
+ * Varianten: _„B bitte. und etwas kleiner. Auch gerne ein paar steine, aber
+ * kleiner?"_ Die Büsche kommen aus einem anderen Paket des Regals (`/` vorn,
+ * `HexModels.load`), in den Farben `BUSH_COLOURS`.
+ */
+const BUSH_SHAPES = ['1_B', '1_C', '1_D', '1_E'] as const;
+const BUSH_COLOURS = ['1'] as const;
+const bushModel = (shape: string, colour: string): string =>
+  `/forest-nature/color${colour}/Bush_${shape}_Color${colour}.glb`;
+const ROCKS = ['rock_single_A', 'rock_single_C', 'rock_single_D', 'rock_single_E'] as const;
+const MEADOW: readonly string[] = BUSH_SHAPES.flatMap((shape) =>
+  BUSH_COLOURS.map((colour) => bushModel(shape, colour)),
+);
+
+/** Ein Fleck Wiese um (`x`, `z`): ein, zwei kleine Büsche, oft ein kleiner Stein daneben. */
+function meadow(out: Dress[], random: () => number, x: number, z: number, spread = 0.12): void {
+  const near = (): number => (random() - 0.5) * spread * 2;
+  const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+  const bushes = 1 + (random() < MEADOW_PAIR ? 1 : 0);
+  for (let i = 0; i < bushes; i++) {
+    out.push({
+      model: bushModel(pick(BUSH_SHAPES), pick(BUSH_COLOURS)),
+      x: x + near(),
+      z: z + near(),
+      yaw: random() * Math.PI * 2,
+      scale: BUSH_SCALE * (0.8 + random() * 0.4),
+    });
+  }
+  for (let i = 0; i < MEADOW_ROCKS; i++) {
+    if (random() >= MEADOW_ROCK_CHANCE) continue;
+    out.push({
+      model: `decoration/nature/${pick(ROCKS)}.glb`,
+      x: x + near() * 1.6,
+      z: z + near() * 1.6,
+      yaw: random() * Math.PI * 2,
+      scale: ROCK_SCALE * (0.7 + random() * 0.6),
+    });
+  }
+}
+
+const BUSH_SCALE = 0.3;
+const ROCK_SCALE = 0.6;
+const MEADOW_PAIR = 0.5;
+const MEADOW_ROCKS = 2;
+const MEADOW_ROCK_CHANCE = 0.5;
+
 /** Alle Modelle, die eine Kachel tragen kann — zum Vorladen. */
 export function dressingModels(): string[] {
   const out = new Set<string>();
@@ -57,6 +107,7 @@ export function dressingModels(): string[] {
   ]) {
     out.add(`decoration/nature/${name}.glb`);
   }
+  for (const model of MEADOW) out.add(model);
   out.add('decoration/props/haybale.glb');
   out.add('buildings/neutral/building_grain.glb');
   out.add('decoration/props/boat.glb');
@@ -80,7 +131,9 @@ export function dressTile(spec: TileSpec): Dress[] {
       x: Math.cos(a) * 0.32,
       z: Math.sin(a) * 0.32,
       yaw: -a,
-      scale: 1.6,
+      // Doppelt so groß wie zuerst — gewünscht: _„Die flaggen auf den teilen
+      // müssen doppelt so groß sein"_.
+      scale: 3.2,
     });
   }
   return out;
@@ -160,27 +213,9 @@ function dressLand(spec: TileSpec): Dress[] {
           });
         }
         break;
-      case 'grass': {
-        const roll = random();
-        if (roll < 0.35) {
-          out.push({
-            model: `decoration/nature/${pickOne(['tree_single_A', 'tree_single_B'])}.glb`,
-            x: cx + jitter() * 2,
-            z: cz + jitter() * 2,
-            yaw: random() * Math.PI * 2,
-            scale: 0.55,
-          });
-        } else if (roll < 0.5) {
-          out.push({
-            model: `decoration/nature/${pickOne(['rock_single_A', 'rock_single_C'])}.glb`,
-            x: cx + jitter() * 2,
-            z: cz + jitter() * 2,
-            yaw: random() * Math.PI * 2,
-            scale: 1,
-          });
-        }
+      case 'grass':
+        if (random() < 0.55) meadow(out, random, cx + jitter(), cz + jitter(), 0.1);
         break;
-      }
       case 'water':
         if (base.id === 'lake' && random() < 0.4) {
           out.push({
@@ -283,22 +318,17 @@ function whole(
       });
       return;
     default:
-      for (let i = 0; i < 3; i++) {
+      // Ganz Wiese: drei, vier Flecken Blumen, keine Bäume.
+      for (let i = 0, n = 3 + Math.floor(random() * 2); i < n; i++) {
         const a = random() * Math.PI * 2;
-        const d = 0.3 + random() * 0.4;
-        out.push({
-          model: `decoration/nature/${random() < 0.5 ? 'tree_single_A' : 'tree_single_B'}.glb`,
-          x: Math.cos(a) * d,
-          z: Math.sin(a) * d,
-          yaw: random() * 6,
-          scale: 0.55,
-        });
+        const d = 0.2 + random() * 0.45;
+        meadow(out, random, Math.cos(a) * d, Math.sin(a) * d);
       }
   }
 }
 
 /** Gelände, die einen eigenen Boden bekommen (`groundPatches`). */
-export type GroundKind = 'house' | 'forest' | 'field';
+export type GroundKind = 'house' | 'forest' | 'field' | 'water';
 
 /**
  * Ein Stück Boden: ab welcher Kante, über wie viele, welches Gelände — und
@@ -327,11 +357,18 @@ export interface GroundPatch {
  */
 export function groundPatches(spec: TileSpec): GroundPatch[] {
   const base = baseTile(spec.base);
-  if (base.id === 'lake' || base.id.startsWith('coast')) return [];
+  if (base.id === 'lake') return [];
   const ground = (t: Terrain): GroundKind | null =>
     t === 'house' || t === 'forest' || t === 'field' ? t : null;
   if (base.id !== 'land') {
     const out: GroundPatch[] = [];
+    // **Das Wasser-Endstück** (`coast-A`): Die Bucht des Modells ist klein —
+    // eine tiefere Bucht darüber, damit der Fluss sichtbar hineinläuft.
+    // Gemeldet: _„beim wasser endstück, ist das wasser noch zu klein, es
+    // sollte weiter rein ragen."_ Ufer bekommen wie Flusskacheln ihren
+    // Gelände-Boden am Rand — _„wenn dort Wald ist, auch der boden davon
+    // dunkel grün sein wie beim wald"_.
+    if (base.id === 'coast-A') out.push({ edge: 1, length: 1, kind: 'water', ring: false });
     spec.edges.forEach((terrain, edge) => {
       const kind = ground(terrain);
       if (kind) out.push({ edge, length: 1, kind, ring: true });

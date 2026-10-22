@@ -519,6 +519,18 @@ export class PhysicsWorld {
     this.applyFilter(entry);
   }
 
+  /**
+   * **Die Mitgliedschaft eines Körpers wechseln** — eine Wand aus dem Regal,
+   * auf der ein Portal sitzt, wird solange zu einer Portalfläche mit eigenem
+   * Bit (`worlds/portal/portalWalls.ts`), damit, was im Trichter steht, durch
+   * sie hindurch darf.
+   */
+  setMembership(entry: PhysicsBody, membership: number): void {
+    if (entry.removed || this.freed || entry.membership === membership) return;
+    entry.membership = membership;
+    this.applyFilter(entry);
+  }
+
   setGhost(entry: PhysicsBody, ghost: boolean): void {
     if (entry.ghost === ghost) return;
     entry.ghost = ghost;

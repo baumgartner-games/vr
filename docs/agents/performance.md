@@ -69,6 +69,7 @@ Vorgehen für das nächste Mal. Die Einzelheiten je Runde stehen in
 | Teile eines Geräts zusammengebacken | `tools/scannerModel.ts` | 10 → 3 je Gerät |
 | Figuren in einem Netz | `core/figureMerge.mergeFigureParts` (`loadKaykitFigure(…, { merge: true })` für NPCs und Haunting-Figuren, nicht für den Avatar) | 6 → 1 je Figur; Haunting 300 → 232 |
 | Räume hinter Wänden ausblenden | `HauntingWorld.cullRoomArt`, `showRoom` | |
+| Portalsichten nur im Ausschnitt | `portal/portalView.ts`, `PortalRenderer.measure/prepareView` (siehe unten) | Haunting mit zwei Portalen 1 258 → 356, beide im Blick 1 460 → 570 (ohne Portal 232) |
 
 **Rechnung je Bild (CPU)**
 
@@ -87,6 +88,69 @@ Vorgehen für das nächste Mal. Die Einzelheiten je Runde stehen in
 **Grafikkarte**: weniger Lichter (Deckenlampen nur nahe der Zentrale, kein
 Glimmlicht an Lampen, Lampe auf dem Tisch aus), 120 Hz, Auflösungsregler
 _Brille: Auflösung_.
+
+## Portale (Oktober 2026)
+
+Gemeldet: _„Leider scheinen die Portale massive fps Einbrüche zu führen. Bitte
+schau nach einer Option, wie wir das vermeiden können, bzw wie das in dem Spiel
+Portal gelöst wurde oder anderen wie dem minecraft Portal mod. Miss die fps
+auch bitte z.B. in haunting"_.
+
+**Warum es so teuer war**: Jedes Portal zeichnete je Ebene (_Portale in
+Portalen_, ab Werk 2) die **ganze Szene** in ein Ziel von Bildgröße — mit dem
+vollen Kegel der Kamera, also ohne dass three.js etwas aussortieren konnte,
+und auch dann, wenn das Portal hinter einem hing. Zwei Portale × zwei Ebenen
+waren vier volle Durchgänge zusätzlich. Und Haunting zeichnete in der Brille
+gar keine Portalsicht (`HauntingWorld.render` gab `false` zurück) — ein Portal
+dort war nur ein Wirbel; jetzt zeichnet es wie jede Welt (`super.render`).
+
+**Wie es die anderen lösen**:
+
+- **_Portal_ (Valve, Source)**: Die Sicht durch ein Portal wird mit dem
+  Stencil-Puffer direkt ins Bild gezeichnet, nur dort, wo das Portal auf dem
+  Schirm liegt; der Kegel der virtuellen Kamera wird auf das Rechteck des
+  Portals zugeschnitten (Scissor + engerer Kegel zum Aussortieren), die
+  Nahebene liegt schräg auf dem Ausgang. Unsichtbare Portale (außerhalb des
+  Kegels, abgewandt, verdeckt) kosten nichts; die Tiefe ist klein (2), und die
+  letzte Ebene zeigt nur noch ein festes Bild.
+- **_Immersive Portals_ (Minecraft-Mod)**: dasselbe Prinzip — je Portal ein
+  eigener, enger Kegel, aus dem nur die Chunks gezeichnet werden, die
+  hineinfallen; Portale außerhalb des Blicks, zu weit weg oder zu klein werden
+  übersprungen; Tiefe und Anzahl als Einstellung; Verdeckungsabfragen.
+
+**Was hier gemacht ist** (`portal/portalView.ts`, `PortalRenderer`):
+
+1. **Je Portal, Ebene und Auge ein Rechteck** (`portalRect`): die Ecken der
+   Öffnung durch die Kamera auf den Schirm, hinter dem Auge abgeschnitten.
+   Hinter einem, abgewandt oder neben dem Bild → leer, die Sicht entfällt.
+   Tiefere Ebenen: das Portal, wie es in der Sicht der Ebene darüber liegt,
+   geschnitten mit deren Rechteck — wird es dort nicht gesehen, entfällt auch
+   die Ebene.
+2. **Nur dort zeichnen**: Viewport und Schere auf das Rechteck, die Projektion
+   so zugeschnitten (`cropProjection`, nach der schrägen Nahebene), dass
+   dieselben Pixel herauskommen — aber three.js sortiert mit dem engen Kegel
+   aus. Darum werden die Augen einzeln gezeichnet und nicht mehr als
+   `ArrayCamera` (die sortiert mit dem gemeinsamen Kegel beider Augen).
+3. **Geprüft**: Bilder vorher/nachher an derselben Stelle, am Schirm und in
+   der simulierten Brille, pixelgleich (größte Abweichung 2 von 765).
+
+**Gemessen** (`npm run perf:haunting -- --portals` bzw. `--portals=both`,
+Zeichenaufrufe je Bild, beide Augen, alle Durchgänge):
+
+| Szene | vorher | nachher |
+| --- | ---: | ---: |
+| ohne Portal | 232 | 232 |
+| zwei Portale, eines im Blick, eines im Rücken | 1 258 | 356 |
+| zwei Portale nebeneinander im Blick | 1 460 | 570 |
+
+Bei gut 0,03 ms je Aufruf in der Brille sind das etwa 31 → 4 ms bzw.
+37 → 10 ms für die Portale. SwiftShader hier: 0,6 → 0,9 bzw. 0,4 → 0,8
+Bilder/s (ohne Portal 0,9) — nur als Verhältnis.
+
+**Was noch ginge**, falls es nicht reicht: die innerste Ebene nicht neu
+zeichnen, sondern das Bild des letzten Bildes zeigen (wie Valve); Portale über
+einer Entfernung nur jedes zweite Bild; ein Stencil-Weg ohne Renderziele (spart
+Speicher und Auflösungswechsel, ist aber ein großer Umbau).
 
 ## Vorgehen für das nächste Mal
 

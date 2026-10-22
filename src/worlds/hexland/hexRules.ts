@@ -12,7 +12,7 @@
  * **Gewertet wird wie im Brettspiel** (_Dorfromantik — Das Brettspiel_),
  * gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
  * aktiven Missionen und einer festen Anzahl an normalen Karten … Und Punkte
- * berechnen wie im Brett Spiel"_. Eine Partie hat 40 normale Kacheln
+ * berechnen wie im Brett Spiel"_. Eine Partie hat 45 normale Kacheln
  * (`NORMAL_TILES`); liegen weniger als drei offene Aufträge
  * (`OPEN_TASKS`), kommt statt einer normalen eine **Auftragskachel** — sie
  * zählt nicht vom Stapel ab. Ein Auftrag nennt eine Zahl: Das Gebiet, zu dem
@@ -313,20 +313,33 @@ export function runs(edges: readonly Terrain[], terrain: Terrain): number {
 
 /**
  * **Welches Stück des Geländes an welcher Kante liegt** — je Kante die Nummer
- * des Stücks, `-1`, wo das Gelände dort nicht liegt. Getrennt wird nur durch
- * **Fluss und Weg**: Wald, Fluss, Wald auf einer Kachel sind zwei Stücke, die
- * zu zwei verschiedenen Gebieten gehören können. Gemeldet: _„(Wald)(Wald Fluss
- * Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_
- * Fluss und Weg selbst sind immer ein Stück — eine Gabelung ist ein Fluss.
+ * des Stücks, `-1`, wo das Gelände dort nicht liegt. **Land hängt nur über
+ * benachbarte Kanten zusammen**: Stadt, Wald, Stadt auf einer Kachel sind zwei
+ * Stücke, genauso Wald, Fluss, Wald — damit ist auch die alte Regel „Fluss
+ * und Weg teilen das Land" abgedeckt. Gemeldet erst _„(Wald)(Wald Fluss
+ * Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_,
+ * dann an einem Weizen, der über ein Dorf hinweg zählte: _„Gebiete müssen über
+ * kanten verbunden sein."_ Fluss und Weg selbst sind immer ein Stück — sie
+ * laufen durch die Kachel, eine Gabelung ist ein Fluss.
  */
 export function segments(edges: readonly Terrain[], terrain: Terrain): number[] {
   const out = [-1, -1, -1, -1, -1, -1];
-  const cut = hard(terrain) ? -1 : edges.findIndex((t) => hard(t));
-  let seg = 0;
+  if (hard(terrain)) {
+    edges.forEach((t, i) => {
+      if (t === terrain) out[i] = 0;
+    });
+    return out;
+  }
+  // Ganz dieses Gelände: ein Stück. Sonst ab einer fremden Kante im Kreis,
+  // jeder neue Lauf ein neues Stück.
+  const start = edges.findIndex((t) => t !== terrain);
+  if (start < 0) return out.map(() => 0);
+  let seg = -1;
   for (let k = 1; k <= 6; k++) {
-    const i = (cut + k + 6) % 6;
-    if (cut >= 0 && hard(edges[i]!)) seg++;
-    else if (edges[i] === terrain) out[i] = seg;
+    const i = (start + k) % 6;
+    if (edges[i] !== terrain) continue;
+    if (edges[(i + 5) % 6] !== terrain) seg++;
+    out[i] = seg;
   }
   return out;
 }
@@ -474,12 +487,14 @@ export interface Task {
 }
 
 /**
- * **Die Zahlen je Gelände im Auftragsstapel** — wie im Brettspiel: _„Es gibt
- * bei Städten 4, 4, 5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen,
- * Wald, Wasser, Straße/Weg."_ Die Zahl steht schon vor dem Legen fest (_„vor
- * dem Legen erkennbar, welcher Auftrag es ist (Stadt 4 z.B.)"_).
+ * **Die Zahlen je Gelände im Auftragsstapel** — wie im Brettspiel, laut
+ * Anleitung je Auftragstyp 1 × 4, 2 × 5, 2 × 6 (fünf Auftragsplättchen je
+ * Gelände, 25 im Ganzen). Bis Oktober 2026 standen hier 4, 4, 5, 5, 6, 6;
+ * gemeldet: _„sind zu wenig bzw. unpassend viele hex tiles"_. Die Zahl steht
+ * schon vor dem Legen fest (_„vor dem Legen erkennbar, welcher Auftrag es ist
+ * (Stadt 4 z.B.)"_).
  */
-export const TASK_TARGETS: readonly number[] = [4, 4, 5, 5, 6, 6];
+export const TASK_TARGETS: readonly number[] = [4, 5, 5, 6, 6];
 
 /** **Der ganze Auftragsstapel**, gemischt: je Gelände die sechs Zahlen. */
 export function taskDeck(random: () => number): Task[] {
@@ -494,6 +509,17 @@ export function taskDeck(random: () => number): Task[] {
 }
 
 /**
+ * **Ein Auftragsstapel beliebiger Größe** — weniger als ein ganzer Stapel:
+ * die obersten; mehr: weitere ganze Stapel, jeder für sich gemischt. So bleibt
+ * die Mischung der Zahlen je Gelände wie im Brettspiel.
+ */
+export function taskDeckOf(random: () => number, count: number): Task[] {
+  const deck: Task[] = [];
+  while (deck.length < count) deck.push(...taskDeck(random));
+  return deck.slice(0, count);
+}
+
+/**
  * **Wie viele Auftragskacheln eine normale Runde hat** — endlich, wie im
  * Brettspiel, damit man sieht, wie viele noch kommen können (gewünscht: _„Es
  * wäre schön zu sehen, wie viele Aufträge es noch geben könnte und wie viele
@@ -502,8 +528,12 @@ export function taskDeck(random: () => number): Task[] {
  */
 export const QUEST_TILES = QUEST_TERRAINS.length * TASK_TARGETS.length;
 
-/** Wie viele normale Kacheln eine Partie hat. */
-export const NORMAL_TILES = 40;
+/**
+ * Wie viele normale Kacheln eine Partie hat — wie im Brettspiel: 48
+ * Landschaftsplättchen, von denen vor der Partie 3 unbesehen in die Schachtel
+ * zurückgehen.
+ */
+export const NORMAL_TILES = 45;
 /** Wie viele Aufträge offen liegen sollen — fehlt einer, kommt eine Auftragskachel. */
 export const OPEN_TASKS = 3;
 /** Wie oft eine normale Kachel eine Flagge trägt. */
@@ -605,7 +635,7 @@ export function matchBase(edges: readonly Terrain[]): TileSpec | null {
 // --- das Brett ------------------------------------------------------------------
 
 /**
- * **Die drei Spielarten**: eine Partie mit 40 Kacheln, das **unendliche Spiel**
+ * **Die drei Spielarten**: eine Partie mit 45 Kacheln, das **unendliche Spiel**
  * (dieselben Regeln und dieselbe Wertung, aber der Stapel füllt sich immer
  * nach — gewünscht: _„normale Runde, unendliches Spiel, Creative Modus"_) und
  * der Kreativ-Modus.
@@ -637,6 +667,38 @@ export interface OutlineLine {
 }
 
 /** **Die Wertung wie im Brettspiel**, Posten für Posten (`HexBoard.scoring`). */
+/** Wo ein Auftrag gerade steht — für die Übersicht aller Aufträge. */
+export type QuestPlace = 'done' | 'failed' | 'open' | 'hand' | 'deck';
+
+/** Ein Auftrag der Partie in der Übersicht (`HexBoard.questOverview`). */
+export interface QuestEntry {
+  readonly terrain: QuestTerrain;
+  readonly target: number;
+  readonly place: QuestPlace;
+  /** Wie groß sein Gebiet ist — nur bei offenen. */
+  readonly size?: number;
+}
+
+/** Was noch kommt, je Gelände (`HexBoard.leftOver`). */
+export interface LeftOver {
+  /** Normale Kacheln im Stapel (ohne die in der Hand). */
+  readonly normal: number;
+  /** Auftragskacheln im Auftragsstapel. */
+  readonly tasks: number;
+  /** Je Gelände: wie viele normale Kacheln es tragen, wie viele Aufträge es verlangen. */
+  readonly byTerrain: ReadonlyMap<Terrain, { normal: number; tasks: number }>;
+}
+
+/** Die Reihenfolge der Gelände in Übersichten. */
+export const OVERVIEW_TERRAINS: readonly Terrain[] = [
+  'house',
+  'field',
+  'forest',
+  'water',
+  'road',
+  'grass',
+];
+
 export interface Scoring {
   /** Erfüllte Aufträge: ihre Zahlen zusammen. */
   tasks: number;
@@ -682,6 +744,10 @@ export class HexBoard {
   /** Die Aufträge, die noch kommen — oben ist das Ende der Liste. */
   tasks: Task[] = [];
 
+  /** Mit wie vielen normalen Kacheln und Aufträgen die Partie begann (`reset`). */
+  startTiles = NORMAL_TILES;
+  startTasks = QUEST_TILES;
+
   /** Wie viele Auftragskacheln noch kommen können — `Infinity` im unendlichen Spiel. */
   get tasksLeft(): number {
     return this.mode === 'endless' ? Infinity : this.tasks.length;
@@ -694,13 +760,23 @@ export class HexBoard {
     this.random = rng(seed);
   }
 
-  /** **Eine neue Partie** — eine Landkachel in der Mitte, 40 im Stapel, dann die Aufträge. */
-  reset(seed = Date.now() % 1e9, mode: 'game' | 'endless' = 'game'): void {
+  /** **Eine neue Partie** — eine Landkachel in der Mitte, 45 im Stapel, dann die Aufträge. */
+  reset(
+    seed = Date.now() % 1e9,
+    mode: 'game' | 'endless' = 'game',
+    size: { tiles?: number; tasks?: number } = {},
+  ): void {
     this.start(seed, mode);
+    // **Wie groß die Partie ist** — im Reiter einstellbar (_Partie
+    // einstellen_), ab Werk wie im Brettspiel.
+    this.startTiles = Math.max(1, Math.round(size.tiles ?? NORMAL_TILES));
+    this.startTasks = Math.max(0, Math.round(size.tasks ?? QUEST_TILES));
+    if (mode === 'game' && this.startTasks !== QUEST_TILES)
+      this.tasks = taskDeckOf(this.random, this.startTasks);
     // Die letzten (obersten) ohne Fluss und Weg — sonst verlangt die zweite
     // Kachel schon einen Fluss, bevor es überhaupt Land gibt.
-    for (let i = 0; i < NORMAL_TILES; i++) {
-      this.stack.push(drawTile(this.random, { landOnly: i >= NORMAL_TILES - 3 }));
+    for (let i = 0; i < this.startTiles; i++) {
+      this.stack.push(drawTile(this.random, { landOnly: i >= this.startTiles - 3 }));
     }
     this.hand = this.nextHand();
   }
@@ -1314,6 +1390,10 @@ export class HexBoard {
    *
    * `landReady`: `ready` zählt nur Gebiete, an die eine Landkachel andocken
    * kann (`readiness`) — so rechnet _Intelligent (optimiert)_.
+   *
+   * `ignore`: Aufträge, die ohnehin nicht mehr zu schaffen sind (der Planer
+   * zählt dafür den Stapel, `hexPlanner`) — sie wachsen nicht mehr und gehen
+   * nicht mehr verloren; nur ein Zufallstreffer genau auf die Zahl zählt.
    */
   assess(
     spec: TileSpec,
@@ -1322,6 +1402,7 @@ export class HexBoard {
     rot: number,
     landReady = false,
     base?: AssessBase,
+    ignore?: ReadonlySet<string>,
   ): {
     progress: number;
     completes: number;
@@ -1349,6 +1430,8 @@ export class HexBoard {
     let ownBreaks = false;
     for (const [id, now] of after) {
       const was = before.get(id);
+      if (ignore?.has(id) && !(now.size === now.target && (was?.size ?? 0) !== now.target))
+        continue;
       if (!now.possible && (was?.possible ?? true)) {
         breaks++;
         if (id === key) ownBreaks = true;
@@ -1528,6 +1611,54 @@ export class HexBoard {
   }
 
   /** Wie groß das Gebiet eines Auftrags gerade ist — für das Schild über der Kachel. */
+  /**
+   * **Alle Aufträge der Partie** — erfüllt, verpasst, offen, in der Hand und
+   * die, die noch im Auftragsstapel liegen; je Gelände nach Zahl. Gewünscht:
+   * _„dass ich zwar die aktuellen Missionen sehe, aber auch sehe, welche
+   * Missionen (Icon und Zahl) ich bereits erledigt habe und welche noch
+   * fehlen"_.
+   */
+  questOverview(): QuestEntry[] {
+    const out: QuestEntry[] = [];
+    for (const tile of this.tiles.values()) {
+      const quest = tile.spec.quest;
+      if (!quest || quest.target === null) continue;
+      out.push({
+        terrain: quest.terrain,
+        target: quest.target,
+        place: quest.state,
+        size: quest.state === 'open' ? this.areaSize(tile.q, tile.r, quest.terrain) : undefined,
+      });
+    }
+    const hand = this.hand?.quest;
+    if (hand && hand.target !== null)
+      out.push({ terrain: hand.terrain, target: hand.target, place: 'hand' });
+    for (const task of this.tasks)
+      out.push({ terrain: task.terrain, target: task.target, place: 'deck' });
+    const order: Record<QuestPlace, number> = { done: 0, failed: 1, open: 2, hand: 3, deck: 4 };
+    return out.sort(
+      (a, b) =>
+        QUEST_TERRAINS.indexOf(a.terrain) - QUEST_TERRAINS.indexOf(b.terrain) ||
+        a.target - b.target ||
+        order[a.place] - order[b.place],
+    );
+  }
+
+  /**
+   * **Was noch kommt** — normale Kacheln im Stapel und Auftragskacheln im
+   * Auftragsstapel, je Gelände gezählt: Eine Kachel mit Wald und Fluss zählt
+   * bei beiden. Die Reihenfolge des Stapels verrät das nicht, nur was darin
+   * liegt — wie beim Mitzählen am Tisch. Gewünscht: _„wie viele tiles von
+   * welchen gebieten übrig sind (ggf Missionen und normale Unterteilen?)"_.
+   */
+  leftOver(): LeftOver {
+    const byTerrain = new Map<Terrain, { normal: number; tasks: number }>();
+    for (const t of OVERVIEW_TERRAINS) byTerrain.set(t, { normal: 0, tasks: 0 });
+    for (const spec of this.stack) for (const t of new Set(spec.edges)) byTerrain.get(t)!.normal++;
+    for (const task of this.tasks) byTerrain.get(task.terrain)!.tasks++;
+    return { normal: this.stack.length, tasks: this.tasks.length, byTerrain };
+  }
+
   questProgress(tile: PlacedTile): { size: number; target: number } | null {
     const quest = tile.spec.quest;
     if (!quest || quest.target === null || quest.state !== 'open') return null;
@@ -1580,6 +1711,7 @@ export class HexBoard {
       tasks: Number.isFinite(this.tasksLeft) ? this.tasksLeft : -1,
       // Der Auftragsstapel selbst, Gelände und Zahl je Auftrag.
       deck: this.tasks.map((t) => [TERRAIN_CODE[t.terrain], t.target]),
+      size: [this.startTiles, this.startTasks],
     });
   }
 
@@ -1617,6 +1749,10 @@ export class HexBoard {
       this.placed = Number(data.placed) || 0;
       this.seed = Number(data.seed) || 1;
       this.tasks = readDeck(data, this.mode, rng(this.seed + 104729));
+      const size = Array.isArray(data.size) ? data.size : [];
+      this.startTiles = Number(size[0]) > 0 ? Number(size[0]) : NORMAL_TILES;
+      this.startTasks =
+        Number(size[1]) >= 0 && size[1] !== undefined ? Number(size[1]) : QUEST_TILES;
       // Der Würfel geht weiter, wo der Stand war — nicht wieder von vorn.
       this.random = rng(this.seed + this.placed * 7919);
       return true;
@@ -1647,6 +1783,8 @@ interface SaveData {
   hand: PackedSpec | null;
   tasks?: number;
   deck?: Array<[string, number]>;
+  /** Normale Kacheln und Aufträge zu Beginn (`startTiles`, `startTasks`). */
+  size?: [number, number];
 }
 
 /**

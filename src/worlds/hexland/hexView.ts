@@ -22,6 +22,9 @@ export const HEX_WIDTH = 2 * HEX_SCALE;
 
 const PACK = 'medieval-hexagon/';
 
+/** Wie stark sich was im Wind biegt (`swayMaterial`). */
+const SWAY_BEND = { tree: 0.3, grain: 2.4, bush: 1.6 } as const;
+
 /** Ein Netz einer Datei: was gezeichnet wird und wie es in der Datei sitzt. */
 interface Part {
   readonly geometry: THREE.BufferGeometry;
@@ -158,7 +161,9 @@ export class HexModels {
       this.pending.set(model, done);
       return done;
     }
-    const job = kaykitModel(PACK + model).then((holder) => {
+    // Mit `/` vorn liegt das Modell in einem anderen Paket des Regals (Blumen, Büsche).
+    const path = model.startsWith('/') ? model.slice(1) : PACK + model;
+    const job = kaykitModel(path).then((holder) => {
       const out: Part[] = [];
       if (holder) {
         // In den Maßen der Datei, nicht in denen des Regals: Groß gemacht wird hier.
@@ -227,15 +232,21 @@ export class HexModels {
         ? 'tree'
         : model.endsWith('building_grain.glb')
           ? 'grain'
-          : null;
+          : model.startsWith('/forest-nature/')
+            ? 'bush'
+            : null;
     if (!kind) return material;
     const key = `${kind}|${material.uuid}`;
     let own = this.moving.get(key);
     if (!own) {
       own = material.clone();
       if (kind === 'fan') fanMaterial(own);
-      // Weizen nur ein Hauch — gemeldet: _„Das Weizen bewegt sich viel zu stark."_
-      else swayMaterial(own, kind === 'tree' ? 0.3 : 0.6);
+      // Das Maß wächst mit dem Quadrat der Höhe (`swayMaterial`): Weizen und
+      // Büsche sind niedrig und brauchen mehr, damit man sie überhaupt sieht.
+      // Erst gemeldet _„Das Weizen bewegt sich viel zu stark."_ (damals ein
+      // anderes Maß), dann _„Weizen und Büsche sollten sich vom Wind auch
+      // bewegen lassen."_
+      else swayMaterial(own, SWAY_BEND[kind]);
       this.moving.set(key, own);
     }
     return own;
@@ -257,7 +268,7 @@ export class HexModels {
     const geometry = (y: number): THREE.BufferGeometry =>
       form === 'ring'
         ? sectorGeometry(RING_INNER, 1, y)
-        : runGeometry(Number(form.slice(3)) || 1, y);
+        : runGeometry(Number(form.slice(3)) || 1, y, kind === 'water' ? BAY_BOW : undefined);
     const flat = (colour: number, map: THREE.Texture | null, offset: number): THREE.Material => {
       const material = new THREE.MeshStandardMaterial({
         color: colour,
@@ -286,6 +297,8 @@ export class HexModels {
         return [part(geometry(0.018), flat(0x6b8f30, null, -6))];
       case 'field':
         return [part(geometry(0.024), flat(0xffffff, fieldTexture(), -8))];
+      case 'water':
+        return [part(geometry(0.03), flat(WATER_COLOUR, null, -10))];
     }
   }
 
@@ -416,6 +429,11 @@ const RING_INNER = 0.55;
  */
 const RUN_BOW: Readonly<Record<number, number>> = { 1: 0.16, 2: 0.1, 3: 0, 4: -0.1, 5: -0.16 };
 
+/** Wie tief die Bucht des Wasser-Endstücks reicht (Mitte der Kurve, in Eckabständen). */
+const BAY_BOW = -0.15;
+/** Die Farbe des Wassers in der Bucht — wie das Wasser der Ufer-Kacheln. */
+const WATER_COLOUR = 0x56a9e2;
+
 /**
  * **Ein Lauf von `length` Kanten ab Kante 0** — außen die Kachelkante, gerade
  * und scharf; innen eine Kurve durch die Nähe der Mitte (eine quadratische
@@ -423,7 +441,7 @@ const RUN_BOW: Readonly<Record<number, number>> = { 1: 0.16, 2: 0.1, 3: 0, 4: -0
  * Grenzen zwischen zwei Gebieten auf einer Kachel weich, die zur Nachbarkachel
  * nicht.
  */
-function runGeometry(length: number, y: number): THREE.BufferGeometry {
+function runGeometry(length: number, y: number, bowOverride?: number): THREE.BufferGeometry {
   const r = 2 / Math.sqrt(3);
   const corner = (j: number): THREE.Vector2 => {
     const a = ((60 * j + 30) * Math.PI) / 180;
@@ -440,7 +458,7 @@ function runGeometry(length: number, y: number): THREE.BufferGeometry {
   if (length < 6) {
     const end = corner(length - 1);
     const bisector = ((length - 1) * 30 * Math.PI) / 180;
-    const bow = (RUN_BOW[length] ?? 0) * r;
+    const bow = (bowOverride ?? RUN_BOW[length] ?? 0) * r;
     const mid = new THREE.Vector2(Math.cos(bisector) * bow, Math.sin(bisector) * bow);
     const chord = start.clone().add(end).multiplyScalar(0.5);
     // Die Mitte einer quadratischen Kurve liegt halb zwischen Sehnenmitte und Stützpunkt.

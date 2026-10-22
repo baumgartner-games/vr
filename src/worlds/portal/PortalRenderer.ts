@@ -2,6 +2,17 @@ import * as THREE from 'three';
 import type { Portal } from './Portal';
 import { viewLayers } from '../../core/viewLayers';
 import { DEFAULT_PORTAL_DEPTH, clampPortalDepth } from './portalDepth';
+import {
+  cropProjection,
+  emptyRect,
+  fullRect,
+  intersectRect,
+  pixelRect,
+  portalRect,
+  unionRect,
+  type PixelRect,
+  type ViewRect,
+} from './portalView';
 
 const _plane = new THREE.Plane();
 const _normal = new THREE.Vector3();
@@ -10,6 +21,21 @@ const _clip = new THREE.Vector4();
 const _q = new THREE.Vector4();
 const _size = new THREE.Vector2();
 const _targetSize = new THREE.Vector2();
+const _chainWorld = new THREE.Matrix4();
+const _chainInverse = new THREE.Matrix4();
+const _seen: ViewRect = { x0: 1, y0: 1, x1: -1, y1: -1 };
+const _clipped: ViewRect = { x0: 1, y0: 1, x1: -1, y1: -1 };
+const _full: ViewRect = { x0: -1, y0: -1, x1: 1, y1: 1 };
+const _crop: ViewRect = { x0: -1, y0: -1, x1: 1, y1: 1 };
+const _eyePort: PixelRect = { x: 0, y: 0, w: 0, h: 0 };
+const _pixels: PixelRect = { x: 0, y: 0, w: 0, h: 0 };
+
+/** Ein Auge, aus dem gezeichnet wird: am Schirm die Kamera, in der Brille je Auge eines. */
+interface Eye {
+  readonly camera: THREE.PerspectiveCamera;
+  /** Sein Viewport im Bild, in vollen Pixeln (vor dem Maßstab der Ebene). */
+  readonly viewport: PixelRect;
+}
 
 /**
  * How much smaller each level inside the first one is drawn. A portal in a
@@ -28,9 +54,18 @@ const MIN_LEVEL_SCALE = 0.3;
  * up its own screen position. That keeps the illusion stable in stereo.
  *
  * The views nest: with `depth` at two, the portal inside a portal shows a room
- * again instead of its idle swirl. Each level is one more pass over the whole
- * scene per portal, so the number is a setting the player owns
- * (`portalDepth.ts`) rather than something baked in here.
+ * again instead of its idle swirl. Each level is one more pass per portal, so
+ * the number is a setting the player owns (`portalDepth.ts`) rather than
+ * something baked in here.
+ *
+ * **Gezeichnet wird nur, was durch das Loch zu sehen ist** (`portalView.ts`,
+ * Oktober 2026): je Portal, Ebene und Auge das Rechteck, in dem die Öffnung
+ * liegt, als Viewport, und eine Projektion, die genau darauf zugeschnitten
+ * ist — three.js sortiert dann mit dem engen Kegel aus. Ein Portal, das man
+ * nicht sieht, kostet nichts; eines in der Ferne fast nichts. Die Augen
+ * werden dafür einzeln gezeichnet und nicht mehr als `ArrayCamera`: Deren
+ * Aussortieren läuft über den gemeinsamen Kegel beider Augen, und der ist
+ * für einen Ausschnitt zu breit.
  */
 export class PortalRenderer {
   /** Render scale of the portal views while in VR. */
@@ -48,15 +83,23 @@ export class PortalRenderer {
    * per frame and then used for both eyes.
    */
   private readonly chains = new Map<Portal, THREE.Matrix4[]>();
-  private readonly mono = new THREE.PerspectiveCamera();
-  private readonly array = new THREE.ArrayCamera();
+  /**
+   * Wo jedes Portal auf jeder Ebene in jedem Auge zu sehen ist — leer heißt,
+   * diese Sicht wird nicht gezeichnet (`portalView.portalRect`).
+   */
+  private readonly rects = new Map<Portal, ViewRect[][]>();
+  /** Die virtuelle Kamera, aus der gerade gezeichnet wird — eine für alle Sichten. */
+  private readonly view = new THREE.PerspectiveCamera();
+  /** Die Augen dieses Bildes (`collectEyes`). */
+  private readonly eyes: Eye[] = [];
   private readonly size = new THREE.Vector2();
 
+  /** Wie viele Sichten das letzte Bild gezeichnet hat — für die Messstrecke. */
+  passes = 0;
+
   constructor(private readonly renderer: THREE.WebGLRenderer) {
-    for (const camera of [this.mono, this.array]) {
-      camera.matrixAutoUpdate = false;
-      camera.matrixWorldAutoUpdate = false;
-    }
+    this.view.matrixAutoUpdate = false;
+    this.view.matrixWorldAutoUpdate = false;
   }
 
   /** Draws the portal views. Call before the main render pass. */
@@ -79,6 +122,7 @@ export class PortalRenderer {
       renderer.getDrawingBufferSize(this.size);
     }
 
+    this.passes = 0;
     const active = portals.filter((portal) => portal.placed && portal.link?.placed);
     if (active.length === 0) {
       for (const portal of portals) portal.setResolution(this.size);
@@ -104,6 +148,8 @@ export class PortalRenderer {
     const depth = clampPortalDepth(this.depth);
     this.trim(depth, active);
     this.buildChains(active, depth);
+    this.collectEyes(camera, xrCamera);
+    this.measure(active, depth);
 
     const scale = presenting ? this.vrResolutionScale : 1;
 
@@ -128,10 +174,24 @@ export class PortalRenderer {
       for (const portal of portals) portal.setResolution(_size);
 
       for (const portal of active) {
+        const rects = this.rects.get(portal)![level]!;
+        if (rects.every(emptyRect)) continue;
         const target = this.target(portal, level, scale, !presenting);
-        const viewCamera = this.prepareCamera(portal, level, camera, xrCamera, levelScale);
-        renderer.setRenderTarget(target);
-        renderer.render(scene, viewCamera);
+        for (let eye = 0; eye < this.eyes.length; eye++) {
+          const rect = rects[eye]!;
+          if (emptyRect(rect)) continue;
+          const view = this.prepareView(portal, level, this.eyes[eye]!, rect, levelScale);
+          if (!view) continue;
+          // Nur der Ausschnitt: Viewport und Schere, und `clear` hält sich
+          // auch daran — der Rest des Ziels bleibt, wie er war, und wird
+          // nirgends gezeigt.
+          target.viewport.set(_pixels.x, _pixels.y, _pixels.w, _pixels.h);
+          target.scissor.set(_pixels.x, _pixels.y, _pixels.w, _pixels.h);
+          target.scissorTest = true;
+          renderer.setRenderTarget(target);
+          renderer.render(scene, view);
+          this.passes++;
+        }
       }
     }
 
@@ -230,73 +290,132 @@ export class PortalRenderer {
     return target;
   }
 
-  private prepareCamera(
+  /**
+   * **Die Augen dieses Bildes**: am Schirm die eine Kamera über das ganze
+   * Bild, in der Brille jedes Auge mit seinem Viewport.
+   */
+  private collectEyes(camera: THREE.PerspectiveCamera, xrCamera: THREE.ArrayCamera | null): void {
+    this.eyes.length = 0;
+    if (xrCamera && xrCamera.cameras.length > 0) {
+      for (const source of xrCamera.cameras) {
+        const viewport = source.viewport;
+        if (!viewport) continue;
+        this.eyes.push({
+          camera: source,
+          viewport: { x: viewport.x, y: viewport.y, w: viewport.z, h: viewport.w },
+        });
+      }
+      return;
+    }
+    camera.updateWorldMatrix(true, false);
+    this.eyes.push({ camera, viewport: { x: 0, y: 0, w: this.size.x, h: this.size.y } });
+  }
+
+  /**
+   * **Wo jedes Portal auf jeder Ebene zu sehen ist** — je Auge ein Rechteck.
+   *
+   * Ebene 0 ist die Öffnung, wie das Auge sie sieht. Das Bild einer tieferen
+   * Ebene `k` liegt auf einem Portal, wie es in einer Sicht der Ebene `k − 1`
+   * erscheint, und nur, soweit diese Sicht selbst zu sehen ist: Projektion
+   * durch die Kamera jener Sicht, geschnitten mit deren Rechteck, vereinigt
+   * über alle Portale. Ist es nirgends zu sehen, bleibt das Rechteck leer und
+   * die Sicht ungezeichnet.
+   */
+  private measure(active: readonly Portal[], depth: number): void {
+    const eyes = this.eyes;
+    for (const portal of active) {
+      let levels = this.rects.get(portal);
+      if (!levels) {
+        levels = [];
+        this.rects.set(portal, levels);
+      }
+      while (levels.length < depth) levels.push([]);
+      for (const level of levels) {
+        while (level.length < eyes.length) level.push({ x0: 1, y0: 1, x1: -1, y1: -1 });
+      }
+    }
+    for (let level = 0; level < depth; level++) {
+      for (const portal of active) {
+        portal.updateMatrixWorld();
+        const rects = this.rects.get(portal)![level]!;
+        for (let eye = 0; eye < eyes.length; eye++) {
+          const out = rects[eye]!;
+          out.x0 = out.y0 = 1;
+          out.x1 = out.y1 = -1;
+          const camera = eyes[eye]!.camera;
+          if (level === 0) {
+            portalRect(
+              portal.matrixWorld,
+              camera.matrixWorld,
+              camera.matrixWorldInverse,
+              camera.projectionMatrix,
+              _seen,
+            );
+            intersectRect(_seen, fullRect(_full), out);
+            continue;
+          }
+          for (const through of active) {
+            const before = this.rects.get(through)![level - 1]![eye]!;
+            if (emptyRect(before)) continue;
+            _chainWorld.multiplyMatrices(this.chains.get(through)![level - 1]!, camera.matrixWorld);
+            _chainInverse.copy(_chainWorld).invert();
+            portalRect(
+              portal.matrixWorld,
+              _chainWorld,
+              _chainInverse,
+              camera.projectionMatrix,
+              _seen,
+            );
+            unionRect(out, intersectRect(_seen, before, _clipped));
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * **Die Kamera einer Sicht** — durch das Portal versetzt, die Nahebene auf
+   * dem Partner, die Projektion auf den Ausschnitt `rect` zugeschnitten. Der
+   * Viewport dazu steht danach in `_pixels`. `null`, wenn der Ausschnitt
+   * nach dem Runden auf Pixel nichts mehr enthält.
+   */
+  private prepareView(
     portal: Portal,
     level: number,
-    camera: THREE.PerspectiveCamera,
-    xrCamera: THREE.ArrayCamera | null,
+    eye: Eye,
+    rect: ViewRect,
     scale: number,
-  ): THREE.Camera {
+  ): THREE.PerspectiveCamera | null {
     // However deep the view sits, the virtual camera always ends up in front
     // of the partner portal — that is the plane the near plane is laid onto.
     const link = portal.link!;
     const traversal = this.chains.get(portal)![level]!;
+    const source = eye.camera;
 
-    if (!xrCamera) {
-      camera.updateWorldMatrix(true, false);
-      this.mono.matrixWorld.multiplyMatrices(traversal, camera.matrixWorld);
-      this.mono.matrixWorldInverse.copy(this.mono.matrixWorld).invert();
-      this.mono.projectionMatrix.copy(camera.projectionMatrix);
-      // Portal views also show the player's own head — but never the HUD,
-      // which belongs on the glass in front of *this* eye and nowhere else.
-      this.mono.layers.mask = viewLayers(camera.layers.mask);
-      applyObliqueNearPlane(this.mono, link);
-      this.mono.projectionMatrixInverse.copy(this.mono.projectionMatrix).invert();
-      return this.mono;
-    }
+    _eyePort.x = Math.floor(eye.viewport.x * scale);
+    _eyePort.y = Math.floor(eye.viewport.y * scale);
+    _eyePort.w = Math.floor(eye.viewport.w * scale);
+    _eyePort.h = Math.floor(eye.viewport.h * scale);
+    _crop.x0 = rect.x0;
+    _crop.y0 = rect.y0;
+    _crop.x1 = rect.x1;
+    _crop.y1 = rect.y1;
+    pixelRect(_crop, _eyePort, _pixels);
+    if (_pixels.w <= 0 || _pixels.h <= 0) return null;
 
-    this.syncEyes(xrCamera);
-
-    this.array.matrixWorld.multiplyMatrices(traversal, xrCamera.matrixWorld);
-    this.array.matrixWorldInverse.copy(this.array.matrixWorld).invert();
-    // Only used for frustum culling — the union frustum of both eyes.
-    this.array.projectionMatrix.copy(xrCamera.projectionMatrix);
-    this.array.projectionMatrixInverse.copy(xrCamera.projectionMatrixInverse);
-
-    for (let i = 0; i < xrCamera.cameras.length; i++) {
-      const source = xrCamera.cameras[i]!;
-      const eye = this.array.cameras[i]!;
-      eye.matrixWorld.multiplyMatrices(traversal, source.matrixWorld);
-      eye.matrixWorldInverse.copy(eye.matrixWorld).invert();
-      eye.projectionMatrix.copy(source.projectionMatrix);
-      applyObliqueNearPlane(eye, link);
-      eye.projectionMatrixInverse.copy(eye.projectionMatrix).invert();
-      const viewport = source.viewport;
-      if (viewport) {
-        eye.viewport!.set(
-          Math.floor(viewport.x * scale),
-          Math.floor(viewport.y * scale),
-          Math.floor(viewport.z * scale),
-          Math.floor(viewport.w * scale),
-        );
-      }
-      eye.layers.mask = viewLayers(source.layers.mask);
-    }
-
-    return this.array;
-  }
-
-  /** Mirrors the eye setup of the XR camera onto our virtual array camera. */
-  private syncEyes(xrCamera: THREE.ArrayCamera): void {
-    while (this.array.cameras.length > xrCamera.cameras.length) this.array.cameras.pop();
-    while (this.array.cameras.length < xrCamera.cameras.length) {
-      const eye = new THREE.PerspectiveCamera();
-      eye.matrixAutoUpdate = false;
-      eye.matrixWorldAutoUpdate = false;
-      eye.viewport = new THREE.Vector4();
-      this.array.cameras.push(eye);
-    }
-    this.array.layers.mask = viewLayers(xrCamera.layers.mask);
+    const view = this.view;
+    view.matrixWorld.multiplyMatrices(traversal, source.matrixWorld);
+    view.matrixWorldInverse.copy(view.matrixWorld).invert();
+    view.projectionMatrix.copy(source.projectionMatrix);
+    // Portal views also show the player's own head — but never the HUD,
+    // which belongs on the glass in front of *this* eye and nowhere else.
+    view.layers.mask = viewLayers(source.layers.mask);
+    applyObliqueNearPlane(view, link);
+    // Erst schräg, dann zugeschnitten: Die Nahebene rechnet mit der Form
+    // einer gewöhnlichen Projektion, der Zuschnitt lässt die Tiefe in Ruhe.
+    cropProjection(view.projectionMatrix, _crop);
+    view.projectionMatrixInverse.copy(view.projectionMatrix).invert();
+    return view;
   }
 }
 

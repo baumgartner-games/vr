@@ -1,5 +1,6 @@
 import {
   BASE_TILES,
+  TERRAIN_LABEL,
   edgeAt,
   hexKey,
   landWeights,
@@ -83,7 +84,7 @@ function optimizedScore(
   // anliegt, nimmt die Auftragskachel selten auf (Idee aus dem
   // Selbst-Spielen; +3,4 gegen 1a, Runde 2f).
   const before = beforeMove(board);
-  const a = board.assess(spec, q, r, rot, true, before.base);
+  const a = board.assess(spec, q, r, rot, true, before.base, before.hopeless);
   const side = sideGain(board, before, spec, q, r, rot);
   // **Erfüllen und Opfern mit einer Kachel**: Bringt die Auftragskachel ein
   // Gebiet genau auf die Zahl eines offenen Auftrags und überschreitet dabei
@@ -125,6 +126,8 @@ interface Before {
   side: number;
   base: AssessBase;
   quests: QuestChance[];
+  /** Die offenen Aufträge, für die der Stapel nicht mehr reicht (`hopeless`). */
+  hopeless: Set<string>;
 }
 
 /**
@@ -136,11 +139,13 @@ const memo = new WeakMap<HexBoard, Before>();
 function beforeMove(board: HexBoard): Before {
   let before = memo.get(board);
   if (!before || before.hand !== board.current) {
+    const quests = openQuests(board);
     before = {
       hand: board.current,
       side: sideOf(board),
       base: board.assessBase(true),
-      quests: openQuests(board),
+      quests,
+      hopeless: new Set(quests.filter((quest) => quest.hopeless).map((quest) => quest.key)),
     };
     memo.set(board, before);
   }
@@ -174,25 +179,149 @@ function sideGain(
   return after - before.side;
 }
 
-interface QuestChance {
+export interface QuestChance {
   key: string;
   terrain: Terrain;
   target: number;
+  size: number;
   /** Die freien Felder am Rand seines Gebiets. */
   slots: Set<string>;
   chance: number;
+  /** Wie viele Kacheln, die noch kommen, das Gelände überhaupt tragen (`count`). */
+  carriers: number;
+  /** Wie viele davon jetzt an eines seiner freien Felder passen. */
+  helpful: number;
+  /** Der Stapel reicht nicht mehr bis zur Zahl (`hopelessBy`). */
+  hopeless: boolean;
 }
 
-/** Jeder offene Auftrag mit seiner Chance (`questChance`). */
-function openQuests(board: HexBoard): QuestChance[] {
+/**
+ * **Jeder offene Auftrag mit seiner Chance** (`questChance`) — und in der
+ * normalen Runde, ob der Stapel überhaupt noch reicht (`stackPool`).
+ */
+export function openQuests(board: HexBoard, withHand = true): QuestChance[] {
   const out: QuestChance[] = [];
+  const pool = stackPool(board, withHand);
   for (const [key, tile] of board.tiles) {
     const quest = tile.spec.quest;
     if (!quest || quest.state !== 'open' || quest.target === null) continue;
     const found = questChance(board, key, quest.terrain);
-    out.push({ key, terrain: quest.terrain, target: quest.target, ...found });
+    const counted = pool
+      ? count(board, pool, found.slots, quest.terrain)
+      : { carriers: Infinity, helpful: Infinity };
+    out.push({
+      key,
+      terrain: quest.terrain,
+      target: quest.target,
+      ...found,
+      ...counted,
+      hopeless:
+        pool !== null && hopelessBy(board, quest.terrain, quest.target - found.size, counted),
+    });
   }
   return out;
+}
+
+/**
+ * **Was noch kommt, ohne Reihenfolge** — die Kacheln im Stapel und die in der
+ * Hand, gleiche zusammengefasst. Nur in der normalen Runde; im unendlichen
+ * Spiel füllt sich der Stapel immer nach. Wer am Tisch mitzählt, weiß
+ * dasselbe: Der Stapel ist bekannt, nur nicht, in welcher Folge er kommt.
+ * Gewünscht: _„wenn die Mission nicht mehr erfolgreich beendet werden kann,
+ * dass es das nicht mehr versucht bzw. absichtlich die Mission fehlschlagen
+ * lässt, da er weiß, dass es dafür keine tiles mehr gibt."_
+ */
+interface PoolEntry {
+  edges: readonly Terrain[];
+  count: number;
+}
+
+function stackPool(board: HexBoard, withHand = true): PoolEntry[] | null {
+  if (board.mode !== 'game') return null;
+  const pool = new Map<string, PoolEntry>();
+  const specs = board.current && withHand ? [...board.stack, board.current] : board.stack;
+  for (const spec of specs) {
+    const key = spec.edges.join();
+    const entry = pool.get(key);
+    if (entry) entry.count++;
+    else pool.set(key, { edges: spec.edges, count: 1 });
+  }
+  return [...pool.values()];
+}
+
+/**
+ * **Mitzählen**: `carriers` — Kacheln, die das Gelände überhaupt tragen;
+ * `helpful` — die davon, die in irgendeiner Drehung an eines der freien Felder
+ * des Gebiets passen (Fluss und Weg der Nachbarn) und das Gelände dort
+ * anlegen. Ein freies Feld wird nur enger, je mehr Nachbarn es bekommt: Was
+ * jetzt nirgends passt, passt dort auch später nicht.
+ */
+function count(
+  board: HexBoard,
+  pool: PoolEntry[],
+  slots: Set<string>,
+  terrain: Terrain,
+): { carriers: number; helpful: number } {
+  const kindOf = (t: Terrain): 'w' | 'r' | 'l' => (t === 'water' ? 'w' : t === 'road' ? 'r' : 'l');
+  const needs: Array<Array<'w' | 'r' | 'l' | null>> = [];
+  const faces: number[][] = [];
+  for (const key of slots) {
+    const [q, r] = key.split(',').map(Number) as [number, number];
+    const need: Array<'w' | 'r' | 'l' | null> = [];
+    const face: number[] = [];
+    for (let e = 0; e < 6; e++) {
+      const n = neighbour({ q, r }, e);
+      const other = board.tiles.get(hexKey(n.q, n.r));
+      if (!other) {
+        need.push(null);
+        continue;
+      }
+      const t = edgeAt(other.spec, other.rot, opposite(e));
+      need.push(kindOf(t));
+      if (t === terrain) face.push(e);
+    }
+    needs.push(need);
+    faces.push(face);
+  }
+  let carriers = 0;
+  let helpful = 0;
+  for (const entry of pool) {
+    if (!entry.edges.includes(terrain)) continue;
+    carriers += entry.count;
+    let fits = false;
+    for (let s = 0; s < needs.length && !fits; s++) {
+      for (let k = 0; k < 6 && !fits; k++) {
+        const at = (e: number): Terrain => entry.edges[(e - k + 6) % 6]!;
+        let ok = true;
+        for (let e = 0; e < 6 && ok; e++) {
+          const want = needs[s]![e];
+          if (want) ok = kindOf(at(e)) === want;
+        }
+        if (ok) fits = faces[s]!.some((e) => at(e) === terrain);
+      }
+    }
+    if (fits) helpful += entry.count;
+  }
+  return { carriers, helpful };
+}
+
+/**
+ * **Reicht der Stapel nicht mehr?** Jede Kachel bringt das Gebiet um höchstens
+ * eine weiter (bis auf das seltene Zusammenwachsen zweier Gebiete). Fehlen
+ * mehr, als noch Kacheln mit dem Gelände kommen — oder passt keine einzige
+ * mehr an eines seiner freien Felder —, ist der Auftrag verloren. Eine
+ * Auftragskachel desselben Geländes, die noch im Auftragsstapel liegt, zählt
+ * als Träger mit (ihre Kanten stehen erst beim Ziehen fest).
+ */
+function hopelessBy(
+  board: HexBoard,
+  terrain: Terrain,
+  missing: number,
+  counted: { carriers: number; helpful: number },
+): boolean {
+  if (missing <= 0) return false;
+  const tasks = board.tasks.filter((task) => task.terrain === terrain).length;
+  return missing > counted.carriers + tasks || (counted.helpful === 0 && tasks === 0);
 }
 
 const STACK_WEIGHT = BASE_TILES.reduce((sum, b) => sum + Math.max(0, b.weight), 0);
@@ -301,6 +430,9 @@ function stuckGain(
 ): number {
   if (!before.quests.length) return 0;
   const here = hexKey(q, r);
+  // **Aussichtslose Aufträge** (Stapel gezählt) zählen in `assess` nicht mehr
+  // mit: weder Wachsen noch Verlieren. Lässt die Lage einen davon platzen,
+  // wird sein Platz frei — so viel wie das Opfern sonst (`HOPE_BONUS`).
   const sacrifice = (quest: QuestChance) =>
     quest.chance < HOPE && board.tasks.length > 0 && before.base.quests.get(quest.key)?.possible
       ? 100 + HOPE_BONUS
@@ -317,6 +449,11 @@ function stuckGain(
     for (const key of near) if (quest.slots.has(key)) touched = true;
     if (!touched) continue;
     const now = questChance(board, quest.key, quest.terrain);
+    if (quest.hopeless) {
+      const gone = now.size > quest.target || (now.size < quest.target && now.slots.size === 0);
+      if (gone && board.tasks.length > 0) gain += HOPE_BONUS;
+      continue;
+    }
     if (now.size >= quest.target && now.size !== quest.target) {
       gain += sacrifice(quest);
       continue;
@@ -358,6 +495,7 @@ export function bestPlacement(
   board: HexBoard,
   strategy: Strategy,
   nudge?: (slot: Hex) => number,
+  info?: { second: Placement | null; close: boolean },
 ): Placement | null {
   const spec = board.current;
   if (!spec) return null;
@@ -375,9 +513,13 @@ export function bestPlacement(
       } else if (!second || score > second.score) second = here;
     }
   }
-  if (strategy === 'optimized' && best && second && second.score >= best.score - LOOK_MARGIN) {
-    return lookAhead(board, spec, best) >= lookAhead(board, spec, second) ? best : second;
+  const close = !!best && !!second && second.score >= best.score - LOOK_MARGIN;
+  if (strategy === 'optimized' && close) {
+    const pick = lookAhead(board, spec, best!) >= lookAhead(board, spec, second!) ? best : second;
+    if (info) Object.assign(info, { second: pick === best ? second : best, close });
+    return pick;
   }
+  if (info) Object.assign(info, { second, close });
   return best;
 }
 
@@ -412,4 +554,137 @@ function lookAhead(board: HexBoard, spec: TileSpec, at: Placement): number {
   });
   memo.delete(board);
   return value;
+}
+
+/** Ein Grund für einen Vorschlag — grün, rot oder bloß zur Kenntnis. */
+export interface Reason {
+  tone: 'good' | 'bad' | 'info';
+  text: string;
+}
+
+/**
+ * **Warum der Vorschlag dort liegt** — in Worten, für das ⓘ neben dem Knopf
+ * _Vorschlag_ (`HexlandWorld.suggest`). Gewünscht: _„einen Button im hex Spiel
+ * Screen (Hilfe/Lege Vorschlag (intelligent optimiert)) …, der das Tile
+ * platziert und ich auf ein (Info Icon) drücken kann um zu erfahren, warum er
+ * es dort hin gelegt hat"_. Gerechnet vor dem Legen: was jeder offene Auftrag
+ * davon hat, der eigene Auftrag der Kachel, Flaggen, Fluss und Weg, Kanten —
+ * und welche Aufträge der Stapel nicht mehr hergibt.
+ */
+export function explainPlacement(
+  board: HexBoard,
+  at: Placement,
+  info?: { second: Placement | null; close: boolean },
+): Reason[] {
+  const spec = board.current;
+  if (!spec) return [];
+  const out: Reason[] = [];
+  const label = (t: Terrain): string => TERRAIN_LABEL[t];
+  const quests = openQuests(board);
+  const sizeOf = (key: string, terrain: Terrain): number => {
+    const tile = board.tiles.get(key)!;
+    return board.areaSize(tile.q, tile.r, terrain);
+  };
+  const was = new Map(quests.map((quest) => [quest.key, sizeOf(quest.key, quest.terrain)]));
+  const scoreBefore = board.scoring();
+  const a = board.assess(spec, at.q, at.r, at.rot, true);
+  const fit = board.fit(spec, at.q, at.r, at.rot);
+  const key = hexKey(at.q, at.r);
+  board.tiles.set(key, { q: at.q, r: at.r, spec, rot: at.rot });
+  const scoreAfter = board.scoring();
+  const now = new Map(quests.map((quest) => [quest.key, sizeOf(quest.key, quest.terrain)]));
+  const own = spec.quest;
+  const ownAfter =
+    own && own.target !== null
+      ? openQuests(board, false).find((quest) => quest.key === key)
+      : undefined;
+  board.tiles.delete(key);
+
+  for (const quest of quests) {
+    const before = was.get(quest.key)!;
+    const after = now.get(quest.key)!;
+    const name = `${label(quest.terrain)} ${quest.target}`;
+    const missing = quest.target - before;
+    if (after === quest.target && before !== quest.target) {
+      out.push({ tone: 'good', text: `✓ ${name} wird genau fertig — +${quest.target} Punkte` });
+    } else if (after > quest.target && before < quest.target) {
+      out.push(
+        quest.hopeless
+          ? {
+              tone: 'info',
+              text:
+                `${name} platzt (${after}/${quest.target}) — er war ohnehin verloren: ${lack(quest, missing)}` +
+                (board.tasks.length > 0 ? '. Sein Platz wird frei für einen neuen Auftrag.' : '.'),
+            }
+          : { tone: 'bad', text: `✗ ${name} wird zu groß (${after}/${quest.target})` },
+      );
+    } else if (after > before) {
+      out.push({
+        tone: 'good',
+        text: `${name}: ${before} → ${after} / ${quest.target} (noch ${quest.target - after})`,
+      });
+    } else if (quest.hopeless) {
+      out.push({
+        tone: 'info',
+        text: `${name} (${before}/${quest.target}) wird nicht mehr bedient — ${lack(quest, missing)}.`,
+      });
+    }
+  }
+
+  if (own && own.target !== null && ownAfter) {
+    const name = `${label(own.terrain)} ${own.target}`;
+    if (ownAfter.size === own.target)
+      out.push({
+        tone: 'good',
+        text: `✓ Der neue Auftrag ${name} ist sofort fertig — +${own.target}`,
+      });
+    else if (ownAfter.size > own.target)
+      out.push({
+        tone: 'info',
+        text: `Der neue Auftrag ${name} wird gleich geopfert (${ownAfter.size}/${own.target}) — so wird sein Platz sofort wieder frei.`,
+      });
+    else
+      out.push({
+        tone: ownAfter.hopeless ? 'bad' : 'info',
+        text:
+          `Der neue Auftrag ${name} beginnt mit ${ownAfter.size}/${own.target}` +
+          (ownAfter.hopeless
+            ? ` — der Stapel reicht kaum: ${lack(ownAfter, own.target - ownAfter.size)}`
+            : ''),
+      });
+  }
+
+  const flags = scoreAfter.flags - scoreBefore.flags;
+  if (flags > 0) out.push({ tone: 'good', text: `Schließt ein Gebiet mit Flagge — +${flags}` });
+  const river = scoreAfter.river - scoreBefore.river;
+  if (river > 0) out.push({ tone: 'good', text: `Längster Fluss wird länger — +${river}` });
+  const road = scoreAfter.road - scoreBefore.road;
+  if (road > 0) out.push({ tone: 'good', text: `Längster Weg wird länger — +${road}` });
+  if (a.ready >= 1)
+    out.push({
+      tone: 'good',
+      text: 'Bereitet ein Gebiet vor, das eine kommende Auftragskachel auf einen Schlag erfüllen kann',
+    });
+  if (!out.some((reason) => reason.tone === 'good'))
+    out.push({
+      tone: 'info',
+      text: 'Kein Auftrag in Reichweite — gelegt, wo die Kanten am besten passen und nichts verbaut wird',
+    });
+  if (fit && fit.neighbours > 0)
+    out.push({ tone: 'info', text: `${fit.matched} von ${fit.neighbours} Kanten passen` });
+  if (info?.second)
+    out.push({
+      tone: 'info',
+      text: info.close
+        ? 'Knapp entschieden: Die zweitbeste Lage lag fast gleichauf — den Ausschlag gab der Blick auf die nächste Kachel'
+        : 'Deutlich vor jeder anderen Lage',
+    });
+  return out;
+}
+
+/** Warum der Stapel für einen Auftrag nicht mehr reicht — in Worten. */
+function lack(quest: QuestChance, missing: number): string {
+  const name = TERRAIN_LABEL[quest.terrain];
+  if (quest.helpful === 0) return `keine Kachel, die noch kommt, passt mit ${name} an sein Gebiet`;
+  return `es fehlen ${missing}, aber nur noch ${quest.carriers} Kachel${quest.carriers === 1 ? '' : 'n'} mit ${name} kommen`;
 }

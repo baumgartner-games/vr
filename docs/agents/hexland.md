@@ -22,16 +22,22 @@ Gewünscht: _„Wie wäre es einfach ein Dorf Romantik Klon zu machen mit 3
 aktiven Missionen und einer festen Anzahl an normalen Karten. Die hex tiles
 sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
 
-- **40 normale Kacheln** (`NORMAL_TILES`), eine Landkachel liegt in der Mitte.
+- **45 normale Kacheln** (`NORMAL_TILES`, einstellbar unter _Partie einstellen_), eine Landkachel liegt in der Mitte.
+  Wie im Brettspiel: 48 Landschaftsplättchen, 3 gehen vorher unbesehen zurück
+  in die Schachtel (Anleitung, _Spielmaterial_ und _Spielaufbau_). Bis Oktober
+  2026 waren es 40 Kacheln und 30 Aufträge — gemeldet: _„sind zu wenig bzw.
+  unpassend viele hex tiles. Schau nach wie viele im Spiel dorfromantik
+  existieren"_.
   Ist der Stapel leer, ist die Partie vorbei.
 - **Immer drei Aufträge offen** (`OPEN_TASKS`): Liegen weniger als drei offene
   auf dem Brett, kommt statt einer normalen eine **Auftragskachel** — sie zählt
   nicht vom Stapel ab. Die Aufträge kommen aus einem **Auftragsstapel wie im
   Brettspiel** (`taskDeck`, `HexBoard.tasks`): je Gelände — Stadt, Weizen,
-  Wald, Fluss, Weg — sechs Aufträge mit 4, 4, 5, 5, 6, 6 (`TASK_TARGETS`),
-  also 30 (`QUEST_TILES`), gemischt. Gewünscht: _„Es gibt bei Städten 4, 4,
-  5, 5, 6, 6 Aufträge und bei den anderen Gebieten Weizen, Wald, Wasser,
-  Straße/Weg."_ Zum Auftrag wird eine Kachel gezogen, die das Gelände trägt
+  Wald, Fluss, Weg — fünf Aufträge mit 4, 5, 5, 6, 6 (`TASK_TARGETS`),
+  also 25 (`QUEST_TILES`), gemischt; so steht es in der Anleitung (25
+  Auftragsplättchen, je Typ Marker 1 × 4, 2 × 5, 2 × 6). Vorher gewünscht
+  waren 4, 4, 5, 5, 6, 6 je Gelände (_„Es gibt bei Städten 4, 4, 5, 5, 6, 6
+  Aufträge und bei den anderen Gebieten …"_), das waren 30. Zum Auftrag wird eine Kachel gezogen, die das Gelände trägt
   (`drawTile` mit `task`) — und zwar eine, auf der das Gelände **nicht von
   Fluss oder Weg geteilt** ist (`runs` = 1; Fluss- und Weg-Aufträge
   ausgenommen). Gemeldet: _„Hier ist nicht klar, wo die Stadt zählt. Bei
@@ -64,28 +70,159 @@ sollten auch so sein. Und Punkte berechnen wie im Brett Spiel"_.
   das Gebiet danach weiterwächst — _„Es muss nur zum Bewertungszeitpunkt
   erfüllt sein."_ (Ein Versuch, ihn bei Weiterwachsen wieder zu entziehen,
   stand einen Commit lang drin und ist wieder raus.) Über der gelegten Kachel steht ein Schild „4 / 6".
-- **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell
+- **Flaggen**: Etwa jede achte normale Kachel trägt eine Flagge (Modell, Maß 3,2 — doppelt so groß wie zuerst,
   `flag_*` aus dem Regal, grün Wald, rot Dorf, gelb Feld). Ein Gebiet mit
   Flagge, das ringsum **geschlossen** ist, zählt seine Kacheln.
 - **Längster Fluss, längster Weg**: je Kachel ein Punkt.
 - **Wertung** (`HexBoard.scoring`) = Aufträge + Flaggen + Fluss + Weg, jederzeit
   im Reiter zu sehen. Passende Kanten bringen keine Punkte (wie im Brettspiel),
   helfen aber, Gebiete wachsen zu lassen; die Vorschau zeigt sie grün und rot.
+- **Wind** biegt Bäume, Weizen und die Büsche der Wiese (`hexView.SWAY_BEND`:
+  0,3 / 2,4 / 1,6 — das Maß wächst mit dem Quadrat der Höhe, niedriges braucht
+  mehr). Gewünscht: _„Weizen und Büsche sollten sich vom Wind auch bewegen
+  lassen."_
+- **Ufer und Wasser-Endstück** (`groundPatches`): Ufer-Kacheln bekommen wie
+  Flusskacheln am Rand den Boden ihres Geländes (Wald dunkelgrün), und das
+  Endstück (`coast-A`, eine Wasserkante) eine tiefere Bucht in Wasserfarbe
+  (`GroundKind` `water`, `BAY_BOW`) — die des Modells war zu klein. Gemeldet:
+  _„beim wasser endstück, ist das wasser noch zu klein, es sollte weiter rein
+  ragen. auch sollte, wenn dort Wald ist, auch der boden davon dunkel grün
+  sein wie beim wald."_
+- **Auf der Wiese stehen keine Bäume** (`hexDressing.meadow`): kleine Büsche
+  (_Forest Nature_, `BUSH_SHAPES`: nur die runden `1_B…1_E`, Farbe 1) und ein
+  paar kleine Steine —
+  Modelle aus anderen Paketen tragen ein `/` vorn (`HexModels.load`).
+  Gemeldet erst _„Bitte bei den hex Feldern die z.B. kein Wald sind auch bitte
+  keine Bäume platzieren."_; die Flachsblumen danach waren _„leider
+  hässlich"_. Aus fünf Bildern (Grasbüschel, Büsche, Hügel, Weide, Steine)
+  gewählt: _„B bitte. und etwas kleiner. Auch gerne ein paar steine, aber
+  kleiner?"_, dann _„variante 1 bitte. aber auch gern runde büsche, statt
+  eckige"_. Bäume stehen nur noch im Wald.
 - **Die Kacheln** sind wie im Brettspiel: meist zwei Gelände, oft eines,
   selten drei, wenig bloße Wiese (`drawTile`).
 - **Fluss und Weg müssen weiterlaufen** — Wasser an Wasser, Weg an Weg. Passt
   eine Kachel nirgends, darf sie ausnahmsweise überall hin.
 - Gezählt wird in **Kacheln**, verbunden wird über **Stücke**
-  (`segments`): Fluss und Weg teilen das Land auf einer Kachel, und jedes
-  Stück gehört zu seinem eigenen Gebiet. Gemeldet: _„(Wald)(Wald Fluss
-  Wald)(Wald) zählt nicht als ein 3er Wald, sondern als zwei 2er Wälder."_
-  Liegen beide Stücke einer Kachel doch im selben Gebiet (ringsherum
-  verbunden), zählt die Kachel einmal. Andere Gelände trennen nicht — auf
-  einer Kachel ohne Fluss und Weg ist alles Land ein Stück (`drawTile` legt
-  ein Gelände ohnehin am Stück). Auftrag und Flagge liegen auf dem ersten
+  (`segments`): **Land hängt auf einer Kachel nur über benachbarte Kanten
+  zusammen** — jede ununterbrochene Folge gleicher Kanten ist ein Stück und
+  gehört zu ihrem eigenen Gebiet. Stadt, Wald, Stadt sind zwei Stücke, Wald,
+  Fluss, Wald ebenso (die frühere Sonderregel „Fluss und Weg teilen das Land"
+  ist darin enthalten). Fluss und Weg selbst sind immer ein Stück, sie laufen
+  durch die Kachel. Gemeldet erst _„(Wald)(Wald Fluss Wald)(Wald) zählt nicht
+  als ein 3er Wald, sondern als zwei 2er Wälder."_, dann an einem Weizen, der
+  über ein Dorf hinweg zählte: _„das sollte bitte nicht zählen. Gebiete müssen
+  über kanten verbunden sein."_ Liegen zwei Stücke einer Kachel doch im
+  selben Gebiet (ringsherum verbunden), zählt die Kachel einmal. Auftrag und
+  Flagge liegen auf dem ersten
   Stück; neue liegen ohnehin auf einem ungeteilten (`runs` = 1). Intern sind
   die Stücke Zahlen, nicht Zeichenketten — _Intelligent (optimiert)_ fragt
   `areas` für jede Lage, mit Zeichenketten lief `hexbench` 1,7× so lang.
+
+### Leben auf dem Brett
+
+`hexLife.ts` (`HexLife`, hängt an `board3d`, läuft nur mit _Animationen_).
+Gewünscht: _„ein paar weitere Animationen … npc die laufen und Holz hacken.
+Boote die auf dem Fluss fahren. Vögel die fliegen. Füchse die über Wiesen
+laufen. Diese npc und diese spänen hinter einem Baum Felsen Busch Haus, wo man
+diese von der Kamera erst nicht sieht und machen dann es und verschwinden dann
+auch dahinter. … Ein Karren/Wagen entlang der Wege."_
+
+- **Wie viele** (`LIMIT`): je ein Boot, ein Karren, ein Wolf, ein Schwarm,
+  bis zu zwei Holzfäller und drei Leute im Dorf — _„Es dürfen ruhig mehr
+  Menschen unterwegs sein."_ Nur im Ausschnitt der Kamera (derselbe `view`
+  wie beim Wind), mit gewürfelten Pausen (`PAUSE`).
+- **Langsam** (`BOAT_SPEED`, `CART_SPEED`, `WALK_PACE`, `WOLF_PACE`,
+  `BIRD_SPEED`) — gemeldet: _„Boote, Karren, Vögel, Wölfe und Menschen sind
+  zu schnell."_
+- **Boot** (`decoration/props/boat.glb`, Bug nach −Z) **immer flussabwärts**
+  (`downstream`, dieselbe Richtung wie Wellen und Pfeile aus `riverFlow`):
+  von einem Arm, durch den Wasser hereinkommt und hinter dem kein Fluss
+  weitergeht, bis zum Ende des Flusses, in einen See oder eine Bucht hinein.
+  Darin sitzt jemand (`rider`, `Sit_Floor_Idle`). Gemeldet: _„Boote sind um
+  90 falsch gedreht und schwimmen leider auch Fluss aufwärts."_, _„Auf dem
+  Boot darf auch ein Mensch sitzen."_
+- **Karren mit Pferd** (`units/neutral/cart.glb`, `horse_A`, das Pferd vorn und
+  nach vorn schauend) den Weg entlang: von einem Ende (Rand oder Sackgasse,
+  `ends`) Kachel für Kachel (`trail`, an Gabeln gewürfelt), weich auf einer
+  Kurve; vorn und hinten wachsen Boot und Karren aus dem Nichts (`FADE`).
+- **Holzfäller** (eine Figur aus _Adventurers_, `loadKaykitFigure` mit
+  `merge`, Axt in der rechten Hand): aus einem Haus (`building_home`) zum
+  nächsten Baum, hackt (`Melee_2H_Attack_Chop`), geht zurück ins Haus.
+- **Leute im Dorf** (`villager`): von einem Gebäude zu einem anderen in der
+  Nähe, aus der einen Tür hinaus, in die andere hinein.
+- **Wolf** (Werwolf-Paket, ungefärbt — ein Fuchsmodell gibt es nicht; der
+  orange getönte „Fuchs" ist wieder raus): **nur im Wald**, von hinter einem
+  Baum durch dasselbe Waldgebiet über Waldkanten (`forestRoute`,
+  `areaEdges`) bis hinter einen Baum weiter drinnen. Gemeldet: _„Wölfe es
+  sollen nur innerhalb eines Wald Gebietes von Gebiet zu Gebiet laufen nicht
+  über unentdeckte Felder oder andere."_
+- **Zu Fuß wie im Boot**: Leute, Holzfäller und Wolf wachsen am Anfang ihres
+  Wegs aus dem Nichts und schrumpfen auf den letzten Schritten wieder hinein
+  (`Walker`, `FADE`); der Holzfäller kommt in voller Größe am Baum an.
+  Gewünscht: _„nicht einfach auftauchen und verschwinden sondern wie beim
+  Boot winzig sind und dann wachsen und am Ende wieder schrumpfen"_.
+- **Vögel**: ein Schwarm aus sieben, der hoch übers Bild zieht. Kein
+  Vogelmodell im Regal — jeder Vogel sind zwei schlagende Dreiecke, alle in
+  zwei Bündeln (`Flock`).
+
+### Übersicht, übrige Kacheln, Vorschlag
+
+Gewünscht (Oktober 2026): _„dass ich zwar die aktuellen Missionen sehe, aber
+auch sehe, welche Missionen (Icon und Zahl) ich bereits erledigt habe und
+welche noch fehlen"_, _„wie viele tiles von welchen gebieten übrig sind (ggf
+Missionen und normale Unterteilen?) und ein umschalt Button … um die übrigen
+tiles im Detail sehen zu können"_, der Planer soll aussichtslose Aufträge
+aufgeben, und _„einen Button im hex Spiel Screen (Hilfe/Lege Vorschlag
+(intelligent optimiert)) …, der das Tile platziert und ich auf ein (Info
+Icon) drücken kann um zu erfahren, warum er es dort hin gelegt hat"_.
+
+- **Alle Aufträge** (`HexBoard.questOverview`): je Gelände jede Zahl der
+  Partie mit Zustand — erfüllt, verpasst, offen (mit Stand), in der Hand,
+  noch im Auftragsstapel. Am Schirm klappt _Alle Aufträge ▾_ über den offenen
+  Aufträgen oben rechts eine Tafel auf (`drawOverview`, `questChip`: gold ✓,
+  rot durchgestrichen, Rahmen in der Farbe des Geländes, gestrichelt, grau;
+  gemerkt in `hexland:overview`). Im Reiter dasselbe als Seite _Aufträge im
+  Überblick_ (`questMenu`) mit dem Schalter dafür.
+- **Übrige Kacheln** (`HexBoard.leftOver`, `leftOverMenu`): je Gelände, wie
+  viele normale Kacheln es tragen (eine Kachel mit Wald und Fluss zählt bei
+  beiden) und wie viele Auftragskacheln es verlangen. _Jede Kachel einzeln
+  zeigen_ schaltet auf zwei Raster um: jede Kachel im Stapel als Bild
+  (gedrehte gleiche zusammen, nach Anzahl, also ohne die Reihenfolge zu
+  verraten) und jede Auftragskachel mit Gelände und Zahl.
+- **Der Planer zählt mit** (`hexPlanner.stackPool`, `count`, `hopelessBy`):
+  In der normalen Runde kennt _Intelligent (optimiert)_, was noch im Stapel
+  und in der Hand liegt (nicht die Reihenfolge). Fehlen einem Auftrag mehr
+  Kacheln, als noch Kacheln mit seinem Gelände kommen (Auftragskacheln
+  desselben Geländes zählen mit), oder passt keine einzige mehr an seine
+  freien Felder, ist er **aussichtslos**: `assess` (Parameter `ignore`) zählt
+  ihn nicht mehr — kein Wachsen, kein Verlust —, und platzt er durch eine
+  Lage, bringt das `HOPE_BONUS`, solange noch Aufträge nachkommen (sein Platz
+  wird frei). 200 Runden (Samen 1–200): 98,72 → 99,67 Punkte.
+- **💡 Vorschlag** — nur die Lampe, rechts in der oberen Zeile der Leiste
+  (bricht auch am schmalen Handy nicht um). Sie **legt nicht**, sie schiebt
+  die Kachel nur auf Feld und Drehung, die _Intelligent (optimiert)_ wählt
+  (`suggest`, mit Vorausschau), und die Kamera fliegt hin. Solange die Kachel
+  genau so liegt (`whyHere`), steht statt der Lampe **ⓘ** (`syncSuggest`);
+  es öffnet über der Leiste _Warum dort?_ (`showWhy`, Gründe aus
+  `hexPlanner.explainPlacement`): welcher Auftrag fertig wird, wächst, platzt
+  oder aufgegeben ist (mit der Zählung: „es fehlen 3, aber nur noch 2 Kacheln
+  mit Weg kommen"), der eigene Auftrag der Kachel, Flagge, längster Fluss und
+  Weg, vorbereitete Gebiete, passende Kanten und ob knapp entschieden wurde.
+  Verschoben oder gedreht, wird ⓘ wieder zur Lampe. Gewünscht: _„das
+  vorschlag feld soll nur die lampe sein, und das feld nicht legen, sondern
+  nur dort hinbewegen … (die lampe ändert sich zum info icon) dann die
+  begründung lesen. Die lampe sollte in den oberen panel kommen und nicht bei
+  kleineren displays runter geben."_ In der Leiste steht der Auftrag der Kachel
+  nicht mehr („Auftrag: Weizen 6") — _„Ich brauche in dem panel auch nicht
+  die information ‚Auftrag Weizen'."_
+- **Partie einstellen** (`setupMenu`, `hexland:setup`): Anzahl Kacheln (5–200,
+  Standard 45) und Anzahl Aufträge (0–100, Standard 25), je eine Seite mit
+  −10, −1, ↺ Standard, +1, +10; dazu _Neue Partie mit diesen Zahlen_. Gilt ab
+  der nächsten Partie; das Brett merkt sich, womit es begann
+  (`HexBoard.startTiles`, `startTasks`, im Stand als `size`). Mehr als 25
+  Aufträge sind weitere ganze, je für sich gemischte Stapel
+  (`taskDeckOf`). Gewünscht: _„im hex welt menü beim spiel noch einstellen
+  können mit wie vielen tiles und missionen ich spielen will"_.
 
 ### Wie Aufträge auf dem Brett aussehen
 
@@ -233,7 +370,7 @@ habe und mir das nächste Tile aussuchen kann"_.
 ### Spielmodus
 
 Drei Kreise in einem Block im Reiter (`modeRows`, `MenuEntry.radio`):
-**Normale Runde** (40 Kacheln), **Unendliches Spiel** (dieselben Regeln und
+**Normale Runde** (45 Kacheln), **Unendliches Spiel** (dieselben Regeln und
 dieselbe Wertung, der Stapel füllt sich immer nach, `HexMode` `endless`) und
 **Kreativ-Modus**. Jede Zeile öffnet die Frage _Weiterspielen_ (mit dem, was im
 Speicher dieses Modus liegt) oder _Neu starten_. Jeder Modus hat sein eigenes
@@ -341,8 +478,10 @@ aus bzw. _In der Nähe_.
   der Bedienfelder (`FlatControls.startPinch`, galt vorher nur oben).
 
 - **Die offenen Aufträge oben rechts** (`drawQuestList`, DOM, nur von oben am
-  Schirm): je Auftrag eine Zeile mit Gelände-Sechseck, „Stadt 2 / 5" und
-  „noch 3"; ein Tipp fliegt die Kamera zur Kachel (`flyTo`, derselbe Flug
+  Schirm): je Auftrag eine Zeile mit Gelände-Sechseck und „Stadt 2 / 5" —
+  ohne „noch 3" (gewünscht: _„Bei den Missionen das ‚noch' bitte
+  entfernen."_); darunter steht nur „✓ wird erfüllt" oder „✗ wird zu groß",
+  wenn die Kachel in der Hand das entscheidet. Ein Tipp fliegt die Kamera zur Kachel (`flyTo`, derselbe Flug
   wie nach dem Legen). Steht die Bildrate oben rechts, rückt die Liste
   darunter. Gewünscht: _„Ich würde gerne seitlich in der UI oben rechts meine
   aktiven Quests sehen, und wenn ich drauf tippe, springt die Kamera zu der
@@ -396,7 +535,7 @@ ganz vorn, und aufgeschlagen, wenn man die Welt betritt (`App.refreshMenu`,
 _Neue Partie_, der Schalter _Kreativ-Modus_, im Kreativ-Modus der Katalog und
 _Kreatives Brett leeren_, sonst _So wird gewertet_.
 
-## Bedienung — eine für alle drei Ansichten
+## Bedienung — eine für alle Ansichten
 
 - **Auf ein freies Feld zeigen**: Die oberste Kachel schwebt darüber, schon
   in der besten Drehung. Ein helles Sechseck darunter zeigt, wo sie landet;
@@ -482,8 +621,16 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
   - **Bild schieben**: WASD (so schnell, wie die Kamera weit weg ist —
     `PlayerRig.pace`), oder mit Maus/Finger ziehen (`panBy`). **Zoomen**:
     Mausrad, zwei Finger auseinander und zusammen.
+  - **Kippen ist ab Werk gesperrt**, nur Drehen und Zoomen gehen
+    (`TopDownCamera.tiltLocked` über `topDownView.lockTilt`; rechts Ziehen
+    dreht dann nur). Freigegeben wird es im Reiter mit _Erweiterte
+    Kamerasteuerung_ (`cameraRow`, `hexland:camera`). Gewünscht: _„Bei hex
+    Welt soll die Kamera kippen nicht verändert werden können standardmäßig
+    (drehen weiterhin). Das kippen kann nur über das hex Menü erweiterte
+    Kamera Steuerung aktiviert werden."_ Rundflug am Spielende und
+    _Grafik → Blickwinkel von oben_ setzen die Neigung weiter.
   - **Zwei Finger** (`twoFingers`): gemeinsam hoch oder runter **neigt** das
-    Bild (hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
+    Bild (nur mit _Erweiterter Kamerasteuerung_; hoch ist flacher, 20–90°), gegeneinander kreisen **dreht** es
     stufenlos (`TopDownCamera.twist`, `WorldContext.topDownView.twist/tilt`).
     Gewünscht: _„mit zwei Fingern gedrückt hoch und runter ändert die
     Neigung. Zwei Finger entgegengesetzt, einer hoch der andere runter,
@@ -499,12 +646,22 @@ _Kreatives Brett leeren_, sonst _So wird gewertet_.
     ✓ Legen in der Mitte, ⟳ ganz rechts (im Kreativ-Modus darüber die
     Schnellliste). Die Tastenhilfe ist hier aus — sie lag über den Knöpfen. Tasten: `Q` dreht links, `R`/`E` rechts, Leertaste
     legt — `Q` dreht hier also nicht das Bild, die Leertaste springt nicht.
+  - **Kein Werkzeug in der Bildmitte**: Was die unsichtbare Figur hält (das
+    gewählte Werkzeug, etwas Getragenes), ist von oben ebenfalls weg
+    (`PortalWorld.screenHandShown`, `ScreenHand.setShown`). Gemeldet: eine
+    graue Tonne mitten im Bild — _„Es ist wohl ein gewähltes item? Bitte
+    entfernen."_
   - Am Handy sind die Stöcke weg (`touchStick(false)`); ein kurzer, ruhiger
     Tipp ist „zeigen", alles andere schiebt oder zoomt.
   - Die Welt hört dafür selbst auf die Leinwand (`listenToScreen`) — von oben
     zeigt kein Strahl (`Pointer.topDown`).
-- **Aus den Augen** zielt die Bildmitte, wie bei jedem Strahl am Schirm; die
-  Figur ist dort wieder da.
+- **Aus den Augen gibt es hier nicht** (`World.onlyTopDown`, Oktober 2026).
+  Gewünscht: _„In hex World gibt es kein ‚aus den Augen' Modus, da default auf
+  von oben springen."_ Am Schirm ist Hexland immer von oben, egal was auf der
+  Startseite oder unter _Spiel-Sicht_ gewählt ist; dort fehlen _Aus den Augen_
+  und die _VR-Ansicht_. Die Wahl selbst bleibt gespeichert und gilt in der
+  nächsten Welt wieder. In der Brille und beim Zuschauen bleibt alles, wie es
+  war.
 
 ## Wie es gebaut ist
 
