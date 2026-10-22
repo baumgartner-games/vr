@@ -167,8 +167,8 @@ Konstruktor nicht warten kann.
     Kennzeichen geht in den Schlüssel ein, wie bei three's eigenen
     Quad-Ebenen (`XRManager.renderLayers`). In der Brille nimmt es außerdem
     solange das Ausgabeziel weg; sonst übersetzte er mit Multiview auch für
-    das Ziel mit nur einer Ebene. **Wer im neuen Renderer in ein eigenes
-    Ziel zeichnet (Spiegel, Portale), braucht dasselbe.**
+    das Ziel mit nur einer Ebene. Spiegel und Portale gehen in der Brille
+    den anderen Weg — ihre Ziele haben selbst zwei Ebenen (unten).
   - **Ein eigenes Ziel liest er kopfstehend** (`TextureNode`, `isFlipY` —
     so legt es WebGPU ab). Der Durchgang liest deshalb umgedreht, die
     Bildfläche der Drohne und die Linse des Zielfernrohrs bekommen
@@ -185,6 +185,58 @@ Konstruktor nicht warten kann.
   neuen Renderer unverändert — geprüft in der nachgestellten Brille mit und
   ohne Multiview.
 
+- **Spiegel und Portale** (`shared/screenViewNodes.ts`, Oktober 2026) zeichnen
+  wie im alten — am Schirm, in der Brille ohne und mit Multiview, samt
+  schiefer Nahebene, Ausschnitt je Sicht, Portaltiefe und Spiegel im Portal.
+  Was dafür anders ist:
+  - Die **Flächen** sind Knotenmaterialien mit derselben Rechnung
+    (`mirrorNodeMaterial`, `portalNodeMaterial`). Abgelesen wird an
+    `gl_FragCoord`, nicht an `screenCoordinate` — das kippt three um die Höhe
+    des *Schirms*, und die ist in der Brille nicht die des Puffers. Das Ziel
+    liest three ohnehin kopfüber (`TextureNode.setupUV`), die Rechnung dreht
+    es zurück. Tonemapping und sRGB hängt `inlineOutput` an, wenn die Fläche
+    ins Bild geht, und nicht, wenn sie in einem Ziel steht (geprüft:
+    `getRenderTarget() !== null`; die übersetzten Programme trennt three nach
+    Art des Ziels, `RenderObject.getMaterialCacheKey` → `context.id`, also
+    gerät keines vom Schirm in ein Ziel oder umgekehrt).
+  - **Aussortierung umgedreht** für den Spiegel: `state.setCullFace` gibt es
+    im WebGL-Teil des neuen auch (`backend.state`), und sein `setMaterial`
+    rührt es genauso wenig an.
+  - **Viewport und Schere** zählt der neue von **oben** (`updateViewport`:
+    `height − h − y`), die Schere schaltet er am Renderer ein, nicht am Ziel
+    (`renderContext.scissor` fragt `canvasTarget._scissorTest`) —
+    `flipTargetRect`, `setScissorTest` um die Portalsichten.
+  - **In der Brille mit der Kamera der Brille.** Eine eigene `ArrayCamera`
+    wie im alten geht nicht: Die Kameramatrizen für mehrere Augen sind *ein*
+    Knoten für alle Materialien (`accessors/Camera.js`,
+    `_cameraProjectionMatrixArray.array = …` beim Übersetzen), der auf die
+    Kamera zeigt, mit der zuletzt irgendein Material übersetzt wurde — das
+    nächste Brillenbild stünde in den Augen des Spiegels. `XrEyeLoan` leiht
+    sich deshalb die Brillenkamera, schreibt die Sicht hinein (Lage,
+    Projektion, Viewport, Ebenen, auch die Lage der Kamera selbst, aus der
+    three die Lichter ins Auge rechnet, `lightViewPosition`) und legt danach
+    alles zurück; solange hält sie `matrixWorldAutoUpdate` aus.
+  - **Mit Multiview** zeichnet die Brille beide Augen in ein Texturfeld mit
+    zwei Ebenen, und dann muss *jede* Sicht dasselbe tun: Der Renderer
+    übersetzt alles mit `layout(num_views = 2)`, sobald das Ziel der Brille
+    Multiview ist (`NodeManager._createNodeBuilder` fragt
+    `getOutputRenderTarget().multiview`, nicht das Ziel des Durchgangs). Also
+    entsteht jede Spiegel- und Portalsicht in einem Ziel mit zwei Ebenen, in
+    **einem** Durchgang für beide Augen, und die Fläche liest in der Ebene
+    ihres Auges (`gl_ViewID_OVR`, im Eckpunkt gelesen). Ein Portal schneidet
+    dann auf die Vereinigung beider Augenrechtecke zu, weil beide Ebenen
+    einen Viewport teilen. Die Größe einer Ebene ist die des Brillenziels,
+    nicht der Viewport der Augen — three zeichnet mit Multiview über das ganze
+    Ziel (`layeredFrameSize`). Gemessen (`npm run perf:haunting -- --portals`,
+    je ein Lauf): WebGL 356 Zeichenaufrufe und 3 Durchgänge je Bild, neuer
+    Renderer ohne Multiview 308 und 3, mit Multiview **185 und 2**.
+  - Geprüft in Bildern: am Schirm und in der nachgestellten Brille
+    (`&multiview=0`, beide Augen mit `bgvrXr.stereoEnabled = true`) sehen
+    Portalsicht und Spiegelbild aus wie unter WebGL. Mit Multiview zeigt die
+    Simulation kein Bild; die beiden Ebenen des Brillenziels lassen sich aber
+    auslesen (`framebufferTextureLayer` + `readPixels`), und darin stehen
+    Portal und Spiegel richtig — gestreckt, weil die Simulation die doppelte
+    Breite meldet.
 - **Zwei Eigenheiten ausgeglichen**: Der neue reicht `camera.layers` nicht an
   die Augen weiter — ohne `appRenderer.syncXrLayers` fehlte in der Brille der
   Helm um den Blick (`LAYER_EYE`). Und er ruft für Multiview mit

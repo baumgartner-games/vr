@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { usingWebGPU } from '../../core/appRenderer';
 import type { Portal } from './Portal';
 import { viewLayers } from '../../core/viewLayers';
+import {
+  XrEyeLoan,
+  flipTargetRect,
+  gpuViewTarget,
+  layeredEyes,
+  layeredFrameSize,
+} from '../shared/screenViewNodes';
 import { DEFAULT_PORTAL_DEPTH, clampPortalDepth } from './portalDepth';
 import {
   cropProjection,
@@ -94,6 +101,8 @@ export class PortalRenderer {
   /** Die Augen dieses Bildes (`collectEyes`). */
   private readonly eyes: Eye[] = [];
   private readonly size = new THREE.Vector2();
+  /** Im neuen Renderer mit Multiview zeichnet die Brille mit ihrer eigenen Kamera. */
+  private readonly loan = new XrEyeLoan();
 
   /** Wie viele Sichten das letzte Bild gezeichnet hat — für die Messstrecke. */
   passes = 0;
@@ -105,9 +114,6 @@ export class PortalRenderer {
 
   /** Draws the portal views. Call before the main render pass. */
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera, portals: Portal[]): void {
-    // Der neue Renderer (`core/appRenderer.ts`) zeichnet die Portalfläche nicht
-    // (eigener Shader) — dann auch keine Sicht hindurch.
-    if (usingWebGPU()) return;
     const renderer = this.renderer;
     const presenting = renderer.xr.isPresenting;
     const xrCamera = presenting ? renderer.xr.getCamera() : null;
@@ -122,6 +128,8 @@ export class PortalRenderer {
         height = Math.max(height, viewport.y + viewport.w);
       }
       this.size.set(width, height);
+      // Mit Multiview (nur im neuen Renderer) ist es das Ziel der Brille.
+      layeredFrameSize(renderer, xrCamera, this.size);
     } else {
       renderer.getDrawingBufferSize(this.size);
     }
@@ -161,13 +169,45 @@ export class PortalRenderer {
     const previousXrEnabled = renderer.xr.enabled;
     renderer.xr.enabled = false;
 
+    // **Im neuen Renderer** (`shared/screenViewNodes.ts`): Die Schere schaltet
+    // er nicht am Ziel ein, sondern am Renderer. Und mit Multiview zeichnet
+    // jede Sicht beide Augen auf einmal, in ein Ziel mit zwei Ebenen und mit
+    // der geliehenen Brillenkamera (`prepareLayered`).
+    const gpu = usingWebGPU();
+    const previousScissor = gpu && renderer.getScissorTest();
+    if (gpu) renderer.setScissorTest(true);
+    const layered = gpu && layeredEyes(xrCamera);
+    if (layered) this.loan.borrow(xrCamera!);
+    const layers = layered ? 2 : 1;
+    try {
+      this.renderLevels(scene, portals, active, depth, scale, presenting, gpu, layers);
+    } finally {
+      this.loan.restore();
+      if (gpu) renderer.setScissorTest(previousScissor);
+      renderer.setRenderTarget(previousTarget);
+      renderer.xr.enabled = previousXrEnabled;
+    }
+  }
+
+  /** Die Sichten aller Ebenen, die tiefste zuerst. */
+  private renderLevels(
+    scene: THREE.Scene,
+    portals: Portal[],
+    active: Portal[],
+    depth: number,
+    scale: number,
+    presenting: boolean,
+    gpu: boolean,
+    layers: number,
+  ): void {
+    const renderer = this.renderer;
     // Deepest level first: a level is drawn with the level below it already in
     // the portals, and the last one drawn is the one the player looks at.
     for (let level = depth - 1; level >= 0; level--) {
       const inner = level + 1;
       for (const portal of active) {
         portal.setView(
-          inner < depth ? this.target(portal, inner, scale, !presenting).texture : null,
+          inner < depth ? this.target(portal, inner, scale, !presenting, layers).texture : null,
         );
       }
       // A portal surface looks its own image up by screen position, so every
@@ -180,7 +220,17 @@ export class PortalRenderer {
       for (const portal of active) {
         const rects = this.rects.get(portal)![level]!;
         if (rects.every(emptyRect)) continue;
-        const target = this.target(portal, level, scale, !presenting);
+        const target = this.target(portal, level, scale, !presenting, layers);
+        if (layers > 1) {
+          if (!this.prepareLayered(portal, level, rects, levelScale)) continue;
+          target.viewport.set(_pixels.x, _pixels.y, _pixels.w, _pixels.h);
+          target.scissor.set(_pixels.x, _pixels.y, _pixels.w, _pixels.h);
+          flipTargetRect(target);
+          renderer.setRenderTarget(target);
+          renderer.render(scene, this.loan.camera!);
+          this.passes++;
+          continue;
+        }
         for (let eye = 0; eye < this.eyes.length; eye++) {
           const rect = rects[eye]!;
           if (emptyRect(rect)) continue;
@@ -192,6 +242,7 @@ export class PortalRenderer {
           target.viewport.set(_pixels.x, _pixels.y, _pixels.w, _pixels.h);
           target.scissor.set(_pixels.x, _pixels.y, _pixels.w, _pixels.h);
           target.scissorTest = true;
+          if (gpu) flipTargetRect(target);
           renderer.setRenderTarget(target);
           renderer.render(scene, view);
           this.passes++;
@@ -199,12 +250,11 @@ export class PortalRenderer {
       }
     }
 
-    for (const portal of active) portal.setView(this.target(portal, 0, scale, !presenting).texture);
+    for (const portal of active) {
+      portal.setView(this.target(portal, 0, scale, !presenting, layers).texture);
+    }
     // Back to the frame buffer the player actually looks at.
     for (const portal of portals) portal.setResolution(this.size);
-
-    renderer.setRenderTarget(previousTarget);
-    renderer.xr.enabled = previousXrEnabled;
   }
 
   dispose(): void {
@@ -259,6 +309,7 @@ export class PortalRenderer {
     level: number,
     scale: number,
     multisample: boolean,
+    layers = 1,
   ): THREE.WebGLRenderTarget {
     let levels = this.targets.get(portal);
     if (!levels) {
@@ -275,11 +326,18 @@ export class PortalRenderer {
       existing &&
       existing.width === width &&
       existing.height === height &&
-      existing.samples === samples
+      existing.samples === samples &&
+      existing.depth === layers
     ) {
       return existing;
     }
     existing?.dispose();
+
+    if (usingWebGPU()) {
+      const gpuTarget = gpuViewTarget(width, height, samples, layers);
+      levels[level] = gpuTarget;
+      return gpuTarget;
+    }
 
     const target = new THREE.WebGLRenderTarget(width, height, {
       type: THREE.HalfFloatType,
@@ -375,6 +433,54 @@ export class PortalRenderer {
         }
       }
     }
+  }
+
+  /**
+   * **Eine Sicht für beide Augen auf einmal** — der neue Renderer mit
+   * Multiview. Beide Ebenen des Ziels teilen sich einen Viewport, also wird
+   * der Ausschnitt die Vereinigung der Rechtecke beider Augen, und jedes Auge
+   * bekommt seine Projektion auf genau diesen Ausschnitt zugeschnitten.
+   * Gezeichnet wird mit der geliehenen Brillenkamera (`XrEyeLoan`), der
+   * Viewport steht danach in `_pixels`. `false`, wenn nichts zu sehen ist.
+   */
+  private prepareLayered(
+    portal: Portal,
+    level: number,
+    rects: readonly ViewRect[],
+    scale: number,
+  ): boolean {
+    const loan = this.loan;
+    const camera = loan.camera;
+    if (!camera) return false;
+    _crop.x0 = _crop.y0 = 1;
+    _crop.x1 = _crop.y1 = -1;
+    for (const rect of rects) unionRect(_crop, rect);
+    if (emptyRect(_crop)) return false;
+    // Beide Augen zeichnen über ihre ganze Ebene (`layeredFrameSize`).
+    _eyePort.x = 0;
+    _eyePort.y = 0;
+    _eyePort.w = Math.floor(this.size.x * scale);
+    _eyePort.h = Math.floor(this.size.y * scale);
+    pixelRect(_crop, _eyePort, _pixels);
+    if (_pixels.w <= 0 || _pixels.h <= 0) return false;
+
+    const link = portal.link!;
+    const traversal = this.chains.get(portal)![level]!;
+    camera.matrixWorld.multiplyMatrices(traversal, loan.world);
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    camera.layers.mask = viewLayers(loan.layers);
+    for (let i = 0; i < camera.cameras.length; i++) {
+      const eye = camera.cameras[i]!;
+      const source = loan.eyes[i]!;
+      eye.matrixWorld.multiplyMatrices(traversal, source.world);
+      eye.matrixWorldInverse.copy(eye.matrixWorld).invert();
+      eye.projectionMatrix.copy(source.projection);
+      eye.layers.mask = viewLayers(source.layers);
+      applyObliqueNearPlane(eye, link);
+      cropProjection(eye.projectionMatrix, _crop);
+      eye.projectionMatrixInverse.copy(eye.projectionMatrix).invert();
+    }
+    return true;
   }
 
   /**

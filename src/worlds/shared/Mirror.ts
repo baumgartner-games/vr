@@ -3,6 +3,14 @@ import { usingWebGPU } from '../../core/appRenderer';
 import { mirrorDistance, mirrorMatrix } from './mirrorMath';
 import { isScreenSurface, type ScreenSurface } from './screenSurface';
 import { viewLayers } from '../../core/viewLayers';
+import {
+  XrEyeLoan,
+  gpuViewTarget,
+  layeredEyes,
+  layeredFrameSize,
+  mirrorNodeMaterial,
+  setCullFace,
+} from './screenViewNodes';
 
 const _plane = new THREE.Plane();
 const _normal = new THREE.Vector3();
@@ -116,21 +124,23 @@ export class MirrorSurface
   ) {
     super(
       new THREE.PlaneGeometry(width, height),
-      new THREE.ShaderMaterial({
-        uniforms: {
-          uTexture: { value: null },
-          uResolution: { value: new THREE.Vector2(1, 1) },
-          uTint: { value: new THREE.Color(tint) },
-          uActive: { value: 0 },
-        },
-        vertexShader: /* glsl */ `
+      // Im neuen Renderer dieselbe Rechnung als Knotenmaterial (`screenViewNodes.ts`).
+      mirrorNodeMaterial(tint) ??
+        new THREE.ShaderMaterial({
+          uniforms: {
+            uTexture: { value: null },
+            uResolution: { value: new THREE.Vector2(1, 1) },
+            uTint: { value: new THREE.Color(tint) },
+            uActive: { value: 0 },
+          },
+          vertexShader: /* glsl */ `
           varying vec2 vUv;
           void main() {
             vUv = uv;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
         `,
-        fragmentShader: /* glsl */ `
+          fragmentShader: /* glsl */ `
           uniform sampler2D uTexture;
           uniform vec2 uResolution;
           uniform vec3 uTint;
@@ -154,7 +164,7 @@ export class MirrorSurface
             #include <colorspace_fragment>
           }
         `,
-      }),
+        }),
     );
     this.name = 'mirror-surface';
     live += 1;
@@ -296,6 +306,8 @@ export class MirrorRenderer {
   private readonly size = new THREE.Vector2();
   private readonly frustum = new THREE.Frustum();
   private readonly projectionScreen = new THREE.Matrix4();
+  /** Im neuen Renderer zeichnet die Brille mit ihrer eigenen Kamera (`XrEyeLoan`). */
+  private readonly loan = new XrEyeLoan();
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {
     for (const camera of [this.mono, this.array]) {
@@ -306,9 +318,6 @@ export class MirrorRenderer {
 
   /** Vor dem Hauptdurchgang aufzurufen. */
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
-    // Der neue Renderer (`core/appRenderer.ts`) zeichnet die Spiegelfläche
-    // nicht (eigener Shader) — dann auch kein Bild dafür.
-    if (usingWebGPU()) return;
     const mirrors = collectMirrors(scene, this.found, this.screens);
     if (mirrors.length === 0) {
       this.trim(mirrors);
@@ -378,17 +387,27 @@ export class MirrorRenderer {
     renderer.xr.enabled = false;
     // Das Vorzeichen aus dem Kommentar der Klasse: gespiegelt laufen die
     // Dreiecke andersherum.
-    renderer.state.setCullFace(THREE.CullFaceFront);
+    setCullFace(renderer, THREE.CullFaceFront);
+    // Der neue Renderer zeichnet in der Brille mit ihrer eigenen Kamera
+    // (`screenViewNodes.XrEyeLoan`), mit Multiview in ein Ziel mit zwei Ebenen.
+    const loan = xrCamera && usingWebGPU() ? this.loan.borrow(xrCamera) : null;
+    const layers = layeredEyes(loan) ? 2 : 1;
 
-    for (const mirror of this.live) {
-      const target = this.target(mirror, scale);
-      renderer.setRenderTarget(target);
-      renderer.render(scene, this.prepareCamera(mirror, camera, xrCamera, scale));
+    try {
+      for (const mirror of this.live) {
+        const target = this.target(mirror, scale, layers);
+        renderer.setRenderTarget(target);
+        const view = loan
+          ? this.prepareLoan(mirror, scale)
+          : this.prepareCamera(mirror, camera, xrCamera, scale);
+        renderer.render(scene, view);
+      }
+    } finally {
+      this.loan.restore();
+      setCullFace(renderer, THREE.CullFaceBack);
+      renderer.setRenderTarget(previousTarget);
+      renderer.xr.enabled = previousXrEnabled;
     }
-
-    renderer.state.setCullFace(THREE.CullFaceBack);
-    renderer.setRenderTarget(previousTarget);
-    renderer.xr.enabled = previousXrEnabled;
 
     for (const mirror of this.live) {
       const target = this.targets.get(mirror);
@@ -412,6 +431,7 @@ export class MirrorRenderer {
 
   /** Wie groß der Puffer ist, in den gleich gezeichnet wird. */
   private frameSize(xrCamera: THREE.ArrayCamera | null): void {
+    if (layeredFrameSize(this.renderer, xrCamera, this.size)) return;
     if (xrCamera && xrCamera.cameras.length > 0) {
       let width = 0;
       let height = 0;
@@ -487,7 +507,7 @@ export class MirrorRenderer {
     }
   }
 
-  private target(mirror: MirrorSurface, scale: number): THREE.WebGLRenderTarget {
+  private target(mirror: MirrorSurface, scale: number, layers = 1): THREE.WebGLRenderTarget {
     this.sizeAt(scale, _passSize);
     const width = _passSize.x;
     const height = _passSize.y;
@@ -497,11 +517,18 @@ export class MirrorRenderer {
       existing &&
       existing.width === width &&
       existing.height === height &&
-      existing.samples === samples
+      existing.samples === samples &&
+      existing.depth === layers
     ) {
       return existing;
     }
     existing?.dispose();
+
+    if (usingWebGPU()) {
+      const gpuTarget = gpuViewTarget(width, height, samples, layers);
+      this.targets.set(mirror, gpuTarget);
+      return gpuTarget;
+    }
 
     const target = new THREE.WebGLRenderTarget(width, height, {
       type: THREE.HalfFloatType,
@@ -574,6 +601,41 @@ export class MirrorRenderer {
     }
 
     return this.array;
+  }
+
+  /**
+   * **Dieselbe Kamera im neuen Renderer**, in die geliehene Brillenkamera
+   * geschrieben (`XrEyeLoan` — warum keine eigene, steht dort). Mit Multiview
+   * gelten die Viewports der Augen nicht, beide zeichnen über die ganze Ebene
+   * ihres Ziels; ohne zeichnet jedes in seine Hälfte wie im alten.
+   */
+  private prepareLoan(mirror: MirrorSurface, scale: number): THREE.Camera {
+    const loan = this.loan;
+    const camera = loan.camera!;
+    mirror.getWorldNormal(_normal);
+    mirror.getWorldPosition(_point);
+    mirrorMatrix(_reflect, _normal, _point);
+
+    camera.matrixWorld.multiplyMatrices(_reflect, loan.world);
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    camera.layers.mask = viewLayers(loan.layers);
+    for (let i = 0; i < camera.cameras.length; i++) {
+      const eye = camera.cameras[i]!;
+      const source = loan.eyes[i]!;
+      eye.matrixWorld.multiplyMatrices(_reflect, source.world);
+      eye.matrixWorldInverse.copy(eye.matrixWorld).invert();
+      eye.projectionMatrix.copy(source.projection);
+      applyObliqueNearPlane(eye, _normal, _point);
+      eye.projectionMatrixInverse.copy(eye.projectionMatrix).invert();
+      eye.viewport?.set(
+        Math.floor(source.viewport.x * scale),
+        Math.floor(source.viewport.y * scale),
+        Math.floor(source.viewport.z * scale),
+        Math.floor(source.viewport.w * scale),
+      );
+      eye.layers.mask = viewLayers(source.layers);
+    }
+    return camera;
   }
 
   /** Übernimmt die Augenaufteilung der XR-Kamera auf die eigene. */

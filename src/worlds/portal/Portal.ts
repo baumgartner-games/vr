@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { ScreenSurface } from '../shared/screenSurface';
+import { portalNodeMaterial } from '../shared/screenViewNodes';
 
 const ROT_180 = new THREE.Matrix4().makeRotationY(Math.PI);
 const _inverse = new THREE.Matrix4();
@@ -47,22 +48,24 @@ export class Portal extends THREE.Object3D implements ScreenSurface {
 
     this.mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(PORTAL_HALF_WIDTH * 2, PORTAL_HALF_HEIGHT * 2),
-      new THREE.ShaderMaterial({
-        uniforms: {
-          uTexture: { value: null },
-          uResolution: { value: new THREE.Vector2(1, 1) },
-          uColor: { value: color },
-          uActive: { value: 0 },
-          uTime: { value: 0 },
-        },
-        vertexShader: /* glsl */ `
+      // Im neuen Renderer dieselbe Rechnung als Knotenmaterial (`screenViewNodes.ts`).
+      portalNodeMaterial(color) ??
+        new THREE.ShaderMaterial({
+          uniforms: {
+            uTexture: { value: null },
+            uResolution: { value: new THREE.Vector2(1, 1) },
+            uColor: { value: color },
+            uActive: { value: 0 },
+            uTime: { value: 0 },
+          },
+          vertexShader: /* glsl */ `
           varying vec2 vUv;
           void main() {
             vUv = uv;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
         `,
-        fragmentShader: /* glsl */ `
+          fragmentShader: /* glsl */ `
           uniform sampler2D uTexture;
           uniform vec2 uResolution;
           uniform vec3 uColor;
@@ -91,7 +94,7 @@ export class Portal extends THREE.Object3D implements ScreenSurface {
             #include <colorspace_fragment>
           }
         `,
-      }),
+        }),
     );
     this.mesh.frustumCulled = false;
     this.add(this.mesh);
