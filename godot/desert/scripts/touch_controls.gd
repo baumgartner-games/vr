@@ -36,7 +36,7 @@ func _buttons() -> Array:
 	return [
 		["handbrake", Vector2(size.x - 130 * s, size.y - 140 * s), 78 * s, "DRIFT"],
 		["camera", Vector2(size.x - 70 * s, 70 * s), 40 * s, "CAM"],
-		["reset", Vector2(size.x - 170 * s, 70 * s), 40 * s, "↻"],
+		["reset", Vector2(size.x - 170 * s, 70 * s), 40 * s, ""],
 	]
 
 
@@ -118,6 +118,23 @@ func _draw() -> void:
 		var down: bool = _button_fingers.values().has(b[0])
 		draw_circle(b[1], b[2], Color(0.15, 0.1, 0.05, 0.45 if down else 0.25))
 		draw_arc(b[1], b[2], 0, TAU, 40, Color(1, 0.95, 0.85, 0.7), 3.0 * s, true)
+		if b[3] == "":
+			_draw_turn(b[1], b[2] * 0.45, s)
+			continue
 		var fs := int((22 if b[2] > 50 * s else 18) * s)
 		var w := _font.get_string_size(b[3], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string(_font, b[1] + Vector2(-w * 0.5, fs * 0.35), b[3], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 0.97, 0.9))
+
+
+## Der Pfeil im Kreis fürs Aufrichten — gezeichnet, denn die Schrift im Browser kennt „↻" nicht.
+func _draw_turn(c: Vector2, r: float, s: float) -> void:
+	var ink := Color(1, 0.97, 0.9)
+	draw_arc(c, r, -PI * 0.35, PI * 1.35, 32, ink, 4.0 * s, true)
+	var tip := c + Vector2(cos(-PI * 0.35), sin(-PI * 0.35)) * r
+	var along := Vector2(-sin(-PI * 0.35), cos(-PI * 0.35))
+	var side := Vector2(cos(-PI * 0.35), sin(-PI * 0.35))
+	draw_colored_polygon(PackedVector2Array([
+		tip - along * 9.0 * s,
+		tip + side * 9.0 * s + along * 4.0 * s,
+		tip - side * 9.0 * s + along * 4.0 * s,
+	]), ink)

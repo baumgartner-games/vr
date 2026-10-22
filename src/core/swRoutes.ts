@@ -111,6 +111,10 @@ export function routeFor(request: RouteRequest, scope: string): Strategy {
   // Der Service Worker selbst geht nie über den Speicher; sonst wäre der
   // nächste Build von seinem Vorgänger abhängig.
   if (path.endsWith('/sw.js')) return 'bypass';
+  // Die Godot-Spiele (`godot/*/web`, beim Deploy unter `godot/` abgelegt)
+  // sind eigene Seiten mit eigenem Lader: 35 MB WebAssembly, die nicht ins
+  // Telefon gehören, und eine Seite, die nicht die Hülle dieser App ist.
+  if (/\/godot\//.test(path.slice(scope.length - 1))) return 'bypass';
 
   if (request.navigate) return 'page';
   if (isHashedAsset(path)) return 'immutable';

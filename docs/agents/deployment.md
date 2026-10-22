@@ -304,3 +304,15 @@ tun: Er meldet sich nur im fertigen Build an (`core/pwa.ts`). Wer ihn
 ausprobieren will, nimmt `npm run build && npm run preview` — und wer ihn
 loswerden will, nachdem er ihn einmal hatte, wirft ihn in den
 Entwicklerwerkzeugen unter _Application → Service Workers_ hinaus.
+
+## Godot-Spiele unter `godot/`
+
+Neben der App liegen fertige Godot-Web-Exporte (`godot/<spiel>/web`, zuerst die
+[Wüstenfahrt](../../godot/desert/README.md)). Der Schritt _Godot-Spiele_ in
+`deploy.yml` kopiert jeden davon nach `dist/godot/<spiel>/`, also nach
+`/vr/godot/<spiel>/`. Gebaut wird dabei nichts: Wer ein Spiel ändert, exportiert
+es selbst neu (Befehl in dessen README) und committet `web/` mit. Der Service
+Worker der App lässt alles unter `godot/` vorbei (`core/swRoutes.ts`) — die 35 MB
+WebAssembly gehören weder in den Vorrat noch in den Offline-Download, und das
+Artefakt der CI lässt sie ebenfalls weg. Exportiert wird ohne Threads; die
+bräuchten COOP/COEP-Kopfzeilen, die GitHub Pages nicht setzt.

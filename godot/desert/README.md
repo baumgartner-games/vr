@@ -7,7 +7,28 @@ Kistenlager, Bretterwände, Weidezäune und Strommasten mit durchhängenden Leit
 Gewünscht: _„Können wir das mal versuchen nachzubauen. Auch gerne einfach mal in godot
 aber unter /vr/godot/…?"_
 
-## Starten
+## Im Browser spielen
+
+**https://baumgartner-games.github.io/vr/godot/desert/** — am Rechner mit Tastatur oder
+Gamepad, am Handy mit dem Joystick (Querformat). Gewünscht: _„Ne als Web App will ich das
+gebaut haben"_. Beim ersten Öffnen lädt der Browser gut 35 MB (die Godot-Engine als
+WebAssembly, auf der Leitung etwa ein Viertel davon), danach liegt sie im Browser-Cache.
+
+Der Export liegt fertig in `web/` und wird beim Deploy nur nach `dist/godot/desert/` kopiert
+(`.github/workflows/deploy.yml`, Schritt _Godot-Spiele_). Der Service Worker der App lässt
+`godot/` vorbei (`src/core/swRoutes.ts`). **Wer am Spiel etwas ändert, exportiert neu** und
+committet `web/` mit — meist ändert sich nur `index.pck` (ein paar hundert kB):
+
+```
+godot --headless --path godot/desert --export-release "Web" web/index.html
+```
+
+Dafür braucht Godot 4.3 seine Exportvorlage `web_nothreads_release.zip` (unter Linux in
+`~/.local/share/godot/export_templates/4.3.stable/`, aus
+`Godot_v4.3-stable_export_templates.tpz`). Ohne Threads mit Absicht: Threads bräuchten
+Kopfzeilen (COOP/COEP), die GitHub Pages nicht setzt.
+
+## Starten im Editor
 
 Godot **4.3** (oder neuer) öffnen → _Importieren_ → diesen Ordner (`godot/desert`) wählen →
 ▶. Beim ersten Öffnen importiert der Editor die Modelle.
@@ -24,7 +45,7 @@ Godot **4.3** (oder neuer) öffnen → _Importieren_ → diesen Ordner (`godot/d
 **Am Handy** (`scripts/touch_controls.gd`, erscheint von selbst, sobald das Gerät einen
 Touchscreen hat): links ein **Joystick**, der dort entsteht, wo der Daumen aufsetzt —
 hoch Gas, runter Bremse/rückwärts, seitlich lenken, je weiter, desto stärker; rechts unten
-**DRIFT** (Handbremse), oben rechts **CAM** und **↻** (aufrichten). Mehrere Finger zugleich
+**DRIFT** (Handbremse), oben rechts **CAM** und **Pfeil im Kreis** (aufrichten). Mehrere Finger zugleich
 gehen. Der Stick schreibt in dieselben Aktionen wie Tastatur und Gamepad. Aufs Handy kommt
 es über Godots Export (Android, oder Web — dann im Handy-Browser); Querformat ist
 eingestellt. Gewünscht: _„Auch mit Handy joy Stick Steuerung?"_
