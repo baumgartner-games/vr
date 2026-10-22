@@ -69,10 +69,15 @@ es Einbauen dass ich wechseln kann dazwischen"_ (Oktober 2026).
   und `multiview: true`: dieselbe WebGL-2-Schnittstelle, aber in der Brille
   **beide Augen in einem Aufruf** (`OVR_multiview2`). Gemessen in der
   nachgestellten Brille (`npm run perf:haunting -- --renderer=webgpu`,
-  Übungsrunde vor dem ersten Schrank): **232 → 106 Zeichenaufrufe** je Bild und
-  **7,9 → 5,9 ms** JavaScript in `render()`. Ob das auf der Quest fps bringt,
-  sagt erst das Schild dort (`--multiview=0`: derselbe Renderer, jedes Auge
-  einzeln — 239 Aufrufe, zum Gegenprüfen).
+  Übungsrunde vor dem ersten Schrank, je drei Läufe): **232 → 90
+  Zeichenaufrufe** je Bild und **7,9 → 4,1 ms** JavaScript in `render()`
+  (`--multiview=0`, derselbe Renderer, jedes Auge einzeln: 220 Aufrufe,
+  6,5 ms). Ob das auf der Quest fps bringt, sagt erst das Schild dort.
+  **Am Schirm** (ohne Brille, also ohne Multiview, `npm run fps --
+  --cases=basis,webgpu`, SwiftShader) ist er dagegen **langsamer**: Bildzeit
+  Hub +64 %, Haunting +47 %, Hexland +24 %, bei gleich vielen Aufrufen — die
+  Knoten-Shader sind schwerer, und die Ruckler (1 %) beim ersten Übersetzen
+  sind deutlich größer.
 
 **Gewechselt wird mit Neuladen.** Ein Renderer lässt sich nicht im laufenden
 Bild tauschen; die Zeile speichert die Wahl und lädt die Seite neu, eine
@@ -107,6 +112,14 @@ Konstruktor nicht warten kann.
   Kantenglättung `framebufferTextureMultisampleMultiviewOVR` an
   `OVR_multiview2` auf, das zu `OCULUS_multiview` gehört — `patchMultiview`
   leiht es sich dort oder hängt ohne Glättung an (die nachgestellte Brille).
+- **Kein Zwischenpuffer** (`appRenderer.inlineOutput`): Der neue Renderer
+  zeichnet sonst jedes Bild mit Tonemapping oder sRGB erst in einen eigenen
+  Puffer und kopiert es in einem zweiten Durchgang hinüber — in der Brille je
+  Auge. Am Schirm war das fast die doppelte Bildzeit (Hub +99 % statt +64 %).
+  Jetzt rechnet jedes Knotenmaterial beides selbst an seine Ausgabe, wie der
+  alte Renderer; für den Puffer meldet er „nichts zu tun". Nebenbei verschwand
+  der Blaustich des Visiers. Und weil die Brille dann je Bild einen Puffer
+  foveieren will, den es nicht gibt, ist `foveateBoundTexture` abgesichert.
 - **Zählen**: `render.calls` zählt bei ihm Aufrufe von `render()`, die
   Zeichenaufrufe stehen in `drawCalls` (`appRenderer.drawStats` fürs Schild).
   Die GPU-Zeit misst `gpuTimer.ts` weiter, holt sich den Zusammenhang aber

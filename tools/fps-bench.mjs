@@ -172,7 +172,11 @@ function cases() {
   const list = [
     { id: 'basis', label: 'Basis · Einfach, Schatten an', graphics: {} },
     { id: 'ohne-schatten', label: 'Einfach, Schatten aus', graphics: { shadows: false } },
-    { id: 'webgpu', label: 'Renderer WebGPU (WebGL 2), Schatten an', graphics: { renderer: 'webgpu' } },
+    {
+      id: 'webgpu',
+      label: 'Renderer WebGPU (WebGL 2), Schatten an',
+      graphics: { renderer: 'webgpu' },
+    },
     { id: 'xr-0.85', label: 'xrScale 0,85 (wirkt nur in XR)', graphics: { xrScale: 0.85 } },
     { id: 'xr-0.7', label: 'xrScale 0,7 (wirkt nur in XR)', graphics: { xrScale: 0.7 } },
     { id: 'pixel-0.85', label: 'Bildpuffer 0,85 (Stellvertreter)', graphics: {}, dpr: 0.85 },

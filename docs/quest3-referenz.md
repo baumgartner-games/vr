@@ -239,7 +239,7 @@ Runde ansetzt, in der Reihenfolge, in der sie sich lohnen.
 | **M3** | **Küchenmöbel verschmelzen oder instanzieren** (`kitchenProps.ts`, `kitchenBelt.ts`). Ziel: von 607 auf unter 200 Zeichenaufrufe. Ein Tresen besteht aus 29 Meshes, ein Band aus 30, und es stehen 9 bzw. 10 davon herum. Zu prüfen ist dabei, was einzeln greifbar bleiben muss (`kitchenGrab.ts`, `kitchenCarry.ts`) — diese Teile bleiben eigene Meshes. | **−8 bis −14 ms** | groß · mittel |
 | **M4** | Die **Schattenkarte** nur neu bestellen, wenn ihr Anker springt (`core/GraphicsQuality.ts`). `aimSun` rastet den Kasten ohnehin auf ein 2-m-Gitter; solange man in derselben Zelle steht, ist die vorhandene Karte richtig. Spart 118 Zeichenaufrufe und einen Szenendurchlauf in fast jedem Bild. | −3 bis −6 ms | klein · klein |
 | **M5** | Den **Sekundendurchlauf** entschärfen (`core/GraphicsQuality.ts`, `RESCAN`). Er läuft einmal je Sekunde über alle 6000 Objekte — das ist der Ruckler hinter „29 ↔ 32 fps", nicht die Bildrate selbst. | gegen das Ruckeln | klein · klein |
-| **M6** | **Multiview** prüfen: Seit Oktober 2026 als Versuch eingebaut (_Grafik → Renderer: Multiview_, `core/appRenderer.ts`, three `WebGPURenderer` über WebGL 2). In der nachgestellten Brille halbieren sich die Zeichenaufrufe in Haunting (232 → 106). Ob `OVR_multiview2` auf der Quest 3 greift und was es an fps bringt, steht noch aus. | — | mittel |
+| **M6** | **Multiview** prüfen: Seit Oktober 2026 als Versuch eingebaut (_Grafik → Renderer: Multiview_, `core/appRenderer.ts`, three `WebGPURenderer` über WebGL 2). In der nachgestellten Brille sinken die Zeichenaufrufe in Haunting von 232 auf 90. Ob `OVR_multiview2` auf der Quest 3 greift und was es an fps bringt, steht noch aus. | — | mittel |
 | **M7** | **Auf der Quest nachmessen.** Alle Zahlen dieses Dokuments sind Verhältnisse aus einem Software-Rasterizer. Die eine Messung, die zählt, steht noch aus: dieselbe Runde durch die Testwelt, vorher und nachher, mit der Bildratenanzeige aus dem Grafikmenü. | — | klein |
 
 **Die ehrliche Hochrechnung für die Brille**: Aus den 33 ms von heute werden mit
@@ -316,9 +316,17 @@ und neu gemessen; daneben steht, was der Besitzer in der Brille abgelesen hat.
 | `b0c604e` (#410), 120 Hz | 25–30 (im Menü abgelesen), **40** beim Spielen (#411) | 7,3 ms | 5,8 ms (Median 4,4) | 1,5 ms | 312 |
 
 **Mit dem zweiten Renderer** (`--renderer=webgpu`, _Grafik → Renderer:
-Multiview_, Oktober 2026, zwei Läufe): Zeichenaufrufe **232 → 106** (ohne
-Multiview, `--multiview=0`: 239), JavaScript in `render()` (neue Zeile der
-Messstrecke, ohne Rastern) **7,9 → 5,9 ms**. Die fps der Brille dazu fehlen
+Multiview_, Oktober 2026, je drei Läufe):
+
+| Renderer | Zeichenaufrufe | JS in `render()` | CPU je Bild hier |
+| --- | ---: | ---: | ---: |
+| WebGL | 232 | 7,9 ms | 4,3 ms |
+| WebGPURenderer ohne Multiview | 220 | 6,5 ms | 4,2 ms |
+| WebGPURenderer mit Multiview | 90 | 4,1 ms | 3,4 ms |
+
+„JS in `render()`" ist die neue Zeile der Messstrecke (ohne Rastern).
+Am Schirm (`npm run fps`, ohne Brille) ist der neue Renderer langsamer:
+Hub +64 %, Haunting +47 %, Hexland +24 % Bildzeit. Die fps der Brille fehlen
 noch — bitte mit dem Schild (F3) in beiden Renderern ablesen.
 
 **Mit Portalen** (`--portals`, Oktober 2026): eines 2,5 m vor dem Techniker,

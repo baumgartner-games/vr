@@ -21,8 +21,9 @@ Vorgehen für das nächste Mal. Die Einzelheiten je Runde stehen in
   Aufruf zählt doppelt. Multiview gibt es in three r185 nur im
   `WebGPURenderer` — seit Oktober 2026 zum Ausprobieren unter _Grafik →
   Renderer: Multiview_ ([Wie schön es aussieht](grafik.md#der-renderer-webgl-oder-multiview)).
-  Nachgestellte Brille, Haunting-Messstrecke: 232 → 106 Zeichenaufrufe,
-  7,9 → 5,9 ms JavaScript in `render()`; die fps der Quest stehen noch aus.
+  Nachgestellte Brille, Haunting-Messstrecke: 232 → 90 Zeichenaufrufe,
+  7,9 → 4,1 ms JavaScript in `render()`; am Schirm ohne Multiview aber
+  +24 bis +64 % Bildzeit; die fps der Quest stehen noch aus.
   Eigene Shader müssen dafür als Knotenmaterial nachgebaut werden
   (`core/nodeLooks.ts`), was fehlt, ist dort unsichtbar.
 - **Mit offenem Menü misst man ein anderes Bild**: Foveated Rendering ist dann
