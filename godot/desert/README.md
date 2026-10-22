@@ -21,10 +21,18 @@ Godot **4.3** (oder neuer) öffnen → _Importieren_ → diesen Ordner (`godot/d
 | R | Y | aufrichten |
 | C | X | Kamera: hoch wie im Video / nah dran |
 
+**Am Handy** (`scripts/touch_controls.gd`, erscheint von selbst, sobald das Gerät einen
+Touchscreen hat): links ein **Joystick**, der dort entsteht, wo der Daumen aufsetzt —
+hoch Gas, runter Bremse/rückwärts, seitlich lenken, je weiter, desto stärker; rechts unten
+**DRIFT** (Handbremse), oben rechts **CAM** und **↻** (aufrichten). Mehrere Finger zugleich
+gehen. Der Stick schreibt in dieselben Aktionen wie Tastatur und Gamepad. Aufs Handy kommt
+es über Godots Export (Android, oder Web — dann im Handy-Browser); Querformat ist
+eingestellt. Gewünscht: _„Auch mit Handy joy Stick Steuerung?"_
+
 Ohne Editor, nur ein Bild (fährt selbst):
 
 ```
-godot --path godot/desert -- --shot=/tmp/wueste.png --at=10   # --near: nahe Kamera
+godot --path godot/desert -- --shot=/tmp/wueste.png --at=10   # --near: nahe Kamera, --touch: Handy-Steuerung zeigen
 ```
 
 ## Wie es gebaut ist

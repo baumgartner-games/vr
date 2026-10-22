@@ -10,6 +10,7 @@ extends Node3D
 const Terrain := preload("res://scripts/terrain.gd")
 const Car := preload("res://scripts/car.gd")
 const SAND_SHADER := preload("res://scripts/sand.gdshader")
+const TouchControls := preload("res://scripts/touch_controls.gd")
 
 const ROCKS := [
 	"res://models/hex/decoration/nature/rock_single_A.glb",
@@ -41,6 +42,8 @@ var _shot_path := ""
 var _shot_at := 7.0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
+## Handy: Joystick und Knöpfe am Schirm (`touch_controls.gd`). `--touch` zeigt sie auch so.
+var _touch := DisplayServer.is_touchscreen_available()
 
 
 func _ready() -> void:
@@ -52,6 +55,8 @@ func _ready() -> void:
 			_shot_at = float(arg.substr(5))
 		elif arg == "--near":
 			_cam_mode = 1
+		elif arg == "--touch":
+			_touch = true
 	_setup_input()
 	_setup_world()
 
@@ -95,6 +100,10 @@ func _ready() -> void:
 	hud.add_theme_font_size_override("font_size", 18)
 	var layer := CanvasLayer.new()
 	layer.add_child(hud)
+	if _touch:
+		var pad := TouchControls.new()
+		pad.name = "Touch"
+		layer.add_child(pad)
 	add_child(layer)
 
 
@@ -355,7 +364,8 @@ func _place_camera(delta: float) -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	if hud and car:
-		hud.text = "%d km/h   ·   W/S Gas/Bremse · A/D lenken · Leertaste Handbremse · R aufrichten · C Kamera" % int(car.linear_velocity.length() * 3.6)
+		var kmh := int(car.linear_velocity.length() * 3.6)
+		hud.text = "%d km/h" % kmh if _touch else "%d km/h   ·   W/S Gas/Bremse · A/D lenken · Leertaste Handbremse · R aufrichten · C Kamera" % kmh
 	if _shot_path != "" and _time >= _shot_at:
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(_shot_path)
