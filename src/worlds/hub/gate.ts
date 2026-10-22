@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { gateDiscNodeMaterial } from '../../core/nodeLooksWalls';
 import { TextPlane } from '../../ui/TextPlane';
 
 /**
@@ -84,21 +85,23 @@ export function buildGate(title: string, description: string, accent: number): G
 
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(0.4, 48),
-    new THREE.ShaderMaterial({
-      transparent: true,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new THREE.Color(accent) },
-      },
-      vertexShader: /* glsl */ `
+    // Im neuen Renderer (_Multiview_) dieselbe Scheibe als Knotenmaterial.
+    gateDiscNodeMaterial(new THREE.Color(accent)) ??
+      new THREE.ShaderMaterial({
+        transparent: true,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uColor: { value: new THREE.Color(accent) },
+        },
+        vertexShader: /* glsl */ `
         varying vec2 vUv;
         void main() {
           vUv = uv;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
-      fragmentShader: /* glsl */ `
+        fragmentShader: /* glsl */ `
         uniform float uTime;
         uniform vec3 uColor;
         varying vec2 vUv;
@@ -112,7 +115,7 @@ export function buildGate(title: string, description: string, accent: number): G
           gl_FragColor = vec4(uColor * (0.6 + swirl * 0.8), alpha);
         }
       `,
-    }),
+      }),
   );
   disc.position.y = 1.15;
   group.add(disc);

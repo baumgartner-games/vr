@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { wallpaperNodeTwin } from '../../core/nodeLooksWalls';
 import { WALLPAPER_SIZE, wallpaperById, wallpaperPixels } from './wallpaper';
 
 /**
@@ -110,6 +111,10 @@ function skinnedData(object: THREE.Object3D): SkinnedData | undefined {
 /** Der Zwilling eines Materials mit der Tapete im Shader. */
 function twinOf(base: THREE.Material): { twin: THREE.Material; uniforms: SkinUniforms } | null {
   if (!(base instanceof THREE.MeshStandardMaterial)) return null;
+  // Im neuen Renderer (_Multiview_) gilt `onBeforeCompile` nicht: dieselbe
+  // Rechnung als Knoten (`core/nodeLooksWalls.ts`), mit denselben Uniforms.
+  const node = wallpaperNodeTwin(base, pulse);
+  if (node) return node;
   const twin = base.clone();
   const uniforms: SkinUniforms = {
     uWpFront: { value: new THREE.Vector3(0, 0, 1) },

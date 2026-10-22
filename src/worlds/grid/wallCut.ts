@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WallOcclusion } from '../../core/graphicsSettings';
+import { wallCutNodeTwin } from '../../core/nodeLooksWalls';
 
 /**
  * **Wie eine Wand vor der Figur aussieht** — durchsichtig oder abgeschnitten
@@ -83,6 +84,10 @@ export function setWallLook(look: WallLook): void {
  * danach dazu.
  */
 export function wallCutTwin(material: THREE.Material): THREE.Material {
+  // Im neuen Renderer (_Multiview_) als Knoten (`core/nodeLooksWalls.ts`) —
+  // dort trägt eine Wand mit Tapete ihre Tapete als Knoten, nicht im Shader.
+  const node = wallCutNodeTwin(material, WALL_CUT_UNIFORMS.uWallCutY, INSIDE_SHADE);
+  if (node) return node;
   const made = material.clone();
   made.side = THREE.DoubleSide;
   const own = Object.prototype.hasOwnProperty.call(material, 'onBeforeCompile')

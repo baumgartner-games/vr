@@ -114,11 +114,30 @@ Konstruktor nicht warten kann.
   Feuer klein. Die Partikel rechnen die Umrechnung deshalb auf der Farbe
   allein (`straightOutput`), die Marken gar nicht (der alte Shader auch
   nicht).
+- **Tapete, Wandschnitt und Torscheibe** (`core/nodeLooksWalls.ts`): Der
+  Zwilling einer Wand mit Tapete (`house/wallpaperSkin.twinOf`) und der
+  abschneidende Zwilling (`grid/wallCut.wallCutTwin`) sind dort ein
+  Knotenmaterial derselben Klasse, wie es der Renderer selbst aus dem Regal
+  machte (`NodeLibrary.fromMaterial`: jedes Feld hinübergeschrieben), plus
+  Knoten — die Tapete als `colorNode` (Seite nach der Weltnormale, Muster in
+  Metern längs der Wand) und ihr Vorschau-Leuchten als `emissiveNode`, der
+  Schnitt als `maskNode` (`positionWorld.y` über der Schnitthöhe, mit
+  Instanzen und Bündeln) und die dunklere Schnittfläche als `outputNode`
+  (`output` mal 0,55 auf Rückseiten — wie unter WebGL **nach** Tonemapping
+  und sRGB). **Die Kombination** geht von selbst: Ein Knotenmaterial wird für
+  den Schnitt geklont, der Klon teilt die Knoten und damit die Uniforms der
+  Tapete. `skinWall` schreibt weiter in `uniforms.uWp….value`, jetzt Knoten.
+  Der Platzhalter der Tapete ist dort **sRGB** — der Renderer entscheidet beim
+  Übersetzen nach der Textur im Knoten, ob er umrechnet. Die Torscheibe
+  schreibt wie ihr `ShaderMaterial` roh ins Bild (ohne Tonemapping, ohne
+  sRGB): `outputNode` an `setupOutput` vorbei, dazu `userData.rawOutput`.
+  Gemessen mit festgehaltener Zeit gleich bis auf < 1 von 255 je Kanal
+  (Tapete mit und ohne Leuchten in `#hausbau`, Tor im Hub), der Schnitt von
+  oben in `#hausbau` und `#plateup` deckungsgleich.
 - **Fehlt** (unsichtbar statt falsch: ein unbekanntes `ShaderMaterial` wird
   mit einem Ersatz übersetzt, der weder Farbe noch Tiefe schreibt,
   `appRenderer.hideUnported` — vorher lag die Windspur in Hexland als
-  schwarzer Balken auf dem Brett): die Torscheibe
-  im Hub, die Windspur und das Wiegen in Hexland, Tapeten und Wandschnitte
+  schwarzer Balken auf dem Brett): die Windspur und das Wiegen in Hexland
   (`onBeforeCompile`). **Spiegel, Portale und die Unschärfe von oben** zeichnen
   gar nicht erst (`Mirror`, `PortalRenderer`, `App`: kein Durchgang für ein
   Bild, das niemand sieht).
