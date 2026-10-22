@@ -1,5 +1,0 @@
-.godot/
-*.import
-shots/
-# Beim Import aus den .glb gezogene Texturen — Godot legt sie selbst wieder an.
-models/**/*_hexagons_medieval.png

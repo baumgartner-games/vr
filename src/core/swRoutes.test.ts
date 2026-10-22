@@ -72,13 +72,6 @@ describe('routeFor', () => {
     expect(ask(`${SCOPE}sw.js`)).toBe('bypass');
   });
 
-  it('lässt die Godot-Spiele ganz in Ruhe', () => {
-    // Eigene Seiten mit 35 MB WebAssembly — weder Hülle noch Vorrat dieser App.
-    expect(ask(`${SCOPE}godot/desert/`, { navigate: true })).toBe('bypass');
-    expect(ask(`${SCOPE}godot/desert/index.wasm`)).toBe('bypass');
-    expect(ask(`${SCOPE}godot/desert/index.pck`)).toBe('bypass');
-  });
-
   it('rührt nichts an, was einem anderen gehört', () => {
     expect(ask('https://relay.example/announce', { navigate: false })).toBe('bypass');
     // Auch eine Seitenanfrage nach draußen bleibt draußen.

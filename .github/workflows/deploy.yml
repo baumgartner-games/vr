@@ -57,22 +57,6 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
-      # **Die Godot-Spiele dazulegen.** Sie sind keine Welt dieser App, sondern
-      # eigene Seiten, die Godot fertig exportiert (`godot/*/web`, gebaut mit
-      # Godot 4.3, Vorlage „Web", ohne Threads — die bräuchten Kopfzeilen, die
-      # GitHub Pages nicht setzt). Hier werden sie nur hineinkopiert; der
-      # Service Worker lässt `godot/` vorbei (`core/swRoutes.ts`).
-      - name: Godot-Spiele
-        run: |
-          set -euo pipefail
-          for web in godot/*/web; do
-            [ -f "$web/index.html" ] || continue
-            game=$(basename "$(dirname "$web")")
-            mkdir -p "dist/godot/$game"
-            cp -a "$web/." "dist/godot/$game/"
-            rm -f "dist/godot/$game/.gdignore"
-          done
-
       # Das Artefakt ist zum Nachsehen da und nicht zum Ausliefern. Die 4470
       # gekauften Modelle stehen deshalb nicht darin: Sie liegen unverändert
       # im Repository, machen aber vier Fünftel der 76 MB aus — und die bei
@@ -85,7 +69,6 @@ jobs:
           path: |
             dist
             !dist/models/kaykit
-            !dist/godot
           retention-days: 7
 
       # **Veröffentlicht wird als Fortsetzung und nicht als Neuanfang.**

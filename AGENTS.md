@@ -192,10 +192,6 @@ Stichpunkten).
 - **[Hexland](docs/agents/hexland.md)** (`#hexland`) — Ein _Dorfromantik_-Klon aus den Kacheln von `medieval-hexagon`: Partie wie im Brettspiel (45 Kacheln, 25 Aufträge, drei offene Aufträge mit genauer Zielgröße, Flaggen, längster Fluss und Weg) oder Kreativ-Modus mit Kachel-Katalog, eigener Menü-Reiter (`World.menuTab`). Brille: Weltbau, der skaliert; am Schirm nur von oben (`World.onlyTopDown`), ohne Figur, Leiste ⟲ ✓ ⟳, Gesten zum Neigen und Drehen; alles ebenerdig.
   Darin: Das Spiel (Partie, Kreativ-Modus, der Reiter) · Bedienung — eine für alle Ansichten · Wie es gebaut ist · Offen.
 
-### Godot
-
-- **[Wüstenfahrt](godot/desert/README.md)** (`godot/desert`, Godot 4.3, eigenes Projekt neben der Web-App) — Nachbau eines Videos: ein Pickup driftet über Sanddünen, Staubfahnen, Reifenspuren im Sand, Felsen, Kisten, Zäune, Strommasten aus dem Modellregal (für Godot entpackt). **Im Browser:** `/vr/godot/desert/` — der Web-Export liegt fertig in `godot/desert/web` und wird beim Deploy nur hineinkopiert, der Service Worker lässt `godot/` vorbei; wer das Spiel ändert, exportiert neu. Darin: Im Browser spielen, Starten, Tasten, wie es gebaut ist, Modelle, Offen.
-
 ### Spielideen
 
 - **[Spielideen](docs/spielideen/README.md)** — Die Konzepte der Spiele in einfachem Markdown, eine Datei je Spiel: worum es geht, wie eine Runde läuft, was noch fehlt. Nicht wie es gebaut ist, sondern was es sein soll.
