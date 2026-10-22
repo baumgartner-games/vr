@@ -22,6 +22,18 @@ import { webgpuModule } from './appRenderer';
 
 type Uniforms = Record<string, { value: unknown }>;
 
+/**
+ * Ein Knotenmaterial, das für seine Aufrufer wie ein `ShaderMaterial` aussieht:
+ * `uniforms.name.value` schreibt in den Knoten. Für alle Stellen, die ihr
+ * eigenes Knotenmaterial bauen (auch außerhalb dieser Datei).
+ */
+export function asShaderMaterial(
+  material: WebGPU.NodeMaterial,
+  uniforms: Uniforms,
+): THREE.ShaderMaterial {
+  return wrap(material, uniforms);
+}
+
 function wrap(material: WebGPU.NodeMaterial, uniforms: Uniforms): THREE.ShaderMaterial {
   (material as unknown as { uniforms: Uniforms }).uniforms = uniforms;
   return material as unknown as THREE.ShaderMaterial;
