@@ -97,11 +97,27 @@ Konstruktor nicht warten kann.
   (ohne das Rauschen am Rand des Fächers). Jedes trägt ein `uniforms`-Feld
   wie ein `ShaderMaterial`, hinter jedem Namen ein Knoten mit `.value` — die
   Aufrufer merken nichts.
+- **Punkte mit Größe als Quadrate** (`core/nodeLooksPoints.ts`): Funken,
+  Rauch und Feuer in der Station (`ShipEffects`), Lampenschein und
+  Lampenmarken (`Lamps`). Der neue Renderer zeichnet `THREE.Points` nur einen
+  Bildpunkt groß (kein `gl_PointSize`). Deshalb ist dort jeder Punkt eine
+  Instanz eines Quadrats: `pointGeometry()` macht die Attribute der Aufrufer
+  zu Instanz-Attributen (`setDrawRange(0, n)` setzt die Zahl der Instanzen),
+  `pointsObject()` gibt ein `Mesh` als „`Points`" zurück, und der
+  Eckpunkt-Knoten schiebt die Ecken um genau die Bildpunkte, die
+  `gl_PointSize` hätte. Wie bei echten Punkten liegt das Quadrat in der Tiefe
+  der Mitte, fällt ganz weg, wenn die Mitte aus dem Bild fällt, und wird auf
+  `ALIASED_POINT_SIZE_RANGE` gedeckelt. Unter WebGL kommen die alten
+  `Points` und Shader heraus. **Eine Falle dabei**: `inlineOutput` gibt über
+  `TSL.renderOutput` vormultipliziert aus; mit gewöhnlicher Mischung
+  (`SRC_ALPHA`) zählte die Deckkraft doppelt — der Rauch wurde dunkel, das
+  Feuer klein. Die Partikel rechnen die Umrechnung deshalb auf der Farbe
+  allein (`straightOutput`), die Marken gar nicht (der alte Shader auch
+  nicht).
 - **Fehlt** (unsichtbar statt falsch: ein unbekanntes `ShaderMaterial` wird
   mit einem Ersatz übersetzt, der weder Farbe noch Tiefe schreibt,
   `appRenderer.hideUnported` — vorher lag die Windspur in Hexland als
-  schwarzer Balken auf dem Brett): Funken, Rauch und Feuer in der Station
-  (`ShipEffects`), Lampenschein und Lampenmarken (`Lamps`), die Torscheibe
+  schwarzer Balken auf dem Brett): die Torscheibe
   im Hub, die Windspur und das Wiegen in Hexland, Tapeten und Wandschnitte
   (`onBeforeCompile`). **Spiegel, Portale und die Unschärfe von oben** zeichnen
   gar nicht erst (`Mirror`, `PortalRenderer`, `App`: kein Durchgang für ein

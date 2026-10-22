@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { denyShadow } from './graphicsScene';
 import {
+  lampGlowNodeMaterial,
+  lampMarkNodeMaterial,
+  pointGeometry,
+  pointsObject,
+} from './nodeLooksPoints';
+import {
   lampBurns,
   lampLevel,
   lampSeed,
@@ -226,7 +232,8 @@ export class Lamps {
 
   constructor(private readonly scene: THREE.Scene) {
     Lamps.current = this;
-    const geometry = new THREE.BufferGeometry();
+    // Im neuen Renderer Quadrate statt Punkte (`core/nodeLooksPoints.ts`).
+    const geometry = pointGeometry();
     const dynamic = (array: Float32Array, size: number): THREE.BufferAttribute =>
       new THREE.BufferAttribute(array, size).setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('position', dynamic(this.glowPositions, 3));
@@ -234,15 +241,17 @@ export class Lamps {
     geometry.setAttribute('size', dynamic(this.glowSizes, 1));
     geometry.setAttribute('inset', dynamic(this.glowInsets, 1));
     geometry.setDrawRange(0, 0);
-    const glowMaterial = new THREE.ShaderMaterial({
-      uniforms: { pixels: { value: 400 } },
-      vertexShader: glowVertex,
-      fragmentShader: glowFragment,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    this.glows = new THREE.Points(geometry, glowMaterial);
+    const glowMaterial =
+      lampGlowNodeMaterial() ??
+      new THREE.ShaderMaterial({
+        uniforms: { pixels: { value: 400 } },
+        vertexShader: glowVertex,
+        fragmentShader: glowFragment,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+    this.glows = pointsObject(geometry, glowMaterial);
     this.glows.name = 'lamp-glows';
     this.glows.frustumCulled = false;
     this.glows.renderOrder = 3;
@@ -272,19 +281,21 @@ export class Lamps {
     this.pools.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.pools.setColorAt(0, _color.setScalar(1));
 
-    const markGeometry = new THREE.BufferGeometry();
+    const markGeometry = pointGeometry();
     markGeometry.setAttribute('position', dynamic(this.markPositions, 3));
     markGeometry.setAttribute('mark', dynamic(this.markColors, 3));
     markGeometry.setDrawRange(0, 0);
-    const markMaterial = new THREE.ShaderMaterial({
-      uniforms: { pixels: { value: 26 }, pulse: { value: 1 } },
-      vertexShader: markVertex,
-      fragmentShader: markFragment,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-    });
-    this.marks = new THREE.Points(markGeometry, markMaterial);
+    const markMaterial =
+      lampMarkNodeMaterial() ??
+      new THREE.ShaderMaterial({
+        uniforms: { pixels: { value: 26 }, pulse: { value: 1 } },
+        vertexShader: markVertex,
+        fragmentShader: markFragment,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      });
+    this.marks = pointsObject(markGeometry, markMaterial);
     this.marks.name = 'lamp-marks';
     this.marks.frustumCulled = false;
     this.marks.renderOrder = 999;
