@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { usingWebGPU } from './appRenderer';
 
 /**
  * **Die Statusleiste soll die Farbe der Welt haben, nicht die der Seite.**
@@ -59,7 +60,8 @@ export class EdgeTint {
     if (width <= 0 || height <= 0) return;
     if (this.row.length !== width * 4) this.row = new Uint8Array(width * 4);
     // WebGL zählt von unten: die oberste Zeile ist `height - 1`.
-    gl.readPixels(0, height - 1, width, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.row);
+    if (usingWebGPU()) this.readScreen(gl as WebGL2RenderingContext, width, height);
+    else gl.readPixels(0, height - 1, width, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.row);
     let r = 0;
     let g = 0;
     let b = 0;
@@ -69,6 +71,19 @@ export class EdgeTint {
       b += this.row[i + 2];
     }
     this.apply([Math.round(r / width), Math.round(g / width), Math.round(b / width)]);
+  }
+
+  /**
+   * **Im neuen Renderer** (_Grafik → Renderer: Multiview_) ausdrücklich vom
+   * Bild selbst lesen: Er führt über die gebundenen Ziele selbst Buch und kann
+   * nach einem eigenen Ziel (Unschärfe, Kamerabild) das Lese-Ziel stehen
+   * lassen. Danach kommt genau das wieder, was gebunden war.
+   */
+  private readScreen(gl: WebGL2RenderingContext, width: number, height: number): void {
+    const bound = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
+    if (bound !== null) gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    gl.readPixels(0, height - 1, width, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.row);
+    if (bound !== null) gl.bindFramebuffer(gl.READ_FRAMEBUFFER, bound);
   }
 
   /** Zurück zum Stil der Seite — Startseite, Brille. */

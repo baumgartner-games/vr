@@ -108,12 +108,11 @@ Konstruktor nicht warten kann.
   `gl_PointSize` hätte. Wie bei echten Punkten liegt das Quadrat in der Tiefe
   der Mitte, fällt ganz weg, wenn die Mitte aus dem Bild fällt, und wird auf
   `ALIASED_POINT_SIZE_RANGE` gedeckelt. Unter WebGL kommen die alten
-  `Points` und Shader heraus. **Eine Falle dabei**: `inlineOutput` gibt über
-  `TSL.renderOutput` vormultipliziert aus; mit gewöhnlicher Mischung
-  (`SRC_ALPHA`) zählte die Deckkraft doppelt — der Rauch wurde dunkel, das
-  Feuer klein. Die Partikel rechnen die Umrechnung deshalb auf der Farbe
-  allein (`straightOutput`), die Marken gar nicht (der alte Shader auch
-  nicht).
+  `Points` und Shader heraus. **Eine Falle dabei**: `TSL.renderOutput` gibt
+  vormultipliziert aus; mit gewöhnlicher Mischung (`SRC_ALPHA`) zählte die
+  Deckkraft doppelt — der Rauch wurde dunkel, das Feuer klein.
+  `inlineOutput` rechnet deshalb für alle Materialien ohne
+  `premultipliedAlpha` nur die Farbe um und stellt die Deckkraft daneben.
 - **Tapete, Wandschnitt und Torscheibe** (`core/nodeLooksWalls.ts`): Der
   Zwilling einer Wand mit Tapete (`house/wallpaperSkin.twinOf`) und der
   abschneidende Zwilling (`grid/wallCut.wallCutTwin`) sind dort ein
@@ -147,12 +146,45 @@ Konstruktor nicht warten kann.
   Instanzmatrix folgt. Und die Schleifen über die sechs Kanten des Flusses
   sind ausgerollt; welche Kanten sich gegenüberliegen oder treffen, steht
   ja fest.
-- **Fehlt** (unsichtbar statt falsch: ein unbekanntes `ShaderMaterial` wird
-  mit einem Ersatz übersetzt, der weder Farbe noch Tiefe schreibt,
-  `appRenderer.hideUnported` — vorher lag die Windspur in Hexland als
-  schwarzer Balken auf dem Brett): **Spiegel, Portale und die Unschärfe von oben** zeichnen
-  gar nicht erst (`Mirror`, `PortalRenderer`, `App`: kein Durchgang für ein
-  Bild, das niemand sieht).
+- **Was keinen Nachbau hat, fehlt** (unsichtbar statt falsch: ein unbekanntes
+  `ShaderMaterial` wird mit einem Ersatz übersetzt, der weder Farbe noch
+  Tiefe schreibt, `appRenderer.hideUnported` — vorher lag die Windspur in
+  Hexland als schwarzer Balken auf dem Brett). Bekannt ist keine solche
+  Stelle mehr; wer ein neues `ShaderMaterial` baut, baut den Nachbau dazu.
+- **Unschärfe von oben, Wetter, Kamerabilder** (`core/nodeLooksPass.ts`):
+  Der Durchgang über das fertige Bild (`levelBlur.ts`: Etagen unscharf,
+  Nebel, Tageszeit, Filter) ist dieselbe Rechnung als Knotenmaterial, gebaut,
+  sobald es die Textur des Ziels gibt; ins Bild gezeichnet hängt
+  `inlineOutput` Tonemapping und sRGB an wie unter WebGL die beiden
+  `#include`. Zwei Fallen dabei, beide in `nodeLooksPass` gelöst:
+  - **Ein eigenes Ziel braucht eigene Shader.** Ob Tonemapping und sRGB an
+    die Ausgabe gehören, entscheidet `inlineOutput` beim Übersetzen — aber
+    three übersetzt nur einmal je Material und Umgebung, und „Bild oder Ziel"
+    gehört nicht dazu. Ohne Gegenmittel zeichnete ein Material, das schon im
+    Bild stand, ins Ziel mit Tonemapping (doppelt getönt), und umgekehrt.
+    `intoTarget(renderer)` tauscht deshalb um jedes Zeichnen in ein eigenes
+    Ziel `renderer.contextNode` gegen einen eigenen Zusammenhang — dessen
+    Kennzeichen geht in den Schlüssel ein, wie bei three's eigenen
+    Quad-Ebenen (`XRManager.renderLayers`). In der Brille nimmt es außerdem
+    solange das Ausgabeziel weg; sonst übersetzte er mit Multiview auch für
+    das Ziel mit nur einer Ebene. **Wer im neuen Renderer in ein eigenes
+    Ziel zeichnet (Spiegel, Portale), braucht dasselbe.**
+  - **Ein eigenes Ziel liest er kopfstehend** (`TextureNode`, `isFlipY` —
+    so legt es WebGPU ab). Der Durchgang liest deshalb umgedreht, die
+    Bildfläche der Drohne und die Linse des Zielfernrohrs bekommen
+    umgedrehte Texturkoordinaten (`showsTarget`).
+
+  Die Drohne (`DroneTool.renderFeed`) und das Zielfernrohr
+  (`attachments.TelescopicSight`) zeichnen über `intoTarget`; der
+  Statusleisten-Ton auf iPhone/iPad (`edgeTint.ts`) liest im neuen Renderer
+  ausdrücklich vom Bild (er kann nach einem eigenen Ziel dessen Lese-Puffer
+  gebunden lassen). Das **Wetter in der Brille** (`weatherXr.ts`: `THREE.Fog`,
+  `toneMappingExposure`, Farben der Himmelskuppel) und die **Menü-Ebene**
+  (`ui/XRMenuLayer.ts`: `getBinding`, `getBaseLayer`, Quad-Ebene,
+  `texSubImage2D` mit gemerktem und zurückgestelltem Zustand) laufen im
+  neuen Renderer unverändert — geprüft in der nachgestellten Brille mit und
+  ohne Multiview.
+
 - **Zwei Eigenheiten ausgeglichen**: Der neue reicht `camera.layers` nicht an
   die Augen weiter — ohne `appRenderer.syncXrLayers` fehlte in der Brille der
   Helm um den Blick (`LAYER_EYE`). Und er ruft für Multiview mit
@@ -535,10 +567,10 @@ _Menü → Grafik → **Wände vorn**_ (`GraphicsSettings.wallOcclusion`, Typ
 `WallOcclusion`) — ein Druck wechselt zwischen zwei Arten. In Spielen heißt
 die ganze Frage **occlusion handling**:
 
-| Zeile im Menü | Name in Spielen | Wie die Wände aussehen |
-| ------------- | --------------- | ---------------------- |
-| **Durchsichtig** — ab Werk | Ghost Walls | durchsichtiger Zwilling, ein Viertel Deckkraft |
-| **Abgeschnitten (Sims)** | Wall Cutaway (_Die Sims_) | bis auf einen Sockel von 0,35 m über den Füßen gekürzt (`CUT_HEIGHT`) |
+| Zeile im Menü              | Name in Spielen           | Wie die Wände aussehen                                                |
+| -------------------------- | ------------------------- | --------------------------------------------------------------------- |
+| **Durchsichtig** — ab Werk | Ghost Walls               | durchsichtiger Zwilling, ein Viertel Deckkraft                        |
+| **Abgeschnitten (Sims)**   | Wall Cutaway (_Die Sims_) | bis auf einen Sockel von 0,35 m über den Füßen gekürzt (`CUT_HEIGHT`) |
 
 **Welche Wände, ist für beide dasselbe** (`worlds/grid/roomWalls.ts`,
 `roomWallsToClear`), wörtlich nach dem Wunsch: _„nur alle Wände in diesem

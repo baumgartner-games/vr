@@ -138,24 +138,6 @@ function maxPointSize(renderer: unknown): number {
 
 type Output = (builder: unknown, output: Node<'vec4'>) => Node<'vec4'>;
 
-/**
- * **Die Deckkraft nicht zweimal.** Die Umrechnung am Ende
- * (`appRenderer.inlineOutput` über `TSL.renderOutput`) gibt die Farbe
- * vormultipliziert heraus — gedacht für den Zwischenpuffer, der danach
- * kopiert wird. Ein Material mit gewöhnlicher Mischung (`SRC_ALPHA`) nähme
- * die Deckkraft dann zweimal: Der Rauch wurde dunkel, das Feuer klein. Also
- * rechnet hier die Umrechnung auf der Farbe allein (Deckkraft 1, da ändert
- * das Vormultiplizieren nichts), und die Deckkraft kommt danach wieder dazu.
- */
-function straightOutput(TSL: Tsl, material: WebGPU.NodeMaterial): void {
-  const own = material as unknown as { setupOutput: Output };
-  const base = own.setupOutput;
-  own.setupOutput = function (this: unknown, builder, output) {
-    const color = base.call(this, builder, TSL.vec4(output.rgb, 1));
-    return TSL.vec4(color.rgb, output.a);
-  };
-}
-
 interface Look {
   readonly kind: number;
   readonly blending: THREE.Blending;
@@ -207,7 +189,6 @@ export function shipParticleNodeMaterial({ kind, blending }: Look): THREE.Shader
     return color;
   })();
   material.opacityNode = soft.mul(soft).mul(vOpacity);
-  straightOutput(TSL, material);
   return asShaderMaterial(material, { uKind, uViewportY });
 }
 

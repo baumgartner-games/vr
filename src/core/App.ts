@@ -4430,8 +4430,8 @@ export class App {
       CAMERA_FAR / (this.rig.flying ? BUILD_SCALE : 1),
     );
     // Unschärfe und Wetter sind ein Durchgang mit eigenem Shader — im neuen
-    // Renderer (`core/appRenderer.ts`) gibt es ihn noch nicht.
-    const pass = !usingWebGPU() && (blur !== null || weather !== null);
+    // Renderer (`core/appRenderer.ts`) als Knotenmaterial (`core/nodeLooksPass.ts`).
+    const pass = blur !== null || weather !== null;
     if (pass) this.levelBlur.begin();
     // **Im Weltbau der Brille ist das Gestell zehnfach groß** — die Lichter
     // werden für dieses Bild in seinen Maßstab umgerechnet (`core/viewLights.ts`).
