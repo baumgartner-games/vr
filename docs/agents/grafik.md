@@ -134,11 +134,23 @@ Konstruktor nicht warten kann.
   Gemessen mit festgehaltener Zeit gleich bis auf < 1 von 255 je Kanal
   (Tapete mit und ohne Leuchten in `#hausbau`, Tor im Hub), der Schnitt von
   oben in `#hausbau` und `#plateup` deckungsgleich.
+- **Hexland bewegt sich wie unter WebGL** (`worlds/hexland/hexNodeLooks.ts`,
+  TSL): die weiße Windspur, das Wiegen von Bäumen, Weizen und Büschen, die
+  Mühlenflügel, die weiche Kante jeder Kachel und das Glitzern des Wassers
+  den Fluss hinab. `swayMaterial`, `fanMaterial` und `bevelEdges` geben im
+  neuen Renderer statt des Materials mit `onBeforeCompile` eine **Kopie als
+  Knotenmaterial** zurück (Feld für Feld abgeschrieben wie three's eigene
+  Übersetzung, `NodeLibrary.fromMaterial`), dieselben Zahlen, dieselben
+  Uniformen aus `ANIM`. Zwei Stellen sind gebaut, nicht übersetzt: Den Fuß
+  eines Baums (`instanceMatrix[3]`) gibt three's Instanzierung nicht heraus,
+  also instanziert das Wiegen selbst — im selben Puffer, dessen Fassung der
+  Instanzmatrix folgt. Und die Schleifen über die sechs Kanten des Flusses
+  sind ausgerollt; welche Kanten sich gegenüberliegen oder treffen, steht
+  ja fest.
 - **Fehlt** (unsichtbar statt falsch: ein unbekanntes `ShaderMaterial` wird
   mit einem Ersatz übersetzt, der weder Farbe noch Tiefe schreibt,
   `appRenderer.hideUnported` — vorher lag die Windspur in Hexland als
-  schwarzer Balken auf dem Brett): die Windspur und das Wiegen in Hexland
-  (`onBeforeCompile`). **Spiegel, Portale und die Unschärfe von oben** zeichnen
+  schwarzer Balken auf dem Brett): **Spiegel, Portale und die Unschärfe von oben** zeichnen
   gar nicht erst (`Mirror`, `PortalRenderer`, `App`: kein Durchgang für ein
   Bild, das niemand sieht).
 - **Zwei Eigenheiten ausgeglichen**: Der neue reicht `camera.layers` nicht an

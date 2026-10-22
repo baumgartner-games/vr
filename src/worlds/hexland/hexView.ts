@@ -9,6 +9,7 @@ import {
   swayMaterial,
   waterUniforms,
 } from './hexAnimate';
+import { bevelNodeMaterial } from './hexNodeLooks';
 
 /**
  * **Wie groß eine Kachel des Regals hier wird.** Im Regal ist sie 2 breit
@@ -240,13 +241,13 @@ export class HexModels {
     let own = this.moving.get(key);
     if (!own) {
       own = material.clone();
-      if (kind === 'fan') fanMaterial(own);
+      if (kind === 'fan') own = fanMaterial(own);
       // Das Maß wächst mit dem Quadrat der Höhe (`swayMaterial`): Weizen und
       // Büsche sind niedrig und brauchen mehr, damit man sie überhaupt sieht.
       // Erst gemeldet _„Das Weizen bewegt sich viel zu stark."_ (damals ein
       // anderes Maß), dann _„Weizen und Büsche sollten sich vom Wind auch
       // bewegen lassen."_
-      else swayMaterial(own, SWAY_BEND[kind]);
+      else own = swayMaterial(own, SWAY_BEND[kind]);
       this.moving.set(key, own);
     }
     return own;
@@ -278,9 +279,9 @@ export class HexModels {
         polygonOffsetFactor: -1,
         polygonOffsetUnits: offset,
       });
-      bevelEdges(material);
-      this.ownMaterials.push(material);
-      return material;
+      const own = bevelEdges(material);
+      this.ownMaterials.push(own);
+      return own;
     };
     const part = (geometry: THREE.BufferGeometry, material: THREE.Material): Part => {
       this.owned.push(geometry);
@@ -376,8 +377,13 @@ function flatTop(source: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.Buf
  * Skalarprodukte mit den Kantennormalen (0°, 60°, 120°). Nah an der Kante
  * wird es dunkler (die Fuge), knapp davor heller (die Rundung, die das Licht
  * fängt) — auf der Oberseite, nicht an den Seitenwänden.
+ *
+ * Gibt das Material zurück, das gezeichnet wird — im neuen Renderer ein
+ * eigenes Knotenmaterial (`hexNodeLooks.bevelNodeMaterial`).
  */
 function bevelEdges<M extends THREE.Material>(material: M): M {
+  const node = bevelNodeMaterial(material, BEVEL);
+  if (node) return node as unknown as M;
   material.onBeforeCompile = (shader) => {
     // Dazu glitzert das Wasser, wenn Animationen an sind (`hexAnimate.ts`).
     waterUniforms(shader.uniforms);

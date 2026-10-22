@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { hexCentre, neighbour, opposite, type PlacedTile } from './hexRules';
+import { fanNodeMaterial, swayNodeMaterial, windTrailNodeMaterial } from './hexNodeLooks';
 
 /**
  * **Bewegung auf dem Brett** — Mühlenflügel drehen sich, Wasser fließt leicht,
@@ -37,7 +38,7 @@ export const ANIM = {
 export const WIND_COUNT = 2;
 
 /** Von der Mitte einer Kachel bis zu ihrer Kante, in Metern (`hexView.HEX_WIDTH` / 2). */
-const APOTHEM = 1.5;
+export const APOTHEM = 1.5;
 
 /**
  * **Wiegen im Wind** — die Spitze weicht aus, der Fuß bleibt stehen: Der Weg
@@ -47,8 +48,13 @@ const APOTHEM = 1.5;
  * ist."_ Wo ein Baum steht, sagt sein Fuß (`instanceMatrix[3]`); in der
  * Kachel ist er, wenn er näher an ihrer Mitte als an jeder ihrer drei
  * Kantenachsen ist. Nur in Bündeln: Die Kachel in der Hand bleibt still.
+ *
+ * Gibt das Material zurück, das gezeichnet wird — im neuen Renderer ein
+ * eigenes Knotenmaterial (`hexNodeLooks.swayNodeMaterial`).
  */
 export function swayMaterial<M extends THREE.Material>(material: M, bend: number): M {
+  const node = swayNodeMaterial(material, bend);
+  if (node) return node as unknown as M;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uHexTime = ANIM.time;
     shader.uniforms.uHexAnim = ANIM.on;
@@ -103,9 +109,11 @@ export function swayMaterial<M extends THREE.Material>(material: M, bend: number
 /**
  * **Der Flügel der Mühle dreht sich** — um seine eigene Achse: Im Netz der
  * Datei liegt er schon mittig auf ihr (`building_windmill_top_fan_*`, z ist
- * die Achse).
+ * die Achse). Im neuen Renderer: `hexNodeLooks.fanNodeMaterial`.
  */
 export function fanMaterial<M extends THREE.Material>(material: M): M {
+  const node = fanNodeMaterial(material);
+  if (node) return node as unknown as M;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uHexTime = ANIM.time;
     const turn = `float hexA = uHexTime * 1.3;
@@ -301,19 +309,21 @@ export class WindGusts {
     geometry.setIndex(index);
     this.mesh = new THREE.Mesh(
       geometry,
-      new THREE.ShaderMaterial({
-        vertexShader: `attribute float aAlpha;
+      // Im neuen Renderer dasselbe als Knotenmaterial (`hexNodeLooks.ts`).
+      windTrailNodeMaterial() ??
+        new THREE.ShaderMaterial({
+          vertexShader: `attribute float aAlpha;
           varying float vAlpha;
           void main() {
             vAlpha = aAlpha;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }`,
-        fragmentShader: `varying float vAlpha;
+          fragmentShader: `varying float vAlpha;
           void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha); }`,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
     );
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 6;
