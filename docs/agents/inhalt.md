@@ -223,12 +223,10 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     - **Was gemeint ist, leuchtet** (`core/highlight.ts`). Ohne das ist die
       Auswahl eine Vermutung: Man drückt und sieht danach, was passiert ist.
       Das gewählte Ding bekommt deshalb einen **gelblichen Saum** (`0xffd35a`)
-      — dieselbe Mechanik wie die schwarze Comic-Kontur, eine umgestülpte
-      Hülle (`core/outlineShell.ts`), weil ein Nachbearbeitungsschritt in einer
+      — eine umgestülpte Hülle wie die Säume in Haunting
+      (`core/outlineShell.ts`), weil ein Nachbearbeitungsschritt in einer
       WebXR-Sitzung nicht zu haben ist. Er trägt eine eigene Marke, ein eigenes
-      Material, wirft keinen Schatten, fängt keinen Strahl und sagt für sich
-      selbst jeden weiteren Saum ab — sonst bekäme der Saum einen Saum, sobald
-      der Comic-Modus das nächste Mal über die Szene läuft. Wo ein Usable
+      Material, wirft keinen Schatten und fängt keinen Strahl. Wo ein Usable
       **keine Geometrie** hat (eine Zone, ein Platz), liegt stattdessen ein
       **Ring auf dem Boden**: Eine umgestülpte Hülle von nichts ist nichts.
       **Der Saum ist die ganze Auskunft**, in jeder Ansicht. Daneben stand
@@ -562,7 +560,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   Brutkäfige; siehe _Wer hier herumläuft_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Aussehen** (drei
   Zeilen: Kopf, Hut, Körper — siehe _Wie man aussieht_), **Grafik** (Schatten,
-  Einfach oder Comic, dazu die Gitterlinien — siehe _Wie schön es aussieht_),
+  Renderer WebGL oder Multiview, dazu die Gitterlinien — siehe _Wie schön es aussieht_),
   **Einstellungen** und die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht

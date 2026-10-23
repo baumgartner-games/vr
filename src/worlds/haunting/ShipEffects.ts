@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { pointGeometry, pointsObject, shipParticleNodeMaterial } from '../../core/nodeLooksPoints';
 
 export type ShipEffectKind = 'sparks' | 'smoke' | 'fire';
 
@@ -95,14 +96,15 @@ export class ShipEffects {
       const opacityAttribute = new THREE.BufferAttribute(opacities, 1).setUsage(
         THREE.DynamicDrawUsage,
       );
-      const geometry = new THREE.BufferGeometry();
+      // Im neuen Renderer Quadrate statt Punkte (`core/nodeLooksPoints.ts`).
+      const geometry = pointGeometry();
       geometry.setAttribute('position', positionAttribute);
       geometry.setAttribute('aColor', colorAttribute);
       geometry.setAttribute('aSize', sizeAttribute);
       geometry.setAttribute('aOpacity', opacityAttribute);
       geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 0);
       geometry.setDrawRange(0, 0);
-      const points = new THREE.Points(geometry, this.materials.sparks);
+      const points = pointsObject(geometry, this.materials.sparks);
       points.name = `station-effect-slot-${i}`;
       points.visible = false;
       points.frustumCulled = true;
@@ -266,6 +268,8 @@ export class ShipEffects {
   }
 
   private material(kind: number, blending: THREE.Blending): THREE.ShaderMaterial {
+    const node = shipParticleNodeMaterial({ kind, blending });
+    if (node) return node;
     return new THREE.ShaderMaterial({
       name: `station-particles-${kind}`,
       uniforms: { uKind: { value: kind }, uViewportY: { value: 720 } },

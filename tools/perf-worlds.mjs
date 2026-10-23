@@ -514,7 +514,7 @@ for (const scenario of chosen) {
     localStorage.setItem(
       'bgvr.graphics',
       JSON.stringify({
-        mode: 'simple',
+        renderer: 'webgl',
         xrScale: 1,
         showFps: false,
         gridLines: false,

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { condensationNodeMaterial } from '../../core/nodeLooks';
 import { SPACE_RANGER } from '../../core/avatarFigures';
 import { IMMERSIVE_HAT } from '../../core/figureParts';
 import type { HeadgearKind } from '../../core/headgear';
@@ -445,10 +446,9 @@ export class ShipExperience {
   private readonly cabinets: Cabinet[] = [];
   /**
    * **Die Kiste, die gerade den Saum trägt**, und die Netze, an denen er hängt
-   * (`core/outlineShell.ts`). Gemerkt wird beides, weil der Durchlauf über die
-   * Szene (`core/graphicsScene.ts`) jede Sekunde seine eigene, schwarze Kontur
-   * darüberlegt: Sie jedes Bild neu einzustellen ist billig, sie jedes Bild an
-   * allen vierzig Kisten abzuräumen wäre es nicht.
+   * (`core/outlineShell.ts`). Gemerkt wird beides: Den Saum jedes Bild neu
+   * einzustellen ist billig, ihn jedes Bild an allen vierzig Kisten
+   * abzuräumen wäre es nicht.
    */
   private seamOn = '';
   private readonly seams: THREE.Mesh[] = [];
@@ -771,15 +771,16 @@ export class ShipExperience {
     host.ctx.camera.add(this.hud.mesh);
     this.visor = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 1.25),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        depthTest: false,
-        uniforms: { fogAmount: { value: 0 }, damage: { value: 0 }, time: { value: 0 } },
-        vertexShader:
-          'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-        fragmentShader: CONDENSATION_FRAGMENT,
-      }),
+      condensationNodeMaterial() ??
+        new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          depthTest: false,
+          uniforms: { fogAmount: { value: 0 }, damage: { value: 0 }, time: { value: 0 } },
+          vertexShader:
+            'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+          fragmentShader: CONDENSATION_FRAGMENT,
+        }),
     );
     this.visor.name = 'helmet-condensation';
     this.visor.position.z = -0.58;
@@ -3032,9 +3033,8 @@ export class ShipExperience {
 
   /**
    * **Die Beute leuchtet**, solange die Kiste offen ist und man sie nehmen
-   * kann — ein Saum in der Farbe des Ziels um das Modell aus dem Regal. Jedes
-   * Bild neu eingestellt wie `seam`: Der Durchlauf über die Szene färbt
-   * Konturen sonst binnen einer Sekunde schwarz.
+   * kann — ein Saum in der Farbe des Ziels um das Modell aus dem Regal, jedes
+   * Bild neu eingestellt wie `seam`.
    */
   private glowLoot(cabinet: Cabinet, on: boolean): void {
     const loot = cabinet.lootMesh;

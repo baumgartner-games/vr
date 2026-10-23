@@ -8,22 +8,17 @@
  * Luft übrig, und ein Sandkasten, der sie liegen lässt, sieht ärmer aus als er
  * müsste.
  *
- * Also zwei Stufen, und die untere ist ausdrücklich **das, was bisher war**:
+ * **Es waren einmal drei Stufen, dann zwei.** Dazwischen stand *Schön*
+ * (Schatten, Umgebungsbild, prozedurale Texturen), und bis Oktober 2026
+ * *Comic*: eine schwarze Kontur um jedes Ding und Licht in Stufen. Beides ist
+ * vollständig heraus — der Comic zeichnete jedes Ding zweimal, und in der
+ * Brille zählt jeder Zeichenaufruf. Gewünscht: _„Comic Look kann komplett
+ * raus"_. Was blieb, ist ein Bild: flache Farben, ein Himmelsverlauf, drei
+ * Lichter, und die Schatten als eigener Schalter.
  *
- * - **Einfach** — Zeile für Zeile derselbe Aufbau wie vorher. Wer nichts
- *   einstellt, merkt von dieser Datei nichts.
- * - **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
- *   Ding (`outlineShell.ts`), Licht, das in **Stufen** auf den Flächen liegt
- *   statt in einem Verlauf, und Schatten von der Sonne. Kein Umgebungsbild —
- *   eine Spiegelung ist genau das, was ein gezeichnetes Bild nicht hat.
- *
- * **Es waren einmal drei.** Dazwischen stand *Schön*: Schatten, ein
- * Umgebungsbild aus dem Himmel der Welt und ein schärferes Bild in der Brille;
- * daneben ein zweiter Schalter für **prozedurale Texturen** — ein Rauschen im
- * Shader, das jeder Oberfläche Körnung gab. Beides ist wieder heraus, und zwar
- * vollständig: die Stufe, der Schalter, das Umgebungsbild und der ganze
- * Shader-Umbau dahinter. Was bleibt, ist die Frage, für die es diese Datei
- * gibt — flach oder gezeichnet.
+ * An der Stelle der Stufe steht seither die Wahl des **Renderers**
+ * (`core/rendererKind.ts`): der bewährte `WebGLRenderer` oder three's
+ * `WebGPURenderer` über WebGL 2 mit Multiview in der Brille.
  *
  * Diese Datei ist **reine Rechnung und Beschriftung** — kein three.js. Wer die
  * Werte anwendet, ist `GraphicsQuality.ts`; wie sie in der Szene ankommen,
@@ -35,15 +30,11 @@
  * abschalten und ein Code vom PC einer Brille keine aufzwingen.
  */
 
+import { RENDERER_SHORT, readRendererKind, type RendererKind } from './rendererKind';
 import { TOP_DOWN_TILT, clampTilt } from './topDownPose';
 import { DEFAULT_WEATHER, clampWeather, type WeatherSettings } from './weather';
 
 const KEY = 'bgvr.graphics';
-
-/** Die beiden Stufen. `simple` ist das Bild, das dieses Projekt immer hatte. */
-export type GraphicsMode = 'simple' | 'comic';
-
-export const GRAPHICS_MODES = ['simple', 'comic'] as const;
 
 /**
  * **Wie Schatten entstehen** (`GraphicsSettings.shadows`).
@@ -139,7 +130,11 @@ export function nextWallOcclusion(mode: WallOcclusion): WallOcclusion {
  * in `core/weather.ts` — Nebel, Tageszeit und Filter über dem fertigen Bild.
  */
 export interface GraphicsSettings extends WeatherSettings {
-  mode: GraphicsMode;
+  /**
+   * **Welcher Renderer zeichnet** (`core/rendererKind.ts`) — gilt ab dem
+   * nächsten Laden der Seite; die Zeile im Menü lädt sie gleich neu.
+   */
+  renderer: RendererKind;
   /**
    * **Wie groß die Brille ihr Bild rechnet**, als Anteil dessen, was sie
    * selbst vorschlägt (`XRWebGLLayer.framebufferScaleFactor`): 1 ist der
@@ -735,7 +730,7 @@ export function pickFrameRate(wanted: XrRate, supported: readonly number[] | nul
 
 /** Was ausgeliefert wird: das Bild von vorher, ohne alles Neue. */
 export const DEFAULT_GRAPHICS: GraphicsSettings = {
-  mode: 'simple',
+  renderer: 'webgl',
   xrScale: 1,
   xrRate: 120,
   showFps: false,
@@ -770,16 +765,6 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   dragView: true,
   dropPhysics: true,
   ...DEFAULT_WEATHER,
-};
-
-export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
-  simple: 'Einfach',
-  comic: 'Comic',
-};
-
-export const GRAPHICS_MODE_SUBS: Record<GraphicsMode, string> = {
-  simple: 'Flache Farben ohne Konturen',
-  comic: 'Schwarze Konturen und Licht in Stufen · zeichnet alles zweimal',
 };
 
 /**
@@ -839,29 +824,6 @@ export interface GraphicsProfile {
   framebufferScale: number;
   /** 0 ist scharf bis zum Rand, 1 ist am billigsten (`XR.setFoveation`). */
   foveation: number;
-  /**
-   * In wie vielen Stufen das Licht liegt; 0 heißt: in keiner, also im Verlauf.
-   *
-   * Drei ist die Zahl, bei der man die Stufen sieht, ohne dass eine Wand zur
-   * Schachbrettfläche wird: hell, halb, Schatten.
-   */
-  toonBands: number;
-  /** Ob jedes Ding eine schwarze Kontur bekommt. */
-  outlines: boolean;
-  /**
-   * Wie breit sie ist — als Anteil der **halben Bildhöhe**, nicht in Metern
-   * und nicht in Pixeln.
-   *
-   * In Metern wäre sie an einer fernen Wand unsichtbar und an einer nahen
-   * fingerdick; in Pixeln müsste jemand wissen, wie groß das Bild ist, und in
-   * einer Brille weiß das niemand vorher. Ein Anteil der Bildhöhe ist auf
-   * jedem Gerät derselbe Strich.
-   */
-  outlineWidth: number;
-  /** Und wie breit sie in Metern höchstens werden darf. */
-  outlineMaxGrow: number;
-  /** Ihre Farbe. Nicht ganz schwarz — ein Hauch Blau steht der Nacht besser. */
-  outlineColor: number;
 }
 
 /**
@@ -872,9 +834,8 @@ export interface GraphicsProfile {
  * verändern, sonst ist „wie bisher" gelogen.
  */
 export function graphicsProfile(
-  settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> & Partial<Pick<GraphicsSettings, 'shadows'>>,
+  settings: Pick<GraphicsSettings, 'xrScale'> & Partial<Pick<GraphicsSettings, 'shadows'>>,
 ): GraphicsProfile {
-  const comic = settings.mode === 'comic';
   // Ein alter gespeicherter Stand kennt das Feld nicht; ohne Angabe gilt die
   // Vorgabe und nicht „aus".
   const mode = readShadowMode(settings.shadows ?? DEFAULT_GRAPHICS.shadows);
@@ -896,32 +857,20 @@ export function graphicsProfile(
     shadowRadius: 1.5,
     // **Ein Schatten ist nur so dunkel, wie das Licht daneben hell ist**, und
     // diese Welten leuchten ihr Grundlicht mit 1,5 aus. Auf voller Stärke war
-    // der schönste Schatten ein Hauch. Der Comic dämpft dabei etwas stärker:
-    // Zwei Stufen brauchen Mitteltöne zwischen sich. Ohne Schatten bleibt
-    // alles, wie es war — ein dunkleres Bild ohne Gegenleistung wäre ein
-    // Rückschritt.
-    ambientScale: shadows ? (comic ? 0.7 : 0.76) : comic ? 0.7 : 1,
-    // Der Comic will ein schärferes Bild, der Regler ein flüssigeres — beides
-    // multipliziert sich, damit „Flüssig" auch im Comic flüssig ist.
-    framebufferScale: (comic ? 1.2 : 1) * settings.xrScale,
-    // Eine Kontur von zwei Pixeln verträgt keine verwaschenen Bildränder.
-    foveation: comic ? 0.3 : 1,
-    toonBands: comic ? 3 : 0,
-    outlines: comic,
-    outlineWidth: 0.006,
-    outlineMaxGrow: 0.05,
-    outlineColor: 0x101319,
+    // der schönste Schatten ein Hauch. Ohne Schatten bleibt alles, wie es
+    // war — ein dunkleres Bild ohne Gegenleistung wäre ein Rückschritt.
+    ambientScale: shadows ? 0.76 : 1,
+    framebufferScale: settings.xrScale,
+    foveation: 1,
   };
 }
 
 /** Ein Einstellungsobjekt, bei dem jeder Wert erlaubt ist. */
 export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): GraphicsSettings {
   const raw = settings ?? {};
-  // Ein gespeicherter Stand von gestern kann `fancy` sagen — die Stufe gibt es
-  // nicht mehr, und aus etwas, das es nicht gibt, wird der Auslieferungszustand.
-  const mode = GRAPHICS_MODES.includes(raw.mode as GraphicsMode)
-    ? (raw.mode as GraphicsMode)
-    : DEFAULT_GRAPHICS.mode;
+  // Ein Stand von gestern trägt noch `mode` (Einfach/Comic) — das Feld gibt es
+  // nicht mehr und wird hier einfach nicht übernommen.
+  const renderer = readRendererKind(raw.renderer);
   const xrScale = XR_SCALES.includes(raw.xrScale as XrScale)
     ? (raw.xrScale as XrScale)
     : DEFAULT_GRAPHICS.xrScale;
@@ -993,7 +942,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     ? (raw.visorBreathStyle as VisorBreathStyle)
     : DEFAULT_GRAPHICS.visorBreathStyle;
   return {
-    mode,
+    renderer,
     xrScale,
     xrRate,
     showFps,
@@ -1033,12 +982,6 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     // Ein Stand von gestern kennt kein Wetter und bekommt keines.
     ...clampWeather(raw),
   };
-}
-
-/** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
-export function nextGraphicsMode(mode: GraphicsMode): GraphicsMode {
-  const index = GRAPHICS_MODES.indexOf(mode);
-  return GRAPHICS_MODES[(index + 1) % GRAPHICS_MODES.length]!;
 }
 
 /** Ein Druck auf den Regler: die nächste Raste, von scharf nach flüssig und wieder von vorn. */
@@ -1158,7 +1101,7 @@ export function nextScreenPads(pads: ScreenPads): ScreenPads {
  * „Gitterlinien" steht, erklärt das Gitter auf dem Boden.
  */
 export function graphicsSummary(
-  settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
+  settings: Pick<GraphicsSettings, 'renderer' | 'xrScale'> &
     Partial<
       Pick<
         GraphicsSettings,
@@ -1222,7 +1165,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${hiding}${grips}${walls}${shade}${blur}${squishy}${breath}${pads}`;
+  return `${RENDERER_SHORT[settings.renderer]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${hiding}${grips}${walls}${shade}${blur}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

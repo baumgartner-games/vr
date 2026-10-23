@@ -90,8 +90,8 @@ export class ModelGhosts {
       // und gehört dem Hervorheben (`core/highlight.ts`), nicht diesem Modell.
       if (!mesh.isMesh || isHighlight(mesh)) return;
       saved.push({ mesh, material: mesh.material, visible: mesh.visible });
-      // **Der schwarze Rand des Comics geht solange weg**: Eine Wand, die
-      // durchsichtig ist und ihren Umriss behält, ist ein Drahtmodell.
+      // **Ein Saum geht solange weg**: Eine Wand, die durchsichtig ist und
+      // ihren Umriss behält, ist ein Drahtmodell.
       if (isOutline(mesh)) {
         mesh.visible = false;
         return;

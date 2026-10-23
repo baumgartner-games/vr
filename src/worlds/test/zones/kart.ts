@@ -35,7 +35,6 @@ import { kaykitSkins } from '../../../core/kaykitHeight';
 import { playPick, playTone } from '../../../core/Audio';
 import { gripAnchor, type Handedness } from '../../../core/XRInput';
 import { visorFrame } from '../../../core/headgear';
-import { denyOutline } from '../../../core/outlineShell';
 import type { WorldContext } from '../../../core/types';
 import {
   ALL_GROUPS,
@@ -1091,7 +1090,6 @@ export class KartZone implements TestZone {
       stack.position.set(spot.x, BARRIER_SIZE.y / 2, spot.z);
       stack.rotation.y = spot.yaw;
       stack.visible = false;
-      denyOutline(stack);
       world.root.add(stack);
       stack.updateWorldMatrix(true, false);
       world.addSolid(stack);

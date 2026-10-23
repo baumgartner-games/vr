@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { intoTarget, showsTarget } from '../../../core/nodeLooksPass';
 import { XrayScope } from './XrayScope';
 import { attachmentPose, saveAttachmentPose } from './gearStore';
 import { poseFromReadout, readPose, type PoseReadout } from './toolPose';
@@ -503,7 +504,8 @@ class TelescopicSight extends Attachment {
       colorSpace: THREE.SRGBColorSpace,
     });
     this.lens = new THREE.Mesh(
-      new THREE.CircleGeometry(0.0155, 28),
+      // Im neuen Renderer mit umgedrehten Texturkoordinaten (`core/nodeLooksPass.ts`).
+      showsTarget(new THREE.CircleGeometry(0.0155, 28)),
       new THREE.MeshBasicMaterial({ map: this.target.texture, toneMapped: false }),
     );
     // At the rear end, facing the eye: a circle looks along +Z.
@@ -571,7 +573,13 @@ class TelescopicSight extends Attachment {
     this.lens.visible = false;
     this.reticle.visible = false;
     renderer.setRenderTarget(this.target);
-    renderer.render(scene, this.camera);
+    // Im neuen Renderer mit Shadern fürs Ziel, ohne Tonemapping (`core/nodeLooksPass.ts`).
+    const leave = intoTarget(renderer);
+    try {
+      renderer.render(scene, this.camera);
+    } finally {
+      leave();
+    }
     renderer.setRenderTarget(previousTarget);
     renderer.xr.enabled = xrEnabled;
     this.lens.visible = true;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { intoTarget, showsTarget } from '../../../core/nodeLooksPass';
 import { Tool, disposeToolTree, type ToolHost } from './Tool';
 import {
   DRONE_FIELDS,
@@ -261,7 +262,8 @@ export class DroneTool extends Tool {
       colorSpace: THREE.SRGBColorSpace,
     });
     this.screen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.148, 0.0925),
+      // Im neuen Renderer mit umgedrehten Texturkoordinaten (`core/nodeLooksPass.ts`).
+      showsTarget(new THREE.PlaneGeometry(0.148, 0.0925)),
       new THREE.MeshBasicMaterial({ map: this.target.texture, toneMapped: false }),
     );
     this.screen.position.set(0, -0.012, 0.0105);
@@ -856,7 +858,13 @@ export class DroneTool extends Tool {
     // The screen must not photograph itself.
     this.screen.visible = false;
     renderer.setRenderTarget(this.target);
-    renderer.render(scene, this.camera);
+    // Im neuen Renderer mit Shadern fürs Ziel, ohne Tonemapping (`core/nodeLooksPass.ts`).
+    const leave = intoTarget(renderer);
+    try {
+      renderer.render(scene, this.camera);
+    } finally {
+      leave();
+    }
     renderer.setRenderTarget(previousTarget);
     renderer.xr.enabled = xrEnabled;
     this.screen.visible = true;

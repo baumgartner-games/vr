@@ -1,3 +1,12 @@
+import {
+  activeRenderer,
+  chosenRenderer,
+  createRenderer,
+  drawStats,
+  syncXrLayers,
+  usingWebGPU,
+} from './appRenderer';
+import { RENDERER_LABELS, RENDERER_SUBS } from './rendererKind';
 import { EdgeTint } from './edgeTint';
 import { isAppleHandheld } from './install';
 import * as THREE from 'three';
@@ -102,10 +111,8 @@ import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } fro
 import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from './headgear';
 import { FIGURE_PRESETS, figureLabel } from './avatarFigures';
 import {
-  GRAPHICS_MODE_LABELS,
   SHADOW_MODE_LABELS,
   SHADOW_MODE_SUBS,
-  GRAPHICS_MODE_SUBS,
   SCREEN_PADS_LABELS,
   VISOR_BREATH_LABELS,
   VISOR_BREATH_SUBS,
@@ -128,7 +135,6 @@ import {
   clearGraphics,
   graphics,
   graphicsSummary,
-  nextGraphicsMode,
   nextShadowMode,
   nextWallOcclusion,
   WALL_OCCLUSION_LABELS,
@@ -514,7 +520,7 @@ export class App {
     this.hooks = hooks;
     this.role = detectFlatRole();
 
-    this.renderer = new THREE.WebGLRenderer({
+    this.renderer = createRenderer(chosenRenderer(), {
       canvas,
       antialias: true,
       powerPreference: 'high-performance',
@@ -537,7 +543,8 @@ export class App {
     // wenn die Grafikkarte es kann; `?batch=instanced` schaltet es zum
     // Vergleichen ab.
     allowMultiDraw(
-      this.renderer.extensions.has('WEBGL_multi_draw') &&
+      !usingWebGPU() &&
+        this.renderer.extensions.has('WEBGL_multi_draw') &&
         new URLSearchParams(location.search).get('batch') !== 'instanced',
     );
 
@@ -2616,13 +2623,10 @@ export class App {
    *
    * Sie steht hier oben neben *Bewegung* und nicht in den Einstellungen einer
    * Welt, und zwar aus demselben Grund: Eine Welt darf den Boden unter dem
-   * Spieler ändern, nie aber seine Augen. Wer im Hub auf *Comic* stellt, will
-   * es im Gokart genauso — und der Hub hat gar keine Weltmenüs, in die eine
-   * Grafikeinstellung passte.
-   *
-   * Eine Zeile, und sie sagt dasselbe zweimal: was gerade gilt, und was ein
-   * Druck daraus macht — der Modus schaltet im Kreis (Einfach → Comic). Was er
-   * tatsächlich anstellt, steht in `core/graphicsSettings.ts`.
+   * Spieler ändern, nie aber seine Augen. Wer im Hub die Schatten ausschaltet,
+   * will es im Gokart genauso — und der Hub hat gar keine Weltmenüs, in die
+   * eine Grafikeinstellung passte. Was jede Zeile anstellt, steht in
+   * `core/graphicsSettings.ts`.
    */
   private graphicsMenu(): MenuEntry {
     const accent = 0xb98bff;
@@ -2647,8 +2651,8 @@ export class App {
       sub: graphicsSummary(settings),
       icon: 'palette',
       accent,
-      // Experimentell und als solches beschriftet: Der Comic kostet Bildrate,
-      // und was auf einer Quest 2 noch flüssig ist, weiß niemand vorher.
+      // Experimentell und als solches beschriftet: Was auf einer Quest 2 noch
+      // flüssig ist, weiß niemand vorher, und der Renderer ist ein Versuch.
       badge: 'EXP',
       children: [
         {
@@ -3014,17 +3018,25 @@ export class App {
         this.visorMenu(accent),
         ...this.povMenu(accent),
         {
-          id: 'gfx:mode',
-          label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
-          sub: GRAPHICS_MODE_SUBS[settings.mode],
-          caption:
-            'Einfach → Comic · alles sofort sichtbar, nur das schärfere Bild ab der nächsten Sitzung',
+          // **Welcher Renderer zeichnet** (`core/rendererKind.ts`). Ein
+          // Renderer lässt sich nicht im laufenden Bild tauschen — die Zeile
+          // speichert die Wahl und lädt die Seite neu; eine VR-Sitzung endet
+          // dabei. Gewünscht: _„Kannst du in Einstellungen es Einbauen dass
+          // ich wechseln kann dazwischen"_.
+          id: 'gfx:renderer',
+          label: `Renderer: ${RENDERER_LABELS[activeRenderer()]}`,
+          sub: RENDERER_SUBS[activeRenderer()],
+          caption: 'WebGL ↔ Multiview · lädt die Seite neu, eine VR-Sitzung endet',
           icon: 'sphere',
           accent,
           run: () => {
-            const next = saveGraphics({ mode: nextGraphicsMode(graphics().mode) });
-            this.menuDirty = true;
-            this.notify(`Grafik: ${GRAPHICS_MODE_LABELS[next.mode]}`);
+            const next = activeRenderer() === 'webgl' ? 'webgpu' : 'webgl';
+            saveGraphics({ renderer: next });
+            this.notify(`Renderer: ${RENDERER_LABELS[next]} · lädt neu …`);
+            // `?renderer=` in der Adresse ginge vor — also fort damit.
+            const url = new URL(location.href);
+            url.searchParams.delete('renderer');
+            setTimeout(() => location.replace(url.toString()), 400);
           },
         },
         {
@@ -4417,11 +4429,14 @@ export class App {
       // Die Fernebene der App — im Weltbau im Maßstab des Gestells (`syncFlight`).
       CAMERA_FAR / (this.rig.flying ? BUILD_SCALE : 1),
     );
+    // Unschärfe und Wetter sind ein Durchgang mit eigenem Shader — im neuen
+    // Renderer (`core/appRenderer.ts`) als Knotenmaterial (`core/nodeLooksPass.ts`).
     const pass = blur !== null || weather !== null;
     if (pass) this.levelBlur.begin();
     // **Im Weltbau der Brille ist das Gestell zehnfach groß** — die Lichter
     // werden für dieses Bild in seinen Maßstab umgerechnet (`core/viewLights.ts`).
     this.viewLights.scale(this.scene, presenting ? this.rig.scale.x : 1);
+    if (presenting) syncXrLayers(this.renderer, this.camera);
     const timed = this.frameStats.visible;
     if (timed) this.gpuTimer.begin();
     try {
@@ -4447,7 +4462,7 @@ export class App {
     const sample = this.frameStats.update(
       time,
       performance.now() - started,
-      this.renderer.info.render,
+      drawStats(this.renderer),
       this.gpuTimer.available ? `GPU ${gpuText(this.gpuMs)}` : '',
     );
     if (sample) {

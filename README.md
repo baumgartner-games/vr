@@ -257,8 +257,9 @@ Unter **Menü → Einstellungen → Grafik** steht das Häkchen **Schatten** —
 hellste Sonne der Welt wirft sie, weich und über den Kopf mitwandernd, und das
 Grundlicht geht dafür etwas herunter. Es ist der erste Regler, wenn die
 Bildrate klemmt. Darunter der experimentelle
-**Grafik-Modus**: _Einfach_ sind flache Farben, _Comic_ zeichnet dieselbe
-Welt mit **schwarzen Konturen** und Licht in Stufen. Darunter
+**Renderer**: _WebGL_ ist der bewährte, _Multiview_ ein Versuch mit three's
+WebGPURenderer, der in der Brille beide Augen in einem Zeichenaufruf zeichnet
+(lädt die Seite neu; was er noch nicht kann, fehlt dort). Darunter
 **Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
 Headset, ab der nächsten Sitzung — ganz oben die **Bildrate** selbst, live,
 auch in der Brille, und als Häkchen **Bildrate im Bild** das kleine Feld unten

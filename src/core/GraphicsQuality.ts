@@ -25,8 +25,8 @@ import { aimSun, applySceneQuality } from './graphicsScene';
  *
  * - **Den Renderer stellen** — Schattenkarte an oder aus, Schärfe und Foveation
  *   der Brille. Einmal beim Umschalten.
- * - **Die Szene ablaufen** — wer wirft Schatten, wer bekommt Farbstufen und
- *   eine Kontur (`graphicsScene.ts`). Nicht einmal, sondern immer wieder: In
+ * - **Die Szene ablaufen** — wer wirft Schatten, wie hell das Grundlicht ist
+ *   (`graphicsScene.ts`). Nicht einmal, sondern immer wieder: In
  *   diesen Welten kommen Dinge nach, und ein Zombie ohne Schatten neben einem
  *   mit sieht schlimmer aus als eine Welt ganz ohne.
  *
@@ -76,7 +76,7 @@ export class GraphicsQuality {
     this.stopListening = onGraphicsChange(() => this.refresh());
     this.renderer.xr.addEventListener('sessionstart', this.applyRate);
     this.applyRenderer();
-    this.touched = this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows;
+    this.touched = this.profile.lightShadows;
   }
 
   /** Ob die Szene dieser Welt schon einmal abgelaufen wurde. */
@@ -92,24 +92,19 @@ export class GraphicsQuality {
   }
 
   /**
-   * **Ob der Durchlauf überhaupt etwas zu tun hätte.** In der einfachen Stufe
-   * stellt er nur zurück, was der Comic einmal verändert hat — und wo der
-   * Comic in dieser Sitzung nie an war, gibt es nichts zurückzustellen. Der
+   * **Ob der Durchlauf überhaupt etwas zu tun hätte.** Ohne Schatten stellt
+   * er nur zurück, was die Schatten einmal verändert haben — und wo sie in
+   * dieser Sitzung nie an waren, gibt es nichts zurückzustellen. Der
    * Durchlauf über ein paar tausend Objekte je Sekunde war dann ein Ruckler
-   * für nichts, in der Brille am deutlichsten. Sobald der Comic einmal an war,
-   * bleibt das Nachsehen an (`touched`): Ein Zombie, der im Käfig einen Saum
-   * bekam und erst nach dem Umschalten herauskommt, soll ihn wieder loswerden.
+   * für nichts, in der Brille am deutlichsten. Waren sie einmal an, bleibt
+   * das Nachsehen an (`touched`): Was danach aus einem Käfig kommt, soll
+   * seinen Schatten wieder loswerden.
    */
   private get rescans(): boolean {
-    return (
-      this.touched ||
-      this.profile.lightShadows ||
-      this.profile.outlines ||
-      this.profile.toonBands > 0
-    );
+    return this.touched || this.profile.lightShadows;
   }
 
-  /** Ob der Comic in dieser Sitzung je an war. */
+  /** Ob die Schatten in dieser Sitzung je an waren. */
   private touched = false;
 
   /** Läuft in jedem Bild, vor dem Zeichnen. */
@@ -185,8 +180,7 @@ export class GraphicsQuality {
     );
     this.since = 0;
     this.scanned = true;
-    if (this.profile.outlines || this.profile.toonBands > 0 || this.profile.lightShadows)
-      this.touched = true;
+    if (this.profile.lightShadows) this.touched = true;
   }
 
   /** Ob in der Brille das Menü offen ist — dann ohne Foveated Rendering (`setMenuOpen`). */

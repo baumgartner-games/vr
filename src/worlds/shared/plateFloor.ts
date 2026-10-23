@@ -329,9 +329,7 @@ export class PlateFloor {
     // einen Kasten von 32 m ab (`core/graphicsSettings`). Gesagt wird es über
     // die Marke **Kulisse**: `applySceneQuality` schaltet `castShadow` sonst
     // an jedem undurchsichtigen Netz wieder ein, und an einer Kulisse tut es
-    // das nicht (`core/graphicsScene.ts`) — dieselbe Marke spart dem Boden
-    // auch den schwarzen Saum im Comic-Modus, der hier ein Strich um jede der
-    // zehntausend Platten wäre.
+    // das nicht (`core/graphicsScene.ts`).
     bundle.receiveShadow = true;
     markBackdrop(bundle);
     this.place(bundle);

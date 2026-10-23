@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { ViewLevel } from './cutaway';
 import type { WeatherLook } from './weather';
+import { usingWebGPU } from './appRenderer';
+import { intoTarget, levelBlurNodeMaterial } from './nodeLooksPass';
 
 /**
  * **Die Etagen darunter, unscharf** — von oben, sobald man über einer steht.
@@ -45,6 +47,11 @@ import type { WeatherLook } from './weather';
  * Getönt wird im Durchgang und nicht in der Textur: three.js zeichnet in ein
  * Ziel linear und ohne Tone Mapping, und die Textur hat halbe Fließkommazahlen,
  * damit die Sonne nicht vor dem Tone Mapping an der 1 abgeschnitten wird.
+ *
+ * **Im neuen Renderer** (_Grafik → Renderer: Multiview_) ist der Durchgang
+ * dieselbe Rechnung als Knotenmaterial (`core/nodeLooksPass.ts`), gebaut,
+ * sobald es die Textur gibt; und die Szene zeichnet ins Ziel mit Shadern
+ * ohne Tonemapping (`intoTarget`) — sonst wäre sie doppelt getönt.
  */
 
 /** Ab wie viel unter dem eigenen Boden es unscharf wird — die Dicke der Decke darunter. */
@@ -248,7 +255,7 @@ void main() {
 export class LevelBlur {
   private target: THREE.WebGLRenderTarget | null = null;
   private readonly size = new THREE.Vector2();
-  private readonly material = new THREE.ShaderMaterial({
+  private material = new THREE.ShaderMaterial({
     uniforms: {
       tColor: { value: null },
       tDepth: { value: null },
@@ -282,6 +289,8 @@ export class LevelBlur {
   private readonly quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   /** Worauf das Bild gerade gezeichnet wird, solange `begin` gilt. */
   private active = false;
+  /** Im neuen Renderer: was nach dem Bild den Zusammenhang zurückstellt (`intoTarget`). */
+  private leave: (() => void) | null = null;
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {
     this.quad.frustumCulled = false;
@@ -306,11 +315,36 @@ export class LevelBlur {
       });
       target.texture.name = 'level-blur';
       this.target = target;
+      // Der neue Renderer bekommt sein Knotenmaterial mit genau diesen Texturen.
+      if (usingWebGPU()) this.useNodeMaterial(target);
     } else if (target.width !== width || target.height !== height) {
       target.setSize(width, height);
     }
     renderer.setRenderTarget(target);
+    this.leave = intoTarget(renderer);
     this.active = true;
+  }
+
+  /** Den Durchgang als Knotenmaterial (`core/nodeLooksPass.ts`), für die Textur eines neuen Ziels. */
+  private useNodeMaterial(target: THREE.WebGLRenderTarget): void {
+    const node = levelBlurNodeMaterial(target.texture, target.depthTexture!, {
+      start: LEVEL_BLUR_START,
+      full: LEVEL_BLUR_FULL,
+      aboveStart: LEVEL_BLUR_ABOVE_START,
+      aboveFull: LEVEL_BLUR_ABOVE_FULL,
+      taps: TAPS,
+    });
+    if (!node) return;
+    this.material.dispose();
+    this.material = node;
+    this.quad.material = node;
+  }
+
+  /** Zurück aus dem Ziel, auch im Zusammenhang des neuen Renderers. */
+  private stop(): void {
+    this.leave?.();
+    this.leave = null;
+    this.renderer.setRenderTarget(null);
   }
 
   /**
@@ -328,7 +362,7 @@ export class LevelBlur {
     if (!this.active || !this.target) return;
     this.active = false;
     const renderer = this.renderer;
-    renderer.setRenderTarget(null);
+    this.stop();
     const uniforms = this.material.uniforms;
     uniforms['tColor']!.value = this.target.texture;
     uniforms['tDepth']!.value = this.target.depthTexture;
@@ -365,7 +399,7 @@ export class LevelBlur {
 
   /** Den Speicher der Textur wieder hergeben — wer ausschaltet, zahlt nicht weiter. */
   release(): void {
-    if (this.active) this.renderer.setRenderTarget(null);
+    if (this.active) this.stop();
     this.active = false;
     this.target?.depthTexture?.dispose();
     this.target?.dispose();

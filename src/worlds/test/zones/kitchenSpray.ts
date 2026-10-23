@@ -582,7 +582,7 @@ const PUFF_HOLD = 0.72;
  */
 const PUFF_ALPHA = 0.42;
 
-/** Das Weiß des Löschmittels — kein reines, das wäre im Comic-Licht ein Loch. */
+/** Das Weiß des Löschmittels — kein reines, das wäre im hellen Licht ein Loch. */
 const PUFF_WHITE = 0xeef4fb;
 
 /**

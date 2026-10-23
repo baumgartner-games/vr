@@ -3,8 +3,8 @@
 Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 über alle, und dort stehen die Arbeitsregeln.
 
-_Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Der Grafik-Modus
-und die Auflösung der Brille sind Experimente, und beide kosten Bildrate.
+_Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Der Renderer
+und die Auflösung der Brille sind Experimente.
 
 **Schattenmodus** (`GraphicsSettings.shadows`, Typ `ShadowMode`, seit Welle 4):
 _Menü → Grafik → Schatten_ wechselt zwischen **Aus** und **Einfach (Kreis)**
@@ -45,8 +45,8 @@ _Voll_). Der Konfig-Code trägt keine Grafikeinstellung und bleibt unberührt.
 
 **Die Geschichte:** Schatten wurden ein eigener Schalter und waren ab Werk
 **an**. Das war einmal anders, und die Änderung ist eine Antwort auf eine
-Beschwerde: Sie hingen am Comic, also am Bild mit schwarzen Konturen und Licht
-in Stufen — wer nur Schatten wollte, bekam eine Zeichnung dazu, und wer die
+Beschwerde: Sie hingen am Comic (unten, inzwischen heraus), also am Bild mit
+schwarzen Konturen und Licht in Stufen — wer nur Schatten wollte, bekam eine Zeichnung dazu, und wer die
 Zeichnung nicht wollte, bekam eine Welt, in der alles einen Zentimeter über dem
 Boden schwebt. Das sind zwei Fragen, also sind es zwei Schalter. Das Vorbild
 ist Overcooked: Dort sitzt jede Figur und jeder Tresen in einem weichen
@@ -55,89 +55,251 @@ Schlagschatten, und er ist es, der aus einer Ansicht von schräg oben einen
 macht ihn aus — er ist der erste Regler, an dem man dreht, wenn die Bildrate
 klemmt.
 
-Daneben stehen **zwei Stufen**:
+## Der Renderer: WebGL oder Multiview
 
-- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine Kontur
-  und keine Farbstufen.
-- **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
-  Ding, Licht, das in **Stufen** auf den Flächen liegt statt in einem Verlauf,
-  und ein **schärferes Bild** in der Brille (`framebufferScale` 1,2, Foveation
-  0,3 statt 1).
+_Menü → Grafik → Renderer_ (`GraphicsSettings.renderer`, `core/rendererKind.ts`,
+gebaut in `core/appRenderer.ts`). Gewünscht nach der Schätzung, dass
+Multiview Haunting 3–5 ms je Bild sparen könnte: _„Kannst du in Einstellungen
+es Einbauen dass ich wechseln kann dazwischen"_ (Oktober 2026).
 
-**Was „Einfach ist, was bisher war" heute noch heißt.** Der Satz stand hier
-lange als Prüfbedingung, und an genau einer Stelle stimmt er nicht mehr: an
-den Schatten. Alles andere gilt weiter, und der Test daneben prüft es — mit
-`shadows: false` ist jede Zahl im einfachen Profil der Wert, den `App` ohnehin
-setzt (`graphicsSettings.test.ts`).
+- **WebGL (bewährt)** — der `THREE.WebGLRenderer`, mit dem alles gebaut ist.
+  In der Brille zeichnet er **jedes Auge einzeln**, jeder Zeichenaufruf zählt
+  doppelt (three r185 kann Multiview nur im neuen Renderer).
+- **Multiview (Versuch)** — three's `WebGPURenderer` mit `forceWebGL: true`
+  und `multiview: true`: dieselbe WebGL-2-Schnittstelle, aber in der Brille
+  **beide Augen in einem Aufruf** (`OVR_multiview2`). Gemessen in der
+  nachgestellten Brille (`npm run perf:haunting -- --renderer=webgpu`,
+  Übungsrunde vor dem ersten Schrank, je drei Läufe): **232 → 90
+  Zeichenaufrufe** je Bild und **7,9 → 4,1 ms** JavaScript in `render()`
+  (`--multiview=0`, derselbe Renderer, jedes Auge einzeln: 220 Aufrufe,
+  6,5 ms). Ob das auf der Quest fps bringt, sagt erst das Schild dort.
+  **Am Schirm** (ohne Brille, also ohne Multiview, `npm run fps --
+  --cases=basis,webgpu`, SwiftShader) ist er dagegen **langsamer**: Bildzeit
+  Hub +64 %, Haunting +47 %, Hexland +24 %, bei gleich vielen Aufrufen — die
+  Knoten-Shader sind schwerer, und die Ruckler (1 %) beim ersten Übersetzen
+  sind deutlich größer.
 
-**Es waren einmal drei.** Dazwischen stand **Schön** — Schatten,
-Spiegelungen aus einem Umgebungsbild des Weltenhimmels, schärferes Bild —, und
-daneben ein zweiter Schalter für **prozedurale Texturen**: ein Rauschen im
-Shader, das jeder Oberfläche Körnung, Farbunruhe und eine leichte Unebenheit
-gab, gerechnet aus der Weltposition statt aus einer Bilddatei. Beides ist
-wieder heraus, und zwar vollständig: die Stufe, der Schalter, das
-Umgebungsbild samt `PMREMGenerator` in `GraphicsQuality` und der ganze
-Shader-Umbau in `materialLook.ts`. Was bleibt, ist die Frage, für die es die
-Seite gibt — flach oder gezeichnet. Ein gespeicherter Stand, der noch `fancy`
-sagt, fällt beim Lesen auf _Einfach_ zurück (`clampGraphics`); ein `textures:
-true` daneben wird gelesen und nicht übernommen.
+**Gewechselt wird mit Neuladen.** Ein Renderer lässt sich nicht im laufenden
+Bild tauschen; die Zeile speichert die Wahl und lädt die Seite neu, eine
+VR-Sitzung endet dabei. `?renderer=webgpu|webgl` in der Adresse geht vor (zum
+Messen), die Zeile nimmt ihn beim Neuladen heraus. Der neue Renderer ist ein
+**eigener Chunk** (`three-webgpu`, rund 670 kB, `vite.config.ts`): Wer WebGL
+fährt, lädt ihn nie; `main.startApp` holt ihn vor dem Bau der App, weil der
+Konstruktor nicht warten kann.
 
-## Die schwarze Kante
+**Was im neuen Renderer anders ist** — er kennt kein `ShaderMaterial` und kein
+`onBeforeCompile`:
 
-Eine Kontur um alles gibt es auf zwei Arten, und die naheliegende fällt hier
+- **Nachgebaut als Knotenmaterial** (`core/nodeLooks.ts`, TSL): der Himmel,
+  die Säume (`outlineShell.ts`: Ziel und Beute in Haunting), die gelbe
+  Hervorhebung (`highlight.ts`), der dunkle Rand der Bewegungshilfe
+  (`HauntingComfort`), der beschlagene Helm und das beschlagene Visier
+  (ohne das Rauschen am Rand des Fächers). Jedes trägt ein `uniforms`-Feld
+  wie ein `ShaderMaterial`, hinter jedem Namen ein Knoten mit `.value` — die
+  Aufrufer merken nichts.
+- **Punkte mit Größe als Quadrate** (`core/nodeLooksPoints.ts`): Funken,
+  Rauch und Feuer in der Station (`ShipEffects`), Lampenschein und
+  Lampenmarken (`Lamps`). Der neue Renderer zeichnet `THREE.Points` nur einen
+  Bildpunkt groß (kein `gl_PointSize`). Deshalb ist dort jeder Punkt eine
+  Instanz eines Quadrats: `pointGeometry()` macht die Attribute der Aufrufer
+  zu Instanz-Attributen (`setDrawRange(0, n)` setzt die Zahl der Instanzen),
+  `pointsObject()` gibt ein `Mesh` als „`Points`" zurück, und der
+  Eckpunkt-Knoten schiebt die Ecken um genau die Bildpunkte, die
+  `gl_PointSize` hätte. Wie bei echten Punkten liegt das Quadrat in der Tiefe
+  der Mitte, fällt ganz weg, wenn die Mitte aus dem Bild fällt, und wird auf
+  `ALIASED_POINT_SIZE_RANGE` gedeckelt. Unter WebGL kommen die alten
+  `Points` und Shader heraus. **Eine Falle dabei**: `TSL.renderOutput` gibt
+  vormultipliziert aus; mit gewöhnlicher Mischung (`SRC_ALPHA`) zählte die
+  Deckkraft doppelt — der Rauch wurde dunkel, das Feuer klein.
+  `inlineOutput` rechnet deshalb für alle Materialien ohne
+  `premultipliedAlpha` nur die Farbe um und stellt die Deckkraft daneben.
+- **Tapete, Wandschnitt und Torscheibe** (`core/nodeLooksWalls.ts`): Der
+  Zwilling einer Wand mit Tapete (`house/wallpaperSkin.twinOf`) und der
+  abschneidende Zwilling (`grid/wallCut.wallCutTwin`) sind dort ein
+  Knotenmaterial derselben Klasse, wie es der Renderer selbst aus dem Regal
+  machte (`NodeLibrary.fromMaterial`: jedes Feld hinübergeschrieben), plus
+  Knoten — die Tapete als `colorNode` (Seite nach der Weltnormale, Muster in
+  Metern längs der Wand) und ihr Vorschau-Leuchten als `emissiveNode`, der
+  Schnitt als `maskNode` (`positionWorld.y` über der Schnitthöhe, mit
+  Instanzen und Bündeln) und die dunklere Schnittfläche als `outputNode`
+  (`output` mal 0,55 auf Rückseiten — wie unter WebGL **nach** Tonemapping
+  und sRGB). **Die Kombination** geht von selbst: Ein Knotenmaterial wird für
+  den Schnitt geklont, der Klon teilt die Knoten und damit die Uniforms der
+  Tapete. `skinWall` schreibt weiter in `uniforms.uWp….value`, jetzt Knoten.
+  Der Platzhalter der Tapete ist dort **sRGB** — der Renderer entscheidet beim
+  Übersetzen nach der Textur im Knoten, ob er umrechnet. Die Torscheibe
+  schreibt wie ihr `ShaderMaterial` roh ins Bild (ohne Tonemapping, ohne
+  sRGB): `outputNode` an `setupOutput` vorbei, dazu `userData.rawOutput`.
+  Gemessen mit festgehaltener Zeit gleich bis auf < 1 von 255 je Kanal
+  (Tapete mit und ohne Leuchten in `#hausbau`, Tor im Hub), der Schnitt von
+  oben in `#hausbau` und `#plateup` deckungsgleich.
+- **Hexland bewegt sich wie unter WebGL** (`worlds/hexland/hexNodeLooks.ts`,
+  TSL): die weiße Windspur, das Wiegen von Bäumen, Weizen und Büschen, die
+  Mühlenflügel, die weiche Kante jeder Kachel und das Glitzern des Wassers
+  den Fluss hinab. `swayMaterial`, `fanMaterial` und `bevelEdges` geben im
+  neuen Renderer statt des Materials mit `onBeforeCompile` eine **Kopie als
+  Knotenmaterial** zurück (Feld für Feld abgeschrieben wie three's eigene
+  Übersetzung, `NodeLibrary.fromMaterial`), dieselben Zahlen, dieselben
+  Uniformen aus `ANIM`. Zwei Stellen sind gebaut, nicht übersetzt: Den Fuß
+  eines Baums (`instanceMatrix[3]`) gibt three's Instanzierung nicht heraus,
+  also instanziert das Wiegen selbst — im selben Puffer, dessen Fassung der
+  Instanzmatrix folgt. Und die Schleifen über die sechs Kanten des Flusses
+  sind ausgerollt; welche Kanten sich gegenüberliegen oder treffen, steht
+  ja fest.
+- **Was keinen Nachbau hat, fehlt** (unsichtbar statt falsch: ein unbekanntes
+  `ShaderMaterial` wird mit einem Ersatz übersetzt, der weder Farbe noch
+  Tiefe schreibt, `appRenderer.hideUnported` — vorher lag die Windspur in
+  Hexland als schwarzer Balken auf dem Brett). Bekannt ist keine solche
+  Stelle mehr; wer ein neues `ShaderMaterial` baut, baut den Nachbau dazu.
+- **Unschärfe von oben, Wetter, Kamerabilder** (`core/nodeLooksPass.ts`):
+  Der Durchgang über das fertige Bild (`levelBlur.ts`: Etagen unscharf,
+  Nebel, Tageszeit, Filter) ist dieselbe Rechnung als Knotenmaterial, gebaut,
+  sobald es die Textur des Ziels gibt; ins Bild gezeichnet hängt
+  `inlineOutput` Tonemapping und sRGB an wie unter WebGL die beiden
+  `#include`. Zwei Fallen dabei, beide in `nodeLooksPass` gelöst:
+  - **Ein eigenes Ziel braucht eigene Shader.** Ob Tonemapping und sRGB an
+    die Ausgabe gehören, entscheidet `inlineOutput` beim Übersetzen — aber
+    three übersetzt nur einmal je Material und Umgebung, und „Bild oder Ziel"
+    gehört nicht dazu. Ohne Gegenmittel zeichnete ein Material, das schon im
+    Bild stand, ins Ziel mit Tonemapping (doppelt getönt), und umgekehrt.
+    `intoTarget(renderer)` tauscht deshalb um jedes Zeichnen in ein eigenes
+    Ziel `renderer.contextNode` gegen einen eigenen Zusammenhang — dessen
+    Kennzeichen geht in den Schlüssel ein, wie bei three's eigenen
+    Quad-Ebenen (`XRManager.renderLayers`). In der Brille nimmt es außerdem
+    solange das Ausgabeziel weg; sonst übersetzte er mit Multiview auch für
+    das Ziel mit nur einer Ebene. Spiegel und Portale gehen in der Brille
+    den anderen Weg — ihre Ziele haben selbst zwei Ebenen (unten).
+  - **Ein eigenes Ziel liest er kopfstehend** (`TextureNode`, `isFlipY` —
+    so legt es WebGPU ab). Der Durchgang liest deshalb umgedreht, die
+    Bildfläche der Drohne und die Linse des Zielfernrohrs bekommen
+    umgedrehte Texturkoordinaten (`showsTarget`).
+
+  Die Drohne (`DroneTool.renderFeed`) und das Zielfernrohr
+  (`attachments.TelescopicSight`) zeichnen über `intoTarget`; der
+  Statusleisten-Ton auf iPhone/iPad (`edgeTint.ts`) liest im neuen Renderer
+  ausdrücklich vom Bild (er kann nach einem eigenen Ziel dessen Lese-Puffer
+  gebunden lassen). Das **Wetter in der Brille** (`weatherXr.ts`: `THREE.Fog`,
+  `toneMappingExposure`, Farben der Himmelskuppel) und die **Menü-Ebene**
+  (`ui/XRMenuLayer.ts`: `getBinding`, `getBaseLayer`, Quad-Ebene,
+  `texSubImage2D` mit gemerktem und zurückgestelltem Zustand) laufen im
+  neuen Renderer unverändert — geprüft in der nachgestellten Brille mit und
+  ohne Multiview.
+
+- **Spiegel und Portale** (`shared/screenViewNodes.ts`, Oktober 2026) zeichnen
+  wie im alten — am Schirm, in der Brille ohne und mit Multiview, samt
+  schiefer Nahebene, Ausschnitt je Sicht, Portaltiefe und Spiegel im Portal.
+  Was dafür anders ist:
+  - Die **Flächen** sind Knotenmaterialien mit derselben Rechnung
+    (`mirrorNodeMaterial`, `portalNodeMaterial`). Abgelesen wird an
+    `gl_FragCoord`, nicht an `screenCoordinate` — das kippt three um die Höhe
+    des *Schirms*, und die ist in der Brille nicht die des Puffers. Das Ziel
+    liest three ohnehin kopfüber (`TextureNode.setupUV`), die Rechnung dreht
+    es zurück. Tonemapping und sRGB hängt `inlineOutput` an, wenn die Fläche
+    ins Bild geht, und nicht, wenn sie in einem Ziel steht (geprüft:
+    `getRenderTarget() !== null`; die übersetzten Programme trennt three nach
+    Art des Ziels, `RenderObject.getMaterialCacheKey` → `context.id`, also
+    gerät keines vom Schirm in ein Ziel oder umgekehrt).
+  - **Aussortierung umgedreht** für den Spiegel: `state.setCullFace` gibt es
+    im WebGL-Teil des neuen auch (`backend.state`), und sein `setMaterial`
+    rührt es genauso wenig an.
+  - **Viewport und Schere** zählt der neue von **oben** (`updateViewport`:
+    `height − h − y`), die Schere schaltet er am Renderer ein, nicht am Ziel
+    (`renderContext.scissor` fragt `canvasTarget._scissorTest`) —
+    `flipTargetRect`, `setScissorTest` um die Portalsichten.
+  - **In der Brille mit der Kamera der Brille.** Eine eigene `ArrayCamera`
+    wie im alten geht nicht: Die Kameramatrizen für mehrere Augen sind *ein*
+    Knoten für alle Materialien (`accessors/Camera.js`,
+    `_cameraProjectionMatrixArray.array = …` beim Übersetzen), der auf die
+    Kamera zeigt, mit der zuletzt irgendein Material übersetzt wurde — das
+    nächste Brillenbild stünde in den Augen des Spiegels. `XrEyeLoan` leiht
+    sich deshalb die Brillenkamera, schreibt die Sicht hinein (Lage,
+    Projektion, Viewport, Ebenen, auch die Lage der Kamera selbst, aus der
+    three die Lichter ins Auge rechnet, `lightViewPosition`) und legt danach
+    alles zurück; solange hält sie `matrixWorldAutoUpdate` aus.
+  - **Mit Multiview** zeichnet die Brille beide Augen in ein Texturfeld mit
+    zwei Ebenen, und dann muss *jede* Sicht dasselbe tun: Der Renderer
+    übersetzt alles mit `layout(num_views = 2)`, sobald das Ziel der Brille
+    Multiview ist (`NodeManager._createNodeBuilder` fragt
+    `getOutputRenderTarget().multiview`, nicht das Ziel des Durchgangs). Also
+    entsteht jede Spiegel- und Portalsicht in einem Ziel mit zwei Ebenen, in
+    **einem** Durchgang für beide Augen, und die Fläche liest in der Ebene
+    ihres Auges (`gl_ViewID_OVR`, im Eckpunkt gelesen). Ein Portal schneidet
+    dann auf die Vereinigung beider Augenrechtecke zu, weil beide Ebenen
+    einen Viewport teilen. Die Größe einer Ebene ist die des Brillenziels,
+    nicht der Viewport der Augen — three zeichnet mit Multiview über das ganze
+    Ziel (`layeredFrameSize`). Gemessen (`npm run perf:haunting -- --portals`,
+    je ein Lauf): WebGL 356 Zeichenaufrufe und 3 Durchgänge je Bild, neuer
+    Renderer ohne Multiview 308 und 3, mit Multiview **185 und 2**.
+  - Geprüft in Bildern: am Schirm und in der nachgestellten Brille
+    (`&multiview=0`, beide Augen mit `bgvrXr.stereoEnabled = true`) sehen
+    Portalsicht und Spiegelbild aus wie unter WebGL. Mit Multiview zeigt die
+    Simulation kein Bild; die beiden Ebenen des Brillenziels lassen sich aber
+    auslesen (`framebufferTextureLayer` + `readPixels`), und darin stehen
+    Portal und Spiegel richtig — gestreckt, weil die Simulation die doppelte
+    Breite meldet.
+- **Zwei Eigenheiten ausgeglichen**: Der neue reicht `camera.layers` nicht an
+  die Augen weiter — ohne `appRenderer.syncXrLayers` fehlte in der Brille der
+  Helm um den Blick (`LAYER_EYE`). Und er ruft für Multiview mit
+  Kantenglättung `framebufferTextureMultisampleMultiviewOVR` an
+  `OVR_multiview2` auf, das zu `OCULUS_multiview` gehört — `patchMultiview`
+  leiht es sich dort oder hängt ohne Glättung an (die nachgestellte Brille).
+- **Kein Zwischenpuffer** (`appRenderer.inlineOutput`): Der neue Renderer
+  zeichnet sonst jedes Bild mit Tonemapping oder sRGB erst in einen eigenen
+  Puffer und kopiert es in einem zweiten Durchgang hinüber — in der Brille je
+  Auge. Am Schirm war das fast die doppelte Bildzeit (Hub +99 % statt +64 %).
+  Jetzt rechnet jedes Knotenmaterial beides selbst an seine Ausgabe, wie der
+  alte Renderer; für den Puffer meldet er „nichts zu tun". Nebenbei verschwand
+  der Blaustich des Visiers. Und weil die Brille dann je Bild einen Puffer
+  foveieren will, den es nicht gibt, ist `foveateBoundTexture` abgesichert.
+- **Zählen**: `render.calls` zählt bei ihm Aufrufe von `render()`, die
+  Zeichenaufrufe stehen in `drawCalls` (`appRenderer.drawStats` fürs Schild).
+  Die GPU-Zeit misst `gpuTimer.ts` weiter, holt sich den Zusammenhang aber
+  erst nach dem ersten Bild — vorher gibt es ihn nicht.
+- In der nachgestellten Brille bleibt das Bild **mit** Multiview schwarz: Die
+  Simulation setzt keine Ebenen aus Texturfeldern zusammen („texture-array
+  layers … questionably in the polyfill"). Aussehen also mit
+  `&multiview=0` prüfen; ob Multiview richtig zeichnet, sieht man nur auf der
+  Quest.
+
+### Der Comic ist heraus (Oktober 2026)
+
+Bis hierher gab es zwei Stufen, **Einfach** und **Comic** — dieselbe Welt als
+Zeichnung, mit einer schwarzen Kontur um jedes Ding (eine umgestülpte Hülle,
+`outlineShell.ts`, ein zweiter Zeichenaufruf je Ding: in einer großen
+Außenwelt 869 → 1824), Licht in drei Stufen (`materialLook.ts`, ein Umbau
+der Shader über `onBeforeCompile`) und einem schärferen Bild in der Brille.
+Gewünscht: _„Comic Look kann komplett raus"_. Weg sind die Stufe samt
+Menüzeile, `materialLook.ts`, die Kontur im Szenendurchlauf, `denyOutline`
+und die Felder `toonBands`, `outlines`, `outlineWidth`, … im Profil; ein
+gespeicherter Stand mit `mode` wird gelesen und nicht übernommen. **Geblieben**
+ist die Hülle selbst (`outlineShell.ts`): Haunting legt mit ihr gezielt den
+gelben und den türkisen Saum, `highlight.ts` borgt sich ihre geglätteten
+Normalen — die Abschnitte über die Hülle unten gelten dafür weiter.
+
+**Es waren einmal drei.** Vor dem Comic stand **Schön** — Schatten,
+Spiegelungen aus einem Umgebungsbild, schärferes Bild — und ein Schalter für
+**prozedurale Texturen**. Beides war schon vorher vollständig heraus.
+
+## Die Hülle (der Saum)
+
+Eine Kontur gibt es auf zwei Arten, und die naheliegende fällt hier
 aus: Ein **Nachbearbeitungsschritt** (Bild rendern, Kanten im Tiefen- und
 Normalenbild suchen) braucht einen Zwischenpuffer für das ganze Bild, und den
-gibt eine WebXR-Sitzung nicht her, ohne dass man ihr das Bild aus der Hand
-nimmt, das sie selbst für zwei Augen zusammenbaut. Also der ältere Weg, den
-Comic-Spiele seit zwanzig Jahren gehen: **die umgestülpte Hülle**
-(`core/outlineShell.ts`). Jedes Ding wird ein zweites Mal gezeichnet, in
-Schwarz, ein wenig aufgeblasen, mit den **Rückseiten** nach vorn — sichtbar
-bleibt nur der Saum, der ringsum darüber hinausragt. Kostet einen zweiten
-Zeichenaufruf pro Ding (in einer großen Außenwelt gemessen: 869 → 1824) und
-funktioniert in beiden Augen.
+gibt eine WebXR-Sitzung nicht her. Also **die umgestülpte Hülle**
+(`core/outlineShell.ts`): Das Ding wird ein zweites Mal gezeichnet, ein wenig
+aufgeblasen, mit den **Rückseiten** nach vorn — sichtbar bleibt nur der Saum.
 
-Vier Dinge daran sind Erfahrung und keine Theorie:
+- **Geglättete Normalen** (`bgvrOutlineNormal`), sonst eine Lücke an jeder
+  Ecke eines Quaders; über 24 000 Ecken übersprungen.
+- **Gedeckelt auf einen Anteil des Dings** (ein Achtel seines Radius) — sonst
+  wurde aus einer Dominoreihe eine Reihe Klötze.
+- **Unsichtbar für alles andere**: kein Schatten, eine Marke in `userData`
+  (`isOutline`), ein leeres `raycast`. Wer Objekte abschreibt, lässt ihn aus
+  (Menüzeile) oder nimmt ihn heraus (`stripOutlines` in `cloneVisual`).
+- **Ein eigenes Material je Saum**, mit Skelett bzw. Instanzmatrizen des
+  Dings.
 
-- **Geglättete Normalen.** Ein Quader aus `BoxGeometry` hat an jeder Ecke drei
-  Normalen, eine je Fläche; bläst man entlang dieser auf, fahren die Flächen
-  auseinander und die Kontur bekommt an jeder Ecke eine Lücke. Also liegt neben
-  jeder Geometrie einmalig eine **gemittelte** Normale (`bgvrOutlineNormal`) —
-  ohne die Geometrie selbst anzufassen. Über 24 000 Ecken wird das
-  übersprungen: An einem Berghang fällt eine Ecke nicht auf, ein Ruckler schon.
-- **Gedeckelt auf einen Anteil des Dings.** Ein gleich breiter Saum auf dem
-  Bildschirm heißt: in der Nähe schmal, in der Ferne (in Metern) breit. Der
-  erste Versuch machte aus einer **Dominoreihe eine Reihe
-  schwarzer Klötze** — ein Domino ist zwei Zentimeter breit, und ein Zentimeter
-  Kante ringsherum ist keine Kante mehr, sondern eine Füllung. Jetzt bekommt
-  jedes Ding höchstens ein Achtel seines eigenen Radius.
-- **Unsichtbar für alles andere.** Der Saum wirft keinen Schatten, trägt eine
-  Marke in `userData` und hat ein leeres `raycast` — sonst hätte die Hand
-  plötzlich zwei Kisten unter dem Strahl und bekäme das Kind statt der Kiste.
-  Und wer im Projekt **Objekte abschreibt**, muss ihn kennen: Das kleine Modell
-  in der Menüzeile lässt ihn aus (`denyOutline`, sonst ein schwarzer Klotz in
-  einer vier Zentimeter großen Zeile, und ein Material pro Menü-Neubau, das
-  niemand wegräumt), und die Kopie eines Props nimmt ihn heraus
-  (`stripOutlines` in `cloneVisual` — ein Klon teilt das Material und verliert
-  dabei das leere `raycast`, das ihn harmlos macht). Beide bekommen beim
-  nächsten Durchlauf ihren eigenen.
-- **Ein eigenes Material je Saum**, und ein Skelett bzw. dieselben
-  Instanzmatrizen, wo das Ding eines hat: Ein Wald aus 400 Bäumen soll 400
-  Säume haben und nicht einen am Ursprung, ein Handschuh seinen an der Hand und
-  nicht in der Grundhaltung im Raum. Geteilt wäre das Material auch nur so
-  lange heil, bis die erste Welt beim Verlassen ihren Baum abräumt
-  (`disposeTree`).
-
-Und die **Farbstufen** (`materialLook.ts`) rechnen nicht auf der fertigen
-Farbe, sondern auf dem Licht **ohne** sie: `directDiffuse` ist Beleuchtung mal
-Grundfarbe, und wer das rundet, gibt einer dunklen Kiste eine einzige Stufe und
-einer weißen fünf. Die unterste Stufe ist dabei ausdrücklich **nicht** die
-Null — mit ihr war ein Zimmer, dessen Licht aus zwei Deckenlampen kommt, zur
-Hälfte stockschwarz. Ein Boden von 60 % lässt eine dunkle Fläche
-dunkel bleiben, ohne sie auszulöschen. Die Stufenzahl steht als **Zahl im
-Quelltext** und nicht als Uniform: An ihr hängt der Programmschlüssel, und eine
-Uniform ändert den nicht. Die `#include`-Zeile von three.js, an der der Umbau
-hängt, prüft ein Test gegen den echten Shader — eine umbenannte fiele sonst
-erst in der Brille auf.
+## Der Szenendurchlauf (Schatten)
 
 Und was in der Szene passiert, steht in `core/graphicsScene.ts` — angewendet
 von `core/GraphicsQuality.ts`, das bei der **App** hängt und nicht bei einer
@@ -165,11 +327,10 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   Richtungslichts hängt an keiner Szene, also wird seine Weltmatrix von Hand
   gerechnet.
 - **Das Grundlicht geht mit herunter**, sobald Schatten an sind (Hemisphären-
-  und Umgebungslicht auf 0,76, im Comic auf 0,7). Das ist der unscheinbarste
+  und Umgebungslicht auf 0,76). Das ist der unscheinbarste
   Wert und der wichtigste: Ein Schatten ist nur so dunkel, wie das Licht
   daneben hell ist, und diese Welten leuchten mit 1,5 aus — auf voller Stärke
-  war der schönste Schatten ein Hauch. Weiter herunter geht es nicht: Zwei
-  Farbstufen brauchen Mitteltöne zwischen sich. Ohne Schatten bleibt es, wo es
+  war der schönste Schatten ein Hauch. Ohne Schatten bleibt es, wo es
   war — ein dunkleres Bild ohne Gegenleistung wäre ein Rückschritt.
 
   **Lampen bleiben unangetastet**: Ein Dimmer an der Wand, die Lampe über einer
@@ -178,9 +339,7 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   `userData.dynamicIntensity = true` — sonst merkt sich der Durchlauf den Wert,
   auf dem es gerade steht, als seine Grundhelligkeit. Bei einem Licht, das beim
   Bauen auf 0 steht und erst später angeht (Archivtisch und Fernseher im
-  Haunting), heißt das: Es geht sekündlich wieder aus. Solange Schatten am
-  Comic hingen, fiel das niemandem auf, weil der Durchlauf in der einfachen
-  Stufe gar nicht lief.
+  Haunting), heißt das: Es geht sekündlich wieder aus.
 
 - **Der Rand ist weich** (`shadowRadius`, 1,5 Texel). Das Vorbild hat keine
   harten Kanten, und eine scharfe Silhouette auf einem Kachelboden sieht aus
@@ -189,14 +348,13 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
 - **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
   aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
   mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
-- **Und ohne Schatten, Kontur und Farbstufen wird die Szene nicht jede Sekunde
-  abgelaufen** (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dann nur
-  zurück, was der Comic einmal verändert hat — und wo der Comic in dieser
-  Sitzung nie an war, gibt es nichts zurückzustellen. Ein Gang über ein paar
+- **Und ohne Schatten wird die Szene nicht jede Sekunde abgelaufen**
+  (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dann nur
+  zurück, was die Schatten einmal verändert haben — und wo sie in dieser
+  Sitzung nie an waren, gibt es nichts zurückzustellen. Ein Gang über ein paar
   tausend Objekte je Sekunde war ein Ruckler für nichts, in der Brille am
-  deutlichsten. Einmal je Welt läuft er trotzdem (`scanned`), und sobald der
-  Comic einmal an war, bleibt er an: Der Zombie, der im Käfig einen Saum bekam
-  und erst nach dem Umschalten herauskommt, soll ihn wieder loswerden.
+  deutlichsten. Einmal je Welt läuft er trotzdem (`scanned`), und waren die
+  Schatten einmal an, bleibt er an.
 
 ## Die Brille rechnet kleiner, wenn man es sagt
 
@@ -204,7 +362,7 @@ _Menü → Grafik → Brille: Auflösung_ (`GraphicsSettings.xrScale`, `XR_SCALE
 **Voll** 1 · **Mittel** 0,85 · **Flüssig** 0,7) ist der eine Regler, der auf
 einer Quest **immer** zieht: der Anteil dessen, was die Brille als Puffergröße
 vorschlägt (`XRWebGLLayer.framebufferScaleFactor`, angewendet in
-`GraphicsQuality.applyRenderer`, multipliziert mit dem 1,2 des Comics). Eine
+`GraphicsQuality.applyRenderer`). Eine
 dunkle Station voller Lichter ist am Füllen der Bildpunkte am teuersten, und
 0,7 sind die halben Bildpunkte. Ausgeliefert wird **Voll** — wer nichts
 einstellt, sieht dasselbe Bild wie gestern —, und er gilt **ab der nächsten
@@ -384,7 +542,7 @@ daneben durchsichtig wurde. Jetzt kommt jedes hingestellte Modell
 (`PortalWorld.placedModels`, getragene nicht) mit seinem Collider-Kasten in
 **dieselbe** Rechnung, und durchsichtig wird es über einen Zwilling je Material
 — einmal gebaut, geteilt, am Netz getauscht und nicht am Material, aus demselben
-Grund wie die zweite Palette der Quader. Der schwarze Rand des Comics geht
+Grund wie die zweite Palette der Quader. Ein Saum (`outlineShell.ts`) geht
 solange weg, der gelbe Saum des Hervorhebens bleibt.
 
 ## Die Figur ist von oben nie verdeckt
@@ -461,10 +619,10 @@ _Menü → Grafik → **Wände vorn**_ (`GraphicsSettings.wallOcclusion`, Typ
 `WallOcclusion`) — ein Druck wechselt zwischen zwei Arten. In Spielen heißt
 die ganze Frage **occlusion handling**:
 
-| Zeile im Menü | Name in Spielen | Wie die Wände aussehen |
-| ------------- | --------------- | ---------------------- |
-| **Durchsichtig** — ab Werk | Ghost Walls | durchsichtiger Zwilling, ein Viertel Deckkraft |
-| **Abgeschnitten (Sims)** | Wall Cutaway (_Die Sims_) | bis auf einen Sockel von 0,35 m über den Füßen gekürzt (`CUT_HEIGHT`) |
+| Zeile im Menü              | Name in Spielen           | Wie die Wände aussehen                                                |
+| -------------------------- | ------------------------- | --------------------------------------------------------------------- |
+| **Durchsichtig** — ab Werk | Ghost Walls               | durchsichtiger Zwilling, ein Viertel Deckkraft                        |
+| **Abgeschnitten (Sims)**   | Wall Cutaway (_Die Sims_) | bis auf einen Sockel von 0,35 m über den Füßen gekürzt (`CUT_HEIGHT`) |
 
 **Welche Wände, ist für beide dasselbe** (`worlds/grid/roomWalls.ts`,
 `roomWallsToClear`), wörtlich nach dem Wunsch: _„nur alle Wände in diesem
@@ -532,8 +690,7 @@ ist oben offen; der Zwilling zeichnet deshalb auch die Rückseiten, dunkler
 (`INSIDE_SHADE`), und die offene Kante liest sich wie eine Schnittfläche.
 `ModelGhosts` fragt die geltende Fassung (`wallCut.wallLook`) und baut je
 Fassung und Original einen Zwilling; ein eigenes `onBeforeCompile` des
-Originals (die Tapete) läuft vor dem Schnitt, und der Comic lässt die
-Zwillinge in Ruhe (`bgvrNoLook`).
+Originals (die Tapete) läuft vor dem Schnitt.
 
 **Es waren einmal vier Arten.** Die **Sichtlinie** (`wallsHiding`: nur die
 Wand zwischen Kamera und Figur, bis dahin der einzige Stand) und ein
@@ -1340,7 +1497,7 @@ wirft — ein Pfeil ohne Dicke, dessen Schatten ein schwarzes Blatt wäre —, u
 gehört hat es niemand.
 
 Gesagt wird es deshalb jetzt dort, wo es gelesen wird: `denyShadow(mesh)` in
-`core/graphicsScene.ts`, dieselbe Bauart wie `denyOutline` für die Kontur.
+`core/graphicsScene.ts`.
 
 Wofür man es braucht, außer für aufgemalte Pfeile: **Kästen, die genau
 übereinanderstehen, werfen zusammen den Schatten des breitesten.** Ein Laufband

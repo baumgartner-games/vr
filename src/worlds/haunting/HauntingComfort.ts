@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { comfortBorderNodeMaterial } from '../../core/nodeLooks';
 import type { PlayerRig } from '../../core/PlayerRig';
 import type { Handedness, XRInput } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
@@ -55,17 +56,18 @@ export class HauntingComfort {
     this.applyTurn();
     this.mask = new THREE.Mesh(
       new THREE.PlaneGeometry(2, 2),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false,
-        uniforms: { amount: { value: 0 }, primaryView: { value: 1 } },
-        vertexShader:
-          'varying vec2 vEdge; void main(){vEdge=position.xy;gl_Position=vec4(position.xy,-1.,1.);}',
-        fragmentShader:
-          'varying vec2 vEdge; uniform float amount; uniform float primaryView; void main(){float rim=smoothstep(.46,.94,length(vEdge));gl_FragColor=vec4(0.,0.,0.,rim*amount*primaryView);}',
-      }),
+      comfortBorderNodeMaterial() ??
+        new THREE.ShaderMaterial({
+          transparent: true,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+          uniforms: { amount: { value: 0 }, primaryView: { value: 1 } },
+          vertexShader:
+            'varying vec2 vEdge; void main(){vEdge=position.xy;gl_Position=vec4(position.xy,-1.,1.);}',
+          fragmentShader:
+            'varying vec2 vEdge; uniform float amount; uniform float primaryView; void main(){float rim=smoothstep(.46,.94,length(vEdge));gl_FragColor=vec4(0.,0.,0.,rim*amount*primaryView);}',
+        }),
     );
     this.mask.name = 'haunting-vr-comfort-border';
     this.mask.frustumCulled = false;

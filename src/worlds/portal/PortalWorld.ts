@@ -18332,11 +18332,10 @@ function poseOf(entry: PhysicsBody): Pose7 {
  */
 function cloneVisual(source: THREE.Object3D): THREE.Object3D {
   const clone = source.clone(true);
-  // Der schwarze Saum aus dem Comic-Modus gehört nicht zum Ding, sondern ist
-  // ein zweites Bild davon (`core/outlineShell.ts`): Geklont teilte er sein
-  // Material mit dem Original und verlöre dabei sein leeres `raycast` — die
-  // Kopie hätte also einen Saum, nach dem man greifen kann. Der Durchlauf über
-  // die Szene hängt ihr gleich ihren eigenen an.
+  // Ein Saum gehört nicht zum Ding, sondern ist ein zweites Bild davon
+  // (`core/outlineShell.ts`): Geklont teilte er sein Material mit dem Original
+  // und verlöre dabei sein leeres `raycast` — die Kopie hätte also einen Saum,
+  // nach dem man greifen kann.
   stripOutlines(clone);
   clone.traverse((child) => {
     const mesh = child as THREE.Mesh;
