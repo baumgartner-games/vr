@@ -79,9 +79,11 @@ Im Job `Build` (`.github/workflows/deploy.yml`) laufen bei jedem Push nur noch
 ein Typfehler bricht also dort ab; ein eigener Typecheck-Schritt war doppelt.
 
 **Lint und Format laufen einmal die Woche** (`.github/workflows/lint.yml`,
-montags früh, auch von Hand startbar). Den zuletzt grün geprüften Commit hält
-`.github/lint-commit` fest; hat sich seitdem nichts geändert, läuft nichts. Ist
-der Lauf rot, wird die Datei nicht fortgeschrieben, und GitHub meldet es —
+montags früh, auch von Hand startbar). Verglichen wird mit dem Commit des
+letzten grünen Laufs, den GitHub selbst kennt; hat sich seitdem nichts
+geändert, läuft nichts. Der Lauf schreibt nichts nach `main` (die Regel für
+`main` verlangt den Check `Build` und lehnt so einen Commit ab). Ein roter Lauf
+zählt nicht als geprüft, und GitHub meldet ihn —
 repariert wird mit `npm run lint` und `npm run format`.
 
 WebXR braucht einen sicheren Kontext. `localhost` reicht; für die Brille im
